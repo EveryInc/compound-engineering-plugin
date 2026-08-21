@@ -2,8 +2,12 @@ import { readFileSync } from "fs"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
+function readRepoFile(relativePath: string): string {
+  return readFileSync(path.join(process.cwd(), relativePath), "utf8")
+}
+
 function readSkill(name: string): string {
-  return readFileSync(path.join(process.cwd(), "skills", name, "SKILL.md"), "utf8")
+  return readRepoFile(`skills/${name}/SKILL.md`)
 }
 
 // 2026-08-18: ce-brainstorm's Phase 0.4 task spine moved into
@@ -12,12 +16,9 @@ function readSkill(name: string): string {
 // contract, not a rule that must fire from the window, and the body names
 // phase-0.md as a required read before Phase 0.1, so it is asserted there.
 const skills = {
-  brainstorm: readFileSync(
-    path.join(process.cwd(), "skills/ce-brainstorm/references/phase-0.md"),
-    "utf8",
-  ),
+  brainstorm: readRepoFile("skills/ce-brainstorm/references/phase-0.md"),
   plan: readSkill("ce-plan"),
-  work: readSkill("ce-work"),
+  work: readRepoFile("skills/ce-work/references/workspace-setup.md"),
   codeReview: readSkill("ce-code-review"),
   simplify: readSkill("ce-simplify-code"),
   lfg: readSkill("lfg"),
@@ -25,10 +26,7 @@ const skills = {
 
 // LFG's task-surface handoff rules moved into the required-read reference its
 // body names; the body keeps the pointer and the capability trigger.
-const lfgTaskVisibility = readFileSync(
-  path.join(process.cwd(), "skills", "lfg", "references", "task-visibility.md"),
-  "utf8",
-)
+const lfgTaskVisibility = readRepoFile("skills/lfg/references/task-visibility.md")
 
 describe("task visibility contract", () => {
   test("material workflow skills own a portable task surface", () => {
@@ -44,10 +42,7 @@ describe("task visibility contract", () => {
 
   test("ce-work uses goal-first unit names without redundant ordinal counts", () => {
     // Task derivation and naming live in the reference ce-work's Phase 1 step 3 mandates.
-    const intake = readFileSync(
-      path.join(process.cwd(), "skills/ce-work/references/work-intake.md"),
-      "utf8",
-    )
+    const intake = readRepoFile("skills/ce-work/references/work-intake.md")
     expect(intake).toContain("Add parser coverage (U3)")
     expect(intake).toMatch(/Never use a bare U-ID or lead with the identifier/)
     expect(intake).toMatch(/full unit list is visible.*do not repeat ordinal counts/s)
@@ -56,10 +51,7 @@ describe("task visibility contract", () => {
   // The peer-task rule lives at the routing boundary that starts the peer, which is the
   // reference ce-code-review's spine mandates before any dispatch.
   test("code review surfaces only a cross-model pass that actually started", () => {
-    const route = readFileSync(
-      path.join(process.cwd(), "skills", "ce-code-review", "references", "select-and-route.md"),
-      "utf8",
-    )
+    const route = readRepoFile("skills/ce-code-review/references/select-and-route.md")
     expect(route).toMatch(/job ID is returned.*distinct task.*cross-model adversarial review/s)
     expect(route).toMatch(/Never create this task before a peer starts/)
   })

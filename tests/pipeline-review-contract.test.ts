@@ -17,7 +17,8 @@ function sliceSection(content: string, startAnchor: string, endAnchor: string): 
 async function readCeWorkImplementationContract(): Promise<string> {
   const skill = await readRepoFile("skills/ce-work/SKILL.md")
   const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md").catch(() => "")
-  return `${skill}\n${implementationLoop}`
+  const returnToCaller = await readRepoFile("skills/ce-work/references/return-to-caller.md").catch(() => "")
+  return `${skill}\n${implementationLoop}\n${returnToCaller}`
 }
 
 describe("ce-work review contract", () => {
@@ -61,8 +62,8 @@ describe("ce-work review contract", () => {
   })
 
   // Issue #1351: prose-only review mandate was silently skipped. The always-loaded
-  // SKILL.md surface must carry a done-condition (receipt or fixed skip phrase),
-  // not only a "remember to invoke" stub that defers all enforcement to a lazy ref.
+  // body owns the completion predicate; the required shipping owner owns receipt and
+  // fallback mechanics, including the exact phrases and mechanical exclusions.
   test("standalone shipping has an always-loaded code-review completion gate", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
     const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
@@ -70,20 +71,12 @@ describe("ce-work review contract", () => {
     // Always-loaded body owns the gate (not only the lazy reference)
     expect(content).toContain("Code-review completion gate")
     expect(content).toContain("not done")
-    expect(content).toContain("must not call `ce-commit-push-pr`")
-    expect(content).toContain("artifact_path")
-    expect(content).toContain("status: complete")
-    expect(content).toContain("Code review: skipped (mechanical diff)")
-    expect(content).toContain("Code review: skipped (ce-code-review unavailable)")
-    expect(content).toContain("Code review: harness-native fallback")
-    // Mechanical exclusion of the observed self-justification; multi-file alone is not enough
-    expect(content).toContain("applying external/prior review findings")
-    expect(content).toContain("multi-file mechanical-only")
-    // Named non-substitutes
+    expect(content).toContain("must not call a commit or shipping skill")
+    expect(content).toContain("actual completed `ce-code-review` receipt")
+    expect(content).toContain("exact authorized skip states")
     expect(content).toContain("Never substitute")
     expect(content).toContain("mental self-review")
-    // Standalone-only; return-to-caller keeps caller-owned review
-    expect(content).toContain("does **not** apply in Return-to-Caller Mode")
+    expect(content).toContain("does not apply in Return-to-Caller Mode")
 
     // Reference mirrors gate + ship-handoff bind + mechanical exclusions
     expect(shipping).toContain("Completion gate (standalone shipping)")
@@ -94,6 +87,7 @@ describe("ce-work review contract", () => {
     expect(shipping).toContain("Code review: skipped (mechanical diff)")
     expect(shipping).toContain("Code review: skipped (ce-code-review unavailable)")
     expect(shipping).toContain("Code review: harness-native fallback")
+    expect(shipping).toContain("multi-file mechanical-only")
     expect(shipping).toContain("Never substitute")
   })
 
@@ -264,10 +258,7 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
   ]
 
   test("ce-work return contract owns the verification_evidence field and gates completion on it", async () => {
-    const content = await readRepoFile("skills/ce-work/SKILL.md")
-    // Scope to the Return-to-Caller "Return:" contract, not the whole file — the
-    // field must be documented in the return the caller actually reads.
-    const returnBlock = sliceSection(content, "## Return-to-Caller Mode", "Engine selection (")
+    const returnBlock = await readRepoFile("skills/ce-work/references/return-to-caller.md")
 
     for (const { fact, ceWork } of EVIDENCE_FACTS) {
       expect(returnBlock, `ce-work return contract must document ${fact} ("${ceWork}")`).toContain(ceWork)
@@ -289,8 +280,8 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
       expect(gate, `lfg gate must require ${fact} ("${phrase}")`).toContain(phrase)
     }
 
-    // The gate only demands evidence when behavior changed, and defers test-strategy to ce-work.
-    expect(gate).toContain("When `behavior_change: true`, also require `verification_evidence`")
+    // The field is always present; behavior-changing work makes its contents non-empty and specific.
+    expect(gate).toContain("When `behavior_change: true`, `verification_evidence` must name")
     expect(gate).toContain("Do NOT decide the test strategy inside LFG")
   })
 
@@ -311,8 +302,82 @@ describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
   })
 })
 
+describe("missing-owner blocked seam parity (ce-plan/ce-work -> lfg)", () => {
+  test("every ce-plan owner blocker is structured and artifact presence suppresses retry", async () => {
+    const [cePlan, planBrief, lfg] = await Promise.all([
+      readRepoFile("skills/ce-plan/SKILL.md"),
+      readRepoFile("skills/lfg/references/plan-brief.md"),
+      readRepoFile("skills/lfg/SKILL.md"),
+    ])
+    const cePlanEnvelope = sliceSection(
+      cePlan,
+      "In pipeline mode, every required-owner failure returns",
+      "### Phase 0: Output, Resume, and Scope",
+    )
+    const lfgEnvelope = sliceSection(
+      planBrief,
+      "An explicit `status: blocked` return is terminal",
+      "Read the plan metadata before continuing",
+    )
+    for (const field of ["`status: blocked`", "`phase`", "`blocker`", "`recovery_path`"]) {
+      expect(cePlanEnvelope).toContain(field)
+      expect(lfgEnvelope).toContain(field)
+    }
+    expect(cePlanEnvelope).toContain("include `artifact_path`")
+    expect(lfgEnvelope).toContain("`artifact_path`")
+    expect(lfg).toContain("Blocked status outranks an existing artifact")
+    expect(lfg).toContain("Only absence of both a blocker and a plan file")
+    // 2026-08-21 eval: a stale plan already under <root>/plans/ satisfied the gate once; the gate keys on the reported path.
+    expect(lfg).toContain("a plan file `ce-plan` reported writing this run")
+    expect(planBrief).toContain("the path `ce-plan` reported writing this run")
+  })
+
+  test("lfg decides a require-route fallback from the return, consistent with ce-work's producer contract", async () => {
+    // 2026-08-21 eval: ce-work (cross-model-execution.md) discloses and continues natively under `require`; the consumer
+    // used to say ce-work "must not fall back", which no return could satisfy. The stop is now keyed on the return fields.
+    const [workReturn, crossModel] = await Promise.all([
+      readRepoFile("skills/lfg/references/work-return.md"),
+      readRepoFile("skills/ce-work/references/cross-model-execution.md"),
+    ])
+    expect(crossModel).toContain("continue on the current harness and session model")
+    expect(workReturn).toContain("`implementation_engine_binding.mode` is `require` and whose `actual_route` differs from `requested_route` stops the pipeline as blocked")
+    expect(workReturn).not.toContain("must not prompt, fall back, or start native work")
+  })
+
+  test("the reduced ce-work blocker matches the authoritative field inventory", async () => {
+    const [ceWork, workReturn] = await Promise.all([
+      readRepoFile("skills/ce-work/SKILL.md"),
+      readRepoFile("skills/lfg/references/work-return.md"),
+    ])
+    const ceWorkSection = sliceSection(
+      ceWork,
+      "If that required read fails after planning or implementation created state",
+      "Do not erase partial state",
+    )
+    const lfgSection = sliceSection(
+      workReturn,
+      "## Missing-owner blocked return",
+      "## What each route outcome means",
+    )
+    const required = ["status: blocked", "plan_path", "run_id", "changed_state", "blockers", "recovery_path"]
+    for (const field of required) {
+      expect(ceWorkSection).toContain(field)
+      expect(lfgSection).toContain(field)
+    }
+    expect(lfgSection).toContain("valid terminal blocker")
+    expect(lfgSection).toContain("complete-return field inventory below does not apply")
+  })
+})
+
 describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
-  const ROUTE_RECEIPT_FIELDS = [
+  const COMPLETE_RETURN_FIELDS = [
+    "status",
+    "plan_path",
+    "changed_files",
+    "u_ids_attempted",
+    "u_ids_completed",
+    "verification_results",
+    "verification_evidence",
     "implementation_engine_binding",
     "requested_route",
     "actual_route",
@@ -320,21 +385,45 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
     "actual_model",
     "fallback_reason",
     "run_id",
+    "source_kind",
+    "source_digest",
     "unit_receipts",
     "plan_checkpoint",
     "blockers",
     "recovery_path",
+    "settled_decision_conflicts",
+    "behavior_change",
+    "standalone_shipping_skipped",
   ]
 
-  test("lfg requires every route receipt exposed by ce-work", async () => {
-    const ceWork = await readRepoFile("skills/ce-work/SKILL.md")
-    const returned = sliceSection(ceWork, "## Return-to-Caller Mode", "Engine selection (")
-    const gate = await readRepoFile("skills/lfg/references/work-return.md")
+  test("one full inventory pins every ce-work producer field and lfg consumer gate", async () => {
+    const returned = await readRepoFile("skills/ce-work/references/return-to-caller.md")
+    const workReturn = await readRepoFile("skills/lfg/references/work-return.md")
+    const gate = sliceSection(
+      workReturn,
+      "## What `status: complete` must carry",
+      "## Verification evidence",
+    )
 
-    for (const field of ROUTE_RECEIPT_FIELDS) {
-      expect(returned, `ce-work must return ${field}`).toContain(`\`${field}\``)
-      expect(gate, `lfg must gate on ${field}`).toContain(`\`${field}\``)
+    for (const field of COMPLETE_RETURN_FIELDS) {
+      const fieldToken = new RegExp("`" + field + "(?:`|:)")
+      expect(returned, `ce-work must return ${field}`).toMatch(fieldToken)
+      expect(gate, `lfg must require ${field} on every complete return`).toMatch(fieldToken)
     }
+  })
+
+  test("lfg fails closed for unknown or malformed work returns", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const gate = sliceSection(
+      lfg,
+      "2. **Read `references/work-return.md` first**",
+      "3. **Read `references/review-followup.md` now**",
+    )
+
+    expect(gate).toContain("Only a valid `status: complete` may advance")
+    expect(gate).toContain("every other status")
+    expect(gate).toContain("malformed return")
+    expect(gate).toContain("stops the pipeline")
   })
 
   test("lfg keeps the binding out of plan and review inputs", async () => {
@@ -516,9 +605,7 @@ describe("ce-plan review contract", () => {
     expect(content).toContain(
       "They invoke `ce-doc-review` with `mode:non-interactive` and the plan path",
     )
-    expect(skillStub).toContain(
-      "The default is non-interactive (`mode:non-interactive`)",
-    )
+    expect(skillStub).toMatch(/the default is non-interactive \(`mode:non-interactive`\)/i)
     expect(content).not.toContain("skip document-review and return control")
 
     // The interactive walkthrough is opt-in via the post-generation menu, not automatic

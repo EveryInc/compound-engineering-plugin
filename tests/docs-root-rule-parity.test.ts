@@ -21,6 +21,12 @@ const FIXTURE = path.join(REPO_ROOT, "tests", "fixtures", "docs-root-rule.md")
 // the exception and the step that guarantees the read; the parity requirement is
 // unchanged, only the file it is asserted against.
 const CONSUMER_FILES: Record<string, string> = {
+  // ce-plan reads its output owner before phase interpretation and resolves the
+  // root lazily when a later route first composes a rooted path.
+  "ce-plan": "references/output-mode.md",
+  // ce-work reads input triage before source classification; that owner resolves
+  // the root only when blank-plan discovery first composes a rooted path.
+  "ce-work": "references/input-triage.md",
   // lfg composes one <root>/ path, in step 1's gate, and step 1's first action is
   // reading this reference. Codex injects only the first 8000 bytes of a SKILL.md,
   // so a body copy is the less reliable of the two homes.

@@ -2,7 +2,7 @@
 
 `ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* owns the shipping tail (see "Tail ownership" below). Native inline/subagent execution is dormant-by-default compatibility: it remains selected unless applicable live intent, a caller binding, or an enabled standing preference selects the fourth engine.
 
-Engine selection applies only to code execution. Knowledge-work keeps its carve-out. Legacy plans and bare code prompts may select cross-model execution, but otherwise retain the inline/subagent flow in `SKILL.md`; goal-mode and dynamic-workflow selection remains specific to implementation-ready unified plans.
+Engine selection applies only to code execution. Knowledge-work keeps its carve-out. Legacy plans and bare code prompts may select cross-model execution, but otherwise retain the inline/subagent flow in `references/execution-strategy.md`; goal-mode and dynamic-workflow selection remains specific to implementation-ready unified plans.
 
 Invocation origin supplies no routing authority and may not be detectable. Resolve the same inputs whether `ce-work` was explicitly invoked or selected by the host: current-task intent, still-active session intent, typed caller binding, active project instructions, enabled checkout configuration, then native execution.
 
@@ -27,16 +27,9 @@ For example, current-task strict Composer resolves to Composer with `require` ev
 
 ### Typed caller binding
 
-An automatic caller may pass an `implementation_engine` object with exactly these four fields:
+Input triage passes only a fully validated and normalized typed caller binding. Treat it as one already-selected candidate; preserve its caller-visible provenance in the durable run receipt and never send its fields into planning or review input. Downstream consumers and workers may narrow its authority or restrictions but never broaden them.
 
-- `mode`: `prefer` or `require`
-- `target`: `codex`, `claude`, `grok`, `cursor`, or `composer`
-- `model`: an optional model pin, otherwise `null`
-- `source`: the binding's caller-visible provenance
-
-Accept this carrier only at the `ce-work` seam, beside `mode:return-to-caller`; its fields never enter planning or review input. On string-only skill hosts the initial envelope is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`, where `<compact-json>` is that exact four-field object with no formatting whitespace (for example `implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}`). The original no-carrier form stays `mode:return-to-caller <plan-path>`. Once resolved, preserve the binding and source in the durable run receipt. Downstream consumers and workers may narrow its authority or restrictions but never broaden them.
-
-Return-to-caller recovery may add a separate `implementation_run:<safe-id>` carrier after the optional engine carrier and before the unchanged plan path. It is not an `implementation_engine` field and is accepted only for recovery. A safe id matches `^[A-Za-z0-9._-]{1,128}$` and contains at least one non-period character. Carrierless recovery is `mode:return-to-caller implementation_run:run-123 <plan-path>`; engine-bound recovery is `mode:return-to-caller implementation_engine:<compact-json> implementation_run:run-123 <plan-path>`. Reject malformed or duplicate carriers instead of treating them as plan text. The run id selects durable state; it never authorizes a fresh dispatch or a different route.
+A validated recovery run id selects durable state. It never authorizes a fresh dispatch or a different route.
 
 ### Target and identity vocabulary
 
@@ -113,11 +106,11 @@ Recommend exactly one path. Present a non-default engine as an "advanced / large
 
 ### Inline / subagent (default)
 
-Follow the dispatch strategy in `SKILL.md` Phase 1 Step 4 (inline, serial subagents, or parallel subagents) and the Phase 2 execution loop. `ce-work` owns task creation, unit sequencing, dispatch, verification, and commits.
+Follow the dispatch strategy in `references/execution-strategy.md` (inline, serial subagents, or parallel subagents) and the Phase 2 execution loop. `ce-work` owns task creation, unit sequencing, dispatch, verification, and commits.
 
 ### Cross-model execution
 
-Read `cross-model-execution.md` only after routing selects this engine. Resolve and disclose its fixed recipient and restrictions before egress, then follow its serial external-unit transaction through the bundled controller, detached runner, and fixed adapter. If the route is unavailable at preflight, apply the preference/requirement behavior defined there; never let the detached worker select a fallback recipient.
+Read `references/cross-model-execution.md` only after routing selects this engine. Resolve and disclose its fixed recipient and restrictions before egress, then follow its serial external-unit transaction through the bundled controller, detached runner, and fixed adapter. If the route is unavailable at preflight, apply the preference/requirement behavior defined there; never let the detached worker select a fallback recipient.
 
 ### Goal-mode and dynamic-workflow
 
@@ -159,7 +152,7 @@ After any engine finishes implementation, inspect the diff and continue at the t
 | Mode | After implementation, `ce-work` ... |
 |---|---|
 | **Standalone** (user invoked `ce-work` directly, or `ce-plan` handed off interactively) | Resumes its normal post-implementation tail — Phase 3-4 quality gates, simplification, review, commit, and handoff in `references/shipping-workflow.md`. A goal-mode run does not skip these; verify they ran or were explicitly skipped with reason. |
-| **Return-to-caller** (`mode:return-to-caller`, e.g. under `lfg`) | Performs implementation and local verification only, then returns the structured summary in `SKILL.md` § Return-to-Caller Mode (`standalone_shipping_skipped: true`). Does not run simplify/review/PR/CI — the caller owns those. |
+| **Return-to-caller** (`mode:return-to-caller`, e.g. under `lfg`) | Performs implementation and local verification only, then returns the structured summary in `references/return-to-caller.md` (`standalone_shipping_skipped: true`). Does not run simplify/review/PR/CI — the caller owns those. |
 
 Using goal-mode or a dynamic workflow is a way to get better sustained implementation focus, not a way to skip the owning workflow's finish discipline.
 

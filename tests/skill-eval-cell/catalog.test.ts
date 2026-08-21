@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import {
+  ISSUE_1482_BASE_REF,
   POST_SWEEP_REF,
   PRE_SWEEP_REF,
   SCENARIOS,
@@ -42,6 +43,25 @@ describe("skill-eval-cell catalog", () => {
   test("scenario ids are unique", () => {
     const ids = SCENARIOS.map((s) => s.id)
     expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  test("issue #1482 scenarios use the exact pre-change baseline", () => {
+    const issue1482 = new Set([
+      "ce-plan/no-implement",
+      "ce-work/requirements-only-stops",
+      "ce-work/return-to-caller-no-pr",
+      "lfg/plan-first",
+    ])
+
+    expect(
+      SCENARIOS.filter((scenario) => issue1482.has(scenario.id)).map((scenario) => [
+        scenario.id,
+        scenario.baseline_ref,
+      ]),
+    ).toEqual(
+      [...issue1482].map((id) => [id, ISSUE_1482_BASE_REF]),
+    )
+    expect(SCENARIOS.find((scenario) => scenario.id === "ce-code-review/report-only-default")?.baseline_ref).toBeUndefined()
   })
 
   test("WAVE1 ids exist in the catalog", () => {
@@ -125,6 +145,8 @@ describe("skill-eval-cell catalog", () => {
         "ce-handoff/resume-asks-does-not-act:references/resume.md",
         "ce-ideate/unidentified-subject-reads-scope-gates:references/scope-gates.md",
         "ce-plan/config-model-reaches-authoring-gate:references/reasoning-elevation.md",
+        "ce-plan/no-implement:references/output-mode.md",
+        "ce-plan/no-implement:references/resume.md",
         "ce-polish/https-server-uses-actual-url:references/run.md",
         "ce-polish/start-server-reads-run:references/run.md",
         "ce-pov/oracle-dispatches-peers:references/cross-model-panel.md",
@@ -137,6 +159,9 @@ describe("skill-eval-cell catalog", () => {
         "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision:references/pipeline-mode.md",
         "ce-test-xcode/missing-mcp-stops:references/setup-and-build.md",
         "ce-test-xcode/swiftui-inline-link-fallback:references/test-and-report.md",
+        "ce-work/requirements-only-stops:references/input-triage.md",
+        "ce-work/return-to-caller-no-pr:references/input-triage.md",
+        "ce-work/return-to-caller-no-pr:references/return-to-caller.md",
         "lfg/plan-first:references/plan-brief.md",
       ].sort(),
     )

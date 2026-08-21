@@ -954,6 +954,7 @@ describe("ce-code-review contract", () => {
       "skills/ce-work/references/review-findings-followup.md",
     )
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
     expect(followup).toContain("review-only")
     expect(followup).toContain("suggested_fix")
     // The apply followup consumes the review the caller already ran; re-invocation is a
@@ -964,9 +965,11 @@ describe("ce-code-review contract", () => {
     expect(followup).toMatch(/Group by `file`/i)
     expect(followup).toMatch(/batch/i)
     expect(followup).toContain("mode:agent")
-    expect(skill).toMatch(/ce-code-review.*review-only|review-only.*ce-code-review/i)
-    expect(skill).toContain("review-findings-followup.md")
-    expect(skill).toMatch(/batch.*file|batch applicable findings by file/i)
+    expect(skill).toContain("references/shipping-workflow.md")
+    expect(shipping).toContain("**Review is not fix — two steps:**")
+    expect(shipping).toContain("Review-only via `mode:agent`")
+    expect(shipping).toContain("review-findings-followup.md")
+    expect(shipping).toMatch(/batch.*file|batch applicable findings by file/i)
   })
 
   test("ce-work shipping-workflow enforces a residual-work gate after Tier 2 review", async () => {

@@ -8,7 +8,7 @@ const FIXTURE = path.join(REPO_ROOT, "tests", "fixtures", "ce-config-layers-rule
 // Ordinary-key cascade is byte-duplicated into every independent reader
 // (skills cannot import siblings). Canonical text lives once in the fixture.
 const CONSUMERS = [
-  "skills/ce-plan/SKILL.md",
+  "skills/ce-plan/references/output-mode.md",
   "skills/ce-brainstorm/SKILL.md",
   "skills/ce-ideate/SKILL.md",
   "skills/ce-product-pulse/SKILL.md",

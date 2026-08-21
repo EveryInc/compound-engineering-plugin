@@ -11,7 +11,7 @@ If the user references an existing plan file or there is an obvious recent match
 - Confirm whether to update it in place or create a new plan
 - If updating, revise only the still-relevant sections. Plans do not carry per-unit progress state — progress is derived from git by `ce-work`, so there is no progress to preserve across edits
 
-SKILL.md owns the rule that a `requirements-only` artifact is an enrichment input rather than a resume target, and that pipeline runs never prompt the resume choice. What it matters for: the hands-off `ce-brainstorm` -> `lfg` flow hands `ce-plan` the requirements-only path in `disable-model-invocation` pipeline mode, where no user is present to answer a resume prompt.
+**A requirements-only unified plan is not a resume target.** A `<root>/plans/` file with `artifact_readiness: requirements-only` is an *enrichment input* — do not fire the update-or-create confirmation for it. Fall through to Phase 0.2, which enriches it in place. In pipeline mode the resume choice is made automatically (default to in-place update of the referenced plan) and is never prompted, because no user is present to answer.
 
 **Deepen intent:** The word "deepen" (or "deepening") in reference to a plan is the primary trigger for the deepening fast path. When the user says "deepen the plan", "deepen my plan", "run a deepening pass", or similar, the target document is a **plan** in `<root>/plans/`, not a requirements document. Use any path, keyword, or context the user provides to identify the right plan. If a path is provided, verify it is actually a plan document. If the match is not obvious, confirm with the user before proceeding.
 
@@ -54,4 +54,8 @@ On entry (explicit, or an accepted offer), read `references/approach-altitude.md
 
 #### 0.1b Classify Task Domain
 
-SKILL.md owns this classification and the `universal-planning.md` route. The distinction it turns on, in full: a request that merely *references* code, a repo, an API, or a database is not automatically software work. "How often does X star repos — is it a big deal?" or "how does our approach compare to Y?" are answer-seeking questions, not implementation plans.
+If the task asks to build, modify, refactor, deploy, or architect software (code, schemas, infrastructure), the artifact-producing route is now known. Re-read `references/output-mode.md` and settle any pending config/default resolution before selecting the renderer or continuing to Phase 0.2.
+
+Classify by task-type, not topic. A request that merely *references* code, a repo, an API, or a database is not automatically software work: building or modifying code is software; investigating or analyzing it is answer-seeking. If the domain is genuinely ambiguous, ask the user before routing.
+
+Otherwise, read `references/universal-planning.md` and follow that workflow instead. Skip all subsequent software phases. Named tools or source links are inputs and do not change this routing.

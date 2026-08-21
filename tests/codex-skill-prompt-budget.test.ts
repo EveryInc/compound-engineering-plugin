@@ -30,8 +30,6 @@ const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"
 const OVER_BUDGET = new Set([
   "ce-debug",
   "ce-explain",
-  "ce-plan",
-  "ce-work",
 ])
 
 const repoRoot = path.join(import.meta.dir, "..")

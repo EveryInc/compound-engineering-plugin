@@ -131,3 +131,5 @@ Post-start fallback is a separate atomic gate. After authoritative failure, time
 ## Preserve tail ownership
 
 The engine changes only implementation authorship. A standalone invocation resumes `ce-work`'s quality and shipping workflow after local implementation. `mode:return-to-caller` returns implementation and local-verification receipts with `standalone_shipping_skipped: true`; it never runs simplify/review/PR/CI gates owned by the caller. External workers never inherit either tail.
+
+**A successful controller `init` locks that unit to the selected cross-model engine.** From that point, advance it through this controller protocol or return blocked with its recovery path. Never reclassify it as trivial, abandon it for speed, or implement it natively unless the protocol later returns an explicit fallback authorization.

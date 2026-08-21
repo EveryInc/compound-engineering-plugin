@@ -168,11 +168,8 @@ describe("user-facing skill invocation rendering", () => {
   })
 
   test("agent-to-agent routes use semantic skill names instead of user command syntax", () => {
-    const plan = readRepoFile("skills/ce-plan/SKILL.md")
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
-    expect(plan).toContain("**Start `ce-work`**")
     expect(planHandoff).toContain("**Start `ce-work`**")
-    expect(plan).not.toContain("**Start `/ce-work`**")
     expect(planHandoff).not.toContain("**Start `/ce-work`**")
 
     const verdictRouting = readRepoFile("skills/ce-brainstorm/references/verdict-routing.md")
@@ -202,11 +199,8 @@ describe("user-facing skill invocation rendering", () => {
   })
 
   test("Codex goal remains a built-in exception, not a converted skill invocation", () => {
-    const plan = readRepoFile("skills/ce-plan/SKILL.md")
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
-    expect(plan).toContain("Run it as a `/goal`")
     expect(planHandoff).toContain("Run it as a `/goal`")
-    expect(plan).not.toContain("$goal")
     expect(planHandoff).not.toContain("$goal")
   })
 })

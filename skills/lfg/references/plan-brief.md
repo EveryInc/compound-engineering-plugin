@@ -14,6 +14,10 @@ Resolve `<root>` when you first compose a `<root>/` path, never before you need 
 
 ## Readiness check
 
+An explicit `status: blocked` return is terminal even when `artifact_path` names a readable plan. Preserve and report its `artifact_path` when present, `phase`, `blocker`, and `recovery_path`; do not use artifact presence to retry planning or advance to implementation.
+
+The plan the gate checks is the path `ce-plan` reported writing this run. A file already under `<root>/plans/` that `ce-plan` did not report — however closely it matches the feature — is not a written plan: a return with neither a blocker nor a reported path takes the single retry, never a stale artifact.
+
 Read the plan metadata before continuing past step 1's gate. A plan carrying `artifact_contract: ce-unified-plan/v1` proceeds only when it is `artifact_readiness: implementation-ready` with `execution: code`. Every other value stops the pipeline: `artifact_readiness: requirements-only`, any unrecognized readiness value, an invalid progress-like readiness value, and `execution: knowledge-work`. An output that is not an implementation plan at all — an approach plan, an answer-seeking or universal output — stops it too, whether or not it carries the contract marker.
 
 ## Settled-decisions brief

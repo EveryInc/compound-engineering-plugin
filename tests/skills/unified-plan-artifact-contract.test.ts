@@ -32,6 +32,7 @@ const planIntake = readRepoFile("skills/ce-plan/references/intake.md")
 const planStructure = readRepoFile("skills/ce-plan/references/structure.md")
 const planFinalReview = readRepoFile("skills/ce-plan/references/final-review.md")
 const planResume = readRepoFile("skills/ce-plan/references/resume.md")
+const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
 const planCorpus =
   planSkill + planIntake + planStructure + planFinalReview + planResume
 const brainstormSkill = readRepoFile("skills/ce-brainstorm/SKILL.md")
@@ -48,6 +49,9 @@ const ceWork = readRepoFile("skills/ce-work/SKILL.md")
 // mandates at Phase 1; the plan-artifact invariants they carry are asserted over the
 // whole ce-work unit rather than the always-loaded window.
 const ceWorkIntake = readRepoFile("skills/ce-work/references/work-intake.md")
+const ceWorkTriage = readRepoFile("skills/ce-work/references/input-triage.md")
+const ceWorkReturn = readRepoFile("skills/ce-work/references/return-to-caller.md")
+const ceWorkLoop = readRepoFile("skills/ce-work/references/implementation-loop.md")
 const ceWorkStrategy = readRepoFile("skills/ce-work/references/execution-strategy.md")
 const ceWorkDocs = readRepoFile("docs/skills/ce-work.md")
 const ceWorkEngines = readRepoFile(
@@ -236,26 +240,28 @@ describe("unified plan artifact contract", () => {
 
   test("ce-plan enriches unified plans in place and preserves legacy inputs", () => {
     expect(planCorpus).toContain("requirements-only unified plan")
-    expect(planCorpus).toContain("enriches that same artifact")
+    expect(planCorpus).toMatch(/enrich(?:es|ing) (?:it|that same (?:artifact|file)) in place/)
     expect(planCorpus).toContain("this run enriches that same file in place")
     expect(planCorpus).toContain("Search `docs/brainstorms/`")
     expect(planCorpus).toContain("create a new unified plan in `<root>/plans/`")
     expect(planCorpus).toContain("product_contract_source: ce-plan-bootstrap")
-    expect(planSkill).toContain("artifact_readiness: implementation-ready")
+    expect(planFinalReview).toContain("artifact_readiness: implementation-ready")
     expect(planCorpus).toContain("Definition of Done")
     // The launch prompt is generated at handoff, never written into the doc.
     expect(planCorpus).toContain("Do not write a launch prompt into the doc")
   })
 
   test("ce-work is readiness-aware before execution", () => {
-    expect(ceWork).toContain("classify `artifact_readiness` before reading the body")
-    expect(ceWork).toContain("requirements-only` -> stop")
-    expect(ceWork).toContain("Any other readiness value")
+    expect(ceWork).toContain("plan readiness")
+    expect(ceWork).toContain("references/input-triage.md")
+    expect(ceWorkTriage).toContain("classify `artifact_readiness` before reading the body")
+    expect(ceWorkTriage).toContain("requirements-only` -> stop")
+    expect(ceWorkTriage).toContain("Any other readiness value")
     expect(ceWorkIntake).toContain("Build a section map")
     expect(ceWorkStrategy).toContain("Do not send \"read the whole plan\"")
-    expect(ceWork).toContain("mode:return-to-caller <plan-path>")
-    expect(ceWork).toContain("standalone_shipping_skipped: true")
-    expect(ceWork).not.toContain("artifact_readiness: approach-plan")
+    expect(ceWorkTriage).toContain("mode:return-to-caller <plan-path>")
+    expect(ceWorkReturn).toContain("standalone_shipping_skipped: true")
+    expect(ceWorkTriage).not.toContain("artifact_readiness: approach-plan")
   })
 
   test("lfg delegates implementation to ce-work return-to-caller mode", () => {
@@ -399,8 +405,8 @@ describe("unified plan artifact contract", () => {
     expect(step2).toContain("continue to step 3 exactly once")
     expect(step2).toContain("prominently disclosing its requested-versus-actual route/model")
     expect(step2).toContain("`require`")
-    expect(step2).toContain("must not prompt")
-    expect(step2).toContain("stop the pipeline")
+    // 2026-08-21: the require stop is decided from the return fields; ce-work's producer contract continues natively.
+    expect(step2).toContain("`actual_route` differs from `requested_route` stops the pipeline as blocked")
   })
 
   test("review and publishing skills understand unified artifacts", () => {
@@ -430,7 +436,6 @@ describe("unified plan artifact contract", () => {
   })
 
   test("launch prompt is skill-emitted at handoff, not a baked doc section", () => {
-    const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
     // No Goal Launch Block in the artifact contract (anchor or section bullet).
     expect(planSections).not.toContain("goal-launch-block")
     expect(planSections).not.toContain("**Goal Launch Block**")
@@ -477,18 +482,19 @@ describe("unified plan artifact contract", () => {
     // Same-basename .md/.html siblings must not become competing latest plans.
     expect(planCorpus).toContain("new canonical path")
     expect(planCorpus).toMatch(/report old path and new canonical path/i)
-    expect(planSkill).toContain("the local plan file stays canonical")
+    expect(planHandoff).toContain("the plan exists as exactly one artifact")
   })
 
   test("ce-work Phase 0 parses the return-to-caller mode token before triage", () => {
     // Codex #972 P1: lfg passes `mode:return-to-caller <plan-path>`; ce-work
     // must strip the mode token, not treat the whole string as a bare prompt.
-    expect(ceWork).toMatch(/begins with `mode:return-to-caller`/i)
+    expect(ceWork).toMatch(/Before any other input decision, read `references\/input-triage\.md`/i)
+    expect(ceWorkTriage).toMatch(/begins with `mode:return-to-caller`/i)
     // legacy alias still recognized so an old reference doesn't break.
-    expect(ceWork).toMatch(/legacy aliases `mode:caller-owned-tail`/i)
-    expect(ceWork).toMatch(/strip that token/i)
-    expect(ceWork).toMatch(/one compact JSON object prefixed exactly `implementation_engine:`/i)
-    expect(ceWork).toContain("after any mode token is stripped")
+    expect(ceWorkTriage).toMatch(/legacy aliases `mode:caller-owned-tail`/i)
+    expect(ceWorkTriage).toMatch(/strip that token/i)
+    expect(ceWorkTriage).toMatch(/one compact JSON object prefixed exactly `implementation_engine:`/i)
+    expect(ceWorkTriage).toContain("after any mode token is stripped")
   })
 
   test("ce-work surfaces its caller-owned mode in discovery metadata and public docs", () => {
@@ -549,9 +555,9 @@ describe("unified plan artifact contract", () => {
     // enrich-in-place rule, with no user to answer -> the hands-off flow strands.
     // Phase 0.1 must carve requirements-only plans out of the resume prompt and
     // auto-resolve the resume choice in pipeline mode.
-    const phaseStart = planSkill.indexOf("#### 0.1 Resume Existing Plan Work")
+    const phaseStart = planResume.indexOf("#### 0.1 Resume Existing Plan Work")
     expect(phaseStart).toBeGreaterThan(-1)
-    const resumeRegion = planSkill.slice(phaseStart, phaseStart + 1600)
+    const resumeRegion = planResume.slice(phaseStart, phaseStart + 1600)
     expect(/requirements-only unified plan is not a resume target/i.test(resumeRegion)).toBe(true)
     expect(/do \*?\*?not\*?\*? fire the update-or-create confirm/i.test(resumeRegion)).toBe(true)
     expect(/Fall through to Phase 0\.2/i.test(resumeRegion)).toBe(true)
@@ -567,8 +573,8 @@ describe("unified plan artifact contract", () => {
     // same-basename sibling.
     expect(planCorpus).toMatch(/Skip a superseded sibling/i)
     expect(planCorpus).toMatch(/same-basename.*other format|<basename>\.md.*<basename>\.html/i)
-    expect(ceWork).toMatch(/Superseded sibling/i)
-    expect(ceWork).toMatch(/select the implementation-ready sibling and execute it rather than stopping/i)
+    expect(ceWorkTriage).toMatch(/Superseded sibling/i)
+    expect(ceWorkTriage).toMatch(/select the implementation-ready sibling and execute it rather than stopping/i)
   })
 
   test("large plans get a navigation-only Unit Index, gated to ~10+ units", () => {
@@ -604,31 +610,25 @@ describe("unified plan artifact contract", () => {
   })
 
   test("post-plan menu offers /goal prompt as a mutually-exclusive executor", () => {
-    const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
-    // Both copies keep the option and the tail-ownership guard: the guard decides
-    // whether a second executor runs, and the body renders the menu.
-    for (const doc of [planSkill, planHandoff]) {
-      expect(doc).toContain("Run it as a `/goal`")
-      // The /goal option must not also run ce-work (tail-ownership guard).
-      expect(doc).toMatch(/`ce-work` does \*{0,2}not\*{0,2} also run/i)
-      expect(doc).toContain("create_goal")
-    }
+    expect(planHandoff).toContain("Run it as a `/goal`")
+    expect(planHandoff).toMatch(/`ce-work` does \*{0,2}not\*{0,2} also run/i)
+    expect(planHandoff).toContain("create_goal")
     // The update_goal rule is a mechanic of starting the goal, and plan-handoff.md
     // owns the objective and the start. It arrived with the goal lane in #972 with no
     // recorded incident behind the duplicate body copy, and the body STOP-loads that
     // reference before the menu renders — so pin the rule in its owner, and pin the
-    // body to defer rather than re-derive it.
+    // kernel to require the owner immediately before the menu.
     expect(planHandoff).toMatch(/do not call `update_goal`|the goal session marks its own completion/i)
-    expect(planSkill).toMatch(/take the objective from there rather than composing one here/i)
+    expect(planSkill).toMatch(/Read `references\/plan-handoff\.md` immediately before Phase 5\.3\.8 and 5\.4/i)
     // No authoring-file meta-references leak into runtime menu content.
     expect(planHandoff).not.toContain("Per the AGENTS.md")
     expect(planSkill).not.toContain("per the AGENTS.md narrow exception")
   })
 
   test("ce-work defines the execution-engine selection lane", () => {
-    expect(ceWork).toContain("Choose Execution Engine")
+    expect(ceWork).toContain("Resolve the engine, then strategy")
     expect(ceWork).toContain("references/execution-engines.md")
-    expect(ceWork).toContain("dynamic-workflow")
+    expect(ceWorkEngines).toContain("dynamic-workflow")
     expect(ceWorkEngines).toMatch(/prompt-emission only|never invoked from inside this skill/i)
 
     expect(ceWorkEngines).toContain("Probe host capability")
@@ -724,8 +724,7 @@ describe("session-settled decision contract", () => {
   })
 
   test("ce-work envelope reports settled conflicts; shipping tail treats invalidation as a blocker", () => {
-    const returnToCaller = sliceSection(ceWork, "## Return-to-Caller Mode", "## Key Principles")
-    expect(returnToCaller).toContain("`settled_decision_conflicts`")
+    expect(ceWorkReturn).toContain("`settled_decision_conflicts`")
     expect(ceWorkShipping).toContain("never auto-accepted as a residual")
   })
 
@@ -849,11 +848,10 @@ describe("cross-layer ownership contract", () => {
 
   test("ce-work packets reverse-resolve Product Key Decisions so settlement labels survive bounded reads", () => {
     expect(ceWorkStrategy).toContain("`Governs R…` links name the unit's cited R-IDs")
-    expect(ceWork).toContain("A KTD or Product Contract Key Decision carrying")
+    expect(ceWorkLoop).toContain("A KTD or Product Contract Key Decision carrying")
   })
 
   test("every executor handoff reverse-resolves labeled Product Contract Key Decisions", () => {
-    const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
     // The invariant is #1234's: an objective or unit packet handed to an executor must
     // reverse-resolve the labeled Key Decisions rather than copy requirements across
     // layers. It belongs to whoever composes that text. ce-plan's SKILL.md menu bullet

@@ -6,13 +6,19 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
-// Phase 1 step 4's scheduling, dispatch, and integration protocol was relocated to
-// references/execution-strategy.md, which the body names as a required read before any
-// worker is dispatched. Those rules fire at that step rather than from the window, so
-// they are pinned in the file that now owns them; the body keeps the route-resolution
-// gate, the cross-model lock, and the isolation and commit boundaries.
+// Mechanism pins follow the phase owner that the kernel requires before action. The
+// always-loaded body keeps ordering, unread stops, WIP/write gates, review completion,
+// and tail ownership; the references keep the detailed protocols.
 async function readStrategy(): Promise<string> {
   return readRepoFile("skills/ce-work/references/execution-strategy.md")
+}
+
+async function readTriage(): Promise<string> {
+  return readRepoFile("skills/ce-work/references/input-triage.md")
+}
+
+async function readReturnContract(): Promise<string> {
+  return readRepoFile("skills/ce-work/references/return-to-caller.md")
 }
 
 async function readImplementationContract(): Promise<string> {
@@ -32,7 +38,7 @@ function sliceSection(content: string, startAnchor: string, endAnchor: string): 
 describe("ce-work native characterization", () => {
   test("opens with result, next consumer, done condition, and host-owned canonical integration", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const outcome = sliceSection(skill, "## Outcome", "## Input Document")
+    const outcome = sliceSection(skill, "## Outcome", "## Execution Workflow")
 
     expect(outcome).toContain("**Result:**")
     expect(outcome).toContain("**Next consumer:**")
@@ -45,7 +51,7 @@ describe("ce-work native characterization", () => {
 
   test("classifies caller mode, legacy aliases, bare prompts, and plans before execution", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const triage = sliceSection(skill, "### Phase 0: Input Triage", "### Phase 1: Quick Start")
+    const triage = await readTriage()
 
     expect(triage).toContain("**Otherwise, parse a leading mode token.**")
     expect(triage).toContain("mode:return-to-caller")
@@ -53,18 +59,21 @@ describe("ce-work native characterization", () => {
     expect(triage).toContain("caller:lfg")
     expect(triage).toContain("**Plan document**")
     expect(triage).toContain("**Resolve a session-carried plan before blank or bare-prompt classification.**")
-    expect(skill).toContain("Invocation origin is not observable or relevant")
+    expect(triage).toContain("Invocation origin is not observable or relevant")
     expect(triage).toContain("**Blank invocation latest-plan discovery:**")
     expect(triage).toContain("**Bare prompt**")
     expect(triage).toContain("skip only the task list")
-    expect(triage).toContain("mandatory engine-resolution gate")
+    expect(triage).toContain("mandatory engine-before-write gate")
   })
 
   test("activates direct recovery before ordinary input classification", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const triage = sliceSection(skill, "### Phase 0: Input Triage", "### Phase 1: Quick Start")
+    const bodyTriage = sliceSection(skill, "### Phase 0: Input Triage", "### Phase 1: Quick Start")
+    const triage = await readTriage()
 
-    expect(triage).toContain("**Recovery activation comes first.**")
+    expect(bodyTriage).toContain("**Recovery activation comes first.**")
+    expect(bodyTriage).toContain("Recovery never dispatches a new worker")
+    expect(bodyTriage.indexOf("**Recovery activation comes first.**")).toBeLessThan(bodyTriage.indexOf("references/input-triage.md"))
     expect(triage).toContain("resume, inspect status, reap, or clean up")
     expect(triage).toContain("implementation_run:<safe-id>")
     expect(triage).toContain("read `references/cross-model-execution.md`")
@@ -77,15 +86,53 @@ describe("ce-work native characterization", () => {
 
   test("keeps the existing native engines and synchronous inline path", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
+    const engineGate = sliceSection(skill, "2. **Resolve the engine, then strategy.**", "### Phase 2: Execute")
+    const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
+    const strategy = await readStrategy()
 
-    expect(engineGate).toContain("inline/subagent")
-    expect(engineGate).toContain("goal-mode")
-    expect(engineGate).toContain("dynamic-workflow")
-    expect(await readStrategy()).toMatch(/\*\*Inline\*\* \| Trivial work/)
-    expect(engineGate).toContain("ordinary native workers")
-    expect(engineGate).toContain("never run `git worktree add` yourself")
-    expect(engineGate).toContain("external cross-model controller")
+    expect(engineGate).toContain("references/execution-engines.md")
+    expect(engines).toContain("inline/subagent")
+    expect(engines).toContain("goal-mode")
+    expect(engines).toContain("dynamic-workflow")
+    expect(engines).toContain("inline/subagent flow in `references/execution-strategy.md`")
+    expect(engines).not.toContain("inline/subagent flow in `SKILL.md`")
+    expect(strategy).toMatch(/\*\*Inline\*\* \| Trivial work/)
+    expect(strategy).toContain("native workers")
+    expect(engineGate).toContain("cross-model execution")
+  })
+
+  test("derives bounded plan tasks before resolving the engine, then gates every execution action", async () => {
+    const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    const workspace = await readRepoFile("skills/ce-work/references/workspace-setup.md")
+    const engineGate = sliceSection(skill, "2. **Resolve the engine, then strategy.**", "### Phase 2: Execute")
+
+    expect(workspace).toContain("**Read Plan and Clarify**")
+    expect(workspace).toContain("**Create Task List**")
+    expect(engineGate).toContain("After bounded plan intake and task derivation")
+    expect(engineGate).toContain("before selecting a unit for execution, writing, dispatching, or committing")
+  })
+
+  test("workspace setup pins fresh-base and current-branch observations", async () => {
+    const workspace = await readRepoFile("skills/ce-work/references/workspace-setup.md")
+
+    expect(workspace).toContain("`gh repo view --json defaultBranchRef`")
+    expect(workspace).toContain("`git fetch origin <default>`")
+    expect(workspace.match(/`git branch --show-current`/g)).toHaveLength(2)
+    expect(workspace.indexOf("`git fetch origin <default>`")).toBeLessThan(
+      workspace.indexOf("Base the new branch on the fetched `origin/<default>`"),
+    )
+  })
+
+  test("new phase owners resolve sibling references from the skill root", async () => {
+    const owners = await Promise.all([
+      readTriage(),
+      readRepoFile("skills/ce-work/references/workspace-setup.md"),
+      readReturnContract(),
+    ])
+
+    for (const owner of owners) {
+      expect(owner).not.toMatch(/(?<!references\/)`(?:cross-model-execution|work-intake|non-code-execution|execution-engines|shipping-workflow)\.md`/)
+    }
   })
 
   test("bounds worker scope while leaving canonical verification and commits with the orchestrator", async () => {
@@ -119,13 +166,13 @@ describe("ce-work native characterization", () => {
 
   test("does not re-enter native dispatch after selecting cross-model execution", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
-
+    const engineGate = sliceSection(skill, "2. **Resolve the engine, then strategy.**", "### Phase 2: Execute")
+    const protocol = await readRepoFile("skills/ce-work/references/cross-model-execution.md")
     const strategy = await readStrategy()
 
-    // The post-init lock is a stop class: it must fire from the window, so it stays in the body.
-    expect(engineGate).toContain("**A successful controller `init` locks that unit to the selected cross-model engine.**")
-    expect(engineGate).toContain("Never reclassify it as trivial, abandon it for speed, or implement it natively")
+    expect(engineGate).toContain("post-init engine lock")
+    expect(protocol).toContain("**A successful controller `init` locks that unit to the selected cross-model engine.**")
+    expect(protocol).toContain("Never reclassify it as trivial, abandon it for speed, or implement it natively")
     expect(strategy).toContain("**Native dispatch (inline/subagent engines only)**")
     expect(strategy).toContain("must not re-enter this ordinary subagent dispatch")
     expect(strategy).toContain("**After each serial inline/subagent unit:**")
@@ -135,13 +182,16 @@ describe("ce-work native characterization", () => {
   test("preserves standalone shipping and return-to-caller tail ownership", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const standalone = sliceSection(skill, "### Phase 3-4: Quality Check and Finishing Work", "## Return-to-Caller Mode")
-    const caller = sliceSection(skill, "## Return-to-Caller Mode", "## Key Principles")
+    const caller = skill.slice(skill.indexOf("## Return-to-Caller Mode"))
+    const returnContract = await readReturnContract()
 
     expect(standalone).toContain("references/shipping-workflow.md")
     expect(caller).toContain("implementation and local verification only")
-    expect(caller).toContain("structured summary instead of running the standalone shipping tail")
     expect(caller).toContain("standalone_shipping_skipped: true")
-    expect(caller).toContain("must not open a PR")
+    expect(caller).toContain("must not enter Phase 3-4")
+    expect(caller.match(/references\/return-to-caller\.md/g)?.length).toBe(1)
+    expect(returnContract).toContain("structured summary instead of running the standalone shipping tail")
+    expect(returnContract).toContain("must not open a PR")
   })
 })
 
@@ -149,14 +199,12 @@ describe("ce-work cross-model engine contract", () => {
   test("resolves live routing intent and ordered harness/model preferences", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
-    const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
+    const engineGate = sliceSection(skill, "2. **Resolve the engine, then strategy.**", "### Phase 2: Execute")
 
     expect(engineGate).toContain("cross-model execution")
-    expect(engineGate).toContain("native execution remains the default")
-    expect(engineGate).toContain("Route resolution is a mandatory pre-write gate")
-    expect(engineGate).toContain(".compound-engineering/config.local.yaml")
-    expect(engineGate).toContain("config.yaml")
-    expect(engineGate).toContain("Do not infer native execution merely because no typed carrier was supplied")
+    expect(engineGate).toContain("After bounded plan intake and task derivation")
+    expect(engineGate).toContain("with or without a typed binding")
+    expect(engineGate).toContain("native execution is eligible only")
     expect(engines).toContain("still-active session")
     expect(engines).toContain("active instructions and conventions already in context")
     expect(engines).toContain("recorded provenance")
@@ -181,9 +229,7 @@ describe("ce-work cross-model engine contract", () => {
     const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
     const external = await readRepoFile("skills/ce-work/references/cross-model-execution.md")
 
-    expect(skill).toContain("private **bounded implementation brief**")
-    expect(skill).toContain("Do not send raw conversation history")
-    expect(skill).toContain("clarify or route to `ce-plan` before any cross-model egress")
+    expect(skill).toContain("bounded egress")
     expect(engines).toContain("Invocation origin supplies no routing authority")
     expect(engines).toContain("concrete goal, bounded scope, and authoritative verification")
     expect(external).toContain("## Build a source for bare-prompt work")
@@ -210,30 +256,36 @@ describe("ce-work cross-model engine contract", () => {
 
   test("keeps explicit cross-model activation read-only until the controller owns the workspace", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const triage = sliceSection(skill, "### Phase 0: Input Triage", "### Phase 1: Quick Start")
+    const bodyTriage = sliceSection(skill, "### Phase 0: Input Triage", "### Phase 1: Quick Start")
+    const triage = await readTriage()
+    const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
 
-    expect(triage).toContain("Every non-recovery code path must resolve its implementation engine before execution")
-    expect(triage).toContain("carrierless Return-to-Caller Mode")
-    expect(triage).toContain(".compound-engineering/config.local.yaml")
-    expect(triage).toContain("config.yaml")
+    expect(bodyTriage).toContain("read-only discovery")
+    expect(skill).toContain("before selecting a unit for execution, writing, dispatching, or committing")
+    expect(triage).toContain("Without either optional carrier")
+    expect(triage).toContain("standing configuration remains eligible")
+    expect(engines).toContain(".compound-engineering/config.local.yaml")
+    expect(engines).toContain("then `config.yaml`")
     expect(triage).toContain("pre-controller discovery is read-only")
     expect(triage).toContain("Do not run baseline, test, build, format, install, or generation commands")
     expect(triage).toContain("prove the canonical Git snapshot is byte-for-byte unchanged")
   })
 
   test("keeps the caller carrier implementation-only and exactly four fields", async () => {
+    const triage = await readTriage()
     const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
     const carrier = sliceSection(engines, "### Typed caller binding", "### Target and identity vocabulary")
 
-    expect(carrier).toContain("implementation_engine")
+    expect(triage).toContain("exactly four fields")
     for (const field of ["mode", "target", "model", "source"]) {
-      expect(carrier).toContain(`\`${field}\``)
+      expect(triage).toContain(`\`${field}\``)
     }
-    expect(carrier).toContain("exactly these four fields")
-    expect(carrier).toContain("mode:return-to-caller implementation_engine:<compact-json> <plan-path>")
-    expect(carrier).toContain('implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}')
-    expect(carrier).toContain("only at the `ce-work` seam")
-    expect(carrier).toContain("never enter planning or review input")
+    expect(triage).toContain("`mode` is `prefer` or `require`")
+    expect(triage).toContain("`model` is a string pin or `null`")
+    expect(triage).toContain("`source` is a non-empty caller-visible provenance string")
+    expect(triage).toContain("Fully validate and normalize both before any workspace action")
+    expect(carrier).toContain("fully validated and normalized typed caller binding")
+    expect(carrier).toContain("never send its fields into planning or review input")
     expect(engines).not.toContain("work_delegate_")
   })
 
@@ -251,17 +303,29 @@ describe("ce-work cross-model engine contract", () => {
   })
 
   test("gives string-only callers an exact optional carrier grammar", async () => {
-    const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const phase0 = sliceSection(skill, "### Phase 0: Input Triage", "**Plan document**")
+    const phase0 = await readTriage()
+    const returnOwner = await readReturnContract()
 
     expect(phase0).toContain("implementation_engine:")
     expect(phase0).toContain("one compact JSON object")
-    expect(phase0).toContain("exactly `mode`, `target`, `model`, and `source`")
+    expect(phase0).toContain("exactly four fields")
     expect(phase0).toContain("implementation_run:<safe-id>")
     expect(phase0).toContain("`^[A-Za-z0-9._-]{1,128}$`")
-    expect(phase0).toContain("Reject malformed JSON, missing/extra fields, an unsafe run id, or a duplicate carrier")
+    expect(phase0).toContain("Reject malformed JSON, missing/extra fields, invalid field types or values")
     expect(phase0).toContain("entire remaining string is the plan path")
     expect(phase0).toContain("original `mode:return-to-caller <plan-path>` form is unchanged")
+    expect(returnOwner).toContain("Input triage owns and validates the invocation grammar")
+    expect(returnOwner).not.toContain("[implementation_engine:<compact-json>]")
+  })
+
+  test("keeps relocated engine pointers rooted at their acting owners", async () => {
+    const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
+
+    expect(engines).toContain("`references/execution-strategy.md`")
+    expect(engines).toContain("`references/cross-model-execution.md`")
+    expect(engines).toContain("`references/return-to-caller.md`")
+    expect(engines).not.toContain("`SKILL.md` Phase 1 Step 4")
+    expect(engines).not.toContain("structured summary in `SKILL.md`")
   })
 
   test("keeps external dispatch policy out of the implementation-worker persona", async () => {
@@ -316,12 +380,11 @@ describe("ce-work cross-model engine contract", () => {
   })
 
   test("preserves host-only canonical authority and narrows the worktree exception", async () => {
-    const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const protocol = await readRepoFile("skills/ce-work/references/cross-model-execution.md")
-    const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
+    const strategy = await readStrategy()
 
-    expect(engineGate).toContain("ordinary native workers")
-    expect(engineGate).toContain("external cross-model controller")
+    expect(strategy).toContain("Native dispatch (inline/subagent engines only)")
+    expect(protocol).toContain("controller-owned detached worktree")
     expect(protocol).toContain("isolated transport commit")
     expect(protocol).toContain("host-only canonical")
     expect(protocol).not.toContain("An external worker may edit and commit only")
@@ -333,8 +396,8 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("--sandbox enabled")
     expect(protocol).toContain("never required")
     expect(protocol).toContain("Leave the completed working tree uncommitted")
-    expect(engineGate).toContain("An external cross-model worker also must not run `git add`")
-    expect(engineGate).toContain("Leave its working tree uncommitted")
+    expect(protocol).toContain("Do not instruct it to run `git add`")
+    expect(protocol).toContain("Leave the completed working tree uncommitted")
     for (const forbiddenAuthority of ["canonical commit", "push", "PR", "shipping", "recipient-switch"]) {
       expect(protocol).toContain(forbiddenAuthority)
     }
@@ -344,18 +407,17 @@ describe("ce-work cross-model engine contract", () => {
 
   test("loads the cross-model protocol only for selected execution or recovery", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
-    const triage = sliceSection(skill, "### Phase 0: Input Triage", "**Plan document**")
+    const engineGate = sliceSection(skill, "2. **Resolve the engine, then strategy.**", "### Phase 2: Execute")
+    const triage = await readTriage()
 
-    expect(engineGate).toContain("If and only if cross-model execution is selected")
+    expect(engineGate).toContain("If cross-model execution is selected")
     expect(engineGate).toContain("read `references/cross-model-execution.md`")
-    expect(triage.match(/references\/cross-model-execution\.md/g)?.length).toBe(2)
-    expect(skill.match(/references\/cross-model-execution\.md/g)?.length).toBe(3)
+    expect(triage.match(/cross-model-execution\.md/g)?.length).toBe(2)
+    expect(skill.match(/references\/cross-model-execution\.md/g)?.length).toBe(1)
   })
 
   test("returns requested and actual route, model, fallback, run, unit, blocker, and recovery receipts", async () => {
-    const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const caller = sliceSection(skill, "## Return-to-Caller Mode", "## Key Principles")
+    const caller = await readReturnContract()
 
     for (const receipt of [
       "implementation_engine_binding",
@@ -617,7 +679,7 @@ describe("ce-work implementation evidence characterization", () => {
     const implementationLoop = await readRepoFile("skills/ce-work/references/implementation-loop.md")
     const phase2 = sliceSection(skill, "### Phase 2: Execute", "### Phase 3-4: Quality Check and Finishing Work")
 
-    expect(phase2).toContain("you must read `references/implementation-loop.md`")
+    expect(phase2).toContain("read `references/implementation-loop.md`")
     // Incremental commits moved into the loop reference the body mandates at this gate.
     expect(implementationLoop).toContain("2. **Incremental Commits**")
     expect(phase2).not.toContain("2. **Incremental Commits**")

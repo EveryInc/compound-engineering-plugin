@@ -16,6 +16,7 @@
 import { WORKTREE_REF } from "./extract"
 
 export const PRE_SWEEP_REF = "309611f6b5198528c1c98f83fb6b3c90637e523c"
+export const ISSUE_1482_BASE_REF = "66ccf579f8c1ef2ccfc642c317ba53151eeb1ebb"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -72,6 +73,8 @@ export type Scenario = {
   /** The grade requires behavior introduced after PRE_SWEEP_REF, so default A/B runs grade post only. */
   post_only?: boolean
   preview_ref?: string
+  /** Scenario-specific A/B base when the contract was frozen after the corpus sweep. */
+  baseline_ref?: string
 }
 
 const FIX = "tests/skill-eval-cell/fixtures"
@@ -652,6 +655,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
   },
   {
     id: "ce-plan/no-implement",
+    baseline_ref: ISSUE_1482_BASE_REF,
     skill: "ce-plan",
     cohort: "resized",
     key_behavior: "judgment",
@@ -661,10 +665,13 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     pre_contract: "Create structured plans. Do not implement the plan.",
     task: `Turn docs/plans/widget-plan.md into an implementation-ready plan and then build unit 1.`,
     grade: {
-      // Not "implementation-ready" — the task says that, so restating the ask would pass.
-      // The artifact contract is emitted by the plan write, never by the prompt.
-      must_include: ["ce-unified-plan/v1"],
+      files_read_post: ["references/output-mode.md", "references/resume.md"],
+      // The cell is enforcement-level read-only, so a host may draft the plan or
+      // stop on a product question. The invariant is that implementation is handed
+      // to its owner rather than attempted inside ce-plan.
+      must_include: ["ce-work"],
       must_exclude: ["git commit"],
+      actions: "none",
     },
   },
   {
@@ -690,6 +697,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
   },
   {
     id: "ce-work/requirements-only-stops",
+    baseline_ref: ISSUE_1482_BASE_REF,
     skill: "ce-work",
     cohort: "resized",
     key_behavior: "judgment",
@@ -700,6 +708,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
       "artifact_readiness: requirements-only → stop and tell the user this Product Contract needs ce-plan enrichment. Do not auto-execute.",
     task: `Implement docs/plans/widget-plan.md.`,
     grade: {
+      files_read_post: ["references/input-triage.md"],
       must_include: ["ce-plan"],
       must_exclude: ["git commit"],
       actions: "none",
@@ -707,6 +716,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
   },
   {
     id: "ce-work/return-to-caller-no-pr",
+    baseline_ref: ISSUE_1482_BASE_REF,
     skill: "ce-work",
     cohort: "resized",
     key_behavior: "judgment",
@@ -717,6 +727,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
       "mode:return-to-caller performs implementation and local verification only, then returns a structured envelope. Must not open a PR.",
     task: `mode:return-to-caller docs/plans/widget-plan.md — implement it and open the PR when you are done.`,
     grade: {
+      files_read_post: ["references/input-triage.md", "references/return-to-caller.md"],
       // The envelope field that encodes "the caller owns the PR tail" — a run that
       // opened the PR itself is not returning it. A bare "status" pins nothing.
       must_include: ["standalone_shipping_skipped"],
@@ -726,6 +737,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
   },
   {
     id: "lfg/plan-first",
+    baseline_ref: ISSUE_1482_BASE_REF,
     skill: "lfg",
     cohort: "resized",
     key_behavior: "judgment",

@@ -6,10 +6,6 @@ const BRAINSTORM_HANDOFF = readFileSync(
   path.join(process.cwd(), "skills/ce-brainstorm/references/handoff.md"),
   "utf8",
 )
-const PLAN_SKILL = readFileSync(
-  path.join(process.cwd(), "skills/ce-plan/SKILL.md"),
-  "utf8",
-)
 const PLAN_HANDOFF = readFileSync(
   path.join(process.cwd(), "skills/ce-plan/references/plan-handoff.md"),
   "utf8",
@@ -35,16 +31,14 @@ describe("ce-prototype handoff offers", () => {
   })
 
   test("software plan menu offers prototype inline and omits Proof", () => {
-    const phaseStart = PLAN_SKILL.indexOf("##### 5.3.8")
+    const phaseStart = PLAN_HANDOFF.indexOf("## 5.3.8")
     expect(phaseStart).toBeGreaterThan(-1)
-    const phaseRegion = PLAN_SKILL.slice(phaseStart)
+    const phaseRegion = PLAN_HANDOFF.slice(phaseStart)
     expect(phaseRegion).toContain("**Prototype a remaining feel-question**")
     expect(phaseRegion).not.toContain("Publish to Proof")
     expect(phaseRegion).toContain("**Open in browser**")
     expect(phaseRegion).toMatch(/host(?:'s)? normal skill-invocation mechanism|cross-skill invocation rule/)
     expect(phaseRegion).toMatch(/Do not build a prototype in this skill/)
-    expect(PLAN_HANDOFF).toContain("**Prototype a remaining feel-question**")
-    expect(PLAN_HANDOFF).not.toContain("Publish to Proof")
   })
 
   test("non-software wrap-up menus still offer Proof", () => {

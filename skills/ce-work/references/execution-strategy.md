@@ -1,6 +1,6 @@
 # Execution Strategy and Native Dispatch
 
-Read this at Phase 1 step 4, after the engine is resolved and before dispatching any worker or scheduling a parallel wave. The body owns the route-resolution gate, the cross-model lock, and the isolation and commit boundaries; this file owns how native work is scheduled, packaged, dispatched, and integrated.
+Read this after the engine is resolved and before dispatching any worker or scheduling a parallel wave. The kernel owns the route-resolution and WIP/write gates; the selected engine owner carries any engine-specific lock. This file owns how native work is scheduled, packaged, dispatched, and integrated.
 
 For the inline/subagent engine, **prefer subagents for any structured multi-unit plan** — each worker gets a fresh context window for one unit. **Parallelize independent units whenever it is safe**; fall back to serial only when parallel isn't safe or the harness can't isolate concurrent writes. Let the plan's `Dependencies` and `Files` drive batching: run an independent dependency layer together, then the next.
 
