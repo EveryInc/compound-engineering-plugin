@@ -1481,6 +1481,7 @@ describe("schema and skill pins", () => {
     expect(LOG_SCHEMA).toContain("stay measured until integration")
     expect(LOOP).toContain("including 125 without that marker")
     expect(LOOP).toContain("same decide loop as step 3.3")
+    expect(LOOP).toContain("fresh sample set")
     expect(LOOP).toContain("not_selected")
     expect(LOOP).toContain("no working Node runtime on PATH")
     expect(LOOP).toContain("whenever `next_measurement` is not `none`")
