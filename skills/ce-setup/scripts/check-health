@@ -299,7 +299,7 @@ capability_missing=0
 results=()
 
 for entry in "${deps[@]}"; do
-  IFS='|' read -r name install_cmd url capability <<< "$entry"
+  IFS='|' read -r name install_cmd url capability < <(printf '%s\n' "$entry")
   capability_total=$((capability_total + 1))
   if command -v "$name" >/dev/null 2>&1; then
     capability_ok=$((capability_ok + 1))
@@ -514,7 +514,7 @@ fi
 section "Optional capabilities  ${capability_ok}/${capability_total}"
 
 for result in "${results[@]}"; do
-  IFS='|' read -r name status install_cmd url capability <<< "$result"
+  IFS='|' read -r name status install_cmd url capability < <(printf '%s\n' "$result")
   if [ "$status" = "ok" ]; then
     ok "$name -- $capability"
   else

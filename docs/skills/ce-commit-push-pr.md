@@ -168,7 +168,7 @@ On-demand shipping. Not a required ideation-chain stage.
 /ce-commit ->  /ce-commit-push-pr     (if you committed first, then decide to ship)
 ```
 
-`/lfg` and `/ce-work` call this with `branding:on` when they own the ship. You can also invoke it on a branch you already finished by hand.
+`/lfg` and `/ce-work` call this with `branding:on` when they own the ship — unless the project's instructions name their own shipping process, which then runs instead. You can also invoke it on a branch you already finished by hand.
 
 ---
 

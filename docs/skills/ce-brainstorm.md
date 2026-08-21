@@ -154,8 +154,6 @@ On Standard and Deep software runs, a cheap scout gathers a grounding dossier (v
 
 When you flag unfamiliarity, or consecutive answers show you cannot weigh the options, the skill offers a blindspot pass before questioning that territory further: a map of 3-7 decisions and hazards, each with why it matters, the realistic options, and a recommended default. You pick which to walk through. The rest take defaults recorded as explicit assumptions. This works on both software and non-software routes.
 
-Requirements describe **what** behavior is expected from the user's perspective. They do not describe libraries, schemas, endpoints, file layouts, or code structure — unless the brainstorm is itself about a technical or architectural decision. This keeps planning's job clean: invent the **how**, not the **what**.
-
 Non-software work uses a domain-agnostic facilitator with the same one-question discipline. It does not write a software unified-plan artifact.
 
 ### 7. Domain tripwire — the wrong word is caught mid-dialogue

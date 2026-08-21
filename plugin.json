@@ -1,7 +1,6 @@
 {
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "compound-engineering",
-  "version": "3.22.0",
+  "version": "3.22.4",
   "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
   "author": {
     "name": "Kieran Klaassen and Trevin Chow"

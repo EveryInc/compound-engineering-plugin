@@ -47,6 +47,53 @@ describe("repo-local ce-skill-work skill", () => {
     expect(skill).toMatch(/\*\*Review mode:\*\*[^\n]*never has changed-block entries/)
   })
 
+  test("description guidance requires the pointer shape and rejects catalogs", () => {
+    const skill = readFileSync(path.join(AGENTS_SKILL, "SKILL.md"), "utf8")
+    const newSkill = readFileSync(path.join(AGENTS_SKILL, "references", "new-skill.md"), "utf8")
+    const reviewSkill = readFileSync(path.join(AGENTS_SKILL, "references", "review-skill.md"), "utf8")
+    const evaluate = readFileSync(path.join(AGENTS_SKILL, "references", "evaluate.md"), "utf8")
+    const guide = readFileSync(
+      path.join(ROOT, "docs", "solutions", "skill-design", "portable-agent-skill-authoring.md"),
+      "utf8",
+    )
+    const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
+    const shapeDescription = [
+      "Applies this repository's skill-authoring standard as a procedure. ",
+      "Use for any change to, or judgment about, a file under skills/** — a SKILL.md, ",
+      "a reference, a persona prompt, a bundled script's instructions: creating a skill, ",
+      "editing one, reviewing a skill change, or acting on review feedback (human or bot) about one. ",
+      "Not for src/, tests/, or scripts/ code.",
+    ].join("")
+    const catalogFailure = [
+      "\"This skill should be used when a user wants media from a yt-dlp-supported URL ",
+      "such as YouTube, Twitter/X, TikTok, and similar sites downloaded, audio extracted, ",
+      "playlists archived, or 403/bot-check failures fixed.\"",
+    ].join("")
+
+    for (const content of [skill, newSkill, reviewSkill, evaluate, guide]) {
+      expect(content).toContain("context pointer")
+      expect(content).toMatch(/leading (prompt )?word/i)
+      expect(content).toMatch(/one (positive )?trigger per genuinely distinct branch/i)
+    }
+
+    expect(skill).not.toContain("frontmatter as the template")
+    expect(newSkill).not.toContain("Use this skill's own frontmatter")
+    expect(newSkill).not.toContain("frontmatter as the shape")
+    expect(newSkill).not.toContain("Lead with the job in one clause")
+    expect(newSkill.match(/^Contrast pair \(the only description example\):$/gm) ?? []).toHaveLength(1)
+    expect(newSkill).toContain(`- Good (shape): "${shapeDescription}"`)
+    expect(newSkill).toContain(
+      `- Bad (failure: identity boilerplate + one branch written as a site/capability catalog): ${catalogFailure}`,
+    )
+    expect(reviewSkill).toMatch(/identity-boilerplate opener[\s\S]*catalog[\s\S]*is a Change/)
+    expect(reviewSkill).toContain("Use the single contrast pair in `references/new-skill.md`")
+    expect(evaluate).toMatch(/description-restraint fixture/)
+    expect(evaluate).toContain("single contrast pair in `references/new-skill.md`")
+    expect(evaluate).toMatch(/Passing behavior is a context pointer/)
+    expect(guide).toMatch(/Do not open with identity boilerplate/)
+    expect(agents).toMatch(/model-invoked description that opens with identity boilerplate or catalogs one branch/)
+  })
+
   test("AGENTS.md routes all four activities to the skill and keeps the reviewer rules bots read", () => {
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
     expect(agents).toMatch(/Before creating, editing, reviewing, or acting on review feedback for anything under `skills\/\*\*`, invoke the repo-local `ce-skill-work` skill/)

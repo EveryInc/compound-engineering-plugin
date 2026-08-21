@@ -9,7 +9,7 @@ severity: high
 applies_when:
   - Creating or materially revising a skill that is distributed to multiple agent models or harnesses
   - Reviewing skill prose for cross-model behavior, harness portability, authority, or over-prompting
-  - Choosing deterministic checks and targeted reasoning evals for a skill change
+  - Choosing deterministic checks and targeted behavior evals for a skill change
 tags:
   - skill-design
   - cross-model
@@ -46,7 +46,7 @@ The minimal form is the outcome spine plus only the protocol this skill needs, e
 
 Prefer small units of weaker-model insurance. Put one threshold, enum, count, quantifier, or gate beside the action it protects. Do not add a paragraph of defensive workflow when one falsifiable rule closes the observed gap.
 
-If a capable model's output becomes worse after adding prose, remove judgment guidance and non-load-bearing steps first. Do not respond to lost reasoning quality by stacking more protocol.
+If a capable model's output becomes worse after adding prose, remove judgment guidance and non-load-bearing steps first. Do not respond to lost judgment quality by stacking more protocol.
 
 ### Every instruction must earn its cost
 
@@ -58,11 +58,15 @@ Prefer an observable rule over a qualitative exhortation:
 |---|---|
 | "Be thorough." | "Check every changed execution path and report any path you could not verify." |
 | "Produce high-quality work." | "The handoff must name the decision, supporting evidence, unresolved risk, and next owner." |
-| "Be concise." | "Lead with the outcome; omit details that would not change the reader's next decision." |
+| "Be concise." | "For a short CLI-wrapper report, include command, exit status, output path/size, and stderr or blocker; omit secondary detail first." |
 
-This reflects current vendor guidance, not a preference for terseness. [OpenAI's prompting guide](https://learn.chatgpt.com/docs/prompting) says a short prompt is often enough, recommends starting with the result, and adds process only when process matters. [Fable 5 guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5) says brief instructions can replace behavior-by-behavior enumeration and warns that skills tuned for earlier models may be too prescriptive.
+This reflects current vendor guidance, not a preference for terseness. [OpenAI's GPT-5.6 guidance](https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6) says leaner prompts can improve task performance and token efficiency, to state each instruction once, and to keep examples only when they encode a product requirement or measured gap. [Fable 5 guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5) says brief instructions can replace behavior-by-behavior enumeration and warns that skills tuned for earlier models may be too prescriptive. [Anthropic's skill best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) says to match degrees of freedom to task fragility.
 
-This is not a ban on effort cues. A targeted phrase may be useful when it counters a documented runtime behavior. For example, the [Opus 4.8 guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8) recommends an explicit careful-reasoning cue for multi-step work forced to low effort. Treat such wording as a model-behavior adapter: name the condition it addresses and verify the effect rather than promoting it to a universal quality slogan.
+For Compound Engineering's multi-model skills, portable means Sol-first and Fable-acceptable. When Fable guidance to strip procedure or add a brevity block conflicts with Sol guidance to preserve a known-good command, required report content, or no blanket brevity slogan, keep the Sol form. Fable's strong instruction following tolerates a slightly thicker skill; Sol undershoots when Sol-critical determinism is omitted.
+
+For portable Sol/Fable skills, control output length by naming what shortened output must preserve. Do not paste a Fable-only brevity block or ship a blanket "be concise" / "keep it short" slogan into a cross-model skill; GPT-5.6 Sol can undershoot when broad brevity instructions stack on top of its default concision.
+
+This is not a ban on targeted steering. A phrase that counters a documented runtime behavior can stay as a model-behavior adapter: name the condition it addresses and verify the effect rather than promoting it to a universal quality slogan.
 
 This is an admission principle, not a mandate to delete unfamiliar detail. A line that feels redundant may be targeted insurance for a more literal model or a different harness. Test that possibility before removing it.
 
@@ -146,15 +150,16 @@ If many invariants share one outcome, authority domain, mutable state, and defin
 
 ## Make activation portable
 
-The name and description are an activation contract. A correct body is useless if it never runs.
+The name and description are an activation contract. A correct body is useless if it never runs. For a model-invoked skill, the description is also a context pointer: it sits in the window every turn, so it is pruned harder than the body.
 
-- Describe the user-visible job and the situations that should route to the skill.
-- Name the closest adjacent requests that belong elsewhere.
+- State what the skill is, front-loading the leading word that should fire it in prompts.
+- List one trigger per genuinely distinct branch in "Use when..." or "Use for..." form.
+- Keep adjacent negatives only when they block a real false-trigger neighbor; pair each hard guardrail with the positive trigger it protects.
 - Preserve deliberate invocation as a fallback when automatic routing is unavailable.
 - Use capability language instead of relying on one harness's command syntax.
-- Do not stuff the workflow into frontmatter.
+- Do not open with identity boilerplate, catalog synonyms or examples of one branch, dump workflow, flags, or procedure, or spend description words on content the body already carries.
 
-Evaluate activation separately from execution with a few positive triggers, adjacent negatives, and explicit invocations. A routing failure is not an execution failure.
+Evaluate activation separately from execution with a few positive triggers, adjacent negatives, explicit invocations, and description-restraint fixtures for new model-invoked skills. A routing failure is not an execution failure.
 
 ### Render user invocations at the output boundary
 
@@ -186,6 +191,16 @@ A menu is not automatically judgment. If omitting one item silently drops requir
 
 Mixed blocks must be decomposed before classification. Preserve the invariant skeleton, required fields, enums, and coverage. Compress or remove examples and rationale separately.
 
+## Match degrees of freedom to fragility
+
+Use high freedom when many approaches are valid and context should decide: state the outcome, hard constraints, and failure direction. Use medium freedom when one pattern is preferred: give one parameterized command, script, or example. Use low freedom when one known-good invocation exists and agents fail if they invent it: interacting flags, brittle order, a format selector that actually works, clip/archive/auth recipes, or anything live `--help` will not reconstruct. Pin that command once as the default, not a suggestion.
+
+For CLI-wrapper skills, the default is one canonical invocation plus named deltas. If two recipes share the same command skeleton, they are one recipe with a parameter, not two blocks. A catalog of commands is protocol only when each command protects a distinct invariant or supplies a non-derivable fact.
+
+This is not a ban on deterministic commands or bundled scripts. A bundled script is right when the glue is deterministic and annoying — quoting, combining inspection output, or a checked flag set — and agents would rebuild it wrong. The test is: if a capable model with live `--help` still ships the wrong command, the skill must give the command; if a one-line condition would steer it correctly, the extra block is noise.
+
+A pinned command still needs an ordered hatch. Write: run the pinned command; if it exits non-zero, returns the wrong shape, hits a bot/auth/version signal, or another named mismatch, then inspect, run live `--help`, or use the named fallback. Do not offer the hatch as a peer option to the default.
+
 ## Preserve literal scope locally
 
 More literal models often lose a distant qualifier. Keep scope beside the action it governs:
@@ -208,6 +223,8 @@ Avoid open-ended instructions such as "continue until good" or "be thorough." De
 - no launch-blocking questions remain when readiness is claimed.
 
 Do not request hidden reasoning or chain-of-thought. Ask for decisions, evidence, assumptions, material rejected alternatives, and next actions.
+
+Every skill needs one skill-level done bar. Add local done checks only where skipping the check can produce an unsafe action, fragile transition, scope expansion, mutation, auth mistake, irreversible external effect, or silent handoff failure. A "Done when" on every paragraph is over-prescription, not rigor.
 
 ## Describe capabilities before tools
 
@@ -251,11 +268,14 @@ For consequential workflows, distinguish:
 
 Invocation may satisfy a default confirmation requirement when the skill clearly names a bounded class of mutations as part of its job. It does not override system, organization, or user prohibitions.
 
+Keep autonomy as one compact envelope. Name safe local actions — reading files, inspecting logs, editing in-scope files, and running non-destructive validation — and let in-scope work that follows from the user's request proceed, including an external write that is the requested job or named in the skill's authority envelope. Stop for confirmation when an external write, destructive action, purchase, or material scope expansion is outside that envelope, or when only the user can supply the input. Do not repeat "ask first", "do not mutate", or "wait for approval" at each step unless each occurrence marks a different boundary.
+
 Write the positive rule when invocation supplies authority:
 
 ```text
 Invoking this workflow authorizes the following in-envelope actions without
-per-action confirmation: [...]. It does not authorize: [...].
+per-action confirmation, including named external writes: [...]. It does not
+authorize actions outside that envelope: [...].
 ```
 
 For chained mutation workflows, carry authority as bounded data. Include the target, permitted action classes, exclusions, and whether authority is user-direct or inherited. Downstream skills may narrow inherited authority, never broaden it. If structured authority cannot travel, fall back to the harness confirmation default. A live user instruction can narrow or revoke the active envelope at any time.
@@ -317,12 +337,12 @@ Mechanical checks belong in CI when they are deterministic and available to cont
 - script and fixture tests;
 - conversion and packaging invariants.
 
-Behavioral agent reasoning evals are best-effort local evidence, not a mandatory exhaustive matrix. Use a small targeted fixture pack for the largest portability risks introduced by the change.
+Behavioral agent evals are best-effort local evidence, not a mandatory exhaustive matrix. Use a small targeted fixture pack for the largest portability risks introduced by the change.
 
 Prioritize:
 
 1. **Weakest realistic layer:** does the minimum supported model or harness preserve the protocol?
-2. **Strong-model regression:** did added prose reduce reasoning quality, novelty, synthesis, or restraint?
+2. **Strong-model regression:** did added prose reduce judgment quality, novelty, synthesis, or restraint?
 3. **Restraint:** does the agent avoid inventing defects, additions, authority machinery, or unrelated work?
 4. **Fresh downstream consumer:** can the next skill or agent use the output without clarification?
 5. **Activation:** do positive and adjacent-negative prompts route correctly?
@@ -357,6 +377,11 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Non-obvious intent is included only when it changes the approach.
 - [ ] The skill stops at the minimal form unless evidence, risk, or a consumer contract justifies more.
 - [ ] Every route has a completion or blocker branch.
+- [ ] The skill has one skill-level done bar; local done checks protect only unsafe or fragile seams.
+- [ ] Each instruction is stated once; variants name deltas instead of repeating the full rule.
+- [ ] CLI recipes that share a command skeleton are one parameterized recipe, not repeated blocks.
+- [ ] Cross-model output guidance names must-preserve content instead of using blanket "be concise" / "keep it short" slogans.
+- [ ] Vendor guidance conflicts resolve Sol-first for this org's multi-model skills; Fable-only deletions do not strip Sol-critical determinism.
 - [ ] Generic quality exhortations and motivational rationale are absent.
 
 ### Protocol and judgment
@@ -364,6 +389,7 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Protocol is explicit and falsifiable.
 - [ ] Judgment is deleted when the outcome already guides it.
 - [ ] Remaining judgment guidance is the smallest supported principle or contrast pair.
+- [ ] The degrees of freedom match the task's fragility: high for many valid approaches, medium for a preferred pattern, low for known-good fragile commands or exact sequences.
 - [ ] Required coverage menus and local quantifiers are preserved.
 - [ ] Mixed blocks were decomposed before classification.
 
@@ -418,14 +444,23 @@ the approach. Add only the protocol needed to protect that outcome.
    A finding that a prescribed command fails in some state, against a
    delegating skill, is a representation finding: propose the deletion.
 6. Preserve local quantifiers, gates, stable fields, coverage floors, and
-   completion branches.
+   completion branches. Keep one skill-level done bar; add local done checks
+   only for unsafe or fragile seams.
 7. Describe capabilities and observable behavior before named tools. Preserve
    the semantic floor and define degradation.
-8. Add authority and delegation machinery only when the skill actually mutates
+8. State each instruction once. For CLI wrappers, one canonical invocation plus
+   named deltas beats repeated command blocks with the same skeleton. Pin a
+   known-good fragile command once when live `--help` is not enough; make it
+   the default with an ordered failure hatch, not a peer option.
+9. For cross-model skills, control output length by naming what a short report
+   must preserve; do not ship blanket "be concise" / "keep it short" slogans.
+10. Resolve vendor conflicts Sol-first for this org's multi-model skills:
+   Fable-only deletions must not strip Sol-critical determinism.
+11. Add authority and delegation machinery only when the skill actually mutates
    or delegates consequential work.
-9. Use a small targeted evaluation set for the weakest realistic layer,
+12. Use a small targeted evaluation set for the weakest realistic layer,
    strong-model regression, restraint, activation, and the next consumer.
-10. Choose the smallest supported change and record any material deviation.
+13. Choose the smallest supported change and record any material deviation.
 
 Return the outcome spine, proposed skill or findings, intentionally inapplicable
 guide sections, Change/Verify/Consider findings, targeted tests, and unresolved
@@ -436,9 +471,9 @@ decisions that would materially change the contract.
 
 The principles above are model-neutral. Model-specific behavior examples should be rechecked as generations change.
 
-- [OpenAI: Prompting](https://learn.chatgpt.com/docs/prompting)
+- [OpenAI: Prompt guidance for GPT-5.6](https://developers.openai.com/api/docs/guides/prompt-guidance-gpt-5p6)
 - [OpenAI: Model guidance](https://developers.openai.com/api/docs/guides/latest-model)
 - [OpenAI: Evals](https://developers.openai.com/api/docs/guides/evals)
 - [Anthropic: Prompt engineering overview](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview)
-- [Anthropic: Prompting Claude Opus 4.8](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8)
 - [Anthropic: Prompting Claude Fable 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5)
+- [Anthropic: Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)

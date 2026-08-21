@@ -51,6 +51,12 @@ async function initConfiguredRepo(root: string, localConfig: string): Promise<vo
 }
 
 describe("ce-setup check-health", () => {
+  test("does not require temporary-file-backed here-strings", async () => {
+    const script = await readFile(checkHealthScript, "utf8")
+
+    expect(script).not.toMatch(/<<<\s/)
+  })
+
   test("keeps the committed example identical to the bundled template", async () => {
     const [template, example] = await Promise.all([
       readFile(configTemplate, "utf8"),
@@ -652,11 +658,13 @@ describe("ce-setup check-health", () => {
     expect(skill).not.toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`")
   })
 
-  test("setup skips Phase 2 outside a git repository", async () => {
+  test("setup routes or skips Phase 2 by writable-checkout availability", async () => {
     const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
-    expect(skill).toContain("Always continue to Phase 2 after the health report when this checkout is a git repository")
-    expect(skill).toContain("Not inside a git repository")
-    expect(skill).toContain("skip Phase 2 and go to Phase 3")
+    expect(skill).toContain("After the health report, decide Phase 2 from writable-checkout availability")
+    expect(skill).toContain("If this session has a writable git checkout, run Phase 2 locally")
+    expect(skill).toContain("If this session has no writable checkout, but the user named a repository and the harness exposes a remote repo-work surface with a writable checkout")
+    expect(skill).toContain("Otherwise skip Phase 2 and go to Phase 3")
+    expect(skill).not.toContain("If the health report says `Not inside a git repository`")
   })
 })
 

@@ -15,8 +15,8 @@ It is optional. Skip it for typos, one-line fixes, and purely mechanical work.
 | Question | Answer |
 |----------|--------|
 | What does it do? | Documents a solved problem to `docs/solutions/[category]/[filename].md` with structured frontmatter, bug-track or knowledge-track sections, and cross-references |
-| When to use it | After solving a non-trivial problem; when the user says "that worked", "it's fixed", "problem solved" |
-| What it produces | One doc in `docs/solutions/`, plus optional vocabulary capture into the glossary that owns the term; interactive Full may also edit `AGENTS.md`/`CLAUDE.md` for discoverability after consent |
+| When to use it | After solving a non-trivial problem; when you say "that worked", "it's fixed", "problem solved" |
+| What it produces | One doc in `docs/solutions/`, plus optional vocabulary capture into the glossary that owns the term. Interactive Full may also edit `AGENTS.md`/`CLAUDE.md` for discoverability after consent. |
 | What's next | No menu. Optional `/ce-compound-refresh` if the new learning suggests an older doc may be stale. |
 
 ---
@@ -112,8 +112,6 @@ Vocabulary capture writes to the glossary that owns the term, not to a fixed fil
 Ambiguous ownership is never guessed. Where a project still has legacy `CONTEXT-MAP.md` / `CONTEXT.md` files defining terms, capture stops rather than writing into a second canonical source, and points at `ce-compound-refresh`'s migration.
 
 Full mode always runs a cheap two-stage session-history probe. A discovery+metadata pass runs in parallel with the research subagents. Claude sessions are listed from `~/.claude/projects/` (or `CLAUDE_CONFIG_DIR/projects` when that env var is set) and kept when the recorded `cwd` is the repo root, a parent of it, or a path inside it — including sessions started from a parent directory. Codex sessions come from the active `CODEX_HOME`, the conventional homes, and Orca-managed account homes. It escalates to extraction and synthesis only when a candidate session clears a relevance bar (current-branch match or at least two topic-keyword hits). On a hit, findings fold into "What Didn't Work" (bug track) or "Context" (knowledge track). Lightweight skips this entirely.
-
-### 5. Grounding validation — claims are verified against the tree before they compound
 
 After capturing the new learning, `ce-compound` checks whether it should invoke `/ce-compound-refresh` on a narrow scope hint. It does not default to running refresh. Only when the new learning suggests a specific older doc may now be stale.
 

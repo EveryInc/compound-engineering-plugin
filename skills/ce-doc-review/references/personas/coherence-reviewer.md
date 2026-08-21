@@ -20,6 +20,8 @@ The patterns and confidence anchors in the rest of this file apply identically t
 
 **Genuine ambiguity** -- statements two careful readers would interpret differently. Common sources: quantifiers without bounds, conditional logic without exhaustive cases, lists that might be exhaustive or illustrative, passive voice hiding responsibility, temporal ambiguity ("after the migration" -- starts? completes? verified?).
 
+**Mechanism-only Objective** -- the Goal Capsule Objective names only an approach and no outcome that would remain the goal under a different implementation. The doc then disagrees with its own contract: an executor cannot tell what success is if the mechanism proves wrong. Emit at `75`, `manual`; the fix asks the author for the outcome the mechanism serves and moves the mechanism to a Means line. Do not flag when an outcome clause is present anywhere in the Objective, however brief.
+
 **Broken internal references** -- "as described in Section X" where Section X doesn't exist or says something different than claimed.
 
 **Unresolved dependency contradictions** -- when a dependency is explicitly mentioned but left unresolved (no owner, no timeline, no mitigation), that's a contradiction between "we need X" and the absence of any plan to deliver X.

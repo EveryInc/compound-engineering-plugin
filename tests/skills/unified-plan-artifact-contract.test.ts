@@ -1038,3 +1038,34 @@ describe("Product Contract section catalog and routing destinations", () => {
     ).toBe(true)
   })
 })
+
+describe("Goal Capsule objective is outcome-shaped (issue #1423)", () => {
+  const coherence = readRepoFile(
+    "skills/ce-doc-review/references/personas/coherence-reviewer.md",
+  )
+
+  test("both section contracts define Objective as an outcome and give the mechanism a Means slot", () => {
+    for (const [doc, marker] of [
+      [planSections, "**Goal Capsule**"],
+      [brainstormSections, "`## Goal Capsule`"],
+    ] as const) {
+      const capsule = sliceSection(doc, marker, "\n- ")
+      expect(capsule).toMatch(/\bMeans\b/)
+      expect(capsule).toMatch(/different\s+(implementation|mechanism)/i)
+    }
+  })
+
+  test("Success Criteria skip does not fire on approach-shaped requirements", () => {
+    const sc = sliceSection(planSections, "- **Success Criteria**", "\n- **")
+    expect(sc).toMatch(/approach rather than an outcome/)
+  })
+
+  test("bootstrap exit requires an outcome-shaped problem frame", () => {
+    const exit = sliceSection(planSkill, "**Exit condition:** Exit the bootstrap", "\n\n")
+    expect(exit).toMatch(/Means/)
+  })
+
+  test("coherence reviewer flags a mechanism-only Objective", () => {
+    expect(coherence).toMatch(/mechanism-only Objective/i)
+  })
+})

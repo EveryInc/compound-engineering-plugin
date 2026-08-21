@@ -27,6 +27,10 @@ In Cursor Agent chat, install from the plugin marketplace:
 
 Or search for "compound engineering" in the plugin marketplace.
 
+### Grok Bot
+
+Install Compound Engineering on the Cursor account that Grok Bot uses: in Cursor Agent chat run `/add-plugin compound-engineering`, or search for "compound engineering" in the Cursor plugin marketplace. Grok Bot reads skills from that account plugin cache; do not run Cursor IDE or Claude Code plugin commands on the Grok Bot host.
+
 ### Codex App
 
 Compound Engineering is not listed in Codex's built-in plugin marketplace yet. Add it as a custom marketplace:
@@ -544,6 +548,10 @@ There is no `codex plugin update`; re-running `add` reinstalls from the refreshe
 **Codex App**
 
 Refresh the marketplace from the **Plugins** panel. If it still uses the official source, remove it and add a marketplace with source `ethras/compound-engineering-orca`, then reinstall **compound-engineering** and restart Codex.
+
+**Grok Bot**
+
+Refresh or reinstall Compound Engineering on the Cursor account so Grok Bot's account plugin cache picks up the new snapshot. Do not clone this repository onto the Grok Bot computer for normal updates.
 
 If you configured a host with a direct path or sparse path under `plugins/compound-engineering`, edit or reinstall that source so it points at the repository root with no sparse path.
 

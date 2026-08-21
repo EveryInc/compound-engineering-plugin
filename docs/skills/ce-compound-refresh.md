@@ -100,7 +100,7 @@ Refresh is the only skill that owns the shape of a project's vocabulary, not jus
 
 It also owns `migrate-domain-docs`, the one route that imports legacy `CONTEXT-MAP.md` / `CONTEXT.md` vocabulary. The route is inventory, deterministic proposal, human arbitration, dry-run preview, confirmed apply, then validation twice — before and after the legacy files are removed. Nothing is written until the user has seen the complete operation list, headless runs stop at the dry-run report, and legacy files are deleted only once every reference to them has moved and the user has reviewed the diff. Re-running the whole route on a migrated project proposes nothing.
 
-### 2. Two modes — Interactive default, Non-interactive on `mode:non-interactive`
+### Two modes
 
 **Interactive** (default) applies Keep, Update, and obvious Consolidate directly. It asks before a Replace, a Split, a Delete that fails the auto-delete gate, or a Consolidate whose canonical doc is not obvious.
 

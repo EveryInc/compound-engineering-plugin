@@ -44,7 +44,7 @@ Read the skill top to bottom and tag each instruction block:
 
 The test: *would a strong model behave correctly given only the principle?* If yes, it's JUDGMENT. If the skill produces wrong file paths, wrong agent counts, or broken handoffs without it, it's PROTOCOL.
 
-This refines (not replaces) the three-level prescription model in the plugin's AGENTS.md Skill Design Principles — hard rules / strong guidance / trust. Protocol maps to hard rules; the protocol-vs-judgment test decides which of the other two levels a block deserves.
+This refines (not replaces) the prescription-calibration framework in `docs/solutions/skill-design/portable-agent-skill-authoring.md` section "Separate protocol from judgment." Protocol maps to hard rules; the protocol-vs-judgment test decides which of the other two levels a block deserves.
 
 ### 2. Establish the orchestrator-model floor before cutting anything
 
@@ -204,5 +204,5 @@ The before version leaves enough inline (phase name, "dispatch the agents") to i
 - `docs/solutions/skill-design/safe-auto-rubric-calibration.md` — earlier eval-methodology precedent (fixture-based grading, variance awareness) consistent with step 7.
 - `docs/solutions/skill-design/paired-old-vs-new-injection-skill-evals.md` — sharpens step 7's fresh-subagent grading into a controlled old-vs-new blind A/B that separates demonstrated improvement from no-regression.
 - `docs/solutions/best-practices/ce-pipeline-end-to-end-learnings.md` — evidence that `model:` params propagate to all conversion targets (step 4).
-- Plugin `AGENTS.md` → Skill Design Principles — the prescription-calibration framework this methodology refines; and the conditional/late-sequence extraction rule step 5 operationalizes.
+- `docs/solutions/skill-design/portable-agent-skill-authoring.md` → "Separate protocol from judgment" — the prescription-calibration framework this methodology refines; "Load instructions when they can change behavior" is the live conditional/late-sequence extraction rule that step 5 operationalizes.
 - GitHub issues #714 and #374 — historical reference-load failures in the same family step 6 addresses.

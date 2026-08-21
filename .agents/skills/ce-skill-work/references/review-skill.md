@@ -4,7 +4,7 @@ A review agent is biased toward producing changes. Counter it: state the runtime
 
 ## What a finding is, on `skills/**`
 
-A gap in the goal, the done condition, or the safe failure direction; or a mechanism at the wrong owning layer — commands prescribed in a skill that delegates that work, a rule placed where it will not fire, a Claude-only construct in a cross-host skill, a rendering that breaks on another harness, a route that hands off to a party not present in the run.
+A gap in the goal, the done condition, or the safe failure direction; over-prescription that degrades the agent's degrees of freedom; under-prescription that removes a known-good fragile command; a Fable-only deletion that harms Sol; or a mechanism at the wrong owning layer — commands prescribed in a skill that delegates that work, repeated command blocks where one parameterized recipe would decide the same behavior, omitted exact commands where a capable model with live `--help` would still get the command wrong, a pinned command with no failure hatch, a hatch offered as a peer option to the pinned default, per-step done checks not protecting a fragile gate, blanket brevity slogans in cross-model skills, a rule placed where it will not fire, a Claude-only construct in a cross-host skill, a rendering that breaks on another harness, a route that hands off to a party not present in the run.
 
 **A case a stated condition already decides is not a finding.** Before filing "what if X" against a rule, read the rule's condition and ask whether it decides X. If it does, do not file. If the condition is wrong or missing, file that — as a condition.
 
@@ -22,8 +22,15 @@ Do not solve a non-problem with a rewrite. Prefer an additive guard or an explic
 
 ## Also check
 
-- Description is a trigger, not a workflow summary; adjacent negatives are present.
+- Description is a context pointer for a model-invoked skill: it states what the skill is with the leading prompt word first, names one trigger per genuinely distinct branch in "Use when..." or "Use for..." form, and keeps adjacent negatives only when they block real false-trigger neighbors. An identity-boilerplate opener, or a site/synonym/capability catalog for one branch, is a Change; workflow, flags, procedure, or body-owned detail in the description is also a Change. Use the single contrast pair in `references/new-skill.md` when the shape needs a labeled example.
 - Every route completes or blocks; no phantom handoffs.
+- One skill-level done bar decides ordinary completion; local done checks appear only around mutation, auth, scope expansion, irreversible external effects, fragile transitions, or silent handoff risk.
+- CLI-wrapper skills use one canonical invocation plus named deltas; five or more near-duplicate command blocks is a Change unless each block protects a distinct load-bearing gate.
+- Known-good fragile commands are pinned once. Omitting the command is a Change when agents fail if they invent it: interacting flags, brittle order, working format selector, clip/archive/auth recipe, or anything live `--help` will not reconstruct.
+- Pinned commands are defaults with ordered failure hatches. A pinned command with no hatch is brittle; a hatch written as a peer option ("use this command, or compose from `--help`") is a Change because Sol may take the hatch first. The safe shape is command first, then named failure signal, then fallback.
+- For this org's multi-model skills, Sol-first and Fable-acceptable wins over Fable-optimal. A Fable-only deletion of a Sol-critical command, report field, or no-blanket-brevity rule is a Change, not lean-prompt hygiene.
+- Autonomy policy is one envelope; in-scope work proceeds, including external writes that are the requested job or named in the authority envelope. Repeated "ask first" gates, or an absolute stop for all external writes regardless of envelope, are a Change unless each marks a different outside-envelope external/destructive/scope/user-only boundary.
+- Cross-model skills do not ship blanket "be concise" / "keep it short" slogans or Fable-only brevity blocks; they name the report content to preserve. For CLI wrappers, that includes command, exit status, output path/size, and stderr or blocker.
 - Always-loaded prose vs conditionally-loaded references: cost them differently, and say whether the change moved weight between them.
 - Cross-skill contracts changed on both ends, with the contract test.
 - Portability: capabilities before tools, fallbacks for platform variables, no `!` pre-resolution, `SKILL_DIR` anchor on executed bundled scripts.

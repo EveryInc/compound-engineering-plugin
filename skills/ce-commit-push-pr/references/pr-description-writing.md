@@ -68,10 +68,10 @@ Build a compact internal **scope map** from the **complete oneline commit list a
 
 **Program altitude (multi-PR / series).** After the PR-local map, check whether this PR sits inside a larger program (multi-PR project, stack, series, multi-unit plan). Use only signals already in hand: user prompt/conversation, a known plan path, existing PR body, commit messages, or sibling/series language in context. Do **not** invent a series, and do **not** run a repo-wide open-PR scan solely for this step.
 
-When program context is present, extend the map with: (1) **Program outcome** — end-to-end delivery in one sentence; (2) **This PR's contribution** — the local umbrella; (3) **Neighbors** — prior work (**lead-in**) and/or residual work (**lead-out**), each only when known. Lead with **program → lead-in (if any) → this contribution → lead-out (if any)**. Early PRs need lead-out; middle need both; late need lead-in (and say the arc completes when true). Omit prior or next when unknown — never invent either. Program placement the reviewer cannot get from this PR's diff alone is decision cost. When program context is absent, keep the single-PR umbrella only.
+When program context is present, extend the map with: (1) **Program outcome** — end-to-end delivery in one sentence; (2) **This PR's contribution** — the local umbrella; (3) **Neighbors** — prior work (**lead-in**) and/or residual work (**lead-out**), each only when known. The map's order is **program → lead-in (if any) → this contribution → lead-out (if any)**; in the body the opening states this contribution and a short block after it supplies the rest (Step C). Early PRs need lead-out; middle need both; late need lead-in (and say the arc completes when true). Omit prior or next when unknown — never invent either. Program placement the reviewer cannot get from this PR's diff alone is decision cost. When program context is absent, keep the single-PR umbrella only.
 
-- Bad (too local for a middle PR): "Issue-close now revokes the active session on the server."
-- Good: "Continues the session-revocation rewrite after refresh-path rejection. This PR closes the active session on issue-close. Multi-device revocation remains follow-on."
+- Bad (too local for a middle PR): the opening "Issue-close now revokes the active session on the server." with no placement anywhere in the body.
+- Good: that same opening, then a block: "Continues the session-revocation rewrite after refresh-path rejection; multi-device revocation remains follow-on." — the block adds the program and its neighbors, not a second copy of the outcome.
 - Early/late: name first-slice + residual, or complete-the-arc + what already landed — same three fields, omit the unknown neighbor.
 
 > Prefer the shortest description that still lets a reviewer decide — context (including program placement when present), evidence, and residual uncertainty they can't get from the diff, and nothing they can.
@@ -82,11 +82,13 @@ Decision cost raises the content floor, not the length ceiling (high-uncertainty
 |---|---|
 | Small + simple (typo, config, dep bump) | 1-2 sentences, no headers. Under ~300 characters. |
 | Small + non-trivial (bug fix, behavioral change) | 3-5 sentences. No headers unless two distinct concerns. User-visible before/after when the bug was observable. |
-| Medium feature or refactor | Narrative frame, then what changed and why. Call out design decisions. |
-| Large or architecturally significant | Narrative frame + 3-5 design-decision callouts + brief test summary. Target ~100 lines, cap ~150. Many mechanisms → Summary table, not an H3 per mechanism. |
+| Medium feature or refactor | Opening (one or two sentences), then only sections that each answer one remaining reviewer question; call out design decisions. |
+| Large or architecturally significant | Same, plus 3-5 design-decision callouts and a brief test summary. Target ~100 lines, cap ~150. Many mechanisms → Summary table, not an H3 per mechanism. |
 | Performance improvement | Before/after measurements as a markdown table. |
 
 A project PR-body contract sets the structural floor; this table sizes the content within it, never against it. Small + simple: the value-led sentence is the whole description.
+
+**Medium and large: a reader can stop anywhere.** The opening is one or two sentences carrying one idea — what is now different and the gap or failure it replaces — so a reviewer who stops there knows what the PR does. Program or series context, when present, is a short additive block after it (Step C), never part of the opening's sentence. Each further section exists to answer one remaining reviewer question; a bullet is one clause, with reasoning under design decisions rather than inside the bullet. Deliberately deferred scope is stated once, not woven into the opening. Which sections and devices appear is decided by what the reviewer still cannot get from the diff (Visual aids, Step C) — this is not a section list.
 
 ---
 
@@ -154,13 +156,13 @@ Preserve an existing `## New concepts` section and explainer-doc link verbatim o
 
 When a project PR-body contract supplies headings or order, preserve that structure and place the applicable elements below within the sections it permits. Otherwise: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → session-settled provenance when a labeled plan is in hand → New concepts section when Step B2 produced one → evidence block if one exists → branding when Step D calls for it.
 
-When the project PR-body contract supplies a heading or location for the opening, place it there without inventing or renaming a heading. Otherwise, the opening goes under `## Summary` if the body uses any `##` headings; bare paragraph otherwise. No orphaned opening above the first heading. When program context is present, the opening carries program altitude before mechanism detail.
+When the project PR-body contract supplies a heading or location for the opening, place it there without inventing or renaming a heading. Otherwise, the opening goes under `## Summary` if the body uses any `##` headings; bare paragraph otherwise. No orphaned opening above the first heading. The opening carries one idea — this PR's outcome; it is the map's "this contribution" slot. When program context is present, a short block immediately after it adds only what the opening cannot: the program outcome and the known lead-in and lead-out. It never restates the outcome, and the program is never folded into the opening's sentence.
 
 **Session-settled provenance:** when a plan is already in hand (caller path or conversation) with `session-settled:`-labeled KTDs, one static sentence naming settled decisions and classes (e.g. "Session-settled decisions carried from planning: X (user-directed, over Y); Z (user-approved)."). Add proceed-under-conflict clauses only when the caller flagged them. Never an outstanding-items ledger; never hunt for plans when none is in hand.
 
 **Evidence:** preserve existing `## Demo` / `## Screenshots` unless focus asks to refresh. Splice caller-passed capture as `## Demo`. Place before the badge. Never label test output as "Demo" or "Screenshots." SKILL.md Step 4 owns whether to include validation notes vs skip.
 
-**Visual aids:** diagram or table when faster than prose (flows, trade-offs, before/after data); skip for simple/rename/dep-bump. Prose wins on conflict. **GitHub:** never prefix list items with `#` (auto-links as issues); use `org/repo#123` or full URL for real refs.
+**Visual aids:** diagram or table when faster than prose (flows, trade-offs, a before/after comparison when observable behavior changed); a navigation hint (which file to start in, or the small load-bearing hunk a reviewer would otherwise miss) only when the reviewer would start in the wrong place — never a list of changed files, which the diff already shows; skip all of these for simple/rename/dep-bump. Content pattern decides, never size or file count. Prose wins on conflict. **GitHub:** never prefix list items with `#` (auto-links as issues); use `org/repo#123` or full URL for real refs.
 
 ---
 
@@ -185,6 +187,8 @@ For an **existing PR body**, preserve an existing branding block verbatim (inclu
 Before returning the title and body, check against the scope map and material claims from Step A and revise if wrong:
 
 - Does the title express the umbrella outcome rather than one cluster or mechanism?
+- Does the opening carry one idea in one or two sentences, and could a reviewer stop there and know what the PR does? If it also carries program context, deferrals, or implementation detail the diff already supplies, move those out; mechanism that is itself the outcome (an atomicity, protocol, or API guarantee) stays in the opening, per the prose rule above.
+- Does any section, table, or hint restate what the Files-changed tab or diff already shows? Cut it. Does any section answer no remaining reviewer question? Cut it.
 - Is every material outcome represented by the umbrella framing or body, or intentionally omitted because it is supporting-only?
 - Is every claim the diff can't establish present — and any claim the diff *does* show restated needlessly?
 - When program context was present: does the lead place this PR on the arc (program + this contribution, with lead-in and/or lead-out when known)? When program context was absent: does the body invent a multi-PR series? If so, cut it.

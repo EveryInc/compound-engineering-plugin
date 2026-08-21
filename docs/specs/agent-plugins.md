@@ -4,11 +4,13 @@ Last verified: 2026-08-07 against [Agent Plugins v1.0.0](https://agent-plugins.o
 
 ## What this repo does
 
-Root `plugin.json` targets the Agent Plugins 1.0.0 manifest schema:
+Root `plugin.json` follows the Agent Plugins 1.0.0 manifest authoring rules (field set and shapes) but **currently omits the `$schema` field**:
 
 ```text
 https://agent-plugins.org/schemas/1.0.0/plugin.schema.json
 ```
+
+**Why `$schema` is withheld (#1412):** Codex >= 0.147 ([openai/codex#37027](https://github.com/openai/codex/pull/37027)) treats a root `plugin.json` whose `$schema` starts with `https://agent-plugins.org/schemas/` as an Agent Plugin, and for Agent Plugin skills injects only the first `MAX_SKILL_PROMPT_BYTES` (8000) of each `SKILL.md` into the model-visible prompt, silently dropping the rest. Legacy manifests (`.codex-plugin/plugin.json`) are exempt. Most bundled skills exceed 8000 bytes, so shipping the `$schema` truncates them on Codex. `tests/codex-skill-prompt-budget.test.ts` pins this: it asserts the root manifest carries no Agent Plugins `$schema` at all, and holds a shrink-only allowlist of over-budget skills (CRLF-adjusted, since Windows checkouts inflate the byte count). **A second, independent reason (#1411):** oh-my-pi (omp) >= 17.3 routes on the same `$schema` prefix to its strict `agent-plugins` discovery provider, which rejects any `SKILL.md` whose frontmatter has a key outside the Agent Skills closed set (`argument-hint`, `disable-model-invocation`) or a non-string `allowed-tools` — 30 of 33 skills failed to load. Without the `$schema`, omp's lenient legacy provider loads all of them. **Posture (decided 2026-08-17): the root manifest stays schema-less indefinitely.** Restoring `$schema` at the root is a non-goal, not a milestone: omp's routing has no per-host override (verified in 17.3.5 — `legacyProviderAllowed` locks the lenient provider out on the `$schema` prefix alone, and any other Agent Plugins `$schema` value is fatally invalid rather than a fallback), and the Claude Code top-level keys are load-bearing, so no root manifest can satisfy both. If a strict Agent Plugins client ever needs conformance, serve it an emitted package (the converter target below, with Claude keys relocated under `metadata:` and `allowed-tools` as a string) from its own marketplace `source`, and leave the root Claude-native. The `$schema` assertion is therefore unconditional.
 
 Layout already matches the portable package shape: root manifest + `skills/<name>/SKILL.md`. No `mcp.json` (valid — MCP is optional).
 
@@ -26,7 +28,7 @@ Agent Plugins discovers skills via the [Agent Skills](https://agentskills.io/spe
 
 **What is not proven**
 
-- That shipping Agent Plugins clients run `skills-ref` at load time, or skip skills with extra top-level keys. Many clients may ignore unknown fields and still load the skill. Runtime impact is **unverified** until exercised against a concrete client.
+- ~~That shipping Agent Plugins clients run `skills-ref` at load time, or skip skills with extra top-level keys.~~ **Now proven (#1411):** omp 17.3.5's `validateAgentSkillFrontmatter` mirrors `skills-ref` and rejects the skill; the manifest posture above is what keeps omp on its lenient path.
 
 **Source policy**
 
@@ -44,7 +46,10 @@ Agent Plugins discovers skills via the [Agent Skills](https://agentskills.io/spe
 
 ## Re-verify when
 
+- A strict Agent Plugins client we ship to needs conformance (then add an emitted conformant package for it — do not add `$schema` to the root)
+- omp adds a per-host override / lenient fallback for `$schema` packages
+- Codex changes `MAX_SKILL_PROMPT_BYTES` or applies it to legacy/host skills ([openai/codex#37463](https://github.com/openai/codex/issues/37463))
 - Agent Plugins leaves Working Draft / publishes a new schema version
 - Adding top-level fields to root `plugin.json`
-- A concrete Agent Plugins client is observed to skip or reject skills with Claude-only frontmatter
+- A concrete Agent Plugins client is observed to skip or reject skills with Claude-only frontmatter (observed 2026-08-17: omp 17.3.5, #1411)
 - Shipping an `agent-plugins` converter target

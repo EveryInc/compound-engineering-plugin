@@ -948,8 +948,10 @@ const AGENT_PLUGINS_STRING_FIELDS = [
 function agentPluginsManifestErrors(manifest: Record<string, unknown>): string[] {
   const errors: string[] = []
 
-  if (manifest.$schema !== AGENT_PLUGINS_SCHEMA) {
-    errors.push(`$schema must be ${AGENT_PLUGINS_SCHEMA}`)
+  // $schema is deliberately absent while any SKILL.md exceeds Codex's 8000-byte
+  // Agent Plugin prompt bound (see tests/codex-skill-prompt-budget.test.ts, #1412).
+  if (manifest.$schema !== undefined && manifest.$schema !== AGENT_PLUGINS_SCHEMA) {
+    errors.push(`$schema must be ${AGENT_PLUGINS_SCHEMA} when present`)
   }
 
   if (typeof manifest.name !== "string") {

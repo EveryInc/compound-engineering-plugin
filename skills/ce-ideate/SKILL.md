@@ -33,7 +33,7 @@ fi
 
 ## Interaction Method
 
-Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
+Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options on the host's user-visible chat surface only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
 Ask one question at a time. Prefer concise single-select choices when natural options exist.
 
@@ -300,7 +300,7 @@ Run grounding agents in parallel in the **foreground** (do not background — re
 
    > **Grounding scope:** use the supplied project context and go directly to current patterns bearing on the focus, pain points, leverage points, applicable workflow constraints, and in surprise-me mode representative files plus recent activity. If the focus cannot be scoped, use one targeted root or workspace probe.
    >
-   > Start with the files and areas named by the focus or caller context. Read the applicable current project instructions when operational rules affect the scan, `STRATEGY.md` when product alignment matters, and `CONCEPTS.md` when canonical vocabulary matters — when it declares a parseable `## Contexts` index instead of terms, also read the glossaries of the contexts the focus touches.
+   > Start with the files and areas named by the focus or caller context. Read the applicable current project instructions when operational rules affect the scan, whichever product docs exist at the repo root (`STRATEGY.md`, `PRODUCT.md`, `VISION.md`) when product alignment matters, and `CONCEPTS.md` when canonical vocabulary matters — when it declares a parseable `## Contexts` index instead of terms, also read the glossaries of the contexts the focus touches.
    >
    > If the focus names a root-level `*.md` file, read it and include its relevant content under `User-named references`. When that file is listed on the research-artifacts line below, leave its full distillation to the research agent and include only a one-line gist here.
    >
@@ -309,7 +309,7 @@ Run grounding agents in parallel in the **foreground** (do not background — re
    > - current patterns and conventions relevant to the focus
    > - pain points or gaps relevant to the focus
    > - likely leverage points
-   > - relevant product strategy, if `STRATEGY.md` was read
+   > - relevant product strategy and boundaries, if a product doc was read
    > - `User-named references` section (when the focus hint named root-level `*.md` files)
    >
    > Keep the scan shallow. Do not analyze unrelated issues, templates, contribution guidelines, or code.

@@ -75,7 +75,7 @@ Without an explicit pipeline, autonomous runs tend to skip planning, treat revie
 5. `/ce-code-review` (`mode:agent`) reports findings. `lfg` applies eligible mechanical fixes and commits them. Review itself does not edit the tree.
 6. Leftover actionable findings, plus any flagged settlement conflicts, become durable as tracker tickets and one run-report comment on the PR. They are not written into the PR body.
 7. `/ce-test-browser` runs in pipeline mode.
-8. `/ce-commit-push-pr mode:pipeline branding:on` commits remaining changes, pushes, and opens a PR when a remote exists, and marks CE provenance.
+8. `/ce-commit-push-pr mode:pipeline branding:on` commits remaining changes, pushes, and opens a PR when a remote exists, and marks CE provenance. If the project's instructions name their own shipping process (e.g. a `/create-pr` skill), that process runs instead, so CE branding may not appear.
 9. `/ce-babysit-pr mode:pipeline` watches the open PR: CI repairs via `/ce-debug`, incoming review comments via `/ce-resolve-pr-feedback`, up to three fix rounds by default. Pipeline babysit stops at "CI decided," not "merged."
 10. Print `DONE`. If the plan named a larger body of separately planned work and an area is still unplanned, `lfg` may offer an opt-in `/ce-handoff` for a fresh session. It does not continue that area itself.
 
@@ -178,39 +178,11 @@ Direct invocation is fine for a clear software task. The planner has less produc
 You can ask `lfg` to have a specific model or harness author one stage while `lfg` keeps the rest of the run.
 
 - **Scoped to planning:** `plan with fable`, `plan with opus`. This is model elevation inside `ce-plan`. Planning has no cross-harness engine. Assigning a harness to planning (`plan with Codex`, `plan on Cursor`) blocks.
-- **Scoped to implementation:** `use Codex for implementation` (preference), `only use Composer for implementation` (requirement). `cursor` means the Cursor harness with its default model. `composer` means a Composer-family model through Cursor.
+- **Scoped to implementation:** `use Codex for implementation` (preference), `only use Composer for implementation` (requirement). `cursor` means the Cursor harness with its default model. `composer` means a Composer-family model through Cursor. `antigravity` means the Antigravity CLI (`agy`) with its configured default model.
 - **Unscoped:** `use fable`, `with Codex`. Binds to implementation only. In an interactive run that is genuinely ambiguous, `lfg` asks one question, then runs hands-off. In a headless run (scheduler, loop, nested orchestrator) it applies the implementation default and discloses it.
 - **No stage instruction:** `ce-plan` uses its `plan_model` config (or none). `ce-work` uses session/project instructions already in context, then checkout-local `work_engine_mode` and `work_engine_preferences`.
 
-# planning only (authors the plan on the named model via ce-plan's elevation)
-/lfg add account-level notification mute settings, plan with fable
-
-# after /ce-brainstorm settled the requirements — no feature text needed
-/lfg plan with fable
-
-# both stages at once, each to its own model/harness
-/lfg add account-level notification mute settings, plan with fable and use codex for implementation
-```
-
-`lfg` recognizes the intent from the whole instruction rather than matching one keyword, and resolves each directive **by scope**:
-
-- **Scoped** — the instruction names the stage ("plan with fable", "codex for implementation"). It routes to that stage: a `plan_model:<alias>` carrier to `ce-plan` (model elevation), an `implementation_engine` object to `ce-work`. Both may resolve at once.
-- **Unscoped** — a bare assignment with no stage named ("use fable", "with codex"). It binds to **implementation only** and is disclosed in `lfg`'s opening line; it never silently spreads to planning or every stage.
-- **Unscoped but genuinely ambiguous, and you are present** — `lfg` asks exactly one upfront question before the pipeline starts, then runs hands-off. In a headless run (scheduler, loop, nested orchestrator) it never asks — it applies the implementation default and discloses it, because there is no one to answer.
-
-The implementation carrier is a transient object containing exactly `mode`, `target`, `model`, and `source`, passed beside `mode:return-to-caller` only when `lfg` invokes `ce-work`. On string-only hosts that seam is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`; for example, `implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}`. The `plan_model:<alias>` carrier rides beside — never inside — `ce-plan`'s request. Neither carrier becomes plan content, a settled product decision, or review input. A plain mention of a model in feature text, quoted material, a comparison, or a filename does not activate routing.
-
-That four-field carrier is deliberately scalar. If the current LFG instruction names an ordered fallback list, LFG keeps the whole list as stage-scoped current-task context and passes no truncated carrier; CE Work resolves and preflights that retained list in order. If a host cannot preserve the current-task context across its skill invocation, LFG blocks instead of silently losing the later candidates. Standing ordered config needs no carrier and remains the most portable way to establish a reusable matrix.
-
-The first example is preference-strength. If the Codex route is unavailable before work starts, `ce-work` implements natively and returns the requested route, actual route/model, and fallback reason; `lfg` discloses the fallback and continues to its one shipping tail. The second is requirement-strength. Because `lfg` is headless, an unavailable required route blocks without asking or silently switching to native work.
-
-Target `cursor` means the Cursor harness with its configured default model. Target `composer` means a Composer-family model requested through Cursor. Target `antigravity` means the Antigravity CLI (`agy`) with its configured default model. A model pin is optional. Route substitution stays within the requested target/model family and is disclosed; a route is not used until its fixed-recipient, unattended write adapter is qualified and locally available. The cross-model engine has a launch floor of at least one real non-native route passing that qualification matrix; failing candidates remain unavailable rather than becoming guessed production commands.
-
-When the prompt has no stage instruction, `lfg` passes no empty binding for that stage. For planning, `ce-plan` then resolves elevation from its `plan_model` config key (or no elevation). For implementation, `ce-work` considers applicable session/project instructions already in context before the gitignored per-checkout `work_engine_mode` and ordered `work_engine_preferences` list. Each config candidate names a `harness` and optional `model`; omission uses that harness's configured default. Config `prefer` is active in the automatic flow and falls back natively only after its ordered candidates are exhausted; config `require` blocks if none qualify. A current-task implementation instruction outranks those defaults.
-
-See [Compound Engineering configuration](./configuration.md#implementation-routing) for the shared config shape and its relationship to harness-loaded instructions.
-
-Long external runs remain observable through the `ce-work` return contract: run id, requested and actual identity, unit/job state, activity and elapsed time, checkpoint, verification/commit state, blockers, and recovery path. If `lfg` retries once to reconcile missing verification evidence, it uses the same binding and run id; it does not dispatch implementation or run the shipping tail twice. See [`ce-work`](./ce-work.md#choose-the-implementation-author) for egress disclosure, private run state, detached-worktree containment, transactional fold-in, timeouts, resume/reap/cleanup, fallback, and parallel-wave behavior.
+A plain mention of a model in feature text, a quote, a comparison, or a filename does not activate routing. See [`ce-work`](./ce-work.md#choose-the-implementation-author) for fallback, timeouts, and detached-worktree behavior.
 
 ---
 

@@ -140,20 +140,15 @@ Two dispositions:
 - Answer-seeking (investigative or analytical: "how often does X happen, is it a big deal?"): the answer is the deliverable. The skill states a brief plan-of-attack in chat, executes it (research and synthesis, never code), and does not write a plan file. Only a genuine single-fact lookup skips planning and gets answered outright.
 
 For a hard problem, you can ask one level up: produce a grounded **approach-plan** (a plan for how the deliverable will be made) and hold at a checkpoint. Enter it explicitly (`plan for a plan`, `don't write it yet, plan how you'd approach it`). Rarely, the skill offers this when the method is genuinely unsettled and getting it wrong is costly. After light recon it lays out the approach in chat, file-optional and deepenable. You run it now or save it for later. Code still flows to `ce-work`. A non-code deliverable is marked `execution: knowledge-work` and runs through `ce-work`'s lightweight carve-out. `ce-plan` itself never executes.
-
-### 8. Approach altitude — a plan for the plan when a deliverable is hard
-
-For a hard problem, `ce-plan` can answer one level up: produce a grounded **approach-plan** (a plan for *how the deliverable will be made*) and hold at a checkpoint before committing — a way to get structure and certainty instead of zero-shotting a fragile result. It's entered explicitly ("plan for a plan", "don't write it yet — plan how you'd approach it") and, rarely, offered proactively — only when the method is genuinely unsettled *and* getting it wrong is costly, so it never becomes a nag. After light recon of the provided inputs (skim, not deep-read), it lays out the approach in chat, file-optional and deepenable. At the checkpoint you run it now or save it for later. The boundary it draws is **code vs. knowledge-work**, not plan vs. execute: code still flows to `ce-work`'s normal path, while a non-code deliverable is marked `execution: knowledge-work` and runs through `ce-work`'s lightweight carve-out (or any agent — the plan stays portable). `ce-plan` itself never executes; it produces the approach-plan and hands off.
-
-### 8b. Domain vocabulary — planned in the project's own words
+### Domain vocabulary — planned in the project's own words
 
 Planning reads the project's glossary so the plan uses canonical names rather than synonyms. When the root `CONCEPTS.md` is an index over per-context glossaries, it reads the glossaries of the contexts the plan touches and qualifies a term by its context where the same word diverges across them.
 
 The silent gap-fill that adds a missing definition stays silent: it resolves which glossary owns the term first, and when ownership is ambiguous or the owning glossary does not exist yet, it records the term under Open Questions instead of guessing an owner or interrupting the run.
 
-### 9. Session-settled decisions — carried, not re-asked
+### Session-settled decisions are carried, not re-asked
 
-When a decision was examined and chosen in the invoking conversation — or arrives distilled in a caller brief — `ce-plan` records it on its Key Technical Decision as a visible `(session-settled: user-directed|user-approved — chosen over X: reason)` annotation and never re-asks it: the scoping synthesis renders it as a `Carrying forward:` line, not a fork to reconfirm. Research augments settled decisions and may contradict them only on evidence, routed by a severity ladder — nothing found proceeds silently; suboptimal-but-workable proceeds as settled with a conflict call-out attached to the KTD; invalidating evidence (infeasible, wrong-thing, destructive) stops the run, and in pipeline mode returns a `settled-decision-invalidated` blocked report. An unexamined assertion isn't settled — it earns exactly one plan-time challenge, whose outcome is ledgered in the plan rather than re-litigated downstream.
+When a decision was examined and chosen in the invoking conversation, or arrives distilled in a caller brief, `ce-plan` records it on its Key Technical Decision as `session-settled: user-directed` or `user-approved`, names what it was chosen over, and never re-asks it. Research may contradict a settled decision only on evidence: nothing found proceeds silently; suboptimal-but-workable proceeds with a conflict call-out; invalidating evidence (infeasible, wrong-thing, destructive) stops the run. In pipeline mode that returns a `settled-decision-invalidated` blocked report. An unexamined assertion is not settled. It earns exactly one plan-time challenge.
 
 ---
 

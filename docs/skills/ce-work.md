@@ -139,7 +139,7 @@ A plan with four implementation units arrives. `ce-work` reads it, picks up an `
 
 Two units share a contract, so they run serially. The other two are independent and can author concurrently. With native execution they use the host's available worker isolation. With a selected external route, each gets a detached sibling worktree. The host inspects every actual change set, folds results into the active checkout one at a time, verifies, and creates separate canonical commits. The idempotency check catches that one unit's verification was already satisfied by a prior session and marks it complete without reimplementation.
 
-`ce-code-review` self-selects a lite roster for the small, low-risk diff. The two suggested findings are addressed afterward. Final validation passes, the operational validation plan is drafted, and `ce-work` invokes `ce-commit-push-pr` with `branding:on`. The plan itself is left untouched. Whether it shipped is derived from git, not recorded in the doc.
+`ce-code-review` self-selects a lite roster for the small, low-risk diff. The two suggested findings are addressed afterward. Final validation passes, the operational validation plan is drafted, and `ce-work` invokes `ce-commit-push-pr` with `branding:on` (or the project's own shipping process, when its instructions name one). The plan itself is left untouched. Whether it shipped is derived from git, not recorded in the doc.
 
 ---
 
@@ -274,7 +274,7 @@ Every CE Work runner start pins a two-hour hard cap independently of the shared 
 | `implementation_run:<safe-id>` or `resume run <id>` | Resume, inspect, or clean up that existing external run. Does not start new work. |
 | Knowledge-work plan (`execution: knowledge-work`) | Produce the planned deliverable; skip branch, test, review, and PR machinery |
 
-Output: commits and (typically) a PR via `ce-commit-push-pr`. The plan is read-only throughout. `ce-work` never mutates it. Whether it shipped is derived from git, not recorded in the doc.
+Output: commits and (typically) a PR via `ce-commit-push-pr` — or via a project-defined shipping process when the project's instructions name one; user preference > project process > default. The plan is read-only throughout. `ce-work` never mutates it. Whether it shipped is derived from git, not recorded in the doc.
 
 ---
 
