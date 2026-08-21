@@ -75,8 +75,8 @@ The body owns this gate. Run `git status --porcelain`, filter the output against
 Run the measurement harness on the current code. Baseline and final confirmation always use the full configured protocol (`repeat_count` samples when mode is `repeat` or `ladder`; one run when mode is `stable`). Exploratory experiments later may spend less; the baseline must not.
 
 **If stability mode is `repeat` or `ladder`:**
-Do not start this protocol until the spec's ladder counts are coherent: both `exploratory_pairs` and `confirmation_repeats` (falling back to `repeat_count`) are positive integers, and confirmation is at least the exploratory count. `scripts/decide.mjs` uses the same rule.
-1. Run the harness that many confirmation times (`repeat_count`, or `ladder.confirmation_repeats` when that count is the coherent one)
+Do not start this protocol until the counts that mode uses are coherent. Repeat needs a positive `repeat_count`. Ladder needs positive `exploratory_pairs` and `confirmation_repeats` (falling back to `repeat_count`) with confirmation at least the exploratory count — the same rule `scripts/decide.mjs` uses. A repeat-mode spec does not need ladder fields.
+1. Run the harness that many times (`repeat_count` in repeat mode; the coherent confirmation count in ladder mode)
 2. Aggregate results using the configured aggregation method (median, mean, min, max)
 3. Calculate variance across runs
 4. If variance exceeds the configured comparison threshold, warn the user and suggest increasing `repeat_count`

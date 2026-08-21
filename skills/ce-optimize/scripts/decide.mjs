@@ -400,10 +400,11 @@ export function decide(input) {
   const baselinePrimary = baselineBundles[primary.name] ?? metricBundle(baseline, primary.name, aggregation)
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
-  const sampleCount = positiveInteger(
-    primaryBundle?.samples?.length,
-    positiveInteger(candidate.sample_count, 1),
-  )
+  let sampleCount = required.reduce((min, objective) => {
+    const n = positiveInteger(candidateBundles[objective.name]?.samples?.length, 1)
+    return Math.min(min, n)
+  }, positiveInteger(candidate.sample_count, Number.POSITIVE_INFINITY))
+  if (!Number.isFinite(sampleCount)) sampleCount = 1
 
   if (
     !eligible &&

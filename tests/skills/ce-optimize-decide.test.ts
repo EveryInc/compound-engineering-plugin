@@ -962,6 +962,44 @@ describe("cost-aware measurement ladder", () => {
     expect(result.next_measurement).toBe("exploratory")
   })
 
+  test("confirmation waits for every required objective's samples, not only the primary", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [
+        { name: "local_wall_seconds", direction: "minimize", role: "required" },
+        { name: "ci_critical_path_seconds", direction: "minimize", role: "required" },
+      ],
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: BASELINE_WALL, samples: Array(5).fill(BASELINE_WALL) },
+          ci_critical_path_seconds: { aggregate: 120, samples: [120] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 300, samples: Array(5).fill(300) },
+          ci_critical_path_seconds: { aggregate: 80, samples: [80] },
+        },
+        smoke_passed: true,
+        sample_count: 5,
+      },
+    })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).not.toBe("none")
+  })
+
   test("a declared sample_count larger than the sample array does not skip confirmation", () => {
     const spec = hardSpec({
       stability_mode: "ladder",
@@ -1204,6 +1242,7 @@ describe("schema and skill pins", () => {
     )
     expect(SCHEMA).toContain("futility.after_elapsed_seconds, when set, must be a positive number")
     expect(MEASUREMENT).toContain("every required hard objective")
+    expect(MEASUREMENT).toContain("A repeat-mode spec does not need ladder fields")
     expect(SCHEMA).toContain("- ladder")
     expect(SCHEMA).toContain("worse_factor")
     expect(SCHEMA).toContain("A spec without metric.objectives keeps single-primary acceptance")
