@@ -625,6 +625,25 @@ describe("noise-aware comparison from the observed suite run", () => {
     expect(result.violated_objectives).toEqual(["local_wall_seconds"])
   })
 
+  test("persisted samples override a contradicting aggregate", () => {
+    const spec = hardSpec({
+      comparison: { method: "absolute", noise_threshold: 1 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(100),
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          wall_seconds: { aggregate: 80, samples: [120, 120, 120, 120, 120] },
+        },
+        sample_count: 5,
+      },
+    })
+    expect(result.decision).toBe("revert")
+    expect(result.eligible).toBe(false)
+  })
+
   test("sample-only bundles use the configured aggregation, not always the median", () => {
     const spec = hardSpec({
       aggregation: "mean",
@@ -1163,6 +1182,10 @@ describe("schema and skill pins", () => {
   test("the spec schema documents optional objectives, comparison, and ladder", () => {
     expect(SCHEMA).toContain("objectives:")
     expect(SCHEMA).toContain("comparison.method, when set, must be one of: absolute, relative, paired")
+    expect(SCHEMA).toContain(
+      "exploratory_pairs and confirmation_repeats (or repeat_count) must be positive integers",
+    )
+    expect(MEASUREMENT).toContain("every required hard objective")
     expect(SCHEMA).toContain("- ladder")
     expect(SCHEMA).toContain("worse_factor")
     expect(SCHEMA).toContain("A spec without metric.objectives keeps single-primary acceptance")

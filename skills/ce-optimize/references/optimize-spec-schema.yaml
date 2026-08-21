@@ -309,11 +309,11 @@ required_fields:
               exploratory_pairs:
                 type: integer
                 default: 1
-                description: "Paired exploratory samples before deciding whether to spend more"
+                description: "Paired exploratory samples before deciding whether to spend more. Must be a positive integer."
               confirmation_repeats:
                 type: integer
                 default: null
-                description: "Full protocol sample count before keep. Defaults to repeat_count."
+                description: "Full protocol sample count before keep. Defaults to repeat_count. Must be a positive integer at least as large as exploratory_pairs."
               futility:
                 type: object
                 description: "Predeclared abort bound for a clearly noncompetitive live run"
@@ -494,3 +494,4 @@ validation_rules:
   - "If measurement.stability.mode is 'ladder', comparison.method should be relative or paired unless the user explicitly keeps absolute"
   - "A spec without metric.objectives keeps single-primary acceptance"
   - "comparison.method, when set, must be one of: absolute, relative, paired"
+  - "If measurement.stability.mode is 'ladder', exploratory_pairs and confirmation_repeats (or repeat_count) must be positive integers, and confirmation must be at least exploratory_pairs"

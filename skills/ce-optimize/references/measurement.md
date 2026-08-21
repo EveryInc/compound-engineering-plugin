@@ -59,6 +59,7 @@ The body owns this gate. Run `git status --porcelain`, filter the output against
 2. Validate the JSON output:
    - Contains keys for all degenerate gate metric names
    - Contains keys for all diagnostic metric names
+   - Contains keys for every required hard objective (`metric.primary` when it is hard, plus every `metric.objectives` entry)
    - Values are numeric or boolean as expected
 3. If validation fails, report what is missing and ask the user to fix the harness
 
@@ -74,19 +75,23 @@ The body owns this gate. Run `git status --porcelain`, filter the output against
 Run the measurement harness on the current code. Baseline and final confirmation always use the full configured protocol (`repeat_count` samples when mode is `repeat` or `ladder`; one run when mode is `stable`). Exploratory experiments later may spend less; the baseline must not.
 
 **If stability mode is `repeat` or `ladder`:**
-1. Run the harness `repeat_count` times (for `ladder`, use `ladder.confirmation_repeats` when set)
+Do not start this protocol until the spec's ladder counts are coherent: both `exploratory_pairs` and `confirmation_repeats` (falling back to `repeat_count`) are positive integers, and confirmation is at least the exploratory count. `scripts/decide.mjs` uses the same rule.
+1. Run the harness that many confirmation times (`repeat_count`, or `ladder.confirmation_repeats` when that count is the coherent one)
 2. Aggregate results using the configured aggregation method (median, mean, min, max)
 3. Calculate variance across runs
 4. If variance exceeds the configured comparison threshold, warn the user and suggest increasing `repeat_count`
 
 **Spend only the measurement the current decision needs.** After Phase 1, a smoke failure is degenerate; one paired exploratory sample can reject a clearly worse candidate or mark it inconclusive; add samples only while the result is promising or inconclusive; run the full configured protocol only before keeping a candidate and for the run's final confirmation. `scripts/decide.mjs` returns that next step. When mode is `stable` or `repeat`, keep the existing full-protocol behavior.
 
-Record the baseline in the experiment log:
+Record the baseline in the experiment log. Persist every required hard objective under `metrics` (or `judge` when the primary is a judge score) so `decide.mjs` can load the same snapshot shape later experiments use. Gates and diagnostics stay in their own containers.
 ```yaml
 baseline:
   timestamp: "<current ISO 8601 timestamp>"
   gates:
     <gate_name>: <value>
+    ...
+  metrics:
+    <required_hard_objective>: { aggregate: <value>, samples: [<value>, ...] }
     ...
   diagnostics:
     <diagnostic_name>: <value>

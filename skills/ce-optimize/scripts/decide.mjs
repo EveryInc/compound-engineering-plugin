@@ -108,10 +108,10 @@ function valueBundle(raw, aggregation = "median") {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const samples = Array.isArray(raw.samples) ? raw.samples.map(finiteNumber) : []
     if (samples.some((n) => n == null)) return { aggregate: null, samples: [] }
-    let aggregate = null
-    if (raw.aggregate != null) aggregate = finiteNumber(raw.aggregate)
-    else if (samples.length) aggregate = aggregateSamples(samples, aggregation)
-    return { aggregate, samples }
+    const aggregate = samples.length
+      ? aggregateSamples(samples, aggregation)
+      : finiteNumber(raw.aggregate)
+    return { aggregate: aggregate ?? null, samples }
   }
   if (raw != null && typeof raw !== "object") {
     const n = finiteNumber(raw)
