@@ -99,6 +99,46 @@ describe("legacy single-primary absolute comparison", () => {
     expect(result.decision).toBe("degenerate")
     expect(result.eligible).toBe(false)
   })
+
+  test("the declared stability noise_threshold is the absolute bar when comparison omits it", () => {
+    const spec = hardSpec({
+      comparison: { method: "absolute" },
+      measurement: { stability: { noise_threshold: 0.05 } },
+    })
+    const insideDefault = decide({ spec, baseline, candidate: snapshot(9.97) })
+    expect(insideDefault.decision).toBe("inconclusive")
+    expect(insideDefault.eligible).toBe(false)
+
+    const aboveDeclared = decide({ spec, baseline, candidate: snapshot(9.94) })
+    expect(aboveDeclared.decision).toBe("keep")
+  })
+
+  test("a non-finite required aggregate is an error, not an eligible keep", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [{ name: "ci_critical_path_seconds", direction: "minimize", role: "required" }],
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 120, samples: [120] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: "bad", samples: ["bad"] },
+          ci_critical_path_seconds: { aggregate: 80, samples: [80] },
+        },
+      },
+    })
+    expect(result.decision).toBe("error")
+    expect(result.eligible).toBe(false)
+    expect(result.reason).toContain("local_wall_seconds")
+  })
 })
 
 describe("multi-objective acceptance", () => {
@@ -186,6 +226,34 @@ describe("multi-objective acceptance", () => {
     expect(result.decision).toBe("revert")
     expect(result.violated_objectives).toContain("local_wall_seconds")
     expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
+  })
+
+  test("a tolerated regression with no compensating gain is a revert, not inconclusive", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [
+        {
+          name: "local_wall_seconds",
+          direction: "minimize",
+          role: "required",
+          max_regression: { type: "relative", value: 0.1 },
+        },
+      ],
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(100, {
+        metrics: { local_wall_seconds: { aggregate: 100, samples: [100] } },
+      }),
+      candidate: snapshot(107, {
+        metrics: { local_wall_seconds: { aggregate: 107, samples: [107] } },
+      }),
+    })
+    expect(result.eligible).toBe(false)
+    expect(result.decision).toBe("revert")
+    expect(result.violated_objectives).toEqual([])
+    expect(result.comparisons.local_wall_seconds.verdict).toBe("regressed")
   })
 
   test("a looser max_regression is the violation bound, not the comparison threshold", () => {
@@ -333,6 +401,47 @@ describe("cost-aware measurement ladder", () => {
     expect(result.next_measurement).toBe("none")
   })
 
+  test("elapsed-time futility does not censor an eligible required-objective win", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [
+        { name: "local_wall_seconds", direction: "minimize", role: "required" },
+        { name: "ci_critical_path_seconds", direction: "minimize", role: "required" },
+      ],
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+        futility: { worse_factor: 1.2, after_elapsed_seconds: 415 },
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: BASELINE_WALL, samples: [BASELINE_WALL] },
+          ci_critical_path_seconds: { aggregate: 120, samples: [120] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: BASELINE_WALL + 1, samples: [BASELINE_WALL + 1] },
+          ci_critical_path_seconds: { aggregate: 80, samples: [80] },
+        },
+        smoke_passed: true,
+        sample_count: 5,
+        elapsed_seconds: 415,
+      },
+    })
+    expect(result.eligible).toBe(true)
+    expect(result.decision).toBe("keep")
+    expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
+  })
+
   test("an elapsed-time futility bound censors an already-noncompetitive live run", () => {
     const result = decide({
       spec: {
@@ -412,6 +521,41 @@ describe("cost-aware measurement ladder", () => {
   })
 })
 
+describe("judge minimum as a comparison floor", () => {
+  test("a relative judge gain below minimum_improvement is not a keep", () => {
+    const spec = hardSpec({
+      primary: { name: "mean_score", direction: "maximize", type: "judge" },
+      comparison: { method: "relative", relative_threshold: 0.05 },
+      minimum_improvement: 0.3,
+    })
+    const baseline = {
+      gates: { suite_passed: 1 },
+      metrics: { mean_score: { aggregate: 4.0, samples: [4.0] } },
+    }
+    const belowFloor = decide({
+      spec,
+      baseline,
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { mean_score: { aggregate: 4.25, samples: [4.25] } },
+      },
+    })
+    expect(belowFloor.decision).toBe("inconclusive")
+    expect(belowFloor.eligible).toBe(false)
+
+    const aboveFloor = decide({
+      spec,
+      baseline,
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { mean_score: { aggregate: 4.4, samples: [4.4] } },
+      },
+    })
+    expect(aboveFloor.decision).toBe("keep")
+    expect(aboveFloor.eligible).toBe(true)
+  })
+})
+
 describe("decide.mjs CLI", () => {
   test("prints a JSON decision for a file path", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "ce-optimize-decide-"))
@@ -471,6 +615,7 @@ describe("schema and skill pins", () => {
     expect(MEASUREMENT).toContain("scripts/decide.mjs")
     expect(LOOP).toContain("every declared required target")
     expect(LOOP).toContain("every required objective value")
+    expect(LOOP).toContain("elapsed wall time itself proves the primary cannot win")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
   })
 })

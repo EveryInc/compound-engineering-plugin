@@ -50,6 +50,20 @@ function signedDelta(baseline, candidate, direction) {
   return direction === "minimize" ? baseline - candidate : candidate - baseline
 }
 
+function finiteNumber(value) {
+  if (value == null || value === "") return null
+  const n = typeof value === "number" ? value : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function firstFiniteNumber(values, fallback) {
+  for (const value of values) {
+    const n = finiteNumber(value)
+    if (n != null) return n
+  }
+  return fallback
+}
+
 function verdictFromSigned(delta, threshold) {
   if (delta > threshold) return "improved"
   if (delta < -threshold) return "regressed"
@@ -75,30 +89,39 @@ function metricBundle(source, name) {
   const metrics = source.metrics ?? {}
   const raw = metrics[name]
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    const samples = Array.isArray(raw.samples) ? raw.samples.map(Number) : []
+    const samples = Array.isArray(raw.samples) ? raw.samples.map(finiteNumber) : []
+    if (samples.some((n) => n == null)) return { aggregate: null, samples: [] }
     let aggregate = null
-    if (raw.aggregate != null) aggregate = Number(raw.aggregate)
+    if (raw.aggregate != null) aggregate = finiteNumber(raw.aggregate)
     else if (samples.length) aggregate = median(samples)
-    else if (source.gates?.[name] != null) aggregate = Number(source.gates[name])
+    else if (source.gates?.[name] != null) aggregate = finiteNumber(source.gates[name])
     return { aggregate, samples }
   }
   if (raw != null && typeof raw !== "object") {
-    return { aggregate: Number(raw), samples: [Number(raw)] }
+    const n = finiteNumber(raw)
+    return n == null ? { aggregate: null, samples: [] } : { aggregate: n, samples: [n] }
   }
   if (source.gates?.[name] != null) {
-    return { aggregate: Number(source.gates[name]), samples: [Number(source.gates[name])] }
+    const n = finiteNumber(source.gates[name])
+    return n == null ? { aggregate: null, samples: [] } : { aggregate: n, samples: [n] }
   }
   return null
 }
 
 function comparisonDefaults(spec) {
-  const comparison = spec.comparison ?? {}
+  const stability = spec.stability ?? spec.measurement?.stability ?? {}
+  const comparison = spec.comparison ?? stability.comparison ?? {}
   return {
     method: comparison.method ?? "absolute",
-    noise_threshold: Number(comparison.noise_threshold ?? 0.02),
-    relative_threshold: Number(comparison.relative_threshold ?? 0.05),
-    minimum_improvement:
-      comparison.minimum_improvement != null ? Number(comparison.minimum_improvement) : null,
+    noise_threshold: firstFiniteNumber(
+      [comparison.noise_threshold, spec.noise_threshold, stability.noise_threshold],
+      0.02,
+    ),
+    relative_threshold: firstFiniteNumber([comparison.relative_threshold], 0.05),
+    minimum_improvement: firstFiniteNumber(
+      [comparison.minimum_improvement, spec.minimum_improvement, spec.judge?.minimum_improvement],
+      null,
+    ),
   }
 }
 
@@ -166,6 +189,15 @@ export function compareObjective({
     else verdict = "inconclusive"
   } else {
     verdict = verdictFromSigned(delta, absThreshold)
+  }
+
+  if (
+    type === "judge" &&
+    comparison.minimum_improvement != null &&
+    verdict === "improved" &&
+    delta <= comparison.minimum_improvement
+  ) {
+    verdict = "inconclusive"
   }
 
   let violated = verdict === "regressed"
@@ -302,8 +334,10 @@ export function decide(input) {
   const primaryBundle = candidateBundles[primary.name] ?? metricBundle(candidate, primary.name)
   const baselinePrimary = baselineBundles[primary.name] ?? metricBundle(baseline, primary.name)
   const primaryComparison = comparisons[primary.name] ?? null
+  const eligible = improved.length > 0 && violated.length === 0
 
   if (
+    !eligible &&
     isFutile({
       ladder,
       direction: primary.direction,
@@ -324,7 +358,6 @@ export function decide(input) {
     })
   }
 
-  const eligible = improved.length > 0 && violated.length === 0
   const withTargets = required.filter((objective) => objective.target != null)
   const targetReached =
     withTargets.length > 0 &&
@@ -334,9 +367,13 @@ export function decide(input) {
       return signedDelta(objective.target, value, objective.direction) >= 0
     })
 
+  const allInsideThreshold = required.every(
+    (objective) => comparisons[objective.name]?.verdict === "inconclusive",
+  )
+
   let decision
   if (eligible) decision = "keep"
-  else if (improved.length === 0 && violated.length === 0) decision = "inconclusive"
+  else if (allInsideThreshold) decision = "inconclusive"
   else decision = "revert"
 
   let nextMeasurement = "none"

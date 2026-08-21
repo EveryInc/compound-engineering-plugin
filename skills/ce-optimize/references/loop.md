@@ -107,7 +107,7 @@ Process experiments as they complete — do NOT wait for the entire batch to fin
 
 For each completed experiment, **immediately**:
 
-1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1): smoke first when `stability.mode` is `ladder` and a smoke command is set; otherwise one exploratory sample. Set `CE_OPTIMIZE_CENSOR_AFTER` on `measure.sh` when the spec declares a futility bound so a live run that is already noncompetitive exits 125 instead of running out the full timeout.
+1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1): smoke first when `stability.mode` is `ladder` and a smoke command is set; otherwise one exploratory sample. Pass `CE_OPTIMIZE_CENSOR_AFTER` to `measure.sh` only when elapsed wall time itself proves the primary cannot win, so a live noncompetitive run exits 125 instead of running out the full timeout. Otherwise let `decide.mjs` assess futility after the measurement returns.
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    bash "$SKILL_DIR/scripts/measure.sh" "<measurement.command>" <timeout_seconds> "<worktree_path>/<measurement.working_directory or .>" <env_vars...>
