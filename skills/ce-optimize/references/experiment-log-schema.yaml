@@ -54,6 +54,9 @@ structure:
       gates:
         type: object
         description: "Key-value pairs of gate metric names to their baseline values"
+      metrics:
+        type: object
+        description: "Required hard-objective snapshots (aggregate plus samples) that decide.mjs loads for later comparisons"
       diagnostics:
         type: object
         description: "Key-value pairs of diagnostic metric names to their baseline values"
@@ -190,6 +193,10 @@ experiment_entry:
       type: object
       description: "Diagnostic metric values from the measurement command"
 
+    metrics:
+      type: object
+      description: "Required hard-objective snapshots (aggregate plus samples) that decide.mjs loads"
+
     judge:
       type: object
       description: "Judge evaluation scores (only when primary type is 'judge' and gates passed)"
@@ -253,10 +260,12 @@ experiment_entry:
 #         -> gates passed
 #           -> persist raw metrics   -> outcome: measured or promising
 #           -> judge evaluated (if type: judge)
-#             -> decide.mjs eligible, confirmed -> outcome: kept
+#             -> decide.mjs eligible, next_measurement none -> stay measured until integration
+#               -> diff on optimization branch -> outcome: kept
+#               -> eligible leftover             -> outcome: not_selected
 #             -> runner-up, file-disjoint -> cherry-pick + re-measure
-#               -> combined better        -> outcome: runner_up_kept
-#               -> combined not better    -> outcome: runner_up_reverted
+#               -> combined eligible and integrated -> outcome: runner_up_kept
+#               -> combined not kept              -> outcome: runner_up_reverted
 #             -> inconclusive             -> outcome: inconclusive
 #             -> not eligible             -> outcome: reverted
 #       -> needs unapproved dep    -> outcome: deferred_needs_approval
