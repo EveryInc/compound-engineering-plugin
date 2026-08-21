@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import {
   mkdtempSync,
@@ -13,6 +13,10 @@ import {
 } from "node:fs"
 import { devNull, tmpdir } from "node:os"
 import path from "node:path"
+
+// These tests spawn bash/python/git subprocesses; on a loaded CI runner they cross the 5s default
+// (2026-08-21, PR #1508: three different tests timed out across two reruns with no related change).
+setDefaultTimeout(30_000)
 
 const tempRoots: string[] = []
 function mkTempRoot(prefix: string): string {
