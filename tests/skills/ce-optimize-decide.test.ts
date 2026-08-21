@@ -938,6 +938,7 @@ describe("schema and skill pins", () => {
     expect(LOG_SCHEMA).toContain("- inconclusive")
     expect(LOG_SCHEMA).toContain("- censored")
     expect(LOG_SCHEMA).toContain("- promising")
+    expect(LOG_SCHEMA).toContain("- not_selected")
   })
 
   test("the expensive-benchmark example declares three required hard targets and a ladder", () => {
@@ -957,8 +958,9 @@ describe("schema and skill pins", () => {
     expect(LOOP).toContain("the spec as loaded")
     expect(LOOP).toContain("elapsed wall time itself proves the primary cannot win")
     expect(LOOP).toContain("including 125 without that marker")
-    expect(LOOP).toContain("compare that combined snapshot against the updated baseline")
-    expect(LOOP).toContain("only for diffs that were integrated")
+    expect(LOOP).toContain("same decide loop as step 3.3")
+    expect(LOOP).toContain("not_selected")
+    expect(LOOP).toContain("no working Node runtime on PATH")
     expect(LOOP).toContain("whenever `next_measurement` is not `none`")
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")

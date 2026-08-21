@@ -140,9 +140,10 @@ experiment_entry:
     outcome:
       type: enum
       values:
-        - measured                # measurement finished and metrics were persisted, awaiting batch evaluation
+        - measured                # measurement finished and metrics were persisted, awaiting batch evaluation / integration
         - promising               # eligible on current samples but the ladder still needs confirmation before keep
-        - kept                    # eligible and confirmed: improved at least one required objective, violated none
+        - kept                    # eligible, confirmed, and integrated onto the optimization branch
+        - not_selected            # eligible after comparison but not integrated (not the winner, overlapping, or past the runner-up cap)
         - reverted                # compared and not eligible (regressed a required objective, or none improved)
         - inconclusive            # delta inside the comparison threshold; not a keep and not a demonstrated regression
         - censored                # aborted as noncompetitive under the predeclared futility bound
@@ -156,9 +157,12 @@ experiment_entry:
         Load-bearing state: the loop branches on this value.
         'measured' and 'promising' are non-terminal: CP-3 persists raw metrics
         before batch-level comparison, and 'promising' means the ladder still
-        needs confirmation samples. 'kept' and 'runner_up_kept' advance the
-        optimization branch. 'deferred_needs_approval' items are re-presented
-        at wrap-up. All other states are terminal for that experiment.
+        needs confirmation samples. An eligible decide `keep` stays `measured`
+        until its diff is on the optimization branch. 'kept' and 'runner_up_kept'
+        mean that integration happened. 'not_selected' is terminal for an
+        eligible candidate that was not integrated. 'deferred_needs_approval'
+        items are re-presented at wrap-up. All other states are terminal for
+        that experiment.
 
   optional_children:
 
