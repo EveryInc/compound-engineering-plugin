@@ -193,7 +193,15 @@ function resolveComponentDirs(
   for (const entry of toPathList(custom)) {
     dirs.push(resolveWithinRoot(root, entry, `${defaultDir} path`))
   }
-  return dirs
+  // Deduplicate by resolved path so a manifest that declares the default
+  // directory explicitly (e.g. `"skills": "./skills/"`) does not scan it twice.
+  const seen = new Set<string>()
+  return dirs.filter((dir) => {
+    const resolved = path.resolve(dir)
+    if (seen.has(resolved)) return false
+    seen.add(resolved)
+    return true
+  })
 }
 
 function toPathList(value?: string | string[]): string[] {
