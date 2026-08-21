@@ -34,7 +34,7 @@ For a material multi-stage run, use the host's task-tracking capability when ava
 
 ## Workflow
 
-Phases run in order unless an owner routes out or short-circuits. Before each phase, read its required reference completely. If a required reference cannot be read, stop before its governed action and report the blocker and recovery path; never reconstruct the missing mechanism from memory. In pipeline mode, every required-owner failure returns `status: blocked`, `phase`, `blocker`, and `recovery_path`; include `artifact_path` and preserve the artifact when one exists. Blocked status outranks artifact presence.
+Phases run in order unless an owner routes out or short-circuits. Read a phase's required reference when that phase is entered, completely; a read made before that phase does not satisfy it, and a terminal owner is read again at its step even when already in context. If a required reference cannot be read, stop before its governed action and report the blocker and recovery path; never reconstruct the missing mechanism from memory. In pipeline mode, every required-owner failure returns `status: blocked`, `phase`, `blocker`, and `recovery_path`; include `artifact_path` and preserve the artifact when one exists. Blocked status outranks artifact presence.
 
 ### Phase 0: Output, Resume, and Scope
 
