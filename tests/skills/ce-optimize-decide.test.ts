@@ -542,6 +542,52 @@ describe("noise-aware comparison from the observed suite run", () => {
     expect(result.eligible).toBe(false)
   })
 
+  test("paired comparison of a scalar snapshot still flags a clear regression", () => {
+    const spec = hardSpec({
+      comparison: { method: "paired", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: { gates: { suite_passed: 1 }, diagnostics: { wall_seconds: 100 } },
+      candidate: { gates: { suite_passed: 1 }, diagnostics: { wall_seconds: 150 } },
+    })
+    expect(result.decision).toBe("revert")
+    expect(result.eligible).toBe(false)
+    expect(result.violated_objectives).toEqual(["wall_seconds"])
+  })
+
+  test("a sampled paired win does not keep when a required scalar objective regresses", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [
+        { name: "local_wall_seconds", direction: "minimize", role: "required" },
+        { name: "ci_critical_path_seconds", direction: "minimize", role: "required" },
+      ],
+      comparison: { method: "paired", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        diagnostics: { local_wall_seconds: 100 },
+        metrics: {
+          ci_critical_path_seconds: { aggregate: 120, samples: [118, 120, 122] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        diagnostics: { local_wall_seconds: 150 },
+        metrics: {
+          ci_critical_path_seconds: { aggregate: 80, samples: [78, 80, 82] },
+        },
+      },
+    })
+    expect(result.eligible).toBe(false)
+    expect(result.decision).toBe("revert")
+    expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
+    expect(result.violated_objectives).toEqual(["local_wall_seconds"])
+  })
+
   test("paired comparison is inconclusive when sample ranges overlap", () => {
     const result = compareObjective({
       baselineValue: BASELINE_WALL,
@@ -733,6 +779,17 @@ describe("cost-aware measurement ladder", () => {
     })
     expect(result.decision).toBe("inconclusive")
     expect(result.next_measurement).toBe("add_sample")
+  })
+
+  test("an inconclusive extra sample is terminal before the confirmation budget", () => {
+    const result = decide({
+      spec,
+      baseline,
+      candidate: { ...snapshot(BASELINE_WALL * 0.98), smoke_passed: true, sample_count: 2 },
+    })
+    expect(result.decision).toBe("inconclusive")
+    expect(result.next_measurement).toBe("none")
+    expect(result.eligible).toBe(false)
   })
 
   test("confirmation samples default to repeat_count when confirmation_repeats is omitted", () => {
@@ -1053,7 +1110,11 @@ describe("schema and skill pins", () => {
     expect(LOOP).toContain("no working Node runtime on PATH")
     expect(LOOP).toContain("whenever `next_measurement` is not `none`")
     expect(LOOP).toContain("Write a decide terminal only when `next_measurement` is `none`")
+    expect(LOOP).toContain("one log entry per experiment")
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
+    expect(readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")).toContain(
+      "Not selected: <count>",
+    )
   })
 })

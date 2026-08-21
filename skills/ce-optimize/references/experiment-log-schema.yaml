@@ -9,9 +9,10 @@
 # in-memory context is expendable and will be compacted during long runs.
 #
 # Write discipline:
-# - Each experiment entry is APPENDED immediately after its measurement
-#   completes (SKILL.md step 3.3), before batch evaluation
-# - Outcome fields may be updated in-place after batch evaluation (step 3.5)
+# - Each experiment gets one log entry, appended on its first measurement
+#   (SKILL.md step 3.3), before batch evaluation
+# - Later ladder samples for that experiment update the same entry in place
+# - Outcome fields may also be updated in-place after batch evaluation (step 3.5)
 # - The `best` section is updated after each batch if a new best is found
 # - The `hypothesis_backlog` is updated after each batch
 # - The agent re-reads this file from disk at every phase boundary

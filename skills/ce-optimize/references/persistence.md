@@ -10,7 +10,7 @@ Read this before Phase 0 and follow it for the whole run. The body states the in
 
 3. **Re-read from disk at every phase boundary and before every decision** — never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
 
-4. **Raw experiment metrics are append-only during Phase 3** — never rewrite an earlier experiment's samples or gate values. Append a new experiment entry as soon as it is measured. Outcome, `best`, and `hypothesis_backlog` are updated in place at batch evaluation (CP-4). Do not rebuild the file from memory.
+4. **One experiment, one log entry.** Append a new experiment entry on its first measurement. Later ladder samples for that same experiment update that entry's metrics and outcome in place so a crash can resume the ladder without losing samples or duplicating the hypothesis. Never rewrite a different experiment's samples or gate values. Outcome, `best`, and `hypothesis_backlog` are also updated in place at batch evaluation (CP-4). Do not rebuild the file from memory.
 
 5. **Per-experiment result markers for crash recovery** — each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
 
@@ -27,7 +27,7 @@ These are non-negotiable write-then-verify steps. At each checkpoint, the agent 
 | CP-0: Spec saved | `spec.yaml` | Phase 0, after user approval |
 | CP-1: Baseline recorded | `experiment-log.yaml` (initial with baseline) | Phase 1, after baseline measurement |
 | CP-2: Hypothesis backlog saved | `experiment-log.yaml` (hypothesis_backlog section) | Phase 2, after hypothesis generation |
-| CP-3: Each experiment result | `experiment-log.yaml` (append experiment entry) | Phase 3.3, immediately after each measurement |
+| CP-3: Each experiment result | `experiment-log.yaml` (append on first measurement; update that entry on later samples) | Phase 3.3, immediately after each measurement |
 | CP-4: Batch summary | `experiment-log.yaml` (outcomes + best) + `strategy-digest.md` | Phase 3.5, after batch evaluation |
 | CP-5: Final summary | `experiment-log.yaml` (final state) | Phase 4, at wrap-up |
 
@@ -44,7 +44,7 @@ The scratch space under `.context/` is gitignored: it survives a local resume bu
 | File | Purpose | Written When |
 |------|---------|-------------|
 | `spec.yaml` | Optimization spec (fixed once the Phase 1 approval gate is cleared) | Phase 0 (CP-0) |
-| `experiment-log.yaml` | Full history of all experiments | Initialized at CP-1, appended at CP-3, updated at CP-4 |
+| `experiment-log.yaml` | Full history of all experiments | Initialized at CP-1, appended at first CP-3, updated on later samples and at CP-4 |
 | `strategy-digest.md` | Compressed learnings for hypothesis generation | Written at CP-4 after each batch |
 | `<worktree>/result.yaml` | Per-experiment crash-recovery marker | Immediately after measurement, before CP-3 |
 

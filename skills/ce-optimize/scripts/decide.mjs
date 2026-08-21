@@ -220,13 +220,14 @@ export function compareObjective({
   } else if (comparison.method === "paired") {
     const baseSamples = baselineSamples?.filter((n) => n != null) ?? []
     const candSamples = candidateSamples?.filter((n) => n != null) ?? []
+    const threshold = relativeThreshold * denom
     if (!baseSamples.length || !candSamples.length) {
-      verdict = "inconclusive"
+      verdict =
+        verdictFromSigned(delta, threshold) === "regressed" ? "regressed" : "inconclusive"
     } else {
       const diffs = candSamples.map((value, index) =>
         signedDelta(baseSamples[Math.min(index, baseSamples.length - 1)], value, direction),
       )
-      const threshold = relativeThreshold * denom
       const lo = Math.min(...diffs)
       const hi = Math.max(...diffs)
       if (verdictFromSigned(lo, threshold) === "improved") verdict = "improved"
@@ -431,15 +432,14 @@ export function decide(input) {
   let nextMeasurement = "none"
   if (ladderEnabled && ladder.smoke_command && candidate.smoke_passed == null) {
     nextMeasurement = "smoke"
-  } else if (
-    ladderEnabled &&
-    sampleCount < confirmationRepeats &&
-    (decision === "keep" || decision === "inconclusive")
-  ) {
+  } else if (ladderEnabled && (decision === "keep" || decision === "inconclusive")) {
     const confirming = decision === "keep"
-    if (confirming) decision = "promising"
-    if (sampleCount < exploratoryPairs) nextMeasurement = "exploratory"
-    else nextMeasurement = confirming ? "confirm" : "add_sample"
+    const sampleBudget = confirming ? confirmationRepeats : exploratoryPairs + 1
+    if (sampleCount < sampleBudget) {
+      if (confirming) decision = "promising"
+      if (sampleCount < exploratoryPairs) nextMeasurement = "exploratory"
+      else nextMeasurement = confirming ? "confirm" : "add_sample"
+    }
   }
 
   let reason = "no required objective improved"
