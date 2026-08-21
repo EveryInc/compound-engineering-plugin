@@ -478,6 +478,37 @@ describe("noise-aware comparison from the observed suite run", () => {
     expect(result.eligible).toBe(false)
   })
 
+  test("a negative relative_threshold is rejected instead of turning a tie into a keep", () => {
+    const result = decide({
+      spec: hardSpec({ comparison: { method: "relative", relative_threshold: -0.05 } }),
+      baseline: snapshot(10),
+      candidate: snapshot(10),
+    })
+    expect(result.eligible).toBe(false)
+    expect(result.decision).toBe("inconclusive")
+  })
+
+  test("a zero baseline does not mix relative and absolute units", () => {
+    const relativeSpec = hardSpec({
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 0.02 },
+    })
+    const atUnit = decide({
+      spec: relativeSpec,
+      baseline: snapshot(0),
+      candidate: snapshot(0.01),
+    })
+    const scaled = decide({
+      spec: relativeSpec,
+      baseline: snapshot(0),
+      candidate: snapshot(10),
+    })
+    expect(atUnit.decision).toBe("inconclusive")
+    expect(scaled.decision).toBe(atUnit.decision)
+    expect(atUnit.eligible).toBe(false)
+    expect(scaled.eligible).toBe(false)
+    expect(atUnit.rank_score).toBe(scaled.rank_score)
+  })
+
   test("paired comparison is inconclusive when sample ranges overlap", () => {
     const result = compareObjective({
       baselineValue: BASELINE_WALL,
@@ -522,6 +553,25 @@ describe("cost-aware measurement ladder", () => {
       spec,
       baseline,
       candidate: { ...snapshot(OBSERVED.nestedConcurrency2), smoke_passed: true, sample_count: 1 },
+    })
+    expect(result.decision).toBe("censored")
+    expect(result.next_measurement).toBe("none")
+  })
+
+  test("a configured futility object applies the documented 1.2 worse_factor default", () => {
+    const result = decide({
+      spec: hardSpec({
+        stability_mode: "ladder",
+        ladder: {
+          smoke_command: "python tools/eval/measure.py --smoke",
+          exploratory_pairs: 1,
+          confirmation_repeats: 5,
+          futility: {},
+        },
+        comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+      }),
+      baseline,
+      candidate: { ...snapshot(BASELINE_WALL * 1.3), smoke_passed: true, sample_count: 1 },
     })
     expect(result.decision).toBe("censored")
     expect(result.next_measurement).toBe("none")
@@ -699,6 +749,24 @@ describe("judge minimum as a comparison floor", () => {
     })
     expect(aboveFloor.decision).toBe("keep")
     expect(aboveFloor.eligible).toBe(true)
+  })
+
+  test("canonical log snapshots keep a judge win stored under judge, not metrics", () => {
+    const spec = {
+      metric: {
+        primary: { name: "mean_score", direction: "maximize", type: "judge" },
+        judge: { scoring: { primary: "mean_score" }, minimum_improvement: 0.3 },
+        degenerate_gates: [{ name: "result_count", check: ">= 5" }],
+      },
+    }
+    const result = decide({
+      spec,
+      baseline: { gates: { result_count: 10 }, judge: { mean_score: 4.0 } },
+      candidate: { gates: { result_count: 10 }, judge: { mean_score: 4.5 } },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.eligible).toBe(true)
+    expect(result.improved_objectives).toEqual(["mean_score"])
   })
 
   test("an omitted judge minimum_improvement defaults to 0.3", () => {

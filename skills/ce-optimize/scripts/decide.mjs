@@ -58,10 +58,10 @@ function finiteNumber(value) {
   return Number.isFinite(n) ? n : null
 }
 
-function firstFiniteNumber(values, fallback) {
+function firstNonNegativeNumber(values, fallback) {
   for (const value of values) {
     const n = finiteNumber(value)
-    if (n != null) return n
+    if (n != null && n >= 0) return n
   }
   return fallback
 }
@@ -86,26 +86,27 @@ function closedResult(fields) {
   }
 }
 
-function metricBundle(source, name) {
-  if (!source) return null
-  const metrics = source.metrics ?? {}
-  const raw = metrics[name]
+function valueBundle(raw) {
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
     const samples = Array.isArray(raw.samples) ? raw.samples.map(finiteNumber) : []
     if (samples.some((n) => n == null)) return { aggregate: null, samples: [] }
     let aggregate = null
     if (raw.aggregate != null) aggregate = finiteNumber(raw.aggregate)
     else if (samples.length) aggregate = median(samples)
-    else if (source.gates?.[name] != null) aggregate = finiteNumber(source.gates[name])
     return { aggregate, samples }
   }
   if (raw != null && typeof raw !== "object") {
     const n = finiteNumber(raw)
     return n == null ? { aggregate: null, samples: [] } : { aggregate: n, samples: [n] }
   }
-  if (source.gates?.[name] != null) {
-    const n = finiteNumber(source.gates[name])
-    return n == null ? { aggregate: null, samples: [] } : { aggregate: n, samples: [n] }
+  return null
+}
+
+function metricBundle(source, name) {
+  if (!source) return null
+  for (const raw of [source.metrics?.[name], source.judge?.[name], source.gates?.[name]]) {
+    if (raw === undefined) continue
+    return valueBundle(raw)
   }
   return null
 }
@@ -141,12 +142,12 @@ function comparisonDefaults(spec) {
   const usesJudge = spec.primary?.type === "judge" || spec.judge != null
   return {
     method: comparison.method ?? "absolute",
-    noise_threshold: firstFiniteNumber(
+    noise_threshold: firstNonNegativeNumber(
       [comparison.noise_threshold, spec.noise_threshold, stability.noise_threshold],
       0.02,
     ),
-    relative_threshold: firstFiniteNumber([comparison.relative_threshold], 0.05),
-    minimum_improvement: firstFiniteNumber(
+    relative_threshold: firstNonNegativeNumber([comparison.relative_threshold], 0.05),
+    minimum_improvement: firstNonNegativeNumber(
       [comparison.minimum_improvement, spec.minimum_improvement, spec.judge?.minimum_improvement],
       usesJudge ? 0.3 : null,
     ),
@@ -193,7 +194,7 @@ export function compareObjective({
 }) {
   const delta = signedDelta(baselineValue, candidateValue, direction)
   const denom = Math.abs(baselineValue)
-  const relative = denom > 0 ? delta / denom : delta
+  const relative = denom > 0 ? delta / denom : 0
   const absThreshold =
     type === "judge" && comparison.minimum_improvement != null
       ? comparison.minimum_improvement
@@ -201,7 +202,9 @@ export function compareObjective({
   const relativeThreshold = comparison.relative_threshold
 
   let verdict
-  if (comparison.method === "relative") {
+  if ((comparison.method === "relative" || comparison.method === "paired") && denom <= 0) {
+    verdict = "inconclusive"
+  } else if (comparison.method === "relative") {
     verdict = verdictFromSigned(relative, relativeThreshold)
   } else if (comparison.method === "paired") {
     const baseSamples = baselineSamples?.length ? baselineSamples : [baselineValue]
@@ -209,11 +212,11 @@ export function compareObjective({
     const diffs = candSamples.map((value, index) =>
       signedDelta(baseSamples[Math.min(index, baseSamples.length - 1)], value, direction),
     )
-    const threshold = denom > 0 ? relativeThreshold * denom : absThreshold
+    const threshold = relativeThreshold * denom
     const lo = Math.min(...diffs)
     const hi = Math.max(...diffs)
-    if (lo > threshold) verdict = "improved"
-    else if (hi < -threshold) verdict = "regressed"
+    if (verdictFromSigned(lo, threshold) === "improved") verdict = "improved"
+    else if (verdictFromSigned(hi, threshold) === "regressed") verdict = "regressed"
     else verdict = "inconclusive"
   } else {
     verdict = verdictFromSigned(delta, absThreshold)
@@ -253,10 +256,9 @@ function evaluateGates(spec, candidate) {
   return failures
 }
 
-function futilityBound(ladder, baselineValue, direction) {
-  const futility = ladder.futility ?? {}
-  const factor = Number(futility.worse_factor ?? 0)
-  if (!factor || factor <= 1 || baselineValue == null) return null
+function futilityBound(futility, baselineValue, direction) {
+  const factor = finiteNumber(futility.worse_factor ?? 1.2)
+  if (factor == null || factor <= 1 || baselineValue == null) return null
   return direction === "minimize" ? baselineValue * factor : baselineValue / factor
 }
 
@@ -269,8 +271,8 @@ function isFutile({
   sampleCount,
   enabled,
 }) {
-  const futility = ladder.futility ?? {}
-  if (!enabled) return false
+  const futility = ladder.futility
+  if (!enabled || futility == null || typeof futility !== "object") return false
 
   if (
     futility.after_elapsed_seconds != null &&
@@ -281,7 +283,7 @@ function isFutile({
     return true
   }
 
-  const bound = futilityBound(ladder, baselineValue, direction)
+  const bound = futilityBound(futility, baselineValue, direction)
   if (bound == null || candidateValue == null) return false
   const worse = signedDelta(bound, candidateValue, direction) <= 0
   return worse && (sampleCount ?? 1) <= (ladder.exploratory_pairs ?? 1)
@@ -307,7 +309,6 @@ export function decide(input) {
   const ladderEnabled = Boolean(ladder.enabled || spec.stability_mode === "ladder")
   const confirmationRepeats = Number(ladder.confirmation_repeats ?? spec.repeat_count ?? 5)
   const exploratoryPairs = Number(ladder.exploratory_pairs ?? 1)
-  const sampleCount = Number(candidate.sample_count ?? candidate.metrics?.[primary.name]?.samples?.length ?? 1)
 
   if (candidate.smoke_passed === false) {
     return closedResult({ decision: "degenerate", reason: "smoke test failed" })
@@ -365,6 +366,9 @@ export function decide(input) {
   const baselinePrimary = baselineBundles[primary.name] ?? metricBundle(baseline, primary.name)
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
+  const sampleCount = Number(
+    candidate.sample_count ?? primaryBundle?.samples?.length ?? 1,
+  )
 
   if (
     !eligible &&
