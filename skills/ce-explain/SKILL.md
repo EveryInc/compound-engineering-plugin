@@ -14,19 +14,6 @@ Teach the user one thing well: a concept, a change, an idea, or a window of thei
 
 **Read `references/orchestration.md` before the first blocking question, subagent dispatch, or run-directory creation** — it owns the per-harness ask tool, the model tiers and their degradation rule, grounding by input shape, and menu sizing.
 
-## Setup
-
-Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Run the fence exactly as written, as its own command: never pipe, filter, truncate, or bundle it. Its output opens with a `=== skill context` header and ends with `CE_CONTEXT_END`; one line without the other means truncation — rerun the fence verbatim once, and otherwise never rerun it this invocation; a later invocation of this or any other skill runs its own. Without Node, proceed unchanged.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$NODE" ]; then
-"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
-else
-echo "no Node runtime; continue with the skill's normal behavior";
-fi
-```
 
 ## Artifact Root
 

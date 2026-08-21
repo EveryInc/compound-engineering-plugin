@@ -14,19 +14,8 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 
 **Research, decide, and write the plan — never implement.** This workflow does not write production code, run tests, or learn from execution-time results; if the answer depends on changing code and seeing what happens, that belongs in `ce-work`. Directional pseudo-code and DSL grammar sketches that communicate design remain welcome where the references allow them — the boundary is implementing, not sketching.
 
-## Setup
+At every native subagent boundary, classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and otherwise follow that boundary's stated fallback or failed-pass handling.
 
-Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints — except where one conflicts with this skill's own rules on asking the user questions, whether those rules are scoped to a non-interactive mode or apply in every mode, in which case this skill's rules win and no blocking question is asked. Run the fence exactly as written, as its own command: do not pipe or filter it (no `head`, `tail`, or `grep`), do not truncate its output, and do not bundle it into a batch with other commands. Its output opens with a `=== skill context` header and ends with `CE_CONTEXT_END`; if you received one of those lines without the other, the output was truncated — rerun the fence verbatim once. That recovery is the only rerun: otherwise do not rerun it within the same invocation; a later invocation of this or any other skill runs its own. If no Node runtime is available the skill proceeds unchanged.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$NODE" ]; then
-"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
-else
-echo "no Node runtime; continue with the skill's normal behavior";
-fi
-```
 
 ## Mandatory Completion Contract
 

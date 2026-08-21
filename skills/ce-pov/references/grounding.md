@@ -12,6 +12,8 @@ Dispatch is tiered by task shape, never hardcoded to a model name:
 
 **Degradation rule.** When the platform's subagent primitive cannot select per-agent models, dispatch every scout on the inherited model and keep their read budgets — cost control then comes from the read budgets and the tier-sensitive scout count, not from tiering.
 
+Classify a rejected scout dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and if another launch failure survives correction, gather that scout's bounded evidence inline and lower the verdict's stated confidence.
+
 Create the scratch dir once, and reuse the echoed path for every scout this run:
 
 ```bash

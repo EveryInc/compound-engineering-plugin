@@ -10,21 +10,6 @@ Review a requirements or plan document with a team of reviewer personas. Dispatc
 
 **Done when:** every dispatched reviewer returned or was named as failed in Coverage, the fixes routed to Apply are applied and reported, and the rest went through the four-option interaction (interactive) or came back as structured text with classifications intact (non-interactive).
 
-## Setup
-
-Run this once before any subagent dispatch, and follow the directives it prints. Where one of them conflicts with this skill's own rules about asking the user questions, this skill's rules win — that holds whether the rule is scoped to a mode or global — and no blocking question is asked.
-
-Run the fence exactly as written, as its own command: no piping, filtering, truncating, or batching. The output opens with `=== skill context` and ends with `CE_CONTEXT_END`. One of those lines without the other means the output was truncated, so rerun the fence verbatim once. That is the only rerun inside this invocation; a later invocation of any skill runs its own.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$NODE" ]; then
-"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
-else
-echo "no Node runtime; continue with the skill's normal behavior";
-fi
-```
 
 ## Interactive mode rules
 

@@ -31,19 +31,6 @@ allowed-tools:
 - A fix ref reaches a git or gh command only when the whole value is a bare PR number (`#?\d+`) or a commit SHA (`[0-9a-f]{7,40}`). Anything else stays an unresolved claim.
 - Every upsert carries its source's `sensitive` flag.
 
-## Setup
-
-Run this once at the start of this invocation, before any subagent dispatch, and follow the directives it prints. Where one of those directives conflicts with this skill's rules on asking the user questions, this skill wins and no blocking question is asked. Run the fence exactly as written, as its own command: never pipe, filter, truncate, or bundle it. Its output opens with a `=== skill context` header and ends with `CE_CONTEXT_END`. One of those lines without the other means the output was truncated — rerun once, never twice. Without Node, proceed unchanged.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$NODE" ]; then
-"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
-else
-echo "no Node runtime; continue with the skill's normal behavior";
-fi
-```
 
 ## Mode
 

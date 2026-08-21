@@ -7,6 +7,8 @@ Two primitives are assumed, both platform-neutral:
 - **A dispatch primitive** that launches an independent agent with its own context window and returns a result to the orchestrator (in one host it is a subagent-spawning tool; in another a job runner). Only two properties matter: fresh context per agent, and a result the orchestrator can read.
 - **A concurrency cap** the host enforces on how many agents run at once (often around 10). Dispatches above the cap queue rather than fail, so a 31-unit fan-out is three waves, not one. Plan the wave count; do not assume flat cost.
 
+Classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once and leave capacity-limited work queued. Any other launch failure follows the phase's own failure direction; in the corpus audit, where independent proposal and defense contexts are load-bearing, that means blocker-and-stop rather than inline substitution.
+
 ## The shapes
 
 | Phase | Shape | Why | Failure when mismatched |

@@ -8,21 +8,6 @@ argument-hint: "[optional: scope hint — directory, filename, module, or keywor
 
 Audit the learnings under `<root>/solutions/` against the current codebase, apply the maintenance actions the evidence supports, and deliver a complete per-doc report plus committed changes. The report and the corrected document set are the deliverables. The store only compounds value if every doc can be trusted.
 
-## Setup
-
-Run this once before any subagent dispatch, and follow the directives it prints. Where one of them conflicts with this skill's own rules about asking the user questions, this skill's rules win — that holds whether the rule is scoped to a mode or global — and no blocking question is asked.
-
-Run the fence exactly as written, as its own command: no piping, filtering, truncating, or batching. The output opens with `=== skill context` and ends with `CE_CONTEXT_END`. One of those lines without the other means the output was truncated. Rerun the fence verbatim once. That is the only rerun inside this invocation; a later invocation of any skill runs its own.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$NODE" ]; then
-"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
-else
-echo "no Node runtime; continue with the skill's normal behavior";
-fi
-```
 
 ## Mode
 
@@ -33,6 +18,8 @@ Two rules hold in both modes. A failed write is recorded as **recommended**, and
 ## Artifact Root
 
 Resolve `<root>` when you first compose a `<root>/solutions/` path. Pass the resolved `<root>/solutions/` path to any subagent, not the config. Every subagent spawn omits the `mode` parameter, so the user's permission settings apply.
+
+Classify a rejected subagent dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and if another launch failure survives correction, perform that pass in the orchestrator with the same inputs and report the substitution.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**

@@ -127,9 +127,10 @@ If model names are unknown, omit the override and inherit rather than guessing.
 
 **Degradation rule.** When the platform's subagent primitive does not support per-agent model selection, dispatch everything on the inherited model and keep the read budgets and dossier caps — cost control then comes from structure, not tiering.
 
+For every native dispatch in this skill, classify rejection by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and send any other failure to that phase's stated degraded path.
+
 Two overrides raise the whole ideation fleet to the ceiling tier: surprise-me mode and the `go deep` depth override (Phase 0.5).
 
 ## Asking inside this phase
 
 The issue-scoping question below is the only blocking question this phase may ask. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI, `ask_user` in Pi), fall back to numbered options on the user-visible chat surface only when no such tool exists or the call errors, and never silently skip it.
-

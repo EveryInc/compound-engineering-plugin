@@ -25,19 +25,6 @@ argument-hint: "[feature, focus area, or constraint] [output:md]"
 
 The **focus hint** is any optional context this run was invoked with, from the user or from a calling skill. The rest of this skill calls it `{focus_hint}`.
 
-## Setup
-
-Run this once at the start of the invocation, before any question or dispatch, and follow the directives it prints. Where one of those directives conflicts with this skill's own rules on asking questions, this skill wins and no blocking question is asked — whether the directive is scoped to a mode or not. Run the fence exactly as written, as its own command: do not pipe, filter, truncate, or bundle it. Its output opens with `=== skill context` and ends with `CE_CONTEXT_END`. If you get one of those lines without the other, rerun it once. With no Node runtime, proceed unchanged.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$NODE" ]; then
-"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
-else
-echo "no Node runtime; continue with the skill's normal behavior";
-fi
-```
 
 ## Artifact Root
 

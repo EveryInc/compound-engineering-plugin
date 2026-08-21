@@ -8,19 +8,6 @@ argument-hint: "[question, document, or approaches] [cross-check] — or bare"
 
 Produce a decisive, project-grounded point of view in the subject's own shape: a **graded verdict** on an external-adoption question, a **holistic take** on a document, or a **position** on a supplied approach set. The subject is whatever this skill was invoked with, in the prompt or the conversation. Stay read-only while forming and reconciling the POV. You are done when the POV is delivered with its attribution and required disclosure, or when an explicit blocker is returned. **The year is 2026**, for source recency.
 
-## Setup
-
-Run this once per invocation, before any subagent dispatch, and follow the directives it prints; where one conflicts with this skill's rules on asking questions, those win and no blocking question is asked. Run the fence exactly as written, as its own command — no piping, filtering, truncating, or batching. Its output starts `=== skill context` and ends with `CE_CONTEXT_END`; one without the other means truncation, so rerun it verbatim once. A later invocation runs its own.
-
-```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
-if [ -n "$NODE" ]; then
-"$NODE" "$SKILL_DIR/scripts/context.mjs" || echo "context script failed; continue with the skill's normal behavior";
-else
-echo "no Node runtime; continue with the skill's normal behavior";
-fi
-```
 
 ## The moat
 

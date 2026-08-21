@@ -106,7 +106,6 @@ If 2-3 hypotheses are exhausted without confirmation, diagnose why and present t
 | Works locally, fails in CI/prod | Environment problem | Focus on env differences, config, dependencies, timing |
 | Fix works but prediction was wrong | Symptom fix, not root cause | The real cause is still active — keep investigating |
 
-**Parallel investigation option:** when hypotheses are evidence-bottlenecked across clearly independent subsystems, dispatch read-only sub-agents in parallel, each with an explicit hypothesis and a structured evidence-return format. No code edits by sub-agents; skip when hypotheses depend on each other. Without parallel dispatch, run the same probes sequentially in ranked order — the parallelism is a latency optimization, not a correctness requirement.
+**Parallel investigation option:** when hypotheses are evidence-bottlenecked across clearly independent subsystems, dispatch read-only sub-agents in parallel, each with an explicit hypothesis and a structured evidence-return format. No code edits by sub-agents; skip when hypotheses depend on each other. Without parallel dispatch, run the same probes sequentially in ranked order — the parallelism is a latency optimization, not a correctness requirement. Correct a pre-launch argument rejection once; capacity-limited work stays queued, and any other launch failure takes the sequential path.
 
 ---
-

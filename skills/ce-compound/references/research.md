@@ -57,6 +57,8 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
 **Dispatch.** Launch `Context Analyzer`, `Solution Extractor`, and `Related Docs Finder` in parallel, in the background, and do not wait on them here. They keep running underneath the session-history step the body starts next, so the two overlap and the wall-clock cost is `max(session-history, slowest background subagent)` rather than their sum.
 
+Classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and if another launch failure survives correction, run that role in the parent context with the same contract and artifact path rather than dropping it.
+
 **Every subagent gets its contracts inline.** A fresh subagent resolves a relative path against the user's project, not this skill, so a task prompt that names `references/schema.yaml` or `references/yaml-schema.md` hands it a path that does not exist. Paste the contents of every skill-local file a subagent's task depends on into that task prompt.
 
 <parallel_tasks>

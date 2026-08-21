@@ -7,3 +7,5 @@ Read this when dispatching a sub-agent (the Phase 1.1 grounding scout, the Phase
 - **Ceiling tier** — the dialogue itself. Questions, approaches, synthesis, and the requirements-only unified plan run in the main conversation on the orchestrator's model; nothing is dispatched for them.
 
 **Degradation rule.** When the platform's subagent primitive does not support per-agent model selection, dispatch the scout and verifier on the inherited model and keep their read budgets and output caps — cost control then comes from structure, not tiering. When the platform has no subagent primitive at all, do the topic scan inline at Phase 1.1 — still writing the grounding dossier to the scratch path, because downstream consumers (the Phase 2.6 verifier, the ce-plan handoff) receive that path — and verify claims inline before the Phase 3 write, with the same budgets.
+
+Classify a rejected native dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and send any other failure to the inline degradation above.

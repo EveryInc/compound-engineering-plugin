@@ -7,3 +7,5 @@ Read this when dispatching a sub-agent (a source-persona fetch subagent or a med
 - **Ceiling tier** — the orchestrator's judgment. The decision round and plan reconciliation run in the main conversation on the orchestrator's model; nothing is dispatched for them.
 
 **Degradation rule.** When the platform's subagent primitive does not support per-agent model selection, dispatch the source-persona fetch and media-analyzer subagents (Phase 2b, 2e) on the inherited model and keep their read budgets and output caps — cost control then comes from structure, not tiering. When the platform has no subagent primitive at all, run the source fetch and the media analysis inline in the orchestrator — still downloading media to the scratch path and writing each analysis finding to its scratch artifact, because the wrap-up summary and plan reconciliation read those paths — with the same budgets.
+
+Classify a rejected native dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and send any other failure to the inline degradation above or the owning source's more specific unavailable-state rule.

@@ -256,6 +256,32 @@ function listMarkdownFiles(dir: string): string[] {
   return out
 }
 
+describe("removed shared skill-context workaround", () => {
+  test("does not return to the shipped skill corpus", () => {
+    const contextScripts = listSkillDirs()
+      .map((skill) => path.join(skill.absPath, "scripts", "context.mjs"))
+      .filter((candidate) => {
+        try {
+          return statSync(candidate).isFile()
+        } catch {
+          return false
+        }
+      })
+
+    const staleDirectiveMentions = listSkillDirs().flatMap((skill) =>
+      listMarkdownFiles(skill.absPath).flatMap((file) => {
+        const body = readFileSync(file, "utf8")
+        return ["SUBAGENT_AUTHORIZATION:", "CE_CONTEXT_END"]
+          .filter((token) => body.includes(token))
+          .map((token) => `${path.relative(REPO_ROOT, file)}: ${token}`)
+      }),
+    )
+
+    expect(contextScripts.map((file) => path.relative(REPO_ROOT, file))).toEqual([])
+    expect(staleDirectiveMentions).toEqual([])
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Scanning helpers (pure; unit-tested at the bottom of this file)
 // ---------------------------------------------------------------------------
