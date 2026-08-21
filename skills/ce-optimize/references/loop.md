@@ -134,7 +134,7 @@ For each completed experiment, **immediately**:
    - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
-6. **Compare with `decide.mjs`.** Invoke it only after gates pass and the payload holds every required objective value — hard metrics from measurement, and judge scores when those were collected. Put `comparison`, `repeat_count`, `ladder`, `metric.objectives`, `minimum_improvement` for a judge primary, baseline snapshot, and candidate samples in the payload. The script owns eligibility, noise, and the ladder next step. Do not re-derive the threshold in prose.
+6. **Compare with `decide.mjs`.** Invoke it only after gates pass and the payload holds every required objective value — hard metrics from measurement, and judge scores when those were collected. The payload is the spec as loaded plus the baseline and candidate snapshots. The script reads the nested spec (`metric`, `measurement.stability`) and owns eligibility, noise, and the ladder next step. Do not reconstruct a flattened payload, and do not re-derive the threshold in prose.
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";

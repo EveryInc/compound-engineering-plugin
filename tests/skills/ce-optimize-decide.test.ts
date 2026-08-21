@@ -62,6 +62,9 @@ describe("ce-optimize decide helpers", () => {
     expect(gatePasses(1, "== 1")).toBe(true)
     expect(gatePasses(0.95, ">= 1.0")).toBe(false)
     expect(gatePasses(0, "<= 0")).toBe(true)
+    expect(gatePasses(1, "!= 0")).toBe(true)
+    expect(gatePasses("not-a-number", "!= 0")).toBe(false)
+    expect(gatePasses(NaN, "!= 0")).toBe(false)
   })
 })
 
@@ -98,6 +101,88 @@ describe("legacy single-primary absolute comparison", () => {
     })
     expect(result.decision).toBe("degenerate")
     expect(result.eligible).toBe(false)
+  })
+
+  test("a non-finite gate value fails != instead of passing as NaN", () => {
+    const spec = hardSpec({
+      degenerate_gates: [{ name: "valid", check: "!= 0" }],
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(10, { gates: { valid: 1 } }),
+      candidate: {
+        gates: { valid: "not-a-number" },
+        metrics: { wall_seconds: { aggregate: 1, samples: [1] } },
+      },
+    })
+    expect(result.decision).toBe("degenerate")
+    expect(result.eligible).toBe(false)
+    expect(result.violated_objectives).toContain("valid")
+  })
+
+  test("a canonical nested spec keeps a clear primary improvement", () => {
+    const spec = {
+      metric: {
+        primary: { name: "wall_seconds", direction: "minimize", type: "hard" },
+        degenerate_gates: [{ name: "suite_passed", check: "== 1" }],
+      },
+      measurement: {
+        stability: {
+          mode: "stable",
+          noise_threshold: 0.02,
+          comparison: { method: "absolute" },
+        },
+      },
+    }
+    const result = decide({ spec, baseline: snapshot(10), candidate: snapshot(9.97) })
+    expect(result.decision).toBe("keep")
+    expect(result.eligible).toBe(true)
+    expect(result.improved_objectives).toEqual(["wall_seconds"])
+  })
+
+  test("a nested spec with required objectives keeps a CI-only win", () => {
+    const spec = {
+      metric: {
+        primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+        objectives: [{ name: "ci_critical_path_seconds", direction: "minimize", role: "required" }],
+        degenerate_gates: [{ name: "suite_passed", check: "== 1" }],
+      },
+      measurement: {
+        stability: {
+          comparison: { method: "relative", relative_threshold: 0.05 },
+        },
+      },
+    }
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 120, samples: [120] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 101, samples: [101] },
+          ci_critical_path_seconds: { aggregate: 80, samples: [80] },
+        },
+      },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
+  })
+
+  test("a payload with no primary is an error, not an empty-required inconclusive", () => {
+    const result = decide({
+      spec: { degenerate_gates: [{ name: "suite_passed", check: "== 1" }] },
+      baseline: snapshot(10),
+      candidate: snapshot(1),
+    })
+    expect(result.decision).toBe("error")
+    expect(result.eligible).toBe(false)
+    expect(result.reason).toContain("primary")
   })
 
   test("the declared stability noise_threshold is the absolute bar when comparison omits it", () => {
@@ -593,6 +678,8 @@ describe("schema and skill pins", () => {
     expect(SCHEMA).toContain("worse_factor")
     expect(SCHEMA).toContain("A spec without metric.objectives keeps single-primary acceptance")
     expect(SCHEMA).toContain("The primary is always a required comparison")
+    expect(SCHEMA).toContain("each additional objective is a hard metric")
+    expect(SCHEMA).toContain("Always hard. Additional objectives come from the measurement command.")
   })
 
   test("the experiment log schema includes inconclusive and censored outcomes", () => {
@@ -615,6 +702,7 @@ describe("schema and skill pins", () => {
     expect(MEASUREMENT).toContain("scripts/decide.mjs")
     expect(LOOP).toContain("every declared required target")
     expect(LOOP).toContain("every required objective value")
+    expect(LOOP).toContain("the spec as loaded")
     expect(LOOP).toContain("elapsed wall time itself proves the primary cannot win")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
   })

@@ -28,19 +28,21 @@ function parseCheck(check) {
 
 export function gatePasses(value, check) {
   const { op, threshold } = parseCheck(check)
+  const n = finiteNumber(value)
+  if (n == null || !Number.isFinite(threshold)) return false
   switch (op) {
     case ">=":
-      return value >= threshold
+      return n >= threshold
     case "<=":
-      return value <= threshold
+      return n <= threshold
     case ">":
-      return value > threshold
+      return n > threshold
     case "<":
-      return value < threshold
+      return n < threshold
     case "==":
-      return value === threshold
+      return n === threshold
     case "!=":
-      return value !== threshold
+      return n !== threshold
     default:
       return false
   }
@@ -106,6 +108,31 @@ function metricBundle(source, name) {
     return n == null ? { aggregate: null, samples: [] } : { aggregate: n, samples: [n] }
   }
   return null
+}
+
+function normalizeSpec(spec) {
+  const metric = spec.metric ?? {}
+  const measurement = spec.measurement ?? {}
+  const stability = spec.stability ?? measurement.stability ?? {}
+  const primary = spec.primary ?? metric.primary ?? {}
+  const judge = spec.judge ?? metric.judge
+  const comparison = spec.comparison ?? stability.comparison
+  return {
+    ...spec,
+    primary,
+    objectives: spec.objectives ?? metric.objectives,
+    degenerate_gates: spec.degenerate_gates ?? metric.degenerate_gates,
+    judge,
+    comparison,
+    ladder: spec.ladder ?? stability.ladder ?? {},
+    stability_mode: spec.stability_mode ?? stability.mode,
+    repeat_count: spec.repeat_count ?? stability.repeat_count,
+    noise_threshold: spec.noise_threshold ?? stability.noise_threshold,
+    minimum_improvement:
+      spec.minimum_improvement ?? comparison?.minimum_improvement ?? judge?.minimum_improvement,
+    measurement,
+    stability,
+  }
 }
 
 function comparisonDefaults(spec) {
@@ -218,8 +245,7 @@ function evaluateGates(spec, candidate) {
   const values = candidate?.gates ?? {}
   const failures = []
   for (const gate of gates) {
-    const value = values[gate.name]
-    if (value == null || !gatePasses(Number(value), gate.check)) {
+    if (!gatePasses(values[gate.name], gate.check)) {
       failures.push(gate.name)
     }
   }
@@ -267,10 +293,13 @@ function rankScore(primaryComparison, improved) {
 }
 
 export function decide(input) {
-  const spec = input.spec ?? {}
+  const spec = normalizeSpec(input.spec ?? {})
   const baseline = input.baseline ?? {}
   const candidate = input.candidate ?? {}
   const primary = spec.primary ?? {}
+  if (!primary.name) {
+    return closedResult({ decision: "error", reason: "missing primary metric" })
+  }
   const comparison = comparisonDefaults(spec)
   const required = requiredObjectives(spec)
   const ladder = spec.ladder ?? {}
