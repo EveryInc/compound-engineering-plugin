@@ -566,6 +566,24 @@ describe("noise-aware comparison from the observed suite run", () => {
     expect(atUnit.rank_score).toBe(scaled.rank_score)
   })
 
+  test("paired comparison of a scalar judge snapshot can still keep a real gain", () => {
+    const spec = hardSpec({
+      primary: { name: "mean_score", direction: "maximize", type: "judge" },
+      comparison: { method: "paired", relative_threshold: 0.05, minimum_improvement: 0.3 },
+    })
+    const result = decide({
+      spec,
+      baseline: { gates: { suite_passed: 1 }, judge: { mean_score: 4.0 } },
+      candidate: {
+        gates: { suite_passed: 1 },
+        judge: { mean_score: 4.5 },
+        sample_count: 5,
+      },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.eligible).toBe(true)
+  })
+
   test("paired comparison without sample ranges is inconclusive", () => {
     const spec = hardSpec({
       comparison: { method: "paired", relative_threshold: 0.05, noise_threshold: 10 },
@@ -802,6 +820,50 @@ describe("cost-aware measurement ladder", () => {
     expect(result.improved_objectives).toEqual(["ci_critical_path_seconds"])
   })
 
+  test("multiplicative futility does not censor when a required objective is still inside threshold", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
+      objectives: [
+        {
+          name: "local_wall_seconds",
+          direction: "minimize",
+          role: "required",
+          max_regression: { type: "relative", value: 0.5 },
+        },
+        { name: "ci_critical_path_seconds", direction: "minimize", role: "required" },
+      ],
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+        futility: { worse_factor: 1.2 },
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 100, samples: [100] },
+          ci_critical_path_seconds: { aggregate: 100, samples: [100] },
+        },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          local_wall_seconds: { aggregate: 130, samples: [130] },
+          ci_critical_path_seconds: { aggregate: 96, samples: [96] },
+        },
+        smoke_passed: true,
+        sample_count: 1,
+      },
+    })
+    expect(result.decision).not.toBe("censored")
+    expect(result.next_measurement).toBe("add_sample")
+  })
+
   test("elapsed-time futility does not censor a candidate still inside the comparison threshold", () => {
     const spec = hardSpec({
       primary: { name: "local_wall_seconds", direction: "minimize", type: "hard" },
@@ -915,6 +977,35 @@ describe("cost-aware measurement ladder", () => {
     })
     expect(result.decision).toBe("inconclusive")
     expect(result.next_measurement).toBe("add_sample")
+  })
+
+  test("inconclusive sampling does not exceed the confirmation budget", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 3,
+        confirmation_repeats: 3,
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: {
+          wall_seconds: {
+            aggregate: BASELINE_WALL * 0.98,
+            samples: [BASELINE_WALL * 0.98, BASELINE_WALL * 0.98, BASELINE_WALL * 0.98],
+          },
+        },
+        sample_count: 3,
+        smoke_passed: true,
+      },
+    })
+    expect(result.decision).toBe("inconclusive")
+    expect(result.next_measurement).toBe("none")
   })
 
   test("an inconclusive extra sample is terminal before the confirmation budget", () => {

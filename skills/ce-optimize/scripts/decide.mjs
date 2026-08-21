@@ -235,7 +235,11 @@ export function compareObjective({
     const threshold = relativeThreshold * denom
     if (!baseSamples.length || !candSamples.length) {
       verdict =
-        verdictFromSigned(delta, threshold) === "regressed" ? "regressed" : "inconclusive"
+        type === "judge"
+          ? verdictFromSigned(delta, absThreshold)
+          : verdictFromSigned(delta, threshold) === "regressed"
+            ? "regressed"
+            : "inconclusive"
     } else {
       const diffs = candSamples.map((value, index) =>
         signedDelta(baseSamples[Math.min(index, baseSamples.length - 1)], value, direction),
@@ -401,7 +405,7 @@ export function decide(input) {
     baselineBundles[primary.name] ?? metricBundle(baseline, primary.name, aggregation, primary.type)
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
-  const allInsideThreshold = required.every(
+  const stillContending = required.some(
     (objective) => comparisons[objective.name]?.verdict === "inconclusive",
   )
   const sampleCount = Math.min(
@@ -414,7 +418,7 @@ export function decide(input) {
 
   if (
     !eligible &&
-    !allInsideThreshold &&
+    !stillContending &&
     isFutile({
       ladder,
       direction: primary.direction,
@@ -446,7 +450,8 @@ export function decide(input) {
 
   let decision
   if (eligible) decision = "keep"
-  else if (allInsideThreshold) decision = "inconclusive"
+  else if (violated.length) decision = "revert"
+  else if (stillContending) decision = "inconclusive"
   else decision = "revert"
 
   let nextMeasurement = "none"
@@ -454,7 +459,9 @@ export function decide(input) {
     nextMeasurement = "smoke"
   } else if (ladderEnabled && (decision === "keep" || decision === "inconclusive")) {
     const confirming = decision === "keep"
-    const sampleBudget = confirming ? confirmationRepeats : exploratoryPairs + 1
+    const sampleBudget = confirming
+      ? confirmationRepeats
+      : Math.min(exploratoryPairs + 1, confirmationRepeats)
     if (sampleCount < sampleBudget) {
       if (confirming) decision = "promising"
       if (sampleCount < exploratoryPairs) nextMeasurement = "exploratory"
