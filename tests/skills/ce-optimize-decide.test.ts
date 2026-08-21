@@ -266,6 +266,47 @@ describe("multi-objective acceptance", () => {
     expect(result.rank_score).toBeGreaterThan(0)
   })
 
+  test("rank_score stays unit-invariant when the primary's unit is scaled", () => {
+    const ranked = (scale: number, primaryMoved: boolean) => {
+      const spec = hardSpec({
+        primary: { name: "wall", direction: "minimize", type: "hard" },
+        objectives: [
+          { name: "wall", direction: "minimize", role: "required" },
+          { name: "ci", direction: "minimize", role: "required" },
+        ],
+      })
+      const baseline = {
+        gates: { suite_passed: 1 },
+        metrics: {
+          wall: { aggregate: 1 * scale, samples: [1 * scale] },
+          ci: { aggregate: 100, samples: [100] },
+        },
+      }
+      const candidate = primaryMoved
+        ? {
+            gates: { suite_passed: 1 },
+            metrics: {
+              wall: { aggregate: 0.9 * scale, samples: [0.9 * scale] },
+              ci: { aggregate: 100, samples: [100] },
+            },
+          }
+        : {
+            gates: { suite_passed: 1 },
+            metrics: {
+              wall: { aggregate: 1 * scale, samples: [1 * scale] },
+              ci: { aggregate: 50, samples: [50] },
+            },
+          }
+      return decide({ spec, baseline, candidate }).rank_score
+    }
+    const winnerAt = (scale: number) => (ranked(scale, true) >= ranked(scale, false) ? "primary" : "secondary")
+    expect(winnerAt(1)).toBe(winnerAt(1000))
+    expect(ranked(1, true)).toBeCloseTo(ranked(1000, true))
+    expect(ranked(1, false)).toBeCloseTo(ranked(1000, false))
+    expect(ranked(1, true)).toBeCloseTo(0.1)
+    expect(ranked(1, false)).toBeCloseTo(0.5)
+  })
+
   test("a CI win that regresses local wall beyond the threshold is not eligible", () => {
     const result = decide({
       spec,
@@ -544,6 +585,26 @@ describe("cost-aware measurement ladder", () => {
     expect(result.decision).toBe("censored")
   })
 
+  test("a first sample with exploratory_pairs above 1 asks for another exploratory sample", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 2,
+        confirmation_repeats: 5,
+        futility: { worse_factor: 1.2 },
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: { ...snapshot(300), smoke_passed: true, sample_count: 1 },
+    })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).toBe("exploratory")
+  })
+
   test("a promising first pair asks for confirmation instead of keeping on one sample", () => {
     const result = decide({
       spec,
@@ -639,6 +700,41 @@ describe("judge minimum as a comparison floor", () => {
     expect(aboveFloor.decision).toBe("keep")
     expect(aboveFloor.eligible).toBe(true)
   })
+
+  test("an omitted judge minimum_improvement defaults to 0.3", () => {
+    const spec = {
+      metric: {
+        primary: { name: "mean_score", direction: "maximize", type: "judge" },
+        judge: { scoring: { primary: "mean_score" } },
+        degenerate_gates: [{ name: "suite_passed", check: "== 1" }],
+      },
+    }
+    const baseline = {
+      gates: { suite_passed: 1 },
+      metrics: { mean_score: { aggregate: 4.0, samples: [4.0] } },
+    }
+    const belowDefault = decide({
+      spec,
+      baseline,
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { mean_score: { aggregate: 4.1, samples: [4.1] } },
+      },
+    })
+    expect(belowDefault.decision).toBe("inconclusive")
+    expect(belowDefault.eligible).toBe(false)
+
+    const aboveDefault = decide({
+      spec,
+      baseline,
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { mean_score: { aggregate: 4.4, samples: [4.4] } },
+      },
+    })
+    expect(aboveDefault.decision).toBe("keep")
+    expect(aboveDefault.eligible).toBe(true)
+  })
 })
 
 describe("decide.mjs CLI", () => {
@@ -667,6 +763,15 @@ describe("measure.sh futility censor", () => {
     })
     expect(result.status).toBe(125)
     expect(result.stderr).toContain("censored")
+  })
+
+  test("a command exit 124 is not rewritten to censored when the deadline did not fire", () => {
+    const result = spawnSync("bash", [MEASURE, "exit 124", "30", "."], {
+      encoding: "utf8",
+      env: { ...process.env, CE_OPTIMIZE_CENSOR_AFTER: "5" },
+    })
+    expect(result.status).toBe(124)
+    expect(result.stderr).not.toContain("censored")
   })
 })
 
@@ -704,6 +809,8 @@ describe("schema and skill pins", () => {
     expect(LOOP).toContain("every required objective value")
     expect(LOOP).toContain("the spec as loaded")
     expect(LOOP).toContain("elapsed wall time itself proves the primary cannot win")
+    expect(LOOP).toContain("whenever `next_measurement` is not `none`")
+    expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
   })
 })

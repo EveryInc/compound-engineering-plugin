@@ -45,14 +45,23 @@ cd "$WORKDIR" || {
   exit 1
 }
 
+run_timed_command() {
+  local timeout_bin="$1"
+  if [[ -n "${CENSOR_STATUS_FILE:-}" ]]; then
+    "$timeout_bin" "$TIMEOUT" bash -c 'bash -c "$1"; printf "%s\n" "$?" > "$2"; exit 0' _ "$COMMAND" "$CENSOR_STATUS_FILE"
+    return
+  fi
+  "$timeout_bin" "$TIMEOUT" bash -c "$COMMAND"
+}
+
 run_with_timeout() {
   if command -v timeout >/dev/null 2>&1; then
-    timeout "$TIMEOUT" bash -c "$COMMAND"
+    run_timed_command timeout
     return
   fi
 
   if command -v gtimeout >/dev/null 2>&1; then
-    gtimeout "$TIMEOUT" bash -c "$COMMAND"
+    run_timed_command gtimeout
     return
   fi
 
@@ -64,7 +73,7 @@ run_with_timeout() {
     fi
   done
   if [ -n "$PY" ]; then
-    "$PY" - "$TIMEOUT" "$COMMAND" <<'PY'
+    "$PY" - "$TIMEOUT" "$COMMAND" "${CENSOR_STATUS_FILE:-}" <<'PY'
 import os
 import signal
 import subprocess
@@ -72,10 +81,16 @@ import sys
 
 timeout_seconds = int(sys.argv[1])
 command = sys.argv[2]
+status_file = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ""
 proc = subprocess.Popen(["bash", "-c", command], start_new_session=True)
 
 try:
-    sys.exit(proc.wait(timeout=timeout_seconds))
+    rc = proc.wait(timeout=timeout_seconds)
+    if status_file:
+        with open(status_file, "w", encoding="utf-8") as fh:
+            fh.write(f"{rc}\n")
+        sys.exit(0)
+    sys.exit(rc)
 except subprocess.TimeoutExpired:
     os.killpg(proc.pid, signal.SIGTERM)
     try:
@@ -98,9 +113,11 @@ PY
 # still means the configured timeout fired.
 CENSOR_AFTER="${CE_OPTIMIZE_CENSOR_AFTER:-}"
 CENSORING=0
+CENSOR_STATUS_FILE=""
 if [[ -n "$CENSOR_AFTER" ]] && [[ "$CENSOR_AFTER" =~ ^[0-9]+$ ]] && (( CENSOR_AFTER < TIMEOUT )); then
   TIMEOUT="$CENSOR_AFTER"
   CENSORING=1
+  CENSOR_STATUS_FILE=$(mktemp "${TMPDIR:-/tmp}/ce-optimize-censor-XXXXXX")
 fi
 
 # Run the measurement command with timeout
@@ -110,8 +127,14 @@ set +e
 run_with_timeout
 status=$?
 set -e
-if [[ $status -eq 124 && $CENSORING -eq 1 ]]; then
-  echo "Error: measurement censored after ${CENSOR_AFTER}s (noncompetitive bound)" >&2
-  exit 125
+if [[ $CENSORING -eq 1 ]]; then
+  if [[ -s "$CENSOR_STATUS_FILE" ]]; then
+    status=$(cat "$CENSOR_STATUS_FILE")
+  elif [[ $status -eq 124 ]]; then
+    echo "Error: measurement censored after ${CENSOR_AFTER}s (noncompetitive bound)" >&2
+    rm -f "$CENSOR_STATUS_FILE"
+    exit 125
+  fi
+  rm -f "$CENSOR_STATUS_FILE"
 fi
 exit "$status"

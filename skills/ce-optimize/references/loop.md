@@ -140,7 +140,7 @@ For each completed experiment, **immediately**:
    NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
    "$NODE" "$SKILL_DIR/scripts/decide.mjs" "<payload.json>"
    ```
-   Use `decision` and `next_measurement`. If `next_measurement` is `confirm` or `add_sample`, collect that measurement and return through this sequence so the payload stays complete. Do not keep a candidate while `next_measurement` is still `confirm` or `add_sample`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`.
+   Use `decision` and `next_measurement`. Collect the requested measurement and repeat this sequence whenever `next_measurement` is not `none`. Do not keep a candidate until `next_measurement` is `none`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`.
 
 7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use `measured` or `promising` while samples are still being collected. Update the outcome to `kept`, `reverted`, `inconclusive`, `censored`, or another terminal state once `next_measurement` is `none`, but the raw metrics are on disk and safe from context compaction.
 
@@ -154,7 +154,7 @@ After all experiments in the batch have been measured:
 
 1. **Decide eligibility from `decide.mjs`, not from the primary metric alone.** An experiment is eligible when it improves at least one required objective beyond the configured comparison threshold and does not violate any other required objective. When `metric.objectives` is absent, the primary is the only required objective. `inconclusive` is not a keep.
 
-2. **Rank** the eligible experiments in the batch by the script's `rank_score` (primary improvement when the primary moved; otherwise the strongest required-objective gain). Identify that winner as the experiment to keep. An eligible experiment may be kept even if the ranking primary did not move.
+2. **Rank** the eligible experiments in the batch by the script's `rank_score` (primary relative gain when the primary moved; otherwise the strongest required-objective relative gain). Identify that winner as the experiment to keep. An eligible experiment may be kept even if the ranking primary did not move.
 
 3. **If `decide.mjs` returns `keep` for that winner: KEEP**
    - Commit the experiment branch first so the winning diff exists as a real commit before any merge or cherry-pick

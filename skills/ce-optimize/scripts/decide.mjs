@@ -138,6 +138,7 @@ function normalizeSpec(spec) {
 function comparisonDefaults(spec) {
   const stability = spec.stability ?? spec.measurement?.stability ?? {}
   const comparison = spec.comparison ?? stability.comparison ?? {}
+  const usesJudge = spec.primary?.type === "judge" || spec.judge != null
   return {
     method: comparison.method ?? "absolute",
     noise_threshold: firstFiniteNumber(
@@ -147,7 +148,7 @@ function comparisonDefaults(spec) {
     relative_threshold: firstFiniteNumber([comparison.relative_threshold], 0.05),
     minimum_improvement: firstFiniteNumber(
       [comparison.minimum_improvement, spec.minimum_improvement, spec.judge?.minimum_improvement],
-      null,
+      usesJudge ? 0.3 : null,
     ),
   }
 }
@@ -287,8 +288,8 @@ function isFutile({
 }
 
 function rankScore(primaryComparison, improved) {
-  if (primaryComparison?.verdict === "improved") return primaryComparison.delta
-  if (!improved.length) return primaryComparison?.delta ?? 0
+  if (primaryComparison?.verdict === "improved") return primaryComparison.relative ?? 0
+  if (!improved.length) return primaryComparison?.relative ?? 0
   return Math.max(...improved.map((item) => item.relative ?? 0))
 }
 
