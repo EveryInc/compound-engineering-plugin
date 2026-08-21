@@ -249,6 +249,8 @@ adapter_argv() {
 
 # The host may replace a stale concrete model only within the fixed route's
 # target family. Values are passed as one argv token; they never enter eval.
+# A codex id may carry the serving provider's own namespace (openai.gpt-...)
+# when the CLI routes through a non-default model_provider.
 apply_model_override() {
   local route="$1" override="${CROSS_MODEL_MODEL_OVERRIDE:-}" override_target="${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" target
   [ -n "$override" ] || { [ -z "$override_target" ]; return; }
@@ -256,7 +258,7 @@ apply_model_override() {
   [ "$override_target" = "$target" ] || return 1
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]* ) ;;
+    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]* ) ;;
     claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-* ) ;;
     grok-cli:grok-* ) ;;
     grok-cursor:cursor-grok-* ) ;;

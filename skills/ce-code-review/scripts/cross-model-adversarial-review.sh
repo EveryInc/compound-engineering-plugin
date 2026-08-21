@@ -273,6 +273,9 @@ adapter_argv() {
 # Accept a host-discovered replacement only for its declared target and model
 # family. An override for another target is ignored rather than leaking across
 # routes; an unbound or cross-family override is invalid for its own route.
+# A codex id may carry the serving provider's own namespace (openai.gpt-...,
+# openai/gpt-...) when the CLI routes through a non-default model_provider; the
+# family segment after the namespace is still checked.
 validate_model_override() {
   local route="$1" override="${CROSS_MODEL_MODEL_OVERRIDE:-}" override_target="${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" target
   [ -n "$override" ] || { [ -z "$override_target" ]; return; }
@@ -281,7 +284,7 @@ validate_model_override() {
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
+    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
     *) return 1 ;;
   esac
 }

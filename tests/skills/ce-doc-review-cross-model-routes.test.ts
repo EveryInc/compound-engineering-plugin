@@ -773,6 +773,31 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(crossFamily.stderr).toContain("not compatible with route")
   })
 
+  test("a provider-qualified codex model id is accepted; family is still checked", () => {
+    // A codex CLI pointed at a non-default model_provider may require ids in
+    // that provider's own namespace. Measured against the OpenAI-compatible
+    // surface at bedrock-mantle.<region>.api.aws: `gpt-5.6-luna` 404s there and
+    // `openai.gpt-5.6-sol` serves. Where that holds, the documented
+    // cross_model_model escape hatch has to be able to express the served form.
+    expect(
+      emitAdapter("codex", {
+        CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+        CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-5.6-sol",
+      }),
+    ).toContain("-m openai.gpt-5.6-sol")
+
+    const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "codex"], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+        CROSS_MODEL_MODEL_OVERRIDE: "bedrock.claude-opus-5",
+      },
+    })
+    expect(crossFamily.status).toBe(2)
+    expect(crossFamily.stderr).toContain("not compatible with route")
+  })
+
   test("codex route records model_actual unverified — no served-model receipt on that route (R8)", () => {
     // The codex stub writes findings to stdout (the -o file recovery path); the
     // route exposes no authoritative identity report, so model_actual is the

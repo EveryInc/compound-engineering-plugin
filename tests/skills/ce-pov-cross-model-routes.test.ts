@@ -89,6 +89,25 @@ function emit(route: string, env: NodeJS.ProcessEnv = process.env) {
 }
 
 describe("ce-pov cross-model route safety", () => {
+  test("a provider-qualified codex model id is accepted; family is still checked", () => {
+    const accepted = emit("codex", {
+      ...process.env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+      CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-5.6-sol",
+    })
+    expect(accepted).toContain("openai.gpt-5.6-sol")
+
+    const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "codex"], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+        CROSS_MODEL_MODEL_OVERRIDE: "bedrock.claude-opus-5",
+      },
+    })
+    expect(crossFamily.status).not.toBe(0)
+  })
+
   test("all routes preserve read/write/exec denial and avoid never-use flags", () => {
     for (const route of ROUTES) {
       const command = emit(route)
