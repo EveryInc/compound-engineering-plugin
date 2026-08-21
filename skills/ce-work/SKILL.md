@@ -15,7 +15,7 @@ argument-hint: "[Plan path, work description, or recovery request with run id; b
 
 ## Execution Workflow
 
-**Bundled reference loading is fail-closed.** Resolve every bundled reference or script path named below from this skill's loaded `SKILL.md` directory, using the skill full path supplied by the harness; never glob the target repository to find a bundled file. If the harness does not expose that directory or a required file cannot be read, stop before the action governed by it and report the missing reference instead of approximating the protocol or continuing natively.
+**Bundled reference loading is fail-closed.** Resolve every bundled reference or script path named below from this skill's loaded `SKILL.md` directory, using the skill full path supplied by the harness; never glob the target repository to find a bundled file. Read a phase's owner when that phase is entered; a read made before that phase does not satisfy it, and an owner named for re-reading is read again at its step even when already in context. If the harness does not expose that directory or a required file cannot be read, stop before the action governed by it and report the missing reference instead of approximating the protocol or continuing natively.
 
 ### Phase 0: Input Triage
 

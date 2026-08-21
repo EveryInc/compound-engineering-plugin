@@ -46,6 +46,10 @@ describe("ce-work native characterization", () => {
     expect(outcome).toContain("**Intent:**")
     expect(outcome).toContain("host orchestrator")
     expect(outcome).toContain("authoritative verification and canonical commits")
+    // 2026-08-21 PR #1508 review: a host that reads every owner at skill load never re-reads at the acting step,
+    // so the late missing-reference stops were unreachable; the kernel must say an early read does not count.
+    expect(skill).toContain("a read made before that phase does not satisfy it")
+    expect(skill).toContain("read again at its step even when already in context")
     expect(skill.indexOf("## Outcome")).toBeLessThan(skill.indexOf("## Execution Workflow"))
   })
 
