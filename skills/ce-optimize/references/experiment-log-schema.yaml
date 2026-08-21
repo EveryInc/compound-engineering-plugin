@@ -141,9 +141,12 @@ experiment_entry:
       type: enum
       values:
         - measured                # measurement finished and metrics were persisted, awaiting batch evaluation
-        - kept                    # primary metric improved, gates passed -> merged to optimization branch
-        - reverted                # primary metric did not improve or was worse -> changes discarded
-        - degenerate              # degenerate gate failed -> immediately reverted, no judge evaluation
+        - promising               # eligible on current samples but the ladder still needs confirmation before keep
+        - kept                    # eligible and confirmed: improved at least one required objective, violated none
+        - reverted                # compared and not eligible (regressed a required objective, or none improved)
+        - inconclusive            # delta inside the comparison threshold; not a keep and not a demonstrated regression
+        - censored                # aborted as noncompetitive under the predeclared futility bound
+        - degenerate              # degenerate gate or smoke test failed -> immediately reverted, no judge evaluation
         - error                   # measurement command crashed, timed out, or produced malformed output
         - deferred_needs_approval # experiment needs an unapproved dependency -> set aside for batch approval
         - timeout                 # measurement command exceeded timeout_seconds
@@ -151,11 +154,11 @@ experiment_entry:
         - runner_up_reverted      # file-disjoint runner-up that was cherry-picked but combined measurement was not better
       description: >
         Load-bearing state: the loop branches on this value.
-        'measured' is the only non-terminal state and exists so CP-3 can persist
-        raw metrics before batch-level comparison decides the final outcome.
-        'kept' and 'runner_up_kept' advance the optimization branch.
-        'deferred_needs_approval' items are re-presented at wrap-up.
-        All other states are terminal for that experiment.
+        'measured' and 'promising' are non-terminal: CP-3 persists raw metrics
+        before batch-level comparison, and 'promising' means the ladder still
+        needs confirmation samples. 'kept' and 'runner_up_kept' advance the
+        optimization branch. 'deferred_needs_approval' items are re-presented
+        at wrap-up. All other states are terminal for that experiment.
 
   optional_children:
 
@@ -196,6 +199,19 @@ experiment_entry:
       type: string
       description: "Change in primary metric from current best (e.g., '+0.7', '-0.3')"
 
+    objective_results:
+      type: object
+      description: "Per-required-objective comparison from decide.mjs (verdict, delta, relative)"
+
+    sample_count:
+      type: integer
+      description: "How many harness samples were spent on this experiment"
+
+    next_measurement:
+      type: string
+      enum: [none, smoke, exploratory, add_sample, confirm]
+      description: "Ladder next step from decide.mjs; none when the decision is terminal"
+
     learnings:
       type: string
       description: "What was learned from this experiment. The agent reads these to avoid re-trying similar approaches and to inform new hypothesis generation."
@@ -227,14 +243,17 @@ experiment_entry:
 #         -> gates failed           -> outcome: degenerate
 #         -> measurement error      -> outcome: error
 #         -> measurement timeout    -> outcome: timeout
+#         -> smoke failed           -> outcome: degenerate
+#         -> futile / censored      -> outcome: censored
 #         -> gates passed
-#           -> persist raw metrics   -> outcome: measured
+#           -> persist raw metrics   -> outcome: measured or promising
 #           -> judge evaluated (if type: judge)
-#             -> best in batch, improved  -> outcome: kept
+#             -> decide.mjs eligible, confirmed -> outcome: kept
 #             -> runner-up, file-disjoint -> cherry-pick + re-measure
 #               -> combined better        -> outcome: runner_up_kept
 #               -> combined not better    -> outcome: runner_up_reverted
-#             -> not improved             -> outcome: reverted
+#             -> inconclusive             -> outcome: inconclusive
+#             -> not eligible             -> outcome: reverted
 #       -> needs unapproved dep    -> outcome: deferred_needs_approval
 #
 # Only 'kept' and 'runner_up_kept' produce a commit on the optimization branch.

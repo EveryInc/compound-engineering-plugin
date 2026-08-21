@@ -101,7 +101,17 @@ Do not mutate the shared default database. Copy it for the run, then use per-exp
 Do not optimize only for coverage. Use LLM-as-judge to sample clusters and confirm they still preserve real semantic similarity instead of collapsing into giant low-quality clusters.
 ```
 
-### 3. Prompt Optimization
+### 3. Expensive Test Suite
+
+```text
+Run the `ce-optimize` skill to reduce this repository's full test-suite wall time without making CI slower or spending more runner-minutes.
+
+Local warm median is currently about six minutes and the range is wide. Treat local wall time, CI critical path, and aggregate runner-minutes as required targets: a change that helps only CI may be kept if it does not regress the others, and the run is not done until every declared target is met.
+
+Do not spend a five-run cold/warm protocol on every exploratory experiment. Smoke for correctness, take one paired sample, abort anything already far worse than the current best, and reserve the full protocol for a candidate you are about to keep and for final confirmation.
+```
+
+### 4. Prompt Optimization
 
 ```text
 Run the `ce-optimize` skill to create a summarization prompt for issues and PRs that minimizes token spend while still producing summaries that are good enough for downstream clustering.
@@ -130,7 +140,7 @@ That hybrid setup is often the best default for ranking, clustering, and prompt 
 
 A first run optimizes for signal and safety, not throughput:
 
-- Start from `references/example-hard-spec.yaml` when the metric is objective and cheap to measure; use `references/example-judge-spec.yaml` only when quality genuinely requires semantic judgment.
+- Start from `references/example-hard-spec.yaml` when the metric is objective and cheap to measure; use `references/example-judge-spec.yaml` only when quality genuinely requires semantic judgment; use `references/example-expensive-benchmark-spec.yaml` when each run costs minutes or several hard targets must all hold.
 - Prefer `execution.mode: serial` with `execution.max_concurrent: 1`.
 - Cap the run with `stopping.max_iterations: 4` and `stopping.max_hours: 1`.
 - Add no new dependencies until the baseline and measurement harness are trusted.

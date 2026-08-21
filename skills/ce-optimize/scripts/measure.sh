@@ -16,7 +16,8 @@
 # Output:
 #   stdout: Raw JSON output from the measurement command
 #   stderr: Passed through from the measurement command
-#   exit code: Same as the measurement command (124 for timeout)
+#   exit code: Same as the measurement command (124 for timeout, 125 when
+#              CE_OPTIMIZE_CENSOR_AFTER fires before timeout_seconds)
 
 set -euo pipefail
 
@@ -91,7 +92,26 @@ PY
   exit 1
 }
 
+# Optional futility bound: CE_OPTIMIZE_CENSOR_AFTER=<seconds> kills a live
+# run that has already exceeded a predeclared noncompetitive bound. Distinct
+# from timeout_seconds (the spec's hard cap). Exit 125 means censored; 124
+# still means the configured timeout fired.
+CENSOR_AFTER="${CE_OPTIMIZE_CENSOR_AFTER:-}"
+CENSORING=0
+if [[ -n "$CENSOR_AFTER" ]] && [[ "$CENSOR_AFTER" =~ ^[0-9]+$ ]] && (( CENSOR_AFTER < TIMEOUT )); then
+  TIMEOUT="$CENSOR_AFTER"
+  CENSORING=1
+fi
+
 # Run the measurement command with timeout
 # timeout returns 124 if the command times out
 # We pass stdout and stderr through directly
+set +e
 run_with_timeout
+status=$?
+set -e
+if [[ $status -eq 124 && $CENSORING -eq 1 ]]; then
+  echo "Error: measurement censored after ${CENSOR_AFTER}s (noncompetitive bound)" >&2
+  exit 125
+fi
+exit "$status"

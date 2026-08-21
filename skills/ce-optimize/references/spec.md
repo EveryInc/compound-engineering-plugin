@@ -25,6 +25,8 @@ Check whether the input is:
    - No human judgment is needed to evaluate "is this result actually good?"
    - Examples: reduce build time, increase test coverage, reduce API latency, decrease bundle size
 
+   If the user names more than one hard success condition that must all hold (local wall time and CI critical path and runner-minutes, for example), put them in `metric.objectives` as `role: required` and keep `metric.primary` as the ranking key. A spec without `metric.objectives` keeps single-primary acceptance. If each evaluation costs minutes, set `measurement.stability.mode: ladder` with a relative or paired comparison and a futility bound; do not spend the full confirmation protocol on every exploratory experiment. Start from `references/example-expensive-benchmark-spec.yaml` for that shape.
+
    **Use `type: judge`** when:
    - The quality of the output requires semantic understanding to evaluate
    - A human reviewer would need to look at the results to say "this is better"
@@ -91,6 +93,7 @@ Check whether the input is:
    - What files can be modified? What is immutable?
    - Any constraints or dependencies?
    - If this is the first run: recommend `execution.mode: serial`, `execution.max_concurrent: 1`, `stopping.max_iterations: 4`, and `stopping.max_hours: 1`
+   - If the user named multiple required hard targets or an expensive harness: recommend `metric.objectives` plus `stability.mode: ladder` as above, and show `references/example-expensive-benchmark-spec.yaml`
    - If `type: judge`: recommend `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5` until the rubric and harness are trusted
 6. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
 7. Present the spec to the user for approval before proceeding

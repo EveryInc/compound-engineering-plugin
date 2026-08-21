@@ -6,9 +6,9 @@ argument-hint: "[path to optimization spec YAML, or describe the optimization go
 
 # Iterative Optimization Loop
 
-`references/usage-guide.md` covers hard metrics versus a judge, and first-run defaults.
+`references/usage-guide.md` covers hard metrics versus a judge, first-run defaults, and the expensive-benchmark shape (multiple required targets plus a measurement ladder).
 
-**Done when:** a stopping criterion fired, the final state is written and verified on disk, and the user has been given the post-completion options. If the run instead stopped at a gate it could not clear, say what blocked it.
+**Done when:** a stopping criterion fired, every declared required target is met or another stop fired first, the final state is written and verified on disk, and the user has been given the post-completion options. If the run instead stopped at a gate it could not clear, say what blocked it.
 
 
 ## Interaction Method
@@ -29,7 +29,7 @@ Resolve `<root>` the first time you compose a path under it. Reading learnings u
 
 ## Persistence Discipline
 
-**The experiment log on disk is the single source of truth.** The conversation is not durable storage. A result that exists only in the conversation is lost. So the write order never inverts: **measure -> write -> verify -> then show the user.** Showing the user a table that disk has not seen yet is a bug. During Phase 3 the log is append-only, and every phase boundary and every decision re-reads it from disk.
+**The experiment log on disk is the single source of truth.** The conversation is not durable storage. A result that exists only in the conversation is lost. So the write order never inverts: **measure -> write -> verify -> then show the user.** Showing the user a table that disk has not seen yet is a bug. During Phase 3, append each experiment's raw metrics as soon as they exist; update that entry's outcome, the `best` snapshot, and the hypothesis backlog in place at batch evaluation. Do not rewrite earlier metrics. Every phase boundary and every decision re-reads the log from disk.
 
 **Read `references/persistence.md` now** for the six mandatory checkpoints, CP-0 through CP-5 — each a write followed by a read-back — plus the rules behind them, the file layout, and resume. The phases below mark where each checkpoint falls.
 
@@ -48,6 +48,6 @@ Four phases run in order. Each one names the reference it cannot start without. 
 
 **Phase 2 — Hypothesis generation.** Analyze the current approach, rank the hypotheses, record the backlog (CP-2). **Read `references/loop.md`** for this phase and Phase 3. One gate: **dependency pre-approval.** Collect every new dependency across all hypotheses and present the full list for bulk approval. A dependency the user does not approve stays in the backlog, is skipped in batch selection, and comes back at wrap-up.
 
-**Phase 3 — Optimization loop.** Select a batch, dispatch experiments, persist each result as it lands (CP-3), evaluate, update state and the digest (CP-4), then check whether to stop. Stop as soon as any one of seven criteria holds: target reached, max iterations, max hours, judge budget exhausted, plateau, a user interrupt, or no runnable hypothesis left. `references/loop.md` states each one exactly. Otherwise start the next batch.
+**Phase 3 — Optimization loop.** Select a batch, dispatch experiments, persist each result as it lands (CP-3), evaluate with `scripts/decide.mjs`, update state and the digest (CP-4), then check whether to stop. Stop as soon as any one of seven criteria holds: every declared required target is met, max iterations, max hours, judge budget exhausted, plateau, a user interrupt, or no runnable hypothesis left. `references/loop.md` states each one exactly. Otherwise start the next batch.
 
 **Phase 4 — Wrap-up.** **Read `references/wrap-up.md`** for the deferred hypotheses, the summary, what is preserved, cleanup, and the post-completion options to present. CP-5 marks the log final. **Write it only after the user picks an option that does not return to Phase 3.** Two options do return: Continue, and approving a deferred dependency.

@@ -34,6 +34,9 @@ Plain-language goals build a spec with you. A YAML path skips that conversation 
 # Hard metric: smaller is better, as long as the build stays green
 /ce-optimize reduce build time by 30%
 
+# Expensive suite: several required hard targets, cheap screening first
+/ce-optimize reduce full-suite wall time without raising CI critical path or runner-minutes
+
 # Smallest memory limit that stays stable under the same load test
 /ce-optimize find the smallest memory setting that keeps this service stable under our load test
 
@@ -64,8 +67,9 @@ A bug hunt is a different job. If you need a causal chain, that is `ce-debug`.
 
 The loop is spec, baseline, experiments, keep or revert:
 
-- A YAML spec names the metric, gates, mutable files, measurement command, and stop rules. A description in the prompt becomes that spec through a short interview.
-- Evaluation is three layers: cheap degenerate gates, then the real metric or judge, then diagnostics that are logged and not gated.
+- A YAML spec names the metric, optional extra required objectives, gates, mutable files, measurement command, and stop rules. A description in the prompt becomes that spec through a short interview.
+- Evaluation is three layers: cheap degenerate gates, then the real metric or judge, then diagnostics that are logged and not gated. When the spec lists `metric.objectives`, an experiment is eligible if it improves one required objective without violating the others; the run is not done until every declared required target is met.
+- Expensive harnesses use `stability.mode: ladder`: smoke, one paired exploratory sample, extra samples only when promising or inconclusive, and the full confirmation protocol only before a keep.
 - Independent variants run in their own worktrees. If worktrees are unavailable, the same experiments run one at a time.
 - After a batch, the best merge lands on the optimization branch. A runner-up that touched different files can be cherry-picked and re-measured.
 - The experiment log on disk is the record. Chat is for you; it is not storage.
@@ -153,7 +157,7 @@ Most runs start here, not from another skill.
 - Reviewed spec: `/ce-optimize path/to/spec.yaml`
 - Resume or fresh start: `/ce-optimize .context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
 
-Templates live next to the skill: `references/example-hard-spec.yaml` and `references/example-judge-spec.yaml`. The friendly overview of hard vs judge, plus longer kickoff prompts, is `references/usage-guide.md`.
+Templates live next to the skill: `references/example-hard-spec.yaml` for a cheap single metric, `references/example-judge-spec.yaml` when quality needs a rubric, and `references/example-expensive-benchmark-spec.yaml` when each run costs minutes or several hard targets must all hold. The friendly overview of hard vs judge, plus longer kickoff prompts, is `references/usage-guide.md`.
 
 ---
 
@@ -192,6 +196,12 @@ Yes, via `execution.backend: codex` in the spec. It falls back to subagents when
 
 **What is still there after the run?**
 The `optimize/<spec-name>` branch, with a commit per kept experiment. The spec and experiment log stay under `.context/compound-engineering/ce-optimize/<spec-name>/` on this machine. That directory is gitignored.
+
+**Can I optimize several hard targets at once?**
+Yes. Put them in `metric.objectives` as `role: required`. An experiment that improves one required target without regressing the others is eligible. The loop is not done until every declared required target is met. A spec that omits `objectives` still uses the single primary metric.
+
+**What if each measurement takes minutes?**
+Use `stability.mode: ladder` and a relative or paired comparison. The five-run protocol is for baseline, a candidate you are about to keep, and final confirmation — not for every exploratory try. See `references/example-expensive-benchmark-spec.yaml`.
 
 **Does it debug?**
 No. It searches a scored design space. A failing test, a stack trace, or "why is this wrong" is `/ce-debug`.

@@ -10,7 +10,7 @@ Read this before Phase 0 and follow it for the whole run. The body states the in
 
 3. **Re-read from disk at every phase boundary and before every decision** — never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
 
-4. **The experiment log is append-only during Phase 3** — never rewrite the full file. Append new experiment entries. Update the `best` section in place only when a new best is found. This prevents data loss if a write is interrupted.
+4. **Raw experiment metrics are append-only during Phase 3** — never rewrite an earlier experiment's samples or gate values. Append a new experiment entry as soon as it is measured. Outcome, `best`, and `hypothesis_backlog` are updated in place at batch evaluation (CP-4). Do not rebuild the file from memory.
 
 5. **Per-experiment result markers for crash recovery** — each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
 

@@ -107,13 +107,18 @@ Process experiments as they complete — do NOT wait for the entire batch to fin
 
 For each completed experiment, **immediately**:
 
-1. **Run measurement** in the experiment's worktree:
+1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1): smoke first when `stability.mode` is `ladder` and a smoke command is set; otherwise one exploratory sample; then call `decide.mjs` and follow `next_measurement`. Set `CE_OPTIMIZE_CENSOR_AFTER` on `measure.sh` when the spec declares a futility bound so a live run that is already noncompetitive exits 125 instead of running out the full timeout.
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    bash "$SKILL_DIR/scripts/measure.sh" "<measurement.command>" <timeout_seconds> "<worktree_path>/<measurement.working_directory or .>" <env_vars...>
    ```
-   - If stability mode is `repeat`, run the measurement harness `repeat_count` times in that working directory and aggregate the results exactly as in Phase 1 before evaluating gates or ranking the experiment.
-   - Use the aggregated metrics as the experiment's score; if variance exceeds `noise_threshold`, record that in learnings so the operator knows the result is noisy.
+   When mode is `repeat`, keep running `repeat_count` times and aggregating as in Phase 1. When mode is `stable`, run once. After the samples for this stage exist, write a JSON payload (spec comparison/objectives, baseline snapshot, candidate samples) and decide:
+   ```bash
+   SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
+   NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
+   "$NODE" "$SKILL_DIR/scripts/decide.mjs" "<payload.json>"
+   ```
+   Use the script's `decision` and `next_measurement`. Do not keep a candidate while `next_measurement` is still `confirm` or `add_sample`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`.
 
 2. **Write crash-recovery marker** — immediately after measurement, write `result.yaml` in the experiment worktree containing the raw metrics. This ensures the measurement is recoverable even if the agent crashes before updating the main log.
 
@@ -135,10 +140,9 @@ For each completed experiment, **immediately**:
    - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
-6. **If gates pass AND primary type is `hard`**:
-   - Use the metric value directly from the measurement output
+6. **Compare with `decide.mjs`.** After gates pass, put the hard metrics and any judge scores into the payload (`metric.objectives`, `comparison`, `minimum_improvement` for a judge primary, baseline snapshot, candidate samples). The script owns eligibility, noise, and the ladder next step. Do not re-derive the threshold in prose.
 
-7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use the transitional outcome `measured` once the experiment has valid metrics but has not yet been compared to the current best. Update the outcome to `kept`, `reverted`, or another terminal state in the evaluation step, but the raw metrics are on disk and safe from context compaction.
+7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use `measured` or `promising` while samples are still being collected. Update the outcome to `kept`, `reverted`, `inconclusive`, `censored`, or another terminal state once `next_measurement` is `none`, but the raw metrics are on disk and safe from context compaction.
 
 8. **VERIFY the write (CP-3 verification)** — read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
 
@@ -148,13 +152,11 @@ For each completed experiment, **immediately**:
 
 After all experiments in the batch have been measured:
 
-1. **Rank** experiments by primary metric improvement:
-   - For hard metrics: compare to the current best using `metric.primary.direction` (`maximize` means higher is better, `minimize` means lower is better), and require the absolute improvement to exceed `measurement.stability.noise_threshold` before treating it as a real win
-   - For judge metrics: compare the configured primary judge score (`metric.judge.scoring.primary` / `metric.primary.name`) to the current best, and require it to exceed `minimum_improvement`
+1. **Decide eligibility from `decide.mjs`, not from the primary metric alone.** An experiment is eligible when it improves at least one required objective beyond the configured comparison threshold and does not violate any other required objective. When `metric.objectives` is absent, the primary is the only required objective. `inconclusive` is not a keep.
 
-2. **Identify the best experiment** that passes all gates and improves the primary metric
+2. **Rank** the eligible experiments in the batch by the script's `rank_score` (primary improvement when the primary moved; otherwise the strongest required-objective gain). Identify that winner as the experiment to keep. An eligible experiment may be kept even if the ranking primary did not move.
 
-3. **If best improves on current best: KEEP**
+3. **If `decide.mjs` returns `keep` for that winner: KEEP**
    - Commit the experiment branch first so the winning diff exists as a real commit before any merge or cherry-pick
    - Include only mutable-scope changes in that commit; if no eligible diff remains, treat the experiment as non-improving and revert it
    - Merge the committed experiment branch into the optimization branch
@@ -172,7 +174,7 @@ After all experiments in the batch have been measured:
 
 5. **Handle deferred deps**: experiments that need unapproved dependencies get outcome `deferred_needs_approval`
 
-6. **Revert all others**: cleanup worktrees, log as `reverted`
+6. **Close the rest**: cleanup worktrees. Keep the `decide.mjs` outcome (`reverted`, `inconclusive`, `censored`, `degenerate`) — do not rewrite those to `reverted`.
 
 ### 3.5 Update State (CP-4)
 
@@ -206,7 +208,7 @@ After all experiments in the batch have been measured:
 
 Stop the loop as soon as any one of these holds:
 
-- **Target reached**: `stopping.target_reached` is true, `metric.primary.target` is set, and the primary metric reaches that target per `metric.primary.direction` (`>=` for `maximize`, `<=` for `minimize`)
+- **Target reached**: `stopping.target_reached` is true and the current best meets every declared required target (`decide.mjs` `target_reached` on the current-best snapshot). When `metric.objectives` is absent, that is the single `metric.primary.target` if set. Do not stop for a primary-only hit while another required target is still unmet.
 - **Max iterations**: total experiments run >= `stopping.max_iterations`
 - **Max hours**: wall-clock time since Phase 3 started — not since the invocation — >= `stopping.max_hours`
 - **Judge budget exhausted**: `metric.judge.max_total_cost_usd` is set and cumulative judge spend has reached it
@@ -220,8 +222,8 @@ If none is met, proceed to the next batch (3.1).
 
 **Codex failure cascade**: Track consecutive Codex delegation failures. After 3 consecutive failures, auto-disable Codex for remaining experiments and fall back to subagent dispatch. Log the switch.
 
-**Error handling**: If an experiment's measurement command crashes, times out, or produces malformed output:
-- Log as outcome `error` or `timeout` with the error message
+**Error handling**: If an experiment's measurement command crashes, times out, is censored (exit 125), or produces malformed output:
+- Log as outcome `error`, `timeout`, or `censored` with the error message
 - Revert the experiment (cleanup worktree)
 - The loop continues with remaining experiments in the batch
 

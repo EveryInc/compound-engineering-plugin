@@ -21,6 +21,8 @@ Duration: <wall-clock time>
 Total experiments: <count>
   Kept: <count> (including <runner_up_kept_count> runner-up merges)
   Reverted: <count>
+  Inconclusive: <count>
+  Censored: <count>
   Degenerate: <count>
   Errors: <count>
   Deferred: <count>
