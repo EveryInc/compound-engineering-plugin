@@ -79,7 +79,7 @@ import signal
 import subprocess
 import sys
 
-timeout_seconds = int(sys.argv[1])
+timeout_seconds = float(sys.argv[1])
 command = sys.argv[2]
 status_file = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else ""
 proc = subprocess.Popen(["bash", "-c", command], start_new_session=True)
@@ -114,7 +114,7 @@ PY
 CENSOR_AFTER="${CE_OPTIMIZE_CENSOR_AFTER:-}"
 CENSORING=0
 CENSOR_STATUS_FILE=""
-if [[ -n "$CENSOR_AFTER" ]] && [[ "$CENSOR_AFTER" =~ ^[0-9]+$ ]] && (( CENSOR_AFTER < TIMEOUT )); then
+if [[ -n "$CENSOR_AFTER" ]] && awk -v a="$CENSOR_AFTER" -v t="$TIMEOUT" 'BEGIN { exit !(a ~ /^[0-9]+(\.[0-9]+)?$/ && t+0 == t && a+0 > 0 && a+0 < t+0) }'; then
   TIMEOUT="$CENSOR_AFTER"
   CENSORING=1
   CENSOR_STATUS_FILE=$(mktemp "${TMPDIR:-/tmp}/ce-optimize-censor-XXXXXX")

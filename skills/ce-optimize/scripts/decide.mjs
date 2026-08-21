@@ -172,9 +172,9 @@ function requiredObjectives(spec) {
   return [
     {
       name: primary.name,
-      direction: listedPrimary?.direction ?? primary.direction ?? "maximize",
+      direction: primary.direction ?? listedPrimary?.direction ?? "maximize",
       role: "required",
-      type: listedPrimary?.type ?? primary.type ?? "hard",
+      type: primary.type ?? listedPrimary?.type ?? "hard",
       target: listedPrimary?.target ?? primary.target ?? null,
       max_regression: listedPrimary?.max_regression ?? null,
     },
@@ -258,8 +258,9 @@ function evaluateGates(spec, candidate) {
 
 function futilityBound(futility, baselineValue, direction) {
   const factor = finiteNumber(futility.worse_factor ?? 1.2)
-  if (factor == null || factor <= 1 || baselineValue == null) return null
-  return direction === "minimize" ? baselineValue * factor : baselineValue / factor
+  const baseline = finiteNumber(baselineValue)
+  if (factor == null || factor <= 1 || baseline == null || baseline <= 0) return null
+  return direction === "minimize" ? baseline * factor : baseline / factor
 }
 
 function isFutile({

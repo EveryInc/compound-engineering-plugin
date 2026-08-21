@@ -107,7 +107,7 @@ Process experiments as they complete — do NOT wait for the entire batch to fin
 
 For each completed experiment, **immediately**:
 
-1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1): smoke first when `stability.mode` is `ladder` and a smoke command is set; otherwise one exploratory sample. Pass `CE_OPTIMIZE_CENSOR_AFTER` to `measure.sh` only when elapsed wall time itself proves the primary cannot win, so a live noncompetitive run exits 125 instead of running out the full timeout. Otherwise let `decide.mjs` assess futility after the measurement returns.
+1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1): smoke first when `stability.mode` is `ladder` and a smoke command is set; otherwise one exploratory sample. Pass `CE_OPTIMIZE_CENSOR_AFTER` to `measure.sh` only when elapsed wall time itself proves the primary cannot win, so a live noncompetitive run prints the censored stderr marker and exits 125 instead of running out the full timeout. Otherwise let `decide.mjs` assess futility after the measurement returns.
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    bash "$SKILL_DIR/scripts/measure.sh" "<measurement.command>" <timeout_seconds> "<worktree_path>/<measurement.working_directory or .>" <env_vars...>
@@ -222,10 +222,7 @@ If none is met, proceed to the next batch (3.1).
 
 **Codex failure cascade**: Track consecutive Codex delegation failures. After 3 consecutive failures, auto-disable Codex for remaining experiments and fall back to subagent dispatch. Log the switch.
 
-**Error handling**: If an experiment's measurement command crashes, times out, is censored (exit 125), or produces malformed output:
-- Log as outcome `error`, `timeout`, or `censored` with the error message
-- Revert the experiment (cleanup worktree)
-- The loop continues with remaining experiments in the batch
+**Error handling**: Classify a failed measurement from what `measure.sh` actually signaled. The censored stderr marker (with exit 125) is `censored`. Exit 124 is `timeout`. Any other non-zero exit — including 125 without that marker — is `error`. Log that outcome with the error message, revert the experiment, and continue the batch.
 
 **Progress reporting**: After each batch, report:
 - Batch N of estimated M (based on backlog size)

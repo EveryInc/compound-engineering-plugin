@@ -558,6 +558,32 @@ describe("cost-aware measurement ladder", () => {
     expect(result.next_measurement).toBe("none")
   })
 
+  test("multiplicative futility does not reverse the bound on a negative baseline", () => {
+    const spec = hardSpec({
+      primary: { name: "score", direction: "maximize", type: "hard" },
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+        futility: { worse_factor: 1.2 },
+      },
+      comparison: { method: "relative", relative_threshold: 0.1, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(-100, { metrics: { score: { aggregate: -100, samples: [-100] } } }),
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { score: { aggregate: -95, samples: [-95] } },
+        smoke_passed: true,
+        sample_count: 1,
+      },
+    })
+    expect(result.decision).not.toBe("censored")
+    expect(result.eligible).toBe(false)
+  })
+
   test("a configured futility object applies the documented 1.2 worse_factor default", () => {
     const result = decide({
       spec: hardSpec({
@@ -751,6 +777,30 @@ describe("judge minimum as a comparison floor", () => {
     expect(aboveFloor.eligible).toBe(true)
   })
 
+  test("a listed judge primary keeps the judge floor instead of inheriting hard", () => {
+    const spec = {
+      metric: {
+        primary: { name: "mean_score", direction: "maximize", type: "judge" },
+        objectives: [{ name: "mean_score", direction: "maximize", role: "required", type: "hard" }],
+        judge: { scoring: { primary: "mean_score" } },
+        degenerate_gates: [{ name: "suite_passed", check: "== 1" }],
+      },
+    }
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: { mean_score: { aggregate: 4.0, samples: [4.0] } },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { mean_score: { aggregate: 4.1, samples: [4.1] } },
+      },
+    })
+    expect(result.decision).toBe("inconclusive")
+    expect(result.eligible).toBe(false)
+  })
+
   test("canonical log snapshots keep a judge win stored under judge, not metrics", () => {
     const spec = {
       metric: {
@@ -833,6 +883,24 @@ describe("measure.sh futility censor", () => {
     expect(result.stderr).toContain("censored")
   })
 
+  test("a fractional CE_OPTIMIZE_CENSOR_AFTER still censors a live run", () => {
+    const result = spawnSync("bash", [MEASURE, "sleep 1", "30", "."], {
+      encoding: "utf8",
+      env: { ...process.env, CE_OPTIMIZE_CENSOR_AFTER: "0.2" },
+    })
+    expect(result.status).toBe(125)
+    expect(result.stderr).toContain("censored")
+  })
+
+  test("a command exit 125 is not treated as censored when the deadline did not fire", () => {
+    const result = spawnSync("bash", [MEASURE, "exit 125", "30", "."], {
+      encoding: "utf8",
+      env: { ...process.env, CE_OPTIMIZE_CENSOR_AFTER: "5" },
+    })
+    expect(result.status).toBe(125)
+    expect(result.stderr).not.toContain("censored")
+  })
+
   test("a command exit 124 is not rewritten to censored when the deadline did not fire", () => {
     const result = spawnSync("bash", [MEASURE, "exit 124", "30", "."], {
       encoding: "utf8",
@@ -877,6 +945,7 @@ describe("schema and skill pins", () => {
     expect(LOOP).toContain("every required objective value")
     expect(LOOP).toContain("the spec as loaded")
     expect(LOOP).toContain("elapsed wall time itself proves the primary cannot win")
+    expect(LOOP).toContain("including 125 without that marker")
     expect(LOOP).toContain("whenever `next_measurement` is not `none`")
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
