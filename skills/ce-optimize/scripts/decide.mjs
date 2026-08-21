@@ -103,7 +103,7 @@ function valueBundle(raw) {
   }
   if (raw != null && typeof raw !== "object") {
     const n = finiteNumber(raw)
-    return n == null ? { aggregate: null, samples: [] } : { aggregate: n, samples: [n] }
+    return n == null ? { aggregate: null, samples: [] } : { aggregate: n, samples: [] }
   }
   return null
 }
@@ -186,8 +186,8 @@ function requiredObjectives(spec) {
       direction: primary.direction ?? listedPrimary?.direction ?? "maximize",
       role: "required",
       type: primary.type ?? listedPrimary?.type ?? "hard",
-      target: listedPrimary?.target ?? primary.target ?? null,
-      max_regression: listedPrimary?.max_regression ?? null,
+      target: primary.target ?? listedPrimary?.target ?? null,
+      max_regression: listedPrimary?.max_regression ?? primary.max_regression ?? null,
     },
     ...extras.filter((objective) => objective.name !== primary.name),
   ]
@@ -218,17 +218,21 @@ export function compareObjective({
   } else if (comparison.method === "relative") {
     verdict = verdictFromSigned(relative, relativeThreshold)
   } else if (comparison.method === "paired") {
-    const baseSamples = baselineSamples?.length ? baselineSamples : [baselineValue]
-    const candSamples = candidateSamples?.length ? candidateSamples : [candidateValue]
-    const diffs = candSamples.map((value, index) =>
-      signedDelta(baseSamples[Math.min(index, baseSamples.length - 1)], value, direction),
-    )
-    const threshold = relativeThreshold * denom
-    const lo = Math.min(...diffs)
-    const hi = Math.max(...diffs)
-    if (verdictFromSigned(lo, threshold) === "improved") verdict = "improved"
-    else if (verdictFromSigned(hi, threshold) === "regressed") verdict = "regressed"
-    else verdict = "inconclusive"
+    const baseSamples = baselineSamples?.filter((n) => n != null) ?? []
+    const candSamples = candidateSamples?.filter((n) => n != null) ?? []
+    if (!baseSamples.length || !candSamples.length) {
+      verdict = "inconclusive"
+    } else {
+      const diffs = candSamples.map((value, index) =>
+        signedDelta(baseSamples[Math.min(index, baseSamples.length - 1)], value, direction),
+      )
+      const threshold = relativeThreshold * denom
+      const lo = Math.min(...diffs)
+      const hi = Math.max(...diffs)
+      if (verdictFromSigned(lo, threshold) === "improved") verdict = "improved"
+      else if (verdictFromSigned(hi, threshold) === "regressed") verdict = "regressed"
+      else verdict = "inconclusive"
+    }
   } else {
     verdict = verdictFromSigned(delta, absThreshold)
   }

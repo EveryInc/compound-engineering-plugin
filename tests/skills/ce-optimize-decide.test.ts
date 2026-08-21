@@ -449,6 +449,26 @@ describe("multi-objective acceptance", () => {
     })
     expect(done.target_reached).toBe(true)
   })
+
+  test("a listed primary target does not replace the canonical primary target", () => {
+    const spec = hardSpec({
+      primary: { name: "local_wall_seconds", direction: "minimize", type: "hard", target: 300 },
+      objectives: [
+        { name: "local_wall_seconds", direction: "minimize", role: "required", target: 400 },
+      ],
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(500, {
+        metrics: { local_wall_seconds: { aggregate: 500, samples: [500] } },
+      }),
+      candidate: snapshot(350, {
+        metrics: { local_wall_seconds: { aggregate: 350, samples: [350] } },
+      }),
+    })
+    expect(result.eligible).toBe(true)
+    expect(result.target_reached).toBe(false)
+  })
 })
 
 describe("noise-aware comparison from the observed suite run", () => {
@@ -507,6 +527,19 @@ describe("noise-aware comparison from the observed suite run", () => {
     expect(atUnit.eligible).toBe(false)
     expect(scaled.eligible).toBe(false)
     expect(atUnit.rank_score).toBe(scaled.rank_score)
+  })
+
+  test("paired comparison without sample ranges is inconclusive", () => {
+    const spec = hardSpec({
+      comparison: { method: "paired", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: { gates: { suite_passed: 1 }, diagnostics: { wall_seconds: 100 } },
+      candidate: { gates: { suite_passed: 1 }, diagnostics: { wall_seconds: 90 } },
+    })
+    expect(result.decision).toBe("inconclusive")
+    expect(result.eligible).toBe(false)
   })
 
   test("paired comparison is inconclusive when sample ranges overlap", () => {
