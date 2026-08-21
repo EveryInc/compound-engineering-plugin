@@ -66,6 +66,12 @@ function firstNonNegativeNumber(values, fallback) {
   return fallback
 }
 
+function positiveInteger(value, fallback) {
+  const n = typeof value === "number" ? value : Number(value)
+  if (!Number.isInteger(n) || n < 1) return fallback
+  return n
+}
+
 function verdictFromSigned(delta, threshold) {
   if (delta > threshold) return "improved"
   if (delta < -threshold) return "regressed"
@@ -313,8 +319,9 @@ export function decide(input) {
   const required = requiredObjectives(spec)
   const ladder = spec.ladder ?? {}
   const ladderEnabled = Boolean(ladder.enabled || spec.stability_mode === "ladder")
-  const confirmationRepeats = Number(ladder.confirmation_repeats ?? spec.repeat_count ?? 5)
-  const exploratoryPairs = Number(ladder.exploratory_pairs ?? 1)
+  const exploratoryPairs = positiveInteger(ladder.exploratory_pairs, 1)
+  let confirmationRepeats = positiveInteger(ladder.confirmation_repeats ?? spec.repeat_count, 5)
+  if (confirmationRepeats < exploratoryPairs) confirmationRepeats = exploratoryPairs
 
   if (candidate.smoke_passed === false) {
     return closedResult({ decision: "degenerate", reason: "smoke test failed" })
@@ -372,8 +379,9 @@ export function decide(input) {
   const baselinePrimary = baselineBundles[primary.name] ?? metricBundle(baseline, primary.name)
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
-  const sampleCount = Number(
-    candidate.sample_count ?? primaryBundle?.samples?.length ?? 1,
+  const sampleCount = positiveInteger(
+    candidate.sample_count,
+    positiveInteger(primaryBundle?.samples?.length, 1),
   )
 
   if (

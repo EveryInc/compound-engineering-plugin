@@ -727,6 +727,63 @@ describe("cost-aware measurement ladder", () => {
     expect(result.next_measurement).toBe("none")
   })
 
+  test("confirmation_repeats of 0 does not keep on the first favorable sample", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 0,
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: { ...snapshot(300), smoke_passed: true, sample_count: 1 },
+    })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).not.toBe("none")
+  })
+
+  test("confirmation_repeats below exploratory_pairs still finishes the exploratory stage", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 3,
+        confirmation_repeats: 2,
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: { ...snapshot(300), smoke_passed: true, sample_count: 2 },
+    })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).toBe("exploratory")
+  })
+
+  test("a nonnumeric sample_count does not skip confirmation", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: { ...snapshot(300), smoke_passed: true, sample_count: "bad" },
+    })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).not.toBe("none")
+  })
+
   test("a confirmed promising candidate becomes a keep after the full protocol", () => {
     const result = decide({
       spec,
