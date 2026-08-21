@@ -785,6 +785,12 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
         CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-5.6-sol",
       }),
     ).toContain("-m openai.gpt-5.6-sol")
+    expect(
+      emitAdapter("codex", {
+        CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+        CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-5.6-sol",
+      }),
+    ).toContain("-m openai/gpt-5.6-sol")
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "codex"], {
       encoding: "utf8",
