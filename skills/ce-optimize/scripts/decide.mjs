@@ -120,14 +120,13 @@ function valueBundle(raw, aggregation = "median") {
   return null
 }
 
-function metricBundle(source, name, aggregation) {
+function metricBundle(source, name, aggregation, type) {
   if (!source) return null
-  for (const raw of [
-    source.metrics?.[name],
-    source.judge?.[name],
-    source.diagnostics?.[name],
-    source.gates?.[name],
-  ]) {
+  const containers =
+    type === "judge"
+      ? [source.judge?.[name], source.metrics?.[name], source.diagnostics?.[name], source.gates?.[name]]
+      : [source.metrics?.[name], source.judge?.[name], source.diagnostics?.[name], source.gates?.[name]]
+  for (const raw of containers) {
     if (raw === undefined) continue
     return valueBundle(raw, aggregation)
   }
@@ -365,8 +364,8 @@ export function decide(input) {
   const aggregation = spec.aggregation ?? "median"
 
   for (const objective of required) {
-    const base = metricBundle(baseline, objective.name, aggregation)
-    const cand = metricBundle(candidate, objective.name, aggregation)
+    const base = metricBundle(baseline, objective.name, aggregation, objective.type)
+    const cand = metricBundle(candidate, objective.name, aggregation, objective.type)
     baselineBundles[objective.name] = base
     candidateBundles[objective.name] = cand
     if (!base || base.aggregate == null || !cand || cand.aggregate == null) {
@@ -396,15 +395,19 @@ export function decide(input) {
     })
   }
 
-  const primaryBundle = candidateBundles[primary.name] ?? metricBundle(candidate, primary.name, aggregation)
-  const baselinePrimary = baselineBundles[primary.name] ?? metricBundle(baseline, primary.name, aggregation)
+  const primaryBundle =
+    candidateBundles[primary.name] ?? metricBundle(candidate, primary.name, aggregation, primary.type)
+  const baselinePrimary =
+    baselineBundles[primary.name] ?? metricBundle(baseline, primary.name, aggregation, primary.type)
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
-  let sampleCount = required.reduce((min, objective) => {
-    const n = positiveInteger(candidateBundles[objective.name]?.samples?.length, 1)
-    return Math.min(min, n)
-  }, positiveInteger(candidate.sample_count, Number.POSITIVE_INFINITY))
-  if (!Number.isFinite(sampleCount)) sampleCount = 1
+  const sampleCount = Math.min(
+    ...required.map((objective) => {
+      const fromSamples = candidateBundles[objective.name]?.samples?.length
+      if (Number.isInteger(fromSamples) && fromSamples > 0) return fromSamples
+      return positiveInteger(candidate.sample_count, 1)
+    }),
+  )
 
   if (
     !eligible &&

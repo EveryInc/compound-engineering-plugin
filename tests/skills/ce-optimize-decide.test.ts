@@ -1000,6 +1000,78 @@ describe("cost-aware measurement ladder", () => {
     expect(result.next_measurement).not.toBe("none")
   })
 
+  test("a stale low sample_count does not block keep when sample arrays are complete", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { wall_seconds: { aggregate: 300, samples: [298, 300, 301, 299, 302] } },
+        sample_count: 1,
+        smoke_passed: true,
+      },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+  })
+
+  test("a scalar judge snapshot can complete confirmation from sample_count", () => {
+    const spec = hardSpec({
+      primary: { name: "mean_score", direction: "maximize", type: "judge" },
+      stability_mode: "ladder",
+      ladder: {
+        smoke_command: "python tools/eval/measure.py --smoke",
+        exploratory_pairs: 1,
+        confirmation_repeats: 5,
+      },
+      comparison: { method: "relative", relative_threshold: 0.05, minimum_improvement: 0.3 },
+    })
+    const result = decide({
+      spec,
+      baseline: { gates: { suite_passed: 1 }, judge: { mean_score: 4.0 } },
+      candidate: {
+        gates: { suite_passed: 1 },
+        judge: { mean_score: 4.5 },
+        sample_count: 5,
+        smoke_passed: true,
+      },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+  })
+
+  test("a listed judge primary reads the judge container instead of a same-named metric", () => {
+    const spec = hardSpec({
+      primary: { name: "mean_score", direction: "maximize", type: "judge" },
+      objectives: [{ name: "mean_score", direction: "maximize", role: "required", type: "hard" }],
+      comparison: { method: "absolute", noise_threshold: 0.02, minimum_improvement: 0.3 },
+    })
+    const result = decide({
+      spec,
+      baseline: {
+        gates: { suite_passed: 1 },
+        metrics: { mean_score: { aggregate: 10, samples: [10] } },
+        judge: { mean_score: 4.5 },
+      },
+      candidate: {
+        gates: { suite_passed: 1 },
+        metrics: { mean_score: { aggregate: 20, samples: [20] } },
+        judge: { mean_score: 4.0 },
+      },
+    })
+    expect(result.eligible).toBe(false)
+    expect(result.decision).not.toBe("keep")
+  })
+
   test("a declared sample_count larger than the sample array does not skip confirmation", () => {
     const spec = hardSpec({
       stability_mode: "ladder",
