@@ -96,8 +96,14 @@ When a platform cannot select models per agent, every role runs on the inherited
 ### Evidence dossier
 A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap scout agent — written to scratch storage instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
 
+### Outcome spine
+The part of a Skill that must hold without any reference loaded: the result it produces and who consumes it next, the done condition, the safe failure direction, and the facts the agent cannot derive from the repository in front of it. Everything else in the skill is protocol or judgment attached to that spine, and a block that cannot name its spine is restated before it is edited.
+
 ### Load stub
 The inline remnant left in a Skill when load-bearing content moves to a reference file: a load instruction that names what the reference contains and the failure mode of skipping it, while keeping no detail an agent could improvise from — making the load structurally necessary rather than advisory.
+
+### Phase-loaded kernel
+A Skill body reduced to what must fire without a read — outcome, done bar, authority, phase order, the stop classes that hold when a reference is never opened, and a required read named immediately before each acting step — with each phase's mechanics owned by one reference loaded at that step. The design assumes the load happens at the acting point; a host that reads every reference at kernel load satisfies the letter of "read before the step" while losing both the context saving and any safety path that depends on a late read, so the kernel must state that an earlier read does not satisfy the acting-point read.
 
 ### Skill-eval cell
 One graded scenario that runs a Skill on a real coding-agent host and scores the surviving artifacts of that run — actions taken, files written, required reads the Skill itself declared undefendable — not whether the model's essay mentioned a command or opened a procedure file.
@@ -134,6 +140,12 @@ The serving backend's own report of which model actually handled a delegated run
 
 ### Handoff seam
 The point in a calling Skill where completed work triggers a follow-on Skill in the same run — distinct from a Session handoff, which carries continuity to a fresh session. A seam that states only intent ("auto-invoke X") invites the caller's agent to reproduce the callee's mechanics from memory; a hardened seam pins the invocation mechanism (the platform's skill-invocation primitive, so the callee's instructions actually load) and, when the callee runs a stateful protocol, explicitly forbids starting that protocol's mechanics directly.
+
+### Engine carrier
+A structured implementation binding — mode, target, model, source — that an orchestrating Skill serializes into the invocation string it hands the implementing Skill, so the route decision travels as data beside the request rather than as prose woven into the plan. The callee validates the carrier before any workspace action and rejects a malformed, duplicated, or out-of-order one instead of interpreting it; the resolved binding then appears in the return envelope so the caller can compare the route it asked for with the route that actually served.
+
+### Owning layer
+The single Skill, reference, script, or host surface that is responsible for a mechanism — its commands, exit semantics, or byte-level validation — and the only place that mechanism may be spelled out. A Skill that delegates the work states the condition and the safe failure direction and leaves the mechanism to its owner; a mechanism prescribed outside its owning layer drifts from the owner's copy and, for data the model itself transcribes, cannot be enforced by prose at all because the model is the transport.
 
 ### Context-absent agent
 An agent performing a Skill-shaped action without that Skill's instructions loaded in context — typically reconstructing a half-remembered command, recognizable by parameter values that drift from the Skill's documented defaults. Prose in the unloaded Skill cannot reach it; the only channels that do are the seam it entered through and the output of the tools it runs, which is why fail-closed refusals in bundled CLIs carry their own recovery path.

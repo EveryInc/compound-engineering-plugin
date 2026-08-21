@@ -18,6 +18,7 @@ tags:
   - protocol
   - judgment
   - skill-eval
+last_updated: 2026-08-21
 ---
 
 # Portable Agent Skill Authoring
@@ -197,7 +198,7 @@ Use high freedom when many approaches are valid and context should decide: state
 
 For CLI-wrapper skills, the default is one canonical invocation plus named deltas. If two recipes share the same command skeleton, they are one recipe with a parameter, not two blocks. A catalog of commands is protocol only when each command protects a distinct invariant or supplies a non-derivable fact.
 
-This is not a ban on deterministic commands or bundled scripts. A bundled script is right when the glue is deterministic and annoying — quoting, combining inspection output, or a checked flag set — and agents would rebuild it wrong. The test is: if a capable model with live `--help` still ships the wrong command, the skill must give the command; if a one-line condition would steer it correctly, the extra block is noise.
+This is not a ban on deterministic commands or bundled scripts. A bundled script is right when the glue is deterministic and annoying — quoting, combining inspection output, or a checked flag set — and agents would rebuild it wrong. The test is: if a capable model with live `--help` still ships the wrong command, the skill must give the command; if a one-line condition would steer it correctly, the extra block is noise. A prescribed mechanism also has to run on the caller's input: when the input is control data the model transcribes (a JSON carrier, an id, a mode token), a parser named in prose runs on the model's retyping and cannot reject malformed caller bytes — put that guard in a bundled script fed by argv or stdin, or in the host's invocation layer, or record it as a host limitation (`prose-cannot-validate-caller-control-data-byte-for-byte.md`).
 
 A pinned command still needs an ordered hatch. Write: run the pinned command; if it exits non-zero, returns the wrong shape, hits a bot/auth/version signal, or another named mismatch, then inspect, run live `--help`, or use the named fallback. Do not offer the hatch as a peer option to the default.
 
@@ -286,7 +287,7 @@ Always-loaded skill prose remains in context throughout the workflow. Extract su
 
 - Keep the outcome spine, protocol kernel, and load-bearing route inline.
 - Move large schemas, specialist prompts, examples, and route-specific instructions to references.
-- Keep the instruction to load the reference inline at the point of use.
+- Keep the instruction to load the reference inline at the point of use, and state once in the body that a read made before that point does not satisfy it; a host that reads every reference at skill load meets the letter of "read before the step" while losing both the context saving and any safety path that depends on a late read (`size-driven-skill-restructure.md`, "When a host front-loads the references").
 - Do not inline a summary complete enough to suppress loading the authoritative reference.
 - Pass large context to subagents by file path plus a short gist rather than duplicating it into prompts.
 
@@ -337,7 +338,7 @@ Mechanical checks belong in CI when they are deterministic and available to cont
 - script and fixture tests;
 - conversion and packaging invariants.
 
-Behavioral agent evals are best-effort local evidence, not a mandatory exhaustive matrix. Use a small targeted fixture pack for the largest portability risks introduced by the change.
+Behavioral agent evals are best-effort local evidence, not a mandatory exhaustive matrix. Use a small targeted fixture pack for the largest portability risks introduced by the change. Proportional means proportional to the skill's reach: a skill run every day gets its full entry-path matrix on every supported harness with pre/post arms and an independent grader, while a narrow change to a rarely-entered path gets the small pack (`size-driven-skill-restructure.md`, "Size the eval to the skill's reach"); for a skill that dispatches peers or returns to an orchestrator, grade on real dispatch artifacts — a fake boundary is not sufficient evidence.
 
 Prioritize:
 
@@ -439,7 +440,9 @@ the approach. Add only the protocol needed to protect that outcome.
 4. Treat the name and description as an activation contract.
 5. Keep protocol explicit. Delete judgment guidance when the outcome is enough;
    otherwise use the smallest supported principle or contrast pair. Prescribe a
-   mechanism only where this skill owns it; a delegating skill states the
+   mechanism only where this skill owns it and where the mechanism receives the
+   raw input — byte-exact validation of caller data belongs in a script fed by
+   argv or stdin, never in a prose parser recipe; a delegating skill states the
    condition, the safe failure direction, and the non-derivable callee facts.
    A finding that a prescribed command fails in some state, against a
    delegating skill, is a representation finding: propose the deletion.
