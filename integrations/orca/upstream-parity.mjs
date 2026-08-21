@@ -54,6 +54,22 @@ async function git(repoRoot, args) {
 }
 
 async function resolvedTrackingCommit(repoRoot) {
+  // The fork pins the latest upstream *release* (compound-engineering-v* tag),
+  // not the upstream/main tip: main routinely carries unreleased commits, and
+  // the fork release identity {upstream.version}-orca.{revision} is defined
+  // against released versions. Fall back to the tracking refs when no release
+  // tag is fetched locally (e.g. CI checkouts fetch neither tags nor remotes).
+  const latestTag = await git(repoRoot, [
+    "tag",
+    "--list",
+    "compound-engineering-v*",
+    "--sort=-version:refname",
+  ])
+  if (latestTag.ok && latestTag.stdout) {
+    const tag = latestTag.stdout.split("\n")[0].trim()
+    const result = await git(repoRoot, ["rev-parse", "--verify", `${tag}^{commit}`])
+    if (result.ok) return { ref: `refs/tags/${tag}`, commit: result.stdout }
+  }
   for (const ref of ["refs/remotes/upstream/main", "refs/remotes/origin/main"]) {
     const result = await git(repoRoot, ["rev-parse", "--verify", `${ref}^{commit}`])
     if (result.ok) return { ref, commit: result.stdout }

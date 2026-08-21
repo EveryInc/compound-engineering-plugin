@@ -74,8 +74,8 @@ describe("CE-Orca upstream parity", () => {
   test("matches the recorded upstream skill, role, hook, and version baseline", async () => {
     const baseline = await loadUpstreamBaseline(REPO_ROOT)
     expect(baseline).toMatchObject({
-      version: "3.22.0",
-      commit: "57e586d66194585757ffa30a23dcd0f4ec0210a4",
+      version: "3.22.4",
+      commit: "76c7363e3e9a00465613a64ce8fb39958d72edd7",
     })
     expect(baseline.skillInventory).toContain("ce-retune")
     expect(baseline.promptAssets["ce-work"]).toContain("implementation-worker.md")
@@ -103,7 +103,9 @@ describe("CE-Orca upstream parity", () => {
       commit: "49e7d280f4877715a9f025e86e4b3e92d89a5fc6",
       expected: baseline.commit,
     })
-    expect(staleIssue?.ref).toMatch(/^refs\/remotes\/(?:upstream|origin)\/main$/)
+    expect(staleIssue?.ref).toMatch(
+      /^refs\/(?:tags\/compound-engineering-v[\d.]+|remotes\/(?:upstream|origin)\/main)$/,
+    )
   })
 
   test("ignores unrelated upstream additions when protected anchors are unchanged", async () => {

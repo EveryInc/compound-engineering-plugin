@@ -968,7 +968,7 @@ describe("CE-Orca canonical configuration resolution", () => {
     const { registry, builtins } = await data("ce-doc-review")
     expect(() => resolveExecutionRequest({ workflowId: "ce-doc-review", registry, builtins, probe: healthyProbe, project: { apiKey: "top-secret" } as any })).toThrow(/unsupported fields: apiKey/)
     const resolved = resolveExecutionRequest({ workflowId: "ce-doc-review", registry, builtins, probe: healthyProbe })
-    expect(resolved.identities).toMatchObject({ ceVersion: "3.22.0", integrationVersion: "3.22.0-orca.5", registryVersion: expect.any(String), protocolVersion: "orca.local-protocol/v1", requestVersion: "orca.execution-config/v1" })
+    expect(resolved.identities).toMatchObject({ ceVersion: "3.22.4", integrationVersion: "3.22.4-orca.5", registryVersion: expect.any(String), protocolVersion: "orca.local-protocol/v1", requestVersion: "orca.execution-config/v1" })
     expect(canonicalJson(resolved)).not.toMatch(/api[_-]?key|token|secret|credential/i)
   })
 })
