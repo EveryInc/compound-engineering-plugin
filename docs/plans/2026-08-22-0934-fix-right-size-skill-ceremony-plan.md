@@ -95,6 +95,7 @@ A user reports that every small change runs "the CE suite" and burns tokens, and
 
 - Keying `ce-work`'s `babysit:off` on the small, low-risk, code-only condition (the `ce-code-review` lite-roster class) rather than the mechanical-diff class only — see KTD7's conflict call-out. A review finding that "mechanical diff" is a review label rather than proof a watch is unnecessary re-states this same deferral.
 - Adding a size do-not-fire case to `skills/ce-commit-push-pr/references/apply-and-handoff.md` so callers need not pass `babysit:off`.
+- A skill-dispatch observer for the eval cell (the `babysit:off` and no-re-planning rows can only grade narration or artifacts today; PR #1514 review thread).
 - Fixing the stale `status: active` frontmatter on `docs/plans/2026-06-04-001-feat-ce-plan-approach-altitude-plan.md`.
 - `ce-debug` on Codex: its description ("fix failing behavior") pulls an implicit typo fix into the diagnosis loop, and the trivial fast-path still asks the fix-choice question before a one-line edit (live session, 2026-08-22). The same proportionality condition belongs at `ce-debug`'s entry, stated once; out of this change's scope by the Scope Boundaries above.
 
