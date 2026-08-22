@@ -60,7 +60,7 @@ A user reports that every small change runs "the CE suite" and burns tokens, and
 **`ce-brainstorm` Lightweight tier**
 
 - R8. Lightweight work ends in a chat paragraph with no file unless the dialogue produced decisions a downstream consumer needs in IDed form, or the user asks for a file.
-- R9. The `ce-brainstorm` and `ce-plan` descriptions name the small, well-specified change as not theirs, in the house "Not for X; that is Y" shape, merged with existing negatives rather than stacked.
+- R9. The `ce-brainstorm` and `ce-plan` descriptions exclude the small, well-specified change only when the activation pre-arm shows a description-driven false trigger to block; `ce-brainstorm`'s existing negative ("already-specified work … with no product scope left to decide") already decides that case, and a negative the eval cannot show blocking anything is not added.
 
 **`ce-work` mechanical route**
 
@@ -115,7 +115,7 @@ A user reports that every small change runs "the CE suite" and burns tokens, and
 - KTD6. **Lightweight Durable skips the always-on research subagents but keeps document review.** (session-settled: user-approved — chosen over also dropping document review on Lightweight. Conflict call-out: research found `ce-doc-review` is the only independent check left once research subagents are skipped, `docs/solutions/best-practices/ce-pipeline-end-to-end-learnings.md` records it catching contradictions PR review cannot, and `tests/pipeline-review-contract.test.ts` pins the literal "Document review is mandatory" in `SKILL.md`; the literal stays, scoped to the Durable tier. Small work that does not need a file is the Chat brief tier, so there is no separate "Lightweight file without review" tier to save.)
 - KTD7. **`ce-work` passes the callee's documented `babysit:off` on its mechanical route; the do-not-fire condition stays owned by `ce-commit-push-pr`.** (session-settled: user-approved — chosen over editing `ce-commit-push-pr`'s do-not-fire list in this change: a delegating skill states the condition and uses the callee's documented argument rather than re-deriving the callee's mechanism. Conflict call-out: the mechanical-diff class excludes behavior-bearing one-line fixes, so the canonical Direct case — an off-by-one fix — still gets a babysit watch; widening the pass condition to the small, low-risk, code-only class is deferred.)
 - KTD8. **Brainstorm summaries carrying a settled decision select Chat brief at minimum.** A `ce-brainstorm` Lightweight handoff passes the decision summary (`references/handoff.md` already does); `ce-plan`'s gate treats a summary with one or more settled decisions an implementer must honor as needing the brief's decisions line, and Direct only when it carries none. This does not force Durable.
-- KTD9. **Description negatives follow the house shape and merge with existing ones.** `ce-brainstorm`'s "Not for executing already-specified work …" absorbs the small-change case; `ce-plan` gains "Not for a small change already specified down to the files it touches and touching no risk surface; do that directly or with `ce-work`." The negative names the risk exclusion so an implicit authentication or migration request still reaches the gate and its Durable pin (R7). Both stay under the 1,024-character cap; no converter rewrites skill descriptions.
+- KTD9. **A description negative is added only against a demonstrated false trigger, and never as a case an existing negative already decides.** `ce-brainstorm`'s "Not for executing already-specified work … with no product scope left to decide" already covers the small change, so nothing is appended to it. `ce-plan`'s candidate clause — "Not for a small change already specified down to the files it touches and touching no risk surface; do that directly or with `ce-work`" — ships only when the activation pre-arm shows `ce-plan` loading implicitly on such a prompt; it names the risk exclusion so an implicit authentication or migration request would still reach the gate's Durable pin (R7). Both stay under the 1,024-character cap; no converter rewrites skill descriptions.
 - KTD10. **Activation scenarios run in fresh host sessions; execution scenarios run in the eval cell.** The cell (`tests/skill-eval-cell/`) injects one skill and cannot observe auto-trigger; implicit rows run as a fresh `claude` / `codex` session with the plugin loaded, graded from the transcript for "skill loaded or not".
 
 ### High-Level Technical Design
@@ -173,11 +173,11 @@ One PR. U1–U5 can be built in any order; U3 follows U1/U2; U6 and U7 follow th
 
 ### U2. `ce-plan` description negative
 
-- **Goal:** Harnesses stop auto-triggering `ce-plan` on already-specified small changes.
+- **Goal:** Harnesses stop auto-triggering `ce-plan` on already-specified small changes, when the description is what triggers them.
 - **Requirements:** R9; KTD9.
-- **Dependencies:** U1 (the negative must not contradict the restated line 13).
+- **Dependencies:** U1 and the U7 activation pre-arm (the negative ships only when that arm shows a description-driven false trigger).
 - **Files:** `skills/ce-plan/SKILL.md` (frontmatter only).
-- **Approach:** Append the KTD9 clause (small, already-specified, no risk surface); stay under 1,024 characters; do not touch legacy description strings in `src/utils/legacy-cleanup.ts`.
+- **Approach:** Run the activation pre-arm first. Append the KTD9 clause only when a small or already-specified prompt implicitly loaded `ce-plan` or `ce-brainstorm` in a fresh session; otherwise leave both descriptions unchanged and record the observed trigger source in the eval report. Stay under 1,024 characters; do not touch legacy description strings in `src/utils/legacy-cleanup.ts`.
 - **Patterns to follow:** `skills/ce-code-review/SKILL.md`, `skills/ce-ideate/SKILL.md` descriptions.
 - **Test scenarios:** `tests/frontmatter.test.ts` and `tests/skill-conventions.test.ts` cap checks pass unchanged.
 - **Verification:** `bun run release:validate` and `bun run plugin:validate` pass.

@@ -1,6 +1,6 @@
 ---
 name: ce-plan
-description: "Create structured plans for multi-step work, including software and non-software tasks. Use when asked to plan, break down implementation, plan from requirements, or deepen an existing plan; prefer ce-brainstorm for exploratory framing. Not for a small change already specified down to the files it touches and touching no risk surface; do that directly or with ce-work."
+description: "Create structured plans for multi-step work, including software and non-software tasks. Use when asked to plan, break down implementation, plan from requirements, or deepen an existing plan; prefer ce-brainstorm for exploratory framing."
 argument-hint: "[optional: feature description, requirements doc path, plan path to deepen, or any task to plan] [output:html]"
 ---
 
@@ -16,7 +16,7 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 
 ## Mandatory Completion Contract
 
-Every normal interactive branch that produces a plan artifact or checkpoint is incomplete until its owning handoff question is presented. A Durable software implementation-plan run that continues past Phase 0.1b is incomplete until the Phase 5.4 menu is presented and any selected action has actually fired. A Direct result is complete when the change is stated and handed to `ce-work` or the user. A Chat brief is complete when the brief and its one-line save-or-`ce-work` offer are in chat. Neither presents the Phase 5.4 menu. Non-software and approach-altitude routes use their reference workflow's terminal handoff. Answer-seeking may end after the answer unless its owner requires save/share.
+A run is complete when its output contract's done condition is met. Every normal interactive branch that produces a plan artifact or checkpoint is incomplete until its owning handoff question is presented: for a Durable software implementation-plan run that continues past Phase 0.1b, the Phase 5.4 menu presented and any selected action has actually fired. For Direct, the change stated and handed to `ce-work` or the user; for a Chat brief, the brief and its one-line save-or-`ce-work` offer in chat. Neither presents the Phase 5.4 menu. Non-software and approach-altitude routes use their reference workflow's terminal handoff. Answer-seeking may end after the answer unless its owner requires save/share.
 
 Writing the file, checking confidence, and running or explicitly skipping `ce-doc-review` are intermediate milestones. Pipeline mode is complete only when the plan, confidence check, and non-interactive document-review state are returned to its caller; the caller owns the next action.
 
@@ -32,7 +32,7 @@ The gate resolves at the start of Phase 0.6, before depth and the scoping synthe
 - **Chat brief** — bounded work with at most one decision the user would weigh and no risk surface. Deliver it in chat and stop.
 - **Durable** — everything else. Continue the workflow below.
 
-`references/output-contracts.md` owns Direct and Chat brief; read it when either is selected. When the tier is still uncertain after those reads, take the heavier one. When a read surfaces a decision the user would weigh, a risk surface, or multi-pass verification, re-resolve to the heavier tier before emitting anything. Pipeline or headless runs, goal- or scheduler-driven runs, a request that continues a prior plan's deferred item, and risk surfaces — authentication, payments, migrations, external contracts — are Durable regardless of size.
+`references/output-contracts.md` owns Direct and Chat brief; read it when either is selected. When the tier is still uncertain after those reads, take the heavier one. When a read surfaces a decision the user would weigh, a risk surface, or multi-pass verification, re-resolve to the heavier tier before emitting anything. Durable regardless of size: a run with no synchronous user to act on chat this turn (pipeline, headless, goal- or scheduler-driven), a request that continues an existing plan's item, and a risk surface — authentication, payments, migrations, external contracts.
 
 ## Workflow
 

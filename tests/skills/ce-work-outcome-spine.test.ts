@@ -740,8 +740,8 @@ describe("ce-work right-sized routes", () => {
 
   test("session-carried resolution accepts an in-conversation brief and intake does not re-route sized prompts", async () => {
     const triage = await readTriage()
-    expect(triage).toMatch(/one in-conversation brief from `ce-plan`/)
+    expect(triage).toMatch(/an in-conversation brief from `ce-plan`/)
     const intake = await readRepoFile("skills/ce-work/references/work-intake.md")
-    expect(intake).toMatch(/already sized is not re-routed/)
+    expect(intake).toMatch(/Unless `ce-plan` already sized this prompt in this session/)
   })
 })

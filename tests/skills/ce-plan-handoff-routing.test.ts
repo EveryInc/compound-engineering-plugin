@@ -473,13 +473,14 @@ describe("ce-plan output-contract gate", () => {
     for (const tier of ["**Direct**", "**Chat brief**", "**Durable**"]) expect(gate).toContain(tier)
     expect(gate).toContain("references/output-contracts.md")
     expect(gate).toMatch(/take the heavier one/)
-    expect(gate).toMatch(/Pipeline or headless runs[^.]*Durable regardless of size/)
+    expect(gate).toMatch(/Durable regardless of size: a run with no synchronous user/)
   })
 
   test("chat-tier results carry their own done condition beside the Phase 5.4 menu", () => {
     const contract = SKILL_BODY.slice(SKILL_BODY.indexOf("## Mandatory Completion Contract"), SKILL_BODY.indexOf("## Interaction Method"))
-    expect(contract).toMatch(/Direct result is complete when/)
-    expect(contract).toMatch(/Chat brief is complete when/)
+    expect(contract).toMatch(/complete when its output contract's done condition is met/)
+    expect(contract).toMatch(/For Direct, the change stated/)
+    expect(contract).toMatch(/for a Chat brief, the brief and its one-line save-or-`ce-work` offer/)
     expect(contract).toMatch(/Neither presents the Phase 5\.4 menu/)
   })
 
