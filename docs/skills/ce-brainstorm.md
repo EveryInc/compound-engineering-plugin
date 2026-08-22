@@ -120,7 +120,7 @@ Stacking several questions in one message produces diluted answers. `ce-brainsto
 
 ### 2. Ceremony scales with the work
 
-Lightweight covers small, well-bounded ideas. Standard handles ordinary features with some decisions. Deep adds probes for cross-cutting work. Deep-product also has to establish product shape (actors, core outcome, positioning, durability) rather than inherit it.
+Lightweight covers small, well-bounded ideas and ends in chat: a paragraph naming what is being built, the one or two decisions made, and where they go next — no file, no grounding scout, no approach generation. A file is written only when the dialogue produced a decision a downstream consumer needs in IDed form, or you ask for one. Standard handles ordinary features with some decisions. Deep adds probes for cross-cutting work. Deep-product also has to establish product shape (actors, core outcome, positioning, durability) rather than inherit it.
 
 ### 3. Named gap lenses, then approaches
 
@@ -189,7 +189,7 @@ Skip `ce-brainstorm` when:
 - Requirements are already specified (a PRD exists, the issue is detailed) → `/ce-plan`
 - The request is whether to adopt a named external candidate → `/ce-pov`
 - You have a known root cause for a bug → `/ce-debug`
-- The change is trivial and obvious → just do it
+- The change is already specified down to the files it touches → just do it, or `/ce-work`
 
 ---
 

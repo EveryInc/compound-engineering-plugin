@@ -56,7 +56,7 @@ Do not hardcode a destination. This phase writes no commit message and hands off
 
 Phase 2.5 has two presentation modes, gated by **two signals**: (1) did any blocking question fire before Phase 2.5? AND (2) what tier did Phase 0.3 classify the scope as? Blocking questions include Phase 0.3 scope disambiguation, Phase 1.3 collaborative dialogue probes, and Phase 2 approach selection (when a menu fires). Internal classification, Phase 1.1 scan, and Phase 1.2 pressure test are not blocking questions — they don't count.
 
-- **Path A — no blocking questions fired AND tier is Lightweight**: announce-mode. Emit "What we're building" prose only (no other sections, no confirmation question), then proceed to Phase 3 doc-write in the same turn. Do NOT end the turn waiting for acknowledgment. The user can revise after the doc lands if the shape is wrong — Lightweight Path A docs are short, post-hoc revision is cheap.
+- **Path A — no blocking questions fired AND tier is Lightweight**: announce-mode. Emit "What we're building" prose only (no other sections, no confirmation question). That paragraph is the result; proceed to Phase 3 doc-write in the same turn only when `phase-0.md`'s Lightweight rule earned a file. Do NOT end the turn waiting for acknowledgment. The user can revise after the paragraph or the doc lands if the shape is wrong.
 - **Path B — at least one blocking question fired, OR tier is Standard / Deep-feature / Deep-product**: full tier-aware scoping synthesis with confirmation gate. Two scenarios fire Path B: (a) the user invested answer-time during dialogue, or (b) the user pre-loaded substantive scope content (Phase 0.2 fast-path with a richly-specified opening prompt). Either way, the substance earns a real checkpoint. The confirmation question is unconditional even when zero call-outs survive the keep test.
 
 **Why the tier guard exists.** Phase 0.2's fast path is designed for two very different cases — a tight one-line prompt that needs no dialogue ("fix the typo on line 47"), and a richly pre-loaded brainstorm context that ALSO needs no dialogue because the user pre-stated everything (e.g., handing off accumulated decisions from a prior session for a brainstorm doc backfill). Without a tier guard, both route to Path A, and the richly-loaded case gets a 1-sentence checkpoint for what may be 20+ items worth of scope. Tier-classifying Phase 0.3 distinguishes these cases — pre-loaded substance makes the tier Standard or Deep, which then routes to Path B and produces the full scoping synthesis the substance deserves. Do not simplify the gate back to a single "no questions fired" signal — that was a real defect that produced one-sentence syntheses on Deep-tier pre-loads.
@@ -167,12 +167,12 @@ Based on our dialogue, here's the scope I'm proposing for the Product Contract:
 ### Path A template (no questions were asked — typically Phase 0.2 short-circuit)
 
 ```
-Proposing: [1–3 line shape — what the doc will say in plain words].
+Proposing: [1–3 line shape — what we are building, in plain words].
 
-No open decisions — writing the requirements-only plan now. Interrupt if the shape is wrong.
+No open decisions — [when a file was earned: writing the requirements-only plan now | otherwise: that is the result; these decisions go to <where the dialogue established>]. Interrupt if the shape is wrong.
 ```
 
-Proceed to Phase 3 doc-write in the same turn — do NOT end the turn waiting for an acknowledgment. The "interrupt if wrong" affordance means the user can revise after the doc lands, not before. Lightweight Path A docs are short, so post-hoc revision is cheap.
+When a file was earned, proceed to Phase 3 doc-write in the same turn — do NOT end the turn waiting for an acknowledgment; otherwise present Phase 4's handoff. The "interrupt if wrong" affordance means the user can revise after the result lands, not before.
 
 Ask the user open-ended on Path B (no `AskUserQuestion` menu). The justification is Interaction Rule 5(a) in `references/interaction-rules.md` — an option menu would unintentionally influence the user's feedback toward the parts the menu lists.
 

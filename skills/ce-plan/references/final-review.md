@@ -1,6 +1,6 @@
 # Final Review and Plan Write
 
-Phase 5.1 through 5.3.2 of `ce-plan`. Read this before writing the plan file.
+Phase 5.1 through 5.3.2 of `ce-plan`, on the Durable path only. Read this before writing the plan file.
 
 ### Phase 5: Final Review, Write File, and Handoff
 
@@ -93,6 +93,8 @@ Plan written to <absolute path to plan>
 **CONCEPTS.md gap-fill (only if the file already exists):** If the plan body uses a domain term whose definition is missing from `CONCEPTS.md`, add the entry. **Domain entities, named processes, and status concepts with project-specific meaning only** — not file paths, class names, function signatures, or implementation decisions. `CONCEPTS.md` is a glossary, not a spec or catch-all. Follow the format set by existing entries. Apply silently. Skip entirely if `CONCEPTS.md` does not exist — creation is owned by ce-compound and ce-compound-refresh.
 
 #### 5.3 Confidence Check and Deepening
+
+A deepen run enters here from Phase 0.1 without passing intake. For a material Durable run, use the host's task-tracking capability when available to show route-level outcomes and meaningful transitions; if unavailable, continue without simulating it in chat.
 
 Auto mode is the default during plan generation and synthesizes subagent findings directly into the plan. Interactive mode is activated by the Phase 0.1 re-deepen fast path and presents each finding for the user to accept or reject. Pipeline runs always use auto mode.
 

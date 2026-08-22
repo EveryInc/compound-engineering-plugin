@@ -205,6 +205,13 @@ async function main() {
   }
   const seedRev = spawnSync("git", ["rev-parse", "HEAD"], { cwd: workspace, encoding: "utf8" })
   const seedSha = seedRev.status === 0 ? seedRev.stdout.trim() : ""
+  if (flag("--git-remote") && seedSha) {
+    // A fake origin whose main is the seed commit: the shipping tail sees no pre-existing
+    // unpushed commits and takes the push/PR path, where the push shim then fails.
+    spawnSync("git", ["remote", "add", "origin", "https://example.invalid/eval.git"], { cwd: workspace })
+    spawnSync("git", ["update-ref", "refs/remotes/origin/main", seedSha], { cwd: workspace })
+    spawnSync("git", ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"], { cwd: workspace })
+  }
 
   const summary: Record<string, unknown> = {
     skill,

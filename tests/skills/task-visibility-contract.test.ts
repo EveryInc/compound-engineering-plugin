@@ -15,9 +15,13 @@ function readSkill(name: string): string {
 // under the Codex 8000-byte prompt budget. The spine is a user-visible surface
 // contract, not a rule that must fire from the window, and the body names
 // phase-0.md as a required read before Phase 0.1, so it is asserted there.
+// 2026-08-22: ce-plan's task-visibility rule moved into references/intake.md at
+// Phase 0.6, the point where a Durable run is known to be material; Direct and
+// Chat brief results never have a task surface. The body names intake.md as a
+// required read, so the contract is asserted there.
 const skills = {
   brainstorm: readRepoFile("skills/ce-brainstorm/references/phase-0.md"),
-  plan: readSkill("ce-plan"),
+  plan: readRepoFile("skills/ce-plan/references/intake.md"),
   work: readRepoFile("skills/ce-work/references/workspace-setup.md"),
   codeReview: readSkill("ce-code-review"),
   simplify: readSkill("ce-simplify-code"),

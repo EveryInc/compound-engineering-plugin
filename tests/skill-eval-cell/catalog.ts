@@ -17,6 +17,8 @@ import { WORKTREE_REF } from "./extract"
 
 export const PRE_SWEEP_REF = "309611f6b5198528c1c98f83fb6b3c90637e523c"
 export const ISSUE_1482_BASE_REF = "66ccf579f8c1ef2ccfc642c317ba53151eeb1ebb"
+/** main before the right-size-ceremony change (#1513 release commit): the A/B base for its rows. */
+export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -64,6 +66,8 @@ export type Scenario = {
   git_untracked?: string[]
   shim_git_push?: boolean
   shim_gh_pr?: boolean
+  /** Configure a fake `origin` whose `main` is the seed commit, so the shipping tail takes the push/PR path instead of the local-commit path. Pair with shim_git_push. */
+  git_remote?: boolean
   fixture?: string
   timeout_secs?: number
   why: string
@@ -651,6 +655,195 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
       actions: "none",
       git: "clean",
       workspace_contains: [{ path: "src/greet.js", needle: "hello ${name}" }],
+    },
+  },
+  {
+    id: "ce-plan/direct-trivial-stays-in-chat",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 600,
+    why: "A change already specified down to one file with no decision is the Direct contract: a few sentences in chat, no plan file, no subagent. The task names ce-work as unavailable so the cell grades the state-and-stop branch; the invoke branch is live delegation and is evidenced by full-session runs, not this cell. Mutation is allowed so writing a plan or making the edit can fail the grade.",
+    pre_contract: "When directly invoked, always plan: write a plan file and present the Phase 5.4 menu.",
+    task: `Use ce-plan: fix the greeting in src/greet.js so it returns "hello, <name>" with a comma after hello. The ce-work skill is not available in this session.`,
+    grade: {
+      files_read_post: ["references/output-contracts.md"],
+      must_include: ["hello,"],
+      actions: "none",
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-plan/chat-brief-small-no-file",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 600,
+    why: "Bounded work with one decision and no risk surface is a Chat brief: units and test expectations in chat, no file, no research subagent, and a one-line save-or-ce-work offer.",
+    pre_contract: "Always write the plan file, run the confidence check and document review, then present the Phase 5.4 menu.",
+    task: `Use ce-plan: add an optional second argument to greet so callers can pass their own greeting word, keeping "hello" as the default, and add a test for both paths.`,
+    grade: {
+      files_read_post: ["references/output-contracts.md"],
+      must_include: ["ce-work"],
+      actions: "none",
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-plan/risky-small-stays-durable",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-auth`,
+    timeout_secs: 900,
+    why: "A two-line change on an authentication surface is small but risky; the gate's risk pin overrides size and the run writes a Durable plan without touching the auth source.",
+    pre_contract: "Always write the plan file.",
+    task: `Use ce-plan: set the Secure and SameSite=Strict flags on the session cookie in src/session.js.`,
+    grade: {
+      must_include: ["docs/plans"],
+      git: "dirty",
+      // The dirty tree must be the plan file, not an edit to the surface under review.
+      workspace_contains: [{ path: "src/session.js", needle: "HttpOnly; Path=/`" }],
+    },
+  },
+  {
+    id: "ce-brainstorm/lightweight-ends-in-chat",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-brainstorm",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 600,
+    why: "A small product tweak with one decision is Lightweight: a chat paragraph, no requirements-only plan file, no grounding scout.",
+    pre_contract: "Path A Lightweight announces the shape and proceeds to Phase 3 doc-write in the same turn.",
+    task: `Use ce-brainstorm: when greet is called with an empty name, should it fall back to "friend" or "world"? Pick one and we are done.`,
+    grade: {
+      files_read_post: ["references/phase-0.md"],
+      actions: "none",
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-work/mechanical-diff-ships-without-watch",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    git_remote: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 900,
+    why: "A dependency-version bump is a mechanical diff: it is committed without a task list, review is skipped with the exact phrase, and the shipping handoff carries babysit:off.",
+    pre_contract: "Trivial route skips only the task list; the shipping handoff is default-on babysit.",
+    task: `Use ce-work: bump the version in package.json to 0.0.2 and ship it.`,
+    grade: {
+      committed_must: ["package.json"],
+      must_include: ["babysit:off"],
+    },
+  },
+  {
+    id: "ce-work/chat-brief-executes-without-replanning",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    git_remote: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 900,
+    why: "A chat brief from ce-plan is the current plan for this work: ce-work implements it on the Small/Medium route and never routes it back to ce-plan.",
+    pre_contract: "Bare prompts are triaged by size; Large signals suggest ce-plan.",
+    task: `Use ce-work. ce-plan already sized this in this session and produced this chat brief; proceed.
+
+Summary: greet gains an optional second argument, the greeting word, defaulting to "hello".
+Units:
+- U1. src/greet.js: add the greeting parameter with the default; test expectation: greet("ann") is "hello ann" and greet("ann", "hi") is "hi ann".
+- U2. test/greet.test.js: add both cases using node:test.`,
+    grade: {
+      committed_must: ["src/greet.js"],
+      workspace_contains: [{ path: "src/greet.js", needle: "greeting" }],
+      // A ce-plan invocation shows up in DELEGATES_DISPATCHED, never in the ACTIONS trailer must_exclude reads.
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-plan/medium-feature-routes-durable",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 300,
+    why: "Past the gate the Durable path is the pre-change path, so the regression guard is the routing decision: a multi-file feature with design decisions is delivered as a plan file, not in chat. Bounded to the gate so the cell stays cheap.",
+    pre_contract: "A feature request is planned: scoping synthesis, then Phase 1 research, then the plan file.",
+    task: `Use ce-plan for this bounded checkpoint: add a CLI entrypoint bin/greet.js that prints greet(process.argv[2]), a --json flag that prints {"greeting": ...} instead, a config file that sets the default greeting word and is read by both paths, and tests for each behavior. Stop as soon as you have decided how this run will deliver its result (in chat or as a plan file) and named the next reference you would read; report that decision and stop. Do not research or write.`,
+    grade: {
+      // Host-neutral: the pre tree has no tier vocabulary, so grade the delivery decision the task asks for.
+      must_include: ["plan file"],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-brainstorm/standard-scope-routes-to-file",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-brainstorm",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 300,
+    why: "The Lightweight chat default must not leak upward: Standard scope still classifies Standard and heads into the file-writing path. Bounded to the tier decision.",
+    pre_contract: "Standard scope runs the dialogue and writes a requirements-only unified plan.",
+    task: `Use ce-brainstorm for this bounded checkpoint: greet should support localization — multiple languages, pluralized greetings, a fallback chain when a language is missing, and a way for callers to register new languages at runtime. Stop as soon as you have classified the scope tier and decided whether this run ends in chat or writes a plan file; report both and stop. Ask nothing.`,
+    grade: {
+      files_read_post: ["references/phase-0.md"],
+      must_include: ["Standard", "file"],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-work/behavior-fix-routes-to-review",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 300,
+    why: "A behavior-bearing one-file fix is not the Trivial or mechanical route: it keeps the task list, code review, and the default post-PR watch. Bounded to the triage decision.",
+    pre_contract: "Bare prompts are triaged by complexity; behavior-bearing edits are reviewed and shipped with the default watch.",
+    task: `Use ce-work for this bounded checkpoint: greet should trim leading and trailing whitespace from the name before formatting, then ship it. Stop as soon as you have classified the work (Trivial, Small/Medium, or Large) and stated whether code review and the post-PR watch will run for it; report that and stop. Do not edit, commit, or dispatch.`,
+    grade: {
+      files_read_post: ["references/input-triage.md"],
+      must_include: ["Small", "review"],
+      must_exclude: ["babysit:off"],
+      actions: "none",
+      delegates: "none",
     },
   },
   {

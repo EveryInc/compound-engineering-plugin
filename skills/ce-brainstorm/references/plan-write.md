@@ -2,7 +2,7 @@
 
 ### Phase 3: Capture the Requirements-Only Unified Plan
 
-Write or update a requirements-only unified plan only when the conversation produced durable decisions worth preserving — see `references/brainstorm-sections.md` "Decide whether a doc is warranted at all" for the criteria and the bug-fix stress test. Skip document creation when the user only needs brief alignment and the decisions can flow downstream (ce-plan, commit message, <root>/solutions/) without a brainstorm artifact in the middle.
+Write or update a requirements-only unified plan only when a file was earned — see `references/brainstorm-sections.md` "Decide whether a doc is warranted at all" for the condition and the bug-fix stress test. Otherwise the chat paragraph from Phase 2.5 is the result and the decisions flow downstream (ce-plan's prompt, commit message, <root>/solutions/) without a brainstorm artifact in the middle.
 
 When a doc is warranted, compose it using:
 
