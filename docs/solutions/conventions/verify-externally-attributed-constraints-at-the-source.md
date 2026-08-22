@@ -52,7 +52,7 @@ A number in a test needs three things beside it: which component owns it, what s
 
 **3. Distinguish the bound from the standard, because the difference changes decisions.**
 
-A limit believed to come from a standard is treated as immovable and universal. A limit known to come from one host's renderer is a scoped engineering constraint you can reason about: it may apply on only one code path, another host may impose a different one, and the two can be compared. Here the practical consequences were concrete: once both bounds were attributed, the repo's ratchet turned out to subsume one of them (the other host's *per-skill* cap) while leaving that host's *aggregate* cap unbounded — a distinction invisible while the number was believed to come from a spec.
+A limit believed to come from a standard is treated as immovable and universal. A limit known to come from one host's renderer is a scoped engineering constraint you can reason about: it may apply on only one code path, another host may impose a different one, and the two can be compared. Here the practical consequences were concrete: once both bounds were attributed, the repo's ratchet turned out to approximate one of them (the other host's *per-skill* cap, in different units, so with a margin rather than a proof) while leaving that host's *aggregate* cap unbounded — a distinction invisible while the number was believed to come from a spec.
 
 **4. When several unrelated constants share a number, name all of them.**
 

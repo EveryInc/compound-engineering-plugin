@@ -23,8 +23,10 @@ import path from "node:path"
  * deliberately not gated separately here: Claude Code auto-compaction re-attaches each invoked
  * skill keeping only its first 5,000 tokens, within a 25,000-token combined budget filled from
  * the most recently invoked (https://code.claude.com/docs/en/skills). Only its PER-SKILL half is
- * covered here: 5,000 tokens is roughly 20KB, so this 8000-byte ratchet subsumes it -- revisit
- * only if that ordering ever inverts. Its COMBINED 25,000-token half is an aggregate over every
+ * approximated here, and a byte count never proves a token count: 8000 bytes is ~2000 tokens at
+ * ordinary prose density, and breaching 5,000 tokens within 8000 bytes would take ~1.6 bytes per
+ * token, which Markdown prose does not reach. Treat that as a wide margin, not a guarantee -- a
+ * token-dense body erodes it, and a green run here is not a token-bound proof. Its COMBINED 25,000-token half is an aggregate over every
  * skill invoked in one session, which a per-file check cannot express: at ~4 bytes/token an
  * 8000-byte body is ~2000 tokens, so ~12 fully compliant skills exhaust it and the oldest are
  * then dropped entirely. That invariant is deliberately UNGUARDED -- this file sizes each
