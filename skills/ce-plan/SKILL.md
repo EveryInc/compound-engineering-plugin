@@ -6,11 +6,11 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 
 # Create Technical Plan
 
-**Note: The current year is 2026.** Use this when dating plans and searching for recent documentation.
+**Note: The current year is 2026.**
 
-**Outcome:** a durable plan artifact an implementer can start from confidently, handed off through its owning terminal workflow. `ce-brainstorm` defines **WHAT** to build as a requirements-only unified plan; `ce-plan` enriches it with **HOW**; `ce-work` executes it. A prior brainstorm is useful but never required.
+**Outcome:** a plan an implementer can start from confidently — a few sentences in chat, a chat brief, or a durable plan artifact — handed off through its owning terminal workflow. `ce-brainstorm` defines **WHAT** to build as a requirements-only unified plan; `ce-plan` enriches it with **HOW**; `ce-work` executes it. A prior brainstorm is useful but never required.
 
-**An explicit invocation always produces a plan.** If the input is unclear, ask or use the planning bootstrap; never classify a direct invocation as "not a planning task" and route out. It may select any output contract below, and the smallest valid plan is a few sentences in chat.
+**An explicit invocation always produces a plan.** Never classify a direct invocation as "not a planning task" and route out. It may select any output contract below, and the smallest valid plan is a few sentences in chat.
 
 **Research, decide, and write the plan — never implement.** Do not write production code, run tests, or learn from execution-time results. Directional pseudo-code and grammar sketches may communicate design; changing code to see what happens belongs in `ce-work`.
 
@@ -32,7 +32,7 @@ The gate resolves at the start of Phase 0.6, before depth and the scoping synthe
 - **Chat brief** — bounded work with at most one decision the user would weigh and no risk surface. Deliver it in chat and stop.
 - **Durable** — everything else. Continue the workflow below.
 
-`references/output-contracts.md` owns Direct and Chat brief; read it when either is selected. When the tier is still uncertain after those reads, take the heavier one. When a read surfaces a decision the user would weigh, a risk surface, or multi-pass verification, re-resolve to the heavier tier before emitting anything. Durable regardless of size: a run with no synchronous user to act on chat this turn (pipeline, headless, goal- or scheduler-driven), a request that continues an existing plan's item, and a risk surface — authentication, payments, migrations, external contracts.
+`references/output-contracts.md` owns Direct and Chat brief; read it when either is selected. When the tier is still uncertain after those reads, take the heavier one. When a read surfaces a decision the user would weigh, a risk surface, or multi-pass verification, re-resolve to the heavier tier before emitting anything. Durable regardless of size: a run with no synchronous user to act on chat this turn (pipeline, headless, goal- or scheduler-driven), an explicit request for a plan file or an output format, a request that continues an existing plan's item, and a risk surface — authentication, payments, migrations, external contracts.
 
 ## Workflow
 
@@ -48,7 +48,7 @@ Phases run in order unless an owner routes out or short-circuits. Read a phase's
 
 4. Read `references/research.md` before gathering context. It owns local and external research, agent-native triage, consolidation, depth reclassification, and flow analysis.
 5. Read `references/structure.md` before resolving questions or structuring the plan. It owns settled-decision handling, stable U-IDs, technical design, depth, and planning boundaries.
-6. Compose from `references/plan-sections.md` plus the format-rendering reference selected by `output-mode.md`. Right-size detail without crossing from planning into execution.
+6. Compose from `references/plan-sections.md` plus the format-rendering reference selected by `output-mode.md`.
 
 ### Phase 5: Review, Write, Deepen, and Hand Off
 

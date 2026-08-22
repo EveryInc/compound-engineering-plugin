@@ -167,12 +167,12 @@ Based on our dialogue, here's the scope I'm proposing for the Product Contract:
 ### Path A template (no questions were asked — typically Phase 0.2 short-circuit)
 
 ```
-Proposing: [1–3 line shape — what the doc will say in plain words].
+Proposing: [1–3 line shape — what we are building, in plain words].
 
-No open decisions — writing the requirements-only plan now. Interrupt if the shape is wrong.
+No open decisions — [when a file was earned: writing the requirements-only plan now | otherwise: that is the result; these decisions go to <where the dialogue established>]. Interrupt if the shape is wrong.
 ```
 
-When a file was earned, proceed to Phase 3 doc-write in the same turn — do NOT end the turn waiting for an acknowledgment; otherwise replace the second line with where the decisions go next and present Phase 4's handoff. The "interrupt if wrong" affordance means the user can revise after the result lands, not before.
+When a file was earned, proceed to Phase 3 doc-write in the same turn — do NOT end the turn waiting for an acknowledgment; otherwise present Phase 4's handoff. The "interrupt if wrong" affordance means the user can revise after the result lands, not before.
 
 Ask the user open-ended on Path B (no `AskUserQuestion` menu). The justification is Interaction Rule 5(a) in `references/interaction-rules.md` — an option menu would unintentionally influence the user's feedback toward the parts the menu lists.
 

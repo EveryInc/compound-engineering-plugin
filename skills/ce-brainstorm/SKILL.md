@@ -8,7 +8,7 @@ argument-hint: "[feature idea or problem to explore] [output:html]"
 
 Brainstorming answers **WHAT** to build through dialogue; `ce-plan` then enriches the same unified plan artifact with **HOW**. This skill does not implement code. **The current year is 2026**, for dating the artifact.
 
-**Outcome:** a right-sized requirements-only unified plan under `<root>/plans/` that planning can enrich without inventing product behavior, scope boundaries, or success criteria.
+**Outcome:** a right-sized result planning can enrich without inventing product behavior, scope boundaries, or success criteria: a chat paragraph for Lightweight work, or a requirements-only unified plan under `<root>/plans/` when a file is earned.
 
 **Done, on the brainstorm path:** that artifact is written and passes the Ready for Planning Check — or no file was written because the dialogue produced no decision a downstream consumer needs in IDed form and the user asked for none — and Phase 4's handoff has been presented.
 

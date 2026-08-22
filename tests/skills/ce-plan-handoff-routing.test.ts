@@ -474,6 +474,7 @@ describe("ce-plan output-contract gate", () => {
     expect(gate).toContain("references/output-contracts.md")
     expect(gate).toMatch(/take the heavier one/)
     expect(gate).toMatch(/Durable regardless of size: a run with no synchronous user/)
+    expect(gate).toMatch(/an explicit request for a plan file or an output format/)
   })
 
   test("chat-tier results carry their own done condition beside the Phase 5.4 menu", () => {
@@ -493,7 +494,8 @@ describe("ce-plan output-contract gate", () => {
   test("a saved Chat brief never claims the unified-plan contract", () => {
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/Do not set `artifact_contract` or `artifact_readiness`/)
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/never implements/)
-    expect(OUTPUT_CONTRACTS_BODY).toMatch(/When `ce-work` cannot be invoked, state the change and stop/)
+    expect(OUTPUT_CONTRACTS_BODY).toMatch(/a planning invocation is not execution authority/)
+    expect(OUTPUT_CONTRACTS_BODY).toMatch(/Reserve the path with exclusive creation/)
   })
 
   test("rules relocated out of the kernel are stated on both the intake and deepen paths", () => {

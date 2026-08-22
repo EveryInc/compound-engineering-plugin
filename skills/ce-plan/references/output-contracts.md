@@ -10,7 +10,7 @@ Read this when the kernel's Output Contract gate selects Direct or Chat brief. T
 
 ## Direct
 
-Say what changes, where, and how it is verified, in a few sentences. Then hand off: when the request is imperative ("fix", "rename", "bump") invoke `ce-work` with that statement as its prompt; otherwise state it and stop. When `ce-work` cannot be invoked, state the change and stop — `ce-plan` does not make the edit itself. A Direct result is complete when the statement is in chat and the handoff has fired or been offered.
+Say what changes, where, and how it is verified, in a few sentences. Then offer the handoff in one line: hand it to `ce-work` or the user makes the change. Invoke `ce-work` with that statement as its prompt only when the user accepts, or when the invocation already carried implementation intent from an orchestrator; `ce-plan` never makes the edit itself, and a planning invocation is not execution authority. A Direct result is complete when the statement and the offer are in chat.
 
 ## Chat brief
 
@@ -26,4 +26,4 @@ A brainstorm summary that carries a settled decision the implementer must honor 
 
 ## Saving a Chat brief
 
-When the user asks to save, write the brief as a plain markdown file under `<root>/plans/` with the same filename shape as a plan, with frontmatter `title`, `type`, and `date`, and `execution: code` for a code deliverable. Do not set `artifact_contract` or `artifact_readiness`: a saved brief does not carry the unified-plan floor, so labeling it implementation-ready would misinform `ce-work` and `lfg`. `ce-work` treats a saved brief as a legacy plan (no contract field, normal code lifecycle). A user who wants the full floor re-invokes `ce-plan` on the saved brief, which enters the Durable path.
+When the user asks to save, write the brief as a plain markdown file under `<root>/plans/` with the same filename shape as a plan, with frontmatter `title`, `type`, and `date`, and `execution: code` for a code deliverable. Reserve the path with exclusive creation; on collision retry with the smallest available numeric suffix before the extension, never overwriting an existing file. Do not set `artifact_contract` or `artifact_readiness`: a saved brief does not carry the unified-plan floor, so labeling it implementation-ready would misinform `ce-work` and `lfg`. `ce-work` treats a saved brief as a legacy plan (no contract field, normal code lifecycle). A user who wants the full floor re-invokes `ce-plan` on the saved brief, which enters the Durable path.
