@@ -52,7 +52,7 @@ A number in a test needs three things beside it: which component owns it, what s
 
 **3. Distinguish the bound from the standard, because the difference changes decisions.**
 
-A limit believed to come from a standard is treated as immovable and universal. A limit known to come from one host's renderer is a scoped engineering constraint you can reason about: it may apply on only one code path, another host may impose a different one, and the two can be compared. Here the practical consequences were concrete — the repo's ratchet turned out to be the *tighter* of two bounds and to subsume the other, which is a fact you can only state once both are attributed.
+A limit believed to come from a standard is treated as immovable and universal. A limit known to come from one host's renderer is a scoped engineering constraint you can reason about: it may apply on only one code path, another host may impose a different one, and the two can be compared. Here the practical consequences were concrete: once both bounds were attributed, the repo's ratchet turned out to subsume one of them (the other host's *per-skill* cap) while leaving that host's *aggregate* cap unbounded — a distinction invisible while the number was believed to come from a spec.
 
 **4. When several unrelated constants share a number, name all of them.**
 
@@ -66,7 +66,7 @@ So: give any claim about upstream a `file:line` and a verification date, and re-
 
 ## Why This Matters
 
-**A misattributed constraint cannot be questioned.** "The standard requires it" ends the conversation; "this host's renderer truncates there, verified on this date" invites the next useful question. The whole repo was tuned to one host's truncation while a second host's bound went unmodeled for months. It turned out to be looser, so the existing ratchet already covered it — that was luck, not design.
+**A misattributed constraint cannot be questioned.** "The standard requires it" ends the conversation; "this host's renderer truncates there, verified on this date" invites the next useful question. The whole repo was tuned to one host's truncation while a second host's bound went unmodeled for months. Attributing it split that bound in two: a per-skill cap the existing ratchet already covered by luck, and an aggregate cap across everything invoked in one session that no per-file check can express and nothing currently guards. The first was invisible because the number was unattributed; the second was invisible because nobody had asked what *shape* the bound was.
 
 **The attribution determines what compliance means.** Once the bound is known to apply only on a specific host path, shrinking a skill stops being a compliance chore with an invented authority behind it and becomes a precondition for a specific capability, with a reason a reviewer can weigh.
 

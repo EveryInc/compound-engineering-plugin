@@ -22,10 +22,15 @@ import path from "node:path"
  * 500 lines") is explicitly a recommendation. A second, independent host bound exists and is
  * deliberately not gated separately here: Claude Code auto-compaction re-attaches each invoked
  * skill keeping only its first 5,000 tokens, within a 25,000-token combined budget filled from
- * the most recently invoked (https://code.claude.com/docs/en/skills). 5,000 tokens is roughly
- * 20KB, so this 8000-byte ratchet is the tighter bound and subsumes it -- revisit only if that
- * ordering ever inverts. Both truncations keep the START of the file, which is why a body's
- * ordering is load-bearing: what must survive goes above what may be cut.
+ * the most recently invoked (https://code.claude.com/docs/en/skills). Only its PER-SKILL half is
+ * covered here: 5,000 tokens is roughly 20KB, so this 8000-byte ratchet subsumes it -- revisit
+ * only if that ordering ever inverts. Its COMBINED 25,000-token half is an aggregate over every
+ * skill invoked in one session, which a per-file check cannot express: at ~4 bytes/token an
+ * 8000-byte body is ~2000 tokens, so ~12 fully compliant skills exhaust it and the oldest are
+ * then dropped entirely. That invariant is deliberately UNGUARDED -- this file sizes each
+ * SKILL.md independently and no other test covers the aggregate. Do not read a green run here as
+ * proof the compaction budget is safe. Both truncations keep the START of the file, which is why
+ * a body's ordering is load-bearing: what must survive goes above what may be cut.
  */
 const CODEX_MAX_SKILL_PROMPT_BYTES = 8_000
 const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"
