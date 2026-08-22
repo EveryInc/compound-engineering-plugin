@@ -733,9 +733,12 @@ describe("ce-work right-sized routes", () => {
     expect(skill).toMatch(/never as a route back to `ce-plan` or `ce-brainstorm`/)
   })
 
-  test("a mechanical diff passes babysit:off to the shipping skill", async () => {
+  test("a mechanical diff passes babysit:off to the shipping skill, and the docs say the same", async () => {
     const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
     expect(shipping).toMatch(/Code review: skipped \(mechanical diff\)`, also pass `babysit:off`/)
+    const docs = await readRepoFile("docs/skills/ce-work.md")
+    expect(docs).toMatch(/purely mechanical diff[^.]*ships without a post-PR watch/)
+    expect(docs).not.toMatch(/Trivial route skips the task list and the post-PR watch/)
   })
 
   test("session-carried resolution accepts an in-conversation brief and intake does not re-route sized prompts", async () => {

@@ -10,7 +10,7 @@ Model tiering lives in this caller, not in prompt assets. Local prompt files hav
 
 #### 1.1 Local Research
 
-At every native subagent boundary in this phase and in deepening, classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and otherwise follow that boundary's stated fallback or failed-pass handling.
+At every native subagent boundary in this phase, classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and otherwise follow that boundary's stated fallback or failed-pass handling.
 
 A **Lightweight** Durable plan does not dispatch the research agents below. Ground it from bounded inline reads of the files the request names and their tests, note any `<root>/solutions/` entry whose title matches the topic, and continue to 1.1b; 1.4b's reclassification still applies when those reads surface an external contract surface.
 

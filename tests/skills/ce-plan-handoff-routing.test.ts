@@ -496,6 +496,14 @@ describe("ce-plan output-contract gate", () => {
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/When `ce-work` cannot be invoked, state the change and stop/)
   })
 
+  test("rules relocated out of the kernel are stated on both the intake and deepen paths", () => {
+    const FINAL_REVIEW_BODY = readFileSync(path.join(process.cwd(), "skills/ce-plan/references/final-review.md"), "utf8")
+    const DEEPENING_BODY = readFileSync(path.join(process.cwd(), "skills/ce-plan/references/deepening-workflow.md"), "utf8")
+    // The deepen fast path (resume.md -> Phase 5.3) never loads intake.md or research.md.
+    for (const body of [INTAKE_BODY, FINAL_REVIEW_BODY]) expect(body).toMatch(/task-tracking capability/)
+    for (const body of [RESEARCH_BODY, DEEPENING_BODY]) expect(body).toMatch(/classify a rejected dispatch by whether an agent launched/)
+  })
+
   test("Lightweight Durable grounds inline instead of dispatching research agents", () => {
     expect(RESEARCH_BODY).toMatch(/\*\*Lightweight\*\* Durable plan does not dispatch the research agents/)
     expect(RESEARCH_BODY).not.toContain("Local Research (Always Runs)")

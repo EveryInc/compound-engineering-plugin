@@ -781,7 +781,9 @@ Units:
 - U2. test/greet.test.js: add both cases using node:test.`,
     grade: {
       committed_must: ["src/greet.js"],
-      must_exclude: ["ce-plan"],
+      workspace_contains: [{ path: "src/greet.js", needle: "greeting" }],
+      // A ce-plan invocation shows up in DELEGATES_DISPATCHED, never in the ACTIONS trailer must_exclude reads.
+      delegates: "none",
     },
   },
   {

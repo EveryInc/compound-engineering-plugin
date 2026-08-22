@@ -121,7 +121,7 @@ Every PR description includes a `Post-Deploy Monitoring & Validation` section. I
 
 ### Smart triage on bare prompts
 
-Not every invocation has a plan. `ce-work` accepts a bare prompt and triages by complexity before its first reference read: trivial or mechanical work (a couple of files, no behavioral change or a purely mechanical one) goes straight to implementation with no task list and ships without a post-PR watch (`babysit:off` is passed to the shipping skill); a prompt that `ce-plan` already sized in this session — a Direct statement or a chat brief — is executed, never routed back to planning; small or medium work builds a task list; large or sensitive work recommends `/ce-brainstorm` or `/ce-plan` first. The triage is what makes direct invocation reasonable for small work.
+Not every invocation has a plan. `ce-work` accepts a bare prompt and triages by complexity before its first reference read: trivial work (a couple of files, no behavioral change) goes straight to implementation with no task list, and a purely mechanical diff (formatting, dependency bump, lint-only, generated) also ships without a post-PR watch (`babysit:off` is passed to the shipping skill); a prompt that `ce-plan` already sized in this session — a Direct statement or a chat brief — is executed, never routed back to planning; small or medium work builds a task list; large or sensitive work recommends `/ce-brainstorm` or `/ce-plan` first. The triage is what makes direct invocation reasonable for small work.
 
 Invocation origin does not change this. Agent harnesses do not reliably tell the skill whether the user named it or the model selected it. If the conversation carries one unambiguous active plan (for example, the agent just authored it and the user says "proceed"), that plan is used before bare-prompt triage. Otherwise a concrete implementation request is the bare prompt.
 
@@ -168,7 +168,7 @@ If you want implementation to go through `ce-work` by default, add a standing in
 
 > When asked to build or change code, invoke the `ce-work` skill. For a change already specified down to the files it touches with no behavior change — a typo, a rename, a dependency bump — make the change directly instead.
 
-`ce-work` is cheap on that kind of work when it does fire — the Trivial route skips the task list and the post-PR watch — but not invoking it at all is cheaper still, which is what the skip clause buys.
+`ce-work` is cheap on that kind of work when it does fire — the Trivial route skips the task list, and a mechanical diff also skips the post-PR watch — but not invoking it at all is cheaper still, which is what the skip clause buys.
 
 ---
 
