@@ -1531,3 +1531,24 @@ describe("testing-reviewer contract", () => {
     expect(content).toContain("Non-behavioral changes")
   })
 })
+
+describe("ce-code-review dispatch templates", () => {
+  // #1509: a placeholder named in the template's prose gets filled like a slot, so
+  // `{diff}` in the closing note re-emitted the whole diff into every reviewer prompt.
+  // Each placeholder may appear only once inside the fenced template, as its slot.
+  test("the reviewer template names each placeholder once, as a slot", async () => {
+    const content = await readRepoFile(
+      "skills/ce-code-review/references/subagent-template.md",
+    )
+    // The template fence nests a ```json example, so bound it by the heading that follows it.
+    const fenced = content.match(/^```\n[\s\S]*?^```\n\n## Variable Reference/m)?.[0]
+    expect(fenced).toBeDefined()
+    const counts = new Map<string, number>()
+    for (const m of fenced!.matchAll(/\{([a-z_]+)\}/g)) {
+      counts.set(m[1], (counts.get(m[1]) ?? 0) + 1)
+    }
+    for (const name of ["file_list", "diff"]) {
+      expect(counts.get(name)).toBe(1)
+    }
+  })
+})
