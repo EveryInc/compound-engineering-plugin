@@ -70,6 +70,18 @@ One-time full runs of the same three paths were also run in this session as end-
 
 Neither `ce-plan` nor `ce-brainstorm` loaded implicitly on any prompt in either arm on either host. So the plan's own rule applies (R9, U2): the description negatives are unverified as the cause of the reported over-triggering and were not shipped. `ce-brainstorm`'s existing negative already decides the small-change case; `ce-plan`'s candidate clause is recorded in KTD9 for a future run that can reproduce a description-driven false trigger. The observed trigger source in these sessions is not the description; the likeliest sources of the user's report are their own standing instructions or explicit invocation, which this change makes cheap instead of blocking.
 
+## Live sessions (Orca-spawned TUIs)
+
+Interactive sessions on this worktree's skills, driven through Orca terminals in a throwaway seeded repo. Claude Code ran with `--plugin-dir <worktree>`; Codex ran with a throwaway `CODEX_HOME` whose `skills/compound-engineering-local` links to `<worktree>/skills`. Grok's TUI exited before answering in both attempts, so Grok stays covered by the eval cell only.
+
+| Prompt | Claude | Codex |
+|---|---|---|
+| explicit `ce-plan`: optional greeting argument + tests | Chat brief: summary, two units, one decision line (node:test over a framework), save-or-`ce-work` offer; no file, no subagent | Selected Direct, handed to `ce-work`, which implemented, ran review (no findings), and committed on a branch; no plan file, no research; no PR (no remote). Tier choice differs from Claude's Chat brief — a judgment variance, not a contract miss |
+| implicit: "fix the typo in src/greet.js …" | Edited the file directly; no skill loaded | Auto-selected `ce-debug` ("fix failing behavior"), read four references, wrote a root-cause analysis, and stopped on a blocking "How would you like me to proceed?" before the one-line fix |
+| implicit: optional greeting argument, "just decide and do it" | Decided in one line (signature default) and implemented directly; no skill loaded | not run |
+
+The Codex typo row reproduces the original complaint on a path this change left out of scope: `ce-debug`'s description pulls a typo fix into its diagnosis loop on Codex, and its trivial fast-path still asks the fix-choice question before editing. That is a `ce-debug` activation and fast-path finding, recorded as follow-up in the plan; `ce-plan`, `ce-brainstorm`, and `ce-work` did not fire on that prompt on either host.
+
 ## Deterministic checks
 
 `bun run test` (3,555 tests), `bun run release:validate`, `bun run plugin:validate`: green at every commit on the branch. Kernel sizes (CRLF-adjusted, 8,000 cap): `ce-plan` 7,788, `ce-brainstorm` 7,666, `ce-work` 7,664.
