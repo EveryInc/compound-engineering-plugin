@@ -10,7 +10,7 @@ Companion to `docs/plans/2026-08-22-0934-fix-right-size-skill-ceremony-plan.md`.
 bun run test:skill-eval-pack -- --id <row> --arm ab --hosts claude,codex,grok --out <dir>
 ```
 
-Three post passes were run because the prose moved while cells were in flight: pass 1 (pre + the first draft), pass 2 (after the reader-pass restatements), pass 3 (the committed prose, with `git_remote` on the shipping rows). Pass 1's pre arms are the baseline evidence; pass 3 is the post evidence; pass 2 is reported for completeness.
+Three post passes were run because the prose moved while cells were in flight: pass 1 (pre + the first draft), pass 2 (after the reader-pass restatements), pass 3 (the committed prose, with `git_remote` on the shipping rows). Pass 1's pre arms are the baseline evidence; pass 3 is the post evidence; pass 2 is reported for completeness. The Direct row was re-run pre/post after its task was retargeted at the state-and-stop branch; that rerun is the row's reported result.
 
 **Activation rows** cannot run in the cell, which injects one skill and cannot observe the harness choosing one. They ran as fresh host sessions with the whole plugin loaded, per arm:
 
@@ -24,7 +24,7 @@ Three post passes were run because the prose moved while cells were in flight: p
 
 | Row | Invariant | Pre (pass 1) | Post (pass 3) |
 |---|---|---|---|
-| `ce-plan/direct-trivial-stays-in-chat` | typo fix: no file, no subagent, hands to `ce-work` | claude PASS, codex FAIL (dispatched research), grok PASS | grok PASS; claude and codex graded FAIL by the original grade — see the Direct note below; re-run with the state-and-stop task: see `direct` rerun |
+| `ce-plan/direct-trivial-stays-in-chat` | typo fix: no file, no subagent, stated in chat (state-and-stop branch) | claude PASS, codex FAIL (dispatched research), grok FAIL (dispatched research) | all PASS |
 | `ce-plan/chat-brief-small-no-file` | one-decision change: brief in chat, no file | claude FAIL (wrote plan file), codex FAIL (wrote plan file), grok FAIL (timed out writing) | all PASS |
 | `ce-plan/risky-small-stays-durable` | two-line auth change: plan file written | claude PASS, codex PASS, grok timeout | claude PASS, codex PASS, grok timeout |
 | `ce-plan/no-implement` (existing) | planning never implements | claude PASS, codex FAIL (baseline), grok FAIL (baseline) | all PASS |
@@ -48,9 +48,9 @@ The Durable, Standard-brainstorm, and reviewed-ship paths are unchanged past the
 
 | Row | Invariant | Pre | Post |
 |---|---|---|---|
-| `ce-plan/medium-feature-routes-durable` | multi-file feature is delivered as a plan file | see below | see below |
+| `ce-plan/medium-feature-routes-durable` | multi-file feature is delivered as a plan file | all PASS | all PASS |
 | `ce-brainstorm/standard-scope-routes-to-file` | localization scope classifies Standard and heads to a file | all PASS | all PASS |
-| `ce-work/behavior-fix-routes-to-review` | whitespace-trim fix is Small/Medium, reviewed, default watch | see below | see below |
+| `ce-work/behavior-fix-routes-to-review` | whitespace-trim fix is Small/Medium, reviewed, default watch | all PASS | all PASS |
 
 One-time full runs of the same three paths were also run in this session as end-to-end evidence (hand-read from the cell artifacts; not kept as catalog rows):
 
