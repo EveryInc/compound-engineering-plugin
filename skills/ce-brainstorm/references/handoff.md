@@ -1,7 +1,9 @@
 # Handoff
 
 This content is loaded when Phase 4 begins — after the requirements-only
-unified plan is written.
+unified plan is written, or after a Lightweight run's chat paragraph is
+delivered with no file earned. Options that need an artifact hide themselves
+below; the handoff itself is presented on both paths.
 
 ---
 
