@@ -709,12 +709,14 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     git_init: true,
     fixture: `${FIX}/tiny-auth`,
     timeout_secs: 900,
-    why: "A two-line change on an authentication surface is small but risky; the gate's risk pin overrides size and the run writes a Durable plan.",
+    why: "A two-line change on an authentication surface is small but risky; the gate's risk pin overrides size and the run writes a Durable plan without touching the auth source.",
     pre_contract: "Always write the plan file.",
     task: `Use ce-plan: set the Secure and SameSite=Strict flags on the session cookie in src/session.js.`,
     grade: {
       must_include: ["docs/plans"],
       git: "dirty",
+      // The dirty tree must be the plan file, not an edit to the surface under review.
+      workspace_contains: [{ path: "src/session.js", needle: "HttpOnly; Path=/`" }],
     },
   },
   {

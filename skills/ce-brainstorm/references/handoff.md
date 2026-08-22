@@ -64,7 +64,7 @@ Present only the options that apply. Renumber so visible options stay contiguous
 4. **Open in browser** — open the HTML unified plan locally for review and sharing. Shown only when an HTML unified plan exists. **Render only when `OUTPUT_FORMAT=html`.**
 5. **More clarifying questions to sharpen the scope** - Keep refining scope, edge cases, constraints, and preferences through further dialogue. Always shown — so the label names the scope rather than the doc, which stays true on a run that correctly skipped doc creation.
 
-There is no "done" / "pause" option — the blocking question already waits, and the user ends by dismissing it (Esc) or saying they're finished. The unified plan artifact is already saved.
+There is no "done" / "pause" option — the blocking question already waits, and the user ends by dismissing it (Esc) or saying they're finished. When a file was earned, the unified plan artifact is already saved; on the chat path there is no file and nothing to save.
 
 **Post-review nudge (subsequent rounds only):** If the user has already run `ce-doc-review` this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "Document review flagged 2 P1 findings you may want to address — pick \"Pressure-test the requirements\" to run another pass."). Reference the option by label, not number: the menu renumbers when `Resolve Before Planning` hides `Create the implementation plan` and the lfg option, so a hardcoded option number can point users at the wrong action. Do not add a separate menu option; reuse the existing `Pressure-test the requirements` option. Suppress this nudge whenever that option is not on the rendered menu — when **Prototype a remaining feel-question** displaced it — so the nudge never points users at an action they cannot pick.
 
@@ -139,7 +139,7 @@ Key decisions:
 - [Decision 1]
 - [Decision 2]
 
-Recommended next step: `ce-plan <plan artifact path>`
+Recommended next step: `ce-plan <plan artifact path>`  # with no artifact: `ce-plan` with the key decisions above as its input
 ```
 
 If the user pauses with `Resolve Before Planning` still populated, display:
