@@ -99,6 +99,11 @@ A bulk evidence artifact — verbatim quotes with source pointers, gathered by a
 ### Outcome spine
 The part of a Skill that must hold without any reference loaded: the result it produces and who consumes it next, the done condition, the safe failure direction, and the facts the agent cannot derive from the repository in front of it. Everything else in the skill is protocol or judgment attached to that spine, and a block that cannot name its spine is restated before it is edited.
 
+### Host prompt budget
+The ceiling a specific agent host places on how much of a Skill's body it will keep in the model-visible prompt, enforced by that host's own loader rather than by any plugin or skill specification. Each host sets its own and reaches it by a different route — one may truncate the body outright and only for packages declaring a particular manifest shape, another may re-attach a shortened copy of each invoked skill after summarizing a long conversation — so a body that survives intact on one host can silently lose its tail on another.
+
+Every known truncation keeps the beginning of the body and discards the rest, and none of them reports an error. That is what makes ordering load-bearing: what must survive belongs above what may be cut, and a stop class or boundary rule sitting below a long routing block can disappear while every mechanical check still passes. A repository that ratchets body size sets that ratchet from the tightest bound among the hosts it ships against — a scoped engineering constraint whose owner and scope are re-verified at the source, not a conformance requirement of any specification. Load stub and Phase-loaded kernel are the two shapes content takes when it moves out of the body to fit.
+
 ### Load stub
 The inline remnant left in a Skill when load-bearing content moves to a reference file: a load instruction that names what the reference contains and the failure mode of skipping it, while keeping no detail an agent could improvise from — making the load structurally necessary rather than advisory.
 

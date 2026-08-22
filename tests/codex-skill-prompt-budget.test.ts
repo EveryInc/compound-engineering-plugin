@@ -15,6 +15,17 @@ import path from "node:path"
  * So the root manifest stays schema-less unconditionally (docs/specs/agent-plugins.md); a
  * strict client that needs conformance gets a separately emitted package. Independently, no
  * new skill may cross Codex's byte bound, and OVER_BUDGET shrinks as skills are restructured.
+ *
+ * Provenance of the number (verified 2026-08-21): 8000 is Codex's MAX_SKILL_PROMPT_BYTES, NOT
+ * an Agent Plugins requirement. The spec has no size limit of any kind, and the Agent Skills
+ * spec it defers to constrains only frontmatter -- its body guidance ("< 5000 tokens", "under
+ * 500 lines") is explicitly a recommendation. A second, independent host bound exists and is
+ * deliberately not gated separately here: Claude Code auto-compaction re-attaches each invoked
+ * skill keeping only its first 5,000 tokens, within a 25,000-token combined budget filled from
+ * the most recently invoked (https://code.claude.com/docs/en/skills). 5,000 tokens is roughly
+ * 20KB, so this 8000-byte ratchet is the tighter bound and subsumes it -- revisit only if that
+ * ordering ever inverts. Both truncations keep the START of the file, which is why a body's
+ * ordering is load-bearing: what must survive goes above what may be cut.
  */
 const CODEX_MAX_SKILL_PROMPT_BYTES = 8_000
 const AGENT_PLUGINS_SCHEMA_PREFIX = "https://agent-plugins.org/schemas/"

@@ -29,13 +29,18 @@ type Target = (typeof IMPLEMENTED_TARGETS)[number]
 const PLUGIN_NAMES = ["compound-engineering"] as const
 type PluginName = (typeof PLUGIN_NAMES)[number]
 
-// Note on skill body size: an "8KB Codex skill body cap" circulates in
-// ecosystem lint tooling (e.g. wshobson/agents harness_portability.py), but it
-// is not in the Codex source (codex-rs/core-skills has no body-size constant)
-// or the official docs. The real Codex limit is an ~8,000-character budget on
-// the injected skills METADATA LIST; full SKILL.md bodies are read from disk
-// on demand. So no body-size check is enforced here. The codex-path
-// description cap is converter-enforced (src/converters/claude-to-codex.ts
+// Note on skill body size: no body-size check is enforced here, but the reason
+// is narrower than it once was. Two distinct Codex 8,000s exist, both in
+// codex-rs/ext/skills/src/render.rs (re-verified 2026-08-21):
+// DEFAULT_SKILL_METADATA_CHAR_BUDGET bounds the injected skills METADATA LIST,
+// and MAX_SKILL_PROMPT_BYTES truncates the BODY -- but the latter applies only
+// on the Agent Plugins path, which this repo does not take (the root manifest
+// stays schema-less; docs/specs/agent-plugins.md). On the legacy path this
+// conversion targets, full SKILL.md bodies are read from disk on demand, so
+// there is nothing to gate here. tests/codex-skill-prompt-budget.test.ts owns
+// the body-size ratchet. Neither number comes from the Agent Plugins spec,
+// which imposes no size limit at all. The codex-path description cap is
+// converter-enforced (src/converters/claude-to-codex.ts
 // CODEX_DESCRIPTION_MAX_LENGTH).
 
 // ---------------------------------------------------------------------------
