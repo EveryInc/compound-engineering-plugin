@@ -25,7 +25,7 @@ execution: code
 
 ### Summary
 
-Add a proportionality gate to `ce-plan`, `ce-brainstorm`, and `ce-work` that decides, before any research or subagent spend, whether the work needs this skill's durable deliverable. `ce-plan` gains three output contracts selected by that gate — Direct, Chat brief, Durable — with the Durable unified-plan floor unchanged. `ce-brainstorm`'s Lightweight tier defaults to chat with no file. `ce-work`'s mechanical route stops the post-PR watch by passing the callee's existing `babysit:off`. Skill descriptions on `ce-plan` and `ce-brainstorm` name the small-change case as not theirs so harnesses stop auto-triggering them on it. The `ce-plan` and `ce-work` skill pages gain a recommended standing instruction that excludes the small change.
+Add a proportionality gate to `ce-plan`, `ce-brainstorm`, and `ce-work` that decides, before any research or subagent spend, whether the work needs this skill's durable deliverable. `ce-plan` gains three output contracts selected by that gate — Direct, Chat brief, Durable — with the Durable unified-plan floor unchanged. `ce-brainstorm`'s Lightweight tier defaults to chat with no file. `ce-work`'s mechanical route stops the post-PR watch by passing the callee's existing `babysit:off`. Skill descriptions on `ce-plan` and `ce-brainstorm` gain a small-change negative only if the activation eval shows a description-driven false trigger to block. The `ce-plan` and `ce-work` skill pages gain a recommended standing instruction that excludes the small change.
 
 ### Problem Frame
 
