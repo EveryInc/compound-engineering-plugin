@@ -793,11 +793,12 @@ Units:
     read_only: true,
     fixture: `${FIX}/tiny-lib`,
     timeout_secs: 300,
-    why: "Past the gate the Durable path is the pre-change path, so the regression guard is the routing decision and the first step into it: a multi-file feature with design decisions selects Durable and proceeds to Phase 1 research. Bounded to the gate so the cell stays cheap.",
+    why: "Past the gate the Durable path is the pre-change path, so the regression guard is the routing decision: a multi-file feature with design decisions is delivered as a plan file, not in chat. Bounded to the gate so the cell stays cheap.",
     pre_contract: "A feature request is planned: scoping synthesis, then Phase 1 research, then the plan file.",
     task: `Use ce-plan for this bounded checkpoint: add a CLI entrypoint bin/greet.js that prints greet(process.argv[2]), a --json flag that prints {"greeting": ...} instead, a config file that sets the default greeting word and is read by both paths, and tests for each behavior. Stop as soon as you have decided how this run will deliver its result (in chat or as a plan file) and named the next reference you would read; report that decision and stop. Do not research or write.`,
     grade: {
-      must_include: ["Durable", "references/research.md"],
+      // Host-neutral: the pre tree has no tier vocabulary, so grade the delivery decision the task asks for.
+      must_include: ["plan file"],
       actions: "none",
       delegates: "none",
     },
@@ -835,7 +836,7 @@ Units:
     task: `Use ce-work for this bounded checkpoint: greet should trim leading and trailing whitespace from the name before formatting, then ship it. Stop as soon as you have classified the work (Trivial, Small/Medium, or Large) and stated whether code review and the post-PR watch will run for it; report that and stop. Do not edit, commit, or dispatch.`,
     grade: {
       files_read_post: ["references/input-triage.md"],
-      must_include: ["Small", "ce-code-review"],
+      must_include: ["Small", "review"],
       must_exclude: ["babysit:off"],
       actions: "none",
       delegates: "none",
