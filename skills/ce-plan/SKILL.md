@@ -16,7 +16,7 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 
 ## Mandatory Completion Contract
 
-A run is complete when its output contract's done condition is met. Every normal interactive branch that produces a plan artifact or checkpoint is incomplete until its owning handoff question is presented: for a Durable software implementation-plan run that continues past Phase 0.1b, the Phase 5.4 menu presented and any selected action has actually fired. For Direct, the change stated and handed to `ce-work` or the user; for a Chat brief, the brief and its one-line save-or-`ce-work` offer in chat. Neither presents the Phase 5.4 menu. Non-software and approach-altitude routes use their reference workflow's terminal handoff. Answer-seeking may end after the answer unless its owner requires save/share.
+A run is complete when its output contract's done condition is met. Every normal interactive branch that produces a plan artifact or checkpoint is incomplete until its owning handoff question is presented: for a Durable software implementation-plan run that continues past Phase 0.1b, the Phase 5.4 menu presented and any selected action has actually fired. For Direct, the change stated and the handoff offered; for a Chat brief, the brief and its one-line save-or-`ce-work` offer in chat. Neither presents the Phase 5.4 menu. Non-software and approach-altitude routes use their reference workflow's terminal handoff. Answer-seeking may end after the answer unless its owner requires save/share.
 
 Writing the file, checking confidence, and running or explicitly skipping `ce-doc-review` are intermediate milestones. Pipeline mode is complete only when the plan, confidence check, and non-interactive document-review state are returned to its caller; the caller owns the next action.
 
@@ -28,7 +28,7 @@ Ask one question at a time through the host's blocking-question capability. If n
 
 The gate resolves at the start of Phase 0.6, before depth and the scoping synthesis. It applies only when no Phase 0.1 route fired and Phase 0.2 found no upstream artifact. Ground it with bounded inline reads of the surfaces the request names; dispatch no subagent. Select one:
 
-- **Direct** — the work can be stated, done, and verified in one pass with no decision the user would weigh. State the change in a few sentences and hand it to `ce-work` or the user.
+- **Direct** — the work can be stated, done, and verified in one pass with no decision the user would weigh. State the change in a few sentences and offer the handoff to `ce-work` or the user; execution starts only on acceptance.
 - **Chat brief** — bounded work with at most one decision the user would weigh and no risk surface. Deliver it in chat and stop.
 - **Durable** — everything else. Continue the workflow below.
 
