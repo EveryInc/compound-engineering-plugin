@@ -113,7 +113,7 @@ If the bootstrap reveals that a different workflow would serve the user better:
 
   **Headless mode**: skip the `ce-debug` suggestion menu entirely; default to continuing with `ce-plan` (the user's explicit invocation). There is no synchronous user to resolve a route-out choice, and auto-routing to `ce-debug` would change the skill mid-flight without authorization.
 
-- **Clear task ready to execute** (known root cause, obvious fix, no architectural decisions) — suggest `ce-work` as a faster alternative alongside continuing with planning. The user decides.
+- **Clear task ready to execute** (known root cause, obvious fix, no architectural decisions) — no routing question; the kernel's Output Contract gate resolves it at Phase 0.6, and the user can redirect at any point.
 
 #### 0.5 Classify Outstanding Questions Before Planning
 
@@ -131,6 +131,8 @@ If true product blockers remain:
 
 #### 0.6 Assess Plan Depth
 
+First resolve the kernel's Output Contract gate. A Direct or Chat brief selection exits intake to `references/output-contracts.md` without classifying depth; only Durable continues here.
+
 Classify the work into one of these plan depths:
 
 - **Lightweight** - small, well-bounded, low ambiguity
@@ -139,11 +141,13 @@ Classify the work into one of these plan depths:
 
 If depth is unclear, ask one targeted question and then continue.
 
+For a material Durable run, use the host's task-tracking capability when available to show route-level outcomes and meaningful transitions. If unavailable, continue without simulating it in chat.
+
 #### 0.7 Solo-Mode Scoping Synthesis
 
 Surface call-outs to the user — the specific forks in scope or approach where user input materially changes the plan — so scope can be corrected **before Phase 1 research is spent**. Sub-agent dispatch (repo-research-analyst, learnings-researcher, etc.) is the expensive next step this phase guards against wasted effort on.
 
-Fires **only in solo invocation** — when Phase 0.2 found no upstream Product Contract source (no requirements-only unified plan and no legacy `*-requirements` doc; `product_contract_source: ce-plan-bootstrap`) AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning) AND Phase 0.5 cleared (no unresolved blockers) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Each guard is an explicit conditional. Skip Phase 0.7 entirely when any guard fails — upstream-sourced invocations (unified-plan enrichment or legacy brainstorm) defer to Phase 5.1.5 instead.
+Fires **only in solo invocation** — when Phase 0.2 found no upstream Product Contract source (no requirements-only unified plan and no legacy `*-requirements` doc; `product_contract_source: ce-plan-bootstrap`) AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning) AND Phase 0.5 cleared (no unresolved blockers) AND not on Phase 0.1 fast paths (resume normal, deepen-intent) AND Phase 0.6's Output Contract gate selected Durable. Each guard is an explicit conditional. Skip Phase 0.7 entirely when any guard fails — upstream-sourced invocations (unified-plan enrichment or legacy brainstorm) defer to Phase 5.1.5 instead.
 
 **Read `references/synthesis-summary.md` before composing the scoping synthesis.** It carries the affirmability test, keep-test criteria, detail test, summary shape budgets, the literal confirmation and auto-proceed templates, granularity rules, anti-patterns, revision-vs-confirmation discipline, doc-shape routing, soft-cut behavior, self-redirect support, the worked PII compression example, and full headless-mode routing — all required for a well-shaped synthesis.
 

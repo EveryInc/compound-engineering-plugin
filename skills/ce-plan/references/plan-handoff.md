@@ -1,6 +1,6 @@
 # Plan Handoff
 
-This file contains post-plan-writing instructions: document review, post-generation options, and issue creation. Load it after the plan file has been written and the confidence check (5.3.1-5.3.7) is complete.
+This file contains post-plan-writing instructions for the Durable path: document review, post-generation options, and issue creation. Load it after the plan file has been written and the confidence check (5.3.1-5.3.7) is complete. Direct and Chat brief results never reach it.
 
 ## 5.3.8 Document Review
 

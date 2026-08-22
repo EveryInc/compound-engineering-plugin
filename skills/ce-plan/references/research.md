@@ -8,9 +8,13 @@ All specialist research and deepening prompts used in this phase are skill-local
 
 Model tiering lives in this caller, not in prompt assets. Local prompt files have no frontmatter. Use the platform's mid-tier model for external/organizational research prompts such as `slack-researcher` and `web-researcher` when the current harness exposes a known override; otherwise omit the override and inherit. Use inherited model for high-judgment architecture, migration, and planning-deepening prompts unless the harness has an established cheaper capable tier.
 
-#### 1.1 Local Research (Always Runs)
+#### 1.1 Local Research
 
-Prepare a concise planning context summary (a paragraph or two) to pass as input to the research agents:
+At every native subagent boundary in this phase and in deepening, classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and otherwise follow that boundary's stated fallback or failed-pass handling.
+
+A **Lightweight** Durable plan does not dispatch the research agents below. Ground it from bounded inline reads of the files the request names and their tests, note any `<root>/solutions/` entry whose title matches the topic, and continue to 1.1b; 1.4b's reclassification still applies when those reads surface an external contract surface.
+
+For Standard and Deep, prepare a concise planning context summary (a paragraph or two) to pass as input to the research agents:
 - If an origin document exists, summarize the problem frame, requirements, and key decisions from that document
 - Otherwise use the feature description directly
 - Read `STRATEGY.md` at the repo root (the shared project doc), and a legacy `PRODUCT.md` or `VISION.md` only when `STRATEGY.md` is absent or does not carry a meaning you need, and include the relevant pieces (purpose, positioning or approach, active tracks, and stated boundaries or non-goals; go by each section's meaning, since heading names vary by writer and version) in the summary so downstream research and planning decisions are anchored to product strategy

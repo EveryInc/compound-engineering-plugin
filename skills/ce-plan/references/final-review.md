@@ -1,6 +1,6 @@
 # Final Review and Plan Write
 
-Phase 5.1 through 5.3.2 of `ce-plan`. Read this before writing the plan file.
+Phase 5.1 through 5.3.2 of `ce-plan`, on the Durable path only. Read this before writing the plan file.
 
 ### Phase 5: Final Review, Write File, and Handoff
 

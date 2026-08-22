@@ -1,6 +1,6 @@
 ---
 name: ce-brainstorm
-description: "Explore vague or ambitious ideas into a right-sized requirements-only unified plan. Use when the user wants to brainstorm, scope what to build, or needs collaborative product framing before planning. Also use when they must scope work in territory they do not know, or ask for a blindspot pass. Not for executing already-specified work — implementation, debugging, or code review with no product scope left to decide. Not for a verdict on whether to adopt or switch to a named external technology, library, or platform; that is ce-pov."
+description: "Explore vague or ambitious ideas into a right-sized requirements-only unified plan. Use when the user wants to brainstorm, scope what to build, or needs collaborative product framing before planning. Also use when they must scope work in territory they do not know, or ask for a blindspot pass. Not for executing already-specified work — a small change already specified down to the files it touches, implementation, debugging, or code review with no product scope left to decide. Not for a verdict on whether to adopt or switch to a named external technology, library, or platform; that is ce-pov."
 argument-hint: "[feature idea or problem to explore] [output:html]"
 ---
 
@@ -10,7 +10,9 @@ Brainstorming answers **WHAT** to build through dialogue; `ce-plan` then enriche
 
 **Outcome:** a right-sized requirements-only unified plan under `<root>/plans/` that planning can enrich without inventing product behavior, scope boundaries, or success criteria.
 
-**Done, on the brainstorm path:** that artifact is written and passes the Ready for Planning Check — or no doc was written because the user needed only brief alignment and those decisions can flow downstream without one — and Phase 4's handoff has been presented.
+**Done, on the brainstorm path:** that artifact is written and passes the Ready for Planning Check — or no file was written because the dialogue produced no decision a downstream consumer needs in IDed form and the user asked for none — and Phase 4's handoff has been presented.
+
+**Lightweight work ends in chat.** Phase 0.3 classifies the tier from the request and bounded inline reads before anything is dispatched; when the tier is uncertain, take the heavier one. Lightweight work — small, well-bounded, low ambiguity — ends in a chat paragraph with no file, no grounding scout, no approach generation, and no claim verifier. A file is earned only by a decision a downstream consumer needs in IDed form, or by the user asking for one.
 
 **Stop and route instead** in three cases, decided by `references/phase-0.md`, not from memory. Each ends the run its own way, so the done bar above does not apply: non-software work, where `references/universal-brainstorming.md` replaces Phases 0.2–4; a verdict question about a named external candidate, where you offer the `ce-pov` handoff; and neither — quick help, a factual question, a single-step task — answered directly.
 
@@ -58,8 +60,8 @@ These rules hold without any read:
 
 **`OUTPUT_FORMAT` is exclusive** — markdown OR HTML, never both — and pipeline mode (LFG, or any `disable-model-invocation` context) forces `md`.
 
-**On the brainstorm path the artifact contract does not change**: write to `<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>`, with `HHMM` from local wall-clock time at write; frontmatter carries `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`; the body is a Goal Capsule plus the Product Contract. Do **not** emit a Goal Launch Block or Reader Index. The non-software route writes none of this.
+**When a file is written on the brainstorm path the artifact contract does not change**: write to `<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>`, with `HHMM` from local wall-clock time at write; frontmatter carries `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`; the body is a Goal Capsule plus the Product Contract. Do **not** emit a Goal Launch Block or Reader Index. The non-software route writes none of this.
 
-**Do not declare the artifact written or enter Phase 4 while any check fails** in the Ready for Planning Check. An improvised Phase 4 menu is the other silent failure: it surfaces options that must be hidden and passes the wrong payload downstream.
+**When a file is written, do not declare it written or enter Phase 4 while any check fails** in the Ready for Planning Check; a chat result enters Phase 4 with no check to run. An improvised Phase 4 menu is the other silent failure: it surfaces options that must be hidden and passes the wrong payload downstream.
 
 The Phase 1.1 grounding scout, the Phase 2.6 claim verifier, and the opt-in Slack researcher are tiered by task shape, never hardcoded to a model name; read `references/model-tiers.md` before dispatching one. Model elevation is a separate mechanism (`references/reasoning-elevation.md`).

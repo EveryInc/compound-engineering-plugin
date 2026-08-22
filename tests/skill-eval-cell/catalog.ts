@@ -17,6 +17,8 @@ import { WORKTREE_REF } from "./extract"
 
 export const PRE_SWEEP_REF = "309611f6b5198528c1c98f83fb6b3c90637e523c"
 export const ISSUE_1482_BASE_REF = "66ccf579f8c1ef2ccfc642c317ba53151eeb1ebb"
+/** main before the right-size-ceremony change (#1513 release commit): the A/B base for its rows. */
+export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -651,6 +653,131 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
       actions: "none",
       git: "clean",
       workspace_contains: [{ path: "src/greet.js", needle: "hello ${name}" }],
+    },
+  },
+  {
+    id: "ce-plan/direct-trivial-stays-in-chat",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 600,
+    why: "A change already specified down to one file with no decision is the Direct contract: a few sentences in chat, no plan file, no subagent. Mutation is allowed so writing a plan can fail the grade.",
+    pre_contract: "When directly invoked, always plan: write a plan file and present the Phase 5.4 menu.",
+    task: `Use ce-plan: fix the greeting in src/greet.js so it returns "hello, <name>" with a comma after hello.`,
+    grade: {
+      files_read_post: ["references/output-contracts.md"],
+      must_include: ["ce-work"],
+      actions: "none",
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-plan/chat-brief-small-no-file",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 600,
+    why: "Bounded work with one decision and no risk surface is a Chat brief: units and test expectations in chat, no file, no research subagent, and a one-line save-or-ce-work offer.",
+    pre_contract: "Always write the plan file, run the confidence check and document review, then present the Phase 5.4 menu.",
+    task: `Use ce-plan: add an optional second argument to greet so callers can pass their own greeting word, keeping "hello" as the default, and add a test for both paths.`,
+    grade: {
+      files_read_post: ["references/output-contracts.md"],
+      must_include: ["ce-work"],
+      actions: "none",
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-plan/risky-small-stays-durable",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-auth`,
+    timeout_secs: 900,
+    why: "A two-line change on an authentication surface is small but risky; the gate's risk pin overrides size and the run writes a Durable plan.",
+    pre_contract: "Always write the plan file.",
+    task: `Use ce-plan: set the Secure and SameSite=Strict flags on the session cookie in src/session.js.`,
+    grade: {
+      must_include: ["docs/plans"],
+      git: "dirty",
+    },
+  },
+  {
+    id: "ce-brainstorm/lightweight-ends-in-chat",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-brainstorm",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 600,
+    why: "A small product tweak with one decision is Lightweight: a chat paragraph, no requirements-only plan file, no grounding scout.",
+    pre_contract: "Path A Lightweight announces the shape and proceeds to Phase 3 doc-write in the same turn.",
+    task: `Use ce-brainstorm: when greet is called with an empty name, should it fall back to "friend" or "world"? Pick one and we are done.`,
+    grade: {
+      files_read_post: ["references/phase-0.md"],
+      actions: "none",
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-work/mechanical-diff-ships-without-watch",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 900,
+    why: "A dependency-version bump is a mechanical diff: it is committed without a task list, review is skipped with the exact phrase, and the shipping handoff carries babysit:off.",
+    pre_contract: "Trivial route skips only the task list; the shipping handoff is default-on babysit.",
+    task: `Use ce-work: bump the version in package.json to 0.0.2 and ship it.`,
+    grade: {
+      committed_must: ["package.json"],
+      must_include: ["babysit:off"],
+    },
+  },
+  {
+    id: "ce-work/chat-brief-executes-without-replanning",
+    baseline_ref: RIGHT_SIZE_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 900,
+    why: "A chat brief from ce-plan is the current plan for this work: ce-work implements it on the Small/Medium route and never routes it back to ce-plan.",
+    pre_contract: "Bare prompts are triaged by size; Large signals suggest ce-plan.",
+    task: `Use ce-work. ce-plan already sized this in this session and produced this chat brief; proceed.
+
+Summary: greet gains an optional second argument, the greeting word, defaulting to "hello".
+Units:
+- U1. src/greet.js: add the greeting parameter with the default; test expectation: greet("ann") is "hello ann" and greet("ann", "hi") is "hi ann".
+- U2. test/greet.test.js: add both cases using node:test.`,
+    grade: {
+      committed_must: ["src/greet.js"],
+      must_exclude: ["ce-plan"],
     },
   },
   {

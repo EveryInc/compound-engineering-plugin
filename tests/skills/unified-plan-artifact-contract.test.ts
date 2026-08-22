@@ -217,7 +217,8 @@ describe("unified plan artifact contract", () => {
     expect(brainstormSections).toMatch(/Fix a failed check in place.*preserves settled intent/s)
     expect(brainstormSections).toContain("ask one targeted question")
     expect(brainstormSections).toMatch(/choose or change product behavior or\s+scope/)
-    expect(brainstormSkill).toContain("Do not declare the artifact written or enter Phase 4 while any check fails")
+    // 2026-08-22: the check is scoped to a written file; a Lightweight chat result enters Phase 4 with no check to run.
+    expect(brainstormSkill).toMatch(/do not declare it written or enter Phase 4 while any check fails/)
   })
 
   test("brainstorm handoff explains that downstream work consumes the written artifact", () => {
@@ -1135,5 +1136,29 @@ describe("Goal Capsule objective is outcome-shaped (issue #1423)", () => {
 
   test("coherence reviewer flags a mechanism-only Objective", () => {
     expect(coherence).toMatch(/mechanism-only Objective/i)
+  })
+})
+
+// 2026-08-22: Lightweight brainstorms end in chat unless a file is earned, and
+// ce-plan's no-plan rule moved from a Phase 5 reference to the intake gate.
+describe("right-sized brainstorm and plan outputs", () => {
+  const brainstormPhase0 = readRepoFile("skills/ce-brainstorm/references/phase-0.md")
+  const brainstormSkill2 = readRepoFile("skills/ce-brainstorm/SKILL.md")
+
+  test("ce-brainstorm decides Lightweight before its first reference read and ends Lightweight in chat", () => {
+    expect(brainstormSkill2).toContain("**Lightweight work ends in chat.**")
+    expect(brainstormSkill2).toMatch(/ends in a chat paragraph with no file/)
+    expect(brainstormPhase0).toContain("**Lightweight ends in chat.**")
+    expect(brainstormSkill2).toMatch(/When a file is written on the brainstorm path the artifact contract does not change/)
+  })
+
+  test("brainstorm-sections states the file-earning condition, not a doc-by-default trigger", () => {
+    expect(brainstormSections).toMatch(/A brainstorm ends in chat unless a file is earned/)
+    expect(brainstormSections).not.toContain("The trigger for creating a doc is")
+  })
+
+  test("plan-sections no longer biases toward writing a plan; the intake gate decides", () => {
+    expect(planSections).not.toContain("Bias toward producing a plan")
+    expect(planSections).toMatch(/Output Contract gate decides this at intake/)
   })
 })

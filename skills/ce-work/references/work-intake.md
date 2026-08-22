@@ -16,7 +16,7 @@ Read this when Phase 0 classifies a bare prompt, and again at Phase 1 before rea
 |-----------|---------|--------|
 | **Trivial** | 1-2 files, no behavioral change (typo, config, rename) | Proceed to Phase 1 step 2 (environment setup) and implement directly under the body's Trivial rule. Apply Test Discovery if the change touches behavior-bearing code |
 | **Small / Medium** | Clear scope, under ~10 files | Build a task list from discovery. Proceed to Phase 1 step 2 |
-| **Large** | Cross-cutting, architectural decisions, 10+ files, touches auth/payments/migrations | Inform the user this would benefit from `ce-brainstorm` or `ce-plan` to surface edge cases and scope boundaries. Honor their choice. If proceeding, build a task list and continue to Phase 1 step 2 |
+| **Large** | Cross-cutting, architectural decisions, 10+ files, touches auth/payments/migrations | Inform the user this would benefit from `ce-brainstorm` or `ce-plan` to surface edge cases and scope boundaries. Honor their choice. If proceeding, build a task list and continue to Phase 1 step 2. A prompt this session's `ce-plan` already sized is not re-routed; re-size it only between Trivial and Small/Medium, and when implementation surfaces a decision the user would weigh, stop before the write and ask or return the finding |
 
 ## Read the plan and clarify
 

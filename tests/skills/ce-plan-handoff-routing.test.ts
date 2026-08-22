@@ -455,3 +455,47 @@ describe("ce-plan post-generation menu routing", () => {
     })
   })
 })
+
+// 2026-08-22: the Output Contract gate lets ce-plan finish in chat for small,
+// well-specified work. These pins hold the seam that lets Direct and Chat brief
+// skip the Phase 5.4 menu without thinning the Durable floor.
+describe("ce-plan output-contract gate", () => {
+  const OUTPUT_CONTRACTS_BODY = readFileSync(
+    path.join(process.cwd(), "skills/ce-plan/references/output-contracts.md"),
+    "utf8",
+  )
+  const INTAKE_BODY = readFileSync(path.join(process.cwd(), "skills/ce-plan/references/intake.md"), "utf8")
+  const RESEARCH_BODY = readFileSync(path.join(process.cwd(), "skills/ce-plan/references/research.md"), "utf8")
+
+  test("kernel states the gate once, names its three tiers, and points at the chat-tier owner", () => {
+    const gate = SKILL_BODY.slice(SKILL_BODY.indexOf("## Output Contract"), SKILL_BODY.indexOf("## Workflow"))
+    expect(gate).toMatch(/Phase 0\.6/)
+    for (const tier of ["**Direct**", "**Chat brief**", "**Durable**"]) expect(gate).toContain(tier)
+    expect(gate).toContain("references/output-contracts.md")
+    expect(gate).toMatch(/take the heavier one/)
+    expect(gate).toMatch(/Pipeline or headless runs[^.]*Durable regardless of size/)
+  })
+
+  test("chat-tier results carry their own done condition beside the Phase 5.4 menu", () => {
+    const contract = SKILL_BODY.slice(SKILL_BODY.indexOf("## Mandatory Completion Contract"), SKILL_BODY.indexOf("## Interaction Method"))
+    expect(contract).toMatch(/Direct result is complete when/)
+    expect(contract).toMatch(/Chat brief is complete when/)
+    expect(contract).toMatch(/Neither presents the Phase 5\.4 menu/)
+  })
+
+  test("intake resolves the gate before the scoping synthesis and does not restate it", () => {
+    expect(INTAKE_BODY).toMatch(/First resolve the kernel's Output Contract gate/)
+    expect(INTAKE_BODY).toMatch(/Output Contract gate selected Durable/)
+    expect(INTAKE_BODY).not.toMatch(/\*\*Direct\*\* —/)
+  })
+
+  test("a saved Chat brief never claims the unified-plan contract", () => {
+    expect(OUTPUT_CONTRACTS_BODY).toMatch(/Do not set `artifact_contract` or `artifact_readiness`/)
+    expect(OUTPUT_CONTRACTS_BODY).toMatch(/never implements/)
+  })
+
+  test("Lightweight Durable grounds inline instead of dispatching research agents", () => {
+    expect(RESEARCH_BODY).toMatch(/\*\*Lightweight\*\* Durable plan does not dispatch the research agents/)
+    expect(RESEARCH_BODY).not.toContain("Local Research (Always Runs)")
+  })
+})

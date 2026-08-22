@@ -110,55 +110,9 @@ the sections the task needs — e.g. Goal Capsule, the active U-ID plus its cite
 R/F/AE/KTD, Verification Contract, and Definition of Done. Read the Appendix or
 unrelated units only when a section you are already reading cites them.
 
-## Decide whether a plan doc is warranted at all
+## Whether a plan file is warranted
 
-Not every invocation of `ce-plan` should produce a plan document. For
-genuinely atomic work, the doc is ceremony — the implementer (whether
-`ce-work` or a human) can act directly without IDed units, KTDs, or
-Requirements as a checklist.
-
-**Bias toward producing a plan.** The risk asymmetry favors writing one:
-a thin plan doc for small work is mild ceremony, but skipping a plan when
-one was warranted costs the implementer real time (reinvented decisions,
-lost unit boundaries, no IDed requirements to verify against). When unsure,
-write the plan.
-
-**Skip implementation-ready plan creation only when ALL of these hold:**
-
-- The work is **atomic** — fits in one commit, no meaningful unit boundaries
-  to break out independently.
-- There are **no design choices that constrain implementation** — no
-  Key Technical Decisions worth recording. If the work needs the implementer
-  to make a choice between two approaches, those approaches are KTDs and
-  a plan is warranted.
-- There are **no scope boundaries worth pinning** in writing — the work
-  scope is self-evident from the user's request.
-- **No upstream artifact** (a brainstorm with R-IDs, an incident report,
-  a deferred-follow-up item from a prior plan) needs traceability through
-  this plan.
-
-**Stress test the "looks atomic" case.** Many requests look atomic at first
-glance but hide design decisions:
-
-- *"Add caching to this endpoint"* — sounds atomic, but TTL, invalidation,
-  cache key shape, and backend selection are all KTDs. Write the plan.
-- *"Migrate from package A to package B"* — sounds mechanical, but
-  semantic differences between the packages create migration KTDs. Write
-  the plan.
-- *"Add rate limiting"* — sounds small, but algorithm, scope, and
-  configurability are all KTDs. Write the plan.
-
-vs. genuine skip cases:
-
-- *"Fix typo in README line 47"* — atomic, no KTDs, skip the plan.
-- *"Rename `oldFn` to `newFn` across the repo"* — mechanical, no design
-  choices, skip the plan.
-- *"Bump dependency X to v2.3.1"* — mechanical, skip the plan (unless the
-  bump introduces breaking changes that warrant unit-by-unit migration).
-
-When skipping the plan doc, the work proceeds directly to `ce-work` or to
-implementation, and any decisions made along the way land in the commit
-message or `<root>/solutions/` if they're worth carrying forward.
+The kernel's Output Contract gate decides this at intake, before any research: Direct and Chat brief results stay in chat (`references/output-contracts.md`); a Durable run writes the file this reference describes.
 
 ## Implementation-ready hard floor
 

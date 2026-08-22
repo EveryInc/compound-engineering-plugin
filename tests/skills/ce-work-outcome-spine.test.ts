@@ -722,3 +722,26 @@ describe("ce-work implementation evidence characterization", () => {
     expect(contract).toContain("**System-Wide Test Check**")
   })
 })
+
+// 2026-08-22: small work sized by ce-plan in the same session is executed, not
+// re-planned, and a mechanical diff ships without a post-PR watch.
+describe("ce-work right-sized routes", () => {
+  test("kernel decides the Trivial/mechanical route before the first reference read", async () => {
+    const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    expect(skill).toMatch(/A bare prompt that is Trivial[^.]*skips the task list/)
+    expect(skill).toMatch(/purely mechanical diff also ships without a post-PR watch/)
+    expect(skill).toMatch(/never as a route back to `ce-plan` or `ce-brainstorm`/)
+  })
+
+  test("a mechanical diff passes babysit:off to the shipping skill", async () => {
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
+    expect(shipping).toMatch(/Code review: skipped \(mechanical diff\)`, also pass `babysit:off`/)
+  })
+
+  test("session-carried resolution accepts an in-conversation brief and intake does not re-route sized prompts", async () => {
+    const triage = await readTriage()
+    expect(triage).toMatch(/one in-conversation brief from `ce-plan`/)
+    const intake = await readRepoFile("skills/ce-work/references/work-intake.md")
+    expect(intake).toMatch(/already sized is not re-routed/)
+  })
+})

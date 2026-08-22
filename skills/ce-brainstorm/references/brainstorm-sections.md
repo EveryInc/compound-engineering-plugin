@@ -61,19 +61,13 @@ inputs. Do not migrate or rewrite them when creating new artifacts.
 
 ## Decide whether a doc is warranted at all
 
-Brainstorm dialogue does not always need to produce a durable document.
-Skip document creation when **both** hold:
-
-- The user only needs brief alignment — no exploration produced novel scope,
-  framing, or decisions worth preserving in IDed shape.
-- Any durable decisions made during the dialogue can flow naturally to
-  downstream artifacts (`ce-plan`, the commit message, `<root>/solutions/`)
-  without a brainstorm doc as an intermediary.
-
-The trigger for creating a doc is when the dialogue surfaced enough
-structural decisions, scope boundaries, or acceptance criteria that
-downstream consumers (planner, reviewer, future reader) need them in a
-durable, IDed form — not just as conversational artifacts.
+A brainstorm ends in chat unless a file is earned. A file is earned when the
+dialogue surfaced structural decisions, scope boundaries, or acceptance
+criteria that downstream consumers (planner, reviewer, future reader) need in
+IDed form, or when the user asks for one. Decisions that flow naturally to
+downstream artifacts (`ce-plan`'s prompt, the commit message,
+`<root>/solutions/`) do not earn a file; `phase-0.md` 0.3 states the
+Lightweight case.
 
 **Stress test:** a brainstorm about a tiny bug fix where the user asks "fix
 this with a null check or with upstream validation?" and the agent confirms
