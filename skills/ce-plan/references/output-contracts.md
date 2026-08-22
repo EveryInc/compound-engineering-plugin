@@ -10,7 +10,7 @@ Read this when the kernel's Output Contract gate selects Direct or Chat brief. T
 
 ## Direct
 
-Say what changes, where, and how it is verified, in a few sentences. Then hand off: when the request is imperative ("fix", "rename", "bump") invoke `ce-work` with that statement as its prompt; otherwise state it and stop. A Direct result is complete when the statement is in chat and the handoff has fired or been offered.
+Say what changes, where, and how it is verified, in a few sentences. Then hand off: when the request is imperative ("fix", "rename", "bump") invoke `ce-work` with that statement as its prompt; otherwise state it and stop. When `ce-work` cannot be invoked, state the change and stop — `ce-plan` does not make the edit itself. A Direct result is complete when the statement is in chat and the handoff has fired or been offered.
 
 ## Chat brief
 

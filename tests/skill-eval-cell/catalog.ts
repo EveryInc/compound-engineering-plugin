@@ -66,6 +66,8 @@ export type Scenario = {
   git_untracked?: string[]
   shim_git_push?: boolean
   shim_gh_pr?: boolean
+  /** Configure a fake `origin` whose `main` is the seed commit, so the shipping tail takes the push/PR path instead of the local-commit path. Pair with shim_git_push. */
+  git_remote?: boolean
   fixture?: string
   timeout_secs?: number
   why: string
@@ -743,6 +745,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     key_behavior: "mutation",
     read_only: false,
     git_init: true,
+    git_remote: true,
     shim_git_push: true,
     shim_gh_pr: true,
     fixture: `${FIX}/tiny-lib`,
@@ -763,6 +766,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     key_behavior: "mutation",
     read_only: false,
     git_init: true,
+    git_remote: true,
     shim_git_push: true,
     shim_gh_pr: true,
     fixture: `${FIX}/tiny-lib`,

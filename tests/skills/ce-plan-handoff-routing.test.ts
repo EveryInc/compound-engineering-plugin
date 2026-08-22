@@ -493,6 +493,7 @@ describe("ce-plan output-contract gate", () => {
   test("a saved Chat brief never claims the unified-plan contract", () => {
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/Do not set `artifact_contract` or `artifact_readiness`/)
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/never implements/)
+    expect(OUTPUT_CONTRACTS_BODY).toMatch(/When `ce-work` cannot be invoked, state the change and stop/)
   })
 
   test("Lightweight Durable grounds inline instead of dispatching research agents", () => {
