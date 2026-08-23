@@ -38,9 +38,12 @@ function armsFor(scenario: Scenario, requested: Arm): EvalArm[] {
   if (requested === "pre") return ["pre"]
   if (requested === "post") return ["post"]
   if (requested === "preview") return scenario.preview_ref ? ["preview"] : []
-  // A row has an A/B pair when it was resized in the sweep or carries its own baseline.
-  if (scenario.cohort !== "resized" && !scenario.baseline_ref) return ["post"]
-  return ["pre", "post"]
+  return hasBaseline(scenario) ? ["pre", "post"] : ["post"]
+}
+
+/** A row has an A/B pair when it was resized in the sweep or carries its own baseline. */
+function hasBaseline(scenario: Scenario): boolean {
+  return scenario.cohort === "resized" || Boolean(scenario.baseline_ref)
 }
 
 function runCell(scenario: Scenario, arm: EvalArm, out: string, hosts?: string) {
@@ -103,7 +106,7 @@ function main() {
   }
   if (flag("--list")) {
     for (const s of selectedScenarios()) {
-      const ab = s.post_only ? "post-only" : s.cohort === "resized" || s.baseline_ref ? "A/B" : "post-only"
+      const ab = s.post_only ? "post-only" : hasBaseline(s) ? "A/B" : "post-only"
       console.log(`${s.id}\t${s.cohort}\t${ab}\t${s.key_behavior}\t${s.read_only ? "ro" : "live"}`)
     }
     return
