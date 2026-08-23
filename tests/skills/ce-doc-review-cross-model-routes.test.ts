@@ -730,6 +730,32 @@ exit 1
     expect(readFileSync(counter, "utf8")).toBe("1")
   })
 
+  test("does not combine overload fragments across diagnostic streams", () => {
+    const counter = path.join(mkTempRoot("xmodel-doc-529-stream-boundary-counter-"), "count")
+    const { env } = sandbox(
+      ["grok"],
+      `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s' 'API Error: 529'
+printf '%s\n' 'Overloaded' >&2
+exit 1
+`,
+    )
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    run(["claude", "grok", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("1")
+  })
+
   test("retries a successful-process Grok 529 envelope instead of publishing its schema stub", () => {
     const counter = path.join(mkTempRoot("xmodel-doc-grok-529-stub-counter-"), "count")
     const first = JSON.stringify({

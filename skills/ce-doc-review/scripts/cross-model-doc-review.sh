@@ -933,8 +933,7 @@ if terminal and not all(terminal_success(value) for value in terminal):
     print("failed")
     raise SystemExit
 
-plain = "\n".join(texts)
-if overload_text(plain):
+if any(overload_text(plain) for plain in texts):
     print("overloaded")
 else:
     print("ok")
