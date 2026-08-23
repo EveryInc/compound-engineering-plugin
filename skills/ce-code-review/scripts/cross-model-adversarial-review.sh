@@ -873,6 +873,7 @@ def scan(text):
 
 texts = []
 objects = []
+route = sys.argv[3]
 for path in sys.argv[1:3]:
     try:
         text = open(path, encoding="utf-8", errors="replace").read()
@@ -899,20 +900,27 @@ def terminal_success(value):
     stop_reason = str(value.get("stopReason", ""))
     if value.get("is_error") is True:
         return False
-    if value.get("type") == "result":
-        return subtype == "success"
-    if "stopReason" in value:
-        return stop_reason in {"end_turn", "completed", "success"}
-    if "terminal_reason" in value:
-        return terminal_reason in {"end_turn", "completed", "success"}
     terminal_status = status(value)
     if terminal_status is not None:
         try:
-            return 200 <= int(terminal_status) < 300
+            status_ok = 200 <= int(terminal_status) < 300
         except (TypeError, ValueError):
-            return str(terminal_status).lower() in {"ok", "success", "completed"}
+            status_ok = str(terminal_status).lower() in {"ok", "success", "completed"}
+        if not status_ok:
+            return False
+    if "stopReason" in value and stop_reason not in {"end_turn", "completed", "success"}:
+        return False
+    if "terminal_reason" in value and terminal_reason not in {"end_turn", "completed", "success"}:
+        return False
     if "api_error_status" in value:
-        return value.get("api_error_status") is None and value.get("is_error") is False
+        if value.get("api_error_status") is not None or value.get("is_error") is not False:
+            return False
+    if value.get("type") == "result":
+        if subtype:
+            return subtype == "success"
+        return route in {"grok-cursor", "cursor", "composer"}
+    if "stopReason" in value or "terminal_reason" in value or terminal_status is not None or "api_error_status" in value:
+        return True
     return value.get("is_error") is False
 
 terminal = [value for value in objects if terminal_record(value)]
@@ -920,7 +928,7 @@ if terminal and not all(terminal_success(value) for value in terminal):
     print("failed")
     raise SystemExit
 
-plain = texts[0] if sys.argv[3] == "codex" else texts[1]
+plain = texts[0] if route == "codex" else texts[1]
 lines = plain.splitlines()
 same_line = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)[^\r\n]*?(?:overload|capacity)", re.I)
 split_head = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)", re.I)

@@ -752,10 +752,11 @@ printf '%s' '${payload}'
     expect(r.files).not.toContain("adversarial-grok.json")
   })
 
-  test("rejects status-only and nested-status error envelopes before publishing schema stubs", () => {
+  test("rejects error statuses even when other terminal fields look successful", () => {
     const envelopes = [
       { status: 429 },
       { error: { status: 429 } },
+      { type: "result", subtype: "success", status: 429 },
     ]
     for (const envelope of envelopes) {
       const payload = JSON.stringify({
@@ -774,6 +775,40 @@ printf '%s' '${payload}'
       const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, env)
 
       expect(r.files).not.toContain("adversarial-claude.json")
+    }
+  })
+
+  test("accepts subtype-less result envelopes from Cursor-backed routes", () => {
+    const review = JSON.stringify({
+      reviewer: "adversarial",
+      findings: [],
+      residual_risks: [],
+      deferred_questions: [],
+    })
+    const payload = JSON.stringify({ type: "result", result: review })
+    const routes = [
+      { target: "cursor", route: "cursor", peers: "cursor" },
+      { target: "composer", route: "composer", peers: "composer" },
+      { target: "grok", route: "grok-cursor", peers: "grok,cursor" },
+    ]
+
+    for (const { target, route, peers } of routes) {
+      const { env } = sandbox(
+        ["cursor-agent"],
+        `#!/bin/sh
+cat >/dev/null
+printf '%s' '${payload}'
+`,
+      )
+      const doc = makeDoc()
+      const runDir = makeRunDir()
+      const r = run(["claude", target, "adversarial", doc, "plan", "none", runDir], runDir, {
+        ...env,
+        CROSS_MODEL_FIXED_ROUTE: route,
+        CROSS_MODEL_PEERS: peers,
+      })
+
+      expect(r.files).toContain(`adversarial-${target}.json`)
     }
   })
 
