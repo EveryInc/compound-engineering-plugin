@@ -76,6 +76,7 @@ trap '' HUP
 # Filled while a peer process group is live; TERM/INT handler (installed after
 # reap() is defined) reaps it so an orchestrator kill cannot leave orphans.
 ACTIVE_PEER_PID=""
+PY_BIN=""
 
 log()  { printf '[cross-model-doc] %s\n' "$*" >&2; }
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
@@ -744,15 +745,18 @@ run_timeout_cmd() {
   ACTIVE_PEER_PID=""
 }
 
+resolve_python() {
+  for c in python3 python py; do
+    command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { printf '%s\n' "$c"; return; }
+  done
+}
+
 # Decode each {...} object in raw stdout via raw_decode (string/escape-aware,
 # unlike brace counting) and keep the last one shaped like findings. Envelope
 # routes nest that object inside a JSON *string* field, so string values that
 # could hold one are re-scanned rather than skipped.
 recover_findings_json() {   # <logfile> <outfile>
-  # Probe execution, not just PATH presence — Windows Store's python3 stub
-  # satisfies `command -v` then exits nonzero (see resolve-python convention).
-  local py
-  py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  local py="${PY_BIN:-}"
   [ -n "$py" ] || return 1
   "$py" - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
@@ -820,8 +824,7 @@ PY
 }
 
 classify_provider_outcome() {
-  local py
-  py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  local py="${PY_BIN:-}"
   [ -n "$py" ] || { printf '%s\n' failed; return; }
   "$py" - "$PEERLOG" "$PEERERR" "${ACTUAL_ROUTE:-}" <<'PY' 2>/dev/null
 import json, re, sys
@@ -1069,6 +1072,8 @@ run_provider() {   # <provider>
     return 0
   fi
   primary="$fixed"
+  PY_BIN="$(resolve_python)"
+  [ -n "$PY_BIN" ] || { log "working Python 3 interpreter required for peer outcome classification; skipping"; rm -f "$OUT"; return 0; }
   validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   validate_effort_override "$primary" || { log "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   # Track the route that actually produced the fold-in, so the artifact records

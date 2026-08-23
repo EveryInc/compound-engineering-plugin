@@ -144,10 +144,12 @@ function emitAdapter(route: string, script = SCRIPT, extraEnv: Record<string, st
 function sandbox(
   providers: string[],
   stubBody = "#!/bin/sh\nexit 0\n",
+  excludedTools: string[] = [],
 ): { bin: string; env: NodeJS.ProcessEnv } {
   const bin = path.join(mkTempRoot("xmodel-cr-sandbox-"), "bin")
   mkdirSync(bin, { recursive: true })
   for (const [tool, real] of realToolPaths()) {
+    if (excludedTools.includes(tool)) continue
     if (existsSync(path.join(bin, tool))) continue
     try {
       symlinkSync(real, path.join(bin, tool))
@@ -1093,6 +1095,26 @@ printf invoked > "$COUNTER"
     expect(r.code).toBe(0)
     expect(existsSync(counter)).toBe(false)
     expect(r.stderr).toContain("peer hard budget must be a positive integer; skipping")
+  })
+
+  test("a missing Python interpreter skips explicitly before provider dispatch", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-python-preflight-counter-"), "count")
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh
+cat >/dev/null
+printf invoked > "$COUNTER"
+printf '%s' '{"type":"result","subtype":"success","structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
+`,
+      ["python3"],
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, { ...env, COUNTER: counter })
+
+    expect(r.code).toBe(0)
+    expect(existsSync(counter)).toBe(false)
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("working Python 3 interpreter required for peer outcome classification; skipping")
   })
 
   test("rejects a successful-process Grok 429 envelope instead of publishing its schema stub", () => {

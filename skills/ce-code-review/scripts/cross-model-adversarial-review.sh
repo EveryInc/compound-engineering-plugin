@@ -64,6 +64,7 @@ trap '' HUP
 ACTIVE_PEER_PID=""
 RUN_SUCCEEDED=false
 PROVIDER_OUTCOME="ok"
+PY_BIN=""
 PEER_MAX_TURNS="${PEER_MAX_TURNS:-25}"
 TRANSIENT_RETRY_DELAY_SECS="${CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS:-5}"
 
@@ -767,15 +768,18 @@ run_timeout_cmd() {
   ACTIVE_PEER_PID=""
 }
 
+resolve_python() {
+  for c in python3 python py; do
+    command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { printf '%s\n' "$c"; return; }
+  done
+}
+
 # Decode each {...} object in raw stdout via raw_decode (string/escape-aware,
 # unlike brace counting) and keep the last one shaped like findings. Envelope
 # routes nest that object inside a JSON *string* field, so string values that
 # could hold one are re-scanned rather than skipped.
 recover_findings_json() {   # <logfile> <outfile>
-  # Probe execution, not just PATH presence — Windows Store's python3 stub
-  # satisfies `command -v` then exits nonzero (see resolve-python convention).
-  local py
-  py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  local py="${PY_BIN:-}"
   [ -n "$py" ] || return 1
   "$py" - "$1" "$2" <<'PY' 2>/dev/null
 import sys, json
@@ -843,8 +847,7 @@ PY
 }
 
 classify_provider_outcome() {
-  local py
-  py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  local py="${PY_BIN:-}"
   [ -n "$py" ] || { printf '%s\n' failed; return; }
   "$py" - "$PEERLOG" "$PEERERR" "${ACTUAL_ROUTE:-}" <<'PY' 2>/dev/null
 import json, re, sys
@@ -1090,6 +1093,8 @@ run_provider() {
     return 0
   fi
   primary="$fixed"
+  PY_BIN="$(resolve_python)"
+  [ -n "$PY_BIN" ] || { log "working Python 3 interpreter required for peer outcome classification; skipping"; rm -f "$OUT"; return 0; }
   if ! validate_turn_limit "$primary"; then
     if [ "$LARGE_DIFF_MODE" = true ]; then
       log "large-diff max turns must be a positive integer; skipping"
