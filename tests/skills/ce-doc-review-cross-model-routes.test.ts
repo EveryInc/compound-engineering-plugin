@@ -699,6 +699,33 @@ exit 1
     expect(r.stderr.match(/retrying same route once/g)).toHaveLength(1)
   })
 
+  test("rejects a schema-shaped Claude result whose terminal envelope reports max-turn exhaustion", () => {
+    const payload = JSON.stringify({
+      type: "result",
+      subtype: "error_max_turns",
+      is_error: true,
+      structured_output: {
+        reviewer: "adversarial",
+        findings: [],
+        residual_risks: [],
+        deferred_questions: [],
+      },
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh
+cat >/dev/null
+printf '%s' '${payload}'
+`,
+    )
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, env)
+
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("peer terminal envelope reports failure")
+  })
+
   test("ancillary structured fields do not hide an unrecognized human-readable diagnostic", () => {
     const payload = JSON.stringify({
       diagnostic: "Provider rejected the request for this account",

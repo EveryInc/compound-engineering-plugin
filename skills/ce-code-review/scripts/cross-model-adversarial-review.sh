@@ -841,6 +841,14 @@ PY
   [ -s "$2" ]
 }
 
+terminal_envelope_eligible() {
+  ! jq -Rre 'fromjson? | select(
+    (.is_error? == true)
+    or (((.subtype? // .terminal_reason? // "") | tostring) == "error_max_turns")
+    or (((.subtype? // .terminal_reason? // "") | tostring) == "max_turns")
+  )' "$PEERLOG" >/dev/null 2>&1
+}
+
 parse_structured() {   # <logfile> <outfile>
   # Prefer findings-shaped structured_output so a bare envelope does not look "valid"
   # to out_missing_or_invalid and block recovery.
@@ -902,6 +910,10 @@ attempt_route() {
     claude)
       compose_prompt_embedded
       run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle
+      if [ "$RUN_SUCCEEDED" = true ] && ! terminal_envelope_eligible; then
+        log "peer terminal envelope reports failure; discarding structured output"
+        RUN_SUCCEEDED=false
+      fi
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT"
       ;;
     grok-cursor|cursor|composer)

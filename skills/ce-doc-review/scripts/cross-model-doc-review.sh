@@ -818,6 +818,14 @@ PY
   [ -s "$2" ]
 }
 
+terminal_envelope_eligible() {
+  ! jq -Rre 'fromjson? | select(
+    (.is_error? == true)
+    or (((.subtype? // .terminal_reason? // "") | tostring) == "error_max_turns")
+    or (((.subtype? // .terminal_reason? // "") | tostring) == "max_turns")
+  )' "$PEERLOG" >/dev/null 2>&1
+}
+
 # Parse a schema-shaped object out of a headless CLI JSON envelope (claude/grok/cursor).
 parse_structured() {   # <logfile> <outfile>
   # Buffered single-object envelopes (grok-cli json, test stubs).
@@ -872,6 +880,10 @@ attempt_route() {   # <provider> <route>
     grok-cli)    run_timeout_cmd "" "$attempt_hard" no-idle
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
     claude)      run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle
+                 if [ "$RUN_SUCCEEDED" = true ] && ! terminal_envelope_eligible; then
+                   log "peer terminal envelope reports failure; discarding structured output"
+                   RUN_SUCCEEDED=false
+                 fi
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
     grok-cursor|cursor|composer)
       # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
