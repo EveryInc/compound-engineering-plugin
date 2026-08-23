@@ -176,6 +176,33 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 
+  test("must_not_include fails when the final answer still names the forbidden roster member", () => {
+    const dir = hostDir({
+      "stdout.txt": "Reviewing with: coherence-reviewer, feasibility-reviewer, product-lens-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: { must_include: ["coherence-reviewer"], must_not_include: ["product-lens-reviewer"] },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons.some((r) => r.includes("product-lens-reviewer"))).toBe(true)
+  })
+
+  test("must_not_include passes when the forbidden text is absent", () => {
+    const dir = hostDir({
+      "stdout.txt": "Reviewing with: coherence-reviewer, feasibility-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: { must_include: ["coherence-reviewer"], must_not_include: ["product-lens-reviewer"] },
+    })
+    expect(g.ok).toBe(true)
+  })
+
   test("a listed required read is a fail on post when FILES_READ omits it", () => {
     const dir = hostDir({
       "stdout.txt": "needs-human\nFILES_READ: SKILL.md\nACTIONS: none\n",

@@ -1,0 +1,2 @@
+# The activation probe grades one dimension; the cross-model pass would egress every trial.
+cross_model_review_mode: off

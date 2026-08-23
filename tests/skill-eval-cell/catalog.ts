@@ -19,6 +19,8 @@ export const PRE_SWEEP_REF = "309611f6b5198528c1c98f83fb6b3c90637e523c"
 export const ISSUE_1482_BASE_REF = "66ccf579f8c1ef2ccfc642c317ba53151eeb1ebb"
 /** main before the right-size-ceremony change (#1513 release commit): the A/B base for its rows. */
 export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
+/** main after #1514 merged: the product-lens activation leg still read "alternatives plausibly exist". */
+export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -41,6 +43,8 @@ export type Grade = {
    */
   workspace_read?: string[]
   must_include?: string[]
+  /** Text that must be absent from the final answer (matched like must_include). The negative half of a roster or routing probe: must_exclude reads only the ACTIONS trailer, so it cannot fail on a persona or route the run still named. */
+  must_not_include?: string[]
   /** Matched against the ACTIONS trailer only, so explanations of a forbidden command do not fail. */
   must_exclude?: string[]
   actions?: "none" | "any"
@@ -717,6 +721,80 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
       git: "dirty",
       // The dirty tree must be the plan file, not an edit to the surface under review.
       workspace_contains: [{ path: "src/session.js", needle: "HttpOnly; Path=/`" }],
+    },
+  },
+  {
+    id: "ce-doc-review/routine-fix-no-product-lens",
+    baseline_ref: DOC_REVIEW_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-routine-fix`,
+    timeout_secs: 1500,
+    why: "A captured real bootstrap fix plan whose KTDs choose mechanisms for an agreed outcome; the old premise leg fired product-lens on the plausible alternatives, the restated condition does not.",
+    pre_contract: "product-lens activates on solution selection where alternatives plausibly exist.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-07-31-003-fix-portable-windows-path-unit-tests-plan.md. End your final message with one line of the form "TEAM: <comma-separated reviewer names you dispatched>" and nothing after it.`,
+    grade: {
+      files_read_post: ["references/persona-selection.md"],
+      must_include: ["coherence", "feasibility"],
+      must_not_include: ["product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/settled-origin-no-product-lens",
+    baseline_ref: DOC_REVIEW_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-settled-origin`,
+    timeout_secs: 1500,
+    why: "A captured real brainstorm-sourced plan whose product decisions carry session-settled labels; nothing it stakes is unsettled, so product-lens stays off.",
+    pre_contract: "product-lens activates on challengeable claims regardless of provenance.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-08-15-1506-fix-refresh-instruction-layer-conflict-plan.md. End your final message with one line of the form "TEAM: <comma-separated reviewer names you dispatched>" and nothing after it.`,
+    grade: {
+      files_read_post: ["references/persona-selection.md"],
+      must_include: ["coherence", "feasibility"],
+      must_not_include: ["product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/staked-position-keeps-product-lens",
+    baseline_ref: DOC_REVIEW_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-staked-position`,
+    timeout_secs: 1500,
+    why: "A bootstrap plan that ranks what ships first and predicts a conversion outcome stakes an unsettled product position; the restatement must not under-fire here.",
+    pre_contract: "product-lens activates on challengeable claims.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-08-20-1100-feat-free-tier-greeting-api-plan.md. End your final message with one line of the form "TEAM: <comma-separated reviewer names you dispatched>" and nothing after it.`,
+    grade: {
+      files_read_post: ["references/persona-selection.md"],
+      must_include: ["coherence", "feasibility", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/strategic-weight-keeps-product-lens",
+    baseline_ref: DOC_REVIEW_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-strategic-weight`,
+    timeout_secs: 1500,
+    why: "A brainstorm-sourced plan with settled decisions that opens an extension surface carries strategic weight with no new contested position; the second leg must still activate.",
+    pre_contract: "product-lens activates on strategic weight.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-08-20-1130-feat-plugin-architecture-greeting-formats-plan.md. End your final message with one line of the form "TEAM: <comma-separated reviewer names you dispatched>" and nothing after it.`,
+    grade: {
+      files_read_post: ["references/persona-selection.md"],
+      must_include: ["coherence", "feasibility", "product-lens"],
     },
   },
   {

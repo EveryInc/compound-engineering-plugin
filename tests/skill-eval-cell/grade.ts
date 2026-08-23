@@ -162,6 +162,9 @@ export function gradeHost(opts: {
   for (const needle of opts.grade.must_include ?? []) {
     if (!decision.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
   }
+  for (const needle of opts.grade.must_not_include ?? []) {
+    if (decision.includes(needle.toLowerCase())) reasons.push(`forbidden text in final answer: ${needle}`)
+  }
   for (const needle of hasActions ? opts.grade.must_exclude ?? [] : []) {
     if (actions.includes(needle)) {
       reasons.push(`forbidden action in ${TRAILER_NAMES.actions}: ${needle}`)
