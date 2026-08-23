@@ -255,6 +255,19 @@ describe("cross-model-adversarial-review route safety", () => {
     }
   })
 
+  test("turn limits are validated only for adapters that consume them", () => {
+    for (const route of ["codex", "grok-cursor", "cursor", "composer"] as const) {
+      expect(emitAdapter(route, SCRIPT, { PEER_MAX_TURNS: "invalid" })).not.toContain("--max-turns")
+    }
+
+    const consuming = spawnSync("bash", [SCRIPT, "--emit-adapter", "claude"], {
+      encoding: "utf8",
+      env: { ...process.env, PEER_MAX_TURNS: "invalid" },
+    })
+    expect(consuming.status).toBe(2)
+    expect(consuming.stderr).toContain("peer max turns must be a positive integer")
+  })
+
   test("live dispatch without a host-sanctioned fixed route fails closed", () => {
     const invoked = path.join(mkTempRoot("xmodel-cr-invoked-"), "marker")
     const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\n`)
@@ -341,6 +354,30 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(argv).toContain("--add-dir")
     expect(argv).toContain("--max-turns 40")
     expect(r.stderr).toContain("large diff routed through orchestrator review map")
+  })
+
+  test("a valid large-diff turn override recovers from an invalid ambient limit", () => {
+    const captureRoot = mkTempRoot("xmodel-cr-large-turns-")
+    const argvCapture = path.join(captureRoot, "argv.txt")
+    const body = `#!/bin/sh
+printf '%s\n' "$*" > "\${ARGV_CAPTURE}"
+cat >/dev/null
+printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
+`
+    const { env } = sandbox(["claude"], body)
+    const runDir = makeRunDir()
+    writeFileSync(path.join(runDir, "adversarial-review-brief.md"), "- Review the changed fixture.\n")
+
+    const r = run(["codex", "claude", "HEAD~1", runDir], runDir, {
+      ...env,
+      ARGV_CAPTURE: argvCapture,
+      PEER_MAX_TURNS: "invalid",
+      CROSS_MODEL_INLINE_MAX_TOKENS: "1",
+      CROSS_MODEL_LARGE_DIFF_MAX_TURNS: "40",
+    })
+
+    expect(r.files).toContain("adversarial-claude.json")
+    expect(readFileSync(argvCapture, "utf8")).toContain("--max-turns 40")
   })
 
   test("missing or oversized host-vetted constraints stop before provider egress", () => {

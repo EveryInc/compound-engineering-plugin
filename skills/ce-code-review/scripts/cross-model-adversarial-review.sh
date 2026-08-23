@@ -69,8 +69,6 @@ TRANSIENT_RETRY_DELAY_SECS="${CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS:-5}"
 log()  { printf '[cross-model] %s\n' "$*" >&2; }
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
 
-case "$PEER_MAX_TURNS" in ''|*[!0-9]*) skip "peer max turns must be a positive integer; skipping" ;; esac
-[ "$PEER_MAX_TURNS" -gt 0 ] || skip "peer max turns must be a positive integer; skipping"
 case "$TRANSIENT_RETRY_DELAY_SECS" in ''|*[!0-9]*) skip "transient retry delay must be an integer from 0 to 60; skipping" ;; esac
 [ "$TRANSIENT_RETRY_DELAY_SECS" -le 60 ] || skip "transient retry delay must be an integer from 0 to 60; skipping"
 
@@ -276,6 +274,15 @@ adapter_argv() {
   esac
 }
 
+validate_turn_limit() {
+  case "$1" in
+    claude|grok-cli) ;;
+    *) return 0 ;;
+  esac
+  case "$PEER_MAX_TURNS" in ''|*[!0-9]*) return 1 ;; esac
+  [ "$PEER_MAX_TURNS" -gt 0 ]
+}
+
 # Accept a host-discovered replacement only for its declared target and model
 # family. An override for another target is ignored rather than leaking across
 # routes; an unbound or cross-family override is invalid for its own route.
@@ -321,6 +328,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   validate_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   validate_effort_override "$route" 2>/dev/null || { echo "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer)" >&2; exit 2; }
+  validate_turn_limit "$route" || { echo "peer max turns must be a positive integer" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -508,8 +516,6 @@ if [ "$ESTIMATED_DIFF_TOKENS" -gt "$INLINE_MAX_TOKENS" ] || [ "$DIFF_FILES" -gt 
   [ "$REVIEW_BRIEF_READY" = 1 ] || skip "large diff requires a compact orchestrator review map; skipping peer dispatch"
   LARGE_DIFF_CONTEXT_DIR="$RAW_DIR"
   PEER_MAX_TURNS="${CROSS_MODEL_LARGE_DIFF_MAX_TURNS:-40}"
-  case "$PEER_MAX_TURNS" in ''|*[!0-9]*) skip "large-diff max turns must be a positive integer; skipping" ;; esac
-  [ "$PEER_MAX_TURNS" -gt 0 ] || skip "large-diff max turns must be a positive integer; skipping"
   log "large diff routed through orchestrator review map: files=$DIFF_FILES estimated_tokens=$ESTIMATED_DIFF_TOKENS"
 fi
 
@@ -948,6 +954,15 @@ run_provider() {
     return 0
   fi
   primary="$fixed"
+  if ! validate_turn_limit "$primary"; then
+    if [ "$LARGE_DIFF_MODE" = true ]; then
+      log "large-diff max turns must be a positive integer; skipping"
+    else
+      log "peer max turns must be a positive integer; skipping"
+    fi
+    rm -f "$OUT"
+    return 0
+  fi
   validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   validate_effort_override "$primary" || { log "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   ACTUAL_ROUTE="$primary"

@@ -493,6 +493,31 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
     expect(run(["claude", "codex", "adversarial", "/no/such/doc", "plan", "none", runDir], runDir, env).files).toHaveLength(0)
   })
 
+  test("invalid transient retry delay skips before allocating temp files", () => {
+    const marker = path.join(mkTempRoot("xmodel-doc-mktemp-marker-"), "called")
+    const wrappers = mkTempRoot("xmodel-doc-mktemp-wrapper-")
+    const mktemp = path.join(wrappers, "mktemp")
+    writeFileSync(mktemp, '#!/bin/sh\n: > "$MKTEMP_MARKER"\nexit 1\n')
+    chmodSync(mktemp, 0o755)
+    const { env } = sandbox(["codex"])
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(
+      ["claude", "codex", "adversarial", doc, "plan", "none", runDir],
+      runDir,
+      {
+        ...env,
+        PATH: `${wrappers}:${env.PATH}`,
+        MKTEMP_MARKER: marker,
+        CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "invalid",
+      },
+    )
+
+    expect(r.code).toBe(0)
+    expect(r.stderr).toContain("transient retry delay must be an integer from 0 to 60; skipping")
+    expect(existsSync(marker)).toBe(false)
+  })
+
   test("surfaces short provider errors without dropping the diagnostic", () => {
     const { env } = sandbox(
       ["claude"],
