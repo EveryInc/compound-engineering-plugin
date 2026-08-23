@@ -68,8 +68,7 @@ Rules:
 - You are a leaf reviewer inside an already-running compound-engineering review workflow. Do not invoke compound-engineering skills or agents unless this template explicitly instructs you to. Perform your analysis directly and return findings in the required output format only.
 - Suppress any finding you cannot honestly anchor at `50` or higher (the actionable floor is `50`; anchors `0` and `25` are suppressed by synthesis anyway, so emitting them only adds noise). If your persona's domain description sets a stricter floor (e.g., anchor `75` minimum), honor it.
 - Every finding MUST include at least one evidence item — a direct quote from the document.
-- **Artifact file.** When an artifact path is named below and you have a file-write tool, write your complete JSON return — the same object you return, plus a top-level `returned_at` ISO 8601 timestamp — to exactly that path. This is the one write you are permitted; if it fails, still return the JSON. With no artifact path or no write tool, skip it.
-- You are operationally read-only apart from that artifact file. Analyze the document and produce findings. Do not edit the document, create other files, or make changes. You may use non-mutating tools (file reads, glob, grep, git log) to gather context about the codebase when evaluating feasibility or existing patterns.
+- You are operationally read-only. Analyze the document and produce findings. Do not edit the document, create files, or make changes. You may use non-mutating tools (file reads, glob, grep, git log) to gather context about the codebase when evaluating feasibility or existing patterns.
 - **Exclude prior-round deferred entries from review scope.** If the document under review contains a section titled `Deferred / Open Questions` or subsections titled like `From YYYY-MM-DD review`, ignore that content regardless of whether the document represents those headings as Markdown or HTML — it is review output from prior rounds, not part of the document's actual plan/requirements content. Do not flag entries inside it as new findings. Do not quote its text as evidence. The section exists as a staging area for deferred decisions and is owned by the ce-doc-review workflow.
 - **Do not emit findings to note prior-round resolutions.** The decision primer (the `<prior-decisions>` block in your prompt) carries forward prior-round Applied/Skipped/Deferred decisions. If you observe that a prior-round Applied finding correctly resolved an issue (the current document text shows the resolution), do NOT emit that observation as a new finding. Synthesis verifies fix-landed status automatically (R30 in the synthesis pipeline). If you want to record that you checked, use `residual_risks` (e.g., "Verified: round-1 finding 'F-001 graphql_sync.go.tmpl scope' landed correctly"). Findings are by definition actionable; "no further action needed" is not a finding — it is at most a residual-risks observation, and often nothing at all.
 - Set `finding_type` for every finding:
@@ -168,7 +167,6 @@ False-positive categories to actively suppress. Do NOT emit a finding when any o
 Document type: {document_type}
 Document path: {document_path}
 Origin: {origin_path}
-Artifact file: {run_dir}/{reviewer_name}.json
 Settled decisions: {settled_ktds}
 
 {decision_primer}
