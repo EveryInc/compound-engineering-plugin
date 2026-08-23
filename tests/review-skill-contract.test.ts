@@ -1332,7 +1332,9 @@ describe("cross-model peer skip legibility", () => {
       expect(referenceSrc).toContain("peer skip evidence:")
       expect(referenceSrc).toMatch(/quota|usage-limit/i)
       expect(referenceSrc).toMatch(/529[^.]{0,160}once|once[^.]{0,160}529/i)
-      expect(referenceSrc).toMatch(/worker and host together spend at most one(?: same-route)? retry/i)
+      expect(referenceSrc).toMatch(/worker exclusively owns the one same-route retry/i)
+      expect(referenceSrc).toMatch(/host never restarts that peer/i)
+      expect(referenceSrc).not.toMatch(/host may retry|host-owned retry/i)
       if (worker.includes("ce-code-review")) {
         expect(workerSrc).not.toContain("peer skip class:")
         expect(referenceSrc).not.toContain("peer skip class:")
