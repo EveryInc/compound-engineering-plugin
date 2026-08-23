@@ -872,7 +872,7 @@ def scan(text):
     return objects, "".join(plain)
 
 texts = []
-objects = []
+object_streams = []
 route = sys.argv[3]
 for path in sys.argv[1:3]:
     try:
@@ -881,7 +881,7 @@ for path in sys.argv[1:3]:
         text = ""
     found, plain = scan(text)
     texts.append(plain)
-    objects.extend(found)
+    object_streams.append(found)
 
 def status(value):
     error = value.get("error")
@@ -913,10 +913,6 @@ def provider_error_text(value):
     else:
         message = ""
     return message if isinstance(message, str) else ""
-
-if any(str(status(value)) == "529" or overload_text(provider_error_text(value)) for value in objects):
-    print("overloaded")
-    raise SystemExit
 
 def terminal_record(value):
     error = value.get("error")
@@ -951,9 +947,15 @@ def terminal_success(value):
         return True
     return value.get("is_error") is False
 
-terminal = [value for value in objects if terminal_record(value)]
-if terminal and not all(terminal_success(value) for value in terminal):
-    print("failed")
+terminal_streams = [[value for value in stream if terminal_record(value)] for stream in object_streams]
+authoritative = next((stream[-1] for stream in terminal_streams if stream), None)
+if authoritative is not None:
+    if terminal_success(authoritative):
+        print("ok")
+    elif str(status(authoritative)) == "529" or overload_text(provider_error_text(authoritative)):
+        print("overloaded")
+    else:
+        print("failed")
     raise SystemExit
 
 if any(overload_text(plain) for plain in texts):

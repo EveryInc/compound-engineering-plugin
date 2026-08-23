@@ -633,6 +633,45 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(r.stderr).toContain("provider overload 529; retrying same route once")
   })
 
+  test("a later successful terminal envelope supersedes an earlier overload", () => {
+    const counter = path.join(mkTempRoot("xmodel-doc-recovered-529-counter-"), "count")
+    const overload = JSON.stringify({
+      type: "error",
+      http_status: 529,
+      error: { type: "overloaded_error", message: "Overloaded" },
+    })
+    const success = JSON.stringify({
+      type: "result",
+      subtype: "success",
+      structured_output: { reviewer: "adversarial", findings: [], residual_risks: [], deferred_questions: [] },
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s\n%s\n' '${overload}' '${success}'
+`,
+    )
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(
+      ["codex", "claude", "adversarial", doc, "plan", "none", runDir],
+      runDir,
+      {
+        ...env,
+        COUNTER: counter,
+        CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+      },
+    )
+
+    expect(readFileSync(counter, "utf8")).toBe("1")
+    expect(r.files).toContain("adversarial-claude.json")
+  })
+
   test("retries a Codex plain-text provider 529 from its merged diagnostic log", () => {
     const counter = path.join(mkTempRoot("xmodel-doc-codex-529-counter-"), "count")
     const body = `#!/bin/sh
