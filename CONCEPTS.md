@@ -110,10 +110,6 @@ The inline remnant left in a Skill when load-bearing content moves to a referenc
 ### Output contract
 The shape a planning Skill commits to delivering for one run, chosen by its proportionality gate at intake before any research or subagent spend: Direct (a few sentences in chat handed to execution), Chat brief (a chat-only summary with units and test expectations, file-optional), or Durable (the unified plan artifact with its full floor). The gate is a condition on the work's shape with a safe failure direction toward the heavier contract; pipeline and headless runs, and any run without a synchronous user, always take Durable.
 
-### Plan depth
-
-The size class `ce-plan` assigns a Durable plan at intake — `lightweight`, `standard`, or `deep` — governing how much research, flow analysis, and per-section detail the plan receives. Distinct from the output contract (which decides whether a file is written at all) and from `artifact_readiness` (which records document completeness). Recorded as `depth:` in plan metadata.
-
 ### Phase-loaded kernel
 A Skill body reduced to what must fire without a read — outcome, done bar, authority, phase order, the stop classes that hold when a reference is never opened, and a required read named immediately before each acting step — with each phase's mechanics owned by one reference loaded at that step. The design assumes the load happens at the acting point; a host that reads every reference at kernel load satisfies the letter of "read before the step" while losing both the context saving and any safety path that depends on a late read, so the kernel must state that an earlier read does not satisfy the acting-point read.
 

@@ -251,7 +251,7 @@ Allowed changes:
 - Reclassify open questions between `Resolved During Planning` and `Deferred to Implementation` when evidence supports the change
 - Strengthen, replace, or add a High-Level Technical Design section when the work warrants it and the current representation is weak
 - Strengthen or add per-unit technical design fields where the unit's approach is non-obvious
-- Add or update `deepened: YYYY-MM-DD` in frontmatter when the plan was substantively improved, and set `depth:` to the 5.3.1 classification in the same edit (adding the key when the plan lacks it)
+- Add or update `deepened: YYYY-MM-DD` in frontmatter when the plan was substantively improved
 
 Do **not**:
 - Add implementation code — no imports, exact method signatures, or framework-specific syntax. Pseudo-code sketches and DSL grammars are allowed

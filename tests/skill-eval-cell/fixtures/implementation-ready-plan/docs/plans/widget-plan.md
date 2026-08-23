@@ -2,7 +2,6 @@
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 execution: code
-depth: lightweight
 ---
 
 # Widget greeter - Plan
