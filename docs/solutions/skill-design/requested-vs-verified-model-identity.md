@@ -18,9 +18,9 @@ tags: [cross-model, delegation, model-identity, verification, receipts, subagent
 
 ## Context
 
-The cross-model review passes in this plugin announce a concrete peer model to the user ("independent cross-model adversarial review by <model> at high reasoning" -- `skills/ce-code-review/SKILL.md` requires the announce line to name the concrete model) and pin per-provider model IDs as script constants: `M_CODEX="gpt-5.6-luna"`, `M_CLAUDE="opus"`, `M_GROK="grok-4.6"`, `M_GROK_CURSOR="cursor-grok-4.6-high"`, `M_COMPOSER="composer-2.5-fast"` at `skills/ce-code-review/scripts/cross-model-adversarial-review.sh` lines 73-77, with byte-identical constants at `skills/ce-doc-review/scripts/cross-model-doc-review.sh` lines 85-89.
+The cross-model review passes in this plugin announce a concrete requested peer model and pin per-provider model IDs in the `M_CODEX` / `M_CLAUDE` / `M_GROK` / `M_GROK_CURSOR` / `M_COMPOSER` mappings in `skills/ce-code-review/scripts/cross-model-adversarial-review.sh` and `skills/ce-doc-review/scripts/cross-model-doc-review.sh`. The current Claude request is `claude-opus-5`; the concrete mappings remain implementation choices rather than the receipt contract.
 
-The durable fold-in artifacts record the ROUTE that produced them -- the `cross_model_route` field, set in each script's normalize step (`cross-model-adversarial-review.sh` line 441, `cross-model-doc-review.sh` line 531). But nothing anywhere verifies which model actually served the run: neither script parses any model-identity field out of the peer CLI's response envelope. Route- and provider-level reconciliation already exists: both skills' references require announcing the egress scope and reconciling the actual provider from the fold-in filename and the `cross_model_route` field ("Fallback egress must not be silent" in `skills/ce-code-review/references/cross-model-review.md` and `skills/ce-doc-review/references/cross-model-review.md`). The unfilled gap is one level deeper: everything we tell the user and record about the *model* is derived from what we *requested*, not from what *happened*.
+The original implementation recorded only the route. The current workers implement the receipt pattern: fold-in artifacts carry route, target, harness, serving family, `independence_verified`, `model_requested`, `model_actual`, requested/actual effort, and receipt support. Claude's `modelUsage` envelope can verify the served family; routes without an authoritative receipt record the literal `unverified`. Both review references gate agreement promotion on `independence_verified` and require Coverage to preserve requested-versus-actual provenance.
 
 The core insight: **"which model ran" is a claim about a remote system's behavior, and we have been treating our own request parameters as proof of it.** Requested identity and served identity are separate facts, and only the serving backend can attest to the second one.
 
@@ -39,7 +39,7 @@ The core insight: **"which model ran" is a claim about a remote system's behavio
 
 Where can requested-vs-served diverge? Measured 2026-07-14: all three CLIs we tested reject an *unknown or unavailable* model id loudly rather than substituting -- the claude CLI returns a 404-flagged error envelope, the codex CLI a 400 `invalid_request_error` ("model is not supported when using Codex with a ChatGPT account"), and cursor-agent refuses with its available-model list. So the request-validation layer is not the silent surface. The silent surface is **server-side substitution behind a valid model id**: alias re-pointing (a family alias like `opus` re-resolving to a newer dated model), capacity or routing substitution, and A/B serving -- cases where the request is accepted and nothing in the output signals what actually served it. An announce line built from the requested value alone can be false in exactly those cases, and only a serving-side receipt reveals it.
 
-The stakes here are worse than a mislabeled UI string. Synthesis in both review skills treats cross-model agreement as the strongest corroboration signal in the set: a finding matched by both the in-process persona and the cross-model peer promotes by one anchor step (`skills/ce-code-review/SKILL.md` Stage 5 step 3: "agreement between it and the in-process `adversarial` persona is the strongest signal in the set (different model providers, separate processes)"; same promotion in `skills/ce-doc-review/references/cross-model-review.md`, fold-in step: "promotes by one anchor step ... the cross-model agreement signal, the strongest in the set"). That promotion *presumes a different model family actually ran*. A silent fallback -- say, a peer route quietly serving the host's own model family -- turns "cross-model agreement" into same-family agreement while keeping the label and the anchor bonus. The system would then be systematically over-weighting findings based on an independence property it never checked.
+The stakes here are worse than a mislabeled UI string. Synthesis may promote a finding matched by an in-process persona and a cross-model peer, but current review guidance permits that promotion only when the artifact records `independence_verified: true`. A silent fallback to the host's own serving family therefore remains useful attributed evidence but cannot retain a cross-model agreement bonus.
 
 The general form of the lesson: whenever a system's logic assigns extra weight to a property of an upstream run (which model, which version, which dataset, which environment), the requested value of that property is not evidence of it. Verify from the serving side's own report, or explicitly mark the property unverified and weight accordingly.
 
@@ -61,8 +61,8 @@ The general form of the lesson: whenever a system's logic assigns extra weight t
 {
   "reviewer": "adversarial-claude",
   "cross_model_route": "claude",
-  "model_requested": "opus",
-  "model_actual": "claude-opus-4-8-20260115",
+  "model_requested": "claude-opus-5",
+  "model_actual": "claude-opus-5-20260801",
   "findings": []
 }
 ```
@@ -72,7 +72,7 @@ On a route with no authoritative identity report, `model_actual` is the literal 
 **Parse-compare-warn sketch:**
 
 ```bash
-requested="opus"
+requested="claude-opus-5"
 actual="$(jq -r '.modelUsage | keys[0] // empty' "$RAW_OUT")"
 if [ -z "$actual" ]; then
   actual="unverified"
@@ -88,11 +88,11 @@ fi
 
 (The alias-match test above is a sketch; a real adapter maps each requested alias to its expected full-ID prefix per provider rather than substring-matching.)
 
-**Scope note (honest).** Today only some routes expose an authoritative identity report -- measured on the claude CLI. Routes without one are not broken; they are simply labeled unverified, and their agreement bonuses should say so. As other peer CLIs add per-run served-model reporting, their adapters should adopt the same parse-compare-record pattern.
+**Scope note (honest).** Today only some routes expose an authoritative identity report -- measured on the Claude CLI and implemented through its `modelUsage` envelope. Routes without one are not broken; they are labeled unverified and do not receive verified-independence credit. As other peer CLIs add per-run served-model reporting, their adapters should adopt the same parse-compare-record pattern.
 
 ## Related
 
 - `docs/solutions/skill-design/detached-job-lifecycle-for-delegated-work.md` -- sibling pattern for the same delegation infrastructure; its durable job artifacts (`meta.json` job identity, atomically published results) are the natural home for the `model_requested` / `model_actual` fields this doc prescribes.
 - `docs/solutions/skill-design/cross-harness-cross-model-tool-invocation.md` -- the same epistemic root at a different layer: verify per-harness behavior empirically instead of trusting authoring-runtime assumptions.
 - `docs/solutions/best-practices/codex-delegation-best-practices.md` -- scoping contrast: a delegate's self-reported work status may be trusted behind a circuit breaker; model identity may not be self-reported at all (receipts come from the serving backend, never the model's text).
-- Issues #878 (verified cross-model deep review) and #1115 (Grok host support with an optional model pin) -- open work this receipt pattern is a building block for.
+- Issue #878 remains open work on verified cross-model deep review. Issue #1115, Grok host support with an optional model pin, is complete and uses the same receipt discipline.

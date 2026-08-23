@@ -66,8 +66,10 @@ Three rules make this work:
    tool call in a **fresh shell**, so a `$PY` exported in one block does not exist in the
    next. The repetition is deliberate, not redundancy to factor out — the same reason
    `SKILL_DIR` is already set inline in every block in these docs.
-3. **Fail loudly when nothing resolves.** A silent fallback to a broken interpreter is how
-   this bug survived; an explicit non-zero exit with a message is the point.
+3. **Make interpreter failure explicit before the operation crosses its boundary.** A
+   required Python operation exits non-zero with a message. An additive workflow may
+   instead log and skip cleanly, but it must do so before provider egress or partial work;
+   silent fallback to a broken interpreter is never acceptable.
 
 Order matters: try `python3` first so POSIX hosts keep their canonical name, then `python`,
 then `py` (the Windows launcher, the most reliable there). Note `python` can *also* be a
@@ -76,10 +78,11 @@ is what guarantees correctness.
 
 ## Why This Matters
 
-The failure is silent in the worst way: the calling workflow degrades gracefully. In
-`ce-code-review`, a failed cross-model dispatch falls back to the in-process adversarial
-reviewer and the run completes normally — so a Windows user gets a *quietly weaker review*
-forever, with no error and no indication that an entire independent-model pass never ran.
+The historical failure was silent in the worst way: the calling workflow degraded
+gracefully after dispatch failed, so a Windows user could receive a quietly weaker review.
+The current code- and doc-review workers resolve one interpreter before provider egress,
+reuse it for outcome classification and JSON recovery, and log a clean skip if none runs.
+Their regression fixtures prove the provider is not invoked in that state.
 
 It also invalidates smoke evidence. This project's own Phase C smoke commands invoke
 `python $runner start ...`, so the runner passed its verification while the shipped
@@ -95,7 +98,8 @@ larger. The general form: *the name on PATH is not proof the thing runs.*
 Related repo scope: cross-model review/elevation paths and the remaining
 bundled-script invocation sites (`pr-snapshot`, `sweep-state.py`, `validate-*.py`,
 session-history extractors, `ce-optimize` shell helpers) reuse this exact snippet
-rather than inventing a variant. Issue #1247 tracks the Store-stub failure mode.
+rather than inventing a variant. Issue #1247 closed after the execution-probe migration;
+keep the convention because the Store-stub failure mode remains a platform property.
 
 ## Examples
 

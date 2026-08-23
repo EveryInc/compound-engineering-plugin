@@ -19,7 +19,7 @@ tags: [detached-jobs, process-lifecycle, cross-harness, tool-call-timeout, setsi
 
 ## Context
 
-Several skills in this plugin delegate real work to external CLIs via bundled scripts — the cross-model peer reviews in ce-doc-review and ce-code-review are the current examples. Their contract makes one shell tool call launch the script and await its exit: both `skills/ce-doc-review/references/cross-model-review.md` (line 78) and `skills/ce-code-review/references/cross-model-review.md` (line 71) instruct the orchestrator to set the Bash tool timeout high enough to cover the script's hard cap and await completion. The scripts self-bound conscientiously — `CROSS_MODEL_IDLE_SECS` defaults to 180s of byte-growth idle detection on the streaming codex route and `CROSS_MODEL_HARD_SECS` defaults to 1200s on the review peers and 600s on ce-pov's lower tier (`skills/ce-doc-review/scripts/cross-model-doc-review.sh`, `skills/ce-code-review/scripts/cross-model-adversarial-review.sh`, `skills/ce-pov/scripts/cross-model-pov.sh`), and both `trap '' HUP` to survive a departing parent shell (`cross-model-doc-review.sh:72`, `cross-model-adversarial-review.sh:59`).
+Several skills in this plugin delegate real work to external CLIs via bundled scripts — the cross-model peer reviews in ce-doc-review and ce-code-review are the current examples. Their original contract made one shell tool call launch the script and await its exit. The current references instead use `peer-job-runner.py` to start a detached job, perform local review work, and return through bounded `wait` calls. The workers still self-bound and ignore HUP, but those are inner protections rather than a substitute for detachment.
 
 None of that helps when the harness enforces its own ceiling on tool-call duration. A ~2-minute class of limits exists on some hosts, and when it fires, the harness kills the supervising shell itself — the script's internal timeouts, traps, and cleanup logic never get a say. Because these passes are deliberately non-blocking (any failure means no output file, which reads as "the pass didn't run"), the result is a silent no-op: the orchestrator proceeds, the user sees a review with one reviewer quietly missing, and nothing flags that a limit was hit.
 
@@ -34,19 +34,19 @@ Never let one tool call span a delegate's runtime. Split the lifecycle so every 
 2. **DURABLE STATE.** The job directory is the source of truth, under the stable scratch root:
 
    ```
-   /tmp/compound-engineering/<skill>/<run-id>/jobs/<job-id>/
-     status      # exactly one word: running | done | failed | timeout
+   /tmp/compound-engineering-<effective-uid>/<skill>/<run-id>/jobs/<job-id>/
+     status      # terminal only: done | failed | timeout; absence means running
      pid         # detached worker's pid
      out.log     # raw delegate stream (also the liveness signal)
      meta.json   # job identity: run id, lens/provider or work unit,
                  # input digest (e.g. base SHA), started timestamp
-     result.json # published ATOMICALLY (write tmp, validate/normalize,
-                 # rename) only after the output passed validation
+     <result>    # path declared in meta.json; published ATOMICALLY only after
+                 # the output passed validation
    ```
 
-3. **SUPERVISE.** A watchdog runs *inside* the detached process, not in the orchestrator: liveness is `out.log` byte growth; an idle window with no growth reaps the delegate; a hard cap reaps it regardless. Reaping kills the whole process tree — TERM, a grace period, then KILL; when a process-group kill is unavailable, walk the tree deepest-first so children die before their parents can respawn or orphan them.
+3. **SUPERVISE.** A watchdog runs *inside* the detached process, not in the orchestrator. The worker heartbeat makes outer `out.log` growth a worker-liveness signal; a separate peer log supplies route progress only where that CLI actually streams. Idle and hard limits reap the delegate as their own signals permit. Reaping kills the whole process tree — TERM, a grace period, then KILL; when a process-group kill is unavailable, walk the tree deepest-first so children die before their parents can respawn or orphan them.
 
-4. **POLL.** The orchestrator checks `status` with sub-second reads interleaved between its other work, and reads `result.json` only once the status word is terminal. No foreground sleep loops.
+4. **WAIT.** The orchestrator checks once after its other work, then uses bounded `wait` slices until the job is terminal or the aggregate deadline is spent. It does not interleave foreground polling turns or shell no-ops. The result is read only after the runner reports a usable terminal state.
 
 5. **DEADLINE OWNERSHIP — one knob, strictly nested windows.** The detached worker owns the per-job idle and hard limits; the caller owns a separate aggregate deadline; the runner supervisor owns the outermost window. All of them derive from **one** env knob at dispatch (`CROSS_MODEL_HARD_SECS` for the cross-model peers) and nest strictly outward: worker hard cap < caller aggregate deadline < runner supervisor cap. When the aggregate deadline passes, the caller proceeds without the job, so an additive pass can never become an unbounded wait.
 
@@ -113,7 +113,7 @@ Caveats stated plainly: codex was tested with its sandbox disabled (`danger-full
 **The launch snippet** (new-session detach, works on all three tested hosts; macOS has no `setsid(1)`, hence perl):
 
 ```bash
-CMD='bash /path/to/worker.sh --job-dir /tmp/compound-engineering/<skill>/<run-id>/jobs/<job-id>'
+CMD='bash /path/to/worker.sh --job-dir /tmp/compound-engineering-<effective-uid>/<skill>/<run-id>/jobs/<job-id>'
 perl -e 'use POSIX qw(setsid); exit if fork; setsid(); exit if fork; open(STDIN,"<","/dev/null"); open(STDOUT,">","/dev/null"); open(STDERR,">>","/dev/null"); exec "/bin/bash","-c",$ARGV[0];' "$CMD"
 ```
 
@@ -125,4 +125,4 @@ perl -e 'use POSIX qw(setsid); exit if fork; setsid(); exit if fork; open(STDIN,
 - `docs/solutions/skill-design/watch-loops-need-a-blocked-external-terminal-state.md` — sibling pattern for supervising long-running external work: terminal-state taxonomy and bounded waits.
 - `docs/solutions/skill-design/portable-agent-skill-authoring.md` — the canonical cross-harness authoring guide; this pattern is its "verify per-harness behavior empirically" principle applied to shell-tool process lifecycle.
 - `docs/solutions/skill-design/dispatch-script-failure-degrade-outcome-not-boundary.md` — refines this doc's deadline-ownership rule: when the dispatch *script itself* crashes before any job exists (vs a per-job route failure), the caller first attempts bounded same-route hand-recovery rather than proceeding-without on the first error.
-- Issues #1115 (Grok host support for the ce-code-review cross-model pass) and #878 (verified cross-model delegation) — open work that this lifecycle underpins.
+- Issue #1115 (Grok host support for the ce-code-review cross-model pass) is complete; issue #878 (verified cross-model delegation) remains open work that this lifecycle underpins.

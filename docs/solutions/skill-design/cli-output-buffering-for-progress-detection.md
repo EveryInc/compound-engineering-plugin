@@ -31,9 +31,9 @@ related_docs:
 Several skills in this repo supervise a long-running peer agent CLI as a child process and decide whether it is still making progress by watching its output file grow. Two layers do this:
 
 - **Inner supervisor** — `skills/ce-code-review/scripts/cross-model-adversarial-review.sh` runs the peer CLI, redirects its stdout into a private log (`PEERLOG`), and polls that file's byte count.
-- **Outer supervisor** — `skills/ce-*/scripts/peer-job-runner.py` supervises a worker shell command and watches `out.log` for byte growth.
+- **Outer supervisor** — `skills/ce-*/scripts/peer-job-runner.py` supervises a worker shell command and watches `out.log` for worker heartbeat/liveness.
 
-Both encode the same assumption: *stdout bytes accumulate steadily while the model works, so a flat file means the process is wedged.* That assumption is false for most agent CLIs in their default output modes, and it is false in a way that is invisible from reading `--help` — the flags say "json output", not "no bytes until the very end."
+Only the inner layer can treat peer-output growth as route progress, and only after measuring the exact CLI/flag combination. The outer heartbeat proves the worker is alive, not that the peer is productive. Conflating those signals is false for most agent CLIs in their default output modes, and it is false in a way that is invisible from reading `--help` — the flags say "json output", not "no bytes until the very end."
 
 Empirical measurement this session (claude 2.1.215, macOS), sampling the output file's size every 3-5 seconds while each CLI ran a single long reasoning prompt:
 
@@ -62,7 +62,7 @@ Three flag-level gotchas surfaced alongside the sizes:
 
 2. **Item-boundary streaming is only partial coverage.** `codex exec --json` gives you progress signal between steps but not within one. An idle window shorter than a single long reasoning turn will kill a healthy peer.
 
-3. **Out-of-band side channel where streaming is foreclosed.** On grok, requesting a JSON schema forces non-streaming output, so no stdout-based mechanism can work. The only remaining option is having the worker report progress through a *tool call* rather than stdout. The Orca `orchestration` skill (`~/.agents/skills/orchestration/SKILL.md`) does exactly this — a dispatched worker emits `orca orchestration send --type heartbeat --payload '{"taskId":"...","dispatchId":"...","phase":"implementing"}'` (SKILL.md:233). Because it is a tool-call side effect, it is immune to stdout buffering entirely, and it carries a semantic phase instead of bare liveness. Two costs: it requires granting the worker a tool (our peer routes deliberately strip tools — `cross-model-adversarial-review.sh:204` passes `--disallowedTools Edit Write NotebookEdit Bash Task WebFetch WebSearch Skill 'mcp__*'`, and the doc-review route goes further with `--tools ""` per the comment at :201-202), and it depends on the model self-timing against wall clock.
+3. **Choose the safe signal when streaming is foreclosed.** On Grok, requesting a JSON schema forces non-streaming output, so stdout cannot provide in-turn progress. A trusted worker that already owns an out-of-band status channel may use it when that channel is part of the route contract. The review peers deliberately remain tool-less, so granting a new tool merely for heartbeat would weaken their boundary; their Grok route therefore uses a hard-only window and accepts that no in-turn progress signal exists.
 
 4. **Never instruct a model to print periodic status to stdout.** Under a buffered output format the status lines are buffered into the same final envelope and arrive all at once at the end. This mechanism does not degrade gracefully — it fails completely and silently.
 
@@ -70,7 +70,7 @@ Three flag-level gotchas surfaced alongside the sizes:
 
 6. **Verify by measurement, not by reading flags.** Every buffering behavior above is undocumented in the CLIs' help text. Sample the output file's size on an interval while a real long prompt runs.
 
-**Understand what a heartbeat proves.** `cross-model-adversarial-review.sh:447-476` runs a background writer that logs `peer alive (Ns elapsed)` to the *script's own stderr* every `CROSS_MODEL_HEARTBEAT_SECS` (default 60). This is deliberately scoped: it satisfies the outer `peer-job-runner.py` idle window (`CE_PEER_IDLE_SECS`, default 240, documented at :60 as "idle window, no out.log growth") while deliberately *not* writing to `PEERLOG`, so it does not mask the inner byte-growth signal. But it reports **script** liveness, not **peer** productivity — it cannot distinguish a thinking peer from a wedged one. The orchestration skill states the general form of this at SKILL.md:96: "Heartbeats and visible terminal activity mean the worker is alive, not done."
+**Understand what a heartbeat proves.** The workers' `start_heartbeat` helper logs `peer alive (Ns elapsed)` to the *script's own stderr*. This satisfies the outer runner's idle window while deliberately not writing to `PEERLOG`, so it does not mask the inner byte-growth signal. It reports **worker** liveness, not **peer** productivity — it cannot distinguish a thinking peer from a wedged one.
 
 ## Why This Matters
 
