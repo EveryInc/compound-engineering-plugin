@@ -6,6 +6,8 @@ Process findings from all agents through this pipeline. Order matters — each s
 
 ### 3.1 Validate
 
+A reviewer run inline has written no artifact file: write its return as received, plus `returned_at`, to `<run-dir>/<reviewer>.json` before validating, so the run directory holds every local return. Validation reads the in-memory return; the file is a measurement copy, never repaired.
+
 Check each agent's returned JSON against the findings schema:
 
 - Drop findings missing any required field defined in the schema

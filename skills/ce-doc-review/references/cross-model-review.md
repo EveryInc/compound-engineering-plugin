@@ -110,13 +110,7 @@ Disclose that this is not launcher-only isolation: the detached worker inherits 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-doc-review SKILL.md you read>";
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
-SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
-[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
-if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
-(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
-if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
-chmod 700 "$SCRATCH_ROOT" || exit 1;
-RUN_DIR="$SCRATCH_ROOT/ce-doc-review/<run-id>"; (umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
+RUN_DIR="<run-dir>";  # the absolute run directory dispatch.md created for this review
 echo "peer-deadline-secs=$(( ${CROSS_MODEL_HARD_SECS:-1200} + 10 ))";
 CE_PEER_HARD_SECS= CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-doc-review --run-id "<run-id>" --label "<reviewer-name>" -- env CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" bash "$SKILL_DIR/scripts/cross-model-doc-review.sh" "<host-serving-family>" "<target>" "<reviewer-name>" "<document-path>" "<document-type>" "<origin>" "$RUN_DIR"
 ```
@@ -135,7 +129,7 @@ Omit `--result-path`; `done` means only that the worker exited. The fixed target
 - `<document-path>` = the document under review.
 - `<document-type>` = the Phase 1 classification (`requirements` / `plan` / `unified-requirements` / `unified-plan`).
 - `<origin>` = the same `{origin_path}` slot the in-process personas receive.
-- `<run-dir>` = the absolute `$RUN_DIR` resolved above. The script writes `<reviewer-name>-<provider>.json` there per resolved peer **only after** forcing `reviewer` to `<reviewer-name>-<provider>` and downgrading peer `safe_auto` → `gated_auto`.
+- `<run-dir>` = the absolute run directory `references/dispatch.md` created for this review (its `<run-id>` is the directory basename). The script writes `<reviewer-name>-<provider>.json` there per resolved peer **only after** forcing `reviewer` to `<reviewer-name>-<provider>` and downgrading peer `safe_auto` → `gated_auto`.
 
 Every runner call is bounded — no tool call ever spans a worker's runtime, on any host. Between dispatch waves, poll outstanding jobs (it returns early when the watched jobs settle):
 

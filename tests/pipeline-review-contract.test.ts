@@ -880,6 +880,35 @@ describe("ce-doc-review contract", () => {
     expect(line).not.toMatch(/(^|[;,] )data handling,/i)
   })
 
+  // Only cross-model peer files used to land on disk (55 runs, zero local persona files),
+  // so the local roster's contribution could never be measured. The run directory is
+  // now created for every review at dispatch, a manifest joins it to the document and
+  // its depth, and each local return is persisted beside the peer files.
+  test("every review creates its run directory at dispatch and persists local returns", async () => {
+    const dispatch = await readRepoFile("skills/ce-doc-review/references/dispatch.md")
+    const runDir = sliceSection(dispatch, "## Run directory", "## Dispatch")
+    expect(runDir).toContain('SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"')
+    expect(runDir).toMatch(/RUN_ID="\$\(date \+%Y%m%d-%H%M%S\)-/)
+    expect(runDir).toContain("run.json")
+    expect(runDir).toMatch(/depth/)
+    expect(dispatch).toContain("`{run_dir}`")
+
+    // One preamble copy: the cross-model reference consumes the resolved path.
+    const crossModel = await readRepoFile("skills/ce-doc-review/references/cross-model-review.md")
+    expect(crossModel).not.toContain('SCRATCH_ROOT="')
+    expect(crossModel).toContain('RUN_DIR="<run-dir>"')
+
+    const template = await readRepoFile("skills/ce-doc-review/references/subagent-template.md")
+    expect(template).toContain("Run directory: {run_dir}")
+    expect(template).toMatch(/\*\*Artifact file\.\*\*.*`\{run_dir\}\/<reviewer>\.json`/)
+    expect(template).toContain("returned_at")
+
+    const synthesis = await readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md")
+    const validate = sliceSection(synthesis, "### 3.1 Validate", "### 3.2")
+    expect(validate).toContain("<run-dir>/<reviewer>.json")
+    expect(validate).toMatch(/never repaired/)
+  })
+
   test("keeps security document review on the parent capability tier", async () => {
     const content = await readRepoFile("skills/ce-doc-review/references/dispatch.md")
     const modelTierSection = content.slice(content.indexOf("Model tiering lives here"))
