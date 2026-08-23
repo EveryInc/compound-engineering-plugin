@@ -891,11 +891,19 @@ def provider_error_text(value):
         message = ""
     return message if isinstance(message, str) else ""
 
+def route_terminal_success(value):
+    if route == "codex":
+        return {"turn.completed": True, "turn.failed": False}.get(value.get("type"))
+    return None
+
 def terminal_record(value):
     error = value.get("error")
-    return value.get("type") in {"result", "error"} or error not in (None, False, "") or status(value) is not None or any(key in value for key in ("is_error", "terminal_reason", "stopReason", "api_error_status"))
+    return route_terminal_success(value) is not None or value.get("type") in {"result", "error"} or error not in (None, False, "") or status(value) is not None or any(key in value for key in ("is_error", "terminal_reason", "stopReason", "api_error_status"))
 
 def terminal_success(value):
+    route_success = route_terminal_success(value)
+    if route_success is not None:
+        return route_success
     subtype = str(value.get("subtype", ""))
     terminal_reason = str(value.get("terminal_reason", ""))
     stop_reason = str(value.get("stopReason", ""))

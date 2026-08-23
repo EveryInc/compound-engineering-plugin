@@ -845,6 +845,41 @@ printf '%s\n%s\n' '${overload}' '${success}'
     expect(r.files).toContain("adversarial-claude.json")
   })
 
+  test("Codex completion supersedes an earlier transient error event", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-codex-recovered-529-counter-"), "count")
+    const review = JSON.stringify({
+      reviewer: "adversarial",
+      findings: [],
+      residual_risks: [],
+      testing_gaps: [],
+    })
+    const { env } = sandbox(
+      ["codex"],
+      `#!/bin/sh
+out=''
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = '-o' ]; then out="$2"; shift 2; else shift; fi
+done
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s' '${review}' > "$out"
+printf '%s\n%s\n' '{"type":"error","message":"API Error: 529 Overloaded"}' '{"type":"turn.completed","usage":{}}'
+`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("1")
+    expect(r.files).toContain("adversarial-codex.json")
+  })
+
   test("retries a narrow plain-text provider 529 from stderr", () => {
     const counter = path.join(mkTempRoot("xmodel-cr-529-stderr-counter-"), "count")
     const body = `#!/bin/sh
