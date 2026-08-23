@@ -561,12 +561,10 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
     expect(r.stderr).toContain("terminal_reason=api_error")
   })
 
-  test("retries an exact provider-overload 529 once on the same route", () => {
+  test("retries a provider-overload 529 carried by a structured error message", () => {
     const counter = path.join(mkTempRoot("xmodel-doc-529-counter-"), "count")
     const payload = JSON.stringify({
-      result: "API Error: 529 Overloaded. This is a server-side issue.",
-      api_error_status: 529,
-      terminal_reason: "api_error",
+      error: { message: "API Error: 529 Overloaded. This is a server-side issue." },
     }, null, 2)
     const body = `#!/bin/sh
 cat >/dev/null

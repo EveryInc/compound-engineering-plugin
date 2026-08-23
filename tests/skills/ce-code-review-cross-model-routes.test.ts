@@ -749,12 +749,10 @@ exit 1
     expect(r.stderr).not.toContain("peer skip class:")
   })
 
-  test("retries an exact provider-overload 529 once on the same route", () => {
+  test("retries a provider-overload 529 carried by a structured error message", () => {
     const counter = path.join(mkTempRoot("xmodel-cr-529-counter-"), "count")
     const payload = JSON.stringify({
-      result: "API Error: 529 Overloaded. This is a server-side issue.",
-      api_error_status: 529,
-      terminal_reason: "api_error",
+      error: { message: "API Error: 529 Overloaded. This is a server-side issue." },
     }, null, 2)
     const body = `#!/bin/sh
 cat >/dev/null

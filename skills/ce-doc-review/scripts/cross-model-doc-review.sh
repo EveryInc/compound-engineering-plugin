@@ -864,18 +864,39 @@ def status(value):
     error = value.get("error")
     return value.get("api_error_status", value.get("status", error.get("status") if isinstance(error, dict) else None))
 
-if any(str(status(value)) == "529" for value in objects):
+same_line = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)[^\r\n]*?(?:overload|capacity)", re.I)
+split_head = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)", re.I)
+split_tail = re.compile(r"^\s*[^\w]*(?:overload|capacity)", re.I)
+
+def overload_text(text):
+    lines = text.splitlines()
+    return any(same_line.search(line) for line in lines) or any(split_head.search(line) and split_tail.search(lines[index + 1]) for index, line in enumerate(lines[:-1]))
+
+def provider_error_text(value):
+    error = value.get("error")
+    if isinstance(error, dict):
+        message = error.get("message", "")
+    elif isinstance(error, str):
+        message = error
+    elif value.get("type") == "error" or value.get("is_error") is True:
+        message = value.get("message", "")
+    else:
+        message = ""
+    return message if isinstance(message, str) else ""
+
+if any(str(status(value)) == "529" or overload_text(provider_error_text(value)) for value in objects):
     print("overloaded")
     raise SystemExit
 
 def terminal_record(value):
-    return value.get("type") == "result" or status(value) is not None or any(key in value for key in ("is_error", "terminal_reason", "stopReason", "api_error_status"))
+    error = value.get("error")
+    return value.get("type") in {"result", "error"} or error not in (None, False, "") or status(value) is not None or any(key in value for key in ("is_error", "terminal_reason", "stopReason", "api_error_status"))
 
 def terminal_success(value):
     subtype = str(value.get("subtype", ""))
     terminal_reason = str(value.get("terminal_reason", ""))
     stop_reason = str(value.get("stopReason", ""))
-    if value.get("is_error") is True:
+    if value.get("is_error") is True or value.get("error") not in (None, False, ""):
         return False
     terminal_status = status(value)
     if terminal_status is not None:
@@ -906,11 +927,7 @@ if terminal and not all(terminal_success(value) for value in terminal):
     raise SystemExit
 
 plain = texts[0] if route == "codex" else texts[1]
-lines = plain.splitlines()
-same_line = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)[^\r\n]*?(?:overload|capacity)", re.I)
-split_head = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)", re.I)
-split_tail = re.compile(r"^\s*[^\w]*(?:overload|capacity)", re.I)
-if any(same_line.search(line) for line in lines) or any(split_head.search(line) and split_tail.search(lines[index + 1]) for index, line in enumerate(lines[:-1])):
+if overload_text(plain):
     print("overloaded")
 else:
     print("ok")
