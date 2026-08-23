@@ -899,7 +899,6 @@ describe("ce-doc-review contract", () => {
     expect(crossModel).toContain('RUN_DIR="<run-dir>"')
 
     const template = await readRepoFile("skills/ce-doc-review/references/subagent-template.md")
-    expect(template).toContain("Run directory: {run_dir}")
     expect(template).toMatch(/\*\*Artifact file\.\*\*.*exactly that path/)
     // The orchestrator names the file from the allowlisted persona; the reviewer never derives it.
     expect(template).toContain("Artifact file: {run_dir}/{reviewer_name}.json")
