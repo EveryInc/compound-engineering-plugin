@@ -409,6 +409,13 @@ semantics so downstream tooling can rely on them:
 - **`deepened`** — ISO 8601 date marking the first time the confidence
   check substantively strengthened the plan. Presence affects Phase 0.1
   resume fast-path logic (see `references/deepening-workflow.md`).
+- **`depth`** — the plan depth `ce-plan` classified at intake, one of
+  `lightweight`, `standard`, `deep` (lowercase). Written at plan-write;
+  when a deepening pass rewrites the file it rewrites this value to its
+  own classification, and adds the key to an older plan only when the file
+  is being written for another reason. Consumers never require it; a plan
+  without the key is valid. It exists so document size and review cost can
+  be read by depth.
 - **`execution`** — execution domain for downstream routing: `code`
   (the default when absent) or `knowledge-work`. `ce-work`'s input triage
   reads this: a plan marked `execution: knowledge-work` routes to the

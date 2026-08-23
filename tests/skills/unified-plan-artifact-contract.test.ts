@@ -247,6 +247,9 @@ describe("unified plan artifact contract", () => {
     expect(planCorpus).toContain("create a new unified plan in `<root>/plans/`")
     expect(planCorpus).toContain("product_contract_source: ce-plan-bootstrap")
     expect(planFinalReview).toContain("artifact_readiness: implementation-ready")
+    // depth: is written beside the contract fields so size and review cost can be read by depth.
+    expect(planFinalReview).toMatch(/`depth:` to the classified depth \(`lightweight`, `standard`, or `deep`\)/)
+    expect(planSections).toMatch(/\*\*`depth`\*\* — [\s\S]{0,120}`lightweight`, `standard`, `deep`/)
     expect(planCorpus).toContain("Definition of Done")
     // The launch prompt is generated at handoff, never written into the doc.
     expect(planCorpus).toContain("Do not write a launch prompt into the doc")

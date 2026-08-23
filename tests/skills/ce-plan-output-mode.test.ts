@@ -291,7 +291,7 @@ describe("ce-plan output:html mode", () => {
 
     // Optional but well-known fields whose names are load-bearing for
     // resume/traceback flows.
-    for (const field of ["origin", "deepened"]) {
+    for (const field of ["origin", "deepened", "depth"]) {
       expect(
         new RegExp(`\\b${field}\\b`).test(body),
         `plan-sections.md must name the optional '${field}' metadata field — its presence and exact name are load-bearing for downstream flows.`,

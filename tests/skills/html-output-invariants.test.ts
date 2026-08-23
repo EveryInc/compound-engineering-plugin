@@ -431,7 +431,7 @@ describe("html-rendering.md reference content invariants", () => {
       /Visible readiness metadata/i.test(REFERENCE),
       "Reference must require visible readiness metadata in the HTML header.",
     ).toBe(true)
-    for (const field of ["artifact_readiness", "artifact_contract", "product_contract_source"]) {
+    for (const field of ["artifact_readiness", "artifact_contract", "product_contract_source", "depth"]) {
       expect(
         REFERENCE.includes(field),
         `Reference must name the unified contract metadata field "${field}" to render visibly.`,

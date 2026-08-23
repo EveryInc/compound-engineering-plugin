@@ -270,6 +270,12 @@ In universal-planning mode, U-IDs, dependency ordering, scope boundaries, and th
 
 ---
 
+## Plan metadata
+
+Beside the unified-plan contract fields (`artifact_contract`, `artifact_readiness`, `product_contract_source`, `execution`), a plan written by `ce-plan` carries `depth:` — `lightweight`, `standard`, or `deep` — so document size and review cost can be read by depth. A deepening pass rewrites it to its own classification. Older plans without the key stay valid; no consumer requires it.
+
+---
+
 ## FAQ
 
 **Doesn't a plan tell you HOW to build something?**
