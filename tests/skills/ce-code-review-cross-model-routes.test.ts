@@ -779,6 +779,38 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(r.stderr).toContain("provider overload 529; retrying same route once")
   })
 
+  test("retries a provider-overload 529 carried by a terminal HTTP status", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-http-529-counter-"), "count")
+    const payload = JSON.stringify({
+      type: "error",
+      http_status: 529,
+      error: { type: "overloaded_error", message: "Overloaded" },
+    })
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+if [ "$n" -eq 1 ]; then
+  printf '%s' '${payload}'
+  exit 1
+fi
+printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
+`
+    const { env } = sandbox(["claude"], body)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("provider overload 529; retrying same route once")
+  })
+
   test("retries a narrow plain-text provider 529 from stderr", () => {
     const counter = path.join(mkTempRoot("xmodel-cr-529-stderr-counter-"), "count")
     const body = `#!/bin/sh
@@ -920,6 +952,53 @@ if [ "$n" -eq 1 ]; then printf '%s' '${first}'; else printf '%s' '${second}'; fi
 
     expect(readFileSync(counter, "utf8")).toBe("2")
     expect(r.files).toContain("adversarial-grok.json")
+  })
+
+  test("retries a plain-text Grok 529 from stdout", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-grok-stdout-529-counter-"), "count")
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+if [ "$n" -eq 1 ]; then
+  printf '%s\n' 'API Error: 529 Overloaded'
+  exit 1
+fi
+printf '%s' '{"structuredOutput":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
+`
+    const { env } = sandbox(["grok"], body)
+    const runDir = makeRunDir()
+    const r = run(["claude", "grok", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).toContain("adversarial-grok.json")
+  })
+
+  test("rejects a nonnumeric effective route budget before dispatch", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-hard-budget-counter-"), "count")
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh
+cat >/dev/null
+printf invoked > "$COUNTER"
+`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_HARD_SECS: "oops",
+    })
+
+    expect(r.code).toBe(0)
+    expect(existsSync(counter)).toBe(false)
+    expect(r.stderr).toContain("peer hard budget must be a positive integer; skipping")
   })
 
   test("rejects a successful-process Grok 429 envelope instead of publishing its schema stub", () => {

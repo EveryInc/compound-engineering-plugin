@@ -862,7 +862,14 @@ for path in sys.argv[1:3]:
 
 def status(value):
     error = value.get("error")
-    return value.get("api_error_status", value.get("status", error.get("status") if isinstance(error, dict) else None))
+    nested = error if isinstance(error, dict) else {}
+    for candidate in (
+        value.get("api_error_status"), value.get("http_status"), value.get("status"),
+        nested.get("api_error_status"), nested.get("http_status"), nested.get("status"),
+    ):
+        if candidate is not None:
+            return candidate
+    return None
 
 same_line = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)[^\r\n]*?(?:overload|capacity)", re.I)
 split_head = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)", re.I)
@@ -926,7 +933,7 @@ if terminal and not all(terminal_success(value) for value in terminal):
     print("failed")
     raise SystemExit
 
-plain = texts[0] if route == "codex" else texts[1]
+plain = "\n".join(texts)
 if overload_text(plain):
     print("overloaded")
 else:
@@ -1061,6 +1068,9 @@ run_provider() {   # <provider>
   # filename alone cannot encode that intermediary.
   ACTUAL_ROUTE="$primary"
   provider_budget="$(route_hard_budget "$primary")"
+  case "$provider_budget" in
+    ''|0*|*[!0-9]*) log "peer hard budget must be a positive integer; skipping"; rm -f "$OUT"; return 0 ;;
+  esac
   provider_deadline=$(( $(date +%s) + provider_budget ))
   ATTEMPT_HARD_SECS="$provider_budget"
   attempt_route "$provider" "$primary"
