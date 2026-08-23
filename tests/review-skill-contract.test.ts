@@ -1324,11 +1324,15 @@ describe("cross-model peer skip legibility", () => {
       // for the findings brace-match and receipt jq-parse, so stderr is separate.
       expect(workerSrc).toContain('2>"$PEERERR"')
       expect(workerSrc).toContain("peer skip evidence (stderr):")
+      expect(workerSrc).toContain("provider_overloaded")
+      expect(workerSrc).toMatch(/provider overload 529; retrying same route once/i)
 
       // Consumer: the reference points the agent at the same token and asks it
       // to classify a quota/usage-limit exhaustion (harness-agnostic reasoning).
       expect(referenceSrc).toContain("peer skip evidence:")
       expect(referenceSrc).toMatch(/quota|usage-limit/i)
+      expect(referenceSrc).toMatch(/529[^.]{0,160}once|once[^.]{0,160}529/i)
+      expect(referenceSrc).toMatch(/worker and host together spend at most one(?: same-route)? retry/i)
       if (worker.includes("ce-code-review")) {
         expect(workerSrc).not.toContain("peer skip class:")
         expect(referenceSrc).not.toContain("peer skip class:")
@@ -1337,6 +1341,7 @@ describe("cross-model peer skip legibility", () => {
         expect(referenceSrc).toMatch(/never silently continue to another recipient/i)
         expect(referenceSrc).toMatch(/explicit user-stated preference/i)
         expect(referenceSrc).toContain("in-process `adversarial-reviewer`")
+        expect(referenceSrc).toMatch(/max-turn exhaustion:[^\n]*in-process `adversarial-reviewer`/i)
       } else {
         expect(referenceSrc).toMatch(/more than once in this session/i)
       }

@@ -248,6 +248,13 @@ describe("cross-model-adversarial-review route safety", () => {
     }
   })
 
+  test("ordinary code-review peers get finishing headroom below the large-diff ceiling", () => {
+    for (const route of ["claude", "grok-cli"] as const) {
+      expect(emitAdapter(route)).toContain("--max-turns 25")
+      expect(emitAdapter(route, SCRIPT, { PEER_MAX_TURNS: "31" })).toContain("--max-turns 31")
+    }
+  })
+
   test("live dispatch without a host-sanctioned fixed route fails closed", () => {
     const invoked = path.join(mkTempRoot("xmodel-cr-invoked-"), "marker")
     const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\n`)
@@ -330,7 +337,9 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(prompt).toContain("large-diff recovery rule")
     expect(prompt).not.toContain("diff --git")
     expect(prompt.length).toBeLessThan(30000)
-    expect(readFileSync(argvCapture, "utf8")).toContain("--add-dir")
+    const argv = readFileSync(argvCapture, "utf8")
+    expect(argv).toContain("--add-dir")
+    expect(argv).toContain("--max-turns 40")
     expect(r.stderr).toContain("large diff routed through orchestrator review map")
   })
 
@@ -670,6 +679,7 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
   })
 
   test("surfaces a Claude session-limit 429 as skip evidence, not a completed review", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-429-counter-"), "count")
     const payload = JSON.stringify({
       result: "You have hit your session limit",
       api_error_status: 429,
@@ -677,16 +687,178 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     })
     const { env } = sandbox(
       ["claude"],
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${payload}'\nexit 1\n`,
+      `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s' '${payload}'
+exit 1
+`,
     )
     const runDir = makeRunDir()
-    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
     expect(r.code).toBe(0)
+    expect(readFileSync(counter, "utf8")).toBe("1")
     expect(r.files).not.toContain("adversarial-claude.json")
     expect(r.stderr).toContain("peer skip evidence:")
     expect(r.stderr).toContain("You have hit your session limit")
     expect(r.stderr).toContain("api_error_status=429")
     expect(r.stderr).not.toContain("peer skip class:")
+  })
+
+  test("retries an exact provider-overload 529 once on the same route", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-529-counter-"), "count")
+    const payload = JSON.stringify({
+      result: "API Error: 529 Overloaded. This is a server-side issue.",
+      api_error_status: 529,
+      terminal_reason: "api_error",
+    })
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+if [ "$n" -eq 1 ]; then
+  printf '%s' '${payload}'
+  exit 1
+fi
+printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
+`
+    const { env } = sandbox(["claude"], body)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("provider overload 529; retrying same route once")
+  })
+
+  test("retries a narrow plain-text provider 529 from stderr", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-529-stderr-counter-"), "count")
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+if [ "$n" -eq 1 ]; then
+  printf '%s' 'API Error: 529 Overloaded' >&2
+  exit 1
+fi
+printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
+`
+    const { env } = sandbox(["claude"], body)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).toContain("adversarial-claude.json")
+  })
+
+  test("a repeated provider-overload 529 stops after the single retry", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-529-stop-counter-"), "count")
+    const payload = JSON.stringify({
+      result: "API Error: 529 Overloaded. This is a server-side issue.",
+      api_error_status: 529,
+      terminal_reason: "api_error",
+    })
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s' '${payload}'
+exit 1
+`
+    const { env } = sandbox(["claude"], body)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr.match(/retrying same route once/g)).toHaveLength(1)
+    expect(r.stderr).toContain("api_error_status=529")
+  })
+
+  test("keeps both overload attempts inside one route hard budget", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-529-budget-counter-"), "count")
+    const payload = JSON.stringify({ api_error_status: 529, terminal_reason: "api_error" })
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+if [ "$n" -eq 1 ]; then
+  sleep 1
+  printf '%s' '${payload}'
+  exit 1
+fi
+sleep 10
+`
+    const { env } = sandbox(["claude"], body)
+    const runDir = makeRunDir()
+    const started = Date.now()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_HARD_SECS: "3",
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(Date.now() - started).toBeLessThan(6_000)
+    expect(r.stderr.match(/attempt hard 3s/g)).toHaveLength(1)
+    expect(r.stderr).toMatch(/attempt hard [12]s/)
+    expect(r.files).not.toContain("adversarial-claude.json")
+  })
+
+  test("does not classify peer-authored overload prose as a provider 529", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-529-prose-counter-"), "count")
+    const payload = JSON.stringify({
+      result: "The reviewed code mentions API Error: 529 Overloaded.",
+      terminal_reason: "max_turns",
+    })
+    const { env } = sandbox(
+      ["claude"],
+      `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s' '${payload}'
+exit 1
+`,
+    )
+    const runDir = makeRunDir()
+    run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("1")
   })
 
   test("ancillary structured fields do not hide an unrecognized human-readable diagnostic", () => {
@@ -1323,6 +1495,22 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
 
   test("model-override validation stays byte-identical across review workers", () => {
     expect(blockBetween(SCRIPT, "validate_model_override()")).toBe(blockBetween(DOC_SCRIPT, "validate_model_override()"))
+  })
+
+  test("provider-overload classification stays byte-identical across review workers", () => {
+    expect(blockBetween(SCRIPT, "provider_overloaded()", "run_provider()")).toBe(
+      blockBetween(DOC_SCRIPT, "provider_overloaded()", "run_provider()"),
+    )
+  })
+
+  test("provider-overload retry bounds stay present in both review workers", () => {
+    for (const worker of [SCRIPT, DOC_SCRIPT]) {
+      const src = readFileSync(worker, "utf8")
+      expect(src).toContain("provider_deadline=$(( $(date +%s) + provider_budget ))")
+      expect(src).toContain('ATTEMPT_HARD_SECS="$remaining"')
+      expect(src).toContain('if [ ! -s "$RAW_OUT" ] && provider_overloaded; then')
+      expect(src).not.toContain('while [ ! -s "$RAW_OUT" ] && provider_overloaded; do')
+    }
   })
 })
 

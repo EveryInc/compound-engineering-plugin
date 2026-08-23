@@ -72,12 +72,26 @@ describe("cross-model peer budget", () => {
       const src = read(rel)
       if (!/run_timeout_cmd\(\)/.test(src)) continue
       // Streaming routes share HARD_SECS; only grok-cli keeps the unguarded bound.
-      expect(src, `${skill} must hard-only grok-cli`).toContain(
-        'run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle',
-      )
-      expect(src, `${skill} must idle-guard claude`).toContain(
-        'run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle',
-      )
+      // Retry-aware workers pass a remaining attempt budget derived from the same
+      // route-specific source instead of reopening the full cap.
+      if (src.includes("ATTEMPT_HARD_SECS")) {
+        expect(src, `${skill} must derive grok-cli from UNGUARDED`).toContain(
+          'if [ "$1" = "grok-cli" ]; then printf \'%s\\n\' "$UNGUARDED_HARD_SECS"',
+        )
+        expect(src, `${skill} must hard-only grok-cli`).toContain(
+          'run_timeout_cmd "" "$attempt_hard" no-idle',
+        )
+        expect(src, `${skill} must idle-guard claude`).toContain(
+          'run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle',
+        )
+      } else {
+        expect(src, `${skill} must hard-only grok-cli`).toContain(
+          'run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle',
+        )
+        expect(src, `${skill} must idle-guard claude`).toContain(
+          'run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle',
+        )
+      }
       if (hard > 600) {
         expect(unguarded, `${skill} must keep UNGUARDED for grok-cli`).not.toBeNull()
         expect(unguarded!, `${skill} unguarded cap`).toBeLessThanOrEqual(600)

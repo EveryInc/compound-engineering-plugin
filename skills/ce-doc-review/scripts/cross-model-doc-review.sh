@@ -504,6 +504,9 @@ PEERERR="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-err-XXXXXX")"
 PEER_WORKDIR=""
 RAW_OUT=""
 RUN_SUCCEEDED=false
+TRANSIENT_RETRY_DELAY_SECS="${CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS:-5}"
+case "$TRANSIENT_RETRY_DELAY_SECS" in ''|*[!0-9]*) skip "transient retry delay must be an integer from 0 to 60; skipping" ;; esac
+[ "$TRANSIENT_RETRY_DELAY_SECS" -le 60 ] || skip "transient retry delay must be an integer from 0 to 60; skipping"
 cleanup_temp() {
   rm -f "$PROMPT_FILE" "$PEERLOG" "$PEERERR"
   [ -n "$RAW_OUT" ] && rm -f "$RAW_OUT"
@@ -659,6 +662,7 @@ stop_heartbeat() {
 
 run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG, writes -o RAW_OUT
   RUN_SUCCEEDED=false
+  local hard_cap="${1:-$HARD_SECS}"
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
   "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
@@ -674,8 +678,8 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
     if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
       log "codex output idle ${IDLE_SECS}s; reaping peer process group"; reap "$pid"; break
     fi
-    if [ $(( now - start )) -ge "$HARD_SECS" ]; then
-      log "codex exceeded hard cap ${HARD_SECS}s; reaping peer process group"; reap "$pid"; break
+    if [ $(( now - start )) -ge "$hard_cap" ]; then
+      log "codex exceeded hard cap ${hard_cap}s; reaping peer process group"; reap "$pid"; break
     fi
     # 1s slices so a finished peer is noticed promptly (was sleep-5-first, which
     # added up to 5s after every short stub / healthy exit).
@@ -847,6 +851,8 @@ parse_structured() {   # <logfile> <outfile>
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
 attempt_route() {   # <provider> <route>
   local provider="$1" route="$2" note
+  local attempt_hard="${ATTEMPT_HARD_SECS:-}"
+  [ -n "$attempt_hard" ] || attempt_hard="$(route_hard_budget "$route")"
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   build_cmd "$route"
   case "$route" in
@@ -854,24 +860,24 @@ attempt_route() {   # <provider> <route>
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
-  log "peer run: provider=$provider route=$route model=$note lens=$REVIEWER_NAME read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; grok-cli hard-only ${UNGUARDED_HARD_SECS}s); full document content egresses to this provider via this route"
+  log "peer run: provider=$provider route=$route model=$note lens=$REVIEWER_NAME read-only least-privilege (idle ${IDLE_SECS}s / attempt hard ${attempt_hard}s); full document content egresses to this provider via this route"
   case "$route" in
     codex)
-      run_codex_cmd
+      run_codex_cmd "$attempt_hard"
       if [ "$RUN_SUCCEEDED" = true ] && out_missing_or_invalid; then
         recover_findings_json "$PEERLOG" "$RAW_OUT" && log "recovered codex JSON from stdout (-o file unavailable)"
       fi
       ;;
-    grok-cli)    run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle
+    grok-cli)    run_timeout_cmd "" "$attempt_hard" no-idle
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
-    claude)      run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
+    claude)      run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
     grok-cursor|cursor|composer)
       # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
       # positional argv token: the composed prompt (persona + schema + template +
       # full document, up to CROSS_MODEL_MAX_DOC_CHARS) can exceed ARG_MAX and fail
       # the exec with E2BIG on low-limit hosts, whereas stdin has no size limit.
-      run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
+      run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
   esac
   if [ "$RUN_SUCCEEDED" != true ]; then
@@ -883,9 +889,31 @@ attempt_route() {   # <provider> <route>
   extract_model_receipt "$route"
 }
 
+# An exact 529 is a transient provider-capacity response, unlike account/session
+# quota 429s. Match structured envelopes first and retain a narrow plain-text
+# fallback for CLIs that print "529 Overloaded" without JSON.
+provider_overloaded() {
+  local path
+  for path in "$PEERLOG" "$PEERERR"; do
+    [ -s "$path" ] || continue
+    if jq -Rre 'fromjson? | select(
+      ((.api_error_status? // .status? // .error?.status? // "") | tostring) == "529"
+    )' "$path" >/dev/null 2>&1; then
+      return 0
+    fi
+  done
+  [ -s "$PEERERR" ] && grep -Eiq '(^|[^[:alnum:]_])(API Error|HTTP( Error)?|status)[^[:cntrl:]]*529([^0-9]|$)[^[:cntrl:]]*(overload|capacity)' "$PEERERR" && return 0
+  return 1
+}
+
+route_hard_budget() {
+  if [ "$1" = "grok-cli" ]; then printf '%s\n' "$UNGUARDED_HARD_SECS"; else printf '%s\n' "$HARD_SECS"; fi
+}
+
 # Run one host-resolved provider through its fixed route.
 run_provider() {   # <provider>
   local provider="$1" primary="" fixed="${CROSS_MODEL_FIXED_ROUTE:-}"
+  local provider_budget provider_deadline remaining
   OUT="$RUN_DIR/$REVIEWER_NAME-$provider.json"
   # Per-peer empty workspace, kept SEPARATE from the shared fold-in dir (RUN_DIR).
   # The peer's cwd/workspace and its RAW_OUT live here, so a read-capable peer
@@ -911,7 +939,25 @@ run_provider() {   # <provider>
   # (grok-cursor -> Cursor also received the full document). The <lens>-<provider>
   # filename alone cannot encode that intermediary.
   ACTUAL_ROUTE="$primary"
+  provider_budget="$(route_hard_budget "$primary")"
+  provider_deadline=$(( $(date +%s) + provider_budget ))
+  ATTEMPT_HARD_SECS="$provider_budget"
   attempt_route "$provider" "$primary"
+  if [ ! -s "$RAW_OUT" ] && provider_overloaded; then
+    remaining=$(( provider_deadline - $(date +%s) ))
+    if [ "$remaining" -le "$TRANSIENT_RETRY_DELAY_SECS" ]; then
+      log "provider overload 529; shared peer budget spent, not retrying"
+    else
+      log "provider overload 529; retrying same route once after ${TRANSIENT_RETRY_DELAY_SECS}s"
+      sleep "$TRANSIENT_RETRY_DELAY_SECS"
+      remaining=$(( provider_deadline - $(date +%s) ))
+      if [ "$remaining" -gt 0 ]; then
+        ATTEMPT_HARD_SECS="$remaining"
+        attempt_route "$provider" "$primary"
+      fi
+    fi
+  fi
+  ATTEMPT_HARD_SECS=""
 
   # --- normalize + validate against the synthesis reviewer-return contract ---
   # Force reviewer = <reviewer-name>-<provider>; backfill soft arrays; drop the

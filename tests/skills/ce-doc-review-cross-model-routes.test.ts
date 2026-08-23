@@ -531,6 +531,77 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
     expect(r.stderr).toContain("terminal_reason=api_error")
   })
 
+  test("retries an exact provider-overload 529 once on the same route", () => {
+    const counter = path.join(mkTempRoot("xmodel-doc-529-counter-"), "count")
+    const payload = JSON.stringify({
+      result: "API Error: 529 Overloaded. This is a server-side issue.",
+      api_error_status: 529,
+      terminal_reason: "api_error",
+    })
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+if [ "$n" -eq 1 ]; then
+  printf '%s' '${payload}'
+  exit 1
+fi
+printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"deferred_questions":[]}}'
+`
+    const { env } = sandbox(["claude"], body)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(
+      ["codex", "claude", "adversarial", doc, "plan", "none", runDir],
+      runDir,
+      {
+        ...env,
+        COUNTER: counter,
+        CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+      },
+    )
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("provider overload 529; retrying same route once")
+  })
+
+  test("a repeated provider-overload 529 stops after the single retry", () => {
+    const counter = path.join(mkTempRoot("xmodel-doc-529-stop-counter-"), "count")
+    const payload = JSON.stringify({
+      result: "API Error: 529 Overloaded. This is a server-side issue.",
+      api_error_status: 529,
+      terminal_reason: "api_error",
+    })
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s' '${payload}'
+exit 1
+`
+    const { env } = sandbox(["claude"], body)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(
+      ["codex", "claude", "adversarial", doc, "plan", "none", runDir],
+      runDir,
+      {
+        ...env,
+        COUNTER: counter,
+        CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+      },
+    )
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr.match(/retrying same route once/g)).toHaveLength(1)
+  })
+
   test("ancillary structured fields do not hide an unrecognized human-readable diagnostic", () => {
     const payload = JSON.stringify({
       diagnostic: "Provider rejected the request for this account",
