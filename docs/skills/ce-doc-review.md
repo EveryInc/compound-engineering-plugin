@@ -157,7 +157,7 @@ The pass embeds the document into the peer prompt and sends it to an external pr
 
 ### Run artifacts
 
-Every review creates a run directory under the OS-temp scratch root (`/tmp/compound-engineering-<uid>/ce-doc-review/<run-id>/`) before any reviewer is dispatched. It holds `run.json` (the reviewed document, its type and `depth`, the announced team, and the dispatch time), one `<reviewer>.json` per local persona with its return and return time, and any cross-model `<reviewer>-<provider>.json`. Nothing reads these back during the review; they exist so a later pass can measure review cost per persona and per depth and what the cross-model peer found that the local roster did not.
+Every review creates a run directory under the OS-temp scratch root (`/tmp/compound-engineering-<uid>/ce-doc-review/<run-id>/`) before any reviewer is dispatched. It holds `run.json` (the reviewed document, its type, its unit and line counts, the announced team, and the dispatch time), one `<reviewer>.json` per local persona with its return and return time, and any cross-model `<reviewer>-<provider>.json`. Nothing reads these back during the review; they exist so a later pass can measure review cost per persona against document size and see what the cross-model peer found that the local roster did not.
 
 ## Quick Example
 

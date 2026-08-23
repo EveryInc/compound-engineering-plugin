@@ -2,7 +2,7 @@
 
 ## Run directory
 
-Every review has a run directory before any reviewer is dispatched: it holds the manifest, each local persona's findings file, and any cross-model peer file, so a run can be measured and joined to the document it reviewed. Resolve it once per review, in the same shell call that creates it (shell state does not persist between tool calls), and pass the absolute path to every reviewer and to the cross-model pass as `<run-dir>`:
+Every review has a run directory before any reviewer is dispatched: it holds the manifest, each local persona's findings file, and any cross-model peer file, so a run can be measured against the document it reviewed. Resolve it once per review, in the same shell call that creates it (shell state does not persist between tool calls), and pass the absolute path to every reviewer and to the cross-model pass as `<run-dir>`:
 
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
@@ -16,7 +16,7 @@ RUN_DIR="$SCRATCH_ROOT/ce-doc-review/$RUN_ID"; (umask 077; mkdir -p "$RUN_DIR") 
 echo "RUN_DIR=$RUN_DIR"
 ```
 
-A new run id per review, including a round-2 review of the same document: a reused id would let a later reap touch an earlier round's jobs. Then write `run.json` (mode 600) into that directory with exactly these keys: `document` (the reviewed document's absolute path), `document_type`, `depth` (the document's metadata value, or null), `team` (the announced reviewer names), and `dispatched_at` (ISO 8601). Nothing deletes the run directory; the cross-model pass removes only its consumed `jobs/` subtree.
+A new run id per review, including a round-2 review of the same document: a reused id would let a later reap touch an earlier round's jobs. Then write `run.json` (mode 600) into that directory with exactly these keys: `document` (the reviewed document's absolute path), `document_type`, `units` (the count of `### U<N>.` headings, or null when the document has none), `lines` (the document's line count), `team` (the announced reviewer names), and `dispatched_at` (ISO 8601). Nothing deletes the run directory; the cross-model pass removes only its consumed `jobs/` subtree.
 
 ## Dispatch
 

@@ -890,7 +890,8 @@ describe("ce-doc-review contract", () => {
     expect(runDir).toContain('SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"')
     expect(runDir).toMatch(/RUN_ID="\$\(date \+%Y%m%d-%H%M%S\)-/)
     expect(runDir).toContain("run.json")
-    expect(runDir).toMatch(/depth/)
+    expect(runDir).toMatch(/`units`/)
+    expect(runDir).toMatch(/`lines`/)
     expect(dispatch).toContain("`{run_dir}`")
 
     // One preamble copy: the cross-model reference consumes the resolved path.
