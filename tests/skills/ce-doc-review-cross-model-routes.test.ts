@@ -593,6 +593,73 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(r.stderr).toContain("provider overload 529; retrying same route once")
   })
 
+  test("retries a Codex plain-text provider 529 from its merged diagnostic log", () => {
+    const counter = path.join(mkTempRoot("xmodel-doc-codex-529-counter-"), "count")
+    const body = `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+if [ "$n" -eq 1 ]; then
+  printf '%s' 'API Error: 529 Overloaded' >&2
+  exit 1
+fi
+printf '%s' '{"reviewer":"adversarial","findings":[],"residual_risks":[],"deferred_questions":[]}'
+`
+    const { env } = sandbox(["codex"], body)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(
+      ["claude", "codex", "adversarial", doc, "plan", "none", runDir],
+      runDir,
+      {
+        ...env,
+        COUNTER: counter,
+        CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+      },
+    )
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).toContain("adversarial-codex.json")
+    expect(r.stderr).toContain("provider overload 529; retrying same route once")
+  })
+
+  test("does not classify Codex JSON review prose as a provider 529", () => {
+    const counter = path.join(mkTempRoot("xmodel-doc-codex-529-prose-counter-"), "count")
+    const payload = JSON.stringify({
+      reviewer: "adversarial",
+      findings: [{ section: "X", title: "The document mentions API Error: 529 Overloaded." }],
+      residual_risks: [],
+      deferred_questions: [],
+    })
+    const { env } = sandbox(
+      ["codex"],
+      `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s' '${payload}'
+exit 1
+`,
+    )
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    run(
+      ["claude", "codex", "adversarial", doc, "plan", "none", runDir],
+      runDir,
+      {
+        ...env,
+        COUNTER: counter,
+        CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+      },
+    )
+
+    expect(readFileSync(counter, "utf8")).toBe("1")
+  })
+
   test("a repeated provider-overload 529 stops after the single retry", () => {
     const counter = path.join(mkTempRoot("xmodel-doc-529-stop-counter-"), "count")
     const payload = JSON.stringify({

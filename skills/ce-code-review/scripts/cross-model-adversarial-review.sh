@@ -923,7 +923,7 @@ attempt_route() {
 # quota 429s. Match structured envelopes first and retain a narrow plain-text
 # fallback for CLIs that print "529 Overloaded" without JSON.
 provider_overloaded() {
-  local path
+  local path diagnostic_path
   for path in "$PEERLOG" "$PEERERR"; do
     [ -s "$path" ] || continue
     if jq -Rre 'fromjson? | select(
@@ -932,7 +932,10 @@ provider_overloaded() {
       return 0
     fi
   done
-  [ -s "$PEERERR" ] && grep -Eiq '(^|[^[:alnum:]_])(API Error|HTTP( Error)?|status)[^[:cntrl:]]*529([^0-9]|$)[^[:cntrl:]]*(overload|capacity)' "$PEERERR" && return 0
+  if [ "${ACTUAL_ROUTE:-}" = "codex" ]; then diagnostic_path="$PEERLOG"; else diagnostic_path="$PEERERR"; fi
+  [ -s "$diagnostic_path" ] || return 1
+  jq -Rr '. as $line | try (fromjson | empty) catch $line' "$diagnostic_path" 2>/dev/null |
+    grep -Eiq '(^|[^[:alnum:]_])(API Error|HTTP( Error)?|status)[^[:cntrl:]]*529([^0-9]|$)[^[:cntrl:]]*(overload|capacity)' && return 0
   return 1
 }
 
