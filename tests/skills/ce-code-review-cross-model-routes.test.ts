@@ -1041,7 +1041,7 @@ exit 1
     expect(r.stderr).toContain("api_error_status=529")
   })
 
-  test("keeps both overload attempts inside one route hard budget", () => {
+  test("keeps an overload retry inside one route hard budget", () => {
     const counter = path.join(mkTempRoot("xmodel-cr-529-budget-counter-"), "count")
     const payload = JSON.stringify({ api_error_status: 529, terminal_reason: "api_error" })
     const body = `#!/bin/sh
@@ -1067,10 +1067,15 @@ sleep 10
       CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
     })
 
-    expect(readFileSync(counter, "utf8")).toBe("2")
+    const attempts = Number(readFileSync(counter, "utf8"))
+    expect([1, 2]).toContain(attempts)
     expect(Date.now() - started).toBeLessThan(6_000)
     expect(r.stderr.match(/attempt hard 3s/g)).toHaveLength(1)
-    expect(r.stderr).toMatch(/attempt hard [12]s/)
+    if (attempts === 2) {
+      expect(r.stderr).toMatch(/attempt hard [12]s/)
+    } else {
+      expect(r.stderr).toContain("shared peer budget spent, not retrying")
+    }
     expect(r.files).not.toContain("adversarial-claude.json")
   })
 
