@@ -474,7 +474,7 @@ describe("ce-plan output-contract gate", () => {
     expect(gate).toContain("references/output-contracts.md")
     expect(gate).toMatch(/take the heavier one/)
     expect(gate).toMatch(/Durable regardless of size: a run with no synchronous user/)
-    expect(gate).toMatch(/an explicit request for a plan file or an output format/)
+    expect(gate).toMatch(/a request whose wording asks for a plan, a plan file, or an output format/)
   })
 
   test("chat-tier results carry their own done condition beside the Phase 5.4 menu", () => {

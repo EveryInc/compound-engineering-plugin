@@ -82,9 +82,47 @@ Interactive sessions on this worktree's skills, driven through Orca terminals in
 
 The Codex typo row reproduces the original complaint on a path this change left out of scope: `ce-debug`'s description pulls a typo fix into its diagnosis loop on Codex, and its trivial fast-path still asks the fix-choice question before editing. That is a `ce-debug` activation and fast-path finding, recorded as follow-up in the plan; `ce-plan`, `ce-brainstorm`, and `ce-work` did not fire on that prompt on either host.
 
+## Opus 5 (medium) matrix: headless and interactive
+
+The live-session rows above were one trial per prompt on Fable. This section reruns the scoping decision on the models users actually run, three trials per cell, with prompts chosen to include the ones where skipping a plan file would be the wrong call. Hosts: Claude Code with `--model claude-opus-5 --effort medium --plugin-dir <worktree>`, and Codex (`gpt-5.6-sol`, throwaway `CODEX_HOME` linking `<worktree>/skills`). Every cell is an explicit `ce-plan` invocation in a seeded three-file repo (`src/greet.js`, `src/session.js`, `package.json`). Grading reads the host's session transcript plus `git status` in the workspace; "file" means a plan was written under `docs/plans/`. No cell edited source.
+
+**Headless** (`claude -p` / `codex exec`, so no user can act on chat this turn):
+
+| Prompt | Claude Opus 5 | Codex |
+|---|---|---|
+| cache repeated `greet` calls | Durable, file 3/3 | Chat brief 3/3 |
+| signed session cookie (HMAC) | Durable 3/3 (file 2, confirm gate 1) | Durable at confirm gate 3/3 |
+| retry wrapper around an external API | Durable, file 3/3 | Durable at confirm gate 3/3 |
+| localization of the greeting | Durable, file 3/3 | Durable at confirm gate 3/3 |
+| "write a plan for" a greeting config file | Durable, file 3/3 | chat plan, no file 3/3 |
+| `bin/greet.js` CLI with `--json` | Durable, file 3/3 | Direct / Chat brief 3/3 |
+| validate `name` is a non-empty string | Durable, file 3/3 | Direct 3/3 |
+| rename `greet` to `greeting` | Chat brief 3/3 | Direct 3/3 |
+| typo fix in the greeting string | Direct 3/3 | Direct 3/3 |
+
+**Interactive** (Orca-spawned TUIs, prompt typed as a user would; scope-confirm gates answered "confirm"):
+
+| Prompt | Claude Opus 5 | Codex |
+|---|---|---|
+| cache repeated `greet` calls | Chat brief 3/3 (names cache growth as the one decision; offers save or `ce-work`) | Chat brief 2, Direct 1 (same decision named) |
+| signed session cookie | Durable 3/3, file written after confirm 3/3 | Durable 3/3 at confirm then a key-handling question (the harness could not answer the Codex dialog, so no file) |
+| "write a plan for" a config file | Durable 3/3, file 2/3 (third cut mid-research by the harness) | chat plan, no file 3/3 |
+| `bin/greet.js` CLI with `--json` | Chat brief 2, Durable 1 | Direct 2, Chat brief 1 |
+| validate `name` | Chat brief / Direct 3/3 | Direct 3/3 |
+| typo fix | Direct 3/3 | Direct 3/3 |
+
+Reads:
+
+- Neither host under-plans the risk-surface prompts: the cookie, retry, and localization prompts go Durable on every trial on both hosts, headless and interactive.
+- Claude's headless-vs-interactive split on caching, `--json`, and validation is the "no synchronous user" pin working: a `-p` run has nobody to act on a chat brief, so it writes the file; the same prompt in a TUI gets a brief. Codex does not apply that pin headlessly (it delivers the brief to stdout); that is a judgment variance on a tier this change made cheap either way, not a regression.
+- **One real miss, fixed in this PR.** "Write a plan for X" produced a chat plan with no file on Codex 6/6 (headless and interactive) while Claude wrote the file 5/5. The Durable pin named "an explicit request for a plan file or an output format" and Codex read it literally. The pin now reads "a request whose wording asks for a plan, a plan file, or an output format". Rerun against the tightened prose, headless: Codex file 3/3, Claude file 1/1.
+- Codex's gate at "Confirm and I'll proceed" and its key-handling `request_user_input` are Durable-path behaviour this change did not touch; the cells stop there because the harness cannot drive Codex's dialog, not because the skill stopped.
+
+Harness notes for reruns: the Codex TUI needs its workspace pre-trusted in `config.toml` (`[projects."<path>"] trust_level = "trusted"`) and ~3 minutes of MCP startup before the first prompt lands; `orca terminal create --worktree active` must run from inside the Orca worktree, not a scratch directory.
+
 ## Deterministic checks
 
-`bun run test` (3,555 tests), `bun run release:validate`, `bun run plugin:validate`: green at every commit on the branch. Kernel sizes (CRLF-adjusted, 8,000 cap): `ce-plan` 7,788, `ce-brainstorm` 7,666, `ce-work` 7,664.
+`bun run test` (3,555 tests), `bun run release:validate`, `bun run plugin:validate`: green at every commit on the branch. Kernel sizes (CRLF-adjusted, 8,000 cap): `ce-plan` 7,826, `ce-brainstorm` 7,666, `ce-work` 7,664.
 
 ## What the eval surfaced that was not acted on
 
