@@ -43,7 +43,7 @@ export type Grade = {
    */
   workspace_read?: string[]
   must_include?: string[]
-  /** Text that must be absent from the final answer (matched like must_include). The negative half of a roster or routing probe: must_exclude reads only the ACTIONS trailer, so it cannot fail on a persona or route the run still named. */
+  /** Text that must be absent from the final answer (matched like must_include). When the answer ends with a `TEAM:` line, both text terms read that line only, so narration that names a persona neither passes nor fails a roster probe. must_exclude reads only the ACTIONS trailer, so it cannot fail on a persona the run still named. */
   must_not_include?: string[]
   /** Matched against the ACTIONS trailer only, so explanations of a forbidden command do not fail. */
   must_exclude?: string[]

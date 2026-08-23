@@ -159,11 +159,20 @@ export function gradeHost(opts: {
       }
     }
   }
+  // A roster probe grades the declared team, not narration that merely mentions a
+  // persona: when the answer carries a trailing `TEAM:` line, both text terms read
+  // that line; otherwise they read the whole answer as before.
+  const teamLine = decision
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("team:"))
+    .pop()
+  const textScope = teamLine ?? decision
   for (const needle of opts.grade.must_include ?? []) {
-    if (!decision.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
+    if (!textScope.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
   }
   for (const needle of opts.grade.must_not_include ?? []) {
-    if (decision.includes(needle.toLowerCase())) reasons.push(`forbidden text in final answer: ${needle}`)
+    if (textScope.includes(needle.toLowerCase())) reasons.push(`forbidden text in final answer: ${needle}`)
   }
   for (const needle of hasActions ? opts.grade.must_exclude ?? [] : []) {
     if (actions.includes(needle)) {

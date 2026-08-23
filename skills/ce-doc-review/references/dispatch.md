@@ -16,7 +16,7 @@ RUN_DIR="$SCRATCH_ROOT/ce-doc-review/$RUN_ID"; (umask 077; mkdir -p "$RUN_DIR") 
 echo "RUN_DIR=$RUN_DIR"
 ```
 
-A new run id per review, including a round-2 review of the same document: a reused id would let a later reap touch an earlier round's jobs. Then write `$RUN_DIR/run.json` (mode 600) with the reviewed document's absolute path, `document_type`, its `depth` metadata value when present, the announced team, and the dispatch time in ISO 8601. Nothing deletes the run directory; the cross-model pass removes only its consumed `jobs/` subtree.
+A new run id per review, including a round-2 review of the same document: a reused id would let a later reap touch an earlier round's jobs. Then write `run.json` (mode 600) into that directory with exactly these keys: `document` (the reviewed document's absolute path), `document_type`, `depth` (the document's metadata value, or null), `team` (the announced reviewer names), and `dispatched_at` (ISO 8601). Nothing deletes the run directory; the cross-model pass removes only its consumed `jobs/` subtree.
 
 ## Dispatch
 
@@ -42,7 +42,8 @@ Each subagent receives the prompt built from the subagent template included belo
 | `{settled_ktds}` | Session-settled decisions extracted once during Phase 1: any Key Technical Decision **or Product Contract Key Decision** entries carrying a `session-settled:` annotation, listed as decision name, class (`user-directed` / `user-approved`), and rejected alternative; or the literal `none`. Personas read this slot — they do NOT re-parse the document for it. |
 | `{document_content}` | Reviewer-specific slice. **Legacy** requirements/plan documents: pass the full document, never split. **Unified** artifacts can be large, so a section slice is the default rather than the full artifact — metadata, Goal Capsule, plus Product Contract for product-lens/adversarial/scope reviewers, and additionally Planning Contract and active Implementation Units/Verification/DoD for feasibility/coherence reviewers when `artifact_readiness: implementation-ready`. Escalate to a broader slice only when a reviewer needs cross-section traceability the initial slice cannot assess. |
 | `{decision_primer}` | Round 1: the block below. Round 2+: read `references/decision-primer.md` and render per that file. |
-| `{run_dir}` | The absolute `$RUN_DIR` from the Run directory step. A reviewer that has a file-write tool writes its return to `{run_dir}/<reviewer>.json` (template Artifact file rule); for a reviewer run inline because the harness has no subagent primitive, the orchestrator writes that file itself from the return as received, stamping the return time. |
+| `{run_dir}` | The absolute `$RUN_DIR` from the Run directory step. |
+| `{reviewer_name}` | The selected persona's short name (`coherence`, `feasibility`, `product-lens`, `adversarial`, ...), the same value the `reviewer` field carries. The orchestrator fills the artifact path `{run_dir}/{reviewer_name}.json` from this allowlisted name; the reviewer never derives the file name from its own output. For a reviewer run inline because the harness has no subagent primitive, the orchestrator writes that file itself from the return as received, stamping the return time. |
 
 On round 1 — no prior decisions in this interactive session — set `{decision_primer}` to:
 

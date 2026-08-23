@@ -190,6 +190,33 @@ describe("skill-eval-cell host grade", () => {
     expect(g.reasons.some((r) => r.includes("product-lens-reviewer"))).toBe(true)
   })
 
+  test("a TEAM line scopes roster terms, so narration naming the forbidden persona does not fail", () => {
+    const dir = hostDir({
+      "stdout.txt":
+        "product-lens-reviewer was not activated: the plan chooses mechanisms for an agreed outcome.\nReview complete\nTEAM: coherence-reviewer, feasibility-reviewer, adversarial-document-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: { must_include: ["coherence", "feasibility"], must_not_include: ["product-lens"] },
+    })
+    expect(g.ok).toBe(true)
+  })
+
+  test("a TEAM line that names the forbidden persona fails even when narration is clean", () => {
+    const dir = hostDir({
+      "stdout.txt": "Review complete\nTEAM: coherence-reviewer, feasibility-reviewer, product-lens-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: { must_include: ["coherence", "feasibility"], must_not_include: ["product-lens"] },
+    })
+    expect(g.ok).toBe(false)
+  })
+
   test("must_not_include passes when the forbidden text is absent", () => {
     const dir = hostDir({
       "stdout.txt": "Reviewing with: coherence-reviewer, feasibility-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
