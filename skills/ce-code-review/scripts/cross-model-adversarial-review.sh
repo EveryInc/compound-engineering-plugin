@@ -63,6 +63,7 @@ trap '' HUP
 # reap() is defined) reaps it so an orchestrator kill cannot leave orphans.
 ACTIVE_PEER_PID=""
 RUN_SUCCEEDED=false
+PROVIDER_OUTCOME="ok"
 PEER_MAX_TURNS="${PEER_MAX_TURNS:-25}"
 TRANSIENT_RETRY_DELAY_SECS="${CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS:-5}"
 
@@ -841,12 +842,78 @@ PY
   [ -s "$2" ]
 }
 
-terminal_envelope_eligible() {
-  ! jq -Rre 'fromjson? | select(
-    (.is_error? == true)
-    or (((.subtype? // .terminal_reason? // "") | tostring) == "error_max_turns")
-    or (((.subtype? // .terminal_reason? // "") | tostring) == "max_turns")
-  )' "$PEERLOG" >/dev/null 2>&1
+classify_provider_outcome() {
+  local py
+  py="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  [ -n "$py" ] || { printf '%s\n' failed; return; }
+  "$py" - "$PEERLOG" "$PEERERR" "${ACTUAL_ROUTE:-}" <<'PY' 2>/dev/null
+import json, re, sys
+
+decoder = json.JSONDecoder()
+
+def scan(text):
+    objects, plain = [], []
+    cursor = search = 0
+    while True:
+        start = text.find("{", search)
+        if start < 0:
+            break
+        try:
+            value, end = decoder.raw_decode(text, start)
+        except Exception:
+            search = start + 1
+            continue
+        if isinstance(value, dict):
+            plain.extend((text[cursor:start], "\n"))
+            objects.append(value)
+            cursor = end
+        search = max(end, start + 1)
+    plain.append(text[cursor:])
+    return objects, "".join(plain)
+
+texts = []
+objects = []
+for path in sys.argv[1:3]:
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:
+        text = ""
+    found, plain = scan(text)
+    texts.append(plain)
+    objects.extend(found)
+
+def status(value):
+    error = value.get("error")
+    return value.get("api_error_status", value.get("status", error.get("status") if isinstance(error, dict) else None))
+
+if any(str(status(value)) == "529" for value in objects):
+    print("overloaded")
+    raise SystemExit
+
+reasons = {"error_max_turns", "max_turns"}
+if any(value.get("is_error") is True or str(value.get("subtype", value.get("terminal_reason", ""))) in reasons for value in objects):
+    print("failed")
+    raise SystemExit
+
+plain = texts[0] if sys.argv[3] == "codex" else texts[1]
+lines = plain.splitlines()
+same_line = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)[^\r\n]*?(?:overload|capacity)", re.I)
+split_head = re.compile(r"(?:^|\W)(?:API Error|HTTP(?: Error)?)[^\r\n]*?529(?:\D|$)", re.I)
+split_tail = re.compile(r"^\s*[^\w]*(?:overload|capacity)", re.I)
+if any(same_line.search(line) for line in lines) or any(split_head.search(line) and split_tail.search(lines[index + 1]) for index, line in enumerate(lines[:-1])):
+    print("overloaded")
+else:
+    print("ok")
+PY
+}
+
+classify_route_output() {
+  PROVIDER_OUTCOME="$(classify_provider_outcome)"
+  case "$PROVIDER_OUTCOME" in
+    ok) ;;
+    overloaded) RUN_SUCCEEDED=false; rm -f "$RAW_OUT" ;;
+    *) log "peer terminal envelope reports failure; discarding structured output"; RUN_SUCCEEDED=false; rm -f "$RAW_OUT" ;;
+  esac
 }
 
 parse_structured() {   # <logfile> <outfile>
@@ -883,6 +950,7 @@ attempt_route() {
   local provider="$1" route="$2" note
   local attempt_hard="${ATTEMPT_HARD_SECS:-}"
   [ -n "$attempt_hard" ] || attempt_hard="$(route_hard_budget "$route")"
+  PROVIDER_OUTCOME="ok"
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT"
   build_cmd "$route"
   case "$route" in
@@ -895,6 +963,7 @@ attempt_route() {
     codex)
       compose_prompt_codex
       run_codex_cmd "$attempt_hard"
+      classify_route_output
       cp "$PEERLOG" "$RUN_DIR/adversarial-codex-events.jsonl" 2>/dev/null || true
       jq -s '[.[] | select(.type == "turn.completed") | .usage] | last // empty' "$PEERLOG" \
         > "$RUN_DIR/adversarial-codex-usage.json" 2>/dev/null || true
@@ -905,20 +974,19 @@ attempt_route() {
     grok-cli)
       compose_prompt_embedded
       run_timeout_cmd "" "$attempt_hard" no-idle
+      classify_route_output
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT"
       ;;
     claude)
       compose_prompt_embedded
       run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle
-      if [ "$RUN_SUCCEEDED" = true ] && ! terminal_envelope_eligible; then
-        log "peer terminal envelope reports failure; discarding structured output"
-        RUN_SUCCEEDED=false
-      fi
+      classify_route_output
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT"
       ;;
     grok-cursor|cursor|composer)
       compose_prompt_embedded
       run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle
+      classify_route_output
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT"
       ;;
   esac
@@ -935,23 +1003,7 @@ attempt_route() {
 # quota 429s. Match structured envelopes first and retain a narrow plain-text
 # fallback for CLIs that print "529 Overloaded" without JSON.
 provider_overloaded() {
-  local path diagnostic_path
-  for path in "$PEERLOG" "$PEERERR"; do
-    [ -s "$path" ] || continue
-    if jq -e 'select(
-      ((.api_error_status? // .status? // .error?.status? // "") | tostring) == "529"
-    )' "$path" >/dev/null 2>&1; then
-      return 0
-    fi
-  done
-  if [ "${ACTUAL_ROUTE:-}" = "codex" ]; then diagnostic_path="$PEERLOG"; else diagnostic_path="$PEERERR"; fi
-  [ -s "$diagnostic_path" ] || return 1
-  jq -Rrs '(try fromjson catch null) as $whole |
-    if $whole != null then empty
-    else split("\n") | map(. as $line | try (fromjson | empty) catch $line) | join(" ")
-    end' "$diagnostic_path" 2>/dev/null |
-    grep -Ei '(^|[^[:alnum:]_])(API Error|HTTP( Error)?|status)[^[:cntrl:]]*529([^0-9]|$)[^[:cntrl:]]*(overload|capacity)' >/dev/null && return 0
-  return 1
+  [ "$PROVIDER_OUTCOME" = "overloaded" ]
 }
 
 route_hard_budget() {

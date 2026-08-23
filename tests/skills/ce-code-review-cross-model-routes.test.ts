@@ -763,7 +763,7 @@ n=0
 n=$((n + 1))
 printf '%s' "$n" > "$COUNTER"
 if [ "$n" -eq 1 ]; then
-  printf '%s' '${payload}'
+  printf '%s\n%s' 'provider warning before structured error' '${payload}'
   exit 1
 fi
 printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}}'
@@ -869,6 +869,61 @@ exit 1
     expect(readFileSync(counter, "utf8")).toBe("1")
   })
 
+  test("does not combine unrelated plain-text records into a provider overload", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-529-record-counter-"), "count")
+    const { env } = sandbox(
+      ["codex"],
+      `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s\n' 'status: request failed' 'unrelated metric: 529' 'capacity report follows'
+exit 1
+`,
+    )
+    const runDir = makeRunDir()
+    run(["claude", "codex", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("1")
+  })
+
+  test("retries a successful-process Grok 529 envelope instead of publishing its schema stub", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-grok-529-stub-counter-"), "count")
+    const first = JSON.stringify({
+      api_error_status: 529,
+      structuredOutput: { reviewer: "adversarial", findings: [] },
+    }, null, 2)
+    const second = JSON.stringify({
+      structuredOutput: { reviewer: "adversarial", findings: [], residual_risks: [], testing_gaps: [] },
+    })
+    const { env } = sandbox(
+      ["grok"],
+      `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+if [ "$n" -eq 1 ]; then printf '%s' '${first}'; else printf '%s' '${second}'; fi
+`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["claude", "grok", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).toContain("adversarial-grok.json")
+  })
+
   test("a repeated provider-overload 529 stops after the single retry", () => {
     const counter = path.join(mkTempRoot("xmodel-cr-529-stop-counter-"), "count")
     const payload = JSON.stringify({
@@ -971,12 +1026,12 @@ exit 1
         residual_risks: [],
         testing_gaps: [],
       },
-    })
+    }, null, 2)
     const { env } = sandbox(
       ["claude"],
       `#!/bin/sh
 cat >/dev/null
-printf '%s' '${payload}'
+printf '%s\n%s' '{"type":"system","subtype":"init"}' '${payload}'
 `,
     )
     const runDir = makeRunDir()
@@ -1625,6 +1680,12 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
   test("provider-overload classification stays byte-identical across review workers", () => {
     expect(blockBetween(SCRIPT, "provider_overloaded()", "run_provider()")).toBe(
       blockBetween(DOC_SCRIPT, "provider_overloaded()", "run_provider()"),
+    )
+  })
+
+  test("route-output eligibility stays byte-identical across review workers", () => {
+    expect(blockBetween(SCRIPT, "classify_provider_outcome()", "classify_route_output()")).toBe(
+      blockBetween(DOC_SCRIPT, "classify_provider_outcome()", "classify_route_output()"),
     )
   })
 
