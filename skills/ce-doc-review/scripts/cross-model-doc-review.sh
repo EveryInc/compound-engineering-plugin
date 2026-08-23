@@ -867,8 +867,27 @@ if any(str(status(value)) == "529" for value in objects):
     print("overloaded")
     raise SystemExit
 
-reasons = {"error_max_turns", "max_turns"}
-if any(value.get("is_error") is True or str(value.get("subtype", value.get("terminal_reason", ""))) in reasons for value in objects):
+def terminal_record(value):
+    return value.get("type") == "result" or any(key in value for key in ("is_error", "terminal_reason", "stopReason", "api_error_status"))
+
+def terminal_success(value):
+    subtype = str(value.get("subtype", ""))
+    terminal_reason = str(value.get("terminal_reason", ""))
+    stop_reason = str(value.get("stopReason", ""))
+    if value.get("is_error") is True:
+        return False
+    if value.get("type") == "result":
+        return subtype == "success"
+    if "stopReason" in value:
+        return stop_reason in {"end_turn", "completed", "success"}
+    if "terminal_reason" in value:
+        return terminal_reason in {"end_turn", "completed", "success"}
+    if "api_error_status" in value:
+        return value.get("api_error_status") is None and value.get("is_error") is False
+    return value.get("is_error") is False
+
+terminal = [value for value in objects if terminal_record(value)]
+if terminal and not all(terminal_success(value) for value in terminal):
     print("failed")
     raise SystemExit
 

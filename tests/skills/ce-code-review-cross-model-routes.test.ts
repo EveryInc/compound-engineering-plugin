@@ -924,6 +924,35 @@ if [ "$n" -eq 1 ]; then printf '%s' '${first}'; else printf '%s' '${second}'; fi
     expect(r.files).toContain("adversarial-grok.json")
   })
 
+  test("rejects a successful-process Grok 429 envelope instead of publishing its schema stub", () => {
+    const counter = path.join(mkTempRoot("xmodel-cr-grok-429-stub-counter-"), "count")
+    const payload = JSON.stringify({
+      api_error_status: 429,
+      terminal_reason: "api_error",
+      structuredOutput: { reviewer: "adversarial", findings: [] },
+    }, null, 2)
+    const { env } = sandbox(
+      ["grok"],
+      `#!/bin/sh
+cat >/dev/null
+n=0
+[ ! -f "$COUNTER" ] || n="$(cat "$COUNTER")"
+n=$((n + 1))
+printf '%s' "$n" > "$COUNTER"
+printf '%s' '${payload}'
+`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["claude", "grok", "HEAD", runDir], runDir, {
+      ...env,
+      COUNTER: counter,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+
+    expect(readFileSync(counter, "utf8")).toBe("1")
+    expect(r.files).not.toContain("adversarial-grok.json")
+  })
+
   test("a repeated provider-overload 529 stops after the single retry", () => {
     const counter = path.join(mkTempRoot("xmodel-cr-529-stop-counter-"), "count")
     const payload = JSON.stringify({
