@@ -909,6 +909,20 @@ describe("ce-doc-review contract", () => {
     expect(validate).toMatch(/never repaired/)
   })
 
+  // product-lens activated on "solution selection where alternatives plausibly exist",
+  // which holds for nearly any fix, so a judgment persona (and, through the trio gate,
+  // the cross-model pass) ran on routine bootstrap plans. The leg is now one condition:
+  // an unsettled product position; a mechanism choice is not one.
+  test("product-lens activates on an unsettled product position, not on plausible alternatives", async () => {
+    const content = await readRepoFile("skills/ce-doc-review/references/persona-selection.md")
+    const block = sliceSection(content, "**product-lens**", "**design-lens**")
+    expect(block).toMatch(/product position/)
+    expect(block).toMatch(/no upstream Product Contract settled|origin did not already settle/)
+    expect(block).toMatch(/choice among mechanisms .* is an implementation decision, not a product position/)
+    expect(block).not.toMatch(/alternatives plausibly exist/)
+    expect(block).toMatch(/\*Strategic weight\*/)
+  })
+
   test("keeps security document review on the parent capability tier", async () => {
     const content = await readRepoFile("skills/ce-doc-review/references/dispatch.md")
     const modelTierSection = content.slice(content.indexOf("Model tiering lives here"))

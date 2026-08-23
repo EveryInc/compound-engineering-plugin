@@ -4,9 +4,9 @@ The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each co
 
 Activate a conditional persona when the document shows its signals:
 
-**product-lens** — the document makes challengeable claims about what to build and why, or the work carries strategic weight beyond the immediate problem. Users may be end users, developers, operators, maintainers, or any other audience; the criteria are domain-agnostic. Either leg qualifies:
+**product-lens** — the document stakes a product position — what to build, why, or what comes first — that a knowledgeable stakeholder could reasonably challenge and that no upstream Product Contract settled, or the work carries strategic weight beyond the immediate problem. Users may be end users, developers, operators, maintainers, or any other audience; the criteria are domain-agnostic. Either leg qualifies:
 
-- *Premise claims* — the document stakes a position a knowledgeable stakeholder could reasonably challenge, not merely describing a task or restating known requirements: non-obvious or debatable problem framing; solution selection where alternatives plausibly exist (implicit or explicit); prioritization that explicitly ranks what gets built vs deferred; goal statements predicting specific user outcomes rather than restating constraints or listing deliverables.
+- *Unsettled product position* — a problem framing, a goal predicting a specific user outcome, or a prioritization that ranks what gets built against what is deferred, which the document's origin did not already settle. A choice among mechanisms for an agreed outcome is an implementation decision, not a product position; describing a task or restating known requirements stakes nothing.
 - *Strategic weight* — the work could affect trajectory, perception, or positioning even with a sound premise: it shapes what the system becomes known for; it is a complexity or simplicity bet affecting adoption, onboarding, or cognitive load; it opens or closes future directions (path dependencies, architectural commitments); it carries opportunity cost — building this means not building something else.
 
 **design-lens** — UI/UX references, frontend components, or visual design language; user flows, wireframes, screen/page/view mentions; interaction descriptions (forms, buttons, navigation, modals); responsive behavior or accessibility.

@@ -77,7 +77,7 @@ Document review is harder than code review in specific ways:
 
 Conditional personas activate from what the doc says, not keyword matching:
 
-- **product-lens** when the doc makes challengeable claims about what to build and why, or the work carries strategic weight
+- **product-lens** when the doc stakes an unsettled product position — what to build, why, or what comes first — that a stakeholder could challenge, or the work carries strategic weight; a choice among mechanisms is not a product position
 - **design-lens** when it contains UI/UX references, user flows, or visual design language
 - **security-lens** when it touches auth, public APIs, sensitive data, payments, or third-party trust boundaries
 - **scope-guardian** when it has multiple priority tiers, a large requirement count, or scope-boundary language that looks misaligned
