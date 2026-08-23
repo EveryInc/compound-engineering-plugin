@@ -868,7 +868,7 @@ if any(str(status(value)) == "529" for value in objects):
     raise SystemExit
 
 def terminal_record(value):
-    return value.get("type") == "result" or any(key in value for key in ("is_error", "terminal_reason", "stopReason", "api_error_status"))
+    return value.get("type") == "result" or status(value) is not None or any(key in value for key in ("is_error", "terminal_reason", "stopReason", "api_error_status"))
 
 def terminal_success(value):
     subtype = str(value.get("subtype", ""))
@@ -882,6 +882,12 @@ def terminal_success(value):
         return stop_reason in {"end_turn", "completed", "success"}
     if "terminal_reason" in value:
         return terminal_reason in {"end_turn", "completed", "success"}
+    terminal_status = status(value)
+    if terminal_status is not None:
+        try:
+            return 200 <= int(terminal_status) < 300
+        except (TypeError, ValueError):
+            return str(terminal_status).lower() in {"ok", "success", "completed"}
     if "api_error_status" in value:
         return value.get("api_error_status") is None and value.get("is_error") is False
     return value.get("is_error") is False

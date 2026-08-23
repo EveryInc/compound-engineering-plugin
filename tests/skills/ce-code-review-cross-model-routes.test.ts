@@ -953,6 +953,30 @@ printf '%s' '${payload}'
     expect(r.files).not.toContain("adversarial-grok.json")
   })
 
+  test("rejects status-only and nested-status error envelopes before publishing schema stubs", () => {
+    const envelopes = [
+      { status: 429 },
+      { error: { status: 429 } },
+    ]
+    for (const envelope of envelopes) {
+      const payload = JSON.stringify({
+        ...envelope,
+        structured_output: { reviewer: "adversarial", findings: [] },
+      })
+      const { env } = sandbox(
+        ["claude"],
+        `#!/bin/sh
+cat >/dev/null
+printf '%s' '${payload}'
+`,
+      )
+      const runDir = makeRunDir()
+      const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+
+      expect(r.files).not.toContain("adversarial-claude.json")
+    }
+  })
+
   test("a repeated provider-overload 529 stops after the single retry", () => {
     const counter = path.join(mkTempRoot("xmodel-cr-529-stop-counter-"), "count")
     const payload = JSON.stringify({
