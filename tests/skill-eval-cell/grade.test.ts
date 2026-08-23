@@ -176,9 +176,23 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 
-  test("must_not_include fails when the final answer still names the forbidden roster member", () => {
+  test("a roster probe fails when the run declared no TEAM trailer", () => {
     const dir = hostDir({
-      "stdout.txt": "Reviewing with: coherence-reviewer, feasibility-reviewer, product-lens-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
+      "stdout.txt": "Reviewing with: coherence-reviewer, feasibility-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: { must_include: ["coherence-reviewer"], must_not_include: ["product-lens-reviewer"] },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons).toContain("missing TEAM trailer")
+  })
+
+  test("must_not_include fails when the TEAM trailer names the forbidden roster member", () => {
+    const dir = hostDir({
+      "stdout.txt": "TEAM: coherence-reviewer, feasibility-reviewer, product-lens-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
     })
     const g = gradeHost({
       host: "claude",
@@ -217,9 +231,9 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(false)
   })
 
-  test("must_not_include passes when the forbidden text is absent", () => {
+  test("must_not_include passes when the TEAM trailer omits the forbidden member", () => {
     const dir = hostDir({
-      "stdout.txt": "Reviewing with: coherence-reviewer, feasibility-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
+      "stdout.txt": "TEAM: coherence-reviewer, feasibility-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",
     })
     const g = gradeHost({
       host: "claude",
