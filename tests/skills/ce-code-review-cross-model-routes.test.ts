@@ -755,7 +755,7 @@ exit 1
       result: "API Error: 529 Overloaded. This is a server-side issue.",
       api_error_status: 529,
       terminal_reason: "api_error",
-    })
+    }, null, 2)
     const body = `#!/bin/sh
 cat >/dev/null
 n=0
@@ -821,7 +821,7 @@ n=0
 n=$((n + 1))
 printf '%s' "$n" > "$COUNTER"
 if [ "$n" -eq 1 ]; then
-  printf '%s' 'API Error: 529 Overloaded' >&2
+  printf '%s\n%s\n' 'API Error: 529' 'Overloaded' >&2
   exit 1
 fi
 printf '%s' '{"reviewer":"adversarial","findings":[],"residual_risks":[],"testing_gaps":[]}'
@@ -846,7 +846,7 @@ printf '%s' '{"reviewer":"adversarial","findings":[],"residual_risks":[],"testin
       findings: [{ title: "The reviewed code mentions API Error: 529 Overloaded." }],
       residual_risks: [],
       testing_gaps: [],
-    })
+    }, null, 2)
     const { env } = sandbox(
       ["codex"],
       `#!/bin/sh

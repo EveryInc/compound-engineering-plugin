@@ -938,7 +938,7 @@ provider_overloaded() {
   local path diagnostic_path
   for path in "$PEERLOG" "$PEERERR"; do
     [ -s "$path" ] || continue
-    if jq -Rre 'fromjson? | select(
+    if jq -e 'select(
       ((.api_error_status? // .status? // .error?.status? // "") | tostring) == "529"
     )' "$path" >/dev/null 2>&1; then
       return 0
@@ -946,7 +946,10 @@ provider_overloaded() {
   done
   if [ "${ACTUAL_ROUTE:-}" = "codex" ]; then diagnostic_path="$PEERLOG"; else diagnostic_path="$PEERERR"; fi
   [ -s "$diagnostic_path" ] || return 1
-  jq -Rr '. as $line | try (fromjson | empty) catch $line' "$diagnostic_path" 2>/dev/null |
+  jq -Rrs '(try fromjson catch null) as $whole |
+    if $whole != null then empty
+    else split("\n") | map(. as $line | try (fromjson | empty) catch $line) | join(" ")
+    end' "$diagnostic_path" 2>/dev/null |
     grep -Ei '(^|[^[:alnum:]_])(API Error|HTTP( Error)?|status)[^[:cntrl:]]*529([^0-9]|$)[^[:cntrl:]]*(overload|capacity)' >/dev/null && return 0
   return 1
 }
