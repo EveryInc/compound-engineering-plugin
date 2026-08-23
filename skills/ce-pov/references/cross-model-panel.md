@@ -34,6 +34,7 @@ Attest the host harness and its serving family as two separate tokens:
 ```bash
 if [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=claude;
 elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST_HARNESS=codex; XHOST_FAMILY=codex;
+elif [ "${GROK_AGENT:-}" = "1" ] || [ -n "${GROK_SESSION_ID:-}" ]; then XHOST_HARNESS=grok; XHOST_FAMILY=grok;
 elif [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST_HARNESS=cursor; XHOST_FAMILY=unknown;
 else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 ```
@@ -41,14 +42,22 @@ else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 Both tokens come from the same peer-key vocabulary as the targets above, never
 from a provider's corporate name: `<host-serving-family>` (`XHOST_FAMILY`) is
 `codex`, `claude`, `grok`, `composer`, or `unknown`. `<host-harness>`
-(`XHOST_HARNESS`) is `codex`, `claude`, `grok`, `cursor`, or `unknown`. Claude
-Code maps to harness/family `claude`; Codex maps to `codex`. Cursor maps to
-harness `cursor` and family `unknown` unless an observable serving-family
-attestation lets you set `XHOST_FAMILY` to `codex`, `claude`, `grok`, or
-`composer`. Never infer serving family from the Cursor brand. Section 4 passes
-`XHOST_FAMILY` as the worker's first argument and `XHOST_HARNESS` as
-`CROSS_MODEL_HOST_HARNESS`; a provider name such as `anthropic`, `openai`, or
-`xai` in either slot fail-closes the job with no artifact.
+(`XHOST_HARNESS`) is `codex`, `claude`, `grok`, `cursor`, or `unknown`. The
+snippet is evidence, not the verdict: it resolves the harnesses whose
+environment markers it already names, and where it yields `unknown` on a harness
+you can identify from your own runtime, attest what you know instead. A harness
+the snippet does not name needs no new branch here.
+
+Cursor is the one identity self-knowledge cannot complete, because the harness
+does not determine the serving model: it keeps harness `cursor` and family
+`unknown` unless an observable serving-family attestation lets you set
+`XHOST_FAMILY` to `codex`, `claude`, `grok`, or `composer`.
+Never infer serving family from the Cursor brand.
+
+Section 4 passes `XHOST_FAMILY` as the worker's first argument and
+`XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; a provider name such as
+`anthropic`, `openai`, or `xai` in either slot fail-closes the job with no
+artifact.
 
 `Cursor` and `Composer` are distinct targets:
 
@@ -58,8 +67,8 @@ attestation lets you set `XHOST_FAMILY` to `codex`, `claude`, `grok`, or
   `independence_verified: false`.
 - `composer` requests the current compatible Composer model through
   `cursor-agent`.
-- `grok` prefers the native Grok CLI and may use a Grok model through Cursor
-  only when that intermediary is separately allowed and sanctioned.
+- `grok` prefers the native Grok CLI; Grok through Cursor is a different route
+  and recipient. Section 3 binds which token.
 
 Apply exactly one participation branch:
 
@@ -165,6 +174,8 @@ fail-closes on anything else (including route-shaped guesses like `codex-cli`):
 | `grok` | `grok-cli` (native CLI) or `grok-cursor` (via Cursor intermediary) |
 | `cursor` | `cursor` |
 | `composer` | `composer` |
+
+The host harness does not choose the Grok route. Target `grok` binds `grok-cli` when that CLI is installed. Bind `grok-cursor` only when the user asked for Grok through Cursor, or when the grok CLI is absent and Cursor is a sanctioned recipient.
 
 Binary presence proves only that a route is a candidate. Pre-dispatch capability
 evidence may refine the fixed route only when the current host context makes that

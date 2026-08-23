@@ -217,7 +217,7 @@ Target names distinguish models from harnesses, and are not aliases for each oth
 |------|-------------|
 | `Cursor` | `cursor-agent` using its configured default/Auto model |
 | `Composer` | A Composer model through Cursor |
-| `Grok` | The Grok CLI preferred; a sanctioned Grok-via-Cursor route otherwise |
+| `Grok` | Native grok CLI when installed; Grok through Cursor only when asked, or when the grok CLI is missing and Cursor is allowed |
 
 Cursor Auto is labeled unverified unless a serving-model receipt exists. Without that proof it does not count as independent cross-model corroboration.
 

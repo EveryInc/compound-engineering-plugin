@@ -495,6 +495,7 @@ describe("cross-model-adversarial-review provider selection", () => {
     const all = ["codex", "claude", "grok", "cursor-agent"]
     expect(resolvePeers("claude", "codex,claude,grok,composer", all)).toBe("codex")
     expect(resolvePeers("codex", "codex,claude,grok,composer", all)).toBe("claude")
+    expect(resolvePeers("grok", "codex,claude,grok,composer", all)).toBe("codex")
     expect(resolvePeers("composer", "codex,claude,grok,composer", all)).toBe("codex")
   })
 
