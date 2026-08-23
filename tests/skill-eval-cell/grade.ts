@@ -160,14 +160,8 @@ export function gradeHost(opts: {
     }
   }
   // A roster probe grades the declared team, not narration that merely mentions a
-  // persona: when the answer carries a trailing `TEAM:` line, both text terms read
-  // that line; otherwise they read the whole answer as before.
-  const teamLine = decision
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("team:"))
-    .pop()
-  const textScope = teamLine ?? decision
+  // persona: when the answer carries a `TEAM:` trailer, both text terms read it.
+  const textScope = lastTrailer(decision, "TEAM") || decision
   for (const needle of opts.grade.must_include ?? []) {
     if (!textScope.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
   }
