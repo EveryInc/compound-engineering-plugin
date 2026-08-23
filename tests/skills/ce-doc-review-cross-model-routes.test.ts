@@ -381,6 +381,11 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
     const twin = readFileSync(path.join(__dirname, "../../skills/ce-code-review/references/cross-model-review.md"), "utf8")
     expect(twin).toContain("`CROSS_MODEL_PEERS` is an optional egress restriction, not a required approval")
     expect(twin).not.toMatch(/verify every (actual )?recipient against/)
+    const retryDisclosure = "Retrying the same resolved route retains its existing sanction and disclosure; changing the route or any recipient requires a new resolution, sanction, and disclosure before dispatch."
+    expect(ref).toContain(retryDisclosure)
+    expect(twin).toContain(retryDisclosure)
+    expect(ref).not.toContain("Any host-owned retry uses a newly resolved and disclosed fixed route")
+    expect(twin).not.toContain("A failure may be retried only after resolving, sanctioning, and disclosing a new route")
     expect(ref).not.toContain("fail-closed-by-default")
   })
 
