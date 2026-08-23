@@ -602,7 +602,12 @@ n=0
 n=$((n + 1))
 printf '%s' "$n" > "$COUNTER"
 if [ "$n" -eq 1 ]; then
-  printf '%s' 'API Error: 529 Overloaded' >&2
+  printf '%s\n' 'API Error: 529 Overloaded' >&2
+  i=0
+  while [ "$i" -lt 10000 ]; do
+    printf '%s\n' 'additional provider diagnostic context' >&2
+    i=$((i + 1))
+  done
   exit 1
 fi
 printf '%s' '{"reviewer":"adversarial","findings":[],"residual_risks":[],"deferred_questions":[]}'

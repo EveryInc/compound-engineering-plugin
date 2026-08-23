@@ -906,7 +906,7 @@ provider_overloaded() {
   if [ "${ACTUAL_ROUTE:-}" = "codex" ]; then diagnostic_path="$PEERLOG"; else diagnostic_path="$PEERERR"; fi
   [ -s "$diagnostic_path" ] || return 1
   jq -Rr '. as $line | try (fromjson | empty) catch $line' "$diagnostic_path" 2>/dev/null |
-    grep -Eiq '(^|[^[:alnum:]_])(API Error|HTTP( Error)?|status)[^[:cntrl:]]*529([^0-9]|$)[^[:cntrl:]]*(overload|capacity)' && return 0
+    grep -Ei '(^|[^[:alnum:]_])(API Error|HTTP( Error)?|status)[^[:cntrl:]]*529([^0-9]|$)[^[:cntrl:]]*(overload|capacity)' >/dev/null && return 0
   return 1
 }
 
