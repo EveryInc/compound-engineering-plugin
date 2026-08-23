@@ -62,7 +62,7 @@ These hold regardless of which skill produced the artifact.
   sections exist. Requirements-only artifacts omit links to absent
   implementation sections.
 - **Visible readiness metadata.** If the artifact has `artifact_contract`,
-  `artifact_readiness`, `product_contract_source`, `execution`, or `depth`, render
+  `artifact_readiness`, `product_contract_source`, or `execution`, render
   those values in the visible header metadata. Do not hide a duplicate copy in
   JSON, `data-*`, or `<meta>` tags.
 
