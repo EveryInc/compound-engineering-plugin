@@ -128,8 +128,9 @@ present. They carry the contracts downstream consumers depend on.
   which is a question of who can check it rather than of which nouns it
   uses: an outcome someone outside that component can verify without knowing
   its internals is an Objective even when that component is what changed,
-  and one only its internals can settle is a Means however outcome-shaped
-  its wording. The usual failure is an objective about the component's own
+  and one only its internals can settle is not the Objective however
+  outcome-shaped its wording; the registry above decides where it does
+  belong. The usual failure is an objective about the component's own
   execution — the wall-clock it no longer holds, the runtime it no longer
   consumes, what stays isolated inside it — which only its internals settle.
   Infrastructure and refactor work has such an objective too: the reason
