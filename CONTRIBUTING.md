@@ -14,7 +14,7 @@ Compound Engineering is opinionated by design. It's maintained by [@kieranklaass
 
 ```bash
 bun install
-bun test                  # full suite; also runs in CI
+bun run test              # full suite, --parallel, exactly as CI runs it
 bun run release:validate  # plugin/marketplace consistency
 bun run plugin:validate   # Claude marketplace + plugin schema
 ```
