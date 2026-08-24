@@ -14,6 +14,8 @@ Do not commit in this step. `ce-simplify-code` leaves its changes in the working
 
 ## Step 4 — invoke `ce-code-review`
 
+Load `ce-code-review` from the host catalog's listed path. A host skill named `review` is not this step; do not invent `skills/review/SKILL.md` under this plugin.
+
 ```
 ce-code-review mode:agent plan:<plan-path-from-step-1>
 ```

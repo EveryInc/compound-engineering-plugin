@@ -74,13 +74,14 @@ describe("ce-work review contract", () => {
 
     expect(followup).toContain("## Step 4 — invoke `ce-code-review`")
     expect(followup).not.toContain("invoke review")
+    expect(followup).toContain("host catalog's listed path")
+    expect(followup).toContain("skills/review/SKILL.md")
     expect(findings).toContain("invoke `ce-code-review` only for cold callers")
     expect(findings).not.toContain("invoke review only")
     expect(shipping).toContain("A host catalog entry named `review` is not this step")
     expect(shipping).not.toMatch(/`\/review`/)
     expect(shipping).toContain("use that entry's listed path")
-    expect(lfg).toContain("the catalog's listed path")
-    expect(lfg).toContain("this plugin's `skills/` directory")
+    expect(lfg).toContain("available-skills list")
   })
 
   // Issue #1351: prose-only review mandate was silently skipped. The always-loaded
