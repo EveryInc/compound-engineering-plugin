@@ -43,11 +43,14 @@ type_in_box() {
   p ""
 }
 
+# Duration is milliseconds so the frame math stays bash integer arithmetic.
+# No Python here on purpose: `python3` is the nonfunctional Microsoft Store
+# alias on native Windows, and this needs no interpreter at all.
 spin() {
-  local msg="$1" secs="$2" frames=('·' '✢' '✳' '✶' '⏺' '✻' '✽') i=0 n
-  n=$(python3 -c "print(int($secs/0.12))")
+  local msg="$1" ms="$2" frames=('·' '✢' '✳' '✶' '⏺' '✻' '✽') i n
+  n=$(( ms / 120 ))
   for (( i=0; i<n; i++ )); do
-    printf '\r%b' "${D}${frames[i%7]} ${msg}… ($(python3 -c "print(round($i*0.12,0).__int__())")s · esc to interrupt)${R}\033[K"
+    printf '\r%b' "${D}${frames[i%7]} ${msg}… ($(( i * 120 / 1000 ))s · esc to interrupt)${R}\033[K"
     sleep 0.12
   done
   printf '\r\033[K'
@@ -82,7 +85,7 @@ p ""
 pause 0.3
 agent "ce-compound Related Docs Finder"
 p ""
-spin "Compounding" 2.2
+spin "Compounding" 2200
 say  "All three research agents reported. Assembling the learning:"
 p ""
 pause 0.5
@@ -111,7 +114,7 @@ p ""
 pause 0.4
 agent "Learnings research: retrieval worker plan"
 p ""
-spin "Researching" 2.0
+spin "Researching" 2000
 say "Learnings report in — ${B}71 files scanned, 9 strong matches${R}."
 p ""
 pause 0.5

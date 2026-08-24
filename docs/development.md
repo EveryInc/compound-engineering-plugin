@@ -31,7 +31,7 @@ cursor-agent --plugin-dir "$PWD"
 
 **Codex**
 
-For the normal production-like plugin installation, use the [Codex App](#codex-app) or [Codex CLI](#codex-cli) instructions above. The workflow below is only for contributors who need Codex to load unreleased files from an exact checkout or linked worktree.
+For the normal production-like plugin installation, use the [Codex App](../README.md#codex-app) or [Codex CLI](../README.md#codex-cli) instructions in the README. The workflow below is only for contributors who need Codex to load unreleased files from an exact checkout or linked worktree.
 
 <details>
 <summary><strong>Advanced: test this exact checkout in Codex</strong></summary>
