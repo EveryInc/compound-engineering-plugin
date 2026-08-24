@@ -44,15 +44,15 @@ Conflating the two is what made #1159 serialize local reviewer dispatch one-at-a
 
 A portable rule classifies what dispatch actually returned:
 
-- **Compact result in-band:** the reviewer is collected; consume it.
-- **Launch identifier or asynchronous receipt:** the reviewer is not collected. Use the host's blocking collection capability until the identifier yields the compact result.
-- **No reliable blocking collector:** stop the launched work and take the workflow's failure or degraded path. Never wait for a notification, emit progress-only output, or synthesize a partial roster.
+- **Terminal outcome:** the launch is collected. Consume a valid compact result; classify a terminal tool error or malformed output under the workflow's failed/degraded rules.
+- **Launch identifier or asynchronous receipt:** the reviewer is uncollected. Use the host's blocking collection capability until the launch reaches a terminal outcome.
+- **No reliable blocking collector:** stop the launched work and take the workflow's failure or degraded path. Fail closed only after discharging lifecycle obligations for detached work already started. Never wait for a notification, emit progress-only output, or synthesize a partial roster.
 
-The same classification governs both reviewer batches and later validator batches. A foreground request is an intent, not evidence that a result arrived. A host-specific collector is acceptable only when its live contract shows that it accepts the launch identifier, blocks until terminal, and returns the compact result; a plausible tool name is not enough.
+The same classification governs both reviewer batches and later validator batches. A foreground request is an intent, not evidence that a result arrived. A host-specific collector is acceptable only when its live contract shows that it accepts the launch identifier, blocks until terminal, and returns the terminal outcome; a plausible tool name is not enough.
 
 For an asynchronous primitive, the rule still needs three explicit clauses:
 
-- **Collect the complete roster.** Blocking collection waits continue until every launched reviewer has yielded its compact result. These harness-managed waits are not the forbidden detached-delegate poll loop.
+- **Collect the complete roster.** Blocking collection waits continue until every successful launch reaches a terminal outcome. These harness-managed waits are not the forbidden detached-delegate poll loop.
 - **Release collected agents when the primitive retains slots.** A completed agent can keep occupying its concurrency slot until explicitly closed; release it before refilling and before the validator stage.
 - **Guard the transition.** Synthesis cannot begin on launch receipts or a partial roster. If complete collection is unavailable, return the mode-appropriate failure instead.
 
@@ -62,7 +62,7 @@ On a harness that does not run same-message calls concurrently, this identical d
 
 Codex review of PR #1214 caught a partial-roster gap and a slot-cleanup gap in its asynchronous primitive. The resulting host-name split still assumed Claude Code supplied an all-return barrier. Issue #1523 falsified that assumption: Claude `-p` recorded local reviewers as background work despite foreground requests, then hit its print-mode background ceiling without returning final review JSON.
 
-The deeper lesson is that a harness label describes neither every version nor every execution mode. When a rule encodes concurrency or pool/refill semantics, the observable result is the contract: compact output means collected; a receipt means collection remains; no blocking collector means fail closed.
+The deeper lesson is that a harness label describes neither every version nor every execution mode. When a rule encodes concurrency or pool/refill semantics, the observable result is the contract: a terminal outcome means collected and ready for validation; a receipt means collection remains; no blocking collector means fail closed.
 
 ## When to Apply
 
@@ -81,14 +81,15 @@ Check three questions:
 
 **Before (host-name classification):** assume Claude foreground calls form an all-results barrier and Codex calls return asynchronous ids. This fails when a Claude print-mode call returns a launch receipt despite background execution being requested off.
 
-**After (observed-result classification):** consume compact results returned in-band; treat every launch receipt as uncollected work and use a verified blocking collector until the compact result arrives; fail closed if no such collector exists. Release collected agents when the primitive retains their slots. The anti-poll ban remains scoped to detached shell/CLI polling, not harness-managed blocking collection.
+**After (observed-result classification):** use a verified blocking collector until every successful launch reaches a terminal outcome; consume valid compact results and classify unsuccessful terminal outcomes under the workflow's failed/degraded rules. Treat every launch receipt as uncollected work, and fail closed if no collector exists. Release collected agents when the primitive retains their slots. The anti-poll ban remains scoped to detached shell/CLI polling, not harness-managed blocking collection.
 
 Primitive contrast:
 
 | Observed dispatch result | State | Required transition |
 |---|---|---|
-| Compact reviewer or validator JSON in-band | Collected | Consume the result |
-| Launch id or asynchronous receipt | Running, not collected | Use a verified blocking collector until terminal output is in hand |
+| Valid compact reviewer or validator JSON | Collected | Consume the result |
+| Terminal tool error or malformed output | Collected | Classify it under the workflow's failed/degraded rules |
+| Launch id or asynchronous receipt | Running, not collected | Use a verified blocking collector until a terminal outcome is in hand |
 | No reliable blocking collector | Cannot complete safely | Stop launched work and emit the workflow's failure or degraded result |
 | Collected agent still holds a host slot | Complete but not released | Release it before refilling or entering a later subagent stage |
 

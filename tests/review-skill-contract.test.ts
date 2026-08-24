@@ -526,18 +526,37 @@ describe("ce-code-review contract", () => {
   })
 
   test("Stage 4 collects by observed return shape and fails closed without a collector", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
     const content = await readRepoFile(
       "skills/ce-code-review/references/dispatch-reviewers.md",
     )
+    const crossModel = await readRepoFile(
+      "skills/ce-code-review/references/cross-model-review.md",
+    )
+    const solution = await readRepoFile(
+      "docs/solutions/skill-design/anti-poll-scope-and-async-subagent-dispatch.md",
+    )
 
+    expect(skill).toMatch(/every.*successful launch.*terminal outcome/i)
+    expect(skill).toMatch(/terminal.*malformed.*failed reviewer/i)
     expect(content).toMatch(/compact JSON.*in[- ]band/i)
     expect(content).toMatch(/launch receipt.*not.*reviewer return/i)
+    expect(content).toMatch(/launch receipt.*uncollected/i)
     expect(content).toMatch(/blocking collection/i)
-    expect(content).toMatch(/until every.*reviewer/i)
+    expect(content).toMatch(/until every.*successful.*launch.*terminal outcome/i)
+    expect(content).toMatch(/terminal.*tool error.*malformed.*failed reviewer/i)
     expect(content).toMatch(/no reliable blocking collection/i)
     expect(content).toMatch(/["`]status["`]\s*:\s*["`]failed["`]/i)
+    expect(skill).toMatch(/persisted peer.*cleanup.*before.*failure result/i)
+    expect(content).toMatch(/persisted peer.*owning cleanup.*before.*failure/i)
+    expect(crossModel).toMatch(/every persisted job id.*terminal.*job directory.*deleted.*before.*returns/i)
+    expect(crossModel).toMatch(/cannot continue.*reap.*final.*wait.*delete.*without.*fold/i)
     expect(content).not.toMatch(/single blocking wait return all their compact JSON together/i)
     expect(content).not.toMatch(/collecting multiple returns from one batch is the harness's job/i)
+    expect(solution).toMatch(/every successful launch reaches a terminal outcome/i)
+    expect(solution).toMatch(/terminal tool error or malformed output.*failed\/degraded rules/i)
+    expect(solution).toMatch(/launch receipt.*uncollected/i)
+    expect(solution).toMatch(/fail closed.*lifecycle obligations.*detached work.*already started/i)
   })
 
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
@@ -591,7 +610,10 @@ describe("ce-code-review contract", () => {
     // Foreground is a request, not proof that the host returned a verdict in-band.
     expect(content).toMatch(/compact.*verdict.*in[- ]band/i)
     expect(content).toMatch(/launch receipt.*not.*validator return/i)
+    expect(content).toMatch(/launch receipt.*uncollected/i)
     expect(content).toMatch(/blocking collection/i)
+    expect(content).toMatch(/terminal outcome/i)
+    expect(content).toMatch(/malformed output.*validator infrastructure failure/i)
     expect(content).toMatch(/validator infrastructure failure/i)
     expect(content).not.toMatch(/A foreground Agent call is the wait/i)
 
