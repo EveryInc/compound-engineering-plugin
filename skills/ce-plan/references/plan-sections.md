@@ -124,9 +124,14 @@ present. They carry the contracts downstream consumers depend on.
   ownership. This is the fastest way for an executor to avoid drifting from
   the plan. The **Objective** is always the outcome: what is true for users
   or operators afterwards, phrased so it would still read as the goal under
-  a different implementation. It sits outside the component being changed —
-  a statement about what that component no longer does, or about what stays
-  isolated inside it, is a Means however outcome-shaped its wording.
+  a different implementation. It sits outside the component being changed,
+  which is a question of who can check it rather than of which nouns it
+  uses: an outcome someone outside that component can verify without knowing
+  its internals is an Objective even when that component is what changed,
+  and one only its internals can settle is a Means however outcome-shaped
+  its wording. The usual failure is an objective about the component's own
+  execution — the wall-clock it no longer holds, the runtime it no longer
+  consumes, what stays isolated inside it — which only its internals settle.
   Infrastructure and refactor work has such an objective too: the reason
   that component's behavior mattered to someone. The chosen approach is the
   **Means**, its own line whenever the request or the plan has fixed one —

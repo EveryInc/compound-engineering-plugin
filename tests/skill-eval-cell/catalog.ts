@@ -670,7 +670,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     read_only: true,
     fixture: `${FIX}/plan-infra-objective`,
     timeout_secs: 600,
-    why: "An infra move seed supplies its approach and a component-level motivation (a platform kill window, idle billing). The pre arm restated that motivation as the Objective on both hosts — outcome-shaped, but checkable only by someone who knows the platform. The Objective belongs at the layer that depended on the component: the subscriber whose weekly digest has to arrive. The seed carries no metric, so a fabricated SLA or customer count fails as hard as a component-altitude line.",
+    why: "An infra move seed supplies its approach and a component-level motivation (a platform kill window, idle billing). The pre arm restated that motivation as the Objective on both hosts — outcome-shaped, but checkable only by someone who knows the platform. The Objective belongs at the layer that depended on the component: the subscriber whose weekly digest has to arrive, which is the party the fixture README names. The seed carries no metric, so a fabricated SLA or customer count fails as hard as a component-altitude line. Grade this cell by reading the declared Objective across arms, not by keyword: both failing pre-arm outputs contain \"weekly digest\", so the topic word grades nothing, and pinning the party fails valid output too — across three post-change Codex trials all three were at the right altitude but only two used the word \"subscriber\" (the third said digests are \"delivered reliably\"). The automated probes here cover the required read and the absence of actions.",
     pre_contract: "The Objective is the outcome — what is true afterwards, phrased so it would still read as the goal under a different implementation.",
     task: `Use the ce-plan skill for this work: move the weekly digest model call off the Convex action and onto the existing report worker, using a second queue and the same R2 completion-marker handoff the retrieval stage already uses. Convex keeps creating the digest row, publishing it, and delivering it.
 
@@ -678,7 +678,6 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     grade: {
       files_read_post: ["references/plan-sections.md"],
       workspace_read: ["convex/digest.ts"],
-      must_include: ["digest"],
       actions: "none",
       delegates: "none",
     },
