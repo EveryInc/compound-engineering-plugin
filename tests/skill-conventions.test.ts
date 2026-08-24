@@ -709,6 +709,10 @@ describe("portable skill capability wording", () => {
     const closedCatalog =
       /AskUserQuestion[\s\S]{0,280}request_user_input[\s\S]{0,200}ask_question[\s\S]{0,160}`ask_user`/
     const claudeSelect = /select:AskUserQuestion/
+    // Bulk catalog→capability replacements that drop a parenthesized name
+    // leave `()` as a mid-sentence call fragment (`() with two options`,
+    // `(), fall back`). Pin the leftover, not a host name.
+    const leftoverEmptyCall = /tool name\.\s*\(\)|\(\)\s*(?:with two options|, fall back)/
     const offenders: string[] = []
     for (const skill of skillDirs) {
       for (const filePath of listMarkdownFiles(skill.absPath)) {
@@ -722,6 +726,11 @@ describe("portable skill capability wording", () => {
         if (closedCatalog.test(content)) {
           offenders.push(
             `${fileRel}: closed AskUserQuestion/request_user_input/ask_question/ask_user catalog`,
+          )
+        }
+        if (leftoverEmptyCall.test(content)) {
+          offenders.push(
+            `${fileRel}: leftover empty () after catalog-name replacement`,
           )
         }
       }
