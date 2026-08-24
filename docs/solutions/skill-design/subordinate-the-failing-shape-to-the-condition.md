@@ -1,5 +1,5 @@
 ---
-title: "Condition over cases can regress a literal host: subordinate the concrete shape, and keep the exclusion the last clause"
+title: "Condition over cases can regress a literal host: subordinate the concrete shape, and let nothing compete with the exclusion"
 date: 2026-08-24
 category: skill-design
 module: skills/ce-plan
@@ -22,7 +22,7 @@ tags:
 related_pr: https://github.com/EveryInc/compound-engineering-plugin/pull/1535
 ---
 
-# Condition over cases can regress a literal host — subordinate the concrete shape, and keep the exclusion the last clause
+# Condition over cases can regress a literal host — subordinate the concrete shape, and let nothing compete with the exclusion
 
 ## Context
 
@@ -103,7 +103,7 @@ which is what the reviewer caught; a subordinated shape cannot, because it
 carries no independent decision. After this change, 3 of 3 Codex trials produced
 an Objective at the correct altitude.
 
-### 2. Material placed after an exclusion dilutes it. Keep the exclusion the salient clause.
+### 2. A competing decision after an exclusion dilutes it. Let nothing after one decide anything.
 
 The same block regressed a second time, by a different route. A later review
 round pointed out — correctly — that the rule asserted a destination it could
@@ -116,9 +116,10 @@ The first draft of *that* fix then enumerated where such a line could instead
 go — "a requirement, a constraint, or a success criterion" — and Codex drifted
 again, on one of two trials, producing a mixed Objective that named the Convex
 action window. The enumeration was itself a case list, so it was wrong on the
-first mechanism too, but the operative failure was placement: the exclusion had
-stopped being the last thing read. Tightening the sentence so the exclusion
-stays the salient clause and the destination is delegated rather than listed —
+first mechanism too, but the operative failure was competition: the clause after
+the exclusion offered the reader somewhere else to land, so the reader landed
+there. Tightening the sentence so the destination is delegated rather than
+listed — leaving nothing after the exclusion that rules on anything —
 
 > …and one only its internals can settle is not the Objective however
 > outcome-shaped its wording; the registry above decides where it does belong.
@@ -158,14 +159,18 @@ there, a strong model masked the *value* of a defensive fix; here, it masks the
 The second mechanism matters because prose edits accrete at the end. Every
 review round appends: a clarification, a qualification, a list of alternatives.
 An exclusion is the one construct that cannot survive that treatment, because
-what follows it becomes the reader's last instruction. Blocks that regress this
-way still pass review — each appended clause is individually correct — which is
-why the regression is detectable by eval and not by argument.
+a later clause that decides anything competes with it for the same reader. Note
+that this is a condition about competition, not about position: the shipped
+example above keeps both a delegation and a subordinated shape after its
+exclusion, and neither displaces it, because neither rules on anything. Blocks
+that regress this way still pass review — each appended clause is individually
+correct — which is why the regression is detectable by eval and not by
+argument.
 
 Together they narrow the "state conditions, not cases" rule to what it actually
 claims: the condition owns the decision; a single concrete shape can stay,
 subordinated to it, when a real host needs it to instantiate the abstraction —
-and the exclusion goes last.
+and nothing that decides anything follows an exclusion.
 
 ## When to Apply
 
@@ -177,9 +182,10 @@ and the exclusion goes last.
   old text served" means running them, not re-reading them: a restatement that
   reads better is the expected appearance of a silent regression.
 - Writing or editing a negative rule ("X is not Y", "never do Z") in prose a
-  model must follow. Check what comes after it in the paragraph; move
-  qualifications before it, and delegate the alternative destination to an
-  existing registry or section rather than enumerating it inline.
+  model must follow. Check whether anything after it in the paragraph decides
+  something; move qualifications before it, and delegate the alternative
+  destination to an existing registry or section rather than enumerating it
+  inline. An illustration that rules on nothing may stay.
 - Deciding what a skill block owes a weaker harness. Where a condition is
   abstract enough that the failing instance is not obvious, one subordinated
   shape is cheap insurance.
