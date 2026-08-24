@@ -16,10 +16,12 @@ Compound Engineering is opinionated by design. It's maintained by [@kieranklaass
 bun install
 bun run test              # full suite, --parallel, exactly as CI runs it
 bun run release:validate  # plugin/marketplace consistency
-bun run plugin:validate   # Claude marketplace + plugin schema
+bun run plugin:validate   # Claude marketplace + plugin schema (needs `claude` on PATH)
 ```
 
-To load your working checkout into Claude Code, Cursor, Codex, or any other supported harness, see **[docs/development.md](docs/development.md)**.
+`plugin:validate` shells out to the Claude Code CLI, so it needs `claude` on your `PATH`. If you work in Codex, Cursor, or another host, either install that CLI or let PR CI run this check for you — the other three commands are host-independent.
+
+To load your working checkout into a harness for testing, see **[docs/development.md](docs/development.md)**.
 
 ## What CI checks
 

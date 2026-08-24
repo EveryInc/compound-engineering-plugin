@@ -1,6 +1,6 @@
 # Development
 
-How to load a local checkout of Compound Engineering into each supported harness, and the repository's own build and validation commands. For contribution process — what to do before opening a PR — see [CONTRIBUTING.md](../CONTRIBUTING.md).
+The repository's build and validation commands, and how to load a local checkout into the harnesses that have a documented local-load path. For contribution process — what to do before opening a PR — see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ---
 
@@ -10,12 +10,14 @@ How to load a local checkout of Compound Engineering into each supported harness
 bun install
 bun run test              # full suite, --parallel, exactly as CI runs it
 bun run release:validate  # plugin/marketplace consistency
-bun run plugin:validate   # Claude marketplace + plugin schema
+bun run plugin:validate   # Claude marketplace + plugin schema (needs `claude` on PATH)
 ```
 
 ## From your local checkout
 
-For active development, load this checkout directly in the harness you want to test.
+For active development, load this checkout directly in the harness you want to test. The harnesses below are the ones with a verified local-load path.
+
+Compound Engineering supports more hosts than are listed here — Grok Build CLI, GitHub Copilot, Factory Droid, and Qwen Code among them. Those install from the marketplace ([install options](../README.md#more-install-options)) but have no documented way to point at an unreleased checkout, so test changes for them against a released version, or add a path here once you have verified one.
 
 **Claude Code**
 
