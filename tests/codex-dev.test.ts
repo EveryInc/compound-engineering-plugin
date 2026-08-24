@@ -598,19 +598,19 @@ describe("Codex developer workflow contracts", () => {
     expect(packageJson.scripts["codex:dev"]).toBe("bun run scripts/codex-dev.ts")
   })
 
-  test("README and agent instructions expose every supported mode", async () => {
+  test("developer docs and agent instructions expose every supported mode", async () => {
     const root = path.join(import.meta.dir, "..")
-    const [readme, agents] = await Promise.all([
-      fs.readFile(path.join(root, "README.md"), "utf8"),
+    const [devDocs, agents] = await Promise.all([
+      fs.readFile(path.join(root, "docs", "development.md"), "utf8"),
       fs.readFile(path.join(root, "AGENTS.md"), "utf8"),
     ])
     for (const command of ["local", "refresh", "status", "remote", "remove"]) {
-      expect(readme).toContain(`bun run codex:dev -- ${command}`)
+      expect(devDocs).toContain(`bun run codex:dev -- ${command}`)
     }
     expect(agents).toContain("bun run codex:dev -- local")
     expect(agents).toContain("$CODEX_HOME/skills/compound-engineering-local")
-    expect(readme).toContain("cached copy of this checkout")
-    expect(readme).not.toContain("points Compound Engineering back to the public Git repository")
+    expect(devDocs).toContain("cached copy of this checkout")
+    expect(devDocs).not.toContain("points Compound Engineering back to the public Git repository")
   })
 
   test("refuses an unrelated symlink at the managed collection path", async () => {
