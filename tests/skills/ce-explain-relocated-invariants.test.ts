@@ -25,9 +25,11 @@ const corpus = [
 
 describe("ce-explain relocated invariants stay greppable in the corpus", () => {
   for (const invariant of [
-    // Interaction method
+    // Interaction method (capability match, issue #1522). Option-cap facts
+    // may still name request_user_input; the closed per-host catalog must not return.
+    "already in the current tool list",
+    "never call a user-facing question tool",
     "request_user_input",
-    "pi-ask-user",
     "Never silently skip the question",
     // Model tiers + degradation
     "Extraction tier",

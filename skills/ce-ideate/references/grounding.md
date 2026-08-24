@@ -133,4 +133,4 @@ Two overrides raise the whole ideation fleet to the ceiling tier: surprise-me mo
 
 ## Asking inside this phase
 
-The issue-scoping question below is the only blocking question this phase may ask. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI, `ask_user` in Pi), fall back to numbered options on the user-visible chat surface only when no such tool exists or the call errors, and never silently skip it.
+The issue-scoping question below is the only blocking question this phase may ask. Use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. (), fall back to numbered options on the user-visible chat surface only when no such tool is in the list or a real question call errors, and never silently skip it.

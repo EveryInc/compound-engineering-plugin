@@ -4,7 +4,7 @@ Required read before Phase 2 of `ce-sweep`. The body carries the ordering invari
 
 ## Interaction method
 
-Default to the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is non-interactive. Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
+Default to the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Never silently skip a question you owe the user; if no blocking tool exists in the harness, the run is non-interactive. Ask one question at a time — the decision round (2h) may group by category but still asks one blocking question per category.
 
 ## Config keys
 

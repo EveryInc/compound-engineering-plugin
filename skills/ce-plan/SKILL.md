@@ -22,7 +22,7 @@ Writing the file, checking confidence, and running or explicitly skipping `ce-do
 
 ## Interaction Method
 
-Ask one question at a time through the host's blocking-question capability. If none exists or it errors, render numbered choices in chat; never silently skip a required question. If no feature description was supplied, ask what to plan and wait.
+Ask one question at a time through the host's blocking question tool already in the current tool list. Match by capability; never probe a user-facing tool to discover it. If none is listed or a real question call errors, render numbered choices in chat; never silently skip a required question. If no feature description was supplied, ask what to plan and wait.
 
 ## Output Contract
 

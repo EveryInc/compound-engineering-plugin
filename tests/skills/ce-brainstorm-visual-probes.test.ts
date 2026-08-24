@@ -113,10 +113,10 @@ describe("ce-brainstorm visual probes", () => {
       "Shape/behavior visual decisions must explicitly override the default blocking-question path.",
     ).toBe(true)
     expect(
-      /Use the platform's blocking question tool[^.]*text-vs-visual opt-in|Use the platform's blocking question tool[^.]*offer/i.test(
+      /blocking question tool already in the current tool list[^.]*text-vs-visual offer|blocking question tool already in the current tool list[^.]*offer/i.test(
         liveRoutingRegion,
       ),
-      "The text-vs-visual opt-in itself should use the platform's interactive question tool when available.",
+      "The text-vs-visual opt-in itself should use the host's blocking question tool already in the current tool list (issue #1522).",
     ).toBe(true)
     expect(
       /ASCII preview.*not.*satisf|preview.*not.*substitute/i.test(liveRoutingRegion),

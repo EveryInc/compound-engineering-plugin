@@ -120,8 +120,9 @@ describe("ce-worktree SKILL.md", () => {
     // blocking-question tool (AGENTS.md > Cross-Platform User Interaction),
     // not a vague "ask the user" that can degrade to a non-blocking prompt.
     expect(
-      SKILL_BODY.includes("AskUserQuestion") && SKILL_BODY.includes("request_user_input"),
-      "ce-worktree/SKILL.md must route the sandbox-failure confirmation through the platform's blocking question tool (name AskUserQuestion / request_user_input / ask_user), per AGENTS.md > Cross-Platform User Interaction, rather than a non-blocking 'ask the user'.",
+      /already in the current tool list/.test(SKILL_BODY) &&
+        /never call a user-facing question tool/.test(SKILL_BODY),
+      "ce-worktree/SKILL.md must route the sandbox-failure confirmation through the host's blocking question tool already in the current tool list (issue #1522), rather than a non-blocking 'ask the user' or a closed per-host catalog.",
     ).toBe(true)
   })
 })

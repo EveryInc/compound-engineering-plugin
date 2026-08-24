@@ -48,7 +48,7 @@ spiral auth status --json 2>/dev/null
 
 Go straight to Path B when running non-interactively — there is no human to answer. Otherwise offer setup **once**: read `references/spiral-cli.md` and follow its Path 0 section for the opt-out check, the blocking question, the agent-run `spiral login --json` flow (the API key never passes through the agent, and the user never pastes one into chat), the install path, and how the opt-out is recorded. Skip to Path B only when *that* check finds a recorded opt-out — it is the authority on what counts as recorded, and a naive config scan misreads `ce-setup`'s commented template example as one, silently suppressing the offer.
 
-Two properties that section depends on: **any dismissal records the opt-out**, so a single first-run decline stops the offer for good in this repo, and a decline always proceeds to Path B rather than blocking. If a human is present but no blocking-question tool is available, fall back to a numbered list of the two options in chat and wait — do not skip the offer.
+Two properties that section depends on: **any dismissal records the opt-out**, so a single first-run decline stops the offer for good in this repo, and a decline always proceeds to Path B rather than blocking. If a human is present but no blocking-question tool is in the current tool list, fall back to a numbered list of the two options in chat and wait — do not skip the offer, and never call a user-facing question tool to discover whether one exists.
 
 ### Path A — Spiral ready (voice-matched)
 

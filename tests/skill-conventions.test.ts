@@ -699,6 +699,62 @@ describe("portable skill capability wording", () => {
       "Skills should describe blocking-question and subagent capabilities without adding oh-my-pi-specific tool names.",
     ).toEqual([])
   })
+
+  // Issue #1522: Grok's native ask_user_question is already in the tool list,
+  // but a closed Claude/Codex/Antigravity/Pi catalog plus
+  // `ToolSearch select:AskUserQuestion` made agents test-fire user-facing
+  // question cards to "prove" the tool exists. Pin the defect signatures,
+  // not a fifth host name.
+  test("blocking-question instructions do not discover the tool by a closed host catalog or by executing a user-facing call", () => {
+    const closedCatalog =
+      /AskUserQuestion[\s\S]{0,280}request_user_input[\s\S]{0,200}ask_question[\s\S]{0,160}`ask_user`/
+    const claudeSelect = /select:AskUserQuestion/
+    const offenders: string[] = []
+    for (const skill of skillDirs) {
+      for (const filePath of listMarkdownFiles(skill.absPath)) {
+        const fileRel = path.relative(REPO_ROOT, filePath)
+        const content = readFileSync(filePath, "utf8")
+        if (claudeSelect.test(content)) {
+          offenders.push(
+            `${fileRel}: ToolSearch select:AskUserQuestion used as portable discovery`,
+          )
+        }
+        if (closedCatalog.test(content)) {
+          offenders.push(
+            `${fileRel}: closed AskUserQuestion/request_user_input/ask_question/ask_user catalog`,
+          )
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      "Ask via the host's blocking question tool already in the current tool list. Do not name a closed per-host catalog, and do not use Claude's ToolSearch select:AskUserQuestion as the discovery path (issue #1522).",
+    ).toEqual([])
+  })
+
+  test("adapter copies that fall back from a blocking question tool treat the current list as proof and forbid user-facing probes", () => {
+    const useAndFallback =
+      /blocking[- ]question[\s\S]{0,1200}Fall back to (?:a )?numbered|Fall back to (?:a )?numbered[\s\S]{0,1200}blocking[- ]question/i
+    const proof =
+      /already in the (?:current )?tool list|presence in the (?:current )?tool list is proof|never call a user-facing question tool to discover/i
+    const offenders: string[] = []
+    for (const skill of skillDirs) {
+      for (const filePath of listMarkdownFiles(skill.absPath)) {
+        const fileRel = path.relative(REPO_ROOT, filePath)
+        const content = readFileSync(filePath, "utf8")
+        if (!useAndFallback.test(content)) continue
+        if (!proof.test(content)) {
+          offenders.push(fileRel)
+        }
+      }
+    }
+
+    expect(
+      offenders,
+      "A blocking-question adapter must say the current tool list is proof and must forbid test-firing a user-facing question tool (issue #1522).",
+    ).toEqual([])
+  })
 })
 
 describe("skill self-containment (AGENTS.md 'File References in Skills')", () => {

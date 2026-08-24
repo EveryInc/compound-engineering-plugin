@@ -97,9 +97,9 @@ Treat the preview and its confirmation as two ordered user-facing events:
 1. **Preview event** — emit the complete preview body as user-visible assistant text in the conversation. Content composed only in hidden thinking or reasoning does not count. Do not place the preview only inside the question interface's input.
 2. **Decision event** — after the preview event is visible, invoke the harness's agent-callable blocking-question capability and wait for the answer. Success means the user can see the preview while choosing `Proceed` or `Cancel`, and the workflow does not continue until they answer.
 
-If the preview event has not occurred, do not invoke the blocking-question capability. If the harness exposes no such capability or the call errors, preserve the same interaction as visible chat: put the numbered `Proceed` / `Cancel` options immediately below the visible preview and wait for the user's reply. Never omit the preview or continue silently.
+If the preview event has not occurred, do not invoke the blocking-question capability. If the harness exposes no such capability or a real question call errors, preserve the same interaction as visible chat: put the numbered `Proceed` / `Cancel` options immediately below the visible preview and wait for the user's reply. Never omit the preview or continue silently.
 
-**Non-exhaustive adapters:** `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), and `ask_user` in Pi with the `pi-ask-user` extension. In Claude Code, `AskUserQuestion` should already be loaded from the Interactive-mode pre-load step; if it is not, call `ToolSearch` with query `select:AskUserQuestion` now. A pending schema load is not a fallback trigger.
+Match the host's blocking question tool already in the current tool list. Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name.
 
 Stem (adapted to the path):
 

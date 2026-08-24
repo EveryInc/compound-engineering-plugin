@@ -13,7 +13,7 @@ Review a requirements or plan document with a team of reviewer personas. Dispatc
 
 ## Interactive mode rules
 
-**Read `references/modes.md` before anything else.** It owns mode detection, the non-interactive argument contract, and the question-tool rules: pre-load the host's blocking question tool at the top of the interactive flow, and fall back to a numbered list only when the harness genuinely lacks one.
+**Read `references/modes.md` before anything else.** It owns mode detection, the non-interactive argument contract, and the question-tool rules: match the host's blocking question tool already in the current tool list (never call a user-facing question tool to discover it), pre-load it at the top of the interactive flow if it is listed but unloaded, and fall back to a numbered list only when the harness genuinely lacks one.
 
 Either way, a question that calls for a user decision fires the tool or falls back loudly. Narrating it as text is a bug.
 
