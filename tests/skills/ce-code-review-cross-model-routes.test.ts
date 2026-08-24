@@ -1608,7 +1608,42 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(out.cross_model_route).toBe("codex")
     expect(out.model_requested).toBe("gpt-5.6-luna")
     expect(out.model_actual).toBe("unverified")
+    // Recover-from-stdout has no turn.completed; usage must be absent, not a
+    // zero-byte file that json.load rejects (#1531).
+    expect(r.files).not.toContain("adversarial-codex-usage.json")
   }, 20_000) // the codex liveness poll sleeps in 5s slices even for a fast stub
+
+  test("codex usage artifact is the last turn.completed usage object", () => {
+    const review = JSON.stringify({
+      reviewer: "adversarial",
+      findings: [],
+      residual_risks: [],
+      testing_gaps: [],
+    })
+    const { env } = sandbox(
+      ["codex"],
+      `#!/bin/sh
+out=''
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = '-o' ]; then out="$2"; shift 2; else shift; fi
+done
+cat >/dev/null
+printf '%s' '${review}' > "$out"
+printf '%s\\n%s\\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":4,"output_tokens":3}}'
+`,
+    )
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-codex.json")
+    expect(r.files).toContain("adversarial-codex-usage.json")
+    expect(
+      JSON.parse(readFileSync(path.join(runDir, "adversarial-codex-usage.json"), "utf8")),
+    ).toEqual({
+      input_tokens: 12,
+      cached_input_tokens: 4,
+      output_tokens: 3,
+    })
+  }, 20_000)
 
   test("codex stdout recovery is string-aware — an in-string brace does not let a draft object win", () => {
     // A brace-counting scanner desyncs on the real answer's in-string "{" (quoted

@@ -1036,6 +1036,9 @@ attempt_route() {
       cp "$PEERLOG" "$RUN_DIR/adversarial-codex-events.jsonl" 2>/dev/null || true
       jq -s '[.[] | select(.type == "turn.completed") | .usage] | last // empty' "$PEERLOG" \
         > "$RUN_DIR/adversarial-codex-usage.json" 2>/dev/null || true
+      # Redirect + `// empty` would leave a zero-byte file when no turn.completed
+      # exists; json.load then fails (#1531). Keep the artifact only if non-empty.
+      [ -s "$RUN_DIR/adversarial-codex-usage.json" ] || rm -f "$RUN_DIR/adversarial-codex-usage.json"
       if [ "$RUN_SUCCEEDED" = true ] && out_missing_or_invalid; then
         recover_findings_json "$PEERLOG" "$RAW_OUT" && log "recovered codex JSON from stdout (-o file unavailable)"
       fi
