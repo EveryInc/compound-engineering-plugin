@@ -155,6 +155,11 @@ A structured implementation binding — mode, target, model, source — that an 
 ### Owning layer
 The single Skill, reference, script, or host surface that is responsible for a mechanism — its commands, exit semantics, or byte-level validation — and the only place that mechanism may be spelled out. A Skill that delegates the work states the condition and the safe failure direction and leaves the mechanism to its owner; a mechanism prescribed outside its owning layer drifts from the owner's copy and, for data the model itself transcribes, cannot be enforced by prose at all because the model is the transport.
 
+### Subordinated shape
+A concrete failing instance kept in a skill's prose underneath the condition that decides it, phrased so it illustrates that condition rather than ruling on its own. It is what separates a permitted example from a case list: a case list carries its own decision and can therefore contradict the condition beside it, while a subordinated shape carries none and cannot.
+
+It exists because a condition is an abstraction, and the most literal host a skill ships to may fail to instantiate it — the shape is insurance for that reader rather than decoration for a capable one. Removing one is a behavior change and is verifiable only by running the skill on that host, never by re-reading the block. The exclusion a shape illustrates must also stay the last clause the reader meets, because material appended after an exclusion displaces it.
+
 ### Context-absent agent
 An agent performing a Skill-shaped action without that Skill's instructions loaded in context — typically reconstructing a half-remembered command, recognizable by parameter values that drift from the Skill's documented defaults. Prose in the unloaded Skill cannot reach it; the only channels that do are the seam it entered through and the output of the tools it runs, which is why fail-closed refusals in bundled CLIs carry their own recovery path.
 
