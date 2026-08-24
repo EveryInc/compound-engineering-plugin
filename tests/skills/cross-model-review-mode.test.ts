@@ -40,6 +40,12 @@ describe("cross_model_review_mode egress gate", () => {
     }
   })
 
+  test("ce-code-review body treats missing peer keys as the default auto route", () => {
+    const body = read("skills/ce-code-review/SKILL.md")
+    expect(body).toContain("default auto route")
+    expect(body).toContain("Another skill's engine preference is not this gate")
+  })
+
   test("config template, example, and configuration reference document the key", () => {
     for (const p of [
       "skills/ce-setup/references/config-template.yaml",
