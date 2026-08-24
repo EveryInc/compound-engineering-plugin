@@ -2253,7 +2253,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "blocked_external_review_moved_this_tick": (
             awaiting_approval > 0 and external_review_moved),
         "pr_chain": state["pr_chain"],
-        "stack_blocker": _stack_blocker(state["pr_chain"]),
+        "stack_blocker": _stack_blocker(state["pr_chain"], cur),
         "open_needs_human": open_needs_human,
         "needs_human_ids": needs_human_ids,
         "needs_human_residuals": needs_human_residuals,
@@ -2319,8 +2319,11 @@ def _change_sig(state):
             bool(state.get("awaiting_approval")))
 
 
-def _stack_blocker(chain):
-    """Return the manager-currency residual that blocks target readiness, if any."""
+def _stack_blocker(chain, cur=None):
+    """Return the manager-currency residual that blocks target readiness, if any.
+    Manager freshness (`needsRebase`) fires on plain trunk drift, which GitHub already prices into
+    the target's own mergeability against its parent base; so a certain MERGEABLE/CLEAN read defers
+    to GitHub and only a stale-or-unknown target that GitHub does not clear blocks."""
     status = (chain or {}).get("manager_status")
     if status == MANAGER_PROBE_ERROR:
         return "manager-probe-error"
@@ -2328,10 +2331,16 @@ def _stack_blocker(chain):
         return "relationship-probe-error"
     if status == MANAGER_CONFIRMED:
         freshness = chain.get("target_needs_rebase")
+        if freshness is False:
+            return None
+        cur = cur or {}
+        if (cur.get("mergeable") == "MERGEABLE" and cur.get("merge_state_status") == "CLEAN"
+                and _mergeability_certain(cur.get("mergeable"), cur.get("merge_state_status"),
+                                          cur.get("base"))):
+            return None
         if freshness is True:
             return "target-needs-rebase"
-        if freshness is not False:
-            return "managed-freshness-unknown"
+        return "managed-freshness-unknown"
     return None
 
 

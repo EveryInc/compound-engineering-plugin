@@ -4470,7 +4470,7 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(result.calls[1]).toContain("cursor=page-2")
   })
 
-  test("watch: managed target freshness blocks ordinary CLEAN merge-ready", () => {
+  test("watch: managed target freshness defers to GitHub — stale on trunk drift with CLEAN is merge-ready, stale without CLEAN blocks", () => {
     const GREEN = { key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }
     const managedStale = {
       ...FAILING,
@@ -4486,10 +4486,17 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
         upstack_needs_rebase: [],
       },
     }
-    expect(wakeReason(snapshot(path.join(dir, "stack-stale"), fetchFile(dir, "stack-stale.json", managedStale)))).toBe("stack-blocked")
+    const clean = snapshot(path.join(dir, "stack-stale"), fetchFile(dir, "stack-stale.json", managedStale))
+    expect(clean.stack_blocker).toBeNull()
+    expect(wakeReason(clean)).toBe("merge-ready")
+
+    const notClean = { ...managedStale, merge_state_status: "BLOCKED" }
+    const blocked = snapshot(path.join(dir, "stack-stale-blocked"), fetchFile(dir, "stack-stale-blocked.json", notClean))
+    expect(blocked.stack_blocker).toBe("target-needs-rebase")
+    expect(wakeReason(blocked)).toBe("stack-blocked")
   }, 15000)
 
-  test("watch: unknown managed freshness blocks ready, while stale upstack alone still permits ready-as-next", () => {
+  test("watch: unknown managed freshness blocks ready only when GitHub is not CLEAN, while stale upstack alone still permits ready-as-next", () => {
     const GREEN = { key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }
     const base = {
       ...FAILING,
@@ -4508,7 +4515,9 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
         upstack_needs_rebase: [],
       },
     }
-    expect(wakeReason(snapshot(path.join(dir, "stack-unknown"), fetchFile(dir, "stack-unknown.json", unknown)))).toBe("stack-blocked")
+    expect(wakeReason(snapshot(path.join(dir, "stack-unknown"), fetchFile(dir, "stack-unknown.json", unknown)))).toBe("merge-ready")
+    const unknownNotClean = { ...unknown, merge_state_status: "BLOCKED" }
+    expect(wakeReason(snapshot(path.join(dir, "stack-unknown-blocked"), fetchFile(dir, "stack-unknown-blocked.json", unknownNotClean)))).toBe("stack-blocked")
 
     const readyAsNext = {
       ...base,
