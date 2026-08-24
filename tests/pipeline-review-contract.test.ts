@@ -61,6 +61,28 @@ describe("ce-work review contract", () => {
     expect(shipping).toContain("Ship-handoff gate")
   })
 
+  // Hosts such as Grok register a bundled skill named `review`. Headings like
+  // "invoke review" and slash examples like `/review` caused sibling-path reads of
+  // this plugin's skills/review/SKILL.md, which does not exist.
+  test("orchestration names ce-code-review, not a host skill named review", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const followup = await readRepoFile("skills/lfg/references/review-followup.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
+    const findings = await readRepoFile(
+      "skills/ce-work/references/review-findings-followup.md",
+    )
+
+    expect(followup).toContain("## Step 4 — invoke `ce-code-review`")
+    expect(followup).not.toContain("invoke review")
+    expect(findings).toContain("invoke `ce-code-review` only for cold callers")
+    expect(findings).not.toContain("invoke review only")
+    expect(shipping).toContain("A host catalog entry named `review` is not this step")
+    expect(shipping).not.toMatch(/`\/review`/)
+    expect(shipping).toContain("use that entry's listed path")
+    expect(lfg).toContain("the catalog's listed path")
+    expect(lfg).toContain("this plugin's `skills/` directory")
+  })
+
   // Issue #1351: prose-only review mandate was silently skipped. The always-loaded
   // body owns the completion predicate; the required shipping owner owns receipt and
   // fallback mechanics, including the exact phrases and mechanical exclusions.

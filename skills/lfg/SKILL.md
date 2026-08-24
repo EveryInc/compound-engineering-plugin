@@ -8,7 +8,7 @@ CRITICAL: You MUST execute every step below IN ORDER. Do NOT jump ahead to codin
 
 LFG runs hands-off, from schedulers, loops, and nested orchestrators with no user to answer, so no step stops to ask. The one exception is the upfront routing question `references/stage-routing.md` defines.
 
-Resolve every skill named below against the host's available-skills list and invoke that exact entry; some hosts namespace it (`compound-engineering:ce-plan`), and a short-form guess that is not in the list fails.
+Resolve every skill named below against the host's available-skills list and invoke that exact entry — the catalog's listed path. Some hosts namespace it (`compound-engineering:ce-plan`). A short-form name, or a path made by putting that name under this plugin's `skills/` directory, is wrong when it is not that catalog entry.
 
 Read `references/task-visibility.md` before step 1: it owns the stage-level view this pipeline publishes through the platform's task-tracking capability and hands to each child skill.
 

@@ -15,7 +15,7 @@ Reuse the review output already in hand:
 
 If `status` is `failed`, stop shipping and surface `reason`. If `degraded`, note partial reviewer coverage before applying anything.
 
-### Fallback — invoke review only for cold callers
+### Fallback — invoke `ce-code-review` only for cold callers
 
 Only when the caller reached this file **without** already running review (no review output in hand): invoke `ce-code-review` once, then proceed to apply. Do not invoke when the caller already ran review (e.g., ce-work shipping step 3a).
 

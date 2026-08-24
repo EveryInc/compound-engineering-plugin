@@ -12,7 +12,7 @@ Simplification runs before review so the code-review in step 4 covers the simpli
 
 Do not commit in this step. `ce-simplify-code` leaves its changes in the working tree; step 4's review scopes the working tree (uncommitted changes included), and step 8's `ce-commit-push-pr` commits whatever remains. Committing here would sweep any still-uncommitted `ce-work` edits into a misleading `refactor` commit and could stall on a tree that never goes clean.
 
-## Step 4 — invoke review
+## Step 4 — invoke `ce-code-review`
 
 ```
 ce-code-review mode:agent plan:<plan-path-from-step-1>
