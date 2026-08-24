@@ -680,7 +680,9 @@ start_heartbeat() {
 }
 stop_heartbeat() {
   if [ -n "$_HEARTBEAT_PID" ]; then
-    kill "$_HEARTBEAT_PID" 2>/dev/null || true
+    # Leader-only TERM is deferred until the inner `wait $sleeper` returns, so
+    # the default 60s interval would block this wait. Signal the process group.
+    kill -- -"$_HEARTBEAT_PID" 2>/dev/null || kill "$_HEARTBEAT_PID" 2>/dev/null || true
     wait "$_HEARTBEAT_PID" 2>/dev/null || true
   fi
   _HEARTBEAT_PID=""

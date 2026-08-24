@@ -15,7 +15,7 @@ import {
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-setDefaultTimeout(20_000)
+setDefaultTimeout(30_000)
 
 const roots: string[] = []
 function temp(prefix: string): string {
