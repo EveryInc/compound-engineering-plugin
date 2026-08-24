@@ -46,7 +46,7 @@ Issue #1318 is the originating report. The contract, persona, adapter appendix, 
 
 **Default: forbid worker Git index writes.** The implementation-worker persona is unconditional: edit and test; do not run `git add`, `git commit`, or another Git index write; leave the completed working tree uncommitted; report `completed` when files and scoped checks are done; the host snapshots the tree (`skills/ce-work/references/agents/implementation-worker.md:6`).
 
-**Contract: do not instruct any external worker to write the Git index.** Bound worker authority grants edit-only access inside the controller-owned detached worktree. Do not instruct the worker to run `git add`, `git commit`, or another Git index write. Leave the completed working tree uncommitted; the host snapshots the tree. Codex `workspace-write` and Cursor `--sandbox enabled` cannot write the linked-worktree Git admin dir: the index lives in the shared Git common dir, outside the workspace (`cross-model-execution.md:43`). The same no-commit rule is always-loaded in `SKILL.md` so the host protocol and the worker persona cannot diverge.
+**Contract: do not instruct any external worker to write the Git index.** Bound worker authority grants edit-only access inside the controller-owned detached worktree. Do not instruct the worker to run `git add`, `git commit`, or another Git index write. Leave the completed working tree uncommitted; the host snapshots the tree. Codex `workspace-write` and Cursor `--sandbox enabled` cannot write the linked-worktree Git admin dir: the index lives in the shared Git common dir, outside the workspace (`cross-model-execution.md:43`). The same no-commit rule is required-read in `references/cross-model-execution.md` (external path) and `references/execution-strategy.md` (native); it is not always-loaded in `SKILL.md` after the phase-loaded kernel. Persona injection plus host `terminalize` still enforce it.
 
 **Host `terminalize` is the snapshot.** On authoritative `done`, the host calls `unit-workspace.py terminalize`. That path, not the worker, stages the complete tree and pins a synthetic transport commit:
 
@@ -60,7 +60,7 @@ The serial protocol requires that pinned transport commit to have the recorded b
 
 **Do not weaken this into "commit if you can."** Worker commits are never required. Instructing any external worker to commit is a protocol error even if a particular sandbox happens to succeed.
 
-**Keep native and external commit ownership distinct.** Ordinary native workers also do not commit — the orchestrator owns staging, committing, and authoritative tests (`skills/ce-work/SKILL.md:239`). Shared-workspace native workers additionally must not `git add` because concurrent index writes corrupt the shared index (`SKILL.md:241`). That is a different failure class.
+**Keep native and external commit ownership distinct.** Ordinary native workers also do not commit — the orchestrator owns staging, committing, and authoritative tests (`skills/ce-work/references/execution-strategy.md`). Shared-workspace native workers additionally must not `git add` because concurrent index writes corrupt the shared index. That is a different failure class.
 
 ## Why This Matters
 
@@ -80,7 +80,7 @@ The cost of the wrong instruction is a finished unit that reports `blocked`, a w
 - Reviewing a worker prompt, unit packet, or eval fixture that still says the worker should `git add` / `git commit` when files and scoped checks are done.
 - Diagnosing a Codex or Cursor unit that finished edits then failed or blocked on a Git index write, or that treated a sandbox `EPERM` as proof the host cannot bind a socket or read peer credentials.
 - Do not apply this as a reason to skip host `terminalize`. The host still snapshots. Do not apply it to host-side `git add` / `commit-tree` in `terminalize` or to host-only canonical commits after `integrate`.
-- Do not confuse it with native shared-workspace "no concurrent `git add`" (`SKILL.md:241`) or with `ce-commit`'s named-file staging rule.
+- Do not confuse it with native shared-workspace "no concurrent `git add`" (`execution-strategy.md`) or with `ce-commit`'s named-file staging rule.
 
 ## Examples
 

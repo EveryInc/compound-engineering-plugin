@@ -98,13 +98,13 @@ not shell commands. This avoids unnecessary permission prompts and is more
 reliable across platforms.
 ```
 
-### 6. Headless mode for scheduled/unattended runs
+### 6. Non-interactive mode for scheduled/unattended runs
 
-Added `mode:headless` argument support so the skill can run without user interaction (e.g., on a schedule, in CI, or when the user just wants a hands-off sweep).
+Added `mode:non-interactive` argument support (deprecated alias `mode:headless`) so the skill can run without user interaction (e.g., on a schedule, in CI, or when the user just wants a hands-off sweep).
 
 Key design decisions:
-- **Explicit opt-in only.** `mode:headless` must be in the arguments. Auto-detection based on tool availability was rejected because a user in an interactive agent without a question tool (e.g., Cursor, Windsurf) is still interactive — they just use plain-text replies.
-- **Conservative confidence.** Borderline cases that would get a user question in interactive mode get marked stale in headless mode. Err toward stale-marking over incorrect action.
+- **Explicit opt-in only.** `mode:non-interactive` must be in the arguments. Auto-detection based on tool availability was rejected because a user in an interactive agent without a question tool (e.g., Cursor, Windsurf) is still interactive — they just use plain-text replies.
+- **Conservative confidence.** Borderline cases that would get a user question in interactive mode get marked stale in non-interactive mode. Err toward stale-marking over incorrect action.
 - **Detailed report as deliverable.** Since no user was present, the output report includes full rationale for each action so a human can review after the fact.
 - **Process everything.** No scope narrowing questions — if no scope hint provided, process all docs. For broad scope, process clusters in impact order without asking.
 
@@ -119,7 +119,7 @@ These five patterns should be checked during any skill review:
 3. **No blind user questions** — Every question presented to the user is informed by evidence the agent gathered first
 4. **No unsatisfied cross-skill preconditions** — Every skill handoff verifies the target skill's preconditions are met by the calling context
 5. **No shell commands for file operations in subagents** — Subagent instructions explicitly prefer dedicated tools over shell commands
-6. **Headless mode for long-running skills** — Any skill that could run unattended should support an explicit opt-in mode with conservative confidence and detailed reporting
+6. **Non-interactive mode for long-running skills** — Any skill that could run unattended should support an explicit opt-in mode (`mode:non-interactive`, deprecated alias `mode:headless`) with conservative confidence and detailed reporting
 
 ### Key anti-patterns
 
@@ -130,7 +130,7 @@ These five patterns should be checked during any skill review:
 | "Which area should we review?" before any investigation | Triage first, recommend with evidence, let user confirm or redirect |
 | "Create a successor learning through ce-compound" during a refresh | Replacement subagent writes directly using gathered evidence |
 | No tool guidance for subagents | "Use dedicated file search and read tools, not shell commands" |
-| Auto-detecting "no question tool = headless" | Explicit `mode:headless` argument — interactive agents without question tools are still interactive |
+| Auto-detecting "no question tool = headless" | Explicit `mode:non-interactive` argument — interactive agents without question tools are still interactive |
 
 ## Cross-References
 

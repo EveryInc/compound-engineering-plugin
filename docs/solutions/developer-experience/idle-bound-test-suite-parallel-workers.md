@@ -92,7 +92,7 @@ This is why the fix is a flag and not a rewrite. Nothing was written inefficient
   gh run view <run-id> --log | grep -oE '\[[0-9]{4}\.[0-9]+ms\]' | sort -rn | head
   ```
 
-- **After parallelizing, the floor is the slowest single file** — a file never splits across workers. Measure it before assuming more workers will help: here `ce-work-unit-workspace.test.ts` is 61s and `ce-babysit-pr-snapshot.test.ts` is 40s of a ~100s run, so splitting those two is the next real lever and no amount of added concurrency will beat it.
+- **After parallelizing, the floor is the slowest single file** — a file never splits across workers. The `ce-work-unit-workspace` suite is already sharded (`ce-work-unit-workspace-*.test.ts`). `AGENTS.md` now reports ~81s wall time with `ce-babysit-pr-snapshot.test.ts` (~36s) as the remaining ceiling; further splits have small returns.
 
 ## Related Issues
 

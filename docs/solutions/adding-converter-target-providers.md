@@ -3,7 +3,9 @@ title: Adding New Converter Target Providers
 category: architecture
 tags: [converter, target-provider, plugin-conversion, multi-platform, pattern]
 created: 2026-02-23
-last_refreshed: 2026-06-23
+date: 2026-02-23
+last_refreshed: 2026-08-23
+module: converter-cli
 severity: medium
 component: converter-cli
 problem_type: architecture_pattern
@@ -329,9 +331,9 @@ export async function backupFile(filePath: string): Promise<string | null> {
    - OpenCode: `.md` for commands
    - Codex/Antigravity/Pi: preserve the target's native skill or extension filenames exactly
 
-6. **Permissions for sensitive files** — MCP config with API keys should use `0o600`:
+6. **Permissions for sensitive files** — MCP config with API keys should use `0o600` via `writeJsonSecure` (`writeJson` has no mode option):
    ```typescript
-   await writeJson(mcpPath, config, { mode: 0o600 })
+   await writeJsonSecure(mcpPath, config)
    ```
 
 **Reference Implementations:**
@@ -416,7 +418,7 @@ export async function syncTo{Target}(outputRoot: string): Promise<void> {
         ...personalSettings.mcpServers,
       },
     }
-    await writeJson(mcpPath, merged, { mode: 0o600 })
+    await writeJsonSecure(mcpPath, merged)
   }
 }
 ```
@@ -671,7 +673,8 @@ Use this checklist when adding a new target provider:
 ### Key Utilities
 
 - `src/utils/frontmatter.ts` — `formatFrontmatter()` and `parseFrontmatter()`
-- `src/utils/files.ts` — `writeText()`, `writeJson()`, `copyDir()`, `backupFile()`, `ensureDir()`
+- `src/utils/files.ts` — `writeText()`, `writeJson()`, `writeJsonSecure()`, `copyDir()`, `backupFile()`, `ensureDir()`
+- `src/utils/model.ts` — shared Claude family alias map and `normalizeModelWithProvider()`; see `docs/solutions/integrations/cross-platform-model-field-normalization.md`
 - `src/utils/resolve-home.ts` — `expandHome()` for `~/.{target}` path resolution
 
 ### Existing Tests

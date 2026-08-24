@@ -82,7 +82,7 @@ Synthesis defaults to picking a single root when multiple candidates match. A ph
 
 Advisory observations with no articulable consequence need somewhere to land, or they get either promoted above the gate (appearing as real decisions) or suppressed entirely. The FYI bucket gives them a home, but it stays empty unless two changes are made together:
 
-1. **Per-persona advisory band** tailored to each persona's scope. Each of the 7 skill-local personas needs its own band; a single template-level rule doesn't override persona-specific calibrations.
+1. **Per-persona advisory band** tailored to each persona's scope. Each of the 8 skill-local personas needs its own band; a single template-level rule doesn't override persona-specific calibrations.
 2. **Template-level advisory rule** in `subagent-template.md`'s output-contract using the "what actually breaks if we don't fix this?" heuristic. Anchors the scoring decision when a persona's own rubric doesn't make the band's applicability obvious.
 
 Either alone is insufficient. Persona bands without the template rule produce inconsistent results across personas; the template rule without per-persona bands has nothing to calibrate against.
@@ -97,13 +97,11 @@ The fix that worked: a **"Schema conformance — hard constraints"** block at th
 
 A severity translation rule ("if your persona's prose discusses 'critical/important/low-signal', map to P0/P1/P2/P3 at emit time") prevents informal priority language in persona rubrics from leaking into JSON output.
 
-## Coverage/rendering count invariants need a single source of truth
+## Coverage/rendering count invariants need a single source of truth — MECHANISM REMOVED 2026-08-13
 
-Early chain runs reported coverage count (`1 root with 6 dependents`) that didn't match the rendered output (5 dependents shown). The spec didn't name which step's count was authoritative (candidate count from Step 2, post-safeguard from Step 3, or post-cap from Step 4), so the orchestrator used different values for coverage and rendering.
+The `dependents` array this section named as source of truth belonged to the cascade / chain-link machinery deleted with synthesis 3.5c. Do not reintroduce a `dependents` field to make this invariant true.
 
-**Invariant to preserve:** the `dependents` array populated in the final annotation step (after all filtering) is the single source of truth for both coverage and rendering. A finding appearing in a root's `dependents` array must appear nested under that root in presentation and must NOT appear at its own severity position. Coverage count equals the length of the `dependents` array.
-
-Any future pipeline change that adds filtering or reorganization steps must re-state which post-step snapshot is authoritative.
+**Invariant that still holds:** name one post-filter snapshot as authoritative for both coverage counts and rendering. Live synthesis uses "The merged finding set produced by this step" at 3.3; coverage and presentation must agree on that set. Any future pipeline change that adds filtering or reorganization must re-state which post-step snapshot is authoritative.
 
 ## Reviewer variance is inherent; single runs aren't baselines
 
@@ -120,6 +118,6 @@ Across 7+ runs on the rename fixture, the same document produced user-engagement
 - `skills/ce-doc-review/references/synthesis-and-presentation.md` — canonical synthesis pipeline spec. It no longer contains 3.5c chain linking or the 3.3b cascade step; read it, not this doc, for the current pipeline
 - `skills/ce-doc-review/references/rendering-floor.md` — the presentation contract, including the report-versus-question grammar that governs whether a finding is asked about at all
 - `skills/ce-doc-review/references/subagent-template.md` — output contract with schema conformance block and advisory routing rule
-- `skills/ce-doc-review/references/personas/` — the 7 doc-review persona prompts (`coherence-reviewer.md`, `feasibility-reviewer.md`, `design-lens-reviewer.md`, `security-lens-reviewer.md`, `scope-guardian-reviewer.md`, `product-lens-reviewer.md`, `adversarial-document-reviewer.md`) with their confidence calibration bands
+- `skills/ce-doc-review/references/personas/` — the 8 doc-review persona prompts (`coherence-reviewer.md`, `feasibility-reviewer.md`, `design-lens-reviewer.md`, `security-lens-reviewer.md`, `scope-guardian-reviewer.md`, `product-lens-reviewer.md`, `adversarial-document-reviewer.md`, `whole-doc-reviewer.md`) with their confidence calibration bands
 - `tests/fixtures/ce-doc-review/` — three seeded fixtures (rename, auth, feature) for manual calibration testing; see each fixture's header comment for its specific seed map
 - `docs/solutions/developer-experience/branch-based-plugin-install-and-testing.md` — how to run the skill from a branch checkout for testing

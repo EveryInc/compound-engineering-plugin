@@ -31,6 +31,8 @@ Issue #686 hypothesized that personas were *under*-classifying findings as `safe
 
 The shipped change is mostly a determinism patch, not a safe_auto-rate increase. Two methodological lessons generalize beyond this calibration: **measure variance, not just classification-rate-shift**, and **a synthetic-fixture eval harness is the right tier between "ship and watch" and "stare at the diff"**. Both are written up in dedicated sections below.
 
+**Current product outcome (historical for this doc):** `ce-code-review` no longer emits `safe_auto`. Live `action-class-rubric.md` forbids it; the schema enum is `gated_auto|manual|advisory`; peer `safe_auto` remaps to `gated_auto`. The #686/#685 product conclusion (tighten the `safe_auto` boundary) is superseded. Keep this doc for the eval methodology, not as the current autofix-class policy.
+
 ---
 
 ## Context

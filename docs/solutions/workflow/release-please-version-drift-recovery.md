@@ -5,6 +5,7 @@ date: 2026-04-24
 last_refreshed: 2026-06-20
 created: 2026-04-24
 severity: high
+module: release-automation
 component: release-automation
 problem_type: workflow_issue
 tags:
@@ -45,7 +46,11 @@ The current root-native repo has three release components. Release-please reads 
     │   ├── .claude-plugin/plugin.json
     │   ├── .cursor-plugin/plugin.json
     │   ├── .codex-plugin/plugin.json
-    │   └── gemini-extension.json
+    │   ├── .kimi-plugin/plugin.json
+    │   ├── .grok-plugin/plugin.json
+    │   ├── .devin-plugin/plugin.json
+    │   ├── .omp-plugin/marketplace.json
+    │   └── plugin.json
     ├── ".claude-plugin" extra-files
     │   └── marketplace.json ($.metadata.version)
     └── ".cursor-plugin" extra-files
@@ -67,7 +72,7 @@ Release-please treats the manifest as the source of truth for "last released ver
 
 `bun run release:validate` runs on PRs and pushes to `main`. It fails when:
 
-- Root package/plugin versions disagree across `package.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, and `gemini-extension.json`.
+- Root package/plugin versions disagree across `package.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.kimi-plugin/plugin.json`, `.grok-plugin/plugin.json`, `.devin-plugin/plugin.json`, `.omp-plugin/marketplace.json`, and root `plugin.json`.
 - Marketplace plugin lists diverge across Claude, Cursor, and Codex marketplace metadata.
 - A Codex manifest is missing required fields or points at a missing `skills/` directory.
 - Release-owned descriptions drift across plugin manifests or marketplace entries.
@@ -106,7 +111,11 @@ Use when any user may have installed the drifted version locally. For the root `
 - `.claude-plugin/plugin.json`
 - `.cursor-plugin/plugin.json`
 - `.codex-plugin/plugin.json`
-- `gemini-extension.json`
+- `.kimi-plugin/plugin.json`
+- `.grok-plugin/plugin.json`
+- `.devin-plugin/plugin.json`
+- `.omp-plugin/marketplace.json`
+- `plugin.json`
 - `.github/.release-please-manifest.json` entry for `.`
 
 For marketplace drift, sync the affected marketplace `marketplace.json` metadata version and matching manifest entry.

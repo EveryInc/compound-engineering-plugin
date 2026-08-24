@@ -24,7 +24,7 @@ tags:
 
 ## Context
 
-> **Note:** This is a retrospective. The experimental delegation skill it studied (`ce-work-beta`) has since been removed from the plugin. The findings below are preserved as general guidance for designing external-model delegation in any orchestrator skill, not as documentation for a live feature.
+> **Note:** This is a retrospective. The experimental delegation skill it studied (`ce-work-beta`) has since been removed from the plugin. Live successor surface: `skills/ce-work/references/cross-model-execution.md` (and `execution-engines.md`). The `work_delegate_decision` setting described below is historical. The findings are preserved as general guidance for designing external-model delegation in any orchestrator skill, not as documentation for a live feature.
 
 Over six iterations of evaluation building Codex delegation into an experimental `ce-work` delegation mode, we collected quantitative data on the token economics of orchestrating work between Claude Code (the orchestrator) and Codex (the delegated executor). The core question: when does delegating plan units to Codex actually save Claude tokens, and what architectural patterns control the cost?
 
@@ -202,3 +202,4 @@ Iteration 5: Extracted delegation to reference file, SKILL.md back to 514 lines.
 - [Pass paths not content to subagents](../skill-design/pass-paths-not-content-to-subagents.md) — foundational token efficiency pattern for multi-agent orchestration
 - [Script-first skill architecture](../skill-design/script-first-skill-architecture.md) — complementary token reduction pattern (60-75% savings by moving processing to scripts)
 - [Agent-friendly CLI principles](../agent-friendly-cli-principles.md) — CLI design principles relevant to how `codex exec` is consumed
+- `skills/ce-work/references/cross-model-execution.md` — live cross-model execution surface that succeeded `ce-work-beta`

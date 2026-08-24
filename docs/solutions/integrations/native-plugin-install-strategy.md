@@ -30,7 +30,7 @@ tags:
 
 # Native Plugin Install Strategy
 
-Last verified: 2026-06-20
+Last verified: 2026-08-23
 
 Compound Engineering now treats the plugin as a self-contained skills package. Specialist reviewer and researcher behavior lives in skill-local prompt assets under `references/agents/` or `references/personas/`, and skills seed generic subagents with those files when the current harness exposes a subagent primitive. There are no formal standalone CE agents in the plugin surface.
 
@@ -51,6 +51,9 @@ The install strategy follows from that: prefer each harness's native plugin/pack
 | Pi | Git-backed Pi package install from this repository | No | Root `package.json` exposes `.pi/extensions/compound-engineering.ts` and the CE skills directory. `pi-ask-user` is a recommended companion for richer prompts. |
 | Antigravity CLI | Native plugin install from root `plugin.json` + `skills/`, or bundled `.agy/` entry point | No | `agy plugin install https://github.com/EveryInc/compound-engineering-plugin` for one-command remote install. `.agy/plugin.json` symlinks to the root manifest; `.agy/skills` symlinks to `skills/`. |
 | Cline | Native skills install via `.cline/scripts/install-skills.sh` | No | Symlinks invocable CE skills into `~/.cline/skills/` or `.cline/skills/`, skipping manual-only skills (`disable-model-invocation: true`). Enable Skills in the Cline extension settings. |
+| Grok Build CLI | Native install from this repository; `.grok-plugin/plugin.json` plus optional `.grok-plugin/marketplace.json` | No | `grok` reads Claude-compatible manifests; `grok plugin update` tracks the repo. Grok Bot is a separate Cursor-account consumer, not its own marketplace. |
+| Devin CLI | Native `.devin-plugin/plugin.json` | No | Install from GitHub; plugins load at session start as `/compound-engineering:<skill>`. |
+| oh-my-pi (omp) | Native `.omp-plugin/marketplace.json` | No | Marketplace flow; catalog plugin `version` is release-managed so omp's update checker can see new CE releases. |
 
 Kiro is no longer a documented CE install target. Historical converter and cleanup code may remain for regression coverage or old artifact handling, but user-facing install docs should not advertise Kiro.
 

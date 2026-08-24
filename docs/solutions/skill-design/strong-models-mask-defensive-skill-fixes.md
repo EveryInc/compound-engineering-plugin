@@ -48,7 +48,7 @@ The net decision was: keep the change. On a strong model it is an enhancement (g
 
 ## When to Apply
 
-Any time you change skill *prose* (as opposed to a bundled script or parser, which `bun test` exercises directly) and want more than a vibe check. Skill-prose behavior can't be confirmed by reasoning about the diff, and — per this repo's convention — the plugin loader caches skill definitions at session start, so use `skill-creator`'s eval workflow (it injects the on-disk skill into a fresh subagent) rather than dispatching the cached skill in-session.
+Any time you change skill *prose* (as opposed to a bundled script or parser, which `bun test` exercises directly) and want more than a vibe check. Skill-prose behavior can't be confirmed by reasoning about the diff, and — per this repo's convention — the plugin loader caches skill definitions at session start, so inject the on-disk skill into a fresh agent via `bun run test:skill-eval-cell` / `test:skill-eval-pack` rather than dispatching the cached skill in-session. Anthropic's `skill-creator` is optional and does not replace that cell.
 
 ## Examples
 

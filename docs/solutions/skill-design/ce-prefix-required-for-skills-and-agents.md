@@ -52,11 +52,13 @@ const SKILL_PREFIX_ALLOWLIST = new Set([
 ])
 ```
 
+`tests/frontmatter.test.ts` still lists two additional historical names (`every-style-editor`, `file-todos`) that are not present under `skills/` (legacy-cleanup only). Live `skills/` matches the sole-`lfg` exemption; do not treat those extra allowlist entries as permission to add new unprefixed public skills.
+
 The test also verifies each skill frontmatter `name` matches its parent directory and uses only lowercase letters, numbers, and hyphens. That protects Pi and other native plugin loaders that reject punctuation-heavy names.
 
 ### 2. Strengthened prose
 
-`AGENTS.md` documents the naming rule and points authors at the test. Prose alone would not have prevented the original mistake, but pairing it with a CI check gives a single internally consistent story.
+The public `ce-` rule is enforced by tests, not by an `AGENTS.md` "Naming Convention" heading (that section is gone). `AGENTS.md` still documents the complementary internal-asset rule under "Specialist Prompt Assets in Skills": skill-local personas stay unprefixed. Prose alone would not have prevented the original mistake; the CI allowlist is the load-bearing story.
 
 ### 3. Internal prompt assets stay internal
 
@@ -73,6 +75,6 @@ If the answer to the first is yes and the second is no, the convention will even
 
 ## Related
 
-- `AGENTS.md` — Naming Convention section documents the rule and allowlist.
-- `tests/frontmatter.test.ts` — public-skill prefix enforcement.
+- `AGENTS.md` — Specialist Prompt Assets documents unprefixed internal prompt files; public `ce-` prefix is the test allowlist, not a named AGENTS heading.
+- `tests/frontmatter.test.ts` and `tests/skill-agent-ce-prefix.test.ts` — public-skill prefix enforcement.
 - PR #747 — the original mistake and the rename + enforcement that came with it.
