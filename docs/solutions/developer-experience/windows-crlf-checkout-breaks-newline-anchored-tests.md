@@ -27,9 +27,11 @@ expect(received).not.toBeNull()   // Received: null
   body.match(/start_heartbeat\(\) \{[\s\S]*?\n\}\n(?=\nrun_codex_cmd\(\))/)
 ```
 
-It is not a content problem. `core.autocrlf=true` with no `.gitattributes` means git checks
+It is not a content problem. `core.autocrlf=true` with no `.gitattributes` meant git checked
 out **every** text file with CRLF line endings. A regex anchored on `\n}\n` cannot match
 `\r\n}\r\n`, so the assertion fails against files that are byte-perfect in the repository.
+
+Partial fix since then: `.gitattributes` pins `*.sh`/`*.py` and listed extensionless scripts to `eol=lf`; `peer-job-runner-parity.test.ts` now uses `\r?\n`; `tests/bundled-script-line-endings.test.ts` pins those files. Remaining risk is newline-anchored assertions on other text that is still not `eol=lf`.
 
 The tell is in the same test: the sibling assertion on the *same file* —
 `expect(body).toContain('wait "$_HEARTBEAT_PID" 2>/dev/null || true')` — **passed**. A

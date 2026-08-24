@@ -144,11 +144,11 @@ The threshold divergence from ce-doc-review (`>= 50`) is correct for the same re
 
 ### Validation pass (Stage 5b): the deferred follow-up, now landed
 
-The ce-doc-review plan deferred a "neutral-scorer second pass" to a follow-up plan. ce-code-review implements it as **Stage 5b**: an independent validator sub-agent per surviving finding, mode-conditional dispatch, and a 15-finding budget cap.
+The ce-doc-review plan deferred a "neutral-scorer second pass" to a follow-up plan. ce-code-review implements it as **Stage 5b**. The original landing was an independent validator sub-agent per surviving finding with a 15-finding budget cap. Live code runs **one** validator batch (`finish-review.md` Stage 5b + `validator-batch-template.md`) and forbids emitting `safe_auto` (`action-class-rubric.md` remaps peer `safe_auto` → `gated_auto`). Mode token `autofix` is no longer apply authority.
 
 - **Why now for code review, not doc review:** code review has externalizing modes (autofix applies fixes, headless returns findings to programmatic callers) where false positives have real cost — wrong fixes get committed, downstream automation acts on bad signal. Doc review's worst case is a noisy report a user dismisses with a keystroke; code review's worst case is a wrong-fix PR getting merged.
 - **Mode-conditional dispatch:** validation runs in `headless`, `autofix`, and the interactive LFG/File-tickets routing paths. It is skipped in interactive walk-through (the human is the per-finding validator) and report-only (nothing is being externalized). This scopes cost to the cases where false positives have real cost.
-- **Per-finding parallel dispatch, not batched:** independence is the design point. A single batched validator looking at all findings together pattern-matches across them and recreates the persona-bias problem we are escaping. Per-file batching is left as a future optimization for reviews with many findings clustered in few files.
+- **Dispatch shape:** independence was the original design point (per-finding parallel, not batched). Live Stage 5b is a single validator batch; treat the per-finding paragraph below as historical rationale, not the current dispatch.
 - **No `validated` field on findings:** an early plan added a `validated: boolean` field; it was removed during planning. Surviving findings post-validation are validated by definition (rejected ones are dropped); in modes where validation does not run, the run's mode tells consumers everything they need. A field constant within any mode does no work.
 - **Conservative failure mode:** validator timeout, malformed output, or dispatch error → drop the finding. Unverified findings should not externalize.
 

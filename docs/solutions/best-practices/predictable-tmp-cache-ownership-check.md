@@ -31,7 +31,7 @@ When a cache/scratch file in shared `/tmp` will be **read back into an agent's c
 - This composes with the cache's existing principle that it is **never a correctness dependency**: a rejected entry simply degrades to "derive fresh," never blocks.
 - Write side is already safe if you use `tempfile.mkstemp` (`O_EXCL`, mode `0600`) + `os.replace` (atomic). The exposure is purely on the *read* path.
 
-Alternatives considered and why ownership-check won: per-uid namespacing the cache root (`/tmp/compound-engineering-$(id -u)/...`) also works but deviates from the project's `/tmp/compound-engineering/` convention and the deliberate choice of `/tmp` over `$TMPDIR` for user-inspectability. The fstat-on-read check is minimal, keeps the path convention, and closes both the planted-file and planted-symlink cases.
+The fstat-on-read check is the load-bearing lesson: path + content gates do not prove authenticity. Current scratch-space practice layers **both** defenses: a per-effective-uid root (`/tmp/compound-engineering-<effective-uid>/…`, mode `0700`, reject symlink or foreign ownership) **and** fstat-on-fd before content enters agent context. The earlier write-up rejected uid namespacing to keep a single `/tmp/compound-engineering/` path; that convention was later replaced. Do not revive the un-namespaced shared root.
 
 ## Why This Matters
 
@@ -65,4 +65,4 @@ with open(path) as f:
 
 - `docs/solutions/skill-design/cross-skill-shared-cache-primitive.md` — the cache this hardened
 - `docs/solutions/best-practices/cache-invalidation-input-set-completeness.md` — the cache's correctness (separate) property
-- AGENTS.md "Scratch Space" (the `/tmp/compound-engineering/` convention)
+- AGENTS.md "Scratch Space" (per-effective-uid `/tmp/compound-engineering-<effective-uid>/` plus the `$TMPDIR` fallback)

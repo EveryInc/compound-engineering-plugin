@@ -1,5 +1,6 @@
 ---
 title: "Validate skill judgment changes with a fake-CLI harness and a discriminating fixture"
+date: 2026-07-01
 category: skill-design
 module: ce-resolve-pr-feedback
 problem_type: best_practice
@@ -68,4 +69,4 @@ Discriminating fixture shape:
 
 Grader (objective): `handlers.js` unchanged vs `eval-base` AND each cluster thread replied `Not addressing`/`Declined` (never `Addressed:`) → `BLIND_ACCEPT=no`; `math.js` modified + `Addressed` → control passed.
 
-The full harness lives under `.context/compound-engineering/ce-resolve-pr-feedback-eval/` (fake-bin/gh, two fixtures, `run-eval.sh`, `batch.sh`, graders). Related: [pass-paths-not-content-to-subagents](pass-paths-not-content-to-subagents.md), the in-session plugin-skill caching note in [bundled-script-path-resolution-across-harnesses](bundled-script-path-resolution-across-harnesses.md), and the sibling prose-injection variant [paired-old-vs-new-injection-skill-evals](paired-old-vs-new-injection-skill-evals.md) (injects SKILL.md excerpts into blind subagents instead of mocking a CLI boundary).
+The original harness lived under `.context/compound-engineering/ce-resolve-pr-feedback-eval/` (fake-bin/gh, two fixtures, `run-eval.sh`, `batch.sh`, graders) and is not in this checkout. Recreate a throwaway fake-CLI boundary when you need this pattern; do not treat that path as a shipped artifact. In-repo prose-injection evals are `bun run test:skill-eval-cell` / `test:skill-eval-pack`. Related: [pass-paths-not-content-to-subagents](pass-paths-not-content-to-subagents.md), the in-session plugin-skill caching note in [bundled-script-path-resolution-across-harnesses](bundled-script-path-resolution-across-harnesses.md), and the sibling prose-injection variant [paired-old-vs-new-injection-skill-evals](paired-old-vs-new-injection-skill-evals.md) (injects SKILL.md excerpts into blind subagents instead of mocking a CLI boundary).

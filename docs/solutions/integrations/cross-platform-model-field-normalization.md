@@ -105,7 +105,7 @@ Each platform has fundamentally different model handling requirements:
 This reference captures research findings as of 2026-03-29. Targets marked **(removed)** below no longer have custom Bun converters — they rely on native plugin install. The research is preserved as a future reference if those targets re-enter the converter set.
 
 ### OpenCode
-- **Model format:** `provider/model-id` (e.g., `anthropic/claude-sonnet-4-6`)
+- **Model format:** `provider/model-id` (e.g., `anthropic/claude-sonnet-5`)
 - **Provider prefixes:** `anthropic/`, `openai/`, `google/`
 - **Docs:** Agents defined in `.opencode/agents/*.md`
 
@@ -150,7 +150,7 @@ This reference captures research findings as of 2026-03-29. Targets marked **(re
 
 3. **Test coverage:** Run `bun test` after model-related changes. The test suite covers model handling across all converters (`tests/model-utils.test.ts` plus each converter's test file).
 
-4. **Don't assume format from the field name:** A `model` field in frontmatter doesn't mean the format is the same across platforms. OpenCode wants `anthropic/claude-sonnet-4-6`, Factory wants `sonnet`, Copilot wants "Claude Sonnet 4", and Codex doesn't support the field at all.
+4. **Don't assume format from the field name:** A `model` field in frontmatter doesn't mean the format is the same across platforms. OpenCode wants `anthropic/claude-sonnet-5` (live alias map in `src/utils/model.ts`), Factory wants `sonnet`, Copilot wants "Claude Sonnet 4", and Codex doesn't support the field at all. Installable Bun targets are `opencode`, `codex`, `pi`, and `antigravity`; Copilot/Droid converters remain as cleanup remnants, not install targets.
 
 5. **When in doubt, drop:** If you can't confidently produce the target's expected format, omit the field rather than emitting a potentially invalid value. Most platforms fall back to a sensible default when model is unset.
 

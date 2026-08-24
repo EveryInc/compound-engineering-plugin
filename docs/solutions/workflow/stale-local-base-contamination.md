@@ -56,19 +56,12 @@ Prevent at branch creation rather than detect at push or PR time.
 git checkout -b <branch-name>
 ```
 
-to:
+to fetch first, then branch from a chosen `BASE_REF`. Current `skills/ce-commit-push-pr/references/branch-creation.md` still fetches `origin/<base>`, then **asks** when `origin/<base>..HEAD` is non-empty (Carry those unpushed commits vs Leave them on local `<base>`). Unconditional `git checkout -b <branch-name> origin/<base>` is the Leave path, not the only path. Fetch failure still falls back to the local-base form, documented so the user knows base freshness was not verified.
 
-```bash
-git fetch --no-tags origin <base>
-git checkout -b <branch-name> origin/<base>
-```
-
-with a graceful fallback to the local-base form when the fetch fails (offline, restricted network, expired auth). The fallback is documented to the user so they know base freshness was not verified.
-
-This makes the skill's branch-creation path safe by construction:
+This keeps the skill's branch-creation path safe by construction:
 
 - Drift type 1 (local behind remote): the new branch starts at fresh remote `<base>`, not stale local `<base>`.
-- Drift type 2 (local ahead of remote with unpushed work): unpushed local commits stay on local `<base>` (recoverable via reflog or branch ref); the new feature branch starts clean.
+- Drift type 2 (local ahead of remote with unpushed work): the user chooses Carry vs Leave; Leave keeps unpushed commits on local `<base>` (recoverable via reflog or branch ref) and starts the feature branch clean.
 
 The principle generalizes cleanly to stacked PRs: when a user wants to stack on top of an open PR, the same `git fetch && git checkout -b <name> origin/<parent>` pattern works — `<parent>` is just a different ref. Nothing about prevention depends on detecting "is this commit suspicious."
 

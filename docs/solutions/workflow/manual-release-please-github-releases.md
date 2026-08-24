@@ -4,7 +4,9 @@ category: workflow
 date: 2026-03-17
 last_refreshed: 2026-06-23
 created: 2026-03-17
-severity: process
+severity: medium
+module: release-automation
+problem_type: workflow_issue
 component: release-automation
 tags:
   - release-please
@@ -40,7 +42,7 @@ Key decisions:
 - Keep release PR maintenance automatic on pushes to `main`.
 - Use GitHub release PRs and GitHub Releases as the canonical release-notes surface.
 - Keep PR title scopes optional; use file paths to determine affected components.
-- Keep `AGENTS.md` canonical and `CLAUDE.md`/`GEMINI.md` as compatibility shims.
+- Keep `AGENTS.md` canonical. Root `CLAUDE.md` is a symlink to `AGENTS.md` (required for `claude plugin validate --strict`); `GEMINI.md` remains a compatibility shim.
 
 ## Critical constraint discovered
 
@@ -74,7 +76,7 @@ File paths determine component ownership:
 
 | Component | Paths |
 |---|---|
-| `compound-engineering` | `skills/`, `src/`, `tests/`, `package.json`, root plugin manifests, `.opencode/`, `.pi/`, `.agy/plugin.json`, `README.md`, instruction shims |
+| `compound-engineering` | Paths in `src/release/components.ts` `FILE_COMPONENT_MAP`: `skills/`, `src/`, `tests/`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/`, `.kimi-plugin/plugin.json`, `.grok-plugin/`, `.devin-plugin/plugin.json`, `.opencode/`, `.cline/`, `.pi/`, `.agy/`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`. Extra-files such as `.omp-plugin/marketplace.json` ride a root bump; they do not themselves schedule one. |
 | `marketplace` | `.claude-plugin/marketplace.json` |
 | `cursor-marketplace` | `.cursor-plugin/marketplace.json` |
 
@@ -90,7 +92,7 @@ Docs-only, CI-only, and build-only changes are non-releasable unless their conve
 
 ### Root packaging release
 
-- A `fix:` PR changes `.codex-plugin/plugin.json` or `.agy/plugin.json`
+- A `fix:` PR changes `.codex-plugin/plugin.json`, `.kimi-plugin/plugin.json`, or root `plugin.json`
 - `compound-engineering` bumps because those files are root package/plugin extra-files
 - `bun run release:validate` must pass so all root package/plugin versions remain aligned
 

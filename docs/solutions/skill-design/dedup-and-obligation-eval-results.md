@@ -3,7 +3,7 @@ title: "ce-doc-review reasoning-match and obligation-routing evaluation"
 date: 2026-08-13
 category: skill-design
 module: ce-doc-review
-problem_type: evaluation
+problem_type: workflow_issue
 component: synthesis
 severity: medium
 tags:

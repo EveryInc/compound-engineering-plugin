@@ -52,8 +52,7 @@ The probing loop that worked for `agy` v1.0.10:
    `{ "url": ... }` produced `must have either command or serverUrl` — definitively resolving
    `serverUrl` over `url`/`httpUrl`, which docs and agents had guessed wrong.
 4. **`install` then `list --json`, then `uninstall`** to learn the install model and storage
-   without leaving residue: `agy plugin install <dir>` requires a **local directory** (no
-   install-from-URL), and installed plugins live in an internal registry
+   without leaving residue. The original probe found `agy plugin install <dir>` as local-directory-only; later CLI versions accept a Git URL (`agy plugin install https://github.com/EveryInc/compound-engineering-plugin`). Re-run the probe when bumping the CLI — do not freeze the first install-source finding. Installed plugins live in an internal registry
    (`agy plugin list --json` shows `source ∈ {antigravity, gemini-cli, claude}`), not a
    readable `plugins/` tree.
 5. **Mine the binary and its bundled assets** for what probing can't surface
@@ -97,7 +96,7 @@ by every later converter change.
 | Question | Docs/agent guess | Probe result |
 | --- | --- | --- |
 | Remote MCP field | `url` / `httpUrl` | **`serverUrl`** (validator: "must have either command or serverUrl") |
-| Install source | repo URL | **local directory** with a root `plugin.json` (`agy plugin install <dir>`) |
+| Install source | repo URL (then thought unsupported) | **Git URL and local directory** (`agy plugin install <url\|dir>`). The first probe recorded local-dir only; current CLI and README document URL install. |
 | Commands | a command primitive | **converted to skills on install** |
 | Interactive tool | `ask_user` | **`ask_question`** (confirmed in live use; absent from binary strings) |
 | Minimal manifest | unknown | **`{ name, version }`** |

@@ -52,11 +52,11 @@ Copy `scripts/hook.sh` from this skill's directory into `.claude/hooks/`.
 **Tier 3 — Executed shell commands** (fenced ```bash``` blocks *or* inline `bash …` / `python …` the agent runs through the Bash tool). Use the **model-filled `SKILL_DIR` anchor**, set inline in the same command (shell state does not persist between separate Bash-tool calls):
 
 ```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 bash "$SKILL_DIR/scripts/measure.sh" "$ARG"
 ```
 
-This is the conservative **house default** for executed shell — not because bare relative "fails," but because it bakes resolution into the command so a fenced block copied verbatim into a Bash call cannot miss, regardless of harness or model version.
+This is the conservative **house default** for executed shell — not because bare relative "fails," but because it bakes resolution into the command so a fenced block copied verbatim into a Bash call cannot miss, regardless of harness or model version. Keep the trailing `;` on the assignment: some hosts flatten multiline fences into one line, and without it the assignment becomes an env-var prefix that expands `$SKILL_DIR` before it is set.
 
 Two adjacent rules:
 
@@ -97,7 +97,7 @@ bash scripts/measure.sh "$TARGET"
 
 ```bash
 # After: model-filled anchor, deterministic regardless of harness/model.
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 bash "$SKILL_DIR/scripts/measure.sh" "$TARGET"
 ```
 

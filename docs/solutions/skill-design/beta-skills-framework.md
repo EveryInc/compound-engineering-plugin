@@ -16,6 +16,10 @@ related:
   - docs/solutions/skill-design/beta-promotion-orchestration-contract.md
 ---
 
+## Current status
+
+This is a containment pattern for a high-blast-radius rewrite, not standing shipping practice. Every known `ce-*-beta` skill has been promoted; `skills/` has no live `*-beta/` directories. Beta names remain only in legacy-cleanup registries so upgrades still sweep stale flat-install copies. Recent plans often reject a parallel beta fork in favor of a phased ship of the stable skill. Use this recipe when a rewrite would otherwise land on every `lfg` / `ce-brainstorm` caller at once.
+
 ## Problem
 
 Core workflow skills like `ce-plan` are deeply chained (`ce-brainstorm` -> `ce-plan` -> `ce-work`) and orchestrated by `lfg`. Rewriting these skills risks breaking the entire workflow for all users simultaneously. There was no mechanism to let users trial new skill versions alongside stable ones.

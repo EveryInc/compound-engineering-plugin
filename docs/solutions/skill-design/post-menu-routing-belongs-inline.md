@@ -1,5 +1,5 @@
 ---
-title: Always-on routing for interactive menus belongs inline in SKILL.md, not in references
+title: Always-on post-menu routing must fire from loaded context — inline, or a required-read pointer that names what only the file carries
 date: 2026-04-28
 category: skill-design
 module: compound-engineering

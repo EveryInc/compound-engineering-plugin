@@ -1,6 +1,7 @@
 ---
 title: "Branch-based plugin install and testing for Claude Code plugins"
 date: 2026-03-26
+module: cli
 problem_type: developer_experience
 category: developer-experience
 component: development_workflow
@@ -87,7 +88,7 @@ bun run src/index.ts plugin-path compound-engineering --branch feat/new-agents
 Key implementation details in `src/commands/plugin-path.ts`:
 
 - Cache path: `~/.cache/compound-engineering/branches/<plugin>-<sanitized-branch>/`
-- Branch sanitization: `/` → `~`, then strip remaining non-`[a-zA-Z0-9._~-]` chars. This is injective because `~` is illegal in git branch names (`git-check-ref-format` reserves it for reflog notation), so no valid branch input contains `~` and the mapping is 1:1.
+- Branch sanitization: `/` → `~`, then percent-encode remaining non-`[a-zA-Z0-9._~-]` chars (`%` + two hex digits). `/` → `~` is injective for valid git branch names (`~` is illegal per `git-check-ref-format`); percent-encoding keeps unexpected leftover characters from colliding.
 - First run: `git clone --depth 1 --branch <name> <source> <dest>`
 - Re-run: `git fetch origin <branch>` + `git reset --hard origin/<branch>`
 

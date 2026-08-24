@@ -25,7 +25,7 @@ tags:
 
 ## Context
 
-After optimizing the Slack researcher prompt to avoid redundant work between ce-brainstorm and ce-plan (commit f7a14b76 on `tmchow/slack-analyst-agent`), a natural question arose: does the same duplication problem exist for `repo-research-analyst` and `learnings-researcher`? Both are skill-local prompt assets dispatched by ce-plan in Phase 1.1 on every run, regardless of whether ce-brainstorm produced an origin document.
+After optimizing the Slack researcher prompt to avoid redundant work between ce-brainstorm and ce-plan (commit f7a14b76 on `tmchow/slack-analyst-agent`), a natural question arose: does the same duplication problem exist for `repo-research-analyst` and `learnings-researcher`? Both are skill-local prompt assets dispatched by ce-plan in Phase 1.1 on Standard/Deep runs, regardless of whether ce-brainstorm produced an origin document. A Lightweight Durable plan does not dispatch those research agents.
 
 Investigation confirmed no duplication exists. The three workflow stages operate on deliberately separated information types, and research prompt dispatch follows this separation cleanly.
 
@@ -33,9 +33,9 @@ Investigation confirmed no duplication exists. The three workflow stages operate
 
 The brainstorm -> plan -> work pipeline separates research by information type:
 
-**ce-brainstorm** gathers *product context* (WHAT to build). It performs an inline "Existing Context Scan" -- surface-level file discovery focused on product questions. It does NOT dispatch `repo-research-analyst` or `learnings-researcher`. Its output is a requirements document covering product decisions, scope, and success criteria, intentionally excluding implementation details.
+**ce-brainstorm** gathers *product context* (WHAT to build). It performs an Existing Context Scan focused on product questions (Standard/Deep use a grounding-scout subagent plus a dossier path; it is not only a surface-level inline scan). It does NOT dispatch `repo-research-analyst` or `learnings-researcher`. Its output is a requirements document covering product decisions, scope, and success criteria, intentionally excluding implementation details.
 
-**ce-plan** gathers *implementation context* (HOW to build it). It ALWAYS reads `references/agents/repo-research-analyst.md` and `references/agents/learnings-researcher.md`, then uses those prompts to seed generic subagents in Phase 1.1. These produce: tech stack versions, architectural patterns, conventions, file paths, and institutional knowledge from `docs/solutions/`. This feeds the plan document's Context & Research, Patterns to Follow, Files, and Key Technical Decisions sections. The `repo-research-analyst` output also drives Phase 1.2 decisions about whether external research prompts are needed.
+**ce-plan** gathers *implementation context* (HOW to build it). On Standard/Deep runs it reads `references/agents/repo-research-analyst.md` and `references/agents/learnings-researcher.md`, then uses those prompts to seed generic subagents in Phase 1.1. A Lightweight Durable plan skips those dispatches. These produce: tech stack versions, architectural patterns, conventions, file paths, and institutional knowledge from `docs/solutions/`. This feeds the plan document's Context & Research, Patterns to Follow, Files, and Key Technical Decisions sections. The `repo-research-analyst` output also drives Phase 1.2 decisions about whether external research prompts are needed. The same prompt-asset *names* also appear in other skills (`ce-ideate`, `ce-optimize`, and some `ce-code-review` personas) for those skills' own products — that is not the brainstorm→plan→work pipeline, and does not make plan research redundant.
 
 **ce-work** gathers NO research context independently. It reads the plan document and uses embedded research findings to guide implementation. For bare prompts (no plan), it does a lightweight inline scan -- no agent dispatch. The plan document IS the handoff mechanism from ce-plan's research to ce-work.
 
@@ -44,7 +44,7 @@ When ce-plan receives an origin document from ce-brainstorm, it reads it as prim
 ## Why This Matters
 
 - **Prevents false optimizations.** Without understanding the information type separation, a contributor might skip ce-plan's research prompts when a brainstorm document exists, breaking the plan's ability to produce implementation-ready guidance.
-- **Clarifies when pass-through optimizations ARE warranted.** The Slack researcher was a genuine redundancy: both ce-brainstorm and ce-plan dispatched the same prompt for overlapping information. The fix passed existing context so the subagent focuses on gaps. For `repo-research-analyst` and `learnings-researcher`, no such redundancy exists because only ce-plan dispatches them.
+- **Clarifies when pass-through optimizations ARE warranted.** The Slack researcher was a genuine redundancy: both ce-brainstorm and ce-plan dispatched the same prompt for overlapping information. The fix passed existing context so the subagent focuses on gaps. For `repo-research-analyst` and `learnings-researcher` on the brainstorm→plan→work pipeline, no such redundancy exists because brainstorm does not dispatch them.
 - **Protects the plan document's role as the sole handoff artifact.** ce-work depends on the plan containing complete implementation context. If ce-plan's research agents are skipped, ce-work receives an incomplete plan and must improvise.
 
 ## When to Apply
@@ -56,7 +56,7 @@ When ce-plan receives an origin document from ce-brainstorm, it reads it as prim
 ## Examples
 
 **No optimization needed (this case):**
-ce-plan always calls `repo-research-analyst` even when a brainstorm document exists. Does ce-brainstorm also call it? No -- brainstorm only does an inline product-focused scan. The calls are not redundant; no change needed.
+ce-plan calls `repo-research-analyst` on Standard/Deep even when a brainstorm document exists. Does ce-brainstorm also call it? No -- brainstorm's scan is product-focused. The calls are not redundant; no change needed. Lightweight plans skip the dispatch by design.
 
 **Optimization warranted (Slack pattern):**
 Both ce-brainstorm and ce-plan dispatched the Slack researcher. Fix: when ce-plan finds Slack context in the origin document, pass it to the skill-local `slack-researcher` prompt asset so the subagent focuses on gaps. The prompt is still used -- it starts from a better baseline.
