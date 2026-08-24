@@ -54,6 +54,8 @@ Pruning JUDGMENT prescription is only safe if the skill realistically runs on fr
 
 The compression rule: replace the enumeration with the underlying principle and a single minimal contrast pair that makes the boundary unmistakable. Example from ce-ideate: a list of vague-phrase examples became "`browser sniff` is identifiable, `quick wins` is not — vagueness is about referent, not length." One pair carries the distinction; seven rows of table did not carry more. Also deduplicate: triplicated boilerplate becomes one full copy + pointers. This matches the broader principle: prefer principles + a named test over enumerated specifics — specifics drift. (auto memory [claude])
 
+The retained pair is not decoration, and the floor in step 2 is not only about model size. A frontier model can read literally enough to stop instantiating a principle once its concrete instance is gone, so where the enumeration existed because a real failure was observed, keep one instance subordinated under the principle and prove the compression by running the most literal host in the skill's shipping matrix — not by asserting the floor in review notes (`subordinate-the-failing-shape-to-the-condition.md`).
+
 ### 4. Tier: define cost tiers semantically, once, and reference by name
 
 Define three tiers in one place in SKILL.md; everywhere else refers to the tier name, never a model name:
