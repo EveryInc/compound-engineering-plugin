@@ -662,6 +662,28 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     },
   },
   {
+    id: "ce-plan/objective-above-the-changed-component",
+    baseline_ref: "b20c29d7a",
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-infra-objective`,
+    timeout_secs: 600,
+    why: "An infra move seed supplies its approach and a component-level motivation (a platform kill window, idle billing). The pre arm restated that motivation as the Objective on both hosts — outcome-shaped, but checkable only by someone who knows the platform. The Objective belongs at the layer that depended on the component: the subscriber whose weekly digest has to arrive. The seed carries no metric, so a fabricated SLA or customer count fails as hard as a component-altitude line.",
+    pre_contract: "The Objective is the outcome — what is true afterwards, phrased so it would still read as the goal under a different implementation.",
+    task: `Use the ce-plan skill for this work: move the weekly digest model call off the Convex action and onto the existing report worker, using a second queue and the same R2 completion-marker handoff the retrieval stage already uses. Convex keeps creating the digest row, publishing it, and delivering it.
+
+Do not write the plan file yet. I only want the Goal Capsule right now. Print it in this reply: the Objective line and the Means line, exactly as they would appear in the plan.`,
+    grade: {
+      files_read_post: ["references/plan-sections.md"],
+      workspace_read: ["convex/digest.ts"],
+      must_include: ["digest"],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
     id: "ce-plan/direct-trivial-stays-in-chat",
     baseline_ref: RIGHT_SIZE_BASE_REF,
     skill: "ce-plan",

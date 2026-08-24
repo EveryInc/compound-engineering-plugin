@@ -40,7 +40,10 @@ includes:
 - `## Goal Capsule` with objective, product authority, and open blockers. The
   objective is always the outcome — what is true for users or operators
   afterwards, phrased so it would still read as the goal under a different
-  implementation. When the seed supplies an approach ("move X to Y"), that is
+  implementation. It sits outside the component being changed: if a reader
+  who does not know that component's internals could not tell whether the
+  objective was met, it is stated at the component's altitude and the real
+  objective is whatever depended on it. When the seed supplies an approach ("move X to Y"), that is
   the **Means** (its own line) and the objective is the outcome it serves,
   surfaced in the dialogue rather than assumed. When the coherent-work gate split a broader request, the objective
   names the current area and product authority says the surrounding areas are

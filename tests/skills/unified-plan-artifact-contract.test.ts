@@ -1124,6 +1124,22 @@ describe("Goal Capsule objective is outcome-shaped (issue #1423)", () => {
     }
   })
 
+  // 2026-08-24: an Objective can be outcome-shaped and still sit at the
+  // altitude of the component being changed ("X no longer occupies Y's
+  // wall-clock"), which passes the different-implementation test alone. Both
+  // contracts must also anchor the outcome to who it is felt by.
+  test("both section contracts state the objective's altitude, not only its outcome shape", () => {
+    for (const [doc, marker] of [
+      [planSections, "**Goal Capsule**"],
+      [brainstormSections, "`## Goal Capsule`"],
+    ] as const) {
+      const capsule = sliceSection(doc, marker, "\n- ")
+      expect(capsule).toMatch(/users\s+or\s+operators/i)
+      expect(capsule).toMatch(/outside\s+the\s+component\s+being\s+changed/i)
+      expect(capsule).toMatch(/internals/i)
+    }
+  })
+
   test("Success Criteria skip does not fire on approach-shaped requirements", () => {
     const sc = sliceSection(planSections, "- **Success Criteria**", "\n- **")
     expect(sc).toMatch(/approach rather than an outcome/)
@@ -1134,8 +1150,19 @@ describe("Goal Capsule objective is outcome-shaped (issue #1423)", () => {
     expect(exit).toMatch(/Means/)
   })
 
-  test("coherence reviewer flags a mechanism-only Objective", () => {
-    expect(coherence).toMatch(/mechanism-only Objective/i)
+  // 2026-08-24: the pin was the phrase "mechanism-only Objective", which named
+  // only the no-outcome shape. The reviewer now covers the outcome-shaped
+  // Objective stated at the changed component's altitude too, so the pin
+  // asserts the condition and its leniency guard rather than the old label.
+  test("coherence reviewer flags an Objective that cannot outlive its mechanism", () => {
+    expect(coherence).toMatch(/Goal Capsule Objective/)
+    expect(coherence).toMatch(/component being changed/i)
+    expect(coherence).toMatch(/outside the changed component/i)
+    expect(coherence).toMatch(/Means line/)
+    // Without the mixed-clause rule, one acceptable clause exonerates the
+    // whole Objective and neither Claude nor Codex flagged the three-clause
+    // capsule this reviewer exists to catch.
+    expect(coherence).toMatch(/other clauses of the same Objective/i)
   })
 })
 
