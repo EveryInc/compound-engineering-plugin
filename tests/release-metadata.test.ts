@@ -243,6 +243,15 @@ describe("release metadata", () => {
 
     expect(skills.filter((skill) => !listedSet.has(skill))).toEqual([])
     expect([...listedSet].filter((name) => !skills.includes(name)).sort()).toEqual([])
+
+    // Exactly once, not merely present: a skill left in its old row during a
+    // move reads as correct in a set-membership check. Which group a skill
+    // belongs in stays an author judgment -- deriving that here would mean
+    // maintaining a second canonical inventory, which is what this PR removed.
+    const duplicated = [...listedSet].filter(
+      (name) => listed.filter((entry) => entry === name).length > 1,
+    ).sort()
+    expect(duplicated).toEqual([])
   })
 
   test("every skill count stated in the README matches the skills directory", async () => {
