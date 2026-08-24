@@ -76,7 +76,7 @@ File paths determine component ownership:
 
 | Component | Paths |
 |---|---|
-| `compound-engineering` | `skills/`, `src/`, `tests/`, `package.json`, root plugin manifests (including `.kimi-plugin/plugin.json`, `.grok-plugin/plugin.json`, `.devin-plugin/plugin.json`, root `plugin.json`, `.omp-plugin/marketplace.json`), `.opencode/`, `.pi/`, `.agy/plugin.json`, `README.md`, instruction files |
+| `compound-engineering` | Paths in `src/release/components.ts` `FILE_COMPONENT_MAP`: `skills/`, `src/`, `tests/`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/`, `.kimi-plugin/plugin.json`, `.grok-plugin/`, `.devin-plugin/plugin.json`, `.opencode/`, `.cline/`, `.pi/`, `.agy/`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`. Extra-files such as `.omp-plugin/marketplace.json` ride a root bump; they do not themselves schedule one. |
 | `marketplace` | `.claude-plugin/marketplace.json` |
 | `cursor-marketplace` | `.cursor-plugin/marketplace.json` |
 

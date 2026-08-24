@@ -57,7 +57,7 @@ AI-generated documents and PR descriptions default to prose-only output, even wh
 
 Visual aids are conditional on **content patterns** -- whether the content has a structure worth showing -- not on document size, depth classification, surface type, or how clear the surrounding prose feels.
 
-Include a visual when the structure exists. Skip it when there is nothing structural to show. Prose stays complete either way: a diagram is an on-ramp, never a substitute. When diagram and prose disagree, **prose governs**.
+A structure worth showing is **necessary, not sufficient**. Skip when there is nothing structural to show. When there is, the **surface's own threshold** still decides whether to draw it: a plan skips a one-paragraph approach that prose already carries; a PR includes a visual only when it is faster than prose for a reviewer who cannot get the shape from the diff. Prose stays complete either way: a diagram is an on-ramp, never a substitute. When diagram and prose disagree, **prose governs**.
 
 ### 1. Content-Pattern Triggers (Not Size/Depth Triggers)
 
@@ -85,7 +85,7 @@ Whether to include a visual aid depends on WHAT the content describes, not HOW M
 - Visual describes detail at the wrong abstraction level for the surface
 - Simple / rename / dep-bump PRs -- skip visual aids entirely
 
-Do **not** skip because "the prose already communicates this clearly." That judgment under-produces. A point with nothing structural to show gets no visual; a structure that exists gets one even when the prose is already good.
+Do **not** skip because the author's surrounding sentences already "read clearly" — that judgment under-produces. Do skip when the surface threshold says the structure is already available (plan HTD: one-paragraph pattern application; PR: the diff already shows it). The shared trigger is structure; the surface table in §3 is authoritative for whether that structure still needs a visual.
 
 ### 2. Which Visual Aid to Choose
 
@@ -165,7 +165,7 @@ The prose-is-authoritative invariant resolves the trust problem: when diagram an
 Concrete guidance for any skill that generates documents with visual aids:
 
 1. **Use content-pattern triggers, not size/depth gates.** Map content patterns to visual aid types. Never gate on depth classification or line count.
-2. **Trigger on structure, not on prose quality.** Skip when there is nothing structural to show. Do not skip because the surrounding sentences already "read clearly."
+2. **Trigger on structure, then apply the surface threshold.** Skip when there is nothing structural to show, or when that surface already carries the structure (plan prose, PR diff). Do not skip because the surrounding sentences already "read clearly."
 3. **Pair every include rule with a skip rule.** Minimum skips: no structure, simple/linear content, wrong abstraction level, 3-node ceremony.
 4. **Mermaid or table (or HTML wireframe); never box-drawing ASCII.** Put dense annotations in labels, tables, code blocks, or prose.
 5. **Calibrate to the surface's reading pattern.** Studied surfaces get the standard bar; scanned surfaces (PR descriptions) get a higher bar and smaller diagrams.
