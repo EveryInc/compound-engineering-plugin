@@ -525,6 +525,21 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/still waiting/i)
   })
 
+  test("Stage 4 collects by observed return shape and fails closed without a collector", async () => {
+    const content = await readRepoFile(
+      "skills/ce-code-review/references/dispatch-reviewers.md",
+    )
+
+    expect(content).toMatch(/compact JSON.*in[- ]band/i)
+    expect(content).toMatch(/launch receipt.*not.*reviewer return/i)
+    expect(content).toMatch(/blocking collection/i)
+    expect(content).toMatch(/until every.*reviewer/i)
+    expect(content).toMatch(/no reliable blocking collection/i)
+    expect(content).toMatch(/["`]status["`]\s*:\s*["`]failed["`]/i)
+    expect(content).not.toMatch(/single blocking wait return all their compact JSON together/i)
+    expect(content).not.toMatch(/collecting multiple returns from one batch is the harness's job/i)
+  })
+
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
     const content = await readRepoFile(
       "skills/ce-code-review/references/finish-review.md",
@@ -572,6 +587,13 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/never split the work into another batch/i)
     expect(content).toMatch(/Run the validator batch foreground/i)
     expect(content).toMatch(/Cost, elapsed time, confidence.*never licenses an additional skip/i)
+
+    // Foreground is a request, not proof that the host returned a verdict in-band.
+    expect(content).toMatch(/compact.*verdict.*in[- ]band/i)
+    expect(content).toMatch(/launch receipt.*not.*validator return/i)
+    expect(content).toMatch(/blocking collection/i)
+    expect(content).toMatch(/validator infrastructure failure/i)
+    expect(content).not.toMatch(/A foreground Agent call is the wait/i)
 
     // Validator template exists and is read-only
     expect(validatorTemplate).toMatch(/validator is independent|independent validation gate/i)
