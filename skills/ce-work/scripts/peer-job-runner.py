@@ -469,15 +469,11 @@ if IS_WINDOWS:
     _kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
     _kernel32.TerminateProcess.restype = wintypes.BOOL
 
-    def _win_descendants_deepest_first(root_pid: int):
-        """Children before parents, via a process snapshot. This is the direct
-        analog of the POSIX `ps`-based walk and carries the same pid-reuse
-        exposure. It works on an EXITED leader because Windows never reparents
-        orphans: a dead pid still appears as th32ParentProcessID on its live
-        children (unlike POSIX, where orphans are reparented to init)."""
+    def _win_process_children_map():
+        """th32ParentProcessID -> [child pids] from one Toolhelp snapshot."""
         snap = _kernel32.CreateToolhelp32Snapshot(_TH32CS_SNAPPROCESS, 0)
         if not snap or snap == ctypes.c_void_p(-1).value:
-            return []
+            return {}
         children = {}
         try:
             entry = _PROCESSENTRY32W()
@@ -489,6 +485,16 @@ if IS_WINDOWS:
                 more = _kernel32.Process32NextW(snap, ctypes.byref(entry))
         finally:
             _kernel32.CloseHandle(ctypes.c_void_p(snap))
+        return children
+
+    def _win_descendants_deepest_first(root_pid: int, children=None):
+        """Children before parents, via a process snapshot. This is the direct
+        analog of the POSIX `ps`-based walk and carries the same pid-reuse
+        exposure. It works on an EXITED leader because Windows never reparents
+        orphans: a dead pid still appears as th32ParentProcessID on its live
+        children (unlike POSIX, where orphans are reparented to init)."""
+        if children is None:
+            children = _win_process_children_map()
         order, queue = [], [root_pid]
         while queue:
             for child in children.get(queue.pop(0), []):
@@ -767,9 +773,10 @@ if IS_WINDOWS:
         the worker exits (the orphan-grandchild smoke). Never terminate this
         process, and never terminate a live pid whose GetProcessTimes identity
         does not match the recorded worker. Stale-PPID orphans still show the
-        dead leader as parent; when the pid was reused, skip descendants that
-        started at-or-after the new process (they belong to the reuse, not the
-        original tree)."""
+        dead leader as parent. When the pid was reused, the start-time cutoff
+        applies only to *direct* children of that pid (the new process's own
+        children vs stale-PPID orphans). A pre-reuse child's full subtree is
+        still original-tree work, including descendants spawned after reuse."""
         self_pid = os.getpid()
         is_self = root_pid == self_pid
         alive = (not is_self) and _win_pid_alive(root_pid)
@@ -781,16 +788,23 @@ if IS_WINDOWS:
         # that raced outside the job before AssignProcessToJobObject completed
         # are not members, and TerminateJobObject alone would leave them.
         # CREATE_SUSPENDED closes that spawn race; this remains the belt.
+        children_map = _win_process_children_map()
         reuse_cutoff = None
         if not recorded_leader and (is_self or alive):
             reuse_cutoff = _win_process_start_time(root_pid)
-        for pid in _win_descendants_deepest_first(root_pid):
+        if reuse_cutoff is not None:
+            def _predates_reuse(pid):
+                started = _win_process_start_time(pid)
+                return started is None or started < reuse_cutoff
+            kill_set = _pre_reuse_descendant_pids(
+                root_pid, children_map, _predates_reuse, self_pid)
+        else:
+            kill_set = None
+        for pid in _win_descendants_deepest_first(root_pid, children_map):
             if pid == self_pid:
                 continue
-            if reuse_cutoff is not None:
-                started = _win_process_start_time(pid)
-                if started is not None and started >= reuse_cutoff:
-                    continue
+            if kill_set is not None and pid not in kill_set:
+                continue
             _win_terminate_pid(pid)
         if recorded_leader:
             _win_terminate_pid(root_pid)
@@ -1093,6 +1107,34 @@ def _signal_group_or_tree(pid: int, sig: int) -> None:
         for descendant in _descendants_deepest_first(pid):
             _kill_quiet(descendant, sig)
         _kill_quiet(pid, sig)
+
+
+def _pre_reuse_descendant_pids(root_pid, children, predates_reuse, skip_pid=None):
+    """Direct children that predate a recycled leader pid, plus each of those
+    children's full subtree.
+
+    Toolhelp still lists the original tree under a dead pid as parent, mixed
+    with the new process's own children. The start-time cutoff applies only to
+    direct children. A pre-reuse child's later descendants stay original-tree
+    work even if they started after the reuse.
+    """
+    keep = set()
+    queue = []
+    for child in children.get(root_pid, []):
+        if skip_pid is not None and child == skip_pid:
+            continue
+        if not predates_reuse(child):
+            continue
+        queue.append(child)
+    while queue:
+        pid = queue.pop(0)
+        if skip_pid is not None and pid == skip_pid:
+            continue
+        if pid in keep:
+            continue
+        keep.add(pid)
+        queue.extend(children.get(pid, []))
+    return keep
 
 
 def kill_tree(root_pid: int, grace: float, job_name=None, expected_identity=None) -> bool:

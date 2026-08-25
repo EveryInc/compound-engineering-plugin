@@ -1187,6 +1187,28 @@ class HardDefaultFromCrossModel(unittest.TestCase):
             self.assertEqual(MOD.cfg()["hard"], 2030.0)
 
 
+class PreReuseDescendantPids(unittest.TestCase):
+    """Cutoff on a recycled leader pid applies only to its direct children."""
+
+    def test_keeps_late_descendants_of_a_pre_reuse_child(self):
+        # root 10 was recycled. 20 is an original-tree child; 21 is spawned by
+        # 20 after reuse; 30/31 belong to the new process at pid 10.
+        children = {10: [20, 30], 20: [21], 30: [31]}
+        keep = MOD._pre_reuse_descendant_pids(10, children, lambda pid: pid == 20)
+        self.assertEqual(keep, {20, 21})
+
+    def test_unproven_start_keeps_the_direct_child_and_subtree(self):
+        children = {1: [2], 2: [3]}
+        keep = MOD._pre_reuse_descendant_pids(1, children, lambda _pid: True)
+        self.assertEqual(keep, {2, 3})
+
+    def test_skips_self_in_a_pre_reuse_subtree(self):
+        children = {1: [2], 2: [99]}
+        keep = MOD._pre_reuse_descendant_pids(
+            1, children, lambda _pid: True, skip_pid=99)
+        self.assertEqual(keep, {2})
+
+
 class WindowsKillTreePidReuse(unittest.TestCase):
     """cmd_reap after a dead worker must not TerminateProcess a recycled PID.
 
