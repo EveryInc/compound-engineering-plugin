@@ -6,7 +6,7 @@
 
 A run may **add** an entry, **refine** one, **fold** one into the entry that already carries its meaning, **retire** one to `## Retired`, **delete** one, or **scrub** violations from one it touched. Which subset a given run may perform is stated where that run is defined, and is not re-listed anywhere else.
 
-**Update-only** means every one of these against an existing `CONCEPTS.md`: it withholds creation and seeding, not mutations.
+**Update-only** names what a run withholds, never what it grants: no creation and no seeding. It does not widen the subset that run's own definition permits.
 
 ## How terms enter: accretion and seeding
 
