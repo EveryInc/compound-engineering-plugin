@@ -176,6 +176,41 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 
+  test("classification passes when the field value is exactly Keep", () => {
+    const dir = hostDir({
+      "stdout.txt": "## Classification: **Keep**\nPotential product regression affecting request_id.\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: {
+        classification: "Keep",
+        must_include: ["potential product regression", "request_id"],
+      },
+    })
+    expect(g.ok).toBe(true)
+  })
+
+  test("classification fails when a Replace value merely mentions Keep", () => {
+    const dir = hostDir({
+      "stdout.txt": "Classification: Replace — do not Keep\nPotential product regression affecting request_id.\n",
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: {
+        classification: "Keep",
+        must_include: ["potential product regression", "request_id"],
+      },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons).toContain(
+      "expected Classification: Keep, got Replace — do not Keep",
+    )
+  })
+
   test("a roster probe fails when the run declared no TEAM trailer", () => {
     const dir = hostDir({
       "stdout.txt": "Reviewing with: coherence-reviewer, feasibility-reviewer\nFILES_READ: SKILL.md\nACTIONS: none\n",

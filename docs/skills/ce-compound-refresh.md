@@ -92,7 +92,7 @@ It investigates each doc against the tree, then looks at the set (overlap, super
 
 ### Five outcomes, not "is this still right?"
 
-Each doc gets a specific action and an evidence bar. Age alone is not staleness. Typos and wording are not a reason to edit. When the code and the doc disagree, the doc changes. The skill does not ask whether the code change was "intentional."
+Each doc gets a specific action and an evidence bar. Age alone is not staleness. Typos and wording are not a reason to edit. When current-mechanics claims disagree with the code, the doc changes. Independently supported guidance is classified from its governing evidence instead: if the implementation stops satisfying it, preserve the guidance and report the conflict as a potential product regression. The skill never edits or adjudicates product code.
 
 ### Two modes
 
@@ -200,8 +200,8 @@ On the default branch, non-interactive commits on a named branch and attempts a 
 **What's the difference between Update and Replace?**
 Update fixes drift and keeps the recommended solution (renamed file, moved class, broken link, unambiguous misfile). Replace rewrites the guidance because the recommended approach changed. If you would rewrite the solution section, that is Replace.
 
-**Why doesn't it ask whether code changes were intentional?**
-Doc accuracy is the job: match the doc to current code. Whether the code change was right is a code-review question.
+**What happens when code and guidance disagree?**
+Current-mechanics claims follow the code. Independently supported guidance follows its governing evidence; if the implementation no longer satisfies it, the skill preserves the guidance and reports a potential product regression without editing or adjudicating product code.
 
 **When should I use non-interactive mode?**
 Periodic or large-scope runs where stopping on every question is impractical. Ambiguous cases are marked stale, so the report is something a human can review.

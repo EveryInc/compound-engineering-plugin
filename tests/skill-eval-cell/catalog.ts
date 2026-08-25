@@ -43,6 +43,8 @@ export type Grade = {
    */
   workspace_read?: string[]
   must_include?: string[]
+  /** Exact value of the answer's `Classification:` field. */
+  classification?: "Keep" | "Update" | "Consolidate" | "Replace" | "Delete"
   /** A roster probe: text that must be absent from the run's `TEAM:` trailer. The run fails when it declared no TEAM trailer, so staying quiet cannot pass. must_include also reads that trailer when present. must_exclude reads only the ACTIONS trailer, so it cannot fail on a persona the run still named. */
   must_not_include?: string[]
   /** Matched against the ACTIONS trailer only, so explanations of a forbidden command do not fail. */
@@ -541,7 +543,7 @@ Return the completion result to the coordinator.`,
     why: "A refresh must not rewrite still-supported guidance into agreement with code that stopped satisfying it.",
     pre_contract:
       "Independently supported guidance is classified from that evidence; code that stops satisfying it is reported as a potential product regression.",
-    task: `Audit the learning in docs/solutions/idempotent-retries.md against the repository. Stop before writes and tell me its classification, the evidence, and any follow-up.`,
+    task: `Audit the learning in docs/solutions/idempotent-retries.md against the repository. Stop before writes. State the result on a \`Classification: <outcome>\` line, then tell me the evidence and any follow-up.`,
     grade: {
       workspace_read: [
         "docs/solutions/idempotent-retries.md",
@@ -549,7 +551,8 @@ Return the completion result to the coordinator.`,
         "tests/retry-request.check.js",
         "src/retry-request.js",
       ],
-      must_include: ["Keep", "potential product regression", "request_id"],
+      classification: "Keep",
+      must_include: ["potential product regression", "request_id"],
       actions: "none",
       git: "clean",
     },
@@ -1212,7 +1215,7 @@ export function scenariosMatching(opts: {
 export function scenarioHasDecisionGrade(s: Scenario): boolean {
   const g = s.grade
   if (g.must_include?.length || g.must_exclude?.length) return true
-  if (g.structured_status || g.delegates === "some") return true
+  if (g.classification || g.structured_status || g.delegates === "some") return true
   if (g.workspace_contains?.length || g.committed_must_not?.length) return true
   if (g.workspace_read?.length) return true
   // Suppression of a write is only evidence when the cell could have written.
