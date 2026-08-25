@@ -109,8 +109,12 @@ describe("ce-compound non-interactive depth contract (relocated invariants)", ()
 
     expect(reportStart).toBeGreaterThan(-1)
     expect(fullReportStart).toBeGreaterThan(reportStart)
+    // The pinned invariant is that the lightweight report carries this line at all.
+    // The skip value moved from "not refined" to "unchanged" when lightweight gained
+    // fold/scrub: a fold-only run changes the glossary without refining anything, so
+    // the old wording skipped the check on a run that had mutated the file.
     expect(lightweightReport).toContain(
-      "CONCEPTS.md discoverability: <not checked — CONCEPTS.md not refined | no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>",
+      "CONCEPTS.md discoverability: <not checked — CONCEPTS.md unchanged | no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>",
     )
   })
 
