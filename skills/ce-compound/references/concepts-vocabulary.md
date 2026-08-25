@@ -44,6 +44,10 @@ An entry that loses its heading still has to resolve for whoever meets the term 
 
 Removing an entry acts only on positive contrary evidence, and uncertainty leaves it standing. Name where the concept went — what replaced it, what absorbed it, what took it out. Being unable to find it is not the same as it being gone: a deleted class, path, or symbol is never that evidence (an entry is meant to outlive the code that implemented it, which is what standing on its own means), and neither is the absence of corroboration.
 
+## The coherence neighborhood
+
+The neighborhood of an entry is its cluster siblings plus the terms it cross-references or that reference it. It bounds a capture-time pass: act only on evidence already in hand, never audit the whole file, and flag for `ce-compound-refresh` anything whose judgment would need investigation this run did not do.
+
 ## Per entry
 
 Definition is one sentence — what the term means in this domain, what makes it distinct from neighbors. A term with non-obvious behavioral rules (lifecycle, cancellation semantics, ownership invariants) earns a second paragraph for those rules — never for elaborating the definition itself.
