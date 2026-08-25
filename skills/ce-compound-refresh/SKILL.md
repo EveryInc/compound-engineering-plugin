@@ -51,7 +51,7 @@ Every doc gets exactly one outcome: **Keep**, **Update**, **Consolidate**, **Rep
 
 **Read `references/classify.md` before assigning any of them.** It owns each outcome's meaning, the Update/Replace boundary, the auto-delete gate and its pre-checks, the relocation and split rules, the retrieval-value test, unverifiable-is-not-false, pattern docs, and what interactive mode asks.
 
-Two boundaries hold whatever the evidence says. When code and doc disagree, the doc changes and the code does not — code review is out of scope. And when a learning contradicts guidance, the refresh reports that; it must never edit a skill, runbook, or instruction file.
+Two boundaries hold whatever the evidence says. This skill never changes product code. A claim about current mechanics follows current code, but independently supported guidance does not become false merely because implementation stopped satisfying it: classify the doc from the guidance evidence and report the implementation conflict as a potential product regression. And when a learning contradicts guidance, the refresh reports that; it must never edit a skill, runbook, or instruction file.
 
 ## Execute
 

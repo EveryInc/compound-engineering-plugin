@@ -530,6 +530,23 @@ Return the completion result to the coordinator.`,
     },
   },
   {
+    id: "ce-compound-refresh/guidance-survives-implementation-conflict",
+    skill: "ce-compound-refresh",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    why: "A refresh must not rewrite still-supported guidance into agreement with code that stopped satisfying it.",
+    pre_contract:
+      "Independently supported guidance is classified from that evidence; code that stops satisfying it is reported as a potential product regression.",
+    task: `Adjudicate this learning and stop before writes: it says retries must be idempotent and guarded by request_id, citing the merged PR and regression test that established the invariant. A recent refactor removed the guard and test. No newer decision, guidance, or requirement supersedes the invariant.`,
+    grade: {
+      must_include: ["Keep", "potential product regression", "request_id"],
+      actions: "none",
+      git: "clean",
+    },
+  },
+  {
     id: "ce-resolve-pr-feedback/pipeline-no-merge",
     skill: "ce-resolve-pr-feedback",
     cohort: "resized",
