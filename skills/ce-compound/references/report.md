@@ -18,7 +18,7 @@ Track: <bug | knowledge>
 Category: <category>
 Grounding: <mechanical check clean | N flags adjudicated>
 Discoverability: <no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>
-CONCEPTS.md: <not present | scanned, no qualifying terms | updated — N added, N refined>
+CONCEPTS.md: <not present | scanned, no qualifying terms | updated — N added, N refined, N folded, N scrubbed>
 CONCEPTS.md discoverability: <not checked — CONCEPTS.md not refined | no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>
 Refresh recommendation: <none | scope hint for /ce-compound-refresh>
 
@@ -36,7 +36,7 @@ Category: <category>
 Overlap: <none | low | moderate — see <path> | high — existing doc updated>
 Grounding: <clean | N flags adjudicated (X fixed, Y annotated, Z confirmed) | N claims softened or corrected | degraded — merge-state claims unverified offline>
 Instruction-file edit: <none needed | gap noted, not applied>
-CONCEPTS.md: <scanned, no qualifying terms | created with N entries (M seeded from the learning's area) | updated — N added, N refined>
+CONCEPTS.md: <scanned, no qualifying terms | created with N entries (M seeded from the learning's area) | updated — N added, N refined, N folded, N scrubbed>
 Refresh recommendation: <none | scope hint for /ce-compound-refresh>
 
 Documentation complete

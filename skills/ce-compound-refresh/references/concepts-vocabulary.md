@@ -34,9 +34,15 @@ Each entry teaches its concept to a reader with no access to anything else — n
 
 Cross-references between entries within `CONCEPTS.md` are fine — they resolve internally. General programming vocabulary (caches, queues, jobs, sessions) and everyday domain English need no redefinition either. But if an entry leans on another *project-specific* term to make sense, that term must be defined here too — an undefined project-specific sibling is itself a candidate to add.
 
-## What earns a slot
+## What earns a slot — and what keeps one
 
-A term qualifies when its meaning here is precise enough that a new engineer would need it defined to follow conversations, tickets, or code. General programming vocabulary does not belong, even when used heavily.
+A term qualifies on two counts: its meaning here is precise enough that a new engineer would need it defined to follow conversations, tickets, or code, and it is a concept in its own right rather than a property of one already defined. General programming vocabulary does not belong, even when used heavily.
+
+Both counts apply at both moments — admitting a term the work surfaced, and deciding whether an existing entry keeps its heading.
+
+An entry that loses its heading still has to resolve for whoever meets the term next in an old ticket, learning, or commit. Ask which surviving entry can carry it; usually one can — the neighbor whose property it always was, or the concept that replaced it. **Fold** it there: the meaning moves into that entry, cross-references repoint, and the old term is named on that entry, worded so a reader can tell whether it meant this entry or was replaced by it. When nothing can carry it, the term **retires** to `## Retired` at the tail if readers will still meet it in the project's own material, and is deleted if they will not — version history is the archive.
+
+Removing an entry acts only on positive contrary evidence, and uncertainty leaves it standing. Name where the concept went — what replaced it, what absorbed it, what took it out. Being unable to find it is not the same as it being gone: a deleted class, path, or symbol is never that evidence (an entry is meant to outlive the code that implemented it, which is what standing on its own means), and neither is the absence of corroboration.
 
 ## Per entry
 
@@ -55,6 +61,10 @@ Cluster concepts by domain relationship — entities with their states, processe
 ## Flagged ambiguities (tail of file)
 
 When two terms were used interchangeably and the team settled on a distinction, record the resolution as a one-line note: *"'account' had been used for both Customer and User — these are distinct."* This section is the audit trail for opinions the team has formed.
+
+## Retired (tail of file, present only when it has entries)
+
+One line per concept the project no longer has and nothing replaced: what the term meant, and what removed it. Enough that someone meeting it in an old ticket understands what they were reading and why it is not current — not the original entry carried over.
 
 ## One illustrative entry — the shape, not a template
 
@@ -84,13 +94,13 @@ After the per-doc actions execute, reconcile the domain terms flagged during inv
 **First, read `references/concepts-vocabulary.md` — unconditionally.** Its qualifying criteria are non-obvious; a "nothing qualifies" judgment without reading it is a shortcut, not a result.
 
 1. **Aggregate** qualifying terms across the learnings in scope; when one term surfaced with different shades of precision, union the shades into one entry.
-2. **If `CONCEPTS.md` exists:** add missing terms, refine entries where the corpus surfaced new precision, then reconcile the in-scope core nouns — re-derive the area's core domain nouns per the reference's **Seed goal** and backfill any central-but-missing ones. Bounded to the area in scope; never a repo-wide sweep.
+2. **If `CONCEPTS.md` exists:** add missing terms, refine entries where the corpus surfaced new precision, then reconcile every entry this run's scope reaches against **What earns a slot — and what keeps one** above: backfill central-but-missing core nouns, fold entries a surviving entry can carry, and retire the rest. An unscoped refresh reads the whole store, so its reconcile covers the whole file — that is the pass an accreted glossary needs; a scoped one stays in its area and leaves the rest untouched. Retention reads the same **declared domain model** the Seed goal seeds from, so presence and absence are judged against one source.
 3. **If it doesn't exist** and at least one term qualified: bootstrap it — seed the in-scope area's core domain nouns per the Seed goal alongside the surfaced terms, holding the bar conservatively for borderline terms at creation. Start the file with this preamble under a `# Concepts` heading:
 
    > Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
 
    1-4 terms → flat headings; more → cluster by domain relationship per the reference.
 4. **Scrub violations** in existing entries per the reference's criteria (implementation specifics, config values that drift, status/owner/date metadata, duplicates, undefined project-specific siblings). The full sweep is appropriate here because refresh is an audit.
-5. Do not expand beyond the area in scope (the explicit repo-wide bootstrap path is the exception), and do not retroactively inject `(see CONCEPTS.md)` pointers into learnings.
+5. Do not expand beyond what this run's scope reaches, and do not retroactively inject `(see CONCEPTS.md)` pointers into learnings.
 
 If nothing qualified, record that explicitly in the report's `CONCEPTS.md` line (e.g., "scanned, no qualifying terms") — the visible scan record is the audit signal that the reference was consulted. Apply vocabulary edits silently in every mode — no user prompt.
