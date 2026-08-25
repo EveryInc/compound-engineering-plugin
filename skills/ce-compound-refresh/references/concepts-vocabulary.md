@@ -2,6 +2,12 @@
 
 `CONCEPTS.md` defines the words that mean something specific in this codebase — substrate that `<root>/solutions/` and AGENTS.md can cite without redefinition. Lives at the repo root. Terms enter two ways — accretion and seeding (below) — and the file is created the first time either path produces a qualifying entry.
 
+## The supported mutations
+
+A run may **add** an entry, **refine** one, **fold** one into the entry that already carries its meaning, **retire** one to `## Retired`, **delete** one, or **scrub** violations from one it touched. Which subset a given run may perform is stated where that run is defined, and is not re-listed anywhere else.
+
+**Update-only** means every one of these against an existing `CONCEPTS.md`: it withholds creation and seeding, not mutations.
+
 ## How terms enter: accretion and seeding
 
 Two paths populate the file, and they cover different gaps:

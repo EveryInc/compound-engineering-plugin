@@ -58,7 +58,7 @@ When creating a new doc, preserve the section order from `assets/resolution-temp
 
 **First, read `references/concepts-vocabulary.md`.** This is unconditional. Do not pre-judge from memory that nothing qualifies — the reference's criteria are non-obvious and qualifying terms often live in the surrounding conversation rather than the new doc itself. Reading the reference is what makes the rest of the phase possible.
 
-Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, add missing qualifying terms, refine existing entries when new precision surfaced, and fold a surfaced term an existing entry already carries into that entry instead of giving it a heading. If it does not exist and at least one qualifying term surfaced, create it.
+Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, this phase may add, refine, and fold, as those are defined under **The supported mutations** in that reference; retiring and deleting belong to `ce-compound-refresh`. If it does not exist and at least one qualifying term surfaced, create it.
 
 **Verify behavior assertions against source before writing them.** When an entry asserts how code behaves (states, transitions, limits, semantics), Read the defining source at the current tree first — an entry drafted from a session-level summary is exactly how wrong semantics enter the glossary. Phase 2.45 re-checks these entries, but the cheap fix is to not write the error.
 
@@ -74,7 +74,7 @@ Then, applying those criteria, scan the new doc **and** the surrounding conversa
 
 Report what this run did to `CONCEPTS.md` in the success output. "Vocabulary capture: scanned, no qualifying terms" is correct only when the file is byte-for-byte as the run found it; any change at all reports its counts, whichever step made it. Do not silently skip either one — an unreported `CONCEPTS.md` mutation is exactly what this line exists to prevent, and the visible scan-and-no-result record is the audit signal that the reference was consulted.
 
-**Apply edits silently in every mode — no user prompt in interactive, lightweight, or non-interactive.** Vocabulary capture is a side effect of compounding, not a decision the user makes per run. Lightweight mode reaches this through its own single-pass step in `references/lightweight.md`, and runs an **update-only** version — it refines an existing `CONCEPTS.md` but defers creation/seeding to a Full run.
+**Apply edits silently in every mode — no user prompt in interactive, lightweight, or non-interactive.** Vocabulary capture is a side effect of compounding, not a decision the user makes per run. Lightweight mode reaches this through its own single-pass step in `references/lightweight.md`, and runs an **update-only** version, which that reference defines.
 
 ### Phase 2.45: Grounding Validation
 
