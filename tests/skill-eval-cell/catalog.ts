@@ -529,9 +529,9 @@ Return the completion result to the coordinator.`,
     why: "A term whose whole meaning an existing entry already carries belongs in that entry, not in a new heading. Add-only capture is what grew one consuming glossary +380/-11 across 25 commits.",
     pre_contract:
       "Add missing qualifying terms and refine existing entries. No fold or retire outcome exists.",
-    task: `Use the ce-compound skill. I just fixed a bug where a Delivery Run could advance to settled twice under concurrent workers - the fix compares the run's settle marker against its requested marker in src/delivery-worker.js before advancing. Do the vocabulary capture step against CONCEPTS.md only: state exactly which entries you would add, change, or leave, and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, name the destination in the same line as: fold <term> into <entry>.`,
+    task: `Use the ce-compound skill. I just fixed a bug where a Delivery Run could advance to settled twice under concurrent workers - the fix compares the run's settle marker against its requested marker in src/delivery-worker.js before advancing. Do the vocabulary capture step against CONCEPTS.md only: state exactly which entries you would add, change, or leave, and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, write the verb and destination together as: GLOSSARY: fold into <entry> - <term>.`,
     grade: {
-      must_include: ["into Delivery Run"],
+      must_include: ["GLOSSARY: fold into Delivery Run"],
       actions: "none",
     },
   },
@@ -545,7 +545,7 @@ Return the completion result to the coordinator.`,
     why: "The retention condition must not overcorrect: a genuinely distinct concept still earns its own heading.",
     pre_contract:
       "Add missing qualifying terms and refine existing entries. No fold or retire outcome exists.",
-    task: `Use the ce-compound skill. I just fixed a bug in the delivery pipeline: an address that hard-bounces within 24 hours of a send is now reclassified and excluded from later runs, but a bounce after that window is treated as transient and the address stays eligible. The team calls that 24-hour period the bounce window. Do the vocabulary capture step against CONCEPTS.md only: state exactly which entries you would add, change, or leave, and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, name the destination in the same line as: fold <term> into <entry>.`,
+    task: `Use the ce-compound skill. I just fixed a bug in the delivery pipeline: an address that hard-bounces within 24 hours of a send is now reclassified and excluded from later runs, but a bounce after that window is treated as transient and the address stays eligible. The team calls that 24-hour period the bounce window. Do the vocabulary capture step against CONCEPTS.md only: state exactly which entries you would add, change, or leave, and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, write the verb and destination together as: GLOSSARY: fold into <entry> - <term>.`,
     grade: {
       must_include: ["GLOSSARY: add Bounce Window"],
       actions: "none",
@@ -561,7 +561,7 @@ Return the completion result to the coordinator.`,
     why: "A deleted symbol is never evidence to retire a concept - an entry is meant to outlive the code that implemented it.",
     pre_contract:
       "Add missing qualifying terms and refine existing entries. No fold or retire outcome exists.",
-    task: `Use the ce-compound skill. I just finished a refactor: src/suppression-rules.js is deleted and its checks now live inline in src/delivery-worker.js. Do the vocabulary capture step against CONCEPTS.md only: state exactly which entries you would add, change, or leave, and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, name the destination in the same line as: fold <term> into <entry>.`,
+    task: `Use the ce-compound skill. I just finished a refactor: src/suppression-rules.js is deleted and its checks now live inline in src/delivery-worker.js. Do the vocabulary capture step against CONCEPTS.md only: state exactly which entries you would add, change, or leave, and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, write the verb and destination together as: GLOSSARY: fold into <entry> - <term>.`,
     grade: {
       must_include: ["GLOSSARY: leave Suppression"],
       actions: "none",
@@ -578,7 +578,7 @@ Return the completion result to the coordinator.`,
     why: "A concept the product cut, with nothing replacing it and a live footprint in old material, retires to the tail rather than being folded or silently deleted.",
     pre_contract:
       "Add missing terms and refine existing ones. No retirement outcome and no Retired section exist.",
-    task: `Use the ce-compound-refresh skill to refresh this repository's learnings store. For the CONCEPTS.md vocabulary step, state exactly what you would change in that file and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, name the destination in the same line as: fold <term> into <entry>.`,
+    task: `Use the ce-compound-refresh skill to refresh this repository's learnings store. For the CONCEPTS.md vocabulary step, state exactly what you would change in that file and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, write the verb and destination together as: GLOSSARY: fold into <entry> - <term>.`,
     grade: {
       must_include: ["GLOSSARY: retire Suppression", "## Retired"],
       actions: "none",
@@ -598,7 +598,7 @@ Return the completion result to the coordinator.`,
     why: "Widening the unscoped reconcile to the whole file must not let a scoped run touch entries in an area it never investigated.",
     pre_contract:
       "Vocabulary reconciliation is bounded to the area in scope and is never a repo-wide sweep.",
-    task: `Use the ce-compound-refresh skill to refresh only the delivery learnings in this repository. For the CONCEPTS.md vocabulary step, state exactly what you would change in that file and why. Do not write any files. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, name the destination in the same line as: fold <term> into <entry>.`,
+    task: `Use the ce-compound-refresh skill to refresh only the delivery learnings in this repository. Apply the CONCEPTS.md vocabulary step to the file, then state what you changed and why. End your reply with one GLOSSARY: <verb> <entry> line for every entry you considered, using exactly one verb from add, refine, fold, retire, delete, or leave. For a fold, write the verb and destination together as: GLOSSARY: fold into <entry> - <term>.`,
     grade: {
       must_include: ["GLOSSARY: retire Suppression"],
       // The billing entries must survive byte-for-byte: a scoped run never saw them.
