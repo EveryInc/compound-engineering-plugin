@@ -26,7 +26,7 @@ Define the core domain nouns the area's **declared domain model** exposes that m
 
 ## Be opinionated
 
-When the team uses several words for the same concept, pick the best one and retire the rest. Record retired synonyms as aliases on the entry (see "Per entry"). Settled distinctions go to the Flagged ambiguities tail. The glossary is not a record of all words the team has ever used — it is the team's agreed-upon vocabulary.
+When the team uses several words for the same concept, pick the best one and drop the rest. Dropping a synonym is not a retirement: the surviving entry still carries that meaning, so the word becomes an aliases line on it (see "Per entry") and never goes to `## Retired`, which is only for a concept the project no longer has. Settled distinctions go to the Flagged ambiguities tail. The glossary is not a record of all words the team has ever used — it is the team's agreed-upon vocabulary.
 
 ## The file stands on its own
 
@@ -58,7 +58,7 @@ The neighborhood of an entry is its cluster siblings plus the terms it cross-ref
 
 Definition is one sentence — what the term means in this domain, what makes it distinct from neighbors. A term with non-obvious behavioral rules (lifecycle, cancellation semantics, ownership invariants) earns a second paragraph for those rules — never for elaborating the definition itself.
 
-When retired synonyms exist, list them as an aliases line directly under the definition: *Avoid: Booking, appointment*. Entities typically need more depth than value types; status concepts may need transition notes.
+When dropped synonyms exist, list them as an aliases line directly under the definition: *Avoid: Booking, appointment*. Entities typically need more depth than value types; status concepts may need transition notes.
 
 ## Relationships (optional)
 
