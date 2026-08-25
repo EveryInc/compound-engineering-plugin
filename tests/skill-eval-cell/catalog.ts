@@ -531,6 +531,7 @@ Return the completion result to the coordinator.`,
   },
   {
     id: "ce-compound-refresh/guidance-survives-implementation-conflict",
+    post_only: true,
     skill: "ce-compound-refresh",
     cohort: "resized",
     key_behavior: "judgment",
