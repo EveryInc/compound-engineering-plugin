@@ -23,7 +23,7 @@ Session-settled decisions land in the Product Contract's Key Decisions section c
 
 Run this **after** the approaches, the scope synthesis, and the requirements-only unified plan — that is where the canonical term often gets chosen or corrected, so capturing during early dialogue (before this point) would miss the final resolved name. If it exists, scan the full dialogue and the Product Contract for **resolved** domain terms — terms where the conversation actively pinned down a precise local meaning, not terms merely mentioned in passing. **Resolved means the definition is settled, not still under discussion.** Provisional terms that may still revise stay in the conversation only.
 
-For each resolved term: if missing, add it; if present but new precision surfaced, refine it; if already consistent, no action. A term whose whole meaning an existing entry already carries is a refinement of that entry, not a new heading. Folding or retiring existing entries is owned by ce-compound and ce-compound-refresh.
+For each resolved term: if missing, add it; if present but new precision surfaced, refine it; if already consistent, no action. A term whose whole meaning an existing entry already carries is a refinement of that entry, not a new heading. Folding an existing entry is owned by ce-compound and ce-compound-refresh; retiring or deleting one is ce-compound-refresh's alone.
 
 **Domain entities, named processes, and status concepts with project-specific meaning only.** Not file paths, class names, function signatures, or implementation decisions — `CONCEPTS.md` is a glossary, not a spec or catch-all.
 
