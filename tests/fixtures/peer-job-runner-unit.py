@@ -1187,5 +1187,67 @@ class HardDefaultFromCrossModel(unittest.TestCase):
             self.assertEqual(MOD.cfg()["hard"], 2030.0)
 
 
+class WindowsKillTreePidReuse(unittest.TestCase):
+    """cmd_reap after a dead worker must not TerminateProcess a recycled PID.
+
+    Windows recycles PIDs aggressively. test_orphan_grandchild_swept_by_reap
+    kills the supervisor, waits for the worker leader to exit, then starts
+    `reap` — the next python.exe, which can reuse worker_pid. Without a guard,
+    _win_kill_tree sees that pid alive (it is us) and TerminateProcess(handle,
+    1) suicides: exit 1, empty stderr. That is the windows-native flake.
+    """
+
+    @unittest.skipUnless(IS_WINDOWS, "native Windows kill_tree only")
+    def test_terminate_pid_refuses_current_process(self):
+        self.assertFalse(MOD._win_terminate_pid(os.getpid()))
+        self.assertTrue(MOD._pid_alive(os.getpid()))
+
+    @unittest.skipUnless(IS_WINDOWS, "native Windows kill_tree only")
+    def test_kill_tree_of_current_pid_does_not_terminate_self(self):
+        alive = MOD._win_kill_tree(os.getpid(), 0.0)
+        self.assertFalse(alive)
+        self.assertTrue(MOD._pid_alive(os.getpid()))
+
+    @unittest.skipUnless(IS_WINDOWS, "native Windows kill_tree only")
+    def test_cmd_reap_does_not_suicide_when_worker_pid_is_self(self):
+        root = tempfile.mkdtemp(prefix="peer-reap-self-")
+        job_dir = os.path.join(root, "job")
+        os.mkdir(job_dir, 0o700)
+        with open(os.path.join(job_dir, "pid"), "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "supervisor_pid": 0,
+                    "worker_pid": os.getpid(),
+                },
+                f,
+            )
+        with open(os.path.join(job_dir, "meta.json"), "w", encoding="utf-8") as f:
+            json.dump(
+                {"job_id": "job", "skill": "ce-doc-review", "run_id": "run1"},
+                f,
+            )
+        code, _out, err = run_main(["reap", job_dir])
+        self.assertEqual(code, 0, err)
+        self.assertTrue(MOD._pid_alive(os.getpid()))
+        with open(os.path.join(job_dir, "status"), encoding="utf-8") as f:
+            self.assertEqual(f.read().strip(), "died-without-result")
+
+    @unittest.skipUnless(IS_WINDOWS, "native Windows identity probe only")
+    def test_process_identity_is_stable_and_differs_across_processes(self):
+        mine = MOD._win_process_identity(os.getpid())
+        self.assertIsNotNone(mine)
+        self.assertEqual(mine, MOD._win_process_identity(os.getpid()))
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+        )
+        try:
+            other = MOD._win_process_identity(child.pid)
+            self.assertIsNotNone(other)
+            self.assertNotEqual(other, mine)
+        finally:
+            child.kill()
+            child.wait(timeout=5)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
