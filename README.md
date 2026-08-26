@@ -168,6 +168,16 @@ After installing, run `/ce-setup` in any project. It reports optional tool capab
 
 Starting from a bug instead of a feature? Use [`/ce-debug`](docs/skills/ce-debug.md). Not sure what to build yet? Start with [`/ce-ideate`](docs/skills/ce-ideate.md).
 
+## Session guidance
+
+The loop produces durable artifacts at each step — plan documents, commits, and review reports — so you rarely need to protect in-session context by hand. Use the artifact as the checkpoint, not the conversation:
+
+- **Stay in the same session** while you're inside one step (planning, or one `/ce-work` implementation pass). The model has the context it needs; clearing it early just forces a re-read of the same files.
+- **Compact** when a session has run long (large diffs, many tool calls, or you're approaching the host's context limit) but you're still mid-step and want to keep recent decisions in view. Compact after a plan is written or a `/ce-code-review` pass completes, not mid-edit.
+- **Start a fresh session** at a durable handoff point — after a plan is committed, after code is committed and pushed, or after a review report lands — so the next step starts from the artifact on disk instead of a long transcript. `/ce-plan`, `/ce-work`, and `/ce-code-review` all read prior artifacts back in, so a new session loses no information a completed step already wrote down. Use [`/ce-handoff`](docs/skills/ce-handoff.md) to hand off mid-step work that has no artifact yet.
+
+`/lfg` chains brainstorm through PR without asking, so this guidance mainly applies when you're running loop steps by hand.
+
 ## Skills at a glance
 
 33 skills, grouped by what they are for. The full catalog, with a page per skill and how each one chains into the others, is in **[docs/skills](docs/skills/README.md)**.
