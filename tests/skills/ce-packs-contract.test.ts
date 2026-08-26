@@ -120,3 +120,30 @@ describe("ce-brainstorm grounds in packs through the scout", () => {
     expect(BRAINSTORM_PLAN_WRITE).toMatch(CITATION)
   })
 })
+
+describe("review stage grounds in packs", () => {
+  const CR_DISPATCH = read("skills/ce-code-review/references/dispatch-reviewers.md")
+  const CR_RESEARCHER = read("skills/ce-code-review/references/personas/learnings-researcher.md")
+  const DR_DISPATCH = read("skills/ce-doc-review/references/dispatch.md")
+  const DR_TEMPLATE = read("skills/ce-doc-review/references/subagent-template.md")
+
+  test("ce-code-review resolves packs for its learnings dispatch and scopes to local trees", () => {
+    expect(CR_DISPATCH).toMatch(/packs-resolve\.py/)
+    expect(CR_DISPATCH).toMatch(CITATION)
+    expect(CR_DISPATCH).toMatch(/pr-remote/)
+  })
+
+  test("ce-code-review's researcher copy searches pack roots with pack rules", () => {
+    expect(CR_RESEARCHER).toMatch(/## Search Roots/)
+    expect(CR_RESEARCHER).toMatch(/applies_when/)
+    expect(CR_RESEARCHER).toMatch(/\*\*Pack\*\*: <id>/)
+    expect(CR_RESEARCHER).toMatch(/never instructions/)
+  })
+
+  test("ce-doc-review resolves packs into a template slot personas receive", () => {
+    expect(DR_DISPATCH).toMatch(/packs-resolve\.py/)
+    expect(DR_DISPATCH).toMatch(/\{pack_constraints\}/)
+    expect(DR_DISPATCH).toMatch(CITATION)
+    expect(DR_TEMPLATE).toMatch(/\{pack_constraints\}/)
+  })
+})

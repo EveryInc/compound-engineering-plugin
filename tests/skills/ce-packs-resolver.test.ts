@@ -13,6 +13,8 @@ const COPIES = [
   "skills/ce-plan/scripts/packs-resolve.py",
   "skills/ce-brainstorm/scripts/packs-resolve.py",
   "skills/ce-setup/scripts/packs-resolve.py",
+  "skills/ce-code-review/scripts/packs-resolve.py",
+  "skills/ce-doc-review/scripts/packs-resolve.py",
 ]
 
 const scratch = mkdtempSync(path.join(tmpdir(), "ce-packs-resolver-"))
@@ -75,7 +77,7 @@ function resolve(projectDir: string, cacheDir?: string) {
 const ids = (out: { roots: { id: string }[] }) => out.roots.map((r) => r.id).sort()
 
 describe("packs-resolve.py copies", () => {
-  test("all three skill copies are byte-identical", () => {
+  test("all skill copies are byte-identical", () => {
     const contents = COPIES.map((p) => readFileSync(path.join(process.cwd(), p), "utf8"))
     for (let i = 1; i < contents.length; i++) expect(contents[i]).toBe(contents[0])
   })

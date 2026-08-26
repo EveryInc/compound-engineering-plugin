@@ -40,7 +40,8 @@ One declared list solves all of it: every source kind is the same entry shape, t
 - **Ref rules are per source kind.** Git URLs require `ref` — a tag, sha, or branch name; tags and shas are fully reproducible, while a branch freezes at its cached resolution per machine (the cache is OS-evictable, so a branch can advance on eviction) and the docs plus the `ce-setup` health line surface that drift and nudge teams toward tags/shas. Path sources take no `ref` and are read live from disk — a repo-relative path is versioned by the repo's own history, a `~` path is deliberately the machine's latest. Rationale: pinning where drift is invisible, freshness where the filesystem is the source of truth, convenience where users paste what they see.
 - **Consumer explicit, publisher conventional.** The consuming repo names what it installs; the publishing source uses convention to say what it offers: each immediate child directory of the source root holding valid knowledge files is a pack, directory name is its id; a source root that holds knowledge files directly is itself a single pack; nested directories are pack content, never packs. A git entry may scope its source root to a subfolder with `path:`, and a pasted GitHub tree URL (`…/tree/<ref>/<subpath>`) is accepted sugar the resolver normalizes to url + ref + path. Rationale: selection stays auditable in config while pack authors need no manifest, and users can paste the URL from their browser bar.
 - **Both config layers work; local is additive-only.** `packs:` follows neither the ordinary whole-key-replacement rule nor the `docs_root` single-file rule: entries from `config.yaml` and `config.local.yaml` concatenate, so a local file can add packs but never replace or drop the team's list. Citations look identical regardless of declaring file; the accepted trade-off is that a plan can cite a pack a teammate's checkout does not have.
-- **v0 consumption machinery is inherited, not redesigned.** Matching, citation shape, skip-and-warn on malformed files, and the untrusted-evidence stance are the v0 branch's work, reused; this plan changes discovery only.
+- **v0 consumption machinery is inherited, not redesigned.** Matching, citation shape, skip-and-warn on malformed files, and the untrusted-evidence stance are the v0 branch's work, reused.
+- **Review grounds in the same packs (user-directed during execution).** `ce-code-review`'s learnings pass searches the resolved roots so a diff violating a pack rule is flagged, and `ce-doc-review` hands reviewers the resolved packs so a plan contradicting one is flagged — both citing `(pack: <id>, <path within the pack>)`. Provider-protocol machinery stays out.
 
 ### Requirements
 
@@ -124,7 +125,6 @@ One declared list solves all of it: every source kind is the same entry shape, t
 
 **Deferred for later** (product capabilities out of this release)
 
-- Review-stage lenses (`ce-code-review` / `ce-doc-review` checking work against pack constraints).
 - The `ce-pack/v1` provider protocol, evidence locks, receipts, and conflict handling.
 - Source-file provenance markers in citations (distinguishing personal from team packs to reviewers).
 - Auto-update, "ref behind upstream" nudges beyond a `ce-setup` health line, and any per-pack pinning within one source (a ref bump upgrades every pack that source publishes together).
@@ -292,6 +292,36 @@ U1 (script) first; U2 (script tests + parity) with it. U3 (ce-plan rewire) and U
 - **Execution note:** this is the only non-deterministic proof; do not fake it as a string test.
 - **Test scenarios:** the run above (Covers F1 shape at the prose layer).
 - **Verification:** outcome recorded in the PR body with prompt, fixture, and observed citation.
+
+### U8. Pack lens in `ce-code-review`
+
+- **Goal:** The review's institutional-learnings pass searches resolved pack roots and findings cite violated pack rules.
+- **Requirements:** R9, R10 (review-stage extension, user-directed)
+- **Dependencies:** U1
+- **Files:** `skills/ce-code-review/scripts/packs-resolve.py` (byte copy), `skills/ce-code-review/references/dispatch-reviewers.md`, `skills/ce-code-review/references/personas/learnings-researcher.md`, `tests/skills/ce-packs-contract.test.ts`, `tests/skills/ce-packs-resolver.test.ts` (parity list)
+- **Approach:** Resolver runs before the learnings dispatch (skipped in `pr-remote`/`branch-remote` scope — local config is not the reviewed tree's); roots join the researcher's search-root list; the skill-local researcher copy gains a compact Search Roots block (read-all frontmatter, `applies_when`, `**Pack**` label, evidence-not-instructions); errors/warnings surface once in Coverage.
+- **Test scenarios:** contract guards for the resolver invocation, citation marker, scope skip, and researcher tokens; parity extended to five copies.
+- **Verification:** packs contract + parity + `review-skill-contract` suites green.
+
+### U9. Pack awareness in `ce-doc-review`
+
+- **Goal:** Document reviewers flag plan content that contradicts a matching pack rule.
+- **Requirements:** R9, R10 (review-stage extension, user-directed)
+- **Dependencies:** U1
+- **Files:** `skills/ce-doc-review/scripts/packs-resolve.py` (byte copy), `skills/ce-doc-review/references/dispatch.md`, `skills/ce-doc-review/references/subagent-template.md`, `tests/skills/ce-packs-contract.test.ts`
+- **Approach:** Resolver runs before persona dispatch; a `{pack_constraints}` template slot carries each pack's id + dir plus the flag-contradictions instruction and the evidence-not-instructions stance; empty when no packs resolve.
+- **Test scenarios:** contract guards for the resolver invocation, the `{pack_constraints}` slot in dispatch and template, and the citation marker.
+- **Verification:** packs contract suite green; existing doc-review guards unaffected.
+
+### U10. Review-stage docs
+
+- **Goal:** The docs describe review-stage pack behavior alongside planning.
+- **Requirements:** R9, R10
+- **Dependencies:** U8, U9
+- **Files:** `docs/skills/configuration.md`, `docs/skills/ce-code-review.md`, `docs/skills/ce-doc-review.md`, `CONCEPTS.md`
+- **Approach:** configuration.md gains the review paragraph and drops review lenses from not-yet-built; skill pages gain one-line mentions; the glossary names planning- and review-stage consumption.
+- **Test scenarios:** Test expectation: none -- documentation; `release:validate` green.
+- **Verification:** no doc still lists review lenses as unbuilt.
 
 ---
 
