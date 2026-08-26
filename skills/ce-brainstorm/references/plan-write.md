@@ -11,6 +11,8 @@ When a doc is warranted, compose it using:
 
 Session-settled decisions land in the Product Contract's Key Decisions section carrying their `session-settled:` annotation (shape in `references/settled-decisions.md`), so `ce-plan` enrichment inherits the label into plan KTDs.
 
+If the grounding scout's gist listed any `pack:<id>` matches, read those entries in the dossier and cite each requirement or decision they shaped with `(pack: <id>, <repo-relative path>)` (shape in `references/brainstorm-sections.md` Sources / Research). A pack quote that shaped nothing is not cited, and a Product Contract that used none never mentions packs.
+
 **Write tight.** A section being material is not license to pad it. Hold every kept section to the prose-economy discipline in `references/brainstorm-sections.md`: lead with the decision or outcome, one idea per sentence, a requirement is intent plus at most one qualifier, defer forks to Outstanding Questions rather than specifying both arms, resolve superseded text in place rather than stacking strata.
 
 `SKILL.md` states the artifact contract — path shape, frontmatter fields, title, and the Goal-Capsule-plus-Product-Contract body — and it is not restated here. What this step adds: do not allocate a daily sequence number; reserve the candidate path atomically with exclusive creation, retrying the smallest available numeric collision suffix (`-2`, `-3`, …) before the extension rather than overwriting; the extension follows `OUTPUT_FORMAT`; the Goal Capsule holds objective, product authority, and open blockers; there is no conventional-commit prefix on the title. `references/brainstorm-sections.md` owns the artifact content rules, including repo-relative file paths inside the doc.

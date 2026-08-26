@@ -329,6 +329,10 @@ worse than omitting it.
   (code locations, external docs, RFCs, constraints, prior plans — the
   category is inclusive, not enumerated). Process exhaust (reading the
   user's prompt, glancing at obvious files) → omit.
+  A constraint adopted from a CE Pack file is cited inline as
+  `(pack: <id>, <repo-relative path>)` after the requirement or decision it
+  shaped — bind the pack text, don't restate it. That marker is reserved for
+  pack files; `<root>/solutions/` learnings keep the ordinary path citation.
 
 ## Agent agency
 

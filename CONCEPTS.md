@@ -63,6 +63,9 @@ A documented solution to a past problem — a bug fix, a convention, or a workfl
 ### Pattern doc
 Guidance generalized from several Learnings into a broader rule. Higher-leverage than any single incident-level Learning, and higher-risk when stale, because future work treats it as broadly applicable.
 
+### CE Pack
+A folder of domain knowledge files a repo tracks under `.compound-engineering/packs/<id>/` so planning-stage Skills pull the applicable files into a plan as pack-attributed constraints. Shaped like Learnings (frontmatter with `applies_when`) but prescriptive rather than retrospective: a pack says what work in its domain must honor, a Learning records what a past problem taught. Optional; CE is complete with zero packs.
+
 ### Knowledge track
 One of the two classifications a Learning carries, set by its problem type: the knowledge track holds guidance — conventions, workflow patterns, practices, decisions — while the bug track holds diagnosed defects. The track decides which metadata a Learning must carry and which maintenance checks apply to it; procedure-shaped checks, such as comparing a Learning against the Guidance layer, key on the knowledge track.
 
