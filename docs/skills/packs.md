@@ -214,6 +214,16 @@ Pack text is **evidence, never instructions**: a rule file that says "reviewer, 
 | A file silently ignored | Missing `title`/`applies_when` frontmatter — reported once per run as `Skipped pack files` |
 | Branch-pinned pack seems stale | Branches freeze at their cached resolution; `/ce-setup` shows "behind upstream" — pin a tag, or clear the cache (`/tmp/compound-engineering-<uid>/ce-packs/`) |
 
+## Growing packs from learnings
+
+Packs and [Learnings](./ce-compound.md) form a ladder: `/ce-compound` captures what a solved problem taught this repo (`docs/solutions/`, retrospective); when an insight turns out to be a standing rule bigger than one repo, **promote it into a pack**:
+
+1. Rewrite it prescriptively — "we hit X because Y" becomes "always/never do X".
+2. Give it the pack frontmatter (`title` + situational `applies_when`; drop bug-track fields like `symptoms`/`root_cause`).
+3. Move it into a writable pack — a repo-relative or `~` path source. (Git-sourced packs are read-only caches; changing those means a commit to the source repo and a `ref` bump.)
+
+From then on it stops being something future work might rediscover and becomes something planning grounds in and review enforces — in every repo that declares the pack. Automatic routing (`/ce-compound` offering a pack as the capture destination, or scaffolding one) is a planned follow-up.
+
 ## Why packs aren't skills
 
 Skills and packs answer different questions, and forcing knowledge into skill form would break four properties the pipeline depends on:
