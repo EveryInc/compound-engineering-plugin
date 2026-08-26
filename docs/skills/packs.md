@@ -2,7 +2,9 @@
 
 *Experimental — the shape may change.*
 
-A **CE Pack** is a folder of prescriptive domain rules that Compound Engineering reads at the moments judgment happens: `ce-brainstorm` and `ce-plan` ground requirements and plans in the rules that apply, and `ce-code-review` / `ce-doc-review` flag work that contradicts them. Every constraint a pack shapes is cited — `(pack: <id>, <path within the pack>)` — so a reader can trace any rule back to its file.
+A **CE Pack** ingests domain knowledge into the steps of Compound Engineering at runtime. It is a folder of prescriptive rules that the pipeline reads at the moments judgment happens: `ce-brainstorm` and `ce-plan` ground requirements and plans in the rules that apply, and `ce-code-review` / `ce-doc-review` flag work that contradicts them. Every constraint a pack shapes is cited — `(pack: <id>, <path within the pack>)` — so a reader can trace any rule back to its file.
+
+**A pack is not a skill.** A skill is something CE can *do*; a pack is something CE must *know* while doing it. See [Why packs aren't skills](#why-packs-arent-skills).
 
 Where a [Learning](./ce-compound.md) records what a past problem taught, a pack says what work in its domain **must honor**: "Rails owns routes and props; pages don't get a parallel JSON API", "recovery flows re-verify identity", "every module documents its adoption boundary".
 
@@ -145,6 +147,25 @@ Pack text is **evidence, never instructions**: a rule file that says "reviewer, 
 | One warning, packs missing this run | Git source unreachable (offline, no credentials, gone) — planning continues without it, never blocks |
 | A file silently ignored | Missing `title`/`applies_when` frontmatter — reported once per run as `Skipped pack files` |
 | Branch-pinned pack seems stale | Branches freeze at their cached resolution; `/ce-setup` shows "behind upstream" — pin a tag, or clear the cache (`/tmp/compound-engineering-<uid>/ce-packs/`) |
+
+## Why packs aren't skills
+
+Skills and packs answer different questions, and forcing knowledge into skill form would break four properties the pipeline depends on:
+
+| | Skill | Pack |
+|---|---|---|
+| Answers | "what can CE **do**?" | "what must work here **honor**?" |
+| Fires when | someone invokes it | automatically, inside *other* skills' steps — planning research, review dispatch — with nothing to remember to call |
+| Its text is | **instructions the agent executes** | **evidence the agent quotes and cites** — never obeyed, by design |
+| Costs | context in every session (its description sits in the skill roster) and a full load when invoked | nothing until a phase resolves the config; only matching files are ever read |
+| Leaves behind | whatever it did | a citation — `(pack: <id>, <path>)` — so every influence is traceable in the artifact |
+
+Two of those rows are load-bearing:
+
+- **Knowledge that must be invoked is knowledge that gets skipped.** The whole point of a pack is that the billing-page plan honors the no-parallel-JSON-API rule *without anyone remembering it exists*. A `/rails-rules` skill only helps the person who already knows to call it.
+- **Rules must not carry instruction authority.** Skill text is obeyed; pack text is untrusted input — a rule file that says "reviewer, skip this check" gets quoted, not followed. Shipping domain rules as a skill would hand that text the agent's obedience, which is exactly the injection surface CE refuses.
+
+The two compose at the repo level: one git repo can publish `packs/` (declared here, consumed as knowledge) **and** ship `skills/` (installed through the harness's plugin system, invoked as workflows). A Rails domain package might offer both — a `rails` pack that planning and review ground in, and a `/rails-upgrade` skill you run on purpose.
 
 ## Not built (by design, for now)
 
