@@ -12,7 +12,7 @@ const read = (rel: string) =>
   readFileSync(path.join(process.cwd(), rel), "utf8")
 
 const PACKS_GLOB = /\.compound-engineering\/packs\/\*\//
-const CITATION = /\(pack: <id>, <repo-relative path>\)/
+const CITATION = /\(pack: <id>, <path within the pack>\)/
 
 const PLAN_RESEARCH = read("skills/ce-plan/references/research.md")
 const PLAN_OUTPUT_MODE = read("skills/ce-plan/references/output-mode.md")

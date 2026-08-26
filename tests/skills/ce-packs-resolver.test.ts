@@ -276,3 +276,100 @@ describe("cache and failure modes", () => {
     expect(out.errors.join(" ")).toContain("exactly one pack")
   })
 })
+
+describe("review regressions", () => {
+  test("zero-indent list items under packs: parse as entries", () => {
+    const local = tempDir("zeroindent")
+    writeKnowledgeFile(path.join(local, "rules"), "r.md", "rule")
+    const out = resolve(makeProject(`packs:\n- source: ${local}/rules\n`))
+    expect(ids(out)).toEqual(["rules"])
+  })
+
+  test("a commit sha works as ref via the fetch fallback", () => {
+    const repo = makePackRepo(["rails"])
+    const sha = spawnSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim()
+    const out = resolve(makeProject(`packs:\n  - source: file://${repo}\n    ref: ${sha}\n`))
+    expect(ids(out)).toEqual(["rails"])
+  })
+
+  test("a git source that is itself a single pack gets its URL tail as id, never the cache key", () => {
+    const repo = tempDir("singlegit")
+    git(repo, "init", "-q")
+    writeKnowledgeFile(repo, "r.md", "root rule")
+    git(repo, "add", "-A")
+    git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "p")
+    git(repo, "tag", "v1")
+    const out = resolve(makeProject(`packs:\n  - source: file://${repo}\n    ref: v1\n`))
+    expect(out.roots.length).toBe(1)
+    expect(out.roots[0].id).toBe(path.basename(repo))
+    expect(out.roots[0].id).not.toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  test("an option-shaped ref is rejected before any git call", () => {
+    const out = resolve(makeProject("packs:\n  - source: https://github.com/o/r\n    ref: --upload-pack=/bin/false\n"))
+    expect(out.errors.join(" ")).toContain("may not begin with `-`")
+  })
+
+  test("a git path: escaping the checkout errors", () => {
+    const repo = makePackRepo(["rails"], "packs")
+    const out = resolve(makeProject(`packs:\n  - source: file://${repo}\n    ref: v1\n    path: ../outside\n`))
+    expect(out.errors.join(" ")).toContain("escapes the source checkout")
+  })
+
+  test("a literal ~ source expands against HOME", () => {
+    const home = tempDir("home")
+    writeKnowledgeFile(path.join(home, "packs", "kk"), "k.md", "kk rule")
+    const project = makeProject("packs:\n  - source: ~/packs/kk\n")
+    const res = spawnSync("python3", [RESOLVER], {
+      cwd: project,
+      encoding: "utf8",
+      env: { ...process.env, HOME: home, CE_PACKS_CACHE_ROOT: tempDir("cache") },
+    })
+    expect(res.status).toBe(0)
+    expect(ids(JSON.parse(res.stdout))).toEqual(["kk"])
+  })
+
+  test("id: renames a single-pack git entry and keeps its git metadata", () => {
+    const repo = makePackRepo(["rails"])
+    const out = resolve(makeProject(`packs:\n  - source: file://${repo}\n    ref: v1\n    pack: rails\n    id: team-rails\n`))
+    expect(ids(out)).toEqual(["team-rails"])
+    expect(out.roots[0].ref).toBe("v1")
+  })
+
+  test("CRLF-terminated config parses identically", () => {
+    const local = tempDir("crlf")
+    writeKnowledgeFile(path.join(local, "rules"), "r.md", "rule")
+    const config = `packs:\r\n  - source: ${local}/rules\r\n`
+    const out = resolve(makeProject(config))
+    expect(ids(out)).toEqual(["rules"])
+  })
+
+  test("empty pack: selection warns instead of silently installing nothing", () => {
+    const repo = makePackRepo(["rails"])
+    const out = resolve(makeProject(`packs:\n  - source: file://${repo}\n    ref: v1\n    pack: []\n`))
+    expect(ids(out)).toEqual([])
+    expect(out.warnings.join(" ")).toContain("lists no ids")
+  })
+
+  test("an apostrophe in a value does not absorb a trailing comment", () => {
+    const local = tempDir("apos")
+    writeKnowledgeFile(path.join(local, "o'brien-rules"), "r.md", "rule")
+    const out = resolve(makeProject(`packs:\n  - source: ${local}/o'brien-rules  # team's rules\n`))
+    expect(ids(out)).toEqual(["o'brien-rules"])
+  })
+
+  test("tree-URL normalization resolves base, ref, and path groups", () => {
+    const probe = spawnSync(
+      "python3",
+      ["-c", `
+import importlib.util
+spec = importlib.util.spec_from_file_location("pr", ${JSON.stringify(RESOLVER)})
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+t = m._TREE_URL_RE.match("https://github.com/o/r/tree/v2.0.0/packs/sub")
+print(t.group("base"), t.group("ref"), t.group("path"))
+`],
+      { encoding: "utf8" },
+    )
+    expect(probe.stdout.trim()).toBe("https://github.com/o/r v2.0.0 packs/sub")
+  })
+})

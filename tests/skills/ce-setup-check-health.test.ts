@@ -858,3 +858,62 @@ describe("ce-setup check-health CE Packs section", () => {
     }
   })
 })
+
+describe("ce-setup check-health pack drift note", () => {
+  test("notes when a cached branch ref is behind upstream", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    const cache = await mkdtemp(path.join(os.tmpdir(), "ce-packs-cache-"))
+    const upstream = await mkdtemp(path.join(os.tmpdir(), "ce-packs-up-"))
+    const g = (...args: string[]) => Bun.$`git -C ${upstream} ${args}`.quiet()
+    try {
+      await Bun.$`git init -q ${upstream}`.quiet()
+      await mkdir(path.join(upstream, "rails"), { recursive: true })
+      await writeFile(
+        path.join(upstream, "rails", "r.md"),
+        "---\ntitle: Rule\napplies_when:\n  - always\n---\n\nBody.\n",
+      )
+      await g("add", "-A")
+      await g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "p")
+      const branch = (await Bun.$`git -C ${upstream} branch --show-current`.text()).trim()
+
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await writeFile(
+        path.join(root, ".compound-engineering", "config.yaml"),
+        `packs:\n  - source: file://${upstream}\n    ref: ${branch}\n`,
+      )
+
+      const env = { CE_PACKS_CACHE_ROOT: cache }
+      const run = () =>
+        Bun.spawn(["bash", checkHealthScript], {
+          cwd: root,
+          env: { ...process.env, ...env, HOME: root },
+          stdout: "pipe",
+          stderr: "pipe",
+        })
+
+      // First run caches the branch at its current tip: no drift note.
+      const first = run()
+      await first.exited
+      const firstOut = await new Response(first.stdout).text()
+      expect(firstOut).toContain("pack rails")
+      expect(firstOut).not.toContain("behind upstream")
+
+      // Advance upstream; the cached resolution is now stale.
+      await writeFile(path.join(upstream, "rails", "r2.md"),
+        "---\ntitle: Rule 2\napplies_when:\n  - always\n---\n\nBody.\n")
+      await g("add", "-A")
+      await g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "later")
+
+      const second = run()
+      await second.exited
+      const secondOut = await new Response(second.stdout).text()
+      expect(secondOut).toContain("behind upstream")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+      await rm(cache, { recursive: true, force: true })
+      await rm(upstream, { recursive: true, force: true })
+    }
+  })
+})

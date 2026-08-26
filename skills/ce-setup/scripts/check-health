@@ -613,9 +613,7 @@ if [ "$in_repo" = "yes" ]; then
   done
   # --- CE Packs (packs: config key) -------------------------------------
   section "CE Packs"
-  packs_python=""
-  if command -v python3 >/dev/null 2>&1; then packs_python="python3";
-  elif command -v python >/dev/null 2>&1; then packs_python="python"; fi
+  packs_python="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
   packs_resolver="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/packs-resolve.py"
   if [ -z "$packs_python" ]; then
     skip "No Python interpreter found; pack health not checked"
@@ -639,8 +637,17 @@ for r in roots:
     if url and ref:
         line += " (" + ref + ")"
         try:
-            remote = subprocess.run(["git", "ls-remote", url, ref], capture_output=True, text=True, timeout=10,
-                                    env={"GIT_TERMINAL_PROMPT": "0", "PATH": __import__("os").environ.get("PATH", "")})
+            _os = __import__("os")
+            genv = dict(_os.environ)
+            genv["GIT_TERMINAL_PROMPT"] = "0"
+            genv.setdefault("GIT_ASKPASS", "true")
+            _ssh = genv.get("GIT_SSH_COMMAND") or "ssh"
+            if "BatchMode" not in _ssh:
+                genv["GIT_SSH_COMMAND"] = _ssh + " -o BatchMode=yes"
+            # Branch refs only: tags and shas are immutable, so a drift note there
+            # would be a false positive (annotated-tag ls-remote shas differ).
+            remote = subprocess.run(["git", "ls-remote", "--end-of-options", url, "refs/heads/" + ref],
+                                    capture_output=True, text=True, timeout=10, env=genv)
             local = subprocess.run(["git", "-C", r["dir"], "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
             rsha = remote.stdout.split()[0] if remote.returncode == 0 and remote.stdout.strip() else ""
             lsha = local.stdout.strip() if local.returncode == 0 else ""

@@ -65,12 +65,27 @@ def _is_git_url(source: str) -> bool:
 
 # --- scratch root (peer-job-runner shape: probe /tmp, fall back to TMPDIR) ---
 
+def _owned_dir(path: str) -> bool:
+    """Directory, not a symlink, owned by the effective uid (POSIX)."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if not __import__("stat").S_ISDIR(st.st_mode):
+        return False
+    if _EFFECTIVE_UID is not None and st.st_uid != _EFFECTIVE_UID:
+        return False
+    return True
+
+
 def _private_root_usable(path: str) -> bool:
     try:
         os.mkdir(path, 0o700)
     except FileExistsError:
         pass
     except OSError:
+        return False
+    if not IS_WINDOWS and not _owned_dir(path):
         return False
     return os.path.isdir(path) and os.access(path, os.W_OK)
 
@@ -99,14 +114,21 @@ def cache_base() -> str | None:
 # --- minimal YAML reader for the documented packs: subset --------------------
 
 def _strip_comment(line: str) -> str:
-    """Drop a trailing comment (a # preceded by whitespace, outside quotes)."""
-    out, in_s, in_d = [], False, False
+    """Drop a trailing comment (a # preceded by whitespace, outside quotes).
+
+    A quote toggles quoted state only when it opens a value (start of line or
+    after `: `/`- `/`[`/`,`) or closes one it opened -- a mid-word apostrophe
+    (``it's``) is ordinary content and must not absorb a later comment.
+    """
+    out, quote = [], ""
     for i, ch in enumerate(line):
-        if ch == "'" and not in_d:
-            in_s = not in_s
-        elif ch == '"' and not in_s:
-            in_d = not in_d
-        elif ch == "#" and not in_s and not in_d and (i == 0 or line[i - 1] in " \t"):
+        prev = line[i - 1] if i else " "
+        if quote:
+            if ch == quote:
+                quote = ""
+        elif ch in "'\"" and prev in " \t[,:":
+            quote = ch
+        elif ch == "#" and prev in " \t":
             break
         out.append(ch)
     return "".join(out).rstrip()
@@ -141,7 +163,9 @@ def parse_packs_block(path: str, errors: list) -> list:
         if not line.strip():
             continue
         indent = len(line) - len(line.lstrip())
-        if indent == 0:
+        if indent == 0 and not (in_packs and line.lstrip().startswith("-")):
+            # A new top-level key ends the packs block; a zero-indent list item
+            # (`- source: ...`) is still part of it -- YAML allows both styles.
             in_packs = line.rstrip() in ("packs:", "packs: []")
             current, pending_list_key = None, None
             continue
@@ -218,12 +242,15 @@ def resolve_git_source(url: str, ref: str, warnings: list, label: str) -> str | 
     key = hashlib.sha256(f"{url}\n{ref}".encode()).hexdigest()
     dest = os.path.join(base, key)
     if os.path.isdir(dest):
-        return dest
+        if IS_WINDOWS or _owned_dir(dest):
+            return dest
+        warnings.append(f"{label}: cached checkout {dest} is a symlink or not owned by this user; refetching")
+        shutil.rmtree(dest, ignore_errors=True)
     tmp = tempfile.mkdtemp(prefix=f"{key}.part-", dir=base)
     try:
         try:
             proc = _run_git(["clone", "--quiet", "--depth", "1", "--no-recurse-submodules",
-                             "--branch", ref, url, tmp])
+                             "--branch", ref, "--end-of-options", url, tmp])
         except subprocess.TimeoutExpired:
             warnings.append(f"{label}: git clone timed out after {int(GIT_TIMEOUT)}s; source skipped")
             return None
@@ -231,16 +258,20 @@ def resolve_git_source(url: str, ref: str, warnings: list, label: str) -> str | 
             # tag/branch clone failed -- retry treating ref as a commit sha
             try:
                 if _run_git(["init", "--quiet", tmp]).returncode == 0 \
-                        and _run_git(["fetch", "--quiet", "--depth", "1", url, ref], cwd=tmp).returncode == 0 \
+                        and _run_git(["fetch", "--quiet", "--depth", "1", "--end-of-options", url, ref], cwd=tmp).returncode == 0 \
                         and _run_git(["checkout", "--quiet", "FETCH_HEAD"], cwd=tmp).returncode == 0:
-                    proc = None  # success via sha path
+                    pass  # resolved by treating ref as a commit sha
                 else:
                     warnings.append(f"{label}: cannot fetch `{ref}` from {url}; source skipped")
                     return None
             except subprocess.TimeoutExpired:
                 warnings.append(f"{label}: git fetch timed out after {int(GIT_TIMEOUT)}s; source skipped")
                 return None
-        os.replace(tmp, dest) if not os.path.isdir(dest) else None
+        if not os.path.isdir(dest):
+            try:
+                os.replace(tmp, dest)
+            except OSError:
+                pass  # another resolver published the same key concurrently
         return dest
     finally:
         if os.path.isdir(tmp) and tmp != dest:
@@ -275,10 +306,11 @@ def _has_knowledge_files(directory: str) -> bool:
     return any(n.endswith(".md") and _is_knowledge_file(os.path.join(directory, n)) for n in names)
 
 
-def enumerate_packs(source_root: str) -> dict:
+def enumerate_packs(source_root: str, self_name: str | None = None) -> dict:
     """Map published pack id -> dir. Immediate children only; self = single pack."""
     if _has_knowledge_files(source_root):
-        return {os.path.basename(os.path.abspath(source_root)): source_root}
+        name = self_name or os.path.basename(os.path.abspath(source_root))
+        return {name: source_root}
     packs = {}
     try:
         children = sorted(os.listdir(source_root))
@@ -311,16 +343,31 @@ def resolve_entry(entry: dict, repo_root: str, roots: list, warnings: list, erro
             errors.append(f"{label}: tree URL path `{t_path}` conflicts with `path: {sub_path}` -- remove one")
             return
         source, ref, sub_path = tree.group("base"), t_ref, t_path or None
+        tree_sugar = True
+    else:
+        tree_sugar = False
 
     if _is_git_url(source):
         if not isinstance(ref, str) or not ref:
             errors.append(f"{label}: git source `{source}` requires `ref:` (tag, sha, or branch)")
             return
+        if ref.startswith("-") or source.startswith("-"):
+            errors.append(f"{label}: git source/ref may not begin with `-`")
+            return
         checkout = resolve_git_source(source, ref, warnings, label)
         if checkout is None:
+            if tree_sugar:
+                warnings.append(
+                    f"{label}: if the branch name contains `/`, tree-URL parsing splits it wrong -- use explicit `ref:` and `path:` fields"
+                )
             return
         git_meta = {"url": source, "ref": ref}
         source_root = os.path.join(checkout, sub_path) if sub_path else checkout
+        real_root, real_checkout = os.path.realpath(source_root), os.path.realpath(checkout)
+        if not (real_root == real_checkout or real_root.startswith(real_checkout + os.sep)):
+            errors.append(f"{label}: path `{sub_path}` escapes the source checkout")
+            return
+        source_root = real_root
         if not os.path.isdir(source_root):
             errors.append(f"{label}: path `{sub_path}` does not exist in {source}@{ref}")
             return
@@ -347,7 +394,14 @@ def resolve_entry(entry: dict, repo_root: str, roots: list, warnings: list, erro
             errors.append(f"{label}: source directory `{source}` does not exist")
             return
 
-    published = enumerate_packs(source_root)
+    if git_meta:
+        # Display name for a single-pack git source: the path: subfolder's
+        # basename, else the URL's last path segment (never the cache key).
+        tail = (sub_path or source).rstrip("/").rsplit("/", 1)[-1]
+        self_name = re.sub(r"\.git$", "", tail.split(":")[-1]) or None
+    else:
+        self_name = None
+    published = enumerate_packs(source_root, self_name)
     if not published:
         warnings.append(f"{label}: source `{source}` publishes no packs (no directories with valid knowledge files)")
         return
@@ -357,6 +411,9 @@ def resolve_entry(entry: dict, repo_root: str, roots: list, warnings: list, erro
         selected = dict(published)
     else:
         wanted = selection if isinstance(selection, list) else [selection]
+        if not wanted:
+            warnings.append(f"{label}: `pack:` lists no ids; nothing installed from `{source}`")
+            return
         missing = [w for w in wanted if w not in published]
         if missing:
             errors.append(
@@ -380,7 +437,10 @@ def resolve_entry(entry: dict, repo_root: str, roots: list, warnings: list, erro
         roots.append(root)
 
 
-def main() -> int:
+def _main() -> int:
+    if shutil.which("git") is None:
+        print(json.dumps({"roots": [], "warnings": ["git binary not found; packs unavailable"], "errors": []}))
+        return 0
     proc = subprocess.run(["git", "rev-parse", "--show-toplevel"],
                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     warnings, errors, roots = [], [], []
@@ -414,6 +474,14 @@ def main() -> int:
         "errors": errors,
     }))
     return 0
+
+
+def main() -> int:
+    try:
+        return _main()
+    except Exception as exc:  # never a traceback: consumers need valid JSON
+        print(json.dumps({"roots": [], "warnings": [], "errors": [f"packs resolver failed unexpectedly: {exc}"]}))
+        return 0
 
 
 if __name__ == "__main__":

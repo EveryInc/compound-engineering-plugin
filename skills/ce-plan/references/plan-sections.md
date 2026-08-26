@@ -290,8 +290,9 @@ them fire.
   obvious entry points, restating prose) → omit. Surface inline next to the
   KTD or unit it justifies, or as a dedicated section — both shapes work.
   A constraint adopted from a CE Pack file is cited inline as
-  `(pack: <id>, <repo-relative path>)` after the requirement, KTD, constraint,
-  or risk it shaped — bind the pack text, don't restate it. That marker is
+  `(pack: <id>, <path within the pack>)` after the requirement, KTD, constraint,
+  or risk it shaped — the path is relative to the pack's own directory, so it
+  is stable for path- and git-sourced packs alike — bind the pack text, don't restate it. That marker is
   reserved for pack files; `<root>/solutions/` learnings keep the ordinary
   path citation, so a reader can tell a prescriptive pack rule from a
   retrospective learning.

@@ -149,7 +149,7 @@ Summarize:
 
 **Land external findings in decisions, not an appendix.** Any external research that ran must surface where it changes a choice — Key Technical Decisions rationale, Alternatives, Risks, or Sources & Research — not as a detached list with no bearing on the plan. If a finding shaped nothing, it was not load-bearing; do not pad the plan with it.
 
-**Cite CE Pack findings where they land.** A requirement, KTD, constraint, or risk that a pack finding shaped ends with `(pack: <id>, <repo-relative path>)`. A pack finding that shaped nothing is not cited, and a plan whose research used no pack finding never mentions packs. If the researcher output contains a `Skipped pack files` line, surface it to the user once as a warning naming each file; never write it into the plan.
+**Cite CE Pack findings where they land.** A requirement, KTD, constraint, or risk that a pack finding shaped ends with `(pack: <id>, <path within the pack>)` — the path relative to the pack's own directory, stable for path- and git-sourced packs alike. A pack finding that shaped nothing is not cited, and a plan whose research used no pack finding never mentions packs. If the researcher output contains a `Skipped pack files` line, surface it to the user once as a warning naming each file; never write it into the plan.
 
 **Mark whether external research was load-bearing.** Record a single internal flag: did external findings materially shape a KTD, Alternative, Scope boundary, or Risk? This flag answers only that question — it does **not** gate whether research runs (Phase 1.2 owns that decision). Phase 5.3.2 reads it to decide whether to enter a confidence-scoring pass.
 
