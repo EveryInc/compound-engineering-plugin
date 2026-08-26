@@ -18,10 +18,11 @@ A **Lightweight** Durable plan does not dispatch the research agents below. Grou
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-python3 "$SKILL_DIR/scripts/packs-resolve.py"
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/packs-resolve.py"
 ```
 
-(Probe the interpreter per the repo convention if `python3` is absent.) The JSON result carries `roots` (pack `id` + absolute `dir`), `warnings`, and `errors`. Build the researcher's **search-root list**: `<root>/solutions/` plus one entry per root. Surface each `errors` and `warnings` line to the user once — they are per-entry config problems and skipped sources, not run blockers — and never write them into the plan. With no `packs:` key the result is empty and nothing else changes; no directory is scanned by convention.
+The JSON result carries `roots` (pack `id` + absolute `dir`), `warnings`, and `errors`. Build the researcher's **search-root list**: `<root>/solutions/` plus one entry per root. Surface each `errors` and `warnings` line to the user once — they are per-entry config problems and skipped sources, not run blockers — and never write them into the plan. With no `packs:` key the result is empty and nothing else changes; no directory is scanned by convention.
 
 For Standard and Deep, prepare a concise planning context summary (a paragraph or two) to pass as input to the research agents:
 - If an origin document exists, summarize the problem frame, requirements, and key decisions from that document

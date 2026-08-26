@@ -24,7 +24,15 @@ SCRATCH_DIR="$SCRATCH_ROOT/ce-brainstorm/<run-id>";
 echo "$SCRATCH_DIR";
 ```
 
-Before dispatching, resolve any CE Packs declared in config by running this skill's resolver as one command (`SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"; python3 "$SKILL_DIR/scripts/packs-resolve.py"` — probe the interpreter per the repo convention if `python3` is absent). Keep its `roots` (pack `id` + absolute `dir`) for the scout prompt; surface `errors`/`warnings` to the user once and nowhere else. With no `packs:` key the result is empty and the prompt below omits its pack sentence entirely.
+Before dispatching, resolve any CE Packs declared in config by running this skill's resolver:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/packs-resolve.py"
+```
+
+Keep its `roots` (pack `id` + absolute `dir`) for the scout prompt; surface `errors`/`warnings` to the user once and nowhere else. With no `packs:` key the result is empty and the prompt below omits its pack sentence entirely.
 
 Then dispatch one extraction-tier sub-agent via the platform's subagent primitive where available (a Task/Agent-style dispatch on harnesses that expose one); otherwise run the work inline or serially. In harnesses that support background dispatch, proceed to Phase 1.2/1.3 **without waiting**: the scout runs during the user's think-time on the opening questions. Scout prompt:
 
