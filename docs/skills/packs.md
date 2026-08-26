@@ -63,7 +63,9 @@ applies_when:
   - architecture
 ```
 
-Rules of thumb: one situation per line; use the vocabulary a feature request would use ("page", "endpoint", "background job"), not internal jargon; two or three concrete conditions beat one abstract one. Packs are read in full (every file's frontmatter, no keyword pre-filter, up to 25 files per pack), so a condition sharing zero keywords with the prompt can still match — but a clearly-worded situation matches more reliably.
+Rules of thumb: one situation per line; use the vocabulary a feature request would use ("page", "endpoint", "background job"), not internal jargon; two or three concrete conditions beat one abstract one.
+
+**Scoping a rule to a pipeline stage** is also just phrasing — there is no `stages:` field, on purpose. Every consuming stage matches `applies_when` against *its own* context, so a situational condition self-selects: *"reviewing a diff that touches payment code"* fires at review and nowhere else; *"deciding whether a feature needs a new endpoint"* is planning-shaped; a neutral condition like *"adding a page that needs server data"* correctly fires at planning **and** again at review — same rule, both moments earned. Only frontmatter is re-read per stage (cheap); a rule's body loads solely on a match. Unknown frontmatter keys are tolerated, so future fields can be added without breaking existing packs. Packs are read in full (every file's frontmatter, no keyword pre-filter, up to 25 files per pack), so a condition sharing zero keywords with the prompt can still match — but a clearly-worded situation matches more reliably.
 
 ## Every way to declare a source
 
