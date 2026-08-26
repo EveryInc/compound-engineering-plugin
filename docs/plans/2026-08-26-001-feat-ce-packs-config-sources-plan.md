@@ -129,6 +129,7 @@ One declared list solves all of it: every source kind is the same entry shape, t
 - Source-file provenance markers in citations (distinguishing personal from team packs to reviewers).
 - Auto-update, "ref behind upstream" nudges beyond a `ce-setup` health line, and any per-pack pinning within one source (a ref bump upgrades every pack that source publishes together).
 - Transitive pack dependencies (a pack declaring other packs) — explicit composition only.
+- Pack extras: a `packs:` entry installing bundled skills/commands, if harnesses ever expose runtime skill registration — until then skills ship through the plugin door of the same repo.
 - A pack-authoring or scaffolding helper.
 - Marketplace tooling of any kind — a catalog of URLs needs nothing from CE.
 

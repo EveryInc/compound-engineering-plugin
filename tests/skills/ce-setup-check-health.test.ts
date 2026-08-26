@@ -1,7 +1,11 @@
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setDefaultTimeout, test } from "bun:test"
+
+// check-health cases spawn bash + git + the packs resolver; under full-suite load
+// they can cross the 5000ms default (AGENTS.md documents this flake mode).
+setDefaultTimeout(30000)
 
 const repoRoot = path.join(import.meta.dir, "..", "..")
 const checkHealthScript = path.join(repoRoot, "skills", "ce-setup", "scripts", "check-health")

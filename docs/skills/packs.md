@@ -31,6 +31,8 @@ if a third party needs the data, that is a separate, documented API decision.
 
 `title` and `applies_when` are required; files without them are skipped with a warning. `tags` helps matching.
 
+A pack can also carry files the load script never touches — see the layout rule below.
+
 **2. Declare it** in `.compound-engineering/config.yaml`:
 
 ```yaml
@@ -123,6 +125,68 @@ rails-ce-pack/                      # git repo = the source
 - A source whose root itself holds rule files is a **single pack** named after the folder (or the URL's last segment).
 - Tag releases (`git tag v1.0.0`) so consumers can pin; "install" instructions for your users are just the two-line `packs:` entry.
 - A "marketplace" needs nothing from CE — it's any README listing pack URLs.
+
+## A pack repo is a domain package
+
+One repo can carry everything a domain offers — rules, big reference data, docs, and skills:
+
+```text
+rails-domain-package/
+├── packs/
+│   ├── rails/                       # rules -- ingested via your packs: entry
+│   │   ├── routes-own-props.md
+│   │   ├── no-parallel-json-api.md
+│   │   └── resources/               # in-pack big data -- never discovered, only
+│   │       ├── error-catalog.csv    #   reached through a rule that cites it
+│   │       └── api-inventory.sqlite
+│   └── inertia/
+│       └── deferred-props.md
+├── docs/                            # human docs -- ignored by the resolver
+├── skills/                          # workflows -- installed via the harness's plugin system
+│   └── rails-upgrade/SKILL.md
+└── .claude-plugin/plugin.json
+```
+
+The resolver enumerates **only** directories holding `.md` files with `title` + `applies_when` frontmatter — `skills/`, `docs/`, `resources/`, and `README.md` are invisible to it, so nothing collides. The `packs:` entry ingests the knowledge; a normal plugin install registers the skills. Skills cannot ride in through `packs:` — making a skill invocable is the harness's plugin machinery, which CE cannot drive at runtime.
+
+## Big data in packs
+
+Rules stay small; the data they lean on can be arbitrarily large — and it can live **inside the pack itself**, invisible to the load script. The layout rule:
+
+```text
+packs/house-rules/
+├── no-parallel-json-api.md        # top-level .md with frontmatter = a rule (loaded on match)
+├── error-responses.md             # another rule
+└── resources/                     # ANY subdirectory: never scanned, never loaded,
+    ├── error-catalog.csv          #   never warned about -- reachable only because
+    ├── api-inventory.sqlite       #   a rule points at it
+    └── notes.md                   #   even .md files in here are invisible to the resolver
+```
+
+Only **top-level `.md` files with `title` + `applies_when`** are rules the resolver sees. Everything else in the pack is inert storage: subdirectories (any name — `resources/`, `data/`, `docs/`) and top-level non-`.md` files are ignored entirely. The one thing to avoid is a top-level `.md` *without* frontmatter — that draws a `Skipped pack files` warning, so park free-form notes in a subdirectory instead.
+
+The pattern:
+
+1. **Put the data in a subdirectory of the pack** (or beside it, or in its own declared source — all equally invisible to discovery).
+2. **Point at it from a rule**, with the access method — the rule is the only door to the data:
+
+```markdown
+---
+title: Error codes map to the canonical catalog, never ad-hoc strings
+applies_when:
+  - adding or changing an error response
+  - handling a failure from the payments provider
+---
+
+Every error surfaced to users must use a catalog entry. The full catalog is
+`resources/error-catalog.csv` (code, user_message, severity, owner) — look the
+code up there before inventing one. For bulk questions, query
+`resources/api-inventory.sqlite` (table `endpoints`) with the sqlite3 CLI.
+```
+
+3. The agent reads or queries the data **only when the rule matches and sends it there** — nothing under `resources/` is ingested, indexed, or context-loaded up front, so a 500 MB resource costs nothing on runs that never touch its rule.
+
+Sizing guidance: matching only ever reads rule frontmatter, so data size never slows resolution — but **git sources clone the whole tree at the ref**, so put heavyweight data behind a *path source* (`~/data/rails-corpus`) or a separate data-only entry rather than bloating a tag every consumer clones. Data files are subject to the same trust rule as rule text: content to read and cite, never instructions to obey.
 
 ## What each stage does with packs
 
