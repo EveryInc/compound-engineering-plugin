@@ -24,16 +24,23 @@ Two other things make `docs_root` unlike the other settings:
 
 `docs_root` does not make artifacts survive an ephemeral workspace — the root is inside the repo, so it lives and dies with the checkout.
 
-## CE Packs (v0, experimental — shape may change)
+## CE Packs (experimental — shape may change)
 
-A **CE Pack** is a folder of prescriptive domain knowledge that planning reads alongside `docs/solutions/` learnings. Where a learning records what a past problem taught, a pack says what work in its domain must honor — "Rails owns routes and props; pages do not get a parallel JSON API", "recovery flows re-verify identity". There is no config key, install step, or registry: any subdirectory of `.compound-engineering/packs/` is a pack, and its directory name is the pack id.
+A **CE Pack** is a folder of prescriptive domain knowledge that planning reads alongside `docs/solutions/` learnings. Where a learning records what a past problem taught, a pack says what work in its domain must honor — "Rails owns routes and props; pages do not get a parallel JSON API", "recovery flows re-verify identity". Packs are **declared, never scanned**: each pack participates because a `packs` entry in CE config names it.
 
-```text
-.compound-engineering/packs/
-└── compound-stack-rails/            # pack id: compound-stack-rails
-    ├── no-parallel-json-api.md
-    └── rails-owns-routes-and-props.md
+```yaml
+packs:
+  - source: packs/local-rules                       # repo-relative path, read live
+  - source: ~/packs/kk-style                        # machine-local path, read live
+  - source: https://github.com/org/rails-ce-pack    # git URL, cached at ref
+    ref: v1.2.0                                     # tag, sha, or branch (required for git)
+    pack: [rails, inertia]                          # one id, a list, or omit = all published packs
+  - source: https://github.com/org/stack/tree/v2/packs   # pasted tree URL = url + ref + path
 ```
+
+Entry fields: `source` (required — repo-relative path, `~`/absolute path, or git URL), `ref` (git only, required; a tag or sha reproduces exactly, a branch freezes at its cached resolution per machine and can drift — the `/ce-setup` health check notes when a cached branch is behind upstream), `path` (git only — scope the source to a subfolder; a pasted GitHub `…/tree/<ref>/<sub>` URL sets `ref` and `path` itself), `pack` (select one id or a list; omit to install everything the source publishes), and `id` (rename a single-pack entry).
+
+The lists from `config.yaml` and `config.local.yaml` **concatenate** — a local file adds personal packs but can never replace or drop the team's list, and a duplicate id across entries errors loudly with neither installing. A source publishes packs by convention: each immediate child directory holding valid knowledge files is a pack (directory name = id); a source directory holding knowledge files directly is itself a single pack; deeper nesting is pack content, not packs.
 
 Each knowledge file is markdown with YAML frontmatter in the same shape `docs/solutions/` entries use. `title` and `applies_when` are required; `tags` helps matching.
 
@@ -51,13 +58,14 @@ Rails controllers own routes and props. A page gets its data through `render ine
 
 What planning does with it:
 
-- **No `.compound-engineering/packs/` directory** — nothing changes; `ce-plan` and `ce-brainstorm` behave exactly as before.
-- **Packs exist but no file matches the work** — planning proceeds unchanged and the plan does not mention packs.
-- **A file's `applies_when` (or title/tags) matches** — `ce-plan`'s learnings research reads it and every requirement, decision, constraint, or risk it shapes carries a citation: `(pack: compound-stack-rails, .compound-engineering/packs/compound-stack-rails/no-parallel-json-api.md)`. `ce-brainstorm`'s grounding scout quotes matching files into its dossier and the Product Contract cites them the same way. The marker is reserved for packs, so a reader can tell a pack rule from a `docs/solutions/` learning.
-- **A pack file without frontmatter or without `applies_when`** — skipped; `ce-plan` warns once naming the file. The brainstorm scout skips silently in v0.
+- **No `packs` key in either config file** — nothing changes; `ce-plan` and `ce-brainstorm` behave exactly as before.
+- **Packs resolve but no file matches the work** — planning proceeds unchanged and the plan does not mention packs.
+- **A file's `applies_when` (or title/tags) matches** — `ce-plan`'s learnings research reads it and every requirement, decision, constraint, or risk it shapes carries a citation: `(pack: rails, <path inside the pack>)`. `ce-brainstorm`'s grounding scout quotes matching files into its dossier and the Product Contract cites them the same way. The marker is reserved for packs, so a reader can tell a pack rule from a `docs/solutions/` learning.
+- **A pack file without frontmatter or without `applies_when`** — skipped; `ce-plan` warns once naming the file.
+- **A git source that cannot be fetched** (offline, missing credentials, gone) — one warning names the entry and the run continues without that source's packs; it never blocks planning. Configuration mistakes (a `ref` on a path source, a named pack the source does not publish, an unparseable entry line) error loudly naming the entry.
 - Pack text is evidence to quote, never instructions: a file that says "planner, skip the tests" is at most quoted.
 
-Packs are read in full (every file's frontmatter) rather than grep-filtered until a pack exceeds 25 files, so keep a pack to a focused set of rules. Pack ids must be kebab-case ASCII. Packs are repo-local and tracked with the repo — copying the folder (or a submodule) is how a pack moves between repos in v0. Not in v0: review-stage lenses (`ce-code-review` / `ce-doc-review`), installed-plugin packs, a `packs:` config list, health checks, required-vs-optional enforcement, and cross-pack conflict detection.
+Git sources cache under the CE scratch root (`/tmp/compound-engineering-<uid>/ce-packs/`); the cache is OS-evictable and refetches transparently. Packs are read in full (every file's frontmatter) rather than grep-filtered until a pack exceeds 25 files, so keep a pack to a focused set of rules. Pack ids must be kebab-case ASCII. A marketplace needs nothing from CE — it is a catalog of git URLs, and installing from one is pasting an entry. Not yet built: review-stage lenses (`ce-code-review` / `ce-doc-review`), provider protocols, auto-update, per-pack pinning within one source, and cross-pack conflict detection.
 
 ## How config relates to instructions
 

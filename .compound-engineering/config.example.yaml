@@ -172,3 +172,22 @@
 # sweep_ack_cap: 25                                 # max acks per source per run before the circuit breaker
 # sweep_lease_ttl_minutes: 60                       # single-writer lease staleness threshold
 # sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology
+
+# --- CE Packs ---
+
+# Prescriptive domain knowledge folders that planning reads and cites.
+# Declared, never scanned: an entry names a source (repo-relative path,
+# ~/absolute path, or git URL) and what to install from it. Lists from this
+# file and config.local.yaml concatenate -- local adds packs, never replaces
+# the team's. Git sources require ref (tag or sha reproduce exactly; a branch
+# freezes at its cached resolution and can drift across machines). path: and
+# pasted GitHub /tree/<ref>/<sub> URLs scope a source to a subfolder.
+# pack: picks one id or a list; omit it to install everything the source
+# publishes. id: renames a single-pack entry.
+
+# packs:
+#   - source: packs/local-rules                       # repo-relative, read live
+#   - source: ~/packs/kk-style                        # machine-local, read live
+#   - source: https://github.com/org/rails-ce-pack    # git, cached at ref
+#     ref: v1.2.0
+#     pack: [rails, inertia]

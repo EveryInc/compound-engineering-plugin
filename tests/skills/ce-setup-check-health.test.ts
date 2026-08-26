@@ -810,3 +810,51 @@ describe("ce-setup check-health docs_root resolution", () => {
     expect(result.stdout).not.toContain("Invalid docs_root")
   })
 })
+
+describe("ce-setup check-health CE Packs section", () => {
+  test("reports resolved packs and flags config errors as project issues", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await mkdir(path.join(root, "packs", "house-rules"), { recursive: true })
+      await writeFile(
+        path.join(root, "packs", "house-rules", "rule.md"),
+        "---\ntitle: House rule\napplies_when:\n  - always\n---\n\nBody.\n",
+      )
+      await writeFile(
+        path.join(root, ".compound-engineering", "config.yaml"),
+        "packs:\n  - source: packs/house-rules\n  - source: packs/missing\n",
+      )
+
+      const result = await runCheckHealth(root, process.env.PATH ?? "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Packs")
+      expect(result.stdout).toContain("pack house-rules")
+      expect(result.stdout).toContain("Pack config error:")
+      expect(result.stdout).toContain("project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("skips quietly when no packs are configured", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.yaml"))
+
+      const result = await runCheckHealth(root, process.env.PATH ?? "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("No packs configured")
+      expect(result.stdout).not.toContain("Pack config error:")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})

@@ -319,11 +319,13 @@ def resolve_entry(entry: dict, repo_root: str, roots: list, warnings: list, erro
         checkout = resolve_git_source(source, ref, warnings, label)
         if checkout is None:
             return
+        git_meta = {"url": source, "ref": ref}
         source_root = os.path.join(checkout, sub_path) if sub_path else checkout
         if not os.path.isdir(source_root):
             errors.append(f"{label}: path `{sub_path}` does not exist in {source}@{ref}")
             return
     else:
+        git_meta = None
         if ref is not None:
             errors.append(f"{label}: `ref:` is only valid on git sources; path sources are read live")
             return
@@ -372,7 +374,10 @@ def resolve_entry(entry: dict, repo_root: str, roots: list, warnings: list, erro
         selected = {str(override): next(iter(selected.values()))}
 
     for pack_id, pack_dir in selected.items():
-        roots.append({"id": pack_id, "dir": pack_dir, "_label": label})
+        root = {"id": pack_id, "dir": pack_dir, "_label": label}
+        if git_meta:
+            root.update(git_meta)
+        roots.append(root)
 
 
 def main() -> int:
@@ -404,7 +409,7 @@ def main() -> int:
         final.append(root)
 
     print(json.dumps({
-        "roots": [{"id": r["id"], "dir": r["dir"]} for r in final],
+        "roots": [{k: v for k, v in r.items() if not k.startswith("_")} for r in final],
         "warnings": warnings,
         "errors": errors,
     }))
