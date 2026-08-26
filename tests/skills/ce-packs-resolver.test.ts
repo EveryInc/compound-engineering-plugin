@@ -6,12 +6,14 @@ import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 
 // Deterministic proof for the CE Packs resolver (plan AE1-AE7): fixture repos
 // and file:// git sources built per test, cache isolated via CE_PACKS_CACHE_ROOT.
+// Exercise the canonical ce-brainstorm copy; the other skill copies stay
+// byte-identical via the parity test below.
 setDefaultTimeout(30000)
 
-const RESOLVER = path.join(process.cwd(), "skills/ce-plan/scripts/packs-resolve.py")
+const RESOLVER = path.join(process.cwd(), "skills/ce-brainstorm/scripts/packs-resolve.py")
 const COPIES = [
-  "skills/ce-plan/scripts/packs-resolve.py",
   "skills/ce-brainstorm/scripts/packs-resolve.py",
+  "skills/ce-plan/scripts/packs-resolve.py",
   "skills/ce-setup/scripts/packs-resolve.py",
   "skills/ce-code-review/scripts/packs-resolve.py",
   "skills/ce-doc-review/scripts/packs-resolve.py",
