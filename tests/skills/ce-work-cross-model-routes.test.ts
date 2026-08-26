@@ -536,7 +536,7 @@ describe("ce-work fixed write routes", () => {
     const quietBin = temp("ce-work-bin-")
     writeFileSync(path.join(quietBin, "claude"), `#!/bin/sh
 cat > '${quiet.capture}/stdin'
-sleep 2
+sleep 1.1
 exit 7
 `)
     chmodSync(path.join(quietBin, "claude"), 0o755)
@@ -898,7 +898,7 @@ printf '%s' '${prefix}${sentinel}${"y".repeat(maxRawBytes)}'
     const bin = temp("ce-work-bin-")
     writeFileSync(path.join(bin, "claude"), `#!/bin/sh
 cat > '${f.capture}/stdin'
-python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 8388608)'
+python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 65536)'
 `)
     chmodSync(path.join(bin, "claude"), 0o755)
 
@@ -906,6 +906,7 @@ python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 8388608)'
       ...process.env,
       PATH: `${bin}:${process.env.PATH}`,
       CE_WORK_MAX_RAW_BYTES: String(maxRawBytes),
+      CE_WORK_ACTIVITY_POLL_SECS: "1",
     })
 
     expect(result.code).toBe(1)
