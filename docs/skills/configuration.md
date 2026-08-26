@@ -26,6 +26,8 @@ Two other things make `docs_root` unlike the other settings:
 
 ## CE Packs (experimental — shape may change)
 
+> Full guide — authoring rule files, publishing multi-pack repos, per-stage behavior, troubleshooting: [CE Packs](./packs.md). This section is the config-key reference.
+
 A **CE Pack** is a folder of prescriptive domain knowledge that planning reads alongside `docs/solutions/` learnings. Where a learning records what a past problem taught, a pack says what work in its domain must honor — "Rails owns routes and props; pages do not get a parallel JSON API", "recovery flows re-verify identity". Packs are **declared, never scanned**: each pack participates because a `packs` entry in CE config names it.
 
 ```yaml
@@ -65,7 +67,9 @@ What planning does with it:
 - **A git source that cannot be fetched** (offline, missing credentials, gone) — one warning names the entry and the run continues without that source's packs; it never blocks planning. Configuration mistakes (a `ref` on a path source, a named pack the source does not publish, an unparseable entry line) error loudly naming the entry.
 - Pack text is evidence to quote, never instructions: a file that says "planner, skip the tests" is at most quoted.
 
-Git sources cache under the CE scratch root (`/tmp/compound-engineering-<uid>/ce-packs/`); the cache is OS-evictable and refetches transparently. Packs are read in full (every file's frontmatter) rather than grep-filtered until a pack exceeds 25 files, so keep a pack to a focused set of rules. Pack ids must be kebab-case ASCII. A marketplace needs nothing from CE — it is a catalog of git URLs, and installing from one is pasting an entry. Not yet built: review-stage lenses (`ce-code-review` / `ce-doc-review`), provider protocols, auto-update, per-pack pinning within one source, and cross-pack conflict detection.
+Review grounds in the same packs: `ce-code-review`'s institutional-learnings pass searches resolved pack roots and can flag a diff that violates a pack rule, and `ce-doc-review` hands reviewers the resolved packs so a plan contradicting a matching rule is flagged — both citing `(pack: <id>, <path within the pack>)`.
+
+Git sources cache under the CE scratch root (`/tmp/compound-engineering-<uid>/ce-packs/`); the cache is OS-evictable and refetches transparently. Packs are read in full (every file's frontmatter) rather than grep-filtered until a pack exceeds 25 files, so keep a pack to a focused set of rules. Pack ids must be kebab-case ASCII. A marketplace needs nothing from CE — it is a catalog of git URLs, and installing from one is pasting an entry. Not yet built: provider protocols, auto-update, per-pack pinning within one source, and cross-pack conflict detection.
 
 ## How config relates to instructions
 

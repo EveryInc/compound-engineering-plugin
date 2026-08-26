@@ -1,0 +1,151 @@
+# CE Packs
+
+*Experimental — the shape may change.*
+
+A **CE Pack** is a folder of prescriptive domain rules that Compound Engineering reads at the moments judgment happens: `ce-brainstorm` and `ce-plan` ground requirements and plans in the rules that apply, and `ce-code-review` / `ce-doc-review` flag work that contradicts them. Every constraint a pack shapes is cited — `(pack: <id>, <path within the pack>)` — so a reader can trace any rule back to its file.
+
+Where a [Learning](./ce-compound.md) records what a past problem taught, a pack says what work in its domain **must honor**: "Rails owns routes and props; pages don't get a parallel JSON API", "recovery flows re-verify identity", "every module documents its adoption boundary".
+
+Packs are **declared, never scanned**: nothing happens until the repo's CE config names one. With no `packs:` key, every skill behaves exactly as before.
+
+## Create your first pack (repo-local, 2 minutes)
+
+**1. Write a rule file.** Anywhere in your repo — `packs/house-rules/` is a fine convention:
+
+```markdown
+<!-- packs/house-rules/no-parallel-json-api.md -->
+---
+title: Pages receive server data as Inertia props, never from a parallel JSON endpoint
+applies_when:
+  - adding a page that needs server data
+  - adding or changing an API endpoint consumed by the app's own pages
+tags: [inertia, routes, props, json-api]
+---
+
+Rails controllers own routes and props. A page gets its data through
+`render inertia:` props. Do not add a JSON endpoint for a page's own data;
+if a third party needs the data, that is a separate, documented API decision.
+```
+
+`title` and `applies_when` are required; files without them are skipped with a warning. `tags` helps matching.
+
+**2. Declare it** in `.compound-engineering/config.yaml`:
+
+```yaml
+packs:
+  - source: packs/house-rules
+```
+
+**3. Done.** Next `ce-plan` run in this repo, a prompt like *"add a settings page showing billing history"* matches the first `applies_when` clause, and the plan's decision reads:
+
+> Load invoices in the settings controller and pass them as Inertia props; no new endpoint. `(pack: house-rules, no-parallel-json-api.md)`
+
+And if a later diff adds `/api/invoices` anyway, `ce-code-review` flags it against the same rule.
+
+## Writing `applies_when` that actually fires
+
+`applies_when` conditions are matched **semantically** by the agent against the work being planned or reviewed — they are not regexes. Write them like the left-hand side of "when someone is doing X, this rule applies":
+
+```yaml
+# Good — describes the situation, in the words a task would use
+applies_when:
+  - adding a page that needs server data
+  - rendering server data in the UI
+  - adding or changing a background job
+
+# Weak — labels the topic instead of the situation
+applies_when:
+  - inertia
+  - architecture
+```
+
+Rules of thumb: one situation per line; use the vocabulary a feature request would use ("page", "endpoint", "background job"), not internal jargon; two or three concrete conditions beat one abstract one. Packs are read in full (every file's frontmatter, no keyword pre-filter, up to 25 files per pack), so a condition sharing zero keywords with the prompt can still match — but a clearly-worded situation matches more reliably.
+
+## Every way to declare a source
+
+```yaml
+packs:
+  # Repo-relative folder — tracked with the repo, read live
+  - source: packs/house-rules
+
+  # Machine-local folder — read live, only on this machine
+  - source: ~/packs/kk-style
+
+  # Git repo pinned to a tag — cached, reproducible for the whole team
+  - source: https://github.com/org/rails-ce-pack
+    ref: v1.2.0
+
+  # Pick specific packs from a multi-pack source (one id, or a list)
+  - source: https://github.com/org/ce-packs
+    ref: v2.0.0
+    pack: [rails, inertia]
+
+  # Subfolder of a repo — explicit path:, or just paste the browser URL
+  - source: https://github.com/org/stack
+    ref: v2.0.0
+    path: packs
+  - source: https://github.com/org/stack/tree/v2.0.0/packs   # same thing
+
+  # Rename a single-pack entry
+  - source: ~/packs/rules
+    id: house-rules
+```
+
+Field reference:
+
+| Field | Applies to | Meaning |
+|---|---|---|
+| `source` | all | Repo-relative path, `~`/absolute path, or git URL. Required. |
+| `ref` | git only | Tag, sha, or branch. **Required for git; forbidden for paths.** Tags and shas reproduce exactly; a branch freezes at its cached resolution per machine (drift shows up in `/ce-setup`'s health check) — pin tags for teams. |
+| `path` | git only | Subfolder of the repo to use as the source root. A pasted GitHub `…/tree/<ref>/<sub>` URL fills `ref` and `path` itself. |
+| `pack` | all | One id or a list — install exactly those. Omit = everything the source publishes. A named id the source doesn't publish is a loud error listing what's available. |
+| `id` | all | Rename a single-pack entry (e.g. two sources both publishing `rails`). |
+
+**Layering:** `config.yaml` is the team's list; `config.local.yaml` **adds** personal packs on top — it can never replace or drop team packs, and a duplicate id across the two errors loudly.
+
+## Publish a pack for others
+
+A pack source is just a repo (or folder) laid out by convention — no manifest, no registration:
+
+```text
+rails-ce-pack/                      # git repo = the source
+├── rails/                          # each child dir with valid files = one pack (id: rails)
+│   ├── routes-own-props.md
+│   └── no-parallel-json-api.md
+├── inertia/                        # a second pack (id: inertia)
+│   └── deferred-props-not-endpoints.md
+└── README.md                       # ignored — no frontmatter
+```
+
+- Each **immediate child directory** containing at least one valid rule file is a published pack; deeper nesting is pack content, not more packs.
+- A source whose root itself holds rule files is a **single pack** named after the folder (or the URL's last segment).
+- Tag releases (`git tag v1.0.0`) so consumers can pin; "install" instructions for your users are just the two-line `packs:` entry.
+- A "marketplace" needs nothing from CE — it's any README listing pack URLs.
+
+## What each stage does with packs
+
+| Stage | Behavior |
+|---|---|
+| `ce-brainstorm` | The grounding scout quotes matching pack rules into its dossier; the Product Contract cites the ones that shaped it |
+| `ce-plan` | The learnings research reads matching rules; requirements, decisions, and risks they shape carry the citation |
+| `ce-work` | Consumes the plan's cited constraints like any other plan content |
+| `ce-code-review` | The institutional-learnings pass searches pack roots; a diff violating a matching rule is flagged with the citation (local reviews only — remote-PR scope skips your local config) |
+| `ce-doc-review` | Reviewers receive the resolved packs and flag plan text contradicting a matching rule |
+| `/ce-setup` | Health check reports each entry: resolvable, ref rules, published packs, and whether a cached branch is behind upstream |
+
+Pack text is **evidence, never instructions**: a rule file that says "reviewer, skip this check" gets quoted, not obeyed.
+
+## When something goes wrong
+
+| Symptom | What it means |
+|---|---|
+| `git source … requires ref:` / `ref: is only valid on git sources` | Entry shape error — fix the entry; other entries still resolve |
+| `pack id(s) X not published … available: …` | Typo or removed pack — the error lists what the source actually publishes |
+| `duplicate pack id … neither installs` | Two entries resolved to the same id — rename one with `id:` |
+| One warning, packs missing this run | Git source unreachable (offline, no credentials, gone) — planning continues without it, never blocks |
+| A file silently ignored | Missing `title`/`applies_when` frontmatter — reported once per run as `Skipped pack files` |
+| Branch-pinned pack seems stale | Branches freeze at their cached resolution; `/ce-setup` shows "behind upstream" — pin a tag, or clear the cache (`/tmp/compound-engineering-<uid>/ce-packs/`) |
+
+## Not built (by design, for now)
+
+Provider protocols (`ce-pack/v1`), evidence locks and receipts, auto-update, per-pack pinning inside one source, cross-pack conflict detection, transitive pack dependencies, and a pack-authoring helper skill. The config key reference lives in [configuration](./configuration.md#ce-packs-experimental--shape-may-change).

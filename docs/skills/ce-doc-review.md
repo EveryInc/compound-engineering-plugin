@@ -10,6 +10,8 @@ It is the sibling of `/ce-code-review` for the docs side. It is not a verdict. U
 
 ---
 
+If the repo declares [CE Packs](./packs.md) in its `packs` config, reviewers receive the resolved packs and flag document content that contradicts a matching pack rule, citing `(pack: <id>, <path within the pack>)`.
+
 ## TL;DR
 
 | Question | Answer |

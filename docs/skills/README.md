@@ -4,7 +4,7 @@ End-user-facing documentation for compound-engineering plugin skills. Each page 
 
 For runtime behavior and contributor reference, the `SKILL.md` in each skill's source folder under `skills/` is authoritative.
 
-Checkout-local defaults shared across skills are documented in [Compound Engineering configuration](./configuration.md).
+Checkout-local defaults shared across skills are documented in [Compound Engineering configuration](./configuration.md). Prescriptive rule packs the pipeline grounds in are documented in [CE Packs](./packs.md).
 
 Artifact paths shown throughout these pages (`docs/plans/`, `docs/solutions/`, `docs/ideation/`, and the rest) are the **defaults**. A project can relocate every CE artifact folder under one repo-relative root with `docs_root`; when it is set, read the shown paths as `<your-docs_root>/plans/`, `<your-docs_root>/solutions/`, and so on. See [Artifact root](./configuration.md#artifact-root).
 
