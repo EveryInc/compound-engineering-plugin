@@ -142,7 +142,7 @@ Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainst
 
 > Artifact folders like `docs/solutions/` and `docs/plans/` are the **defaults**. A project whose `docs/` is tracked content can relocate every CE artifact folder under one repo-relative root via the `docs_root` setting -- see [configuration](docs/skills/configuration.md#artifact-root).
 >
-> A repo can also track prescriptive domain rules as a **CE Pack** under `.compound-engineering/packs/<id>/`; planning reads matching files and cites them in the plan (experimental v0) -- see [CE Packs](docs/skills/configuration.md#ce-packs-v0-experimental--shape-may-change).
+> A repo can also declare prescriptive domain rules as **CE Packs** in its `packs` config -- local folders or ref-pinned git repos; planning reads matching files and cites them in the plan (experimental) -- see [CE Packs](docs/skills/configuration.md#ce-packs-experimental--shape-may-change).
 
 ## Try it
 
