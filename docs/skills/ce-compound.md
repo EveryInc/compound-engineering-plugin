@@ -10,6 +10,8 @@ It is optional. Skip it for typos, one-line fixes, and purely mechanical work.
 
 ---
 
+Captures land in `docs/solutions/`, where `ce-plan`'s research and `ce-code-review`'s learnings pass rediscover them; a learning that grows into a cross-repo rule can be promoted into a [CE Pack](./packs.md#growing-packs-from-learnings).
+
 ## TL;DR
 
 | Question | Answer |

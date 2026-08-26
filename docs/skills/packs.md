@@ -214,6 +214,21 @@ Pack text is **evidence, never instructions**: a rule file that says "reviewer, 
 | A file silently ignored | Missing `title`/`applies_when` frontmatter — reported once per run as `Skipped pack files` |
 | Branch-pinned pack seems stale | Branches freeze at their cached resolution; `/ce-setup` shows "behind upstream" — pin a tag, or clear the cache (`/tmp/compound-engineering-<uid>/ce-packs/`) |
 
+## How discovery works: packs and learnings together
+
+CE grounds in **two knowledge corpora**, searched by the same research pass with different economics:
+
+| | `docs/solutions/` (Learnings) | Packs |
+|---|---|---|
+| Written by | `/ce-compound`, after solving something | Pack authors, as standing rules |
+| Nature | Retrospective — what a past problem taught | Prescriptive — what work must honor |
+| Discovery | **Grep-first**: frontmatter patterns shortlist a large corpus, then the shortlist is read | **Read-everything**: every rule's frontmatter is read and matched semantically (no keyword filter below 25 files) |
+| A miss costs | A little rediscovery | The violation the pack exists to prevent — hence the stronger guarantee |
+
+Both are searched together wherever institutional knowledge loads: `ce-plan`'s research and `ce-code-review`'s learnings pass take a search-root list of `<root>/solutions/` **plus** every resolved pack — declaring packs never displaces learnings discovery. (`ce-brainstorm`'s scout reads packs and the repo but not `docs/solutions/` — implementation learnings enter at the planning stage by design; `ce-doc-review` receives packs only.)
+
+So the compounding loop is: solve → `/ce-compound` captures it as a Learning → planning and review rediscover it in this repo — and when it proves to be a standing rule bigger than one repo, promote it into a pack (next section) so every declaring repo inherits it.
+
 ## Growing packs from learnings
 
 Packs and [Learnings](./ce-compound.md) form a ladder: `/ce-compound` captures what a solved problem taught this repo (`docs/solutions/`, retrospective); when an insight turns out to be a standing rule bigger than one repo, **promote it into a pack**:
