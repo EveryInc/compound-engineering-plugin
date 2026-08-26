@@ -137,7 +137,7 @@ One declared list solves all of it: every source kind is the same entry shape, t
 
 - Porting the pack search-roots block to the `ce-ideate` / `ce-optimize` researcher copies (their prompts are divergent by design; packs stay planning-and-brainstorm-only in this release).
 - A real-pack value check in `compound-stack-rails` after release — the observation that gates review-lens v1.
-- `ce-compound` pack routing: detect prescriptive, cross-repo captures and offer a writable declared pack (or scaffold one plus its config entry) as the destination, with the learning-to-rule rewrite; git-sourced packs need an upstream commit flow and stay manual.
+- `ce-compound` pack awareness: (a) search resolved packs during capture so an insight already covered by a pack rule is recognized rather than re-captured, and a refinement is pointed at the pack instead of forked locally; (b) routing — detect prescriptive, cross-repo captures and offer a writable declared pack (or scaffold one plus its config entry) as the destination, with the learning-to-rule rewrite; git-sourced packs need an upstream commit flow and stay manual.
 
 ### Dependencies / Assumptions
 
