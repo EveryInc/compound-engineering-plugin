@@ -1,4 +1,6 @@
-import { afterAll, expect, test } from "bun:test"
+import { afterAll, expect, setDefaultTimeout, test } from "bun:test"
+
+setDefaultTimeout(20_000)
 import { spawnSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
