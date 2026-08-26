@@ -12,7 +12,7 @@ It is not a verdict on a document (`ce-pov`), not findings on a planning doc (`c
 
 ---
 
-If the repo declares [CE Packs](./packs.md) in its `packs` config, the institutional-learnings pass also searches the resolved pack roots, and a diff that violates a matching pack rule is flagged with a `(pack: <id>, <path within the pack>)` citation.
+If the repo declares [Compound Packs](./packs.md) in its `packs` config, the institutional-learnings pass also searches the resolved pack roots, and a diff that violates a matching pack rule is flagged with a `(pack: <id>, <path within the pack>)` citation.
 
 ## TL;DR
 

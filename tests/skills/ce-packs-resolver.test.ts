@@ -4,7 +4,7 @@ import { tmpdir } from "os"
 import path from "path"
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 
-// Deterministic proof for the CE Packs resolver (plan AE1-AE7): fixture repos
+// Deterministic proof for the Compound Packs resolver (plan AE1-AE7): fixture repos
 // and file:// git sources built per test, cache isolated via CE_PACKS_CACHE_ROOT.
 setDefaultTimeout(30000)
 
@@ -15,6 +15,7 @@ const COPIES = [
   "skills/ce-setup/scripts/packs-resolve.py",
   "skills/ce-code-review/scripts/packs-resolve.py",
   "skills/ce-doc-review/scripts/packs-resolve.py",
+  "skills/ce-compound/scripts/packs-resolve.py",
 ]
 
 const scratch = mkdtempSync(path.join(tmpdir(), "ce-packs-resolver-"))

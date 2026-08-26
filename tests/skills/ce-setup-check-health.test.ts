@@ -815,7 +815,7 @@ describe("ce-setup check-health docs_root resolution", () => {
   })
 })
 
-describe("ce-setup check-health CE Packs section", () => {
+describe("ce-setup check-health Compound Packs section", () => {
   test("reports resolved packs and flags config errors as project issues", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
     try {
@@ -835,7 +835,7 @@ describe("ce-setup check-health CE Packs section", () => {
       const result = await runCheckHealth(root, process.env.PATH ?? "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("CE Packs")
+      expect(result.stdout).toContain("Compound Packs")
       expect(result.stdout).toContain("pack house-rules")
       expect(result.stdout).toContain("Pack config error:")
       expect(result.stdout).toContain("project issue(s) found")

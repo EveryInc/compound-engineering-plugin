@@ -17,7 +17,7 @@ For planning invocations, search the full learning corpus described below, then 
 
 ## Search Roots
 
-The caller may pass a **search-root list**: `<root>/solutions/` plus zero or more CE Packs, each as an `id` and an absolute directory, and optionally a list of pack files the origin document already cites. With no list, probe `<root>/solutions/` only — packs are declared in CE config and resolved by the caller, not rediscovered here. Every step below that names `<root>/solutions/` applies to each search root, except Step 2's subdirectory probe and Step 3b's critical-patterns read, which stay scoped to `<root>/solutions/`. Pack-specific rules:
+The caller may pass a **search-root list**: `<root>/solutions/` plus zero or more Compound Packs, each as an `id` and an absolute directory, and optionally a list of pack files the origin document already cites. With no list, probe `<root>/solutions/` only — packs are declared in CE config and resolved by the caller, not rediscovered here. Every step below that names `<root>/solutions/` applies to each search root, except Step 2's subdirectory probe and Step 3b's critical-patterns read, which stay scoped to `<root>/solutions/`. Pack-specific rules:
 
 - **A pack is small and prescriptive, so do not grep-filter it.** Skip the Step 3 pre-filter for a pack root: read the frontmatter of every markdown file in the pack (Step 4), then score with Step 5. Apply the Step 3 pre-filter to a pack only when it holds more than 25 files. The grep-first path for `<root>/solutions/` is unchanged.
 - **Match `applies_when`.** Pack files (and some learnings) carry an `applies_when:` list of conditions; treat it as a primary match field alongside `title` and `tags` in Steps 3-5.
@@ -214,7 +214,7 @@ Structure findings as follows:
 
 #### 1. [Title from document]
 - **File**: [absolute or repo-relative path]
-- **Pack**: [pack id — only for findings from a CE Pack; omit the line otherwise]
+- **Pack**: [pack id — only for findings from a Compound Pack; omit the line otherwise]
 - **Module**: [module/domain from frontmatter, or the repo area the learning applies to]
 - **Problem Type**: [raw `problem_type` value from frontmatter, e.g. `architecture_pattern`, `design_pattern`, `tooling_decision`, `runtime_error`. Mark as "inferred" when the entry has no `problem_type`.]
 - **Relevance**: [why this matters for the caller's work]
@@ -250,7 +250,7 @@ When no relevant learnings are found, say so explicitly, include the search cont
 
 **DON'T:**
 
-- Skip the grep pre-filter and read frontmatter of every file in `<root>/solutions/` — pre-filter first, then read frontmatter of the shortlist (a CE Pack root is the exception; see Search Roots)
+- Skip the grep pre-filter and read frontmatter of every file in `<root>/solutions/` — pre-filter first, then read frontmatter of the shortlist (a Compound Pack root is the exception; see Search Roots)
 - Read full content of every candidate — only the ones that pass relevance scoring
 - Run searches sequentially when they can be parallel
 - Use only exact keyword matches (include synonyms); skip `title:` in patterns; proceed with >25 candidates without narrowing

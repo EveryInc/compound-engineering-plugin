@@ -24,15 +24,15 @@ Two other things make `docs_root` unlike the other settings:
 
 `docs_root` does not make artifacts survive an ephemeral workspace — the root is inside the repo, so it lives and dies with the checkout.
 
-## CE Packs (experimental — shape may change)
+## Compound Packs (experimental — shape may change)
 
-> Full guide — authoring rule files, publishing multi-pack repos, per-stage behavior, troubleshooting: [CE Packs](./packs.md). This section is the config-key reference.
+> Full guide — authoring rule files, publishing multi-pack repos, per-stage behavior, troubleshooting: [Compound Packs](./packs.md). This section is the config-key reference.
 
-A **CE Pack** is a folder of prescriptive domain knowledge that planning reads alongside `docs/solutions/` learnings. Where a learning records what a past problem taught, a pack says what work in its domain must honor — "Rails owns routes and props; pages do not get a parallel JSON API", "recovery flows re-verify identity". Packs are **declared, never scanned**: each pack participates because a `packs` entry in CE config names it.
+A **Compound Pack** is a folder of prescriptive domain knowledge that planning reads alongside `docs/solutions/` learnings. Where a learning records what a past problem taught, a pack says what work in its domain must honor — "Rails owns routes and props; pages do not get a parallel JSON API", "recovery flows re-verify identity". Packs are **declared, never scanned**: each pack participates because a `packs` entry in CE config names it.
 
 ```yaml
 packs:
-  - source: packs/local-rules                       # repo-relative path, read live
+  - source: compound-packs/local-rules                       # repo-relative path, read live
   - source: ~/packs/kk-style                        # machine-local path, read live
   - source: https://github.com/org/rails-ce-pack    # git URL, cached at ref
     ref: v1.2.0                                     # tag, sha, or branch (required for git)

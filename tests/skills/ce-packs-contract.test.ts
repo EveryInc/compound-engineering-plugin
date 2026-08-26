@@ -2,7 +2,7 @@ import { readFileSync } from "fs"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
-// CE Packs (docs/plans/2026-08-26-001-feat-ce-packs-config-sources-plan.md)
+// Compound Packs (docs/plans/2026-08-26-001-feat-ce-packs-config-sources-plan.md)
 // has no runtime code — the whole mechanism is prose in two skills. These guards
 // pin the load-bearing tokens so a later edit cannot silently drop pack
 // discovery, `applies_when` matching, the skip-warning relay, or the citation
@@ -145,5 +145,36 @@ describe("review stage grounds in packs", () => {
     expect(DR_DISPATCH).toMatch(/\{pack_constraints\}/)
     expect(DR_DISPATCH).toMatch(CITATION)
     expect(DR_TEMPLATE).toMatch(/\{pack_constraints\}/)
+  })
+})
+
+describe("compound closes the loop through packs", () => {
+  const CO_SKILL = read("skills/ce-compound/SKILL.md")
+  const CO_RESEARCH = read("skills/ce-compound/references/research.md")
+  const CO_ASSEMBLY = read("skills/ce-compound/references/assembly.md")
+
+  test("capture resolves packs and the finder records pack overlap", () => {
+    expect(CO_RESEARCH).toMatch(/packs-resolve\.py/)
+    expect(CO_RESEARCH).toMatch(/pack_overlap/)
+    expect(CO_RESEARCH).toMatch(/never instructions/)
+  })
+
+  test("assembly handles pack-covered captures in both modes", () => {
+    expect(CO_ASSEMBLY).toMatch(/\*\*Pack-covered\*\*/)
+    expect(CO_ASSEMBLY).toMatch(CITATION)
+    expect(CO_ASSEMBLY).toMatch(/Documentation skipped — covered by pack rule/)
+  })
+
+  test("destination routing is interactive-only, writable-pack-gated, with the rule rewrite", () => {
+    expect(CO_ASSEMBLY).toMatch(/interactive Full mode only/)
+    expect(CO_ASSEMBLY).toMatch(/no `url`\/`ref` keys/)
+    expect(CO_ASSEMBLY).toMatch(/applies_when/)
+    expect(CO_ASSEMBLY).toMatch(/upstream: manual/)
+    expect(CO_ASSEMBLY).toMatch(/every non-interactive run, skip/)
+  })
+
+  test("the write boundary names the two consented pack writes", () => {
+    expect(CO_SKILL).toMatch(/writable declared Compound Pack/)
+    expect(CO_SKILL).toMatch(/`packs:` entry appended/)
   })
 })

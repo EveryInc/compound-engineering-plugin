@@ -142,7 +142,7 @@ Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainst
 
 > Artifact folders like `docs/solutions/` and `docs/plans/` are the **defaults**. A project whose `docs/` is tracked content can relocate every CE artifact folder under one repo-relative root via the `docs_root` setting -- see [configuration](docs/skills/configuration.md#artifact-root).
 >
-> Want the same knowledge compounding across every repo in your org -- team conventions, security policies, a stack's hard-won rules -- instead of being relearned in each one? Declare it as **CE Packs**: folders of prescriptive rules (local, or ref-pinned git repos) that planning grounds in and review enforces, every use cited back to the rule file (experimental) -- see [CE Packs](docs/skills/packs.md).
+> Want the same knowledge compounding across every repo in your org -- team conventions, security policies, a stack's hard-won rules -- instead of being relearned in each one? Declare it as **Compound Packs**: folders of prescriptive rules (local, or ref-pinned git repos) that planning grounds in and review enforces, every use cited back to the rule file (experimental) -- see [Compound Packs](docs/skills/packs.md).
 
 ## Try it
 
@@ -436,7 +436,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, and [`docs/development.md`](
 |---|---|
 | [Skill catalog](docs/skills/README.md) | A page per skill, and how they chain together |
 | [Configuration](docs/skills/configuration.md) | `.compound-engineering/config.yaml` options |
-| [CE Packs](docs/skills/packs.md) | Declaring, authoring, and publishing prescriptive rule packs |
+| [Compound Packs](docs/skills/packs.md) | Declaring, authoring, and publishing prescriptive rule packs |
 | [Installing](#install) · [Upgrading](docs/install/upgrading.md) | Per-host install and refresh |
 | [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) | Working on the plugin itself |
 | [Security](SECURITY.md) · [Privacy](PRIVACY.md) | Reporting and data handling |

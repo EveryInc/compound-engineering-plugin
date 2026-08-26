@@ -1,8 +1,8 @@
-# CE Packs
+# Compound Packs
 
 *Experimental — the shape may change.*
 
-A **CE Pack** ingests domain knowledge into the steps of Compound Engineering at runtime. It is a folder of prescriptive rules that the pipeline reads at the moments judgment happens: `ce-brainstorm` and `ce-plan` ground requirements and plans in the rules that apply, and `ce-code-review` / `ce-doc-review` flag work that contradicts them. Every constraint a pack shapes is cited — `(pack: <id>, <path within the pack>)` — so a reader can trace any rule back to its file.
+A **Compound Pack** ingests domain knowledge into the steps of Compound Engineering at runtime. It is a folder of prescriptive rules that the pipeline reads at the moments judgment happens: `ce-brainstorm` and `ce-plan` ground requirements and plans in the rules that apply, and `ce-code-review` / `ce-doc-review` flag work that contradicts them. Every constraint a pack shapes is cited — `(pack: <id>, <path within the pack>)` — so a reader can trace any rule back to its file.
 
 **A pack is not a skill.** A skill is something CE can *do*; a pack is something CE must *know* while doing it. See [Why packs aren't skills](#why-packs-arent-skills).
 
@@ -12,10 +12,10 @@ Packs are **declared, never scanned**: nothing happens until the repo's CE confi
 
 ## Create your first pack (repo-local, 2 minutes)
 
-**1. Write a rule file.** Anywhere in your repo — `packs/house-rules/` is a fine convention:
+**1. Write a rule file.** Anywhere in your repo — `compound-packs/house-rules/` is a fine convention:
 
 ```markdown
-<!-- packs/house-rules/no-parallel-json-api.md -->
+<!-- compound-packs/house-rules/no-parallel-json-api.md -->
 ---
 title: Pages receive server data as Inertia props, never from a parallel JSON endpoint
 applies_when:
@@ -37,7 +37,7 @@ A pack can also carry files the load script never touches — see the layout rul
 
 ```yaml
 packs:
-  - source: packs/house-rules
+  - source: compound-packs/house-rules
 ```
 
 **3. Done.** Next `ce-plan` run in this repo, a prompt like *"add a settings page showing billing history"* matches the first `applies_when` clause, and the plan's decision reads:
@@ -72,7 +72,7 @@ Rules of thumb: one situation per line; use the vocabulary a feature request wou
 ```yaml
 packs:
   # Repo-relative folder — tracked with the repo, read live
-  - source: packs/house-rules
+  - source: compound-packs/house-rules
 
   # Machine-local folder — read live, only on this machine
   - source: ~/packs/kk-style
@@ -156,7 +156,7 @@ The resolver enumerates **only** directories holding `.md` files with `title` + 
 Rules stay small; the data they lean on can be arbitrarily large — and it can live **inside the pack itself**, invisible to the load script. The layout rule:
 
 ```text
-packs/house-rules/
+compound-packs/house-rules/
 ├── no-parallel-json-api.md        # top-level .md with frontmatter = a rule (loaded on match)
 ├── error-responses.md             # another rule
 └── resources/                     # ANY subdirectory: never scanned, never loaded,
@@ -237,7 +237,9 @@ Packs and [Learnings](./ce-compound.md) form a ladder: `/ce-compound` captures w
 2. Give it the pack frontmatter (`title` + situational `applies_when`; drop bug-track fields like `symptoms`/`root_cause`).
 3. Move it into a writable pack — a repo-relative or `~` path source. (Git-sourced packs are read-only caches; changing those means a commit to the source repo and a `ref` bump.)
 
-From then on it stops being something future work might rediscover and becomes something planning grounds in and review enforces — in every repo that declares the pack. Automatic routing (`/ce-compound` offering a pack as the capture destination, or scaffolding one) is a planned follow-up.
+From then on it stops being something future work might rediscover and becomes something planning grounds in and review enforces — in every repo that declares the pack.
+
+`/ce-compound` automates this loop: during capture it checks the declared packs — an insight a pack rule already prescribes is recognized instead of re-captured (with the citation, and an offer to refine the rule), and a prescriptive, cross-repo capture can be routed straight into a writable pack (or a newly scaffolded one) with the learning-to-rule rewrite applied. Git-sourced packs stay read-only — refining those means a commit to their source repo and a `ref` bump.
 
 ## Why packs aren't skills
 
@@ -260,4 +262,4 @@ The two compose at the repo level: one git repo can publish `packs/` (declared h
 
 ## Not built (by design, for now)
 
-Provider protocols (`ce-pack/v1`), evidence locks and receipts, auto-update, per-pack pinning inside one source, cross-pack conflict detection, transitive pack dependencies, and a pack-authoring helper skill. The config key reference lives in [configuration](./configuration.md#ce-packs-experimental--shape-may-change).
+Provider protocols (`ce-pack/v1`), evidence locks and receipts, auto-update, per-pack pinning inside one source, cross-pack conflict detection, transitive pack dependencies, and a pack-authoring helper skill. The config key reference lives in [configuration](./configuration.md#compound-packs-experimental--shape-may-change).

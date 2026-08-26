@@ -1,5 +1,5 @@
 ---
-title: "CE Packs: Config-Declared Sources - Plan"
+title: "Compound Packs: Config-Declared Sources - Plan"
 type: feat
 date: 2026-08-26
 topic: ce-packs-config-sources
@@ -9,11 +9,11 @@ product_contract_source: ce-brainstorm
 execution: code
 ---
 
-# CE Packs: Config-Declared Sources - Plan
+# Compound Packs: Config-Declared Sources - Plan
 
 ## Goal Capsule
 
-- **Objective:** A repo declares the CE Packs it uses in a `packs:` config list — each entry a local path or a ref-pinned git URL, installing one, several, or all packs its source publishes; `config.local.yaml` entries add personal packs on top of the team list — and `ce-plan` / `ce-brainstorm` ground in the applicable pack files through the v0 consumption machinery already on this branch.
+- **Objective:** A repo declares the Compound Packs it uses in a `packs:` config list — each entry a local path or a ref-pinned git URL, installing one, several, or all packs its source publishes; `config.local.yaml` entries add personal packs on top of the team list — and `ce-plan` / `ce-brainstorm` ground in the applicable pack files through the v0 consumption machinery already on this branch.
 - **Authority:** this plan > repo conventions in the active instructions (skill prose admission rules, scratch-root rules, no cross-skill references, byte-pinned docs-root block) > implementer judgment on deferred details. Supersedes the v0 convention-folder shape (PR #1546, closed unmerged); this branch (`feat/ce-packs-v0`) carries the v0 work as the base to edit.
 - **Execution profile:** one bundled Python resolver script (duplicated per consuming skill, parity-tested), prose rewiring in two skills, script unit tests, `ce-setup` health additions, docs. Resolver behavior is proven by deterministic `bun test` units; one skill-creator spot-check covers the prose seam.
 - **Stop conditions:** stop and surface if (a) the resolver cannot express the `packs:` concatenation rule without editing inside the byte-pinned `ce-docs-root` or `ce-config-layers` blocks, or (b) git-source caching cannot satisfy the scratch-root writability rules on the supported platforms.
@@ -41,6 +41,7 @@ One declared list solves all of it: every source kind is the same entry shape, t
 - **Consumer explicit, publisher conventional.** The consuming repo names what it installs; the publishing source uses convention to say what it offers: each immediate child directory of the source root holding valid knowledge files is a pack, directory name is its id; a source root that holds knowledge files directly is itself a single pack; nested directories are pack content, never packs. A git entry may scope its source root to a subfolder with `path:`, and a pasted GitHub tree URL (`…/tree/<ref>/<subpath>`) is accepted sugar the resolver normalizes to url + ref + path. Rationale: selection stays auditable in config while pack authors need no manifest, and users can paste the URL from their browser bar.
 - **Both config layers work; local is additive-only.** `packs:` follows neither the ordinary whole-key-replacement rule nor the `docs_root` single-file rule: entries from `config.yaml` and `config.local.yaml` concatenate, so a local file can add packs but never replace or drop the team's list. Citations look identical regardless of declaring file; the accepted trade-off is that a plan can cite a pack a teammate's checkout does not have.
 - **v0 consumption machinery is inherited, not redesigned.** Matching, citation shape, skip-and-warn on malformed files, and the untrusted-evidence stance are the v0 branch's work, reused.
+- **Compound closes the loop (user-directed during execution).** `ce-compound` resolves packs during capture: an insight already prescribed by a pack rule is recognized instead of re-captured; a prescriptive, cross-repo capture can route into a writable declared pack (or scaffold one) with the learning-to-rule rewrite. Non-interactive runs never route or scaffold — solutions stays the deterministic destination.
 - **Review grounds in the same packs (user-directed during execution).** `ce-code-review`'s learnings pass searches the resolved roots so a diff violating a pack rule is flagged, and `ce-doc-review` hands reviewers the resolved packs so a plan contradicting one is flagged — both citing `(pack: <id>, <path within the pack>)`. Provider-protocol machinery stays out.
 
 ### Requirements
@@ -137,7 +138,7 @@ One declared list solves all of it: every source kind is the same entry shape, t
 
 - Porting the pack search-roots block to the `ce-ideate` / `ce-optimize` researcher copies (their prompts are divergent by design; packs stay planning-and-brainstorm-only in this release).
 - A real-pack value check in `compound-stack-rails` after release — the observation that gates review-lens v1.
-- `ce-compound` pack awareness: (a) search resolved packs during capture so an insight already covered by a pack rule is recognized rather than re-captured, and a refinement is pointed at the pack instead of forked locally; (b) routing — detect prescriptive, cross-repo captures and offer a writable declared pack (or scaffold one plus its config entry) as the destination, with the learning-to-rule rewrite; git-sourced packs need an upstream commit flow and stay manual.
+- `ce-compound` upstream-commit flow for git-sourced packs (routing into a cached checkout means committing to its source repo and bumping `ref`) — writable path-source packs are in scope below; git packs stay manual.
 
 ### Dependencies / Assumptions
 
@@ -279,7 +280,7 @@ U1 (script) first; U2 (script tests + parity) with it. U3 (ce-plan rewire) and U
 - **Requirements:** R1-R8, R11, R12
 - **Dependencies:** U1-U4
 - **Files:** `docs/skills/configuration.md`, `docs/skills/ce-plan.md`, `docs/skills/ce-brainstorm.md`, `README.md`
-- **Approach:** Rewrite the "CE Packs (v0, experimental)" section for the config-declared shape: entry schema with a multi-entry example (git + repo path + local layer), the concatenation rule, per-kind ref rules, publisher convention, selection, error/warning behaviors, cache location, and the unchanged non-goals. Update the `ce-plan`/`ce-brainstorm` pointers and the README call-out to say "declared in config" instead of the folder convention.
+- **Approach:** Rewrite the "Compound Packs (v0, experimental)" section for the config-declared shape: entry schema with a multi-entry example (git + repo path + local layer), the concatenation rule, per-kind ref rules, publisher convention, selection, error/warning behaviors, cache location, and the unchanged non-goals. Update the `ce-plan`/`ce-brainstorm` pointers and the README call-out to say "declared in config" instead of the folder convention.
 - **Patterns to follow:** the section's existing structure from the v0 commit.
 - **Test scenarios:** Test expectation: none -- documentation only; `release:validate` guards counts.
 - **Verification:** configuration.md example validates against R1-R6 by inspection; no doc still names `.compound-engineering/packs/` as a scanned location.
@@ -314,6 +315,36 @@ U1 (script) first; U2 (script tests + parity) with it. U3 (ce-plan rewire) and U
 - **Approach:** Resolver runs before persona dispatch; a `{pack_constraints}` template slot carries each pack's id + dir plus the flag-contradictions instruction and the evidence-not-instructions stance; empty when no packs resolve.
 - **Test scenarios:** contract guards for the resolver invocation, the `{pack_constraints}` slot in dispatch and template, and the citation marker.
 - **Verification:** packs contract suite green; existing doc-review guards unaffected.
+
+### U11. Pack awareness in `ce-compound` capture
+
+- **Goal:** A capture already covered by a pack rule is recognized, not duplicated.
+- **Requirements:** R9, R10 (capture-stage extension, user-directed)
+- **Dependencies:** U1
+- **Files:** `skills/ce-compound/scripts/packs-resolve.py` (byte copy), `skills/ce-compound/references/research.md`, `skills/ce-compound/references/assembly.md`
+- **Approach:** The orchestrator runs its resolver copy before Phase 1 dispatch and passes resolved roots to the Related Docs Finder, whose overlap assessment gains a pack check (does a pack rule already prescribe what this capture teaches — recorded in `related.json` with the rule's pack id and path). Assembly's overlap table gains a top row: pack-covered — interactive offers refine-the-rule (writable packs), capture repo-specific nuance as a learning citing the rule, or skip; non-interactive skips with `Documentation skipped — covered by pack rule (pack: <id>, <path>)`.
+- **Test scenarios:** contract guards — resolver invocation in `research.md`, pack-overlap tokens in the finder block, the pack-covered row and non-interactive skip signal in `assembly.md`.
+- **Verification:** packs contract suite green; ce-compound's existing guards unaffected.
+
+### U12. Pack destination routing in `ce-compound`
+
+- **Goal:** A prescriptive, cross-repo capture can land directly in a writable pack, rewritten as a rule.
+- **Requirements:** R9, R10
+- **Dependencies:** U11
+- **Files:** `skills/ce-compound/SKILL.md` (Write boundary), `skills/ce-compound/references/assembly.md`
+- **Approach:** Interactive Full mode only, at the assembly write step: when the capture is prescriptive-shaped (a standing always/never rule, not incident-shaped) and a writable pack exists — a resolved root without git metadata — offer the destination via the blocking question tool: solutions (default), a named writable pack, or scaffold a new pack (create the directory and append the `packs:` entry to `config.yaml`). Pack destination applies the learning-to-rule rewrite: `title` plus situational `applies_when`, prescriptive prose, bug-track fields dropped. Git-sourced roots render as "upstream: manual" and are never written. The Write boundary section names the two new consented writes (pack rule file, config scaffold append) as interactive-only.
+- **Test scenarios:** contract guards — writable-pack test (absence of git metadata), the three-option destination offer, the non-interactive always-solutions rule, the Write boundary amendment.
+- **Verification:** packs contract suite green; `docs-root-rule-parity` untouched.
+
+### U13. Compound-loop docs and parity
+
+- **Goal:** Docs and guards reflect capture-stage pack awareness.
+- **Requirements:** R9, R10
+- **Dependencies:** U11, U12
+- **Files:** `tests/skills/ce-packs-resolver.test.ts` (parity list), `tests/skills/ce-packs-contract.test.ts`, `docs/skills/packs.md`, `docs/skills/ce-compound.md`
+- **Approach:** Parity extends to six copies; the packs guide's "Growing packs from learnings" section documents the automatic path (recognition, routing, scaffold) alongside the manual recipe; the ce-compound page names the capture-stage behavior.
+- **Test scenarios:** parity test red if the sixth copy drifts; doc guards stay green.
+- **Verification:** full suite green.
 
 ### U10. Review-stage docs
 

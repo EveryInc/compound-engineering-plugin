@@ -173,7 +173,7 @@
 # sweep_lease_ttl_minutes: 60                       # single-writer lease staleness threshold
 # sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology
 
-# --- CE Packs ---
+# --- Compound Packs ---
 
 # Prescriptive domain knowledge folders that planning reads and cites.
 # Declared, never scanned: an entry names a source (repo-relative path,
@@ -186,7 +186,7 @@
 # publishes. id: renames a single-pack entry.
 
 # packs:
-#   - source: packs/local-rules                       # repo-relative, read live
+#   - source: compound-packs/local-rules                       # repo-relative, read live
 #   - source: ~/packs/kk-style                        # machine-local, read live
 #   - source: https://github.com/org/rails-ce-pack    # git, cached at ref
 #     ref: v1.2.0

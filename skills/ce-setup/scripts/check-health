@@ -611,8 +611,8 @@ if [ "$in_repo" = "yes" ]; then
     esac
     project_issues=$((project_issues + 1))
   done
-  # --- CE Packs (packs: config key) -------------------------------------
-  section "CE Packs"
+  # --- Compound Packs (packs: config key) -------------------------------------
+  section "Compound Packs"
   packs_python="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
   packs_resolver="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/packs-resolve.py"
   if [ -z "$packs_python" ]; then

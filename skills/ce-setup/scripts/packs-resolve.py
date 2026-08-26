@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve the CE Packs declared in this repo's CE config into pack roots.
+"""Resolve the Compound Packs declared in this repo's CE config into pack roots.
 
 Reads the `packs:` list from `<repo-root>/.compound-engineering/config.yaml`
 and `config.local.yaml` (both layers concatenate; local adds, never replaces),
