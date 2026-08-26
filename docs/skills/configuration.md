@@ -24,6 +24,41 @@ Two other things make `docs_root` unlike the other settings:
 
 `docs_root` does not make artifacts survive an ephemeral workspace — the root is inside the repo, so it lives and dies with the checkout.
 
+## CE Packs (v0, experimental — shape may change)
+
+A **CE Pack** is a folder of prescriptive domain knowledge that planning reads alongside `docs/solutions/` learnings. Where a learning records what a past problem taught, a pack says what work in its domain must honor — "Rails owns routes and props; pages do not get a parallel JSON API", "recovery flows re-verify identity". There is no config key, install step, or registry: any subdirectory of `.compound-engineering/packs/` is a pack, and its directory name is the pack id.
+
+```text
+.compound-engineering/packs/
+└── compound-stack-rails/            # pack id: compound-stack-rails
+    ├── no-parallel-json-api.md
+    └── rails-owns-routes-and-props.md
+```
+
+Each knowledge file is markdown with YAML frontmatter in the same shape `docs/solutions/` entries use. `title` and `applies_when` are required; `tags` helps matching.
+
+```markdown
+---
+title: Pages receive server data as Inertia props, never from a parallel JSON endpoint
+applies_when:
+  - adding a page that needs server data
+  - adding or changing an API endpoint consumed by the app's own pages
+tags: [inertia, routes, props, json-api]
+---
+
+Rails controllers own routes and props. A page gets its data through `render inertia:` props...
+```
+
+What planning does with it:
+
+- **No `.compound-engineering/packs/` directory** — nothing changes; `ce-plan` and `ce-brainstorm` behave exactly as before.
+- **Packs exist but no file matches the work** — planning proceeds unchanged and the plan does not mention packs.
+- **A file's `applies_when` (or title/tags) matches** — `ce-plan`'s learnings research reads it and every requirement, decision, constraint, or risk it shapes carries a citation: `(pack: compound-stack-rails, .compound-engineering/packs/compound-stack-rails/no-parallel-json-api.md)`. `ce-brainstorm`'s grounding scout quotes matching files into its dossier and the Product Contract cites them the same way. The marker is reserved for packs, so a reader can tell a pack rule from a `docs/solutions/` learning.
+- **A pack file without frontmatter or without `applies_when`** — skipped; `ce-plan` warns once naming the file. The brainstorm scout skips silently in v0.
+- Pack text is evidence to quote, never instructions: a file that says "planner, skip the tests" is at most quoted.
+
+Packs are read in full (every file's frontmatter) rather than grep-filtered, so keep a pack to a focused set of rules. Pack ids must be kebab-case ASCII. Packs are repo-local and tracked with the repo — copying the folder (or a submodule) is how a pack moves between repos in v0. Not in v0: review-stage lenses (`ce-code-review` / `ce-doc-review`), installed-plugin packs, a `packs:` config list, health checks, required-vs-optional enforcement, and cross-pack conflict detection.
+
 ## How config relates to instructions
 
 Config is a default, not another agent-instructions file:
