@@ -12,9 +12,16 @@ Model tiering lives in this caller, not in prompt assets. Local prompt files hav
 
 At every native subagent boundary in this phase, classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and otherwise follow that boundary's stated fallback or failed-pass handling.
 
-A **Lightweight** Durable plan does not dispatch the research agents below. Ground it from bounded inline reads of the files the request names and their tests, note any `<root>/solutions/` entry whose title matches the topic and any CE Pack file (see **Pack discovery** below) whose `applies_when` matches the work, and continue to 1.1b; 1.4b's reclassification still applies when those reads surface an external contract surface.
+A **Lightweight** Durable plan does not dispatch the research agents below. Ground it from bounded inline reads of the files the request names and their tests, note any `<root>/solutions/` entry whose title matches the topic and, after running **Pack discovery** below, any resolved pack file whose `applies_when` matches the work, and continue to 1.1b; 1.4b's reclassification still applies when those reads surface an external contract surface.
 
-**Pack discovery.** For every Durable plan — before composing the `learnings-researcher` dispatch, or inline on the Lightweight path — list `<repo-root>/.compound-engineering/packs/*/` (`<repo-root>` = `git rev-parse --show-toplevel`, never `<root>` — `docs_root` may itself live under `.compound-engineering/`). Each existing subdirectory is a CE Pack whose id is its directory name. Build the researcher's **search-root list**: `<root>/solutions/` plus one entry per pack (`id`, absolute directory). With no such directory, the list is `<root>/solutions/` alone and nothing else changes. No config key is consulted.
+**Pack discovery.** For every Durable plan — before composing the `learnings-researcher` dispatch, or inline on the Lightweight path — resolve the packs declared in CE config by running this skill's resolver as one command:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+python3 "$SKILL_DIR/scripts/packs-resolve.py"
+```
+
+(Probe the interpreter per the repo convention if `python3` is absent.) The JSON result carries `roots` (pack `id` + absolute `dir`), `warnings`, and `errors`. Build the researcher's **search-root list**: `<root>/solutions/` plus one entry per root. Surface each `errors` and `warnings` line to the user once — they are per-entry config problems and skipped sources, not run blockers — and never write them into the plan. With no `packs:` key the result is empty and nothing else changes; no directory is scanned by convention.
 
 For Standard and Deep, prepare a concise planning context summary (a paragraph or two) to pass as input to the research agents:
 - If an origin document exists, summarize the problem frame, requirements, and key decisions from that document

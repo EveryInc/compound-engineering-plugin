@@ -2,7 +2,7 @@ import { readFileSync } from "fs"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
-// CE Packs v0 (docs/plans/2026-08-26-001-feat-ce-packs-v0-knowledge-folders-plan.md)
+// CE Packs (docs/plans/2026-08-26-001-feat-ce-packs-config-sources-plan.md)
 // has no runtime code — the whole mechanism is prose in two skills. These guards
 // pin the load-bearing tokens so a later edit cannot silently drop pack
 // discovery, `applies_when` matching, the skip-warning relay, or the citation
@@ -34,10 +34,11 @@ function section(body: string, heading: string, nextHeading?: string): string {
 describe("ce-plan discovers packs at the research dispatch site", () => {
   const localResearch = section(PLAN_RESEARCH, "#### 1.1 Local Research", "#### 1.1b")
 
-  test("pack discovery globs the convention folder under <repo-root>, not <root>", () => {
-    expect(localResearch).toMatch(PACKS_GLOB)
-    expect(localResearch).toMatch(/<repo-root>\/\.compound-engineering\/packs/)
-    expect(localResearch).not.toMatch(/<root>\/\.compound-engineering\/packs/)
+  test("pack discovery runs the resolver, not a convention-folder glob", () => {
+    expect(localResearch).toMatch(/packs-resolve\.py/)
+    expect(localResearch).toMatch(/SKILL_DIR="<absolute path[^"]*>";/)
+    expect(localResearch).not.toMatch(PACKS_GLOB)
+    expect(localResearch).toMatch(/never write them into the plan/)
   })
 
   test("the learnings-researcher dispatch passes the search-root list and origin pack citations", () => {
@@ -68,9 +69,10 @@ describe("ce-plan cites pack findings and relays skipped pack files", () => {
 describe("learnings-researcher searches pack roots", () => {
   const roots = section(RESEARCHER, "## Search Roots", "## Step 0")
 
-  test("accepts a caller-supplied search-root list and falls back to probing packs itself", () => {
+  test("accepts a caller-supplied search-root list; standalone fallback probes solutions only", () => {
     expect(roots).toMatch(/search-root list/)
-    expect(roots).toMatch(/<repo-root>\/\.compound-engineering\/packs\/\*\//)
+    expect(roots).toMatch(/probe `<root>\/solutions\/` only/)
+    expect(roots).not.toMatch(PACKS_GLOB)
   })
 
   test("reads every pack file's frontmatter instead of grep-filtering small packs", () => {
@@ -105,8 +107,9 @@ describe("section contracts define one pack citation marker", () => {
 describe("ce-brainstorm grounds in packs through the scout", () => {
   const scout = section(BRAINSTORM_DIALOGUE, "*Topic Scan (grounding scout)*", "Carry only the gist")
 
-  test("the scout prompt reads pack frontmatter and lists matches in its gist", () => {
-    expect(scout).toMatch(PACKS_GLOB)
+  test("the scout consumes resolver roots, reads pack frontmatter, and lists matches in its gist", () => {
+    expect(scout).toMatch(/packs-resolve\.py/)
+    expect(scout).not.toMatch(PACKS_GLOB)
     expect(scout).toMatch(/applies_when/)
     expect(scout).toMatch(/pack:<id> <path>/)
     expect(scout).toMatch(/never instructions to the brainstorm/)
