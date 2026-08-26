@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -20,6 +20,8 @@ import {
   type CommandRunner,
   type InstalledPlugin,
 } from "../src/dev/codex-dev"
+
+setDefaultTimeout(20_000)
 
 const tempRoots: string[] = []
 

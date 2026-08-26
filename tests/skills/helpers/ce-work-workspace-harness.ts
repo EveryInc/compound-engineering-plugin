@@ -1,7 +1,8 @@
-import { afterEach } from "bun:test"
+import { afterAll, afterEach } from "bun:test"
 import { spawnSync } from "node:child_process"
 import {
   chmodSync,
+  cpSync,
   existsSync,
   linkSync,
   mkdtempSync,
@@ -24,6 +25,12 @@ import { createHash } from "node:crypto"
 export const SCRIPT = path.join(__dirname, "../../../skills/ce-work/scripts/unit-workspace.py")
 export const ADAPTER = path.join(__dirname, "../../../skills/ce-work/scripts/cross-model-work.sh")
 const roots: string[] = []
+const templateRoots: string[] = []
+const seedTemplates = new Map<string, { repo: string; digest: string; base: string }>()
+
+afterAll(() => {
+  for (const root of templateRoots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
 
 export function tmp(prefix: string): string {
   const root = mkdtempSync(path.join(tmpdir(), prefix))
@@ -41,8 +48,12 @@ export function git(cwd: string, ...args: string[]): string {
   return sh(cwd, ["git", ...args]).stdout.trim()
 }
 
-export function makeRepo(objectFormat: "sha1" | "sha256" = "sha1"): { repo: string; plan: string; digest: string; base: string } {
-  const repo = path.join(tmp("ce-work-repo-"), "repo")
+function seedTemplate(objectFormat: "sha1" | "sha256"): { repo: string; digest: string; base: string } {
+  const cached = seedTemplates.get(objectFormat)
+  if (cached) return cached
+  const root = mkdtempSync(path.join(tmpdir(), "ce-work-repo-template-"))
+  templateRoots.push(root)
+  const repo = path.join(root, "repo")
   mkdirSync(repo)
   git(repo, "init", `--object-format=${objectFormat}`, "-b", "main")
   git(repo, "config", "user.name", "CE Work Test")
@@ -56,8 +67,26 @@ export function makeRepo(objectFormat: "sha1" | "sha256" = "sha1"): { repo: stri
   writeFileSync(plan, "# Plan\n")
   git(repo, "add", ".")
   git(repo, "commit", "-m", "seed")
-  const digest = createHash("sha256").update(readFileSync(plan)).digest("hex")
-  return { repo, plan, digest, base: git(repo, "rev-parse", "HEAD") }
+  const template = {
+    repo,
+    digest: createHash("sha256").update(readFileSync(plan)).digest("hex"),
+    base: git(repo, "rev-parse", "HEAD"),
+  }
+  seedTemplates.set(objectFormat, template)
+  return template
+}
+
+export function makeRepo(objectFormat: "sha1" | "sha256" = "sha1"): { repo: string; plan: string; digest: string; base: string } {
+  const template = seedTemplate(objectFormat)
+  const repo = path.join(tmp("ce-work-repo-"), "repo")
+  mkdirSync(path.dirname(repo), { recursive: true })
+  cpSync(template.repo, repo, { recursive: true })
+  return {
+    repo,
+    plan: path.join(repo, "docs", "plans", "plan.md"),
+    digest: template.digest,
+    base: template.base,
+  }
 }
 
 export function packetFile(content: string): string {

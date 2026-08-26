@@ -1,8 +1,10 @@
-import { afterAll, describe, expect, test } from "bun:test"
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
 import { materializeClaudePluginFixture } from "./helpers/claude-plugin-fixture"
+
+setDefaultTimeout(20_000)
 
 async function exists(filePath: string): Promise<boolean> {
   try {

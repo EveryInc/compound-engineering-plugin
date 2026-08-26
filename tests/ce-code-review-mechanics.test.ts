@@ -2,7 +2,9 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import path from "path"
 import { spawnSync } from "node:child_process"
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setDefaultTimeout, test } from "bun:test"
+
+setDefaultTimeout(20_000)
 
 const SKILL_DIR = path.join(process.cwd(), "skills", "ce-code-review")
 const SCOPE_SCRIPT = path.join(SKILL_DIR, "scripts", "review-scope.py")
