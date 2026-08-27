@@ -36,7 +36,11 @@ function collectMarkdownFiles(root: string): string[] {
 
 describe("compound-engineering skill ce- prefix", () => {
   const skillDirs = readdirSync(SKILLS_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !SKILL_EXEMPTIONS.has(entry.name))
+    .filter((entry) =>
+      entry.isDirectory()
+      && existsSync(path.join(SKILLS_DIR, entry.name, "SKILL.md"))
+      && !SKILL_EXEMPTIONS.has(entry.name)
+    )
     .map((entry) => entry.name)
 
   for (const dirName of skillDirs) {

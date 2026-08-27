@@ -665,7 +665,7 @@ describe("ce-code-review contract", () => {
     const catalog = await readRepoFile(
       "skills/ce-code-review/references/persona-catalog.md",
     )
-    const docs = await readRepoFile("docs/skills/ce-code-review.md")
+    const docs = await readRepoFile("skills/guides/ce-code-review.md")
 
     expect(content).toContain("**Core (always-on):** `correctness-reviewer`.")
     expect(content).toMatch(/project-standards-reviewer.*only when Stage 3b finds/i)

@@ -29,7 +29,7 @@ Contrast pair (the only description example):
 
 ## Repo inventory (all in the same change)
 
-A user-facing skill needs: `docs/skills/<name>.md` (purpose, novel mechanics, when to use, chain position), a catalog row in `docs/skills/README.md`, a root `README.md` inventory row, and the skill-count bump in `tests/release-metadata.test.ts`. Run `bun run release:validate` and `bun run test`.
+A user-facing skill needs: `skills/guides/<name>.md` (purpose, novel mechanics, when to use, chain position), a catalog row in `skills/guides/README.md`, a root `README.md` inventory row, and the skill-count bump in `tests/release-metadata.test.ts`. Run `bun run release:validate` and `bun run test`.
 
 ## Validate
 

@@ -8,7 +8,7 @@
 
 [![Build Status](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
-[![Skills](https://img.shields.io/badge/skills-33-black.svg)](docs/skills/README.md)
+[![Skills](https://img.shields.io/badge/skills-33-black.svg)](skills/guides/README.md)
 
 </div>
 
@@ -125,12 +125,12 @@ The core loop is six steps: **brainstorm** the requirements, **plan** the implem
 
 | Skill | Purpose |
 |-------|---------|
-| [`/ce-brainstorm`](docs/skills/ce-brainstorm.md) | Interactive Q&A to think through a feature or problem and write a requirements-only unified plan before planning |
-| [`/ce-plan`](docs/skills/ce-plan.md) | Enrich feature ideas or requirements-only plans into implementation-ready plans |
-| [`/ce-work`](docs/skills/ce-work.md) | Execute implementation-ready plans natively or through a qualified cross-model author while retaining host verification, commits, and shipping |
-| [`/ce-simplify-code`](docs/skills/ce-simplify-code.md) | Refine the freshly written code for clarity and reuse before review |
-| [`/ce-code-review`](docs/skills/ce-code-review.md) | Report-only multi-agent review against the plan before merging; local apply is explicit |
-| [`/ce-compound`](docs/skills/ce-compound.md) | Capture the learning into `docs/solutions/` so the next loop starts smarter |
+| [`/ce-brainstorm`](skills/guides/ce-brainstorm.md) | Interactive Q&A to think through a feature or problem and write a requirements-only unified plan before planning |
+| [`/ce-plan`](skills/guides/ce-plan.md) | Enrich feature ideas or requirements-only plans into implementation-ready plans |
+| [`/ce-work`](skills/guides/ce-work.md) | Execute implementation-ready plans natively or through a qualified cross-model author while retaining host verification, commits, and shipping |
+| [`/ce-simplify-code`](skills/guides/ce-simplify-code.md) | Refine the freshly written code for clarity and reuse before review |
+| [`/ce-code-review`](skills/guides/ce-code-review.md) | Report-only multi-agent review against the plan before merging; local apply is explicit |
+| [`/ce-compound`](skills/guides/ce-compound.md) | Capture the learning into `docs/solutions/` so the next loop starts smarter |
 
 Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainstorm` and `/ce-plan` read as grounding -- brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented. That return arrow is the whole point.
 
@@ -140,7 +140,7 @@ Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainst
 
 <sub>Replayed from a real pair of sessions 18 days apart, with names and paths anonymized and the six-minute run compressed to about 30 seconds. Nothing shown is behavior the skills don't have — see <a href="assets/demo/README.md">assets/demo</a> for the source and the substitutions.</sub>
 
-> Artifact folders like `docs/solutions/` and `docs/plans/` are the **defaults**. A project whose `docs/` is tracked content can relocate every CE artifact folder under one repo-relative root via the `docs_root` setting -- see [configuration](docs/skills/configuration.md#artifact-root).
+> Artifact folders like `docs/solutions/` and `docs/plans/` are the **defaults**. A project whose `docs/` is tracked content can relocate every CE artifact folder under one repo-relative root via the `docs_root` setting -- see [configuration](skills/guides/configuration.md#artifact-root).
 
 ## Try it
 
@@ -166,26 +166,26 @@ After installing, run `/ce-setup` in any project. It reports optional tool capab
 
 `/lfg` runs the loop hands-off: it plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, then commits. When a git remote exists it pushes, opens a PR, and watches CI with a bounded repair loop (it does not merge, and it can finish with leftovers if the repair budget is hit). With no remote it stops at local commits. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt.
 
-Starting from a bug instead of a feature? Use [`/ce-debug`](docs/skills/ce-debug.md). Not sure what to build yet? Start with [`/ce-ideate`](docs/skills/ce-ideate.md).
+Starting from a bug instead of a feature? Use [`/ce-debug`](skills/guides/ce-debug.md). Not sure what to build yet? Start with [`/ce-ideate`](skills/guides/ce-ideate.md).
 
 ## Skills at a glance
 
-33 skills, grouped by what they are for. The full catalog, with a page per skill and how each one chains into the others, is in **[docs/skills](docs/skills/README.md)**.
+33 skills, grouped by what they are for. The full catalog, with a page per skill and how each one chains into the others, is in **[skills/guides](skills/guides/README.md)**.
 
 | Group | Skills | What it covers |
 |-------|--------|----------------|
-| [Core loop](docs/skills/README.md#the-core-loop) | `ce-brainstorm` `ce-plan` `ce-work` `ce-simplify-code` `ce-code-review` `ce-compound` | The six steps of every iteration |
-| [Around the loop](docs/skills/README.md#around-the-loop) | `ce-strategy` `ce-product-pulse` `ce-sweep` `ce-compound-refresh` | Anchors and feeds that keep the loop grounded |
-| [On demand](docs/skills/README.md#on-demand) | `ce-ideate` `ce-pov` `ce-debug` `ce-explain` `ce-doc-review` `ce-optimize` `ce-prototype` | Reached for when a specific need arises |
-| [Git workflow](docs/skills/README.md#git-workflow) | `ce-commit` `ce-commit-push-pr` `ce-babysit-pr` `ce-resolve-pr-feedback` `ce-worktree` | Committing, shipping, and shepherding PRs |
-| [Autonomous](docs/skills/README.md#autonomous-pipeline) | `lfg` | The whole pipeline, hands-off |
-| [Testing & design](docs/skills/README.md#frontend-design) | `ce-test-browser` `ce-test-xcode` `ce-polish` `ce-dogfood` | Verifying and polishing what you built |
-| [Collaboration](docs/skills/README.md#collaboration) | `ce-proof` `ce-handoff` `ce-promote` | Sharing work and handing it off |
-| [Utilities](docs/skills/README.md#workflow-utilities) | `ce-setup` `ce-retune` `ce-riffrec-feedback-analysis` | Setup and maintenance |
+| [Core loop](skills/guides/README.md#the-core-loop) | `ce-brainstorm` `ce-plan` `ce-work` `ce-simplify-code` `ce-code-review` `ce-compound` | The six steps of every iteration |
+| [Around the loop](skills/guides/README.md#around-the-loop) | `ce-strategy` `ce-product-pulse` `ce-sweep` `ce-compound-refresh` | Anchors and feeds that keep the loop grounded |
+| [On demand](skills/guides/README.md#on-demand) | `ce-ideate` `ce-pov` `ce-debug` `ce-explain` `ce-doc-review` `ce-optimize` `ce-prototype` | Reached for when a specific need arises |
+| [Git workflow](skills/guides/README.md#git-workflow) | `ce-commit` `ce-commit-push-pr` `ce-babysit-pr` `ce-resolve-pr-feedback` `ce-worktree` | Committing, shipping, and shepherding PRs |
+| [Autonomous](skills/guides/README.md#autonomous-pipeline) | `lfg` | The whole pipeline, hands-off |
+| [Testing & design](skills/guides/README.md#frontend-design) | `ce-test-browser` `ce-test-xcode` `ce-polish` `ce-dogfood` | Verifying and polishing what you built |
+| [Collaboration](skills/guides/README.md#collaboration) | `ce-proof` `ce-handoff` `ce-promote` | Sharing work and handing it off |
+| [Utilities](skills/guides/README.md#workflow-utilities) | `ce-setup` `ce-retune` `ce-riffrec-feedback-analysis` | Setup and maintenance |
 
 **Learn more**
 
-- [Skill documentation catalog](docs/skills/README.md)
+- [Skill documentation catalog](skills/guides/README.md)
 - [Compound engineering: how Every codes with agents](https://every.to/chain-of-thought/compound-engineering-how-every-codes-with-agents)
 - [The story behind compounding engineering](https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it)
 
@@ -418,7 +418,7 @@ No. Bun is only needed for repo development tasks and converter maintenance.
 
 ### Where do I see all available skills?
 
-The grouped overview is [above](#skills-at-a-glance); the full catalog with a page per skill is [`docs/skills/README.md`](docs/skills/README.md). Each skill's authoritative runtime spec lives in `skills/<skill>/SKILL.md`.
+The grouped overview is [above](#skills-at-a-glance); the full catalog with a page per skill is [`skills/guides/README.md`](skills/guides/README.md). Each skill's authoritative runtime spec lives in `skills/<skill>/SKILL.md`.
 
 ### Where is release history?
 
@@ -432,8 +432,8 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, and [`docs/development.md`](
 
 | | |
 |---|---|
-| [Skill catalog](docs/skills/README.md) | A page per skill, and how they chain together |
-| [Configuration](docs/skills/configuration.md) | `.compound-engineering/config.yaml` options |
+| [Skill catalog](skills/guides/README.md) | A page per skill, and how they chain together |
+| [Configuration](skills/guides/configuration.md) | `.compound-engineering/config.yaml` options |
 | [Installing](#install) · [Upgrading](docs/install/upgrading.md) | Per-host install and refresh |
 | [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) | Working on the plugin itself |
 | [Security](SECURITY.md) · [Privacy](PRIVACY.md) | Reporting and data handling |

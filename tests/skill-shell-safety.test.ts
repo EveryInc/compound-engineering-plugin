@@ -49,6 +49,7 @@ function listSkillFiles(): string[] {
     for (const entry of readdirSync(root, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue
       const skillDir = path.join(root, entry.name)
+      try { statSync(path.join(skillDir, "SKILL.md")) } catch { continue }
       function walk(dir: string) {
         for (const e of readdirSync(dir, { withFileTypes: true })) {
           const full = path.join(dir, e.name)

@@ -736,7 +736,7 @@ describe("ce-work right-sized routes", () => {
   test("a mechanical diff passes babysit:off to the shipping skill, and the docs say the same", async () => {
     const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
     expect(shipping).toMatch(/Code review: skipped \(mechanical diff\)`, also pass `babysit:off`/)
-    const docs = await readRepoFile("docs/skills/ce-work.md")
+    const docs = await readRepoFile("skills/guides/ce-work.md")
     expect(docs).toMatch(/purely mechanical diff[^.]*ships without a post-PR watch/)
     expect(docs).not.toMatch(/Trivial route skips the task list and the post-PR watch/)
   })

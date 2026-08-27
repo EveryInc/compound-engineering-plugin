@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync, type Dirent } from "fs"
+import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from "fs"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 import { parseFrontmatter } from "../src/utils/frontmatter"
@@ -242,6 +242,7 @@ function listSkillDirs(): SkillDir[] {
   for (const entry of skillEntries) {
     if (!entry.isDirectory()) continue
     const absPath = path.join(SKILLS_ROOT, entry.name)
+    if (!existsSync(path.join(absPath, "SKILL.md"))) continue
     out.push({ relPath: path.relative(REPO_ROOT, absPath), absPath })
   }
   return out
