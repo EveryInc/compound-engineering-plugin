@@ -48,3 +48,7 @@ Read `references/route-and-report.md` from this skill's directory before step 3 
 ## Driver Reference
 
 When `agent-browser` is selected as the fallback, read `references/agent-browser-driver.md` from this skill's directory before running its commands. Host-native drivers follow their harness-provided instructions instead.
+
+## Framework-Specific Guides
+
+When testing single-spa micro frontend applications, read `references/single-spa-guide.md` for mount detection, cross-app navigation, auth flow, and WebSocket update patterns. When interacting with Element UI components, read `references/element-ui-selectors.md` for teleported component selectors and multi-step interaction patterns.

@@ -8,11 +8,11 @@
 
 [![Build Status](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
-[![Skills](https://img.shields.io/badge/skills-33-black.svg)](skills/guides/README.md)
+[![Skills](https://img.shields.io/badge/skills-34-black.svg)](skills/guides/README.md)
 
 </div>
 
-Compound Engineering is a plugin of 33 skills for AI coding agents. It structures the work around a loop — brainstorm, plan, build, review, then **capture what you learned** — so the knowledge from each change is written down where the next change can read it.
+Compound Engineering is a plugin of 34 skills for AI coding agents. It structures the work around a loop — brainstorm, plan, build, review, then **capture what you learned** — so the knowledge from each change is written down where the next change can read it.
 
 It runs on 14 agent hosts, including Claude Code, Cursor, and Codex.
 
@@ -170,13 +170,13 @@ Starting from a bug instead of a feature? Use [`/ce-debug`](skills/guides/ce-deb
 
 ## Skills at a glance
 
-33 skills, grouped by what they are for. The full catalog, with a page per skill and how each one chains into the others, is in **[skills/guides](skills/guides/README.md)**.
+34 skills, grouped by what they are for. The full catalog, with a page per skill and how each one chains into the others, is in **[skills/guides](skills/guides/README.md)**.
 
 | Group | Skills | What it covers |
 |-------|--------|----------------|
 | [Core loop](skills/guides/README.md#the-core-loop) | `ce-brainstorm` `ce-plan` `ce-work` `ce-simplify-code` `ce-code-review` `ce-compound` | The six steps of every iteration |
 | [Around the loop](skills/guides/README.md#around-the-loop) | `ce-strategy` `ce-product-pulse` `ce-sweep` `ce-compound-refresh` | Anchors and feeds that keep the loop grounded |
-| [On demand](skills/guides/README.md#on-demand) | `ce-ideate` `ce-pov` `ce-debug` `ce-explain` `ce-doc-review` `ce-optimize` `ce-prototype` | Reached for when a specific need arises |
+| [On demand](skills/guides/README.md#on-demand) | `ce-ideate` `ce-pov` `ce-debug` `ce-explain` `ce-doc-review` `ce-optimize` `ce-prototype` `ce-security-audit` | Reached for when a specific need arises |
 | [Git workflow](skills/guides/README.md#git-workflow) | `ce-commit` `ce-commit-push-pr` `ce-babysit-pr` `ce-resolve-pr-feedback` `ce-worktree` | Committing, shipping, and shepherding PRs |
 | [Autonomous](skills/guides/README.md#autonomous-pipeline) | `lfg` | The whole pipeline, hands-off |
 | [Testing & design](skills/guides/README.md#frontend-design) | `ce-test-browser` `ce-test-xcode` `ce-polish` `ce-dogfood` | Verifying and polishing what you built |

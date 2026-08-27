@@ -61,6 +61,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    Skip this gate entirely when the review reported `Actionable findings: none.` (and followup applied everything mechanical), or when dedicated review was skipped (mechanical diff or `ce-code-review` unavailable). Do not proceed past this gate on an `Accept and proceed` decision (including the autonomous auto-accept above) until the agent has recorded which durable sink held the residuals — `PR Known Residuals`, a tracker ticket, or an explicit statement in the run report when neither was reachable.
 
 5. **Final Validation**
+   - Before making any completion claim, read `references/verification-discipline.md` for per-message verification freshness, claim-to-evidence mapping, and linguistic red-flag detection; every "done"/"passing"/"fixed" claim must map to a fresh observed result, not a remembered or inferred one.
    - All tasks marked completed
    - Testing addressed -- tests pass and new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
    - Linting passes

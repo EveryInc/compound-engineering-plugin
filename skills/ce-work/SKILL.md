@@ -19,6 +19,8 @@ argument-hint: "[Plan path, work description, or recovery request with run id; b
 
 ### Phase 0: Input Triage
 
+**Session-state check comes first (standalone).** Before input classification, if `SESSION_STATE.md` exists in the project root, read it and `references/session-state.md`, then ask the user whether to resume or start fresh before proceeding.
+
 **Recovery activation comes first.** Before normal plan, path, blank-input, or bare-prompt classification, recognize semantic requests to resume, inspect, reap, or clean up an existing run. Recovery never dispatches a new worker, selects a new route, discovers another plan, reruns completed verification, or enters either shipping tail; a missing run id is requested, never guessed.
 
 Before any other input decision, read `references/input-triage.md`. A bare prompt that is Trivial — one or two files, no behavioral change — skips the task list and still passes the engine-before-write gate; a purely mechanical diff also ships without a post-PR watch. When that is uncertain, take the fuller route. A bare prompt this session's `ce-plan` already sized is executed, not re-planned; a decision the user would weigh surfaces as a question, never as a route back to `ce-plan` or `ce-brainstorm`. It owns source resolution, control grammar, recovery, read-only discovery, plan readiness, non-code routing, blank discovery, and bare-prompt intake. An unreadable owner stops triage rather than letting control data or a non-executable artifact fall through as code work.

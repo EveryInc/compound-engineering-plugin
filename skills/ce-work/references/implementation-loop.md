@@ -15,7 +15,7 @@ while (tasks remain):
   - Find existing test files for implementation files being changed (Test Discovery — see below)
   - Choose the evidence strategy for this task before changing behavior: use an existing failing test, update or strengthen an existing test, add a new failing test, add characterization coverage, or record a deliberate no-test exception with replacement verification
   - For behavior-bearing changes, default to test-first or characterization-first when the current code and test surface make that practical, even if the plan has no `Execution note`
-  - When the evidence strategy calls for pre-implementation proof, create/update/strengthen the test or characterization coverage now and verify the expected failure or baseline capture before changing production code
+  - When the evidence strategy calls for pre-implementation proof, create/update/strengthen the test or characterization coverage now and verify the expected failure or baseline capture before changing production code. When working test-first, read `references/tdd-guardrails.md` for rationalization defenses, red-flag detection, and the delete-and-restart rule, and `references/testing-anti-patterns.md` for common testing pitfalls to avoid.
   - Implement following existing conventions
   - Add, update, or remove any remaining tests needed to match implementation changes (see Test Discovery below)
   - Run System-Wide Test Check (see below)
@@ -23,6 +23,7 @@ while (tasks remain):
   - Assess testing coverage: did this task change behavior? If yes, were existing tests inspected and were tests written, updated, strengthened, or deliberately left unchanged with a reason? If no tests were added or changed, is the justification deliberate (e.g., pure config, no behavioral change, manual-only surface) and paired with replacement verification?
   - Record verification evidence for the task: behavior-change signal, existing tests inspected, tests added/changed/used unchanged, red failure or characterization observed when applicable, verification run, and any exception reason
   - Mark task as completed
+  - Update `SESSION_STATE.md` with current task progress (see `references/session-state.md` for the format). Orchestrator-level only — never write it from inside a subagent.
   - Evaluate for incremental commit (see below)
 ```
 
