@@ -45,7 +45,13 @@ Based on the input:
    - Any relevant context from CLAUDE.md about the project's auth, payment, or data handling patterns
 
 4. **Wait for both agents to complete**
-5. **Combine findings** into a single report
+5. **Automated vulnerability scan (optional):**
+   If ruflo-security-audit MCP tools are available (check for `mcp__claude-flow__security_scan` in available tools):
+   - Run `mcp__claude-flow__security_scan` with `--depth full` on the scoped files
+   - This adds CVE detection, shell injection scanning, and secrets-at-rest checks that the prompt-based agents above cannot perform
+   - Merge ruflo findings with CE agent findings. Deduplicate: same file:line from both sources -> keep the more detailed finding
+   - If ruflo is not installed, skip this step — CE agents provide sufficient coverage for threat modeling and OWASP
+6. **Combine findings** into a single report
 
 ## Output Format
 
@@ -82,7 +88,6 @@ Note areas that were reviewed and found clean — this provides confidence, not 
 
 ## What This Skill Does NOT Do
 
-- Does not replace static analysis tools (Snyk, SonarQube, npm audit)
+- Does not replace static analysis tools (Snyk, SonarQube, npm audit) — though ruflo-security-audit adds partial CVE coverage when available
 - Does not run penetration tests or active exploitation
-- Does not scan dependencies for known CVEs
 - Does not modify code — report only

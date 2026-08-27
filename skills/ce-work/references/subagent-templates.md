@@ -113,6 +113,21 @@ Use the least powerful model that can handle each role to conserve cost and incr
 
 **Heuristic:** If the plan unit has a complete spec with exact file paths, test scenarios, and patterns to follow — it's mechanical. If it requires the agent to make design decisions — use a more capable model.
 
+### Model Selection Scoring
+
+When the task type isn't immediately obvious, score these signals to decide:
+
+| Signal | Fast/cheap (Haiku) | Standard (Sonnet) | Most capable (Opus) |
+|--------|-------------------|-------------------|---------------------|
+| **File count** | 1-2 files | 3-8 files | 9+ files |
+| **Test complexity** | Unit tests only | Integration tests | Cross-service or E2E tests |
+| **Domain** | Config, styling, renaming, docs | Business logic, API endpoints, UI components | Auth, payments, migrations, data integrity |
+| **Pattern availability** | Exact pattern exists to copy | Similar pattern exists to adapt | Novel implementation required |
+| **Execution note** | None or "trivial" | Standard | "Complex", "cross-cutting", or security-related |
+| **Error handling** | No failure modes | Known failure modes | Distributed failures, partial rollback |
+
+**Scoring:** Default to Standard (Sonnet). Upgrade to Most capable (Opus) when 2+ signals point to it. Downgrade to Fast/cheap (Haiku) when all signals point to mechanical work with an exact pattern to follow.
+
 ## Per-Task Review Pipeline
 
 After each subagent completes with DONE status:

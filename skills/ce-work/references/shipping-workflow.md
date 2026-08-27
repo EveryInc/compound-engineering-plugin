@@ -70,6 +70,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - No console errors or warnings
    - If the plan has a `Requirements` section (or legacy `Requirements Trace`), verify each requirement is satisfied by the completed work
    - If any `Deferred to Implementation` questions were noted, confirm they were resolved during execution
+   - **Trajectory capture (conditional):** If the execution involved a non-obvious approach — an initial attempt that failed, an unexpected dependency order, or a workaround for a framework limitation — read `references/trajectory-capture.md` and write a trajectory doc. Skip this for routine work where the plan was followed with no surprises.
 
 6. **Prepare Operational Validation Plan** (REQUIRED)
    - Add a `## Post-Deploy Monitoring & Validation` section to the PR description for every change.
