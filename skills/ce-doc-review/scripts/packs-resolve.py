@@ -431,6 +431,12 @@ def resolve_entry(entry: dict, repo_root: str, roots: list, warnings: list, erro
         selected = {str(override): next(iter(selected.values()))}
 
     for pack_id, pack_dir in selected.items():
+        for name in sorted(os.listdir(pack_dir)):
+            child = os.path.join(pack_dir, name)
+            if name.endswith(".md") and os.path.isfile(child) and not _is_knowledge_file(child):
+                warnings.append(
+                    f"{label}: skipped pack file `{pack_id}/{name}` (missing `title`/`applies_when` frontmatter)"
+                )
         root = {"id": pack_id, "dir": pack_dir, "_label": label}
         if git_meta:
             root.update(git_meta)

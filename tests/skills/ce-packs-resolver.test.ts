@@ -354,6 +354,15 @@ describe("review regressions", () => {
     expect(out.warnings.join(" ")).toContain("lists no ids")
   })
 
+  test("a frontmatter-less .md inside an installed pack warns at resolve time", () => {
+    const local = tempDir("skipwarn")
+    writeKnowledgeFile(path.join(local, "rules"), "r.md", "rule")
+    writeFileSync(path.join(local, "rules", "notes.md"), "just notes, no frontmatter\n")
+    const out = resolve(makeProject(`packs:\n  - source: ${local}/rules\n`))
+    expect(ids(out)).toEqual(["rules"])
+    expect(out.warnings.join(" ")).toContain("skipped pack file `rules/notes.md`")
+  })
+
   test("an apostrophe in a value does not absorb a trailing comment", () => {
     const local = tempDir("apos")
     writeKnowledgeFile(path.join(local, "o'brien-rules"), "r.md", "rule")
