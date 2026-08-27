@@ -239,6 +239,14 @@ Packs and [Learnings](./ce-compound.md) form a ladder: `/ce-compound` captures w
 
 From then on it stops being something future work might rediscover and becomes something planning grounds in and review enforces — in every repo that declares the pack.
 
+**Harvesting a pack from an existing corpus.** The same promotion works in bulk: sweep `docs/solutions/` for learnings that have hardened into standing rules and extract them into a pack — the move that turns one repo's accumulated experience into something every repo in the org inherits. A learning is a harvest candidate when all three hold:
+
+- it restates cleanly as a prescriptive rule ("always/never do X"), not an incident narrative;
+- it is still true against the current tree (a stale learning promoted becomes a stale *enforced* rule — worse);
+- its scope is bigger than one incident — the same guidance keeps being rediscovered, or applies beyond this repo.
+
+For each candidate, draft the rule (derive `applies_when` from the learning's own `applies_when`/`symptoms`; drop the bug-track fields; imperative prose), then **slim the source learning to its incident story plus a citation of the new rule** — or delete it when fully subsumed. Don't leave both saying the same thing verbatim: discovery searches both corpora, and an unlinked duplicate surfaces twice and drifts. Today this is an agent-assisted sweep you ask for directly ("harvest pack candidates from docs/solutions"); a `ce-compound-refresh` promotion-candidates report is a planned follow-up.
+
 `/ce-compound` automates this loop: during capture it checks the declared packs — an insight a pack rule already prescribes is recognized instead of re-captured (with the citation, and an offer to refine the rule), and a prescriptive, cross-repo capture can be routed straight into a writable pack (or a newly scaffolded one) with the learning-to-rule rewrite applied. Git-sourced packs stay read-only — refining those means a commit to their source repo and a `ref` bump.
 
 ## Why packs aren't skills

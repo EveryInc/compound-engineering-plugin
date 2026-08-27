@@ -138,6 +138,7 @@ One declared list solves all of it: every source kind is the same entry shape, t
 
 - Porting the pack search-roots block to the `ce-ideate` / `ce-optimize` researcher copies (their prompts are divergent by design; packs stay planning-and-brainstorm-only in this release).
 - A real-pack value check in `compound-stack-rails` after release — the observation that gates review-lens v1.
+- `ce-compound-refresh` harvest report: sweep the learnings corpus for promotion candidates (prescriptive restatement possible, still true, bigger than one incident) and stage the rule drafts plus source-learning slimming as a reviewable batch.
 - `ce-compound` upstream-commit flow for git-sourced packs (routing into a cached checkout means committing to its source repo and bumping `ref`) — writable path-source packs are in scope below; git packs stay manual.
 
 ### Dependencies / Assumptions
