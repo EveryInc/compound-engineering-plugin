@@ -33,7 +33,7 @@ A **Compound Pack** is a folder of prescriptive domain knowledge that planning r
 ```yaml
 packs:
   - source: compound-packs/local-rules                       # repo-relative path, read live
-  - source: ~/packs/kk-style                        # machine-local path, read live
+  - source: ~/compound-packs/kk-style                        # machine-local path, read live
   - source: https://github.com/org/rails-ce-pack    # git URL, cached at ref
     ref: v1.2.0                                     # tag, sha, or branch (required for git)
     pack: [rails, inertia]                          # one id, a list, or omit = all published packs

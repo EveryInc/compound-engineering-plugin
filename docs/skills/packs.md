@@ -75,7 +75,7 @@ packs:
   - source: compound-packs/house-rules
 
   # Machine-local folder — read live, only on this machine
-  - source: ~/packs/kk-style
+  - source: ~/compound-packs/kk-style
 
   # Git repo pinned to a tag — cached, reproducible for the whole team
   - source: https://github.com/org/rails-ce-pack
@@ -93,7 +93,7 @@ packs:
   - source: https://github.com/org/stack/tree/v2.0.0/packs   # same thing
 
   # Rename a single-pack entry
-  - source: ~/packs/rules
+  - source: ~/compound-packs/rules
     id: house-rules
 ```
 

@@ -187,7 +187,7 @@
 
 # packs:
 #   - source: compound-packs/local-rules                       # repo-relative, read live
-#   - source: ~/packs/kk-style                        # machine-local, read live
+#   - source: ~/compound-packs/kk-style                        # machine-local, read live
 #   - source: https://github.com/org/rails-ce-pack    # git, cached at ref
 #     ref: v1.2.0
 #     pack: [rails, inertia]
