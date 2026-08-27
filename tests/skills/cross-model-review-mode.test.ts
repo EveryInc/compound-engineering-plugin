@@ -52,9 +52,9 @@ describe("cross_model_review_mode egress gate", () => {
     for (const p of [
       "skills/ce-setup/references/config-template.yaml",
       ".compound-engineering/config.example.yaml",
-      "docs/skills/configuration.md",
-      "docs/skills/ce-code-review.md",
-      "docs/skills/ce-doc-review.md",
+      "skills/guides/configuration.md",
+      "skills/guides/ce-code-review.md",
+      "skills/guides/ce-doc-review.md",
     ]) {
       expect(read(p)).toContain("cross_model_review_mode")
     }

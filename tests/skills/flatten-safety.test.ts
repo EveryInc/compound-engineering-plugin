@@ -55,6 +55,7 @@ function parsesWhenFlattened(body: string): { ok: true } | { ok: false; error: s
 }
 
 const allBlocks: Block[] = [...new Glob("**/*.md").scanSync({ cwd: SKILLS_DIR })]
+  .filter((rel) => rel.split(/[\\/]/)[0] !== "guides")
   .sort()
   .flatMap((rel) =>
     extractBashBlocks(readFileSync(path.join(SKILLS_DIR, rel), "utf8")).map((b) => ({ file: rel, ...b })),

@@ -1,5 +1,5 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test"
-import { readdirSync, readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
@@ -56,7 +56,9 @@ describe("omp native install", () => {
   test("omp discovers the full skill inventory", () => {
     const skillsDir = path.join(REPO_ROOT, "skills")
     const skillDirs = readdirSync(skillsDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
+      .filter((entry) =>
+        entry.isDirectory() && existsSync(path.join(skillsDir, entry.name, "SKILL.md"))
+      )
       .map((entry) => entry.name)
     expect(skillDirs.length).toBeGreaterThan(0)
 

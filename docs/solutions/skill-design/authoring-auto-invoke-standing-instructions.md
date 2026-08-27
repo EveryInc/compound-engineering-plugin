@@ -70,7 +70,7 @@ Apply when adding a "Make It Automatic" section to any CE skill's docs page, or 
 
 The self-guard is verifiable: a cross-host routing eval (5 resolved-scope scenarios × Claude + Codex, fresh subagents reading the on-disk `SKILL.md`) scored 10/10 — docs-only and lockfile/generated scopes short-circuited, a mixed diff narrowed to its code file, and both a ~5-line explicit-scope case and a normal code diff ran, confirming the guard keys on change kind, not size.
 
-Standing-instruction shape (auto-run variant; the dedicated "Make It Automatic" heading was later folded into a short standing-instruction paragraph on `docs/skills/ce-simplify-code.md`):
+Standing-instruction shape (auto-run variant; the dedicated "Make It Automatic" heading was later folded into a short standing-instruction paragraph on `skills/guides/ce-simplify-code.md`):
 
 > When you finish a coherent unit of work — a feature is complete, or you're wrapping up to open a PR — and before you review, commit, or hand it off, automatically invoke the `ce-simplify-code` skill on the changed code. Do this at that completion checkpoint only, not after every individual edit or intermediate fix while you're still building. Run it only when the accumulated diff has at least 10 substantive code lines and the skill hasn't already run since the last code edit. Never run it for documentation- or Markdown-only changes; formatting-, lint-, or dependency/lockfile-only changes; generated or vendored files; other purely mechanical changes; or code you've said to keep as written.
 
@@ -81,4 +81,4 @@ Skill-side preflight (from `skills/ce-simplify-code/SKILL.md` Step 1): if the re
 - [`portable-agent-skill-authoring.md`](./portable-agent-skill-authoring.md) — the canonical cross-model/cross-harness authoring guide these phrasing rules instantiate
 - [`discoverability-check-for-documented-solutions.md`](./discoverability-check-for-documented-solutions.md) — the sibling pattern of a skill making a small, principled edit to an instruction file
 - [`post-menu-routing-belongs-inline.md`](./post-menu-routing-belongs-inline.md) — related SKILL.md authoring-placement discipline
-- `ce-compound`'s "Make Capture Automatic" section (`docs/skills/ce-compound.md`, PR #1110) — the pattern this generalizes
+- `ce-compound`'s "Make Capture Automatic" section (`skills/guides/ce-compound.md`, PR #1110) — the pattern this generalizes

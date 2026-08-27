@@ -151,7 +151,7 @@ One declared list solves all of it: every source kind is the same entry shape, t
 
 - Superseded v0 shape: PR EveryInc/compound-engineering-plugin#1546 (closed unmerged); this branch carries its commits.
 - Full proposal background: Thinkroom `https://thinkroom.kieranklaassen.com/d/5fCttWhRza`.
-- Config layer semantics: `skills/ce-plan/references/output-mode.md` (`ce-config-layers` and `ce-docs-root` pinned blocks); `docs/skills/configuration.md`.
+- Config layer semantics: `skills/ce-plan/references/output-mode.md` (`ce-config-layers` and `ce-docs-root` pinned blocks); `skills/guides/configuration.md`.
 - Bundled-script precedent (per-skill duplication + scratch root + interpreter probing): `skills/ce-plan/scripts/peer-job-runner.py` and `tests/peer-job-runner-parity.test.ts`; `docs/solutions/conventions/resolve-python-interpreter-not-python3.md`; the deleted `repo-profile-cache.py` (git history, pre-#1172) for cache keying.
 - Inherited consumption machinery: `skills/ce-plan/references/agents/learnings-researcher.md` (Search Roots block), `skills/ce-plan/references/research.md` (Pack discovery paragraph to be rewritten), `skills/ce-brainstorm/references/dialogue.md` (scout sentence to be rewritten).
 
@@ -280,7 +280,7 @@ U1 (script) first; U2 (script tests + parity) with it. U3 (ce-plan rewire) and U
 - **Goal:** A human can declare, publish, and debug packs from the docs alone.
 - **Requirements:** R1-R8, R11, R12
 - **Dependencies:** U1-U4
-- **Files:** `docs/skills/configuration.md`, `docs/skills/ce-plan.md`, `docs/skills/ce-brainstorm.md`, `README.md`
+- **Files:** `skills/guides/configuration.md`, `skills/guides/ce-plan.md`, `skills/guides/ce-brainstorm.md`, `README.md`
 - **Approach:** Rewrite the "Compound Packs (v0, experimental)" section for the config-declared shape: entry schema with a multi-entry example (git + repo path + local layer), the concatenation rule, per-kind ref rules, publisher convention, selection, error/warning behaviors, cache location, and the unchanged non-goals. Update the `ce-plan`/`ce-brainstorm` pointers and the README call-out to say "declared in config" instead of the folder convention.
 - **Patterns to follow:** the section's existing structure from the v0 commit.
 - **Test scenarios:** Test expectation: none -- documentation only; `release:validate` guards counts.
@@ -342,7 +342,7 @@ U1 (script) first; U2 (script tests + parity) with it. U3 (ce-plan rewire) and U
 - **Goal:** Docs and guards reflect capture-stage pack awareness.
 - **Requirements:** R9, R10
 - **Dependencies:** U11, U12
-- **Files:** `tests/skills/ce-packs-resolver.test.ts` (parity list), `tests/skills/ce-packs-contract.test.ts`, `docs/skills/packs.md`, `docs/skills/ce-compound.md`
+- **Files:** `tests/skills/ce-packs-resolver.test.ts` (parity list), `tests/skills/ce-packs-contract.test.ts`, `skills/guides/packs.md`, `skills/guides/ce-compound.md`
 - **Approach:** Parity extends to six copies; the packs guide's "Growing packs from learnings" section documents the automatic path (recognition, routing, scaffold) alongside the manual recipe; the ce-compound page names the capture-stage behavior.
 - **Test scenarios:** parity test red if the sixth copy drifts; doc guards stay green.
 - **Verification:** full suite green.
@@ -352,7 +352,7 @@ U1 (script) first; U2 (script tests + parity) with it. U3 (ce-plan rewire) and U
 - **Goal:** The docs describe review-stage pack behavior alongside planning.
 - **Requirements:** R9, R10
 - **Dependencies:** U8, U9
-- **Files:** `docs/skills/configuration.md`, `docs/skills/ce-code-review.md`, `docs/skills/ce-doc-review.md`, `CONCEPTS.md`
+- **Files:** `skills/guides/configuration.md`, `skills/guides/ce-code-review.md`, `skills/guides/ce-doc-review.md`, `CONCEPTS.md`
 - **Approach:** configuration.md gains the review paragraph and drops review lenses from not-yet-built; skill pages gain one-line mentions; the glossary names planning- and review-stage consumption.
 - **Test scenarios:** Test expectation: none -- documentation; `release:validate` green.
 - **Verification:** no doc still lists review lenses as unbuilt.

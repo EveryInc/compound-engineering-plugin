@@ -11,9 +11,9 @@ const repoRoot = path.join(import.meta.dir, "..", "..")
 const checkHealthScript = path.join(repoRoot, "skills", "ce-setup", "scripts", "check-health")
 const configTemplate = path.join(repoRoot, "skills", "ce-setup", "references", "config-template.yaml")
 const configExample = path.join(repoRoot, ".compound-engineering", "config.example.yaml")
-const configDocs = path.join(repoRoot, "docs", "skills", "configuration.md")
-const ceWorkDocs = path.join(repoRoot, "docs", "skills", "ce-work.md")
-const lfgDocs = path.join(repoRoot, "docs", "skills", "lfg.md")
+const configDocs = path.join(repoRoot, "skills", "guides", "configuration.md")
+const ceWorkDocs = path.join(repoRoot, "skills", "guides", "ce-work.md")
+const lfgDocs = path.join(repoRoot, "skills", "guides", "lfg.md")
 
 type RunResult = {
   exitCode: number
@@ -64,10 +64,10 @@ describe("ce-setup check-health", () => {
   test("advertises agent-browser only for its current consumers", async () => {
     const [script, setupDocs, polishSkill, polishRun, polishDocs] = await Promise.all([
       readFile(checkHealthScript, "utf8"),
-      readFile(path.join(repoRoot, "docs", "skills", "ce-setup.md"), "utf8"),
+      readFile(path.join(repoRoot, "skills", "guides", "ce-setup.md"), "utf8"),
       readFile(path.join(repoRoot, "skills", "ce-polish", "SKILL.md"), "utf8"),
       readFile(path.join(repoRoot, "skills", "ce-polish", "references", "run.md"), "utf8"),
-      readFile(path.join(repoRoot, "docs", "skills", "ce-polish.md"), "utf8"),
+      readFile(path.join(repoRoot, "skills", "guides", "ce-polish.md"), "utf8"),
     ])
 
     const capability = "browser testing and dogfood QA"
@@ -97,8 +97,8 @@ describe("ce-setup check-health", () => {
     const [template, docs, setupDocs, catalog, instructions] = await Promise.all([
       readFile(configTemplate, "utf8"),
       readFile(configDocs, "utf8"),
-      readFile(path.join(repoRoot, "docs", "skills", "ce-setup.md"), "utf8"),
-      readFile(path.join(repoRoot, "docs", "skills", "README.md"), "utf8"),
+      readFile(path.join(repoRoot, "skills", "guides", "ce-setup.md"), "utf8"),
+      readFile(path.join(repoRoot, "skills", "guides", "README.md"), "utf8"),
       readFile(path.join(repoRoot, "AGENTS.md"), "utf8"),
     ])
 
@@ -111,7 +111,7 @@ describe("ce-setup check-health", () => {
     expect(docs).toContain("CLAUDE.md")
     expect(setupDocs).toContain("./configuration.md")
     expect(catalog).toContain("./configuration.md")
-    expect(instructions).toContain("docs/skills/configuration.md")
+    expect(instructions).toContain("skills/guides/configuration.md")
 
     for (const consumer of [
       "ce-brainstorm",
@@ -126,7 +126,7 @@ describe("ce-setup check-health", () => {
       "ce-work",
       "lfg",
     ]) {
-      const consumerDocs = await readFile(path.join(repoRoot, "docs", "skills", `${consumer}.md`), "utf8")
+      const consumerDocs = await readFile(path.join(repoRoot, "skills", "guides", `${consumer}.md`), "utf8")
       expect(consumerDocs).toContain("./configuration.md")
     }
   })

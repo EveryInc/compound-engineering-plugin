@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { existsSync } from "fs"
 import fs from "fs/promises"
 import path from "path"
 import { STALE_SKILL_DIRS } from "../src/utils/legacy-cleanup"
@@ -19,8 +20,12 @@ import { STALE_SKILL_DIRS } from "../src/utils/legacy-cleanup"
 const PLUGIN_ROOT = path.join(import.meta.dir, "..")
 
 async function listCurrentSkillDirs(): Promise<Set<string>> {
-  const entries = await fs.readdir(path.join(PLUGIN_ROOT, "skills"), { withFileTypes: true })
-  return new Set(entries.filter((e) => e.isDirectory()).map((e) => e.name))
+  const skillsRoot = path.join(PLUGIN_ROOT, "skills")
+  const entries = await fs.readdir(skillsRoot, { withFileTypes: true })
+  const names = entries
+    .filter((e) => e.isDirectory() && existsSync(path.join(skillsRoot, e.name, "SKILL.md")))
+    .map((e) => e.name)
+  return new Set(names)
 }
 
 describe("legacy registry invariants", () => {

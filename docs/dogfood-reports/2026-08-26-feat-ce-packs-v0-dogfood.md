@@ -10,7 +10,7 @@
 - Review enforces them (`ce-code-review` learnings pass, `ce-doc-review` `{pack_constraints}` slot)
 - Capture recognizes them (`ce-compound` `pack_overlap` + writable-pack destination routing)
 - `ce-setup` health check gains a Compound Packs section with a branch-drift note
-- Docs: `docs/skills/packs.md` guide, configuration reference, glossary, plan artifact
+- Docs: `skills/guides/packs.md` guide, configuration reference, glossary, plan artifact
 
 ## Personas
 
