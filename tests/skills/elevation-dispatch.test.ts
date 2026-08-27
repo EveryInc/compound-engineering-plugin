@@ -162,6 +162,44 @@ describe("elevation-dispatch worker", () => {
     for (const flag of NEVER_FLAGS) expect(argv).not.toContain(flag)
   })
 
+  test("CE_ELEVATION_EFFORT overrides the default --effort argv", () => {
+    const r = spawnSync(
+      "bash",
+      [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"],
+      { encoding: "utf8", env: { ...process.env, CE_ELEVATION_EFFORT: "xhigh" } },
+    )
+    expect(r.status).toBe(0)
+    const argv = (r.stdout ?? "").split("\0").filter(Boolean)
+    const ei = argv.indexOf("--effort")
+    expect(ei).toBeGreaterThan(-1)
+    expect(argv[ei + 1]).toBe("xhigh")
+  })
+
+  test("an unsupported CE_ELEVATION_EFFORT rejects --emit-adapter with a named reason", () => {
+    const r = spawnSync(
+      "bash",
+      [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"],
+      { encoding: "utf8", env: { ...process.env, CE_ELEVATION_EFFORT: "extreme" } },
+    )
+    expect(r.status).toBe(2)
+    expect(r.stderr).toContain("invalid effort override")
+    expect(r.stderr).toContain("extreme")
+  })
+
+  test("an unsupported CE_ELEVATION_EFFORT degrades a real run to a failure envelope, not a crash", () => {
+    // Mirrors the missing-jq contract: exit 0 with status:failed so the runner
+    // still emits the artifact and the calling skill's Recovery path can read it.
+    const stub =
+      "#!/bin/sh\n" + `printf '%s\\n' '${RESULT_LINE("PLAN BODY", null)}'\n`
+    const { result, status } = runWorker("fable", stub, {
+      CE_ELEVATION_EFFORT: "bogus",
+    })
+    expect(status).toBe(0)
+    expect(result.status).toBe("failed")
+    expect(result.requested_model).toBe("fable")
+    expect(result.requested_effort).toBe("bogus")
+  })
+
   test("a matching receipt yields a matched envelope with the output", () => {
     const stub =
       "#!/bin/sh\n" +
@@ -171,6 +209,8 @@ describe("elevation-dispatch worker", () => {
     expect(result.output).toBe("PLAN BODY")
     expect(result.served_model).toBe("claude-fable-5")
     expect(result.receipt).toBe("matched")
+    expect(result.requested_effort).toBe("high")
+    expect(result.served_effort).toBe("unverified")
   })
 
   test("grants read access to only the prompt's own dir, not the whole temp root", () => {

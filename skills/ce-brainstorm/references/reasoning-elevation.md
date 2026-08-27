@@ -14,6 +14,10 @@ Resolve the per-skill **model choice immediately before adapter selection**, so 
 2. **Caller carrier** — a structured `<per-skill-key>:<model-alias>` token that an automatic orchestrator may pass in the invocation (LFG passes `plan_model:<alias>` to ce-plan; the analogous `brainstorm_model:<alias>` to ce-brainstorm). Use it when live user intent does not decide the choice. Strip it from the request text and never reconstruct it from product prose. It is honored in pipeline / `disable-model-invocation` runs. The alias must match `^[A-Za-z0-9._-]{1,64}$`; a malformed carrier counts as absent, not guessed.
 3. **Config** — otherwise use the per-skill key: `plan_model` for ce-plan, `brainstorm_model` for ce-brainstorm. Read it the **same way this skill's Phase 0.0 (output-mode resolution) resolves `plan_output` / `brainstorm_output`**: reuse the repo root already resolved, else run `git rev-parse --show-toplevel`, then apply the ordinary-key rule (`config.local.yaml` then `config.yaml`). Reuse the Phase 0.0 reads if still in hand. Ignore commented (`#`-prefixed) lines. A model alias selects it; missing / commented / invalid / no file selects none.
 
+### Effort resolution (Claude CLI route only)
+
+Once a model is resolved, separately resolve the reasoning effort the Claude CLI worker runs at, from the matching per-skill config key: `plan_effort` for ce-plan, `brainstorm_effort` for ce-brainstorm. Read it from the same config layer as the model (`config.local.yaml` then `config.yaml`, ordinary-key rule). One of `low`, `medium`, `high`, `xhigh`, `max` is a valid override; anything else — an unrecognized word, a number, a blank value — is **invalid, not a fallback to high**: name the offending value and the accepted set, and skip elevation for that run rather than dispatch at a silently different effort than configured. **Unset or absent stays `high`** — the effort key is opt-in and never changes existing behavior for a checkout that has not set it. There is no live-conversation or caller-carrier source for effort; config is the only input. The native adapter (Claude Code `Agent`/`Task` tool) has no per-dispatch effort override, so this key only affects the Claude CLI route (see Adapter selection): a native dispatch always runs at whatever effort the invoking harness uses by default.
+
 **Precedence: latest explicit live user intent, then caller carrier, then config.** In pipeline / `disable-model-invocation` runs, where there is no live user dialogue, resolution is caller-carrier-then-config. Nothing elevates without one of those sources.
 
 If the session model already **is** the resolved model, there is nothing to elevate: skip dispatch (see Transparency for whether a line is still printed).
@@ -80,13 +84,13 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
    SKILL_NAME="<this skill's name: ce-plan or ce-brainstorm>";
    CE_PEER_HARD_SECS=5400 CE_ELEVATION_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
+     CE_ELEVATION_EFFORT="<resolved effort, or omit to keep the high default>" \
      "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \
      -- bash "$SKILL_DIR/scripts/elevation-dispatch.sh" "<model>" "<prompt-file>" "<result-path>"
    ```
 
-`CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure. `start` returns a job id in under ~2s.
 
 3. **Poll** between your other work until the job reaches a terminal state (resolve `$PY` again — each tool call is a fresh shell):
 
@@ -96,7 +100,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"
    ```
 
-4. **Read the result** — the worker writes a JSON object of the shape `{status, requested_model, served_model, receipt, output}`:
+4. **Read the result** — the worker writes a JSON object of the shape `{status, requested_model, served_model, receipt, requested_effort, served_effort, output}` (`served_effort` is always `"unverified"`: the CLI's terminal event carries no per-call effort field to confirm it against, unlike `served_model`):
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
