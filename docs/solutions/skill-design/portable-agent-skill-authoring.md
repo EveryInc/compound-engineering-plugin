@@ -227,6 +227,14 @@ Do not request hidden reasoning or chain-of-thought. Ask for decisions, evidence
 
 Every skill needs one skill-level done bar. Add local done checks only where skipping the check can produce an unsafe action, fragile transition, scope expansion, mutation, auth mistake, irreversible external effect, or silent handoff failure. A "Done when" on every paragraph is over-prescription, not rigor.
 
+## Instruct long-running execution: batch, narrate, finish
+
+In long agent loops, current models drift in three ways the skill's prose must counter: implied-parallel tool calls get issued one per turn, user-facing narration goes quiet for minutes at a time, and turns end with work described rather than performed. A skill that owns a long-running or orchestrating workflow states all three disciplines; a skill that runs a few calls and returns needs none of them.
+
+- **Batching.** Instruct the agent to first privately list what it needs next, then issue every call that does not depend on another's result in one response. For work dispatched to subagents, the same rule schedules a wave: dispatch every independent unit together, and serialize only where the dependency graph actually demands it — uncertainty is resolved by inspecting the contested files and contracts, not by defaulting to serial.
+- **Narration.** Say what user-facing text the workflow produces and when: a line before a step starts naming what it should produce, brief updates at meaningful boundaries naming what actually happened, and a closing recap that stands on its own. Name the fields each of these carries; "keep the user informed" is an effort instruction, not a contract.
+- **Finishing.** Gate completion claims on performed work: a step is done only after it actually ran, describing what a step would do is not doing it, and the turn does not end while in-scope work remains undone or merely described. Pair this with the skill-level done bar rather than adding per-step ceremony.
+
 ## Describe capabilities before tools
 
 Tool calls are common in skills, but a named tool should not become the portable contract unless its exact semantics are load-bearing.
@@ -384,6 +392,7 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Cross-model output guidance names must-preserve content instead of using blanket "be concise" / "keep it short" slogans.
 - [ ] Vendor guidance conflicts resolve Sol-first for this org's multi-model skills; Fable-only deletions do not strip Sol-critical determinism.
 - [ ] Generic quality exhortations and motivational rationale are absent.
+- [ ] Long-running or orchestrating workflows state batching, narration, and finish-fully discipline; skills that run a few calls and return omit them.
 
 ### Protocol and judgment
 
