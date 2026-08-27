@@ -26,6 +26,8 @@ while (tasks remain):
   - Evaluate for incremental commit (see below)
 ```
 
+Batch independent reads within a task: the plan's referenced files, pattern searches, and test discovery don't depend on one another — request them all in one response rather than one per turn. Only the write-and-verify steps are inherently sequential.
+
 For a parallel wave, the loop pauses at a host-owned integration stop after every canonical result. Inspect the actual result rather than its declared scope, re-run the independence judgment against the advancing tree, and recompute readiness from committed prerequisites. Affected dependents remain queued. An unaffected sibling may continue only after any failed apply or verification has been restored exactly and the prior integration lock released. Re-dispatch a stale or colliding result on the new base, resolve it explicitly, or finish it serially; never treat a conflict-free apply as semantic proof. Repeated collision or broad edits disable further parallel waves for the run.
 
 When a unit carries an `Execution note`, honor its intent rather than matching a fixed vocabulary. For notes that ask for proof-first work, write or identify the relevant failing test before implementation for that unit. For notes that ask for characterization, capture existing behavior before changing it. For notes that point away from unit coverage, run the named replacement verification and record why ordinary tests were not the right proof. For units without an `Execution note`, make the same decision from code and test discovery: upgrade to proof-first or characterization-first when behavior changes and the seam is practical; proceed pragmatically only when the task is non-behavioral or the exception is deliberate.

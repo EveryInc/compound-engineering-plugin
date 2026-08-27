@@ -2,28 +2,31 @@
 
 Read this after the engine is resolved and before dispatching any worker or scheduling a parallel wave. The kernel owns the route-resolution and WIP/write gates; the selected engine owner carries any engine-specific lock. This file owns how native work is scheduled, packaged, dispatched, and integrated.
 
-For the inline/subagent engine, **prefer subagents for any structured multi-unit plan** — each worker gets a fresh context window for one unit. **Parallelize independent units whenever it is safe**; fall back to serial only when parallel isn't safe or the harness can't isolate concurrent writes. Let the plan's `Dependencies` and `Files` drive batching: run an independent dependency layer together, then the next.
+For the inline/subagent engine, **prefer subagents for any structured multi-unit plan** — each worker gets a fresh context window for one unit. **Parallel dispatch of each independent dependency layer is the default, not an optimization to opt into**: serialize writes only where the dependency graph actually demands it, and only for the specific units that demand it. Let the plan's `Dependencies` and `Files` drive batching: run an independent dependency layer together, then the next. Serializing a whole plan is justified only by a genuinely linear dependency chain or a harness that cannot isolate concurrent writes — never by blanket caution.
 
 | Strategy | When to use |
 |----------|-------------|
 | **Inline** | Trivial work (1-2 files, no real decomposition), work needing user interaction mid-flight, or bare prompts that lack structured units |
-| **Serial subagents** | The default for structured multi-unit plans whose units are dependent, few, or whose parallel-safety is uncertain. Fresh context per unit, executed in dependency order |
-| **Parallel subagents** | Independent units (per the Parallel Safety Check) when you want the speed and the harness can isolate concurrent work. Run a dependency layer at once, then the next |
+| **Parallel subagents** | The default for structured multi-unit plans when the harness can isolate concurrent work: dispatch each dependency layer's independent units (per the Parallel Safety Check) together, then the next layer |
+| **Serial subagents** | Units the dependency graph genuinely chains, units that fail the Parallel Safety Check after inspection, or a harness without isolation. Fresh context per unit, executed in dependency order |
 
 **Parallel Safety Check** — scheduling is separate from engine and workspace selection. Apply this gate to native and cross-model candidates before dispatching a wave:
 
 1. Start only with units whose dependencies are already committed and whose peers in the same readiness layer do not depend on one another.
 2. Map declared files to units from each candidate's `Files:` section, then reason beyond those declarations. File overlap is necessary but not sufficient: shared types/APIs/interfaces, migrations, lockfiles, generated artifacts/clients, registry or config/schema surfaces, and an environment singleton (one dev server/port, shared database, browser session, package install, or rate limit) all create contention.
 3. Estimate expected merge and verification cost. Even isolated workers serialize when they share a contract or when reconciling their likely outputs is not obviously smaller and safer than serial authoring.
-4. Dispatch together only when dependencies, declared files, semantic surfaces, runtime resources, and expected merge cost all support independence; **decline parallelism on uncertainty**. Speed is optional.
+4. Dispatch together only when dependencies, declared files, semantic surfaces, runtime resources, and expected merge cost all support independence. Resolve uncertainty by inspection, not by default: read the actual files and contracts in question — minutes of reading is cheaper than hours of serial waiting. When contention survives inspection, **decline parallelism** for exactly the contending units and dispatch the rest of the layer in parallel; uncertainty about one unit never serializes its whole layer, and safety still beats speed for the units that genuinely contend.
 5. Require an isolated workspace for every concurrent worker. A synchronous native unit stays in the active checkout, but a shared-workspace worker runs serially regardless of declared file disjointness.
 6. Cap concurrency at a bounded batch (~3-5 workers), even when more units appear independent.
-7. Abort criteria: broad unplanned edits, semantic overlap, out-of-scope failures, or repeated collision disables further waves; preserve or finish affected work serially.
+7. Price the cold-start tax before decomposing: every dispatched worker pays a context ramp-up before its first write. A unit too small to outweigh its own ramp-up belongs batched with related small units into one worker's packet — or done inline — rather than dispatched alone; per-unit ceremony is overhead, not rigor.
+8. Abort criteria: broad unplanned edits, semantic overlap, out-of-scope failures, or repeated collision disables further waves; preserve or finish affected work serially.
 
 Isolation for native workers is the harness's job, under the body's boundary. Probe what your native subagent mechanism provides and pick the parallel path:
 - **Harness-native isolated workers** — each worker edits an isolated workspace the harness manages: for example, Claude Code `Agent` with worktree isolation or a harness worker capability whose receipt confirms an isolated workspace. This works even when you are already inside a worktree because the harness-managed worktrees are peers, not nested. Parallelize only units that pass the Safety Check; isolation makes recovery possible, not overlap safe.
 - **Shared workspace only** — subagents edit your working directory. Run them serially. Do not infer isolation from the presence of a subagent API; use only a capability the active harness actually exposes.
 - **No subagent mechanism:** run inline.
+
+**Dispatch a wave in one response.** When a dependency layer clears the Safety Check, first privately list every dispatch-ready unit; then issue every worker dispatch that doesn't depend on another's result in that one response — multiple dispatch tool calls in a single message (e.g. Claude Code `Agent` calls), never one per turn. Apply the same batching to independent read-only calls throughout the run: file reads, pattern greps, test discovery, and workspace probes that don't depend on one another go out together.
 
 **Native dispatch (inline/subagent engines only)** uses your harness's subagent/worker mechanism. Once a unit is selected for cross-model execution, use the loaded controller protocol for that unit; it must not re-enter this ordinary subagent dispatch.
 
