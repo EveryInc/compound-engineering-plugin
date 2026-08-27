@@ -10,13 +10,11 @@ LFG runs hands-off, from schedulers, loops, and nested orchestrators with no use
 
 Resolve every skill named below against the host's available-skills list and invoke that exact entry; some hosts namespace it (`compound-engineering:ce-plan`), and a short-form guess that is not in the list fails.
 
-Read `references/task-visibility.md` before step 1: it owns the stage-level view this pipeline publishes through the platform's task-tracking capability and hands to each child skill.
+Read `references/task-visibility.md` before step 1: it owns the stage-level view this pipeline publishes through the platform's task-tracking capability, the per-step chat narration, and the completion discipline — a step is done only after it ran, and the turn does not end before DONE or a GATE stop.
 
 ## Per-stage routing carriers
 
-Before step 1, interpret whether the invoking conversation expresses semantic intent to assign a pipeline stage — planning or implementation — to a specific model or harness. This is judgment, not keyword or prompt-token matching: a plain mention of a model or harness in feature content, quoted material, comparison text, or a filename is not an assignment.
-
-**When one exists, read `references/stage-routing.md` before step 1.** Only that file carries which stages are routable, how scope and requirement strength resolve, the `implementation_engine` grammar, the ordered-fallback case, the sanitization that keeps routing out of planning and review inputs, and the carrier strings for both seams. An improvised carrier drops the user's instruction or contaminates the plan with routing.
+Before step 1, judge whether the conversation expresses semantic intent to assign a stage — planning or implementation — to a model or harness; a plain mention in feature content, quotes, comparisons, or a filename is not an assignment. When one exists, read `references/stage-routing.md` before step 1: only it carries the routable stages, scope and strength resolution, the `implementation_engine` grammar, ordered fallback, the sanitization that keeps routing out of planning and review inputs, and both seams' carrier strings. An improvised carrier drops the user's instruction or contaminates the plan with routing.
 
 1. **Read `references/plan-brief.md` first**, then invoke the `ce-plan` skill with the sanitized feature request — or the arguments you were invoked with, unchanged, when no routing directive was present — prefixed with the `plan_model:<alias>` carrier when a planning-stage directive resolved, and with the settled-decisions brief that file specifies. Only it carries the artifact-root rule this step's gate reads, the brief's required fields, demotion rule, topical scope bar, and skip-entirely case, and the readiness values the gate applies.
 
