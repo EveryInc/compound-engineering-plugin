@@ -77,7 +77,7 @@ describe("learnings-researcher searches pack roots", () => {
 
   test("reads every pack file's frontmatter instead of grep-filtering small packs", () => {
     expect(roots).toMatch(/more than 25 files/)
-    expect(roots).toMatch(/every markdown file in the pack/)
+    expect(roots).toMatch(/every top-level markdown file in the pack/)
   })
 
   test("matches applies_when as a frontmatter field in extraction and scoring", () => {
