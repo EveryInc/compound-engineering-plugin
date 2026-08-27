@@ -3,6 +3,8 @@ import path from "path"
 import { describe, expect, test } from "bun:test"
 // @ts-expect-error -- plain JS plugin entrypoint, no type declarations
 import { CompoundEngineeringPlugin } from "../.opencode/plugins/compound-engineering.js"
+// @ts-expect-error -- plain JS plugin entrypoint, no type declarations
+import OpenCodePlugin from "../.opencode/plugins/compound-engineering.js"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
 const skillsDir = path.resolve(import.meta.dir, "../skills")
@@ -11,6 +13,25 @@ type OpenCodeCommand = { template: string; description?: string }
 type OpenCodeConfig = {
   skills?: { paths?: string[] }
   command?: Record<string, OpenCodeCommand>
+}
+
+type V2Command = {
+  name: string
+  description?: string
+  execute: (input: {
+    sessionID: string
+    prompt: { text: string; skills?: Array<{ id: string }> }
+    delivery: string
+  }) => Promise<void>
+}
+
+type V2Skill = {
+  id: string
+  name: string
+  description?: string
+  slash?: boolean
+  location: string
+  content: string
 }
 
 async function applyPlugin(config: OpenCodeConfig = {}): Promise<OpenCodeConfig> {
@@ -37,16 +58,19 @@ const skills = fs
   })
 
 const expectedTemplate = (name: string) => `Load and execute the \`${name}\` skill.\n\n$ARGUMENTS`
+const invocableSkillNames = skills.filter((skill) => !skill.suppressed).map((skill) => skill.name).sort()
 
 describe("opencode plugin skill commands", () => {
+  test("exports both OpenCode plugin contracts", () => {
+    expect(OpenCodePlugin.id).toBe("compound-engineering")
+    expect(typeof OpenCodePlugin.server).toBe("function")
+    expect(typeof OpenCodePlugin.setup).toBe("function")
+  })
+
   test("registers a command for every user-invocable skill", async () => {
     const config = await applyPlugin()
-    const expected = skills
-      .filter((skill) => !skill.suppressed)
-      .map((skill) => skill.name)
-      .sort()
 
-    expect(Object.keys(config.command ?? {}).sort()).toEqual(expected)
+    expect(Object.keys(config.command ?? {}).sort()).toEqual(invocableSkillNames)
   })
 
   test("each command carries a $ARGUMENTS template and the skill description", async () => {
@@ -98,4 +122,46 @@ describe("opencode plugin skill commands", () => {
       expect(dirs.has(name)).toBe(true)
     }
   })
+
+  test("registers v2 commands and embedded skill definitions", async () => {
+    const commands: V2Command[] = []
+    const registeredSkills: V2Skill[] = []
+    const prompts: unknown[] = []
+
+    await OpenCodePlugin.setup({
+      command: {
+        transform: async (callback: (draft: { add: (command: V2Command) => void }) => void) =>
+          callback({ add: (command) => commands.push(command) }),
+      },
+      skill: {
+        transform: async (callback: (draft: { add: (skill: V2Skill) => void }) => void) =>
+          callback({ add: (skill) => registeredSkills.push(skill) }),
+      },
+      session: {
+        prompt: async (input: unknown) => {
+          prompts.push(input)
+        },
+      },
+    })
+
+    expect(commands.map((command) => command.name).sort()).toEqual(invocableSkillNames)
+    expect(registeredSkills.map((skill) => skill.id).sort()).toEqual(skills.map((skill) => skill.name).sort())
+    expect(registeredSkills.every((skill) => skill.slash === false)).toBe(true)
+    expect(registeredSkills.every((skill) => !skill.content.startsWith("---"))).toBe(true)
+
+    const command = commands.find((item) => item.name === "ce-plan")!
+    const existingSkill = { id: "existing-skill" }
+    await command.execute({
+      sessionID: "session",
+      prompt: { text: "extra context", skills: [existingSkill] },
+      delivery: "steer",
+    })
+    expect(prompts[0]).toEqual({
+      sessionID: "session",
+      text: "extra context",
+      skills: [existingSkill, { id: command.name }],
+      delivery: "steer",
+    })
+  })
+
 })

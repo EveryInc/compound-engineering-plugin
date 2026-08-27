@@ -1,6 +1,8 @@
 import path from "path"
 import fs from "fs"
 import { fileURLToPath } from "url"
+import { createV1Plugin } from "./compound-engineering/opencode-v1.js"
+import { createV2Setup } from "./compound-engineering/opencode-v2.js"
 
 const pluginDir = path.dirname(fileURLToPath(import.meta.url))
 const skillsDir = path.resolve(pluginDir, "../../skills")
@@ -23,52 +25,50 @@ function parseFrontmatter(content) {
     const pair = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/)
     if (pair) fields[pair[1]] = unquote(pair[2].trim())
   }
-  return fields
+  return {
+    fields,
+    body: content.slice(block[0].length).replace(/^\r?\n/, ""),
+  }
 }
 
 function loadSkills() {
-  const commands = {}
+  const skills = []
   let entries
   try {
     entries = fs.readdirSync(skillsDir)
   } catch {
-    return commands
+    return skills
   }
   for (const entry of entries) {
+    const skillPath = path.join(skillsDir, entry, "SKILL.md")
     let content
     try {
-      content = fs.readFileSync(path.join(skillsDir, entry, "SKILL.md"), "utf8")
+      content = fs.readFileSync(skillPath, "utf8")
     } catch {
       continue
     }
-    const fields = parseFrontmatter(content)
-    if (!fields || !fields.name) continue
-    if (fields["user-invocable"] === "false") continue
-    const command = {
-      template: `Load and execute the \`${fields.name}\` skill.\n\n$ARGUMENTS`,
-    }
-    if (fields.description) command.description = fields.description
-    commands[fields.name] = command
+    const parsed = parseFrontmatter(content)
+    if (!parsed || !parsed.fields.name) continue
+    skills.push({
+      name: parsed.fields.name,
+      description: parsed.fields.description,
+      body: parsed.body,
+      skillPath,
+      suppressed: parsed.fields["user-invocable"] === "false",
+    })
   }
-  return commands
+  return skills
 }
 
-const skillCommands = loadSkills()
+const skills = loadSkills()
 
-export const CompoundEngineeringPlugin = async () => ({
-  config: async (config) => {
-    config.skills = config.skills || {}
-    config.skills.paths = config.skills.paths || []
-    if (!config.skills.paths.includes(skillsDir)) {
-      config.skills.paths.push(skillsDir)
-    }
-    config.command = config.command || {}
-    for (const [name, cmd] of Object.entries(skillCommands)) {
-      if (!(name in config.command)) {
-        config.command[name] = cmd
-      }
-    }
-  },
-})
+const CompoundEngineeringPlugin = createV1Plugin({ skills, skillsDir })
+const setupV2 = createV2Setup(skills)
 
-export default CompoundEngineeringPlugin
+export { CompoundEngineeringPlugin }
+
+export default {
+  id: "compound-engineering",
+  server: CompoundEngineeringPlugin,
+  setup: setupV2,
+}
