@@ -272,12 +272,13 @@ def main(argv: list[str]) -> int:
                 f"{upstream}: stale checkout? Annotate or verify against upstream."
             )
         else:
-            where = (
-                f"working tree or {upstream}" if upstream else "working tree"
-            )
             flags.append(
-                f"FLAG path `{token}`{loc} — not found in {where}. Fix the "
-                "citation, or annotate it as historical (e.g. removed by this fix)."
+                f"FLAG path `{token}`{loc} — not found under {base}"
+                + (f" or {upstream}" if upstream else "")
+                + ". This check only looks in this repository; verify other "
+                "repos or stores before treating the citation as wrong. Fix "
+                "the citation, or annotate it as historical (e.g. removed "
+                "by this fix)."
             )
 
     # --- 2. Cited commit SHAs ----------------------------------------------
