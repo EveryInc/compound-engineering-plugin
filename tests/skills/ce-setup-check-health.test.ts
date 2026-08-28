@@ -128,6 +128,31 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  test("does not warn on inactive ~/.codex/AGENTS.md when CODEX_HOME is a custom home", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      const customHome = path.join(root, "custom-codex")
+      await mkdir(customHome, { recursive: true })
+      await writeFile(path.join(customHome, "AGENTS.md"), "# active profile, no map\n")
+      await mkdir(path.join(root, ".codex"), { recursive: true })
+      await writeFile(
+        path.join(root, ".codex", "AGENTS.md"),
+        [
+          "<!-- BEGIN COMPOUND CODEX TOOL MAP -->",
+          "Task (subagent dispatch) / Subagent / Parallel: run sequentially in main thread",
+          "<!-- END COMPOUND CODEX TOOL MAP -->",
+          "",
+        ].join("\n"),
+      )
+      const result = await runCheckHealth(root, "/usr/bin:/bin", { CODEX_HOME: customHome })
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).not.toContain("Legacy Compound Codex tool map still present")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("advertises agent-browser only for its current consumers", async () => {
     const [script, setupDocs, polishSkill, polishRun, polishDocs] = await Promise.all([
       readFile(checkHealthScript, "utf8"),

@@ -318,8 +318,8 @@ scan_codex_profile_tree() {
 scan_codex_agents_file "$codex_home/AGENTS.md"
 scan_codex_profile_tree "$codex_home"
 # Named profiles live under ~/.codex even when CODEX_HOME points at an active profile.
+# Do not scan inactive ~/.codex/AGENTS.md — that file is not the current session.
 if [ "$codex_home" != "$default_codex_home" ]; then
-  scan_codex_agents_file "$default_codex_home/AGENTS.md"
   scan_codex_profile_tree "$default_codex_home"
 fi
 
