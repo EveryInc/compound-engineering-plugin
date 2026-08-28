@@ -150,6 +150,35 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).toContain("not found")
       })
 
+      test("checks an absolute citation that points inside the repo", () => {
+        const docPath = writeRepoDoc(
+          "The fix lives in `" + path.join(repo, "src/real-file.ts") + "`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("checked 0 paths")
+      })
+
+      test("flags a BROKEN absolute citation instead of silently passing", () => {
+        const docPath = writeRepoDoc(
+          "The handler is `" +
+            path.join(repo, "src/does-not-exist.ts") +
+            "`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG path")
+      })
+
+      test("still ignores a URL route that starts with a slash", () => {
+        const docPath = writeRepoDoc(
+          "The probe calls `/api/v1/users/me` with a bearer token.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG")
+      })
+
       test("classifies a path that only exists upstream as stale-checkout", () => {
         const docPath = writeRepoDoc(
           "See `src/upstream-only.ts` for the new helper.\n",

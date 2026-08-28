@@ -14,12 +14,15 @@ validate-frontmatter.py (parser-safety) — this script checks the body's
 citations against the repository:
 
     1. Cited repo-relative paths (backticked, containing at least one '/')
-       exist in the working tree; tokens containing '../' resolve from the
-       doc's directory (those escaping the repo are skipped). Misses tracked
-       at HEAD or the upstream default branch still count as real paths and
-       are classified (deleted/uncommitted vs stale checkout). Tokens
-       missing everywhere are flagged only when path-shaped; slash-delimited
-       identifiers (branch names, git refs, provider/model IDs) are skipped.
+       exist in the working tree, including already-absolute citations that
+       fall inside the repo (rewritten to repo-relative before candidacy).
+       Tokens containing '../' resolve from the doc's directory (those
+       escaping the repo are skipped). Misses tracked at HEAD or the
+       upstream default branch still count as real paths and are classified
+       (deleted/uncommitted vs stale checkout). Tokens missing everywhere
+       are flagged only when path-shaped; slash-delimited identifiers
+       (branch names, git refs, provider/model IDs) and slash-prefixed
+       URL routes are skipped.
     2. Cited commit SHAs (7-40 hex chars with at least one digit and one
        a-f letter) resolve to commits, classified by reachability from
        HEAD and the upstream default branch.
@@ -155,6 +158,24 @@ def normalize_path(token: str) -> str:
     return token
 
 
+def strip_repo_prefix(token: str, base: str) -> str:
+    """Rewrite an already-absolute path inside the repo to repo-relative.
+
+    Relative tokens, URL routes, and out-of-repo absolute paths are
+    unchanged so the existing candidacy guard still drops them. Realpath
+    both sides so a host where /tmp is a symlink still matches.
+    """
+    if not os.path.isabs(token):
+        return token
+    try:
+        rel = os.path.relpath(os.path.realpath(token), os.path.realpath(base))
+    except ValueError:
+        return token
+    if rel.startswith(".."):
+        return token
+    return rel
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         usage_fail(f"usage: {os.path.basename(argv[0])} <doc-path>")
@@ -234,6 +255,8 @@ def main(argv: list[str]) -> int:
     base = repo_root if in_git else os.getcwd()
     for raw in BACKTICK_RE.findall(body):
         token = normalize_path(raw)
+        if in_git:
+            token = strip_repo_prefix(token, base)
         if not is_path_candidate(token):
             continue
         check = token
