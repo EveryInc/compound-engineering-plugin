@@ -69,7 +69,7 @@ Invoked when a specific need arises, not part of any chain.
 | [`/ce-explain`](./ce-explain.md) | A durable teaching document for a concept, a diff, an idea, or a window of recent work. Optional opt-in check-in. |
 | [`/ce-prototype`](./ce-prototype.md) | Build a throwaway prototype so someone can experience how the product should work, feel, or read, then write those decisions into an existing plan or continue into brainstorm or plan |
 | [`/ce-debug`](./ce-debug.md) | Find the root cause of broken behavior: causal chain, predictions, then an optional fix and PR handoff |
-| [`/ce-code-review`](./ce-code-review.md) | Structured review of a diff or PR: skill-local personas, confidence-gated findings |
+| [`/ce-code-review`](./ce-code-review.md) | Structured review of a diff or PR: skill-local personas, confidence-gated findings, and the rules you write in `CODING_STANDARDS.md` |
 | [`/ce-doc-review`](./ce-doc-review.md) | Structured review of a requirements or plan document: findings, not a holistic verdict |
 | [`/ce-simplify-code`](./ce-simplify-code.md) | Refine recently changed code for reuse, quality, and efficiency, with behavior preserved |
 | [`/ce-optimize`](./ce-optimize.md) | Metric-driven optimization loops with parallel experiments and a durable experiment log |

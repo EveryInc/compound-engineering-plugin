@@ -6,6 +6,8 @@
 
 Review is report-only by default. Local fixes require `apply:local` or an explicit request to apply this review's findings. `mode:agent` always reports and leaves mutation to the caller.
 
+What it enforces is yours to set. Write a rule in a `CODING_STANDARDS.md` file in your repository and the review checks against it from then on (see [Repo-owned review criteria](#repo-owned-review-criteria)).
+
 It is not a verdict on a document (`ce-pov`), not findings on a planning doc (`ce-doc-review`), and not an investigation of broken behavior (`ce-debug`).
 
 `ce-work` invokes it as the portable review path before shipping. `ce-optimize` and `ce-debug` also call it on the diffs they produce. You can invoke it directly any time you want a structured review.
@@ -19,6 +21,7 @@ It is not a verdict on a document (`ce-pov`), not findings on a planning doc (`c
 | What does it do? | Selects reviewer personas from the diff, dispatches them, merges findings into one report with confidence gating |
 | When to use it | Before opening a PR, after a large or sensitive change, or when the harness has no built-in `/review` |
 | What it produces | A structured findings report. With explicit local-apply authority it can also apply verified fixes and add an Applied section. It never pushes |
+| How to customize it | Write rules in `CODING_STANDARDS.md`. The review discovers the file and enforces what it says |
 | Modes | Markdown report (default) and `mode:agent` JSON handoff. Both are report-only unless local apply is separately authorized |
 
 ---
@@ -98,7 +101,7 @@ Generalist code review prompts collapse in predictable ways:
 A small low-risk change runs correctness (and project-standards if applicable files exist). A Rails auth feature with migrations adds the relevant domain lenses. The skill decides which personas fit the diff:
 
 - **Always-on:** `correctness-reviewer`
-- **Standards:** `project-standards-reviewer` only when at least one applicable standards file exists
+- **Standards:** `project-standards-reviewer` only when at least one criteria file governs a changed file (see [Repo-owned review criteria](#repo-owned-review-criteria))
 - **Generic conditional:** testing for changed tests/harnesses or meaningful runtime behavior with no corresponding test work; maintainability for large or structural work; agent-native for agent-facing surfaces; learnings only when an existing `docs/solutions/` corpus has plausible matches
 - **Cross-cutting conditional:** security, performance, API contract, data migrations, reliability, adversarial, previous-comments. Each selected only when the diff touches its concern
 - **Stack-specific:** Julik frontend races, Swift/iOS. Only when the matching runtime domain is touched
@@ -109,6 +112,30 @@ Persona selection is agent judgment, not keyword matching. Instruction-prose fil
 When you pass a PR number or URL, trivial automated PRs (lockfile bumps, chore version increments) are skipped. Draft PRs are reviewed normally.
 
 `depth:auto` (the default) collapses a 1-39-line, low-risk, code-only diff to a lite roster. `depth:full` disables that path so the full always-on roster runs regardless of size. Neither token invents irrelevant domains.
+
+### Repo-owned review criteria
+
+Everything else the skill checks is what we ship. This is the part you own.
+
+Put a `CODING_STANDARDS.md` in your repository, write the rules your team actually cares about, and the review enforces them. A finding from that file cites the rule it broke, so it arrives as "this violates the rule you wrote" rather than someone's taste.
+
+```markdown
+# Coding Standards
+
+- Every exported function declares an explicit return type.
+- Nothing in `src/` calls `console.log` directly; route it through the `log()` helper.
+```
+
+Four things worth knowing:
+
+- **Placement scopes it.** A file at the repo root governs the whole checkout. One at `skills/CODING_STANDARDS.md` governs only what is under `skills/`. Several can apply to the same file at once.
+- **Any format works.** Prose, bullets, tables, nested headings, with or without frontmatter. The content is the contract; there is no schema to satisfy and no identifiers to assign. A paragraph of plain English is a valid rules file.
+- **It replaces the instruction file as criteria, per changed file.** `CLAUDE.md` and `AGENTS.md` remain the criteria for any changed file that no `CODING_STANDARDS.md` governs, so a repo that has never written one keeps the review it already had. No file is ever graded against both kinds, and the report names the fallback in Coverage when it supplies the criteria.
+- **It can grow.** An instruction file is loaded into every agent's context on every turn, so it stays short and rules get cut for space. A criteria file is read once, by one reviewer, at review time. That is the reason to keep enforceable rules here rather than in `AGENTS.md`: this file has room, and adding to it costs nothing until review runs.
+
+That last point is what makes review strictness compound. Notice a mistake worth preventing, write the rule down, and every review after that catches it.
+
+---
 
 ### Cross-model adversarial pass
 
@@ -243,7 +270,7 @@ Conflicting mode flags (or conflicting grouping flags) stop with an error. Combi
 Use it when it is the right tool. The quick-review short-circuit defers to it explicitly. `ce-code-review` is for cases where you want diff-aware persona selection, structured findings with calibrated severity, autofix routing, and a residual handoff the caller can act on.
 
 **How does it decide which personas to dispatch?**
-Agent judgment over the actual diff, not keyword matching. Correctness runs for every multi-agent review. Project-standards runs when applicable standards files exist. Generic, cross-cutting, and stack-specific personas are added only when their concern is present. Production-file presence alone and non-behavioral edits do not select testing. A silent-pass verification mechanism gets adversarial (and the cross-model pass, when the tree is local) regardless of size.
+Agent judgment over the actual diff, not keyword matching. Correctness runs for every multi-agent review. Project-standards runs when a criteria file governs at least one changed file. Generic, cross-cutting, and stack-specific personas are added only when their concern is present. Production-file presence alone and non-behavioral edits do not select testing. A silent-pass verification mechanism gets adversarial (and the cross-model pass, when the tree is local) regardless of size.
 
 **What's the difference between default, `mode:agent`, and `apply:local`?**
 Default is a human-facing markdown report and is report-only. `mode:agent` is the same pipeline serialized as one JSON object for a caller. It is always report-only. `apply:local` is separate authority for the markdown run to apply verified findings locally. `mode:headless` is a deprecated alias for `mode:agent`. `mode:non-interactive` means "suppress prompts" in other CE skills and is not valid here.
