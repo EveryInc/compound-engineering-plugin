@@ -60,6 +60,10 @@ GIT_LOCAL_ENV_VARS = frozenset({
     "GIT_GRAFT_FILE",
     "GIT_IMPLICIT_WORK_TREE",
     "GIT_INDEX_FILE",
+    # Listed by `git rev-parse --local-env-vars` on git < 2.41 (e.g. Debian
+    # bookworm's 2.39); dropped from the list by newer git. Scrub it so an
+    # inherited value cannot leak into unit verification on old git.
+    "GIT_INTERNAL_SUPER_PREFIX",
     "GIT_NO_REPLACE_OBJECTS",
     "GIT_OBJECT_DIRECTORY",
     "GIT_PREFIX",
