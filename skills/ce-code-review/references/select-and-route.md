@@ -64,17 +64,19 @@ For `deployment-verification-agent`, use the same migration-artifact gate when t
 
 ### Stage 3b: Discover project standards paths
 
-Before spawning sub-agents, find the file paths (not contents) of the criteria governing the changed files, for the `project-standards` persona.
+**Goal:** the mapping that pairs each criteria file governing this change with the changed files it governs, for the `project-standards` persona. Paths, not contents.
 
-1. With the native file-search/glob tool, locate every `**/CODING_STANDARDS.md`, `**/CLAUDE.md`, and `**/AGENTS.md` in the repo.
-2. Keep those whose directory is an ancestor of at least one changed file. A file governs everything below it, so a root-level file applies to the whole checkout while `skills/AGENTS.md` applies only under `skills/`.
-3. `CODING_STANDARDS.md` is the designated criteria source. An instruction file supplies criteria only for changed files that no `CODING_STANDARDS.md` governs, so no file is ever reviewed against both kinds. Every governing `CODING_STANDARDS.md` still applies together, as in step 2. When the instruction-file fallback supplied the criteria for any changed file, name it as the fallback in Coverage.
+Enumerate the candidates from **the tree under review**, never from whichever tree happens to be checked out: the workspace only in `local-aligned` scope, and the reviewed head ref in `pr-remote` and `branch-remote` (Stage 1 resolved which). A criteria file that exists only in the reviewed tree must appear, and one deleted there must not, or the persona enforces criteria the change never had.
 
-Distinguish an empty successful search from a failed or unavailable search:
+Candidates are `CODING_STANDARDS.md`, `CLAUDE.md`, and `AGENTS.md` at any depth. Keep those whose directory is an ancestor of a changed file — a root-level file governs the whole checkout, `skills/AGENTS.md` only what is under `skills/`.
 
-- One or more applicable paths: select `project-standards` and pass the step-3 result inside a `<standards-paths>` block in its Stage 4 context, pairing each criteria file with the changed files it governs. The persona applies the precedence you resolved rather than re-deriving it, and reads the files itself, targeting only relevant sections.
+`CODING_STANDARDS.md` is the designated criteria source, so an instruction file supplies criteria only for changed files that no `CODING_STANDARDS.md` governs, and no file is graded against both kinds. Every governing `CODING_STANDARDS.md` still applies together. When the instruction-file fallback supplied the criteria for any changed file, name it as the fallback in Coverage.
+
+**Done** when every changed file has exactly one kind of criteria behind it, or the search is known to be empty. **On uncertainty, fail closed** — an error is never an empty result:
+
+- One or more applicable paths: select `project-standards` and pass the mapping inside a `<standards-paths>` block in its Stage 4 context. The persona applies the precedence you resolved rather than re-deriving it, and reads the files itself, targeting only relevant sections.
 - Empty successful search: do not dispatch `project-standards`; record `project standards: not run (no applicable standards files)` in Coverage.
-- Search failure or uncertain scope: fail closed by dispatching `project-standards` with the uncertainty stated; never treat an error as an empty result.
+- Search failure or uncertain scope: dispatch `project-standards` with the uncertainty stated.
 
 ### Stage 3c: Small-diff fast path (reduce the roster for trivial, low-risk diffs)
 
