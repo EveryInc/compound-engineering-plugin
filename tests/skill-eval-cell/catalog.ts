@@ -19,6 +19,8 @@ export const PRE_SWEEP_REF = "309611f6b5198528c1c98f83fb6b3c90637e523c"
 export const ISSUE_1482_BASE_REF = "66ccf579f8c1ef2ccfc642c317ba53151eeb1ebb"
 /** main before the right-size-ceremony change (#1513 release commit): the A/B base for its rows. */
 export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
+/** main before CODING_STANDARDS.md became the designated criteria source: the A/B base for the standards-discovery rows. */
+export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e2632c"
 /** main after #1514 merged: the product-lens activation leg still read "alternatives plausibly exist". */
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
@@ -70,6 +72,12 @@ export type Scenario = {
   git_init?: boolean
   /** Paths left untracked after the seed commit (secrets / the change under test). */
   git_untracked?: string[]
+  /**
+   * Paths staged but not committed, so they are the reviewed set. Untracked paths are
+   * out of scope for a diff-scoping skill, so a cell that needs a real reviewed diff
+   * uses this rather than git_untracked.
+   */
+  git_staged?: string[]
   shim_git_push?: boolean
   shim_gh_pr?: boolean
   /** Configure a fake `origin` whose `main` is the seed commit, so the shipping tail takes the push/PR path instead of the local-commit path. Pair with shim_git_push. */
@@ -669,6 +677,108 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
       workspace_read: ["src/greet.js"],
       // workspace_read only sees FILES_READ; greet.js does not retry.
       must_include: ["does not retry"],
+    },
+  },
+  {
+    id: "ce-code-review/standards-designated-source",
+    baseline_ref: STANDARDS_SOURCE_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/cart.ts"],
+    fixture: `${FIX}/standards-designated`,
+    why: "CODING_STANDARDS.md is the designated criteria source. Before the change, Stage 3b globbed CLAUDE.md/AGENTS.md only, so a repo-owned standards file was invisible and the instruction file supplied the criteria instead.",
+    pre_contract:
+      "Stage 3b finds all CLAUDE.md and AGENTS.md whose directory is an ancestor of a changed file; CODING_STANDARDS.md is not discovered.",
+    task: `Use the ce-code-review skill on this repo. Stop before dispatching any reviewers.
+
+Work out which files you will check the changed code against. Then end your answer with one line per changed file, in exactly this form and nothing else on the line:
+
+CRITERIA: <changed-file-path>=<criteria-file-path>
+
+Do not run the review itself.`,
+    grade: {
+      must_include: ["src/cart.ts=CODING_STANDARDS.md"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-code-review/standards-scoped-precedence",
+    baseline_ref: STANDARDS_SOURCE_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/cart.ts", "skills/demo.md"],
+    fixture: `${FIX}/standards-mixed-scope`,
+    why: "The discriminating leg: precedence is per changed file, not per repo. A subtree standards file governs its subtree while the root instruction file still supplies criteria outside it, and no file is graded against both kinds.",
+    pre_contract:
+      "Only CLAUDE.md/AGENTS.md are criteria, so the root AGENTS.md supplies criteria for every changed file and skills/CODING_STANDARDS.md is reviewed as content rather than applied as rules.",
+    task: `Use the ce-code-review skill on this repo. Stop before dispatching any reviewers.
+
+Work out which files you will check the changed code against. Then end your answer with one line per changed file, in exactly this form and nothing else on the line:
+
+CRITERIA: <changed-file-path>=<criteria-file-path>
+
+Do not run the review itself.`,
+    grade: {
+      must_include: ["skills/demo.md=skills/CODING_STANDARDS.md", "src/cart.ts=AGENTS.md"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-code-review/standards-instruction-fallback",
+    baseline_ref: STANDARDS_SOURCE_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/cart.ts"],
+    fixture: `${FIX}/standards-fallback-only`,
+    why: "Regression guard for the leg both contracts must still get right: with no CODING_STANDARDS.md anywhere, the instruction file still supplies the criteria rather than the review silently losing its standards gate.",
+    pre_contract:
+      "An applicable AGENTS.md supplies the review criteria and project-standards is dispatched.",
+    task: `Use the ce-code-review skill on this repo. Stop before dispatching any reviewers.
+
+Work out which files you will check the changed code against. Then end your answer with one line per changed file, in exactly this form and nothing else on the line:
+
+CRITERIA: <changed-file-path>=<criteria-file-path>
+
+Do not run the review itself.`,
+    grade: {
+      must_include: ["src/cart.ts=AGENTS.md"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-code-review/standards-format-agnostic",
+    baseline_ref: STANDARDS_SOURCE_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/cart.ts"],
+    fixture: `${FIX}/standards-prose-format`,
+    why: "A criteria file may be written by a person or another tool, so rules are extracted from whatever shape the file has. This fixture states its rules as flowing prose with no bullets, headings, or identifiers.",
+    pre_contract:
+      "CODING_STANDARDS.md is not discovered at all, so its rules cannot be extracted in any format.",
+    task: `Use the ce-code-review skill on this repo. Stop before dispatching any reviewers.
+
+Work out which files you will check the changed code against. Then end your answer with one line per changed file, in exactly this form and nothing else on the line:
+
+CRITERIA: <changed-file-path>=<criteria-file-path>
+
+Do not run the review itself.
+
+Also quote the specific rules you found in those files.`,
+    grade: {
+      must_include: ["src/cart.ts=CODING_STANDARDS.md", "explicit return type"],
+      actions: "none",
     },
   },
   {

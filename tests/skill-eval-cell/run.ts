@@ -157,7 +157,7 @@ async function main() {
   const taskFile = arg("--task-file")
   if (!skill) {
     console.error(
-      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--read-only] [--git-init] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
+      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--read-only] [--git-init] [--git-untracked p,p] [--git-staged p,p] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
     )
     process.exit(2)
   }
@@ -197,11 +197,22 @@ async function main() {
       .split(",")
       .map((p) => p.trim())
       .filter(Boolean)
+    // Staged paths are held out of the seed commit, then re-added, so they land as a
+    // staged-but-uncommitted change. A cell whose skill scopes a diff needs this:
+    // untracked paths are out of scope unless staged, so --git-untracked alone
+    // produces an empty reviewed set.
+    const staged = (arg("--git-staged") ?? "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter(Boolean)
     spawnSync("git", ["add", "."], { cwd: workspace })
-    for (const rel of untracked) {
+    for (const rel of [...untracked, ...staged]) {
       spawnSync("git", ["rm", "-f", "--cached", "--ignore-unmatch", "--", rel], { cwd: workspace })
     }
     spawnSync("git", ["commit", "-m", "seed", "--allow-empty"], { cwd: workspace })
+    for (const rel of staged) {
+      spawnSync("git", ["add", "--", rel], { cwd: workspace })
+    }
   }
   const seedRev = spawnSync("git", ["rev-parse", "HEAD"], { cwd: workspace, encoding: "utf8" })
   const seedSha = seedRev.status === 0 ? seedRev.stdout.trim() : ""
