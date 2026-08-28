@@ -668,7 +668,7 @@ if [ "${#legacy_codex_map_files[@]}" -gt 0 ]; then
     warn "Legacy Compound Codex tool map still present in $f"
   done
   detail "This retired block can make Codex skip ce-code-review as if no runner exists."
-  detail "Remove only the BEGIN/END COMPOUND CODEX TOOL MAP span — see docs/install/upgrading.md"
+  detail "Remove only the BEGIN/END COMPOUND CODEX TOOL MAP span — see this skill's references/legacy-codex-tool-map.md"
 fi
 
 echo ""

@@ -82,7 +82,7 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("Legacy Compound Codex tool map still present")
-      expect(result.stdout).toContain("docs/install/upgrading.md")
+      expect(result.stdout).toContain("references/legacy-codex-tool-map.md")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -122,7 +122,7 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin", { CODEX_HOME: customHome })
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("Legacy Compound Codex tool map still present")
-      expect(result.stdout).toContain("docs/install/upgrading.md")
+      expect(result.stdout).toContain("references/legacy-codex-tool-map.md")
     } finally {
       await rm(root, { recursive: true, force: true })
     }

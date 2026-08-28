@@ -70,7 +70,7 @@ Also remediate these project issues when the report names them:
 - `.compound-engineering/config.example.yaml` is missing or outdated
 - the health report marks the `ce-work` skill implementation engine unavailable or invalid, detects retired scalar routing keys, or reports malformed dormant `work_engine_preferences`
 - the health report marks `docs_root` invalid (`Invalid docs_root ...`) — CE artifacts will not be written until it is fixed
-- the health report names a **legacy Compound Codex tool map** in `$CODEX_HOME/AGENTS.md` (or a profile copy) — session-level; point at `docs/install/upgrading.md`. Do not rewrite `ce-work` skip phrases in this skill.
+- the health report names a **legacy Compound Codex tool map** in `$CODEX_HOME/AGENTS.md` (or a profile copy) — session-level; follow `references/legacy-codex-tool-map.md` in this skill. Do not rewrite `ce-work` skip phrases in this skill.
 
 If optional tools are missing, do not offer a bulk install. The diagnostic already printed the relevant install command or project URL. Say: "Install optional tools only for the workflows you use."
 
