@@ -289,6 +289,25 @@ read_work_engine_preferences() {
 has_brew=$(command -v brew >/dev/null 2>&1 && echo "yes" || echo "no")
 in_repo=$(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "yes" || echo "no")
 
+# Retired Bun-era Codex tool map (#1099 / #1559). Exact sentinels from docs/install/upgrading.md.
+CODEX_TOOL_MAP_START="<!-- BEGIN COMPOUND CODEX TOOL MAP -->"
+CODEX_TOOL_MAP_END="<!-- END COMPOUND CODEX TOOL MAP -->"
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+legacy_codex_map_files=()
+scan_codex_agents_file() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  if grep -F -q -- "$CODEX_TOOL_MAP_START" "$f" && grep -F -q -- "$CODEX_TOOL_MAP_END" "$f"; then
+    legacy_codex_map_files+=("$f")
+  fi
+}
+scan_codex_agents_file "$codex_home/AGENTS.md"
+if [ -d "$codex_home/profiles" ]; then
+  for f in "$codex_home/profiles"/*/AGENTS.md; do
+    scan_codex_agents_file "$f"
+  done
+fi
+
 # =====================================================
 #  Check optional capabilities
 # =====================================================
@@ -625,6 +644,16 @@ fi
 
 if [ "$capability_missing" -gt 0 ]; then
   echo "     Missing optional tools do not block setup; install them only for the workflows you use."
+fi
+
+if [ "${#legacy_codex_map_files[@]}" -gt 0 ]; then
+  echo ""
+  section "Codex instructions"
+  for f in "${legacy_codex_map_files[@]}"; do
+    warn "Legacy Compound Codex tool map still present in $f"
+  done
+  detail "This retired block can make Codex skip ce-code-review as if no runner exists."
+  detail "Remove only the BEGIN/END COMPOUND CODEX TOOL MAP span — see docs/install/upgrading.md"
 fi
 
 echo ""

@@ -57,6 +57,44 @@ describe("ce-setup check-health", () => {
     expect(script).not.toMatch(/<<<\s/)
   })
 
+  test("reports the legacy Codex tool map when both sentinels are present", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".codex"), { recursive: true })
+      await writeFile(
+        path.join(root, ".codex", "AGENTS.md"),
+        [
+          "keep this",
+          "<!-- BEGIN COMPOUND CODEX TOOL MAP -->",
+          "Task (subagent dispatch) / Subagent / Parallel: run sequentially in main thread",
+          "<!-- END COMPOUND CODEX TOOL MAP -->",
+          "",
+        ].join("\n"),
+      )
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Legacy Compound Codex tool map still present")
+      expect(result.stdout).toContain("docs/install/upgrading.md")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("does not warn when Codex AGENTS.md has no tool-map sentinels", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".codex"), { recursive: true })
+      await writeFile(path.join(root, ".codex", "AGENTS.md"), "# user instructions\n")
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).not.toContain("Legacy Compound Codex tool map still present")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("advertises agent-browser only for its current consumers", async () => {
     const [script, setupDocs, polishSkill, polishRun, polishDocs] = await Promise.all([
       readFile(checkHealthScript, "utf8"),
