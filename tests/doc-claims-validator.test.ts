@@ -179,6 +179,29 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).not.toContain("FLAG")
       })
 
+      test("checks an in-repo absolute citation whose relative form starts with ..", () => {
+        const hiddenDir = path.join(repo, "..hidden")
+        mkdirSync(hiddenDir, { recursive: true })
+        writeFileSync(path.join(hiddenDir, "file.ts"), "export const y = 2\n")
+        const docPath = writeRepoDoc(
+          "The odd path is `" + path.join(hiddenDir, "file.ts") + "`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("checked 0 paths")
+      })
+
+      test("flags a missing in-repo absolute citation whose relative form starts with ..", () => {
+        const docPath = writeRepoDoc(
+          "The odd path is `" +
+            path.join(repo, "..hidden", "missing.ts") +
+            "`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG path")
+      })
+
       test("classifies a path that only exists upstream as stale-checkout", () => {
         const docPath = writeRepoDoc(
           "See `src/upstream-only.ts` for the new helper.\n",

@@ -171,7 +171,7 @@ def strip_repo_prefix(token: str, base: str) -> str:
         rel = os.path.relpath(os.path.realpath(token), os.path.realpath(base))
     except ValueError:
         return token
-    if rel.startswith(".."):
+    if rel == ".." or rel.startswith(".." + os.sep):
         return token
     return rel
 
