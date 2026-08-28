@@ -11,7 +11,7 @@ const BODY = readFileSync(
 )
 
 const DOC_BODY = readFileSync(
-  path.join(process.cwd(), "skills/guides/ce-brainstorm.md"),
+  path.join(process.cwd(), "docs/guides/ce-brainstorm.md"),
   "utf8",
 )
 

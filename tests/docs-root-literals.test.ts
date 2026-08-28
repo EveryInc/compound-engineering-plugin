@@ -47,10 +47,8 @@ function walk(dir: string): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (entry.name === "guides" && dir === SKILLS_ROOT) continue
-      out.push(...walk(full))
-    } else if (SCANNED_EXTS.has(path.extname(entry.name))) out.push(full)
+    if (entry.isDirectory()) out.push(...walk(full))
+    else if (SCANNED_EXTS.has(path.extname(entry.name))) out.push(full)
   }
   return out
 }

@@ -15,8 +15,8 @@ const PLAN_HANDOFF = read("skills/ce-plan/references/plan-handoff.md")
 const BRAINSTORM_HANDOFF = read("skills/ce-brainstorm/references/handoff.md")
 const PLAN_HTML = read("skills/ce-plan/references/html-rendering.md")
 const BRAINSTORM_HTML = read("skills/ce-brainstorm/references/html-rendering.md")
-const BRAINSTORM_DOCS = read("skills/guides/ce-brainstorm.md")
-const DOC_REVIEW_DOCS = read("skills/guides/ce-doc-review.md")
+const BRAINSTORM_DOCS = read("docs/guides/ce-brainstorm.md")
+const DOC_REVIEW_DOCS = read("docs/guides/ce-doc-review.md")
 
 describe("ce-doc-review HTML editing", () => {
   test("applies review fixes in the document's native format", () => {

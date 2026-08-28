@@ -7,8 +7,8 @@ function readRepoFile(relativePath: string): string {
 }
 
 const skill = readRepoFile("skills/ce-proof/SKILL.md")
-const catalog = readRepoFile("skills/guides/ce-proof.md")
-const skillsIndex = readRepoFile("skills/guides/README.md")
+const catalog = readRepoFile("docs/guides/ce-proof.md")
+const skillsIndex = readRepoFile("docs/guides/README.md")
 
 describe("ce-proof v3 + owner lifecycle contract", () => {
   test("skill teaches Proof v3 read/edit surfaces", () => {

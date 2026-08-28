@@ -53,7 +53,7 @@ const ceWorkTriage = readRepoFile("skills/ce-work/references/input-triage.md")
 const ceWorkReturn = readRepoFile("skills/ce-work/references/return-to-caller.md")
 const ceWorkLoop = readRepoFile("skills/ce-work/references/implementation-loop.md")
 const ceWorkStrategy = readRepoFile("skills/ce-work/references/execution-strategy.md")
-const ceWorkDocs = readRepoFile("skills/guides/ce-work.md")
+const ceWorkDocs = readRepoFile("docs/guides/ce-work.md")
 const ceWorkEngines = readRepoFile(
   "skills/ce-work/references/execution-engines.md",
 )

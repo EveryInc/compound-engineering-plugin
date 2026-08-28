@@ -221,7 +221,7 @@ describe("release metadata", () => {
   })
 
   // The root README carries skill *names* in its grouped overview while
-  // skills/guides/README.md owns the descriptions. That split only holds if the
+  // docs/guides/README.md owns the descriptions. That split only holds if the
   // names and the stated count cannot drift, so both are pinned here rather
   // than left to convention -- the three-way prose sync this replaced had
   // already drifted before anyone noticed.
@@ -275,6 +275,21 @@ describe("release metadata", () => {
 
     expect(stated.every((value) => value !== undefined)).toBe(true)
     expect(stated.map(Number)).toEqual([skillCount, skillCount, skillCount])
+  })
+
+  // Hosts install the repo's skills/ tree as the plugin payload. A sibling
+  // directory without SKILL.md (the #1551 catalog landing under skills/guides)
+  // ships user docs with every install. The catalog lives in docs/guides/.
+  test("skills/ contains only skill directories", async () => {
+    const { readdir } = await import("fs/promises")
+    const skillsRoot = path.join(process.cwd(), "skills")
+    const extras = (await readdir(skillsRoot, { withFileTypes: true }))
+      .filter((entry) =>
+        entry.isDirectory() && !existsSync(path.join(skillsRoot, entry.name, "SKILL.md"))
+      )
+      .map((entry) => entry.name)
+      .sort()
+    expect(extras).toEqual([])
   })
 
   test("builds a stable compound-engineering manifest description", async () => {

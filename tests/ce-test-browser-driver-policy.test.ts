@@ -108,8 +108,8 @@ describe("ce-test-browser browser-driver policy", () => {
   })
 
   test("user documentation describes the same hierarchy", async () => {
-    const docs = await readRepoFile("skills/guides/ce-test-browser.md")
-    const catalog = await readRepoFile("skills/guides/README.md")
+    const docs = await readRepoFile("docs/guides/ce-test-browser.md")
+    const catalog = await readRepoFile("docs/guides/README.md")
 
     expect(docs).toMatch(/host-native.+integrated browser/is)
     expect(docs).toMatch(/embedded in or directly owned by the active harness/i)

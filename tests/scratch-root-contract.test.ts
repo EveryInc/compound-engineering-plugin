@@ -8,7 +8,6 @@ const SKILLS_ROOT = path.join(process.cwd(), "skills")
 
 function contractFiles(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.isDirectory() && entry.name === "guides" && root === SKILLS_ROOT) return []
     const absolute = path.join(root, entry.name)
     if (entry.isDirectory()) return contractFiles(absolute)
     return entry.isFile() && /\.(md|py|sh)$/.test(entry.name) ? [absolute] : []

@@ -279,7 +279,6 @@ describe("ce-prototype protocol", () => {
 
     const offenders: string[] = []
     for (const rel of new Glob("**/*.md").scanSync({ cwd: SKILLS_ROOT })) {
-      if (rel.split(/[\\/]/)[0] === "guides") continue
       const body = readFileSync(path.join(SKILLS_ROOT, rel), "utf8").toLowerCase()
       for (const phrase of retired) {
         if (body.includes(phrase)) offenders.push(`skills/${rel}: "${phrase}"`)

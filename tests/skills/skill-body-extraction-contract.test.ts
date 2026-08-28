@@ -3,7 +3,7 @@ import fs from "node:fs"
 import path from "node:path"
 
 const ROOT = path.join(import.meta.dir, "..", "..", "skills")
-const DOCS_ROOT = path.join(import.meta.dir, "..", "..", "skills", "guides")
+const DOCS_ROOT = path.join(import.meta.dir, "..", "..", "docs", "guides")
 const read = (skill: string, rel = "SKILL.md") =>
   fs.readFileSync(path.join(ROOT, skill, rel), "utf8")
 const readDocs = (skill: string) => fs.readFileSync(path.join(DOCS_ROOT, `${skill}.md`), "utf8")
