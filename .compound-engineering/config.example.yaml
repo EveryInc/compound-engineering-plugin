@@ -70,9 +70,19 @@
 # Claude CLI is invoked when installed and authenticated; otherwise the step runs
 # on your session model and the run says so. Invalid/commented/missing -> no
 # elevation.
+#
+# `plan_effort` and `brainstorm_effort` separately set the reasoning effort the
+# elevated step runs at on the Claude CLI route (one of low, medium, high,
+# xhigh, max). Unset keeps the existing default of high. An unrecognized value
+# is invalid -- it is rejected and the run skips elevation rather than silently
+# using a different effort than configured. The native-dispatch route has no
+# per-call effort override, so these keys only take effect when the elevated
+# step runs through the Claude CLI.
 
 # plan_model: fable              # model alias for the plan-authoring step (no default)
 # brainstorm_model: fable        # model alias for approach generation (no default)
+# plan_effort: high              # low | medium | high | xhigh | max (default: high)
+# brainstorm_effort: high        # low | medium | high | xhigh | max (default: high)
 
 # --- PR concept teaching (ce-commit-push-pr) ---
 # When a PR introduces a concept new to the codebase, the generated PR
