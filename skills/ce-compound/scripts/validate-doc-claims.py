@@ -94,10 +94,10 @@ def split_body(text: str) -> tuple[str, int]:
     return text, 1
 
 
-def is_path_candidate(token: str) -> bool:
+def is_path_candidate(token: str, *, known_path: bool = False) -> bool:
     if any(ch.isspace() for ch in token):
         return False
-    if "/" not in token:
+    if not known_path and "/" not in token:
         return False
     if "://" in token or token.startswith(("http", "#", "/", "~")):
         return False
@@ -163,7 +163,9 @@ def strip_repo_prefix(token: str, base: str) -> str:
 
     Relative tokens, URL routes, and out-of-repo absolute paths are
     unchanged so the existing candidacy guard still drops them. Realpath
-    both sides so a host where /tmp is a symlink still matches.
+    both sides so a host where /tmp is a symlink still matches. A
+    successful rewrite is slash-normalized so Windows relpath output
+    stays a candidate.
     """
     if not os.path.isabs(token):
         return token
@@ -173,7 +175,7 @@ def strip_repo_prefix(token: str, base: str) -> str:
         return token
     if rel == ".." or rel.startswith(".." + os.sep):
         return token
-    return rel
+    return rel.replace("\\", "/")
 
 
 def main(argv: list[str]) -> int:
@@ -255,9 +257,12 @@ def main(argv: list[str]) -> int:
     base = repo_root if in_git else os.getcwd()
     for raw in BACKTICK_RE.findall(body):
         token = normalize_path(raw)
+        rewritten_abs = False
         if in_git:
+            before = token
             token = strip_repo_prefix(token, base)
-        if not is_path_candidate(token):
+            rewritten_abs = token != before
+        if not is_path_candidate(token, known_path=rewritten_abs):
             continue
         check = token
         if token.startswith("../") or "/../" in token:

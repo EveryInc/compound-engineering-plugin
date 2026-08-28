@@ -202,6 +202,50 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).toContain("FLAG path")
       })
 
+      test("checks an absolute citation of a root-level file", () => {
+        writeFileSync(path.join(repo, "root-cited.ts"), "export const r = 1\n")
+        const docPath = writeRepoDoc(
+          "The root helper is `" + path.join(repo, "root-cited.ts") + "`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("checked 0 paths")
+      })
+
+      test("flags a missing root-level absolute citation", () => {
+        const docPath = writeRepoDoc(
+          "The root helper is `" + path.join(repo, "missing-root.ts") + "`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG path")
+        expect(result.stdout).not.toContain("checked 0 paths")
+      })
+
+      test("slash-normalizes a rewritten Windows relative path", () => {
+        const driver = String.raw`
+import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("v", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+real_relpath = os.path.relpath
+os.path.relpath = lambda *a, **k: "src\\real-file.ts"
+try:
+    got = mod.strip_repo_prefix("/repo/src/real-file.ts", "/repo")
+finally:
+    os.path.relpath = real_relpath
+print(got)
+raise SystemExit(0 if got == "src/real-file.ts" else 1)
+`
+        const result = spawnSync(
+          "python3",
+          ["-c", driver, scriptPath(skillDir)],
+          { encoding: "utf8" },
+        )
+        expect(result.status, result.stderr).toBe(0)
+        expect(result.stdout.trim()).toBe("src/real-file.ts")
+      })
+
       test("classifies a path that only exists upstream as stale-checkout", () => {
         const docPath = writeRepoDoc(
           "See `src/upstream-only.ts` for the new helper.\n",
