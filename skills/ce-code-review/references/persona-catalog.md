@@ -11,7 +11,7 @@ Correctness is spawned on every multi-agent review. Project-standards is spawned
 | Persona | Prompt asset | Focus |
 |---------|-------|-------|
 | `correctness` | `correctness-reviewer` | Logic errors, edge cases, state bugs, error propagation, intent compliance |
-| `project-standards` | `project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance -- frontmatter, references, naming, cross-platform portability, tool selection |
+| `project-standards` | `project-standards-reviewer` | Compliance with the project's designated criteria files, cited rule by rule |
 
 ## Generic conditional
 

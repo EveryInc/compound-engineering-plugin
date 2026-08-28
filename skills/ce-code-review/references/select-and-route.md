@@ -64,10 +64,11 @@ For `deployment-verification-agent`, use the same migration-artifact gate when t
 
 ### Stage 3b: Discover project standards paths
 
-Before spawning sub-agents, find the file paths (not contents) of all relevant standards files for the `project-standards` persona. Use the native file-search/glob tool to locate:
+Before spawning sub-agents, find the file paths (not contents) of the criteria governing the changed files, for the `project-standards` persona.
 
-1. Use the native file-search tool (e.g., Glob in Claude Code) to find all `**/CLAUDE.md` and `**/AGENTS.md` in the repo.
-2. Filter to those whose directory is an ancestor of at least one changed file. A standards file governs all files below it (e.g., `AGENTS.md` at the repo root applies to the whole checkout, while `skills/AGENTS.md` would apply to everything under `skills/`).
+1. With the native file-search/glob tool, locate every `**/CODING_STANDARDS.md`, `**/CLAUDE.md`, and `**/AGENTS.md` in the repo.
+2. Keep those whose directory is an ancestor of at least one changed file. A file governs everything below it, so a root-level file applies to the whole checkout while `skills/AGENTS.md` applies only under `skills/`.
+3. `CODING_STANDARDS.md` is the designated criteria source. An instruction file supplies criteria only for changed files that no `CODING_STANDARDS.md` governs, so no file is ever reviewed against both kinds. Every governing `CODING_STANDARDS.md` still applies together, as in step 2. When the instruction-file fallback supplied the criteria for any changed file, name it as the fallback in Coverage.
 
 Distinguish an empty successful search from a failed or unavailable search:
 
