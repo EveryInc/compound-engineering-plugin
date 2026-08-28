@@ -72,7 +72,7 @@ Candidates are `CODING_STANDARDS.md`, `CLAUDE.md`, and `AGENTS.md` at any depth.
 
 `CODING_STANDARDS.md` is the designated criteria source, so an instruction file supplies criteria only for changed files that no `CODING_STANDARDS.md` governs, and no file is graded against both kinds. Every governing `CODING_STANDARDS.md` still applies together. When the instruction-file fallback supplied the criteria for any changed file, name it as the fallback in Coverage.
 
-**Done** when every changed file has exactly one kind of criteria behind it, or the search is known to be empty. **On uncertainty, fail closed** — an error is never an empty result:
+**Done** when no changed file could be graded against two kinds of criteria. A changed file that no criteria file governs is a complete result, not a gap. **On uncertainty, fail closed** — an error is never an empty result:
 
 - One or more applicable paths: select `project-standards` and pass the mapping inside a `<standards-paths>` block in its Stage 4 context. The persona applies the precedence you resolved rather than re-deriving it, and reads the files itself, targeting only relevant sections.
 - Empty successful search: do not dispatch `project-standards`; record `project standards: not run (no applicable standards files)` in Coverage.
