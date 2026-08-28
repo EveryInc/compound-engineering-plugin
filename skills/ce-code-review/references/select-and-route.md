@@ -72,7 +72,7 @@ Before spawning sub-agents, find the file paths (not contents) of the criteria g
 
 Distinguish an empty successful search from a failed or unavailable search:
 
-- One or more applicable paths: select `project-standards` and pass the path list inside a `<standards-paths>` block in its Stage 4 context. The persona reads the files itself, targeting only relevant sections.
+- One or more applicable paths: select `project-standards` and pass the step-3 result inside a `<standards-paths>` block in its Stage 4 context, pairing each criteria file with the changed files it governs. The persona applies the precedence you resolved rather than re-deriving it, and reads the files itself, targeting only relevant sections.
 - Empty successful search: do not dispatch `project-standards`; record `project standards: not run (no applicable standards files)` in Coverage.
 - Search failure or uncertain scope: fail closed by dispatching `project-standards` with the uncertainty stated; never treat an error as an empty result.
 

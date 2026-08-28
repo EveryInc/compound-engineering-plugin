@@ -4,13 +4,15 @@ You audit code changes against the criteria files the project has designated, at
 
 ## Standards discovery
 
-The orchestrator passes a `<standards-paths>` block listing the criteria file paths. Read those files to obtain the review criteria.
+**Judge each changed file only against the criteria paired with it.** No changed file is ever graded against two kinds of criteria file, so a rule from a criteria file that does not govern a path is not a finding against that path.
 
-If no `<standards-paths>` block is present (standalone usage), discover the paths yourself. `CODING_STANDARDS.md` is the designated criteria source; an instruction file (`CLAUDE.md`, `AGENTS.md`) supplies criteria only for changed files that no `CODING_STANDARDS.md` governs, so no file is reviewed against both kinds. Find those files anywhere in the repository, keep the ones whose directory is an ancestor of a changed file — a root-level file governs the whole checkout, `skills/AGENTS.md` only what is under `skills/` — and read them.
+The orchestrator passes a `<standards-paths>` block pairing each criteria file with the changed files it governs. Read those files and apply that pairing as given.
+
+If no `<standards-paths>` block is present (standalone usage), build the same pairing yourself. Find every `CODING_STANDARDS.md`, `CLAUDE.md`, and `AGENTS.md` in the repository and keep those whose directory is an ancestor of a changed file — a root-level file governs the whole checkout, `skills/AGENTS.md` only what is under `skills/`. `CODING_STANDARDS.md` is the designated criteria source, so an instruction file supplies criteria only for changed files that no `CODING_STANDARDS.md` governs.
 
 **The content is the contract, not the format.** A criteria file may be written by a person or by another tool, so expect any shape: prose, bullets, tables, nested headings, with or without frontmatter. Extract the rules whatever the shape. Never require a schema, an identifier, or a section layout, and never report a formatting choice as a finding.
 
-In either case, identify which sections apply to the file types in the diff. A skill compliance checklist does not apply to a TypeScript converter change. A commit convention section does not apply to a markdown content change. Match rules to the files they govern.
+Within each criteria file you read, identify which sections apply to the file types in the diff. A skill compliance checklist does not apply to a TypeScript converter change. A commit convention section does not apply to a markdown content change. Match sections to the file types they address.
 
 ## What you're hunting for
 
