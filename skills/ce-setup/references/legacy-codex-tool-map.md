@@ -18,10 +18,11 @@ the main thread. Native plugin install does **not** add this block.
    `~/.codex/AGENTS.md`. Also check `~/.codex/profiles/*/AGENTS.md`.
 2. Look for the exact sentinels `<!-- BEGIN COMPOUND CODEX TOOL MAP -->`
    and `<!-- END COMPOUND CODEX TOOL MAP -->`.
-3. If both are present, delete only the span from the BEGIN line through
-   the END line (inclusive). Leave any other user content untouched. Do
-   not edit project/repo `AGENTS.md` unless those exact sentinels are
-   present there.
+3. Only if a BEGIN is followed later by its END, delete the span from
+   that BEGIN through that END (inclusive). If END appears first, leave
+   the file alone — there is no ordered block to remove. Leave any other
+   user content untouched. Do not edit project/repo `AGENTS.md` unless
+   those exact sentinels form an ordered pair there.
 4. If the file is empty after the removal, delete the file.
 5. Show a short before/after of what changed (or say the block was
    already absent). Do not add a replacement tool map.

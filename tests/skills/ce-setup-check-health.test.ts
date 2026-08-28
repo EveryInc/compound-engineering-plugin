@@ -102,6 +102,29 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  test("does not warn when END sentinel precedes BEGIN (no ordered span)", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".codex"), { recursive: true })
+      await writeFile(
+        path.join(root, ".codex", "AGENTS.md"),
+        [
+          "keep this",
+          "<!-- END COMPOUND CODEX TOOL MAP -->",
+          "user-owned notes",
+          "<!-- BEGIN COMPOUND CODEX TOOL MAP -->",
+          "",
+        ].join("\n"),
+      )
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).not.toContain("Legacy Compound Codex tool map still present")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("still finds named-profile copies under ~/.codex when CODEX_HOME is elsewhere", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
     try {
