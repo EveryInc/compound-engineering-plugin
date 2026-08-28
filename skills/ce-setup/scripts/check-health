@@ -611,6 +611,67 @@ if [ "$in_repo" = "yes" ]; then
     esac
     project_issues=$((project_issues + 1))
   done
+  # --- Compound Packs (packs: config key) -------------------------------------
+  section "Compound Packs"
+  packs_python="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  packs_resolver="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/packs-resolve.py"
+  if [ -z "$packs_python" ]; then
+    skip "No Python interpreter found; pack health not checked"
+  elif [ ! -f "$packs_resolver" ]; then
+    skip "packs-resolve.py not found beside check-health; pack health not checked"
+  else
+    packs_json="$("$packs_python" "$packs_resolver" 2>/dev/null || echo "")"
+    if [ -z "$packs_json" ]; then
+      warn "packs-resolve.py failed to run"
+      project_issues=$((project_issues + 1))
+    else
+      packs_report="$(printf '%s' "$packs_json" | "$packs_python" -c '
+import json, subprocess, sys
+data = json.load(sys.stdin)
+roots, errors, warns = data.get("roots", []), data.get("errors", []), data.get("warnings", [])
+if not roots and not errors and not warns:
+    print("SKIP	No packs configured")
+for r in roots:
+    line = "OK	pack " + r["id"]
+    url, ref = r.get("url"), r.get("ref")
+    if url and ref:
+        line += " (" + ref + ")"
+        try:
+            _os = __import__("os")
+            genv = dict(_os.environ)
+            genv["GIT_TERMINAL_PROMPT"] = "0"
+            genv.setdefault("GIT_ASKPASS", "true")
+            _ssh = genv.get("GIT_SSH_COMMAND") or "ssh"
+            if "BatchMode" not in _ssh:
+                genv["GIT_SSH_COMMAND"] = _ssh + " -o BatchMode=yes"
+            # Branch refs only: tags and shas are immutable, so a drift note there
+            # would be a false positive (annotated-tag ls-remote shas differ).
+            remote = subprocess.run(["git", "ls-remote", "--end-of-options", url, "refs/heads/" + ref],
+                                    capture_output=True, text=True, timeout=10, env=genv)
+            local = subprocess.run(["git", "-C", r["dir"], "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
+            rsha = remote.stdout.split()[0] if remote.returncode == 0 and remote.stdout.strip() else ""
+            lsha = local.stdout.strip() if local.returncode == 0 else ""
+            if rsha and lsha and rsha != lsha:
+                line += " -- cached resolution is behind upstream"
+        except Exception:
+            pass  # offline or slow remote: silently skip the drift note
+    print(line)
+for w in warns:
+    print("WARN	" + w)
+for e in errors:
+    print("ERROR	" + e)
+')"
+      while IFS=$'	' read -r kind msg; do
+        [ -z "$kind" ] && continue
+        case "$kind" in
+          OK)    ok "$msg" ;;
+          SKIP)  skip "$msg" ;;
+          WARN)  warn "$msg" ;;
+          ERROR) warn "Pack config error: $msg"; project_issues=$((project_issues + 1)) ;;
+        esac
+      done < <(printf '%s\n' "$packs_report")
+    fi
+  fi
 else
   section "Project config"
   skip "Not inside a git repository"

@@ -329,6 +329,11 @@ worse than omitting it.
   (code locations, external docs, RFCs, constraints, prior plans — the
   category is inclusive, not enumerated). Process exhaust (reading the
   user's prompt, glancing at obvious files) → omit.
+  A constraint adopted from a Compound Pack file is cited inline as
+  `(pack: <id>, <path within the pack>)` after the requirement or decision it
+  shaped — the path is relative to the pack's own directory, stable for path-
+  and git-sourced packs alike — bind the pack text, don't restate it. That marker is reserved for
+  pack files; `<root>/solutions/` learnings keep the ordinary path citation.
 
 ## Agent agency
 

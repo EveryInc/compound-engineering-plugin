@@ -141,6 +141,8 @@ Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainst
 <sub>Replayed from a real pair of sessions 18 days apart, with names and paths anonymized and the six-minute run compressed to about 30 seconds. Nothing shown is behavior the skills don't have — see <a href="assets/demo/README.md">assets/demo</a> for the source and the substitutions.</sub>
 
 > Artifact folders like `docs/solutions/` and `docs/plans/` are the **defaults**. A project whose `docs/` is tracked content can relocate every CE artifact folder under one repo-relative root via the `docs_root` setting -- see [configuration](skills/guides/configuration.md#artifact-root).
+>
+> Want the same knowledge compounding across every repo in your org -- team conventions, security policies, a stack's hard-won rules -- instead of being relearned in each one? Declare it as **Compound Packs**: folders of prescriptive rules (local, or ref-pinned git repos) that planning grounds in and review enforces, every use cited back to the rule file (experimental) -- see [Compound Packs](skills/guides/packs.md).
 
 ## Try it
 
@@ -434,6 +436,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, and [`docs/development.md`](
 |---|---|
 | [Skill catalog](skills/guides/README.md) | A page per skill, and how they chain together |
 | [Configuration](skills/guides/configuration.md) | `.compound-engineering/config.yaml` options |
+| [Compound Packs](skills/guides/packs.md) | Declaring, authoring, and publishing prescriptive rule packs |
 | [Installing](#install) · [Upgrading](docs/install/upgrading.md) | Per-host install and refresh |
 | [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) | Working on the plugin itself |
 | [Security](SECURITY.md) · [Privacy](PRIVACY.md) | Reporting and data handling |

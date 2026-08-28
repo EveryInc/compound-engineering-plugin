@@ -150,7 +150,7 @@ Requirements describe expected behavior from the user's perspective. They do not
 
 A decision you examined and chose during the dialogue lands as a labeled Key Decision (`session-settled: user-directed` or `user-approved`) and is not re-asked. `ce-plan` inherits the label.
 
-On Standard and Deep software runs, a cheap scout gathers a grounding dossier (verbatim quotes with `file:line` pointers) while you answer the first question. Before the plan is written, a verifier that never saw the dialogue checks the Product Contract's repo claims. Refuted claims are corrected; unverifiable ones become explicit assumptions. The dossier path is handed to `ce-plan`.
+On Standard and Deep software runs, a cheap scout gathers a grounding dossier (verbatim quotes with `file:line` pointers) while you answer the first question. If the repo declares [Compound Packs](./packs.md) in its `packs` config, the scout quotes the pack files whose `applies_when` matches the topic, and the Product Contract cites the ones that shaped it. Before the plan is written, a verifier that never saw the dialogue checks the Product Contract's repo claims. Refuted claims are corrected; unverifiable ones become explicit assumptions. The dossier path is handed to `ce-plan`.
 
 ### 6. Blindspot pass and non-software facilitation
 

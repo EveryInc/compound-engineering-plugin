@@ -10,6 +10,8 @@ It is optional. Skip it for typos, one-line fixes, and purely mechanical work.
 
 ---
 
+Captures land in `docs/solutions/`, where `ce-plan`'s research and `ce-code-review`'s learnings pass rediscover them. Declared [Compound Packs](./packs.md#growing-packs-from-learnings) participate in capture too: an insight a pack rule already prescribes is recognized rather than re-captured, and interactive runs can route a prescriptive, cross-repo capture directly into a writable pack — or scaffold a new one — with the learning rewritten as a rule.
+
 ## TL;DR
 
 | Question | Answer |
