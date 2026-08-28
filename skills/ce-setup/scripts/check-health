@@ -293,19 +293,34 @@ in_repo=$(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "yes" || e
 CODEX_TOOL_MAP_START="<!-- BEGIN COMPOUND CODEX TOOL MAP -->"
 CODEX_TOOL_MAP_END="<!-- END COMPOUND CODEX TOOL MAP -->"
 codex_home="${CODEX_HOME:-$HOME/.codex}"
+default_codex_home="$HOME/.codex"
 legacy_codex_map_files=()
 scan_codex_agents_file() {
   local f="$1"
+  local existing
   [ -f "$f" ] || return 0
+  for existing in "${legacy_codex_map_files[@]}"; do
+    [ "$existing" = "$f" ] && return 0
+  done
   if grep -F -q -- "$CODEX_TOOL_MAP_START" "$f" && grep -F -q -- "$CODEX_TOOL_MAP_END" "$f"; then
     legacy_codex_map_files+=("$f")
   fi
 }
-scan_codex_agents_file "$codex_home/AGENTS.md"
-if [ -d "$codex_home/profiles" ]; then
-  for f in "$codex_home/profiles"/*/AGENTS.md; do
+scan_codex_profile_tree() {
+  local root="$1"
+  local f
+  [ -d "$root/profiles" ] || return 0
+  for f in "$root/profiles"/*/AGENTS.md; do
+    [ -f "$f" ] || continue
     scan_codex_agents_file "$f"
   done
+}
+scan_codex_agents_file "$codex_home/AGENTS.md"
+scan_codex_profile_tree "$codex_home"
+# Named profiles live under ~/.codex even when CODEX_HOME points at an active profile.
+if [ "$codex_home" != "$default_codex_home" ]; then
+  scan_codex_agents_file "$default_codex_home/AGENTS.md"
+  scan_codex_profile_tree "$default_codex_home"
 fi
 
 # =====================================================

@@ -17,13 +17,20 @@ type RunResult = {
   stderr: string
 }
 
-async function runCheckHealth(cwd: string, pathValue: string): Promise<RunResult> {
+async function runCheckHealth(
+  cwd: string,
+  pathValue: string,
+  extraEnv: Record<string, string> = {},
+): Promise<RunResult> {
   const proc = Bun.spawn(["bash", checkHealthScript], {
     cwd,
     env: {
       ...process.env,
       HOME: cwd,
       PATH: pathValue,
+      // Isolate from the host Codex install (CI/dev machines often set CODEX_HOME).
+      CODEX_HOME: path.join(cwd, ".codex"),
+      ...extraEnv,
     },
     stderr: "pipe",
     stdout: "pipe",
@@ -90,6 +97,32 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
       expect(result.exitCode).toBe(0)
       expect(result.stdout).not.toContain("Legacy Compound Codex tool map still present")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("still finds named-profile copies under ~/.codex when CODEX_HOME is elsewhere", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      const customHome = path.join(root, "custom-codex")
+      await mkdir(customHome, { recursive: true })
+      await writeFile(path.join(customHome, "AGENTS.md"), "# active profile, no map\n")
+      await mkdir(path.join(root, ".codex", "profiles", "work"), { recursive: true })
+      await writeFile(
+        path.join(root, ".codex", "profiles", "work", "AGENTS.md"),
+        [
+          "<!-- BEGIN COMPOUND CODEX TOOL MAP -->",
+          "Task (subagent dispatch) / Subagent / Parallel: run sequentially in main thread",
+          "<!-- END COMPOUND CODEX TOOL MAP -->",
+          "",
+        ].join("\n"),
+      )
+      const result = await runCheckHealth(root, "/usr/bin:/bin", { CODEX_HOME: customHome })
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Legacy Compound Codex tool map still present")
+      expect(result.stdout).toContain("docs/install/upgrading.md")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
