@@ -2289,6 +2289,22 @@ def diff(state, cur, now=None, advance_trajectory=True):
     }, state
 
 
+def _settle_base(base):
+    """Base fields whose movement should reset the settle clock.
+
+    `stale-computation` is a presentation of a still-stable `race` candidate
+    (same head + live base) plus a report flag. Hashing those presentation
+    fields would reset last_change_at and add a synthetic settle delay.
+    Genuine identity values and freshness stay in the signature.
+    """
+    if not isinstance(base, dict):
+        return base
+    payload = {k: v for k, v in base.items() if k != "merge_computation_stale"}
+    if payload.get("identity") == BASE_REF_STALE_COMPUTATION:
+        payload["identity"] = BASE_REF_RACE
+    return payload
+
+
 def _change_sig(state):
     """Everything whose movement should reset the settle clock."""
     checks = {k: (v.get("status"), v.get("conclusion")) for k, v in state.get("checks", {}).items()}
@@ -2308,7 +2324,7 @@ def _change_sig(state):
             state.get("review_signal_count"),
             tuple(state.get("review_signal_identities") or []),
             json.dumps(state.get("pr_chain") or _default_pr_chain(), sort_keys=True),
-            json.dumps(state.get("base"), sort_keys=True),
+            json.dumps(_settle_base(state.get("base")), sort_keys=True),
             (current_currency.get("host_branch_update_capability")
              if current_currency.get("status") == "BEHIND" else None),
             currency.get("current_key"), current_currency.get("disposition"),

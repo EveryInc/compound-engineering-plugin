@@ -4843,6 +4843,9 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(later.base_ref_blocker).toBeNull()
     expect(later.mergeability_certain).toBe(true)
     expect(wakeReason(later)).toBe("merge-ready")
+    // Presentation-only degrade must not reset the quiet clock (#1562).
+    expect(JSON.parse(readFileSync(statePath, "utf8")).last_change_at).toBe("2026-07-17T12:00:00+00:00")
+    expect(wakeReason(later, 300)).toBe("merge-ready")
 
     // A pending (unclassified) head forces uncertainty even through the stale-computation degrade.
     const pendingStale = snapshot(state, fetchFile(dir, "stale-race-pending.json", { ...race,
@@ -4867,6 +4870,36 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
       head_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"] } }))
     expect(moved.base_ref_blocker).toBe("race")
+  })
+
+  test("genuine base identity transitions still change the settle signature", () => {
+    const frozen = "2026-07-17T12:00:00+00:00"
+    const baseCore = {
+      host: "github.com", repository: "o/r", ref: "main",
+      oid: "2222222222222222222222222222222222222222",
+      graphql_oid: "2222222222222222222222222222222222222222",
+      historical_oid: "1111111111111111111111111111111111111111",
+      merge_parent_oids: ["2222222222222222222222222222222222222222", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+    }
+    const green = {
+      ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED",
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [], head_sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      base: { ...baseCore, identity: "probe-error" },
+    }
+    const file = fetchFile(dir, "identity-steps.json", green)
+    snapshot(state, file)
+    const statePath = path.join(state, "state.json")
+    const identities = ["race", "mergeability-pending", "current"]
+    for (const identity of identities) {
+      const persisted = JSON.parse(readFileSync(statePath, "utf8"))
+      persisted.last_change_at = frozen
+      writeFileSync(statePath, JSON.stringify(persisted))
+      snapshot(state, fetchFile(dir, `identity-${identity}.json`, {
+        ...green, base: { ...baseCore, identity },
+      }))
+      expect(JSON.parse(readFileSync(statePath, "utf8")).last_change_at).not.toBe(frozen)
+    }
   })
 
   // Pipelined stack traversal: the watcher polls the active (upper) layer and keeps probing the
