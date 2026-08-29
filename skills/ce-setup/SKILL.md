@@ -90,8 +90,8 @@ Display a brief summary:
 ```text
 ✅ Compound Engineering setup complete
 
-Fixed:     <repo-local fixes applied, or none>
-Skipped:   <repo-local fixes declined, or none>
+Fixed:     <fixes applied, or none>
+Skipped:   <fixes declined, or none>
 Optional:  <missing optional tools, or all available>
 
 Run `<rendered invocation>` anytime to re-check.
