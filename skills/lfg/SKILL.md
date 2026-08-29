@@ -42,7 +42,7 @@ Before step 1, judge whether the conversation expresses semantic intent to assig
 
    Do not prompt the user.
 
-   **Durable record — never the PR body.** Do not output DONE until the residuals are durable: tracker tickets filed, and one run-report comment posted when a PR exists. Never block DONE on tracker filing failures once the comment is posted.
+   **Durable record — the PR body.** Compose the `## Unapplied review findings` checklist per `references/review-followup.md`; step 8 renders it. Do not output DONE until the residuals are durable: in the PR body, else (no PR) in tickets or the DONE report. Never block DONE on tracker filing failures once the report states them.
 
 7. Invoke the `ce-test-browser` skill with `mode:pipeline`.
 

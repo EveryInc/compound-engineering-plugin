@@ -1039,8 +1039,9 @@ describe("ce-code-review contract", () => {
       expect(workflow).toContain("Accept and proceed")
       expect(workflow).toContain("Stop — do not ship")
 
-      // Accept-and-proceed path threads findings into the PR description.
-      expect(workflow).toContain("Known Residuals")
+      // Accept-and-proceed path threads findings into the PR description under the
+      // heading ce-resolve-pr-feedback ticks; see the cross-skill heading test below.
+      expect(workflow).toContain("## Unapplied review findings")
       expect(workflow).toContain("If the user later chooses the no-PR `ce-commit` path")
       // With no PR and no reachable tracker there is no durable sink, so the run says so
       // outright. The committed record file that used to fill this slot was removed: it
@@ -1050,7 +1051,7 @@ describe("ce-code-review contract", () => {
     }
   })
 
-  test("lfg autonomously handles residuals via non-interactive tracker-defer and a committed record file (never the PR body)", async () => {
+  test("lfg records residuals in the PR body checklist and files tickets only with no PR", async () => {
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
     // Steps 3-6 are owned by the reference lfg's step 3 names as a required read;
     // the body keeps each step's gate and the DONE-durability rule. Assertions on
@@ -1072,29 +1073,26 @@ describe("ce-code-review contract", () => {
     expect(lfg).toContain("Autonomous residual handoff")
     expect(lfg).toMatch(/Do not prompt the user/)
 
-    // tracker-defer is invoked in non-interactive mode, from the step-6 procedure
-    // in the reference lfg's step 3 requires.
+    // tracker-defer is invoked in non-interactive mode only on the no-PR path.
     expect(followupRef).toContain("references/tracker-defer.md")
     expect(followupRef).toContain("**non-interactive mode**")
+    expect(followupRef).toMatch(/When no PR will exist[^\n]*tracker-defer/)
     expect(lfg).not.toContain("skills/ce-code-review/references/tracker-defer.md")
-
-    // Structured return buckets drive the residual record.
-    expect(followupRef).toMatch(/filed/)
-    expect(followupRef).toMatch(/failed/)
     expect(followupRef).toMatch(/no_sink/)
 
-    // Residuals are recorded via tracker tickets + a committed record file,
-    // NEVER the PR body (which would duplicate GitHub's own tracking and go
-    // stale as items resolve). The old `gh pr edit`-into-body path is retired.
-    expect(lfg).toContain("never the PR body")
+    // With a PR, residuals are a checklist in the PR body — the reviewer decides each
+    // (lfg never merges). Not a ticket per finding (tracker flood) and not a PR
+    // comment (buried). The body is written by step 8, never edited here.
+    expect(lfg).toContain("the PR body")
+    expect(lfg).not.toContain("never the PR body")
+    expect(lfg).not.toContain("run-report comment")
     expect(lfg).not.toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
-    expect(followupRef).toContain("## Residual Review Findings")
-    // ...and not a committed record file either. Residuals ride the same run-report
-    // comment `ce-babysit-pr` already uses for unfixable CI, so nothing is committed to
-    // carry them and the DONE gate no longer waits on a file write plus a push.
-    expect(lfg).toContain("run-report comment")
+    expect(followupRef).toContain("## Unapplied review findings")
+    expect(followupRef).toContain("- [ ] <severity> — <file:line> — <title>")
+    expect(followupRef).not.toContain("gh pr comment")
+    expect(followupRef).not.toContain("## Residual Review Findings")
+    expect(shippingTail).toContain("## Unapplied review findings")
     expect(lfg).not.toContain("residual-review-findings")
-    expect(followupRef).toContain("run-report comment")
     expect(followupRef).not.toContain("residual-review-findings")
     expect(lfg).toContain("Do not output DONE until the residuals are durable")
 
@@ -1115,6 +1113,27 @@ describe("ce-code-review contract", () => {
     // Autopilot contract: never prompt, but require a durable sink before DONE.
     expect(lfg).toContain("Do not prompt the user")
     expect(lfg).toMatch(/Never block DONE on tracker filing failures/i)
+  })
+
+  test("every writer of the PR-body residual checklist uses the heading ce-resolve-pr-feedback ticks", async () => {
+    // The heading is a cross-skill contract: lfg, ce-work, and ce-debug write it into
+    // the PR body; ce-resolve-pr-feedback finds it by name to tick bullets its fixes close.
+    const heading = "## Unapplied review findings"
+    for (const path of [
+      "skills/lfg/references/review-followup.md",
+      "skills/ce-work/references/shipping-workflow.md",
+      "skills/ce-debug/references/post-fix-handoff.md",
+      "skills/ce-resolve-pr-feedback/SKILL.md",
+      "skills/ce-resolve-pr-feedback/references/pipeline-mode.md",
+    ]) {
+      expect(await readRepoFile(path)).toContain(heading)
+    }
+    const resolver = await readRepoFile("skills/ce-resolve-pr-feedback/SKILL.md")
+    expect(resolver).toMatch(/tick it to `- \[x\]`/)
+    expect(resolver).toMatch(/never add to, reorder, or create that section/)
+    for (const path of ["skills/ce-work/references/shipping-workflow.md", "skills/ce-debug/references/post-fix-handoff.md"]) {
+      expect(await readRepoFile(path)).not.toContain("Known Residuals")
+    }
   })
 
   test("ce-code-review emits actionable findings summary for callers", async () => {

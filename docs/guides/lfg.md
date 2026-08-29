@@ -73,7 +73,7 @@ Without an explicit pipeline, autonomous runs tend to skip planning, treat revie
 3. `/ce-work` runs in return-to-caller mode so `lfg` keeps the shipping tail. Behavior-changing work must return verification evidence. Missing evidence is retried once, then the run stops rather than shipping blind.
 4. `/ce-simplify-code` runs on the branch diff before review, unless the change is docs-only or roughly under 10 lines.
 5. `/ce-code-review` (`mode:agent`) reports findings. `lfg` applies eligible mechanical fixes and commits them. Review itself does not edit the tree.
-6. Leftover actionable findings, plus any flagged settlement conflicts, become durable as tracker tickets and one run-report comment on the PR. They are not written into the PR body.
+6. Leftover actionable findings, plus any flagged settlement conflicts, become a `## Unapplied review findings` checklist in the PR body for the reviewer to decide on: fix in-branch, dismiss, or file a ticket. `lfg` files tickets itself only when no PR will exist.
 7. `/ce-test-browser` runs in pipeline mode.
 8. `/ce-commit-push-pr mode:pipeline branding:on` commits remaining changes, pushes, and opens a PR when a remote exists, and marks CE provenance. If the project's instructions name their own shipping process (e.g. a `/create-pr` skill), that process runs instead, so CE branding may not appear.
 9. `/ce-babysit-pr mode:pipeline` watches the open PR: CI repairs via `/ce-debug`, incoming review comments via `/ce-resolve-pr-feedback`, up to three fix rounds by default. Pipeline babysit stops at "CI decided," not "merged."
@@ -103,7 +103,7 @@ On string-only hosts the implementation seam is `mode:return-to-caller implement
 
 ### Residuals and CI leftovers outlive the session
 
-Unapplied review findings are filed and committed. Unfixable CI is reported on the PR. `needs-human` leftovers (a product or design call) are deferred, not guessed. The run can reach `DONE` with those records in place.
+Unapplied review findings sit in the PR body as a checklist, since `lfg` never merges and the reviewer makes the call on each; with no PR they are filed as tickets. Unfixable CI is reported on the PR. `needs-human` leftovers (a product or design call) are deferred, not guessed. The run can reach `DONE` with those records in place.
 
 ### Next work is an offer, not a second pipeline
 
@@ -115,7 +115,7 @@ If the completed plan explicitly describes separately planned future areas, `lfg
 
 You finish `/ce-brainstorm` on account-level notification mute. The wrap-up offers `lfg`. You invoke `/lfg` (or `/lfg plan with fable`).
 
-`lfg` builds a settled-decisions brief from the brainstorm, invokes `/ce-plan` on the requirements-only artifact, and waits until that file is `implementation-ready` with `execution: code`. Then `/ce-work` implements in return-to-caller mode. Simplify runs. Review reports findings. `lfg` applies the eligible mechanical ones, commits them, and surfaces the rest as tracker tickets plus one run-report comment on the PR. Browser tests run. `ce-commit-push-pr` opens a PR. `ce-babysit-pr` watches CI for up to three repair rounds.
+`lfg` builds a settled-decisions brief from the brainstorm, invokes `/ce-plan` on the requirements-only artifact, and waits until that file is `implementation-ready` with `execution: code`. Then `/ce-work` implements in return-to-caller mode. Simplify runs. Review reports findings. `lfg` applies the eligible mechanical ones, commits them, and lists the rest as an `## Unapplied review findings` checklist for the PR body. Browser tests run. `ce-commit-push-pr` opens a PR. `ce-babysit-pr` watches CI for up to three repair rounds.
 
 The run prints `DONE` and a line to run `/ce-babysit-pr <pr-url>` if you want it watched through review toward merge. It does not merge. If the plan named a later area, you may get a handoff offer. Decline it and the session is over.
 
