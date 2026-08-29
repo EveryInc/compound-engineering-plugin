@@ -160,6 +160,11 @@ A concrete failing instance kept in a skill's prose underneath the condition tha
 
 It exists because a condition is an abstraction, and the most literal host a skill ships to may fail to instantiate it — the shape is insurance for that reader rather than decoration for a capable one. Removing one is a behavior change and is verifiable only by running the skill on that host, never by re-reading the block. A shape can sit after the exclusion it illustrates without weakening it, because it rules on nothing; what does weaken an exclusion is a later clause that decides something, since that gives the reader somewhere else to land.
 
+### Proxy rule
+A rule that states its condition correctly and then enforces it with an absolute about form, order, or placement — where text may sit, what a section may contain — so that the absolute, rather than the condition, is what later readers apply. It differs from a case list in looking complete: the condition is present, and the absolute agrees with it on every case the author had in mind.
+
+A proxy holds only while the condition's usual case is its only case, and it forbids the input for which the condition demands the opposite form. Replication is how the defect spreads rather than an aggravating detail — a copy placed at a site that does not own the decision gets rewritten for that site's local job, which compresses the condition into whatever that job can act on, and the compression then contradicts the owner. The characteristic failure is an audit built on the proxy: it does not merely fail to catch bad work, it instructs a reader to degrade correct work. A proxy also reads differently across hosts, since a literal reader obeys the absolute where a permissive one treats it as style, so a single-host evaluation can pass one.
+
 ### Context-absent agent
 An agent performing a Skill-shaped action without that Skill's instructions loaded in context — typically reconstructing a half-remembered command, recognizable by parameter values that drift from the Skill's documented defaults. Prose in the unloaded Skill cannot reach it; the only channels that do are the seam it entered through and the output of the tools it runs, which is why fail-closed refusals in bundled CLIs carry their own recovery path.
 
