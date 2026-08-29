@@ -73,10 +73,12 @@ describe("ce-commit-push-pr contract", () => {
       /reviewer who reads only it can say what this PR changes and why it takes this shape/i,
     )
     expect(assemblySection).toMatch(/does not stand on its own/i)
-    // Multi-PR ordering: bigger picture first, then this PR's part of it.
-    expect(assemblySection).toMatch(
-      /the bigger picture first, then which part of it this PR delivers/i,
-    )
+    // Both halves are required; the order is not. An earlier revision mandated
+    // "the bigger picture first", which contradicted the local-first worked
+    // example at the Step A bullet above and reinstated an ordering absolute of
+    // the same class this block removes (#1576 review). Keep it gone.
+    expect(assemblySection).toMatch(/either half may lead/i)
+    expect(content).not.toMatch(/the bigger picture first/i)
     // The counter-failure: leading with the arc and losing the local outcome.
     expect(assemblySection).toMatch(
       /names the arc but leaves a reviewer unable to say what this PR changes/i,
