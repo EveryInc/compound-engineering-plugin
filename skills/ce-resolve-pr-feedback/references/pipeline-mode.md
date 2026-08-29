@@ -14,6 +14,8 @@ Return the exact typed residual defined by the rubric: `type: "needs-human"`, `s
 
 ## 3. Non-convergence (wrong-approach cluster / treadmill)
 
-When the caller passes a `trajectory` (rising `unresolved_trend`, `new_threads_this_tick > 0` across passes), check whether the feedback is *not converging*: several nits that share a **root** — the approach itself is the problem (canonical: "your regex misses case X" repeated for X after X, an unbounded whack-a-mole) — or a bot re-posting fresh nits every commit without end. If so, raise **one** approach-level `needs-human` about the root decision (e.g. "regex is the wrong tool here — options: exhaustive table / a real parser / accept known limits; lean: …") and stop fixing the individual instances, rather than dutifully fixing nit after nit.
+Classify each valid fix cluster by the invariant it restores, using one stable lowercase `invariant_key` for the same root across paths and heads. In pipeline output, return the distinct keys whose fixes were pushed as `fixed_invariant_keys`; do not return a key for replies, declined feedback, or unpushed work. This classification is reviewer judgment — never derive it from paths, comment text, or a regex.
+
+When the caller passes a `trajectory`, compare the current cluster with `review_invariants`. If its key already has two fixed rounds, this is the third round: raise **one** approach-level `needs-human` about the root decision and stop before another fix, commit, or push. The coarse signals (rising `unresolved_trend`, new threads across passes, or stalled heads) remain fallback evidence when no stable key can be established.
 
 Hold the anti-cry-wolf line: this fires only on a *demonstrated* shared root or a *demonstrated* treadmill across passes — a normal batch of unrelated valid nits is just fixed, one pass, as usual.

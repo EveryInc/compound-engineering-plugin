@@ -148,6 +148,12 @@ function markCurrencyInspection(stateDir: string, key: string, fingerprint: stri
   mark(stateDir, args)
 }
 
+function markCodexReviewRequest(stateDir: string, head: string, requestedAt?: string): void {
+  const args = ["--codex-review-request-head", head]
+  if (requestedAt) args.push("--codex-review-request-at", requestedAt)
+  mark(stateDir, args)
+}
+
 function markDecisionAnswered(stateDir: string, decisionId?: string): void {
   const current = JSON.parse(readFileSync(path.join(stateDir, "state.json"), "utf8"))
     .human_decisions?.[0]?.id
@@ -2999,6 +3005,158 @@ print(json.dumps({
     expect(d.trajectory.new_threads_this_tick).toBe(2) // T3, T4 are new this tick
     expect(d.trajectory.unresolved_threads).toBe(4)
   })
+
+  test("review invariant rounds persist across pushed heads and deduplicate one head", () => {
+    const f = fetchFile(dir, "invariant.json", { ...FAILING, checks: [], threads: [] })
+    snapshot(state, f)
+    const heads = ["1".repeat(40), "2".repeat(40)]
+    mark(state, ["--review-invariant-key", "pvp-golden/adoption-boundary",
+      "--review-invariant-head", heads[0]!])
+    mark(state, ["--review-invariant-key", "pvp-golden/adoption-boundary",
+      "--review-invariant-head", heads[0]!])
+    mark(state, ["--review-invariant-key", "pvp-golden/adoption-boundary",
+      "--review-invariant-head", heads[1]!])
+
+    expect(snapshot(state, f).trajectory.review_invariants).toEqual([
+      { key: "pvp-golden/adoption-boundary", rounds: 2 },
+    ])
+  })
+
+  test("review invariant marks reject semantic guesses and non-commit identities", () => {
+    const f = fetchFile(dir, "invalid-invariant.json", { ...FAILING, checks: [], threads: [] })
+    snapshot(state, f)
+    for (const args of [
+      ["--review-invariant-key", "A guessed sentence", "--review-invariant-head", "1".repeat(40)],
+      ["--review-invariant-key", "review-root", "--review-invariant-head", "short"],
+    ]) {
+      const result = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+        ...persistedInvocationArgs(state), ...args], { encoding: "utf8" })
+      expect(result.status).not.toBe(0)
+    }
+  })
+
+  test("approval:codex requires a recorded request before any signal can satisfy the gate", () => {
+    const sd = path.join(dir, "codex-approval-request")
+    const clean = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      review_decision: "APPROVED",
+      checks: [GREEN_CHECK],
+      threads: [],
+      codex_approval_signals: [],
+    }
+    const first = snapshot(sd, fetchFile(dir, "codex-request-first.json", clean), [
+      "--approval", "codex",
+    ])
+    expect(first.approval_mode).toBe("codex")
+    expect(first.codex_review_request_required).toBe(true)
+    expect(first.codex_approval_satisfied).toBe(false)
+    expect(wakeReason(first)).toBe("codex-review-request")
+
+    const requestedAt = "2026-08-29T00:00:00+00:00"
+    markCodexReviewRequest(sd, "s1", requestedAt)
+    const waiting = snapshot(sd, fetchFile(dir, "codex-request-waiting.json", clean))
+    expect(waiting.codex_review_request).toEqual({
+      head_sha: "s1", requested_at: requestedAt,
+    })
+    expect(waiting.codex_review_request_required).toBe(false)
+    expect(waiting.codex_approval_satisfied).toBe(false)
+    expect(wakeReason(waiting)).toBeNull()
+  })
+
+  test("approval:codex accepts only a current-head Codex result posted after the request", () => {
+    const sd = path.join(dir, "codex-approval-signal")
+    const clean = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      review_decision: "APPROVED",
+      checks: [GREEN_CHECK],
+      threads: [],
+      codex_approval_signals: [],
+    }
+    snapshot(sd, fetchFile(dir, "codex-signal-first.json", clean), ["--approval", "codex"])
+    markCodexReviewRequest(sd, "s1", "2026-08-29T00:00:00+00:00")
+
+    const signals = [
+      { id: "old", kind: "review", author: "chatgpt-codex-connector[bot]", head_sha: "s1",
+        created_at: "2026-08-28T23:59:00Z", state: "APPROVED" },
+      { id: "other", kind: "review", author: "reviewer", head_sha: "s1",
+        created_at: "2026-08-29T00:01:00Z", body: "codex review: looks good" },
+      { id: "wrong-head", kind: "review", author: "chatgpt-codex-connector[bot]", head_sha: "s0",
+        created_at: "2026-08-29T00:02:00Z", state: "APPROVED" },
+    ]
+    const rejected = snapshot(sd, fetchFile(dir, "codex-signal-rejected.json", {
+      ...clean, codex_approval_signals: signals,
+    }))
+    expect(rejected.codex_approval_satisfied).toBe(false)
+    expect(wakeReason(rejected)).toBe("codex-approval-signal")
+
+    const approved = snapshot(sd, fetchFile(dir, "codex-signal-approved.json", {
+      ...clean,
+      codex_approval_signals: [{ id: "good", kind: "review", author: "chatgpt-codex-connector[bot]",
+        head_sha: "s1", created_at: "2026-08-29T00:03:00Z", state: "APPROVED" }],
+    }))
+    expect(approved.codex_approval_satisfied).toBe(true)
+    expect(approved.codex_approval_signal).toMatchObject({ id: "good", kind: "review" })
+    expect(wakeReason(approved, 0)).toBe("codex-approval-signal")
+
+    patchState(sd, { last_change_at: isoAgo(60 * 60) })
+    const settled = snapshot(sd, fetchFile(dir, "codex-signal-settled.json", {
+      ...clean,
+      codex_approval_signals: [{ id: "good", kind: "review", author: "chatgpt-codex-connector[bot]",
+        head_sha: "s1", created_at: "2026-08-29T00:03:00Z", state: "APPROVED" }],
+    }))
+    expect(wakeReason(settled, 0)).toBe("merge-ready")
+  })
+
+  test("approval:codex reopens the request gate on a head change and rejects the old signal", () => {
+    const sd = path.join(dir, "codex-approval-head")
+    const clean = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      review_decision: "APPROVED",
+      checks: [GREEN_CHECK],
+      threads: [],
+      codex_approval_signals: [{ id: "good", kind: "review", author: "chatgpt-codex-connector[bot]",
+        head_sha: "s1", created_at: "2026-08-29T00:03:00Z", state: "APPROVED" }],
+    }
+    snapshot(sd, fetchFile(dir, "codex-head-first.json", { ...clean, head_sha: "s1" }), [
+      "--approval", "codex",
+    ])
+    markCodexReviewRequest(sd, "s1", "2026-08-29T00:00:00+00:00")
+    expect(snapshot(sd, fetchFile(dir, "codex-head-approved.json", clean))
+      .codex_approval_satisfied).toBe(true)
+
+    const moved = snapshot(sd, fetchFile(dir, "codex-head-moved.json", {
+      ...clean,
+      head_sha: "s2",
+    }))
+    expect(moved.codex_review_request).toBeNull()
+    expect(moved.codex_review_request_required).toBe(true)
+    expect(moved.codex_approval_satisfied).toBe(false)
+    expect(wakeReason(moved)).toBe("codex-review-request")
+  })
+
+  test("approval:codex watcher waits after request and wakes when the signal changes", () => {
+    const sd = path.join(dir, "codex-approval-watch")
+    const clean = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      review_decision: "APPROVED",
+      checks: [GREEN_CHECK],
+      threads: [],
+      codex_approval_signals: [],
+    }
+    expect(watch(sd, fetchFile(dir, "codex-watch-request.json", clean), ["--approval", "codex"]).reason)
+      .toBe("codex-review-request")
+    markCodexReviewRequest(sd, "s1", "2026-08-29T00:00:00+00:00")
+    const signal = fetchFile(dir, "codex-watch-signal.json", {
+      ...clean,
+      codex_approval_signals: [{ id: "good", kind: "thumbs-up", author: "chatgpt-codex-connector[bot]",
+        created_at: "2026-08-29T00:01:00Z" }],
+    })
+    expect(watch(sd, signal, ["--approval", "codex"]).reason).toBe("codex-approval-signal")
+  }, 20000)
 
   test("check_recur_max does not stay elevated after the recurring check leaves CI (stale-key prune)", () => {
     snapshot(state, fetchFile(dir, "p1.json", { ...FAILING, head_sha: "s1", checks: [RED_CHECK] }))

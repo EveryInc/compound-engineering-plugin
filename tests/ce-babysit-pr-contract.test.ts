@@ -70,6 +70,7 @@ const TRAJECTORY_FIELDS = [
   "new_threads_this_tick",
   "stream_alternations",
   "heads_since_progress",
+  "review_invariants",
 ]
 const BABYSIT_TRAJECTORY_REFS = [
   "check_recur_max",
@@ -85,7 +86,7 @@ function emittedTrajectoryKeys(script: string): string[] {
   const fn = script.slice(script.indexOf("def _update_trajectory"))
   const retStart = fn.indexOf("return {")
   const block = fn.slice(retStart, fn.indexOf("\n    }", retStart))
-  return [...block.matchAll(/"([a-z_]+)":/g)].map((m) => m[1])
+  return [...block.matchAll(/^        "([a-z_]+)":/gm)].map((m) => m[1])
 }
 
 describe("ce-babysit-pr cross-skill contract parity", () => {

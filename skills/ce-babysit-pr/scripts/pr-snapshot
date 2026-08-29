@@ -18,6 +18,8 @@ Subcommands:
   mark     --state-dir DIR --invocation-id ID --session-started-at TIME
            --invocation-budget-seconds N (--thread ID --disposition open|dispatched
            | --comment ID --disposition open|dispatched | --check KEY
+           | --codex-review-request-head SHA [--codex-review-request-at TIME]
+           | --review-invariant-key KEY
            | --disposition needs-human --residual-file FILE
            | --answer-decision ID --answer-file FILE)
            A residual-only needs-human mark atomically freezes every source observation
@@ -72,6 +74,13 @@ CURRENCY_ATTENTION_CLAIM = "claim"
 CURRENCY_ATTENTION_DECIDE = "decide"
 CURRENCY_ATTENTION_INSPECT = "inspect"
 CURRENCY_ATTENTION_RECONCILE = "reconcile"
+REVIEW_INVARIANT_KEY = re.compile(r"^[a-z0-9][a-z0-9._/-]{0,127}$")
+GIT_OID = re.compile(r"^[0-9a-f]{40}$")
+APPROVAL_CODEX = "codex"
+CODEX_AUTHORS = frozenset((
+    "chatgpt-codex-connector",
+    "chatgpt-codex-connector[bot]",
+))
 
 MANAGER_CONFIRMED = "confirmed"
 MANAGER_ABSENT = "absent"
@@ -522,6 +531,132 @@ def fetch_eyes_reactors(pr, owner, name, host=None):
     return _eyes_reaction_identities(json.loads(r.stdout))
 
 
+def _is_codex_author(author):
+    """Return whether a GitHub login identifies the Codex reviewer bot."""
+    if isinstance(author, dict):
+        author = author.get("login")
+    if not isinstance(author, str):
+        return False
+    return author.lower() in CODEX_AUTHORS
+
+
+def _approval_signal_head(signal):
+    """Read the commit identity carried by a review or an injected approval signal."""
+    if not isinstance(signal, dict):
+        return None
+    for key in ("head_sha", "headSha", "commit_oid", "commitOid"):
+        value = signal.get(key)
+        if value:
+            return str(value)
+    commit = signal.get("commit")
+    if isinstance(commit, dict):
+        for key in ("oid", "sha", "id"):
+            value = commit.get(key)
+            if value:
+                return str(value)
+    elif isinstance(commit, str) and commit:
+        return commit
+    return None
+
+
+def _approval_signal_time(signal):
+    """Read the creation/submission timestamp used to bind approval to a request."""
+    if not isinstance(signal, dict):
+        return None
+    for key in ("created_at", "createdAt", "submitted_at", "submittedAt"):
+        value = signal.get(key)
+        if value:
+            return str(value)
+    return None
+
+
+def _approval_signal_is_explicit(signal):
+    """Recognize an explicit no-issues/approval review result, not arbitrary review prose."""
+    if not isinstance(signal, dict):
+        return False
+    if str(signal.get("state") or "").upper() == "APPROVED":
+        return True
+    body = signal.get("body") or signal.get("message") or ""
+    return "didn't find any major issues" in str(body).lower()
+
+
+def _normalize_codex_approval_signal(signal, index=0, kind=None):
+    """Normalize a reaction/review into the small signal shape used by the state machine."""
+    if not isinstance(signal, dict):
+        return None
+    raw_kind = kind or signal.get("kind") or signal.get("type") or "approval"
+    normalized_kind = str(raw_kind).lower().replace("_", "-")
+    if normalized_kind in ("reaction", "thumbsup", "thumbs-up", "+1", "plus-one"):
+        normalized_kind = "thumbs-up"
+    elif normalized_kind in ("review", "approval", "approved"):
+        normalized_kind = "review"
+    author = signal.get("author") or signal.get("user")
+    if isinstance(author, dict):
+        author = author.get("login")
+    signal_id = signal.get("id") or signal.get("node_id") or signal.get("nodeId")
+    if signal_id is None:
+        signal_id = f"codex-approval-{index}"
+    state = str(signal.get("state") or "").upper() or None
+    status = str(signal.get("status") or "").upper() or None
+    return {
+        "id": str(signal_id),
+        "kind": normalized_kind,
+        "author": str(author) if author is not None else None,
+        "is_codex": _is_codex_author(author),
+        "head_sha": _approval_signal_head(signal),
+        "created_at": _approval_signal_time(signal),
+        "state": state,
+        "status": status,
+        "approved": (normalized_kind == "thumbs-up"
+                      or _approval_signal_is_explicit(signal)),
+        "in_progress": bool(signal.get("in_progress") or signal.get("inProgress")
+                             or status in ("IN_PROGRESS", "PENDING", "QUEUED")),
+    }
+
+
+def _codex_review_signals(reviews, kind="review"):
+    """Extract explicit Codex approval outcomes from review or comment objects."""
+    out = []
+    for index, review in enumerate(reviews or []):
+        if not isinstance(review, dict):
+            continue
+        author = review.get("author") or review.get("user")
+        is_codex = _is_codex_author(author)
+        if not is_codex:
+            continue
+        signal = _normalize_codex_approval_signal(review, index, kind=kind)
+        if signal is not None and _approval_signal_is_explicit(review):
+            out.append(signal)
+    return out
+
+
+def _reaction_signals(reaction_pages):
+    """Normalize PR-body +1 reactions while retaining author and creation time."""
+    if not isinstance(reaction_pages, list):
+        return []
+    reactions = [reaction for page in reaction_pages for reaction in page] \
+        if reaction_pages and all(isinstance(page, list) for page in reaction_pages) else reaction_pages
+    out = []
+    for index, reaction in enumerate(reactions):
+        if not isinstance(reaction, dict) or reaction.get("content") not in ("+1", "thumbs-up"):
+            continue
+        signal = _normalize_codex_approval_signal(reaction, index, kind="thumbs-up")
+        if signal is not None:
+            out.append(signal)
+    return out
+
+
+def fetch_codex_approval_signals(pr, owner, name, reviews=None, comments=None, host=None):
+    """Fetch PR-body thumbs-up reactions and explicit Codex review outcomes."""
+    reaction_result = _run_checked([
+        "gh", "api", *_host_args(host), "--paginate", "--slurp",
+        f"repos/{owner}/{name}/issues/{pr}/reactions?content=+1&per_page=100",
+    ], "gh api reactions")
+    reactions = _reaction_signals(json.loads(reaction_result.stdout))
+    return (_codex_review_signals(reviews, kind="review")
+            + _codex_review_signals(comments, kind="comment") + reactions)
+
+
 def _stack_schema_unavailable(stderr):
     """Recognize only GraphQL schema errors for the private-preview PullRequest stack fields."""
     unavailable_markers = ("doesn't exist on type", "does not exist on type",
@@ -854,6 +989,8 @@ def fetch(pr, repo, light=False):
     review_signal_identities = [] if light else fetch_eyes_reactors(v.get("number") or pr, owner, name, host)
     review_signal_count = len(review_signal_identities)
     review_in_progress = review_signal_count > 0
+    codex_approval_signals = [] if light else fetch_codex_approval_signals(
+        v.get("number") or pr, owner, name, v.get("reviews"), v.get("comments"), host)
 
     return {
         "pr_state": v.get("state"),
@@ -869,6 +1006,7 @@ def fetch(pr, repo, light=False):
         "review_in_progress": review_in_progress,
         "review_signal_count": review_signal_count,
         "review_signal_identities": review_signal_identities,
+        "codex_approval_signals": codex_approval_signals,
         "threads": fetch_threads(pr, owner, name, host),
         # Non-thread feedback: top-level PR comments + review submission bodies. ce-resolve-pr-feedback
         # handles these too, so a Changes-Requested review body or an actionable top-level comment with
@@ -1005,6 +1143,9 @@ def _empty_state(pr, repo, url, now):
         "review_in_progress": False, "review_signal_count": 0, "review_signal_identities": [],
         "review_signal_seen_on_head": False,
         "review_signal_first_seen_at": None, "review_signal_last_changed_at": None,
+        "approval_mode": None,
+        "codex_review_request": None,
+        "codex_approval_signals": [],
         "blocked_external_head_sha": None,
         "blocked_external_first_seen_at": None,
         "blocked_external_review_last_activity_at": None,
@@ -1015,6 +1156,85 @@ def _empty_state(pr, repo, url, now):
         "watch_generation": None, "watch_pid": None, "watch_process_identity": None,
         "trajectory": _empty_trajectory(),
     }
+
+
+def _load_codex_approval_state(state):
+    """Migrate and normalize the durable Codex approval fields."""
+    mode = state.get("approval_mode")
+    if mode not in (None, APPROVAL_CODEX):
+        mode = None
+    state["approval_mode"] = mode
+    request = state.get("codex_review_request")
+    state["codex_review_request"] = request if isinstance(request, dict) else None
+    signals = state.get("codex_approval_signals")
+    if not isinstance(signals, list):
+        signals = []
+    state["codex_approval_signals"] = signals
+    return mode, state["codex_review_request"], signals
+
+
+def _set_approval_mode(state, requested):
+    """Keep the approval gate fixed for the lifetime of one persisted state."""
+    mode, _, _ = _load_codex_approval_state(state)
+    if requested is not None and requested != APPROVAL_CODEX:
+        raise SystemExit(f"unsupported approval mode: {requested}")
+    if mode is not None and requested is not None and mode != requested:
+        raise SystemExit("approval mode cannot change within a persisted babysit run")
+    if requested is not None:
+        state["approval_mode"] = requested
+    return state.get("approval_mode")
+
+
+def _current_codex_approval_signals(cur):
+    """Normalize injected or fetched Codex approval observations."""
+    raw = cur.get("codex_approval_signals")
+    if raw is None:
+        raw = cur.get("codex_approval_signal")
+    if raw is None:
+        raw = cur.get("codex_approval")
+    if isinstance(raw, dict):
+        raw = [raw]
+    if not isinstance(raw, list):
+        return []
+    signals = []
+    for index, item in enumerate(raw):
+        normalized = _normalize_codex_approval_signal(item, index)
+        if normalized is not None:
+            signals.append(normalized)
+    return sorted(signals, key=lambda item: (item.get("id") or "", item.get("kind") or ""))
+
+
+def _codex_approval_evidence(state, head):
+    """Return the current-head Codex approval decision from persisted observations."""
+    mode, request, signals = _load_codex_approval_state(state)
+    if mode != APPROVAL_CODEX:
+        return {"required": False, "satisfied": True, "reason": "not-required", "signal": None}
+    if not isinstance(request, dict) or str(request.get("head_sha")) != str(head):
+        return {"required": True, "satisfied": False, "reason": "review-request-required", "signal": None}
+    request_at = request.get("requested_at") or request.get("created_at")
+    try:
+        request_time = _parse_iso8601(request_at)
+    except (ValueError, TypeError):
+        return {"required": True, "satisfied": False, "reason": "invalid-review-request", "signal": None}
+    for signal in signals:
+        if not signal.get("is_codex") or not signal.get("approved") or signal.get("in_progress"):
+            continue
+        signal_at = signal.get("created_at")
+        try:
+            signal_time = _parse_iso8601(signal_at)
+        except (ValueError, TypeError):
+            continue
+        if signal_time < request_time:
+            continue
+        signal_head = signal.get("head_sha")
+        # A PR-body reaction has no commit identity, so the request timestamp is its head
+        # binding. Review outcomes must carry the commit they reviewed.
+        if signal.get("kind") not in ("thumbs-up", "comment") and str(signal_head) != str(head):
+            continue
+        if signal_head is not None and str(signal_head) != str(head):
+            continue
+        return {"required": True, "satisfied": True, "reason": "approved", "signal": signal}
+    return {"required": True, "satisfied": False, "reason": "approval-pending", "signal": None}
 
 
 def _empty_branch_currency_state():
@@ -1332,6 +1552,7 @@ def _empty_trajectory():
         "problem_keys": [],            # last tick's failing checks + non-parked threads (progress detection)
         "min_open_problems": None,     # lowest total open-problem count seen
         "heads_since_progress": 0,     # head changes since progress (a new low OR something cleared)
+        "review_invariant_heads": {}, # resolver-owned invariant key -> distinct fixed heads
         "last_head": None,             # head as of the last AGENT tick — hsp counts moves between ticks,
                                        # NOT poll-observed head moves (state["head_sha"] advances on polls)
     }
@@ -1484,6 +1705,11 @@ def _update_trajectory(state, head, new_checks, new_threads, new_feedback, actio
         "new_threads_this_tick": len(new_arrivals),
         "stream_alternations": _stream_alternations(tj["stream_series"]),
         "heads_since_progress": tj["heads_since_progress"],
+        "review_invariants": [
+            {"key": key, "rounds": len(heads)}
+            for key, heads in sorted(tj["review_invariant_heads"].items())
+            if isinstance(heads, list)
+        ],
     }
 
 
@@ -2019,6 +2245,19 @@ def diff(state, cur, now=None, advance_trajectory=True):
     signal_changed = (review_signal_identities != prior_review_signal_identities
                       if review_signal_identities is not None else
                       review_signal_count != prior_review_signal_count)
+    _, _, prior_codex_signals = _load_codex_approval_state(state)
+    prior_codex_signal_ids = [
+        (item.get("id"), item.get("kind"), item.get("author"), item.get("head_sha"),
+         item.get("created_at"), item.get("approved"), item.get("in_progress"))
+        for item in prior_codex_signals if isinstance(item, dict)
+    ]
+    codex_approval_signals = _current_codex_approval_signals(cur)
+    current_codex_signal_ids = [
+        (item.get("id"), item.get("kind"), item.get("author"), item.get("head_sha"),
+         item.get("created_at"), item.get("approved"), item.get("in_progress"))
+        for item in codex_approval_signals
+    ]
+    codex_signal_changed = current_codex_signal_ids != prior_codex_signal_ids
 
     if head_changed:
         # SHA-scoped state is meaningless on a new head.
@@ -2026,6 +2265,10 @@ def diff(state, cur, now=None, advance_trajectory=True):
         state["review_signal_seen_on_head"] = review_in_progress
         state["review_signal_first_seen_at"] = _iso(now) if review_in_progress else None
         state["review_signal_last_changed_at"] = _iso(now) if review_in_progress else None
+        # A review request and its approval are bound to one head. A new head always needs
+        # a fresh request; an old reaction/review cannot satisfy the new gate.
+        state["codex_review_request"] = None
+        state["codex_approval_signals"] = codex_approval_signals
     else:
         # Preserve a signal seen on this head after it disappears; the agent owns completion judgment,
         # while this structural fact distinguishes an incomplete lifecycle from "no signal ever."
@@ -2035,6 +2278,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
             state["review_signal_first_seen_at"] = legacy_seen_at or _iso(now)
         if signal_changed:
             state["review_signal_last_changed_at"] = _iso(now)
+        state["codex_approval_signals"] = codex_approval_signals
 
     # --- CI: a failing check on the current head is actionable until the agent
     # marks it dispatched (recorded in ci_dispatched[head]) or the head moves.
@@ -2115,6 +2359,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         or current_feedback_activity != prior_feedback_activity
         or cur.get("review_decision") != prior_review_decision
         or signal_changed
+        or codex_signal_changed
     )
     open_needs_human = len(needs_human_residuals)
     # Compatibility view for consumers that display source identities. The canonical set above,
@@ -2132,6 +2377,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
     state["review_in_progress"] = review_in_progress
     state["review_signal_count"] = review_signal_count
     state["review_signal_identities"] = review_signal_identities
+    codex_approval = _codex_approval_evidence(state, head)
     observed_awaiting_approval = cur.get("awaiting_approval")
     approval_probe_succeeded = observed_awaiting_approval is not None
     awaiting_approval = (
@@ -2244,6 +2490,18 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "review_signal_seen_on_head": bool(state.get("review_signal_seen_on_head", False)),
         "review_signal_first_seen_at": state.get("review_signal_first_seen_at"),
         "review_signal_last_changed_at": state.get("review_signal_last_changed_at"),
+        "approval_mode": state.get("approval_mode"),
+        "codex_review_request": state.get("codex_review_request"),
+        "codex_review_request_required": (
+            state.get("approval_mode") == APPROVAL_CODEX
+            and (not isinstance(state.get("codex_review_request"), dict)
+                 or str(state["codex_review_request"].get("head_sha")) != str(head))
+        ),
+        "codex_approval_signals": state.get("codex_approval_signals", []),
+        "codex_approval_signal": codex_approval.get("signal"),
+        "codex_approval_signal_changed": codex_signal_changed,
+        "codex_approval_satisfied": codex_approval.get("satisfied", True),
+        "codex_approval_reason": codex_approval.get("reason"),
         "checks_awaiting_approval": awaiting_approval,
         "blocked_external": blocked_external,
         "blocked_external_first_seen_at": state.get("blocked_external_first_seen_at"),
@@ -2307,6 +2565,9 @@ def _change_sig(state):
             state.get("merge_state_status"), state.get("review_in_progress"),
             state.get("review_signal_count"),
             tuple(state.get("review_signal_identities") or []),
+            state.get("approval_mode"),
+            json.dumps(state.get("codex_review_request"), sort_keys=True),
+            json.dumps(state.get("codex_approval_signals") or [], sort_keys=True),
             json.dumps(state.get("pr_chain") or _default_pr_chain(), sort_keys=True),
             json.dumps(state.get("base"), sort_keys=True),
             (current_currency.get("host_branch_update_capability")
@@ -2518,6 +2779,7 @@ def _apply_snapshot(box, args, cur, now, advance_trajectory):
     if box["state"].get("pr", {}).get("url") is None and cur.get("url"):
         box["state"]["pr"]["url"] = cur["url"]
     _apply_invocation(box, args, now)
+    _set_approval_mode(box["state"], getattr(args, "approval", None))
     return diff(box["state"], cur, now, advance_trajectory=advance_trajectory)
 
 
@@ -2552,7 +2814,7 @@ def cmd_snapshot(args):
     print(json.dumps(result, indent=2))
 
 
-def _wake_reason(a, settle_seconds):
+def _wake_reason(a, settle_seconds, approval_mode=None):
     """Why the in-session agent should wake and run a tick, or None to keep watching.
     Ordered by precedence — a terminal/blocked/needs-human state outranks a merge-ready read."""
     if a.get("pr_state") in ("MERGED", "CLOSED"):
@@ -2590,6 +2852,16 @@ def _wake_reason(a, settle_seconds):
         return "blocked-external"
     if a.get("open_needs_human", 0):
         return "needs-human"         # parked items block ready; surface them
+    approval_mode = approval_mode or a.get("approval_mode")
+    if approval_mode == APPROVAL_CODEX:
+        if a.get("codex_review_request_required"):
+            return "codex-review-request"
+        if a.get("codex_approval_signal_changed"):
+            return "codex-approval-signal"
+        if not a.get("codex_approval_satisfied", False):
+            # The request has been recorded, but the required current-head signal has not arrived.
+            # Keep the watcher armed without treating silence as approval.
+            return None
     # merge-ready candidate: green + settled with no fresh review movement. A live 👀 blocks the
     # ordinary 300s settle, but wakes the agent after 900 quiet seconds for the semantic stale-review
     # judgment. The agent may extend once to 1800s by re-arming with that settle value; the detector
@@ -3323,6 +3595,45 @@ def _answer_human_decision(state, decision_id, answer_file, now):
     return answered
 
 
+def _mark_review_invariant(state, key, head):
+    """Record one resolver-confirmed fix round for a semantic review invariant."""
+    if not REVIEW_INVARIANT_KEY.fullmatch(key):
+        raise SystemExit("--review-invariant-key must be a stable lowercase identifier")
+    if not head or not GIT_OID.fullmatch(head):
+        raise SystemExit("--review-invariant-head must be the pushed 40-character commit OID")
+    heads = _load_trajectory(state)["review_invariant_heads"].setdefault(key, [])
+    if head not in heads:
+        heads.append(head)
+    state["last_action"] = f"recorded review invariant {key}"
+    return {"key": key, "rounds": len(heads)}
+
+
+def _mark_codex_review_request(state, head, requested_at, now):
+    """Record one Codex review request for the exact observed PR head."""
+    if state.get("approval_mode") != APPROVAL_CODEX:
+        raise SystemExit("Codex review requests require --approval codex on the snapshot")
+    if not isinstance(head, str) or not head.strip():
+        raise SystemExit("--codex-review-request-head must be a non-empty current head")
+    if str(state.get("head_sha")) != head:
+        raise SystemExit("Codex review request head must match the latest snapshot")
+    request_time = requested_at or _iso(now)
+    try:
+        parsed = _parse_iso8601(request_time)
+    except (ValueError, TypeError):
+        raise SystemExit("--codex-review-request-at must be an ISO-8601 timestamp")
+    request_time = _iso(parsed.astimezone(timezone.utc))
+    existing = state.get("codex_review_request")
+    if isinstance(existing, dict):
+        if (str(existing.get("head_sha")) == head
+                and existing.get("requested_at") == request_time):
+            return existing
+        raise SystemExit("a Codex review request is already recorded for this head")
+    request = {"head_sha": head, "requested_at": request_time}
+    state["codex_review_request"] = request
+    state["last_action"] = f"recorded Codex review request for {head}"
+    return request
+
+
 def cmd_mark(args):
     now = _now()
     marked = None
@@ -3353,11 +3664,39 @@ def cmd_mark(args):
                     args.semantic_conflict_fingerprint,
                     args.currency_outcome,
                     args.currency_inspected_fingerprint,
+                    args.review_invariant_key,
+                    args.review_invariant_head,
+                    args.codex_review_request_head,
+                    args.codex_review_request_at,
                     args.disposition != DISPOSITION_DISPATCHED,
             )):
                 raise SystemExit("answer marks cannot be combined with source actions")
             marked = _answer_human_decision(
                 state, args.answer_decision, args.answer_file, now)
+        elif args.codex_review_request_head or args.codex_review_request_at:
+            if not args.codex_review_request_head:
+                raise SystemExit("Codex review request marks require the current head")
+            if any((args.check, args.thread, args.comment, args.residual_file,
+                    args.acted_edit_id, args.currency_key, args.currency_disposition,
+                    args.semantic_conflict_fingerprint, args.currency_outcome,
+                    args.currency_inspected_fingerprint, args.review_invariant_key,
+                    args.review_invariant_head,
+                    args.disposition != DISPOSITION_DISPATCHED)):
+                raise SystemExit("Codex review request marks cannot be combined with source actions")
+            marked = _mark_codex_review_request(
+                state, args.codex_review_request_head, args.codex_review_request_at, now)
+        elif args.review_invariant_key or args.review_invariant_head:
+            if not args.review_invariant_key or not args.review_invariant_head:
+                raise SystemExit("review invariant marks require key and pushed head")
+            if any((args.check, args.thread, args.comment, args.residual_file,
+                    args.acted_edit_id, args.currency_key, args.currency_disposition,
+                    args.semantic_conflict_fingerprint, args.currency_outcome,
+                    args.currency_inspected_fingerprint,
+                    args.codex_review_request_head, args.codex_review_request_at,
+                    args.disposition != DISPOSITION_DISPATCHED)):
+                raise SystemExit("review invariant marks cannot be combined with source actions")
+            marked = _mark_review_invariant(
+                state, args.review_invariant_key, args.review_invariant_head)
         elif (args.currency_key or args.currency_disposition or args.currency_outcome
                 or args.currency_inspected_fingerprint):
             actions = sum(bool(value) for value in (
@@ -3431,8 +3770,10 @@ def cmd_mark(args):
                     entry["acted_identity"] = [args.acted_edit_id]
             state["last_action"] = f"{args.disposition} {label} {item_id}"
             marked = marked or item_id
-    if isinstance(marked, dict):
+    if isinstance(marked, dict) and marked.get("id"):
         print(json.dumps({"marked": marked.get("id"), "decision": marked}, indent=2))
+    elif isinstance(marked, dict):
+        print(json.dumps({"marked": marked}, indent=2))
     else:
         print(json.dumps({"marked": marked}))
 
@@ -3471,6 +3812,9 @@ def main():
     s.add_argument("--repo", default=None)
     s.add_argument("--state-dir", required=True)
     s.add_argument("--fetch-file", default=None)
+    s.add_argument("--approval", "--approval-mode", dest="approval",
+                   choices=[APPROVAL_CODEX], default=None,
+                   help="require a current-head Codex approval before ready")
     sg = s.add_mutually_exclusive_group()
     sg.add_argument("--start-invocation", action="store_true",
                     help="mint one new fixed budget (first snapshot only)")
@@ -3523,6 +3867,16 @@ def main():
                    help="exact current decision ID whose human answer is being recorded")
     m.add_argument("--answer-file", default=None,
                    help="file containing the human answer to preserve until covered work moves")
+    m.add_argument("--review-invariant-key", default=None,
+                   help="resolver-classified invariant fixed by one review round")
+    m.add_argument("--review-invariant-head", default=None,
+                   help="40-character pushed commit OID for the fixed review round")
+    m.add_argument("--codex-review-request-head", "--review-request-head",
+                   dest="codex_review_request_head", default=None,
+                   help="current PR head for the review request issued to Codex")
+    m.add_argument("--codex-review-request-at", "--review-request-at",
+                   dest="codex_review_request_at", type=_session_started_at, default=None,
+                   help="ISO timestamp when the current-head Codex review request was issued")
     m.set_defaults(func=cmd_mark)
 
     w = sub.add_parser("watch")
@@ -3538,6 +3892,9 @@ def main():
                    help="head-scoped review-quiet bound before a gated-CI handback")
     w.add_argument("--stop-file", default=None, help="path whose existence stops the watch")
     w.add_argument("--fetch-file", default=None)
+    w.add_argument("--approval", "--approval-mode", dest="approval",
+                   choices=[APPROVAL_CODEX], default=None,
+                   help="require a current-head Codex approval before ready")
     w.add_argument("--invocation-id", required=True,
                    help="token emitted by the invocation's first snapshot")
     w.add_argument("--session-started-at", type=_session_started_at, required=True,

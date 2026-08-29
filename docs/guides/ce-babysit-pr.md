@@ -54,6 +54,9 @@ Empty invoke watches the current branch's PR. A number or URL pins the PR. `watc
 
 # Same walk, and land the settled prefix when green
 /ce-babysit-pr posture:stack-land
+
+# Require a current-head Codex approval signal before reporting ready
+/ce-babysit-pr 1234 approval:codex
 ```
 
 For a single pass over comments you want to watch yourself, use `/ce-resolve-pr-feedback` instead.
@@ -76,6 +79,7 @@ Each tick is stateless and resumable from disk. The harness only has to wake the
 
 - **Comments first.** New review threads and non-thread comments are handled before CI. After that pass, if a commit was pushed, the old CI failure is against a dead SHA and is skipped
 - **Delegation.** `/ce-resolve-pr-feedback` for comments, `/ce-debug` for real failures (once per new signature). The only inline CI work is a cheap flaky-vs-real split
+- **Review convergence.** The resolver names the invariant restored by each pushed review round. Babysit persists those keys by head, so a third round for the same invariant becomes one approach-level `needs-human` decision before another patch
 - **Consumption-only branch currency.** The base is merged or updated into the PR only when the snapshot emits a `branch_currency` item (`BEHIND` via GitHub's update-branch endpoint, `DIRTY` via an exact-base local repair) and only after it is claimed; ordinary base movement on a CLEAN PR, a sibling merging, or someone saying "update the branch" never triggers one. A disputable conflict becomes a sticky `needs-human`; an unrequested base merge on the head is flagged as a defect
 - **Settle window.** "Looks ready" needs GitHub `CLEAN`, no open feedback, no parked `needs-human`, and enough quiet time. A started-but-unfinished review waits at least 15 quiet minutes and at most 30
 - **In-session watch by default.** `pr-snapshot watch` polls with no agent tokens and prints `BABYSIT_WAKE` only on an actionable change. If the harness cannot background-and-wake, the skill runs one checkpoint tick and prints the resume command
@@ -102,6 +106,8 @@ Default budget is **8 hours of active watch time** (laptop-sleep gaps are exclud
 ### Looks ready is a cooling-off judgment
 
 Ready is not "CI is green." GitHub must report the PR mergeable against the current base, the attention set must be empty, and the quiet window (default 5 minutes when no review signal was seen) must have elapsed. An incomplete review lifecycle uses the 15 / 30 minute bounds above. Even then the summary says "looks ready, your call" or "cautiously looks ready."
+
+When the user explicitly selects `approval:codex`, the bounded stale-review fallback is disabled for that reviewer. The run issues one review request per head and waits for a current-head Codex thumbs-up or explicit no-major-issues/approval result posted after that request, bounded only by the invocation budget or user stop. A head change clears the request and requires a new one. Pipeline mode rejects this interactive-only gate.
 
 When a fork PR's CI is waiting on maintainer approval, the skill drains review for a bounded window (5, 15, or 30 minutes) and then hands back. It never approves the workflow run. Pipeline mode returns that blocker immediately.
 
@@ -183,6 +189,7 @@ Use `/ce-resolve-pr-feedback` directly when you want one manual pass. Use this s
 | `watch` / `checkpoint` | Force the execution mode |
 | `<duration>` | Active-time budget (default 8 hours). Example: `2 hours`. |
 | `posture:target\|stack-ready\|stack-land` | Run scope on a confirmed managed stack |
+| `approval:codex` | Require a current-head Codex approval signal before looks-ready (interactive only) |
 | `mode:pipeline` | Bounded synchronous ticks for an orchestrator. No settle wait. Structured return. |
 
 `scripts/pr-snapshot` is the snapshot and state helper: it paginates review threads, records CI and branch currency, and emits the per-tick attention set. Its `watch` subcommand is the token-free change detector (with `--downstack-pr` it also probes lower stack layers so the walk returns when one re-opens). A newer successful invoke takes ownership; older wakes are stale hints. The skill body itself is a short always-loaded kernel; the tick commands, currency routes, stack contract, settle policy, and report shape live in the skill's `references/` (`tick.md`, `branch-currency.md`, `stack.md`, `settle.md`, `report.md`, `watch-loop.md`).

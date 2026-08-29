@@ -1,7 +1,7 @@
 ---
 name: ce-babysit-pr
 description: "Babysits an open GitHub PR until merge-ready. Use when asked to watch a PR over time — not for one-shot comment resolution or one CI failure. GitHub (incl. Enterprise) only."
-argument-hint: "[PR number|URL|blank=current branch] [watch|checkpoint] [duration] [posture:target|stack-ready|stack-land]"
+argument-hint: "[PR number|URL|blank=current branch] [watch|checkpoint] [duration] [posture:target|stack-ready|stack-land] [approval:codex]"
 ---
 
 # Babysit a PR
@@ -19,6 +19,8 @@ Keep an open PR moving toward merge by reacting to three streams as each arrives
 - `stack-land` — as `stack-ready`, and selecting it **is** land authorization: once the bottom-most open layer is settled, `gh stack merge` it + `gh stack sync`.
 
 One PR named → `target` (ask once if a confirmed multi-layer stack exists); own the stack → `stack-ready`; land → `stack-land`. `mode:pipeline` never asks. Restate posture per transition.
+
+`approval:codex` is opt-in; looks-ready requires current-head Codex approval. Reject this token in `mode:pipeline`; see `references/settle.md`.
 
 ## Non-negotiable boundaries
 
@@ -44,7 +46,7 @@ Snapshot first, then in this order:
 
 1. **Terminal check.** `MERGED`/`CLOSED` → stop (a `stack-land` merge this run landed is a transition).
 2. **Capture the head SHA**; in a confirmed managed stack also record the pre-push baseline (`references/stack.md`).
-3. **Feedback before CI.** Threads or non-thread candidates present → invoke `ce-resolve-pr-feedback mode:pipeline` once with the PR ref; persist typed decisions through the shared atomic mark and dispatch every other passed comment; pass `trajectory` when a trigger is crossed; never declare non-convergence yourself.
+3. **Feedback before CI.** Threads or non-thread candidates present → invoke `ce-resolve-pr-feedback mode:pipeline` once with the PR ref and current `trajectory`; persist typed decisions through the shared atomic mark and dispatch every other passed comment; persist resolver-classified fixed invariant keys by pushed head so the resolver can stop before a third round; never declare non-convergence yourself.
 4. **Stale-SHA cancellation.** Head moved since step 2 → this snapshot's CI is dead; skip.
 5. **CI on the current head**, one pass for all failures: flaky/infra → `gh run rerun <run-id> --failed -R <host>/<owner>/<repo>`; real failure → `ce-debug mode:pipeline` once; mark each check acted on; unfixed checks stay red residuals.
 6. **Branch currency** — consume the exact emitted item (`references/branch-currency.md`); no item → nothing. `unrequested_base_merge` is a defect to report, never undo.
@@ -52,8 +54,8 @@ Snapshot first, then in this order:
 
 ## Step 3: Stop conditions
 
-**True stops** (`references/settle.md`): **Terminal**; **Looks ready** — `mergeability_certain`, `MERGEABLE`, `CLEAN`, no `base_ref_blocker`, checks terminal, zero backlog, `open_needs_human == 0`, `branch_currency_blocker == null`, settle elapsed, review-still-expected guard clear or its bounded stale protocol says stop; **blocked-external-drained**; **Budget** (active budget or 3-day backstop). Refresh a drifted PR description via `ce-commit-push-pr mode:pipeline` before reporting ready. Interactive **standing residuals** (`needs-human`, `blocked-failing`, `stack-blocked`) block ready while independent work continues; stopping there is the primary failure mode. `mode:pipeline` returns the canonical decision set when autonomous work ends. `stack-land` lands the settled prefix before advancing. After an interactive tick with no true stop, re-arm and wait on the one watcher; silence carries no PR-state information.
+**True stops** (`references/settle.md`): **Terminal**; **Looks ready** — `mergeability_certain`, `MERGEABLE`, `CLEAN`, no `base_ref_blocker`, `stack_blocker`, or `branch_currency_blocker`, checks terminal, zero backlog, `open_needs_human == 0`, settle elapsed, review-still-expected guard clear or bounded stale protocol says stop, and selected `approval:codex` is satisfied on current head; **blocked-external-drained**; **Budget** (active or 3-day backstop). Refresh a drifted PR description via `ce-commit-push-pr mode:pipeline` before ready. Interactive standing residuals (`needs-human`, `blocked-failing`, `stack-blocked`) block ready while independent work continues; stopping there is the primary failure mode. `mode:pipeline` returns the canonical decision set. `stack-land` lands the settled prefix. Otherwise re-arm and wait on the watcher; silence carries no PR-state information.
 
 ## Step 4: Report
 
-One fixed status line first (`✅ Looks merge-ready — <evidence>. Your call to merge.` / `🟡 Cautiously looks ready …` / 🎉 🚫 ⛔ ⏱️ ⏸️), then a recap the reader could merge from without scrolling back: feedback themes and outcomes, CI fixes, pushes, run length, parked items, judgment calls made for the user. Never "safe to merge" (`references/report.md`).
+Read `references/report.md` at each true stop and follow its status-line and recap contract.
