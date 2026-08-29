@@ -295,16 +295,18 @@ CODEX_TOOL_MAP_END="<!-- END COMPOUND CODEX TOOL MAP -->"
 codex_home="${CODEX_HOME:-$HOME/.codex}"
 default_codex_home="$HOME/.codex"
 legacy_codex_map_files=()
-# Ordered pair only: first BEGIN must precede first END (same contract as
-# removeCodexAgentsToolMapBlock). Independent grep would treat END-then-BEGIN
-# as removable even though no safe span exists.
+# Ordered pair: first BEGIN must have an END after it (same contract as
+# removeCodexAgentsToolMapBlock). A stray earlier END must not hide a later
+# removable block (END then BEGIN then END). Independent grep would treat
+# END-then-BEGIN with no later END as removable even though no safe span exists.
 has_ordered_codex_tool_map() {
   awk -v s="$CODEX_TOOL_MAP_START" -v e="$CODEX_TOOL_MAP_END" '
     { buf = buf $0 "\n" }
     END {
       si = index(buf, s)
-      ei = index(buf, e)
-      exit (si > 0 && ei > 0 && ei > si) ? 0 : 1
+      if (si == 0) exit 1
+      rest = substr(buf, si + length(s))
+      exit (index(rest, e) > 0) ? 0 : 1
     }
   ' "$1"
 }

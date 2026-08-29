@@ -36,9 +36,14 @@ export async function stripCodexAgentsToolMap(codexHome: string): Promise<void> 
 /** Pure strip helper — exported for tests. */
 export function removeCodexAgentsToolMapBlock(existing: string): string {
   const startIndex = existing.indexOf(CODEX_AGENTS_BLOCK_START)
-  const endIndex = existing.indexOf(CODEX_AGENTS_BLOCK_END)
-
-  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+  if (startIndex === -1) {
+    return existing
+  }
+  const endIndex = existing.indexOf(
+    CODEX_AGENTS_BLOCK_END,
+    startIndex + CODEX_AGENTS_BLOCK_START.length,
+  )
+  if (endIndex === -1) {
     return existing
   }
 

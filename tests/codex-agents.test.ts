@@ -48,6 +48,39 @@ describe("removeCodexAgentsToolMapBlock", () => {
     expect(result).not.toContain("old managed content")
   })
 
+  test("strips a later ordered pair after a stray earlier END", () => {
+    const input = [
+      "keep this",
+      CODEX_AGENTS_BLOCK_END,
+      "user-owned notes",
+      CODEX_AGENTS_BLOCK_START,
+      "legacy map",
+      CODEX_AGENTS_BLOCK_END,
+      "",
+    ].join("\n")
+
+    const result = removeCodexAgentsToolMapBlock(input)
+    expect(result).toContain("keep this")
+    expect(result).toContain("user-owned notes")
+    expect(result).toContain(CODEX_AGENTS_BLOCK_END)
+    expect(result).not.toContain(CODEX_AGENTS_BLOCK_START)
+    expect(result).not.toContain("legacy map")
+    expect(result.indexOf(CODEX_AGENTS_BLOCK_END)).toBe(
+      input.indexOf(CODEX_AGENTS_BLOCK_END),
+    )
+  })
+
+  test("leaves END-then-BEGIN without a later END unchanged", () => {
+    const input = [
+      "keep this",
+      CODEX_AGENTS_BLOCK_END,
+      "user-owned notes",
+      CODEX_AGENTS_BLOCK_START,
+      "",
+    ].join("\n")
+    expect(removeCodexAgentsToolMapBlock(input)).toBe(input)
+  })
+
   test("returns empty string when the file is only the managed block", () => {
     const input = [CODEX_AGENTS_BLOCK_START, "only this", CODEX_AGENTS_BLOCK_END].join("\n")
     expect(removeCodexAgentsToolMapBlock(input)).toBe("")

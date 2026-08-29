@@ -102,6 +102,31 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  test("warns when a stray earlier END precedes a later ordered BEGIN/END pair", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".codex"), { recursive: true })
+      await writeFile(
+        path.join(root, ".codex", "AGENTS.md"),
+        [
+          "keep this",
+          "<!-- END COMPOUND CODEX TOOL MAP -->",
+          "user-owned notes",
+          "<!-- BEGIN COMPOUND CODEX TOOL MAP -->",
+          "Task (subagent dispatch) / Subagent / Parallel: run sequentially in main thread",
+          "<!-- END COMPOUND CODEX TOOL MAP -->",
+          "",
+        ].join("\n"),
+      )
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Legacy Compound Codex tool map still present")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("does not warn when END sentinel precedes BEGIN (no ordered span)", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
     try {
