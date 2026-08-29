@@ -438,9 +438,12 @@ Context: this is the first of three PRs in the server-side session revocation pr
 
 Do not push and do not open a PR. Print only the description's opening — the one or two sentences that lead the body — and nothing else.`,
     grade: {
+      // Both needles, because the condition requires both halves in the opening.
       // "revo" covers revocation/revoke/revoked: the program's purpose, which the
       // opening can only carry from the program context, never from the diff.
-      must_include: ["revo"],
+      // "stamp" is this PR's own contribution — the staged module's mechanism — which
+      // an opening that names only the arc has no reason to mention.
+      must_include: ["revo", "stamp"],
     },
   },
   {
