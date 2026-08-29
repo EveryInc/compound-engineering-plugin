@@ -47,6 +47,14 @@ export type Grade = {
    */
   workspace_read?: string[]
   must_include?: string[]
+  /**
+   * Scope must_include to this delimited field of the answer (e.g. `OPENING`) instead
+   * of the whole answer. The trailers wrapPrompt mandates are part of stdout, so an
+   * unscoped needle can be satisfied by a read path in FILES_READ or a branch name in
+   * ACTIONS rather than by the text under test. A run that emitted no such field fails,
+   * so declaring nothing cannot pass.
+   */
+  must_include_field?: string
   /** Exact value of the answer's `Classification:` field. */
   classification?: "Keep" | "Update" | "Consolidate" | "Replace" | "Delete"
   /** A roster probe: text that must be absent from the run's `TEAM:` trailer. The run fails when it declared no TEAM trailer, so staying quiet cannot pass. must_include also reads that trailer when present. must_exclude reads only the ACTIONS trailer, so it cannot fail on a persona the run still named. */
@@ -429,21 +437,26 @@ The same decision owns open review thread PRRT_ci_contract_7 at https://github.c
     shim_gh_pr: true,
     fixture: `${FIX}/pr-series-enabler`,
     timeout_secs: 900,
-    why: "#1572: a first-in-series change whose local outcome is unmotivated on its own. The old rule put program context in a block after the opening no matter what, so the opening read as a pointless field addition and was rejected twice. The staged module is named for the mechanism (a monotonic stamp), never for the program, so 'revocation' can only reach the opening from the program context.",
+    why: "#1572: a first-in-series change whose local outcome is unmotivated on its own. The old rule put program context in a block after the opening no matter what, so the opening read as a pointless field addition and was rejected twice. The staged module is named for the mechanism (a monotonic stamp), never for the program, so 'revocation' can only reach the opening from the program context. The grade reads the delimited OPENING field, not stdout, so the trailers cannot satisfy a needle.",
     pre_contract:
       "The opening carries one idea and program context is a short additive block after it, never part of the opening's sentence.",
     task: `Commit the staged change, then write the PR description for this branch.
 
 Context: this is the first of three PRs in the server-side session revocation project. This one lands the stamp; PR 2 adds the operator endpoint that bumps a user's stamp; PR 3 makes the request path refuse sessions issued before it.
 
-Do not push and do not open a PR. Print only the description's opening — the one or two sentences that lead the body — and nothing else.`,
+Do not push and do not open a PR. Print the description's opening — the one or two sentences that lead the body — on a single line prefixed with "OPENING:" and nothing else.`,
     grade: {
+      // Scoped to the OPENING field, not stdout: the mandated trailers are part of
+      // stdout, so a whole-stdout needle is satisfiable by a read path (FILES_READ:
+      // src/session-stamp.js carries "stamp") or a branch name (ACTIONS: created
+      // branch session-revocation-stamp carries both) instead of the opening.
       // Both needles, because the condition requires both halves in the opening.
       // "revo" covers revocation/revoke/revoked: the program's purpose, which the
       // opening can only carry from the program context, never from the diff.
       // "stamp" is this PR's own contribution — the staged module's mechanism — which
       // an opening that names only the arc has no reason to mention.
       must_include: ["revo", "stamp"],
+      must_include_field: "OPENING",
     },
   },
   {
@@ -460,19 +473,23 @@ Do not push and do not open a PR. Print only the description's opening — the o
     shim_gh_pr: true,
     fixture: `${FIX}/pr-series-slice`,
     timeout_secs: 900,
-    why: "The counter-failure the old absolute existed to prevent (#1422): an opening that leads with the arc and leaves a reviewer unable to say what this PR does. Here the local outcome stands on its own, so it must still lead. Both arms should pass — this row fails if the fix merely inverted the bias.",
+    why: "The counter-failure the old absolute existed to prevent (#1422): an opening that leads with the arc and leaves a reviewer unable to say what this PR does. Here the local outcome stands on its own, so the opening must still carry it. Both arms should pass — this row fails if the fix merely inverted the bias. The grade reads the delimited OPENING field, not stdout, so the trailers cannot satisfy the needle.",
     pre_contract:
       "The opening states this PR's own outcome; a reviewer who stops there knows what the PR does.",
     task: `Commit the staged change, then write the PR description for this branch.
 
 Context: this is the second of three PRs in the server-side session revocation project. PR 1 landed the per-user stamp; PR 3 adds the operator endpoint that bumps it.
 
-Do not push and do not open a PR. Print only the description's opening — the one or two sentences that lead the body — and nothing else.`,
+Do not push and do not open a PR. Print the description's opening — the one or two sentences that lead the body — on a single line prefixed with "OPENING:" and nothing else.`,
     grade: {
+      // Scoped to the OPENING field, not stdout: the mandated trailers are part of
+      // stdout, so a whole-stdout needle is satisfiable by an ACTIONS commit SHA that
+      // happens to contain "401" instead of by the opening.
       // Verb wording varies ("refused"/"rejected"/"denied"), so pin the observable
       // effect instead. A run that leads with the arc and drops the local outcome
       // has no reason to name it.
       must_include: ["401"],
+      must_include_field: "OPENING",
     },
   },
   {
