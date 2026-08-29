@@ -127,6 +127,27 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  test("does not warn when both sentinels appear inline in prose", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".codex"), { recursive: true })
+      await writeFile(
+        path.join(root, ".codex", "AGENTS.md"),
+        [
+          "keep this",
+          "The retired map used `<!-- BEGIN COMPOUND CODEX TOOL MAP -->` … `<!-- END COMPOUND CODEX TOOL MAP -->` inline.",
+          "",
+        ].join("\n"),
+      )
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).not.toContain("Legacy Compound Codex tool map still present")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("does not warn when END sentinel precedes BEGIN (no ordered span)", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
     try {

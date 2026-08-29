@@ -34,12 +34,32 @@ export async function stripCodexAgentsToolMap(codexHome: string): Promise<void> 
 }
 
 /** Pure strip helper — exported for tests. */
+function indexOfStandaloneLine(haystack: string, needle: string, fromIndex = 0): number {
+  let pos = fromIndex
+  while (pos <= haystack.length) {
+    const i = haystack.indexOf(needle, pos)
+    if (i === -1) {
+      return -1
+    }
+    const beforeOk = i === 0 || haystack[i - 1] === "\n"
+    const after = i + needle.length
+    const afterOk =
+      after === haystack.length || haystack[after] === "\n" || haystack.startsWith("\r\n", after)
+    if (beforeOk && afterOk) {
+      return i
+    }
+    pos = i + 1
+  }
+  return -1
+}
+
 export function removeCodexAgentsToolMapBlock(existing: string): string {
-  const startIndex = existing.indexOf(CODEX_AGENTS_BLOCK_START)
+  const startIndex = indexOfStandaloneLine(existing, CODEX_AGENTS_BLOCK_START)
   if (startIndex === -1) {
     return existing
   }
-  const endIndex = existing.indexOf(
+  const endIndex = indexOfStandaloneLine(
+    existing,
     CODEX_AGENTS_BLOCK_END,
     startIndex + CODEX_AGENTS_BLOCK_START.length,
   )

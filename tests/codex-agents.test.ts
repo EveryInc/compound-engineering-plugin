@@ -70,6 +70,15 @@ describe("removeCodexAgentsToolMapBlock", () => {
     )
   })
 
+  test("leaves inline documentation of both sentinels unchanged", () => {
+    const input = [
+      "keep this",
+      `The retired map used \`${CODEX_AGENTS_BLOCK_START}\` … \`${CODEX_AGENTS_BLOCK_END}\` inline.`,
+      "",
+    ].join("\n")
+    expect(removeCodexAgentsToolMapBlock(input)).toBe(input)
+  })
+
   test("leaves END-then-BEGIN without a later END unchanged", () => {
     const input = [
       "keep this",
