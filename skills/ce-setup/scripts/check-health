@@ -289,6 +289,23 @@ read_work_engine_preferences() {
 has_brew=$(command -v brew >/dev/null 2>&1 && echo "yes" || echo "no")
 in_repo=$(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "yes" || echo "no")
 
+# Retired Bun-era Codex tool map (#1099). The block is present only when a
+# standalone BEGIN line is followed by a standalone END line.
+has_codex_tool_map() {
+  awk '
+    { sub(/\r$/, "") }
+    $0 == "<!-- BEGIN COMPOUND CODEX TOOL MAP -->" { seen = 1 }
+    seen && $0 == "<!-- END COMPOUND CODEX TOOL MAP -->" { found = 1; exit }
+    END { exit found ? 0 : 1 }
+  ' "$1"
+}
+
+codex_agents_file="${CODEX_HOME:-$HOME/.codex}/AGENTS.md"
+legacy_codex_map="no"
+if [ -f "$codex_agents_file" ] && has_codex_tool_map "$codex_agents_file"; then
+  legacy_codex_map="yes"
+fi
+
 # =====================================================
 #  Check optional capabilities
 # =====================================================
@@ -528,6 +545,13 @@ for result in "${results[@]}"; do
   fi
 done
 
+if [ "$legacy_codex_map" = "yes" ]; then
+  section "Codex instructions"
+  warn "Legacy Compound Codex tool map in ${codex_agents_file}"
+  detail "Retired block from a pre-native Bun install; one line tells Codex to collapse subagent dispatch."
+  detail "Remove it -- see this skill's references/legacy-codex-tool-map.md"
+fi
+
 if [ "$in_repo" = "yes" ]; then
   section "Project config"
 
@@ -621,6 +645,10 @@ if [ "$project_issues" -eq 0 ]; then
   echo " ✅  Project config healthy. Optional capabilities available: ${capability_ok}/${capability_total}"
 else
   echo " ⚠️   ${project_issues} project issue(s) found. Optional capabilities available: ${capability_ok}/${capability_total}"
+fi
+
+if [ "$legacy_codex_map" = "yes" ]; then
+  echo "     Environment: the legacy Codex tool map above still needs attention."
 fi
 
 if [ "$capability_missing" -gt 0 ]; then

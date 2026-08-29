@@ -24,6 +24,8 @@ async function runCheckHealth(cwd: string, pathValue: string): Promise<RunResult
       ...process.env,
       HOME: cwd,
       PATH: pathValue,
+      // A host CODEX_HOME would otherwise decide what the tool-map scan reads.
+      CODEX_HOME: path.join(cwd, ".codex"),
     },
     stderr: "pipe",
     stdout: "pipe",
@@ -51,6 +53,50 @@ async function initConfiguredRepo(root: string, localConfig: string): Promise<vo
 }
 
 describe("ce-setup check-health", () => {
+  async function runWithCodexAgents(contents: string): Promise<RunResult> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-codex-"))
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".codex"), { recursive: true })
+      await writeFile(path.join(root, ".codex", "AGENTS.md"), contents)
+      return await runCheckHealth(root, "/usr/bin:/bin")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+
+  test("reports the legacy Codex tool map and keeps the verdict from reading all-clear", async () => {
+    const result = await runWithCodexAgents(
+      [
+        "my notes",
+        "<!-- BEGIN COMPOUND CODEX TOOL MAP -->",
+        "Task (subagent dispatch): run sequentially in main thread",
+        "<!-- END COMPOUND CODEX TOOL MAP -->",
+        "",
+      ].join("\n"),
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("Legacy Compound Codex tool map in")
+    expect(result.stdout).toContain("references/legacy-codex-tool-map.md")
+    expect(result.stdout).toContain("legacy Codex tool map above still needs attention")
+  })
+
+  test("reports no tool map without an ordered pair of standalone sentinel lines", async () => {
+    const result = await runWithCodexAgents(
+      [
+        "The retired map used `<!-- BEGIN COMPOUND CODEX TOOL MAP -->` to `<!-- END COMPOUND CODEX TOOL MAP -->` inline.",
+        "<!-- END COMPOUND CODEX TOOL MAP -->",
+        "my notes",
+        "<!-- BEGIN COMPOUND CODEX TOOL MAP -->",
+        "",
+      ].join("\n"),
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).not.toContain("Legacy Compound Codex tool map")
+  })
+
   test("does not require temporary-file-backed here-strings", async () => {
     const script = await readFile(checkHealthScript, "utf8")
 

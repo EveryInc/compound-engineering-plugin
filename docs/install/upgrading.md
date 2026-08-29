@@ -60,11 +60,10 @@ Paste this into Codex (or any agent with access to your home directory) to remov
 ```text
 Remove the obsolete Compound Engineering Codex tool-map block from my Codex home AGENTS.md.
 
-1. Check `$CODEX_HOME/AGENTS.md` if CODEX_HOME is set, otherwise `~/.codex/AGENTS.md`. If I use Codex profiles, also check `~/.codex/profiles/*/AGENTS.md`.
-2. Look for the exact sentinels `<!-- BEGIN COMPOUND CODEX TOOL MAP -->` and `<!-- END COMPOUND CODEX TOOL MAP -->`.
-3. If both are present, delete only the span from the BEGIN line through the END line (inclusive), leaving any other user content untouched. Do not edit project/repo AGENTS.md unless those exact sentinels are present there.
-4. If the file is empty after the removal, delete the file.
-5. Show a short before/after summary of what you changed (or say the block was already absent). Do not add a replacement tool map.
+1. Check `$CODEX_HOME/AGENTS.md` if CODEX_HOME is set, otherwise `~/.codex/AGENTS.md`.
+2. Delete the managed block: the line `<!-- BEGIN COMPOUND CODEX TOOL MAP -->` through the next line `<!-- END COMPOUND CODEX TOOL MAP -->`. If that pair is not present as two whole lines in that order, the block is not there -- change nothing.
+3. Leave the rest of the file untouched, and delete the file if nothing is left. Do not add a replacement tool map, and do not edit project/repo AGENTS.md.
+4. Show a short before/after summary of what you changed (or say the block was already absent).
 ```
 
 Re-running the Bun convert/install CLI for Codex also strips the block if it is still present; it no longer inserts it.
