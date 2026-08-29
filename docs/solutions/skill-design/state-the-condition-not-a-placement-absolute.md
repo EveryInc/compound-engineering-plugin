@@ -120,10 +120,10 @@ of it (`skills/ce-commit-push-pr/references/pr-description-writing.md:164`):
 > is the local outcome by itself — the map's "this contribution" slot. Sometimes
 > the local outcome does not stand on its own, because the program is what gives
 > it its shape or its point. Then the connection to the program is part of the one
-> idea and belongs in the opening. State it in the map's order: the bigger picture
-> first, then which part of it this PR delivers. Naming the part is what keeps
-> that opening honest — an opening that names the arc but leaves a reviewer unable
-> to say what this PR changes fails the same test.
+> idea and belongs in the opening, and either half may lead — whichever reads
+> better for this change. Naming which part of the program this PR delivers is
+> what keeps that opening honest — an opening that names the arc but leaves a
+> reviewer unable to say what this PR changes fails the same test.
 
 Note what the condition does that neither absolute could: it decides #1329's case
 and #1422's case with the same sentence, and it also rules out the failure
@@ -342,12 +342,16 @@ text is from the #1422 revision of this file.
 - `docs/solutions/skill-design/paired-old-vs-new-injection-skill-evals.md` — the
   pre/post-arm methodology the two cells use.
 - `docs/solutions/skill-design/portable-agent-skill-authoring.md` — the standard.
-  Its "Separate protocol from judgment" section has no rule about absolutes as
-  proxies for conditions; a placement or format absolute is the canonical case of
-  judgment encoded as protocol. **Open follow-up:** amending the standard, and
-  widening the runtime rule at `.agents/skills/ce-skill-work/references/edit-skill.md`
+  Its "Separate protocol from judgment" section now carries the rule this incident
+  produced: a placement or format absolute is protocol-shaped and is usually
+  judgment wearing protocol's clothes, so state the condition at the one layer that
+  owns the decision, read a decision restated at several sites or a maintainer
+  rejecting output the skill was followed exactly to produce as the tell that the
+  proxy has become the operative rule, and verify a placement rule on more than one
+  host. It cites this file as the worked case. **Open follow-up:** widening the
+  runtime rule at `.agents/skills/ce-skill-work/references/edit-skill.md`
   ("A shortened rule comes out absolute", whose byte-budget trigger could not have
-  fired here), are deliberate calls left for a human.
+  fired here) is a deliberate call left for a human.
 - Overlap note for a future consolidation pass: this doc scores Moderate against
   `size-driven-skill-restructure.md` (problem statement, root cause, solution
   approach), and the two should be reviewed together if that file's hazard section
