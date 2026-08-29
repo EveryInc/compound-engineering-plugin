@@ -5,7 +5,7 @@ global Codex instructions:
 
 `<!-- BEGIN COMPOUND CODEX TOOL MAP -->` … `<!-- END COMPOUND CODEX TOOL MAP -->`
 
-in `$CODEX_HOME/AGENTS.md` (default `~/.codex/AGENTS.md`) and in named
+in `${CODEX_HOME:-$HOME/.codex}/AGENTS.md` and in named
 profile copies under `~/.codex/profiles/*/AGENTS.md`.
 
 That Claude-compat map is obsolete — CE skills name Codex tools inline —
@@ -14,8 +14,8 @@ the main thread. Native plugin install does **not** add this block.
 
 ## Safe removal
 
-1. Check `$CODEX_HOME/AGENTS.md` if `CODEX_HOME` is set, otherwise
-   `~/.codex/AGENTS.md`. Also check `~/.codex/profiles/*/AGENTS.md`.
+1. Check `${CODEX_HOME:-$HOME/.codex}/AGENTS.md`. Also check
+   `~/.codex/profiles/*/AGENTS.md`.
 2. Look for the exact sentinels `<!-- BEGIN COMPOUND CODEX TOOL MAP -->`
    and `<!-- END COMPOUND CODEX TOOL MAP -->`.
 3. Only if a BEGIN is followed later by its END, delete the span from
