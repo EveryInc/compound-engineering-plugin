@@ -17,6 +17,8 @@ import { WORKTREE_REF } from "./extract"
 
 export const PRE_SWEEP_REF = "309611f6b5198528c1c98f83fb6b3c90637e523c"
 export const ISSUE_1482_BASE_REF = "66ccf579f8c1ef2ccfc642c317ba53151eeb1ebb"
+/** main before the PR-opening placement rule became a legibility condition (#1572 follow-up): the A/B base for the opening-shape rows. */
+export const PR_OPENING_BASE_REF = "f6c301cafc888f965ffd99195eb5f95ac2c6d9a8"
 /** main before the right-size-ceremony change (#1513 release commit): the A/B base for its rows. */
 export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
 /** main before CODING_STANDARDS.md became the designated criteria source: the A/B base for the standards-discovery rows. */
@@ -411,6 +413,63 @@ The same decision owns open review thread PRRT_ci_contract_7 at https://github.c
       files_read_post: ["references/pr-description-writing.md"],
       actions: "none",
       git: "clean",
+    },
+  },
+  {
+    id: "ce-commit-push-pr/enabler-opening-carries-the-program",
+    skill: "ce-commit-push-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    baseline_ref: PR_OPENING_BASE_REF,
+    read_only: false,
+    git_init: true,
+    git_remote: true,
+    git_staged: ["src/session-stamp.js"],
+    shim_git_push: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/pr-series-enabler`,
+    timeout_secs: 900,
+    why: "#1572: a first-in-series change whose local outcome is unmotivated on its own. The old rule put program context in a block after the opening no matter what, so the opening read as a pointless field addition and was rejected twice. The staged module is named for the mechanism (a monotonic stamp), never for the program, so 'revocation' can only reach the opening from the program context.",
+    pre_contract:
+      "The opening carries one idea and program context is a short additive block after it, never part of the opening's sentence.",
+    task: `Commit the staged change, then write the PR description for this branch.
+
+Context: this is the first of three PRs in the server-side session revocation project. This one lands the stamp; PR 2 adds the operator endpoint that bumps a user's stamp; PR 3 makes the request path refuse sessions issued before it.
+
+Do not push and do not open a PR. Print only the description's opening — the one or two sentences that lead the body — and nothing else.`,
+    grade: {
+      // "revo" covers revocation/revoke/revoked: the program's purpose, which the
+      // opening can only carry from the program context, never from the diff.
+      must_include: ["revo"],
+    },
+  },
+  {
+    id: "ce-commit-push-pr/standalone-slice-keeps-its-outcome",
+    skill: "ce-commit-push-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    baseline_ref: PR_OPENING_BASE_REF,
+    read_only: false,
+    git_init: true,
+    git_remote: true,
+    git_staged: ["src/stale-session-guard.js"],
+    shim_git_push: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/pr-series-slice`,
+    timeout_secs: 900,
+    why: "The counter-failure the old absolute existed to prevent (#1422): an opening that leads with the arc and leaves a reviewer unable to say what this PR does. Here the local outcome stands on its own, so it must still lead. Both arms should pass — this row fails if the fix merely inverted the bias.",
+    pre_contract:
+      "The opening states this PR's own outcome; a reviewer who stops there knows what the PR does.",
+    task: `Commit the staged change, then write the PR description for this branch.
+
+Context: this is the second of three PRs in the server-side session revocation project. PR 1 landed the per-user stamp; PR 3 adds the operator endpoint that bumps it.
+
+Do not push and do not open a PR. Print only the description's opening — the one or two sentences that lead the body — and nothing else.`,
+    grade: {
+      // Verb wording varies ("refused"/"rejected"/"denied"), so pin the observable
+      // effect instead. A run that leads with the arc and drops the local outcome
+      // has no reason to name it.
+      must_include: ["401"],
     },
   },
   {

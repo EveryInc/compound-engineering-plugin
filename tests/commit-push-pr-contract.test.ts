@@ -55,6 +55,32 @@ describe("ce-commit-push-pr contract", () => {
     // Bidirectional contrast: middle PR needs prior + residual, not local-only
     expect(sizingSection).toContain("too local for a middle PR")
     expect(sizingSection).toContain("Continues the session-revocation rewrite")
+    // #1422 enforced "one idea" with a placement absolute (program never in the
+    // opening's sentence). #1572 falsified it: a first-in-series change whose
+    // local outcome is unmotivated without the program was rejected twice for
+    // reading as if it had no point. Both directions stay pinned — the opening
+    // must stand alone, and the program joins it only when it is what gives the
+    // change its point.
+    expect(sizingSection).toContain("outcome does not stand on its own")
+    expect(content).not.toMatch(/never part of the opening's sentence/i)
+    expect(content).not.toMatch(/never folded into the opening/i)
+
+    const assemblySection = content.match(
+      /## Step C: Assemble the body([\s\S]+?)## Step D:/,
+    )?.[1]
+    expect(assemblySection).toBeDefined()
+    expect(assemblySection).toMatch(
+      /reviewer who reads only it can say what this PR changes and why it takes this shape/i,
+    )
+    expect(assemblySection).toMatch(/does not stand on its own/i)
+    // Multi-PR ordering: bigger picture first, then this PR's part of it.
+    expect(assemblySection).toMatch(
+      /the bigger picture first, then which part of it this PR delivers/i,
+    )
+    // The counter-failure: leading with the arc and losing the local outcome.
+    expect(assemblySection).toMatch(
+      /names the arc but leaves a reviewer unable to say what this PR changes/i,
+    )
 
     const auditSection = content.match(
       /## Step E: Pre-apply coverage audit([\s\S]+)\s*$/,
@@ -66,6 +92,11 @@ describe("ce-commit-push-pr contract", () => {
     expect(auditSection).toMatch(
       /program context was absent.+invent a multi-PR series/is,
     )
+    // The audit used to check placement ("move program context out"), which
+    // would have broken the accepted #1572 opening. It now checks legibility.
+    expect(auditSection).toMatch(/reader who does not already know this project/i)
+    expect(auditSection).toMatch(/reads as unmotivated without the program/i)
+    expect(auditSection).toMatch(/which part of it this PR delivers/i)
 
     // Tracker refs stay separate from series narrative
     const relatedSection = content.match(
