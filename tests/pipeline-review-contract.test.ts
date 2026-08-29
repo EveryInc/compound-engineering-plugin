@@ -124,9 +124,17 @@ describe("ce-work review contract", () => {
     expect(unavailableBranch).toContain(
       "Do not infer unavailability from the absence of a dedicated runner",
     )
-    expect(unavailableBranch).toContain("produces concrete failure evidence")
     expect(unavailableBranch).toContain("proceed through 3a")
-    expect(reviewSummary).toContain("after an attempted invocation yields concrete failure evidence")
+    for (const section of [unavailableBranch, reviewSummary]) {
+      expect(section).toContain("the cataloged skill definition fails to load")
+      expect(section).toContain(
+        "after `ce-code-review` exhausts its documented dispatch and fallback",
+      )
+    }
+    expect(unavailableBranch).toContain(
+      "let `ce-code-review` own reviewer dispatch, backpressure, collection, and sequential fallback",
+    )
+    expect(unavailableBranch).not.toContain("a hard concurrency cap")
   })
 
   test("delegates commit and PR to dedicated skills", async () => {
