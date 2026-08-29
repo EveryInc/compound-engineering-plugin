@@ -90,6 +90,14 @@ describe("ce-work review contract", () => {
   test("standalone shipping has an always-loaded code-review completion gate", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
     const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
+    const unavailableBranch = sliceSection(
+      shipping,
+      "**If `ce-code-review` cannot run at all:**",
+      "4. **Residual Work Gate**",
+    )
+    const reviewSummaryStart = shipping.indexOf("## Code Review")
+    expect(reviewSummaryStart, "Code Review summary anchor not found").toBeGreaterThanOrEqual(0)
+    const reviewSummary = shipping.slice(reviewSummaryStart)
 
     // Always-loaded body owns the gate (not only the lazy reference)
     expect(content).toContain("Code-review completion gate")
@@ -112,6 +120,13 @@ describe("ce-work review contract", () => {
     expect(shipping).toContain("Code review: harness-native fallback")
     expect(shipping).toContain("multi-file mechanical-only")
     expect(shipping).toContain("Never substitute")
+    expect(unavailableBranch).toContain("Only enter this branch after an attempted invocation")
+    expect(unavailableBranch).toContain(
+      "Do not infer unavailability from the absence of a dedicated runner",
+    )
+    expect(unavailableBranch).toContain("produces concrete failure evidence")
+    expect(unavailableBranch).toContain("proceed through 3a")
+    expect(reviewSummary).toContain("after an attempted invocation yields concrete failure evidence")
   })
 
   test("delegates commit and PR to dedicated skills", async () => {
