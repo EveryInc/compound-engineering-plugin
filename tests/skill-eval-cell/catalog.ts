@@ -473,7 +473,7 @@ Do not push and do not open a PR. Print the description's opening — the one or
     shim_gh_pr: true,
     fixture: `${FIX}/pr-series-slice`,
     timeout_secs: 900,
-    why: "The counter-failure the old absolute existed to prevent (#1422): an opening that leads with the arc and leaves a reviewer unable to say what this PR does. Here the local outcome stands on its own, so the opening must still carry it. Both arms should pass — this row fails if the fix merely inverted the bias. The grade reads the delimited OPENING field, not stdout, so the trailers cannot satisfy the needle.",
+    why: "The counter-failure the old absolute existed to prevent (#1422): an opening that leads with the arc and leaves a reviewer unable to say what this PR does. Here the local outcome stands on its own, so the opening must still carry it. The grade reads the delimited OPENING field, not stdout, so the trailers cannot satisfy the needle. Deliberately coarse: it checks that an opening exists and names the mechanism this slice changes, and does NOT verify that the opening satisfies Step C's condition — no substring can.",
     pre_contract:
       "The opening states this PR's own outcome; a reviewer who stops there knows what the PR does.",
     task: `Commit the staged change, then write the PR description for this branch.
@@ -483,12 +483,14 @@ Context: this is the second of three PRs in the server-side session revocation p
 Do not push and do not open a PR. Print the description's opening — the one or two sentences that lead the body — on a single line prefixed with "OPENING:" and nothing else.`,
     grade: {
       // Scoped to the OPENING field, not stdout: the mandated trailers are part of
-      // stdout, so a whole-stdout needle is satisfiable by an ACTIONS commit SHA that
-      // happens to contain "401" instead of by the opening.
-      // Verb wording varies ("refused"/"rejected"/"denied"), so pin the observable
-      // effect instead. A run that leads with the arc and drops the local outcome
-      // has no reason to name it.
-      must_include: ["401"],
+      // stdout, so a whole-stdout needle is satisfiable by a read path or an ACTIONS
+      // commit SHA instead of by the opening.
+      // "stamp" is the mechanism this slice changes, and the coarsest honest needle:
+      // it verifies an opening exists and is about this change, and deliberately does
+      // not attempt to verify the condition. The previous needle was the literal
+      // "401", which failed a correct opening that said "reject" instead — the
+      // false-fail half of why a substring cannot grade prose.
+      must_include: ["stamp"],
       must_include_field: "OPENING",
     },
   },

@@ -17,7 +17,7 @@ symptoms:
   - "The accepted rewrite satisfies the rule's stated condition while violating its stated absolute"
   - "An audit step would instruct the agent to break the accepted version, not merely fail to catch the rejected one"
   - "One decision restated at four passages with three absolutes among them; the owning site stated the thinnest version of the condition, so the absolute was the only clause all of them agreed on"
-  - "Cross-host eval split: one host obeyed the absolute literally and failed, the other ignored it and passed"
+  - "The eval written to demonstrate the fix could not discriminate: its needles were satisfiable from mandated output trailers, and its one discriminating sample did not replicate"
 resolution_type: workflow_improvement
 related_components:
   - ce-babysit-pr
@@ -162,37 +162,50 @@ legibility (`pr-description-writing.md:196`):
 
 The test names an imagined reader, so it is checkable without being positional.
 
-### 4. Eval a placement rule on more than one host, because it is host-split
+### 4. Verify a placement rule on more than one host — and expect to need a better instrument
 
-Cross-host eval is the repo default for model-interpreted skill behavior
-(`validate-skill-prose-behavior-with-cross-host-evals.md`; also "Skill-eval
-cross-host default", auto memory [claude]). A placement absolute is a case where
-the default is not merely prudent but load-bearing: it is a literal, mechanical
-instruction, so one host obeys it and another treats it as a stylistic hint. That
-divergence is not, however, what let #1422 ship the defect: #1422 ran its own eval on
-Claude and Codex, and both hosts complied with the new rule, because no scenario put
-the condition and the absolute in conflict. Divergence is why the defect could not be
-caught by a single-host run afterward.
+A placement absolute is a literal, mechanical instruction, so the hosts a skill
+ships to can read it differently: one obeys it, another treats it as a stylistic
+hint. Cross-host verification is this repo's default for model-interpreted skill
+behavior (`validate-skill-prose-behavior-with-cross-host-evals.md`), and it is
+the right instinct for a rule of this shape.
 
-The scenarios added for this fix ran on Claude and Codex, pre arm `f6c301caf`
-(#1572's merge commit — the tree before this repair), post arm the working tree:
+**This change could not demonstrate that, and the failed attempt is the more
+useful lesson.** Two skill-eval cells shipped with the fix. Their grades matched
+substrings against the whole run stdout, and the harness mandates `FILES_READ`
+and `ACTIONS` trailers in that same stream, so a needle was satisfiable by a read
+path or a branch name rather than by the text under test. Once the grades were
+scoped to a delimited opening field, re-running both cells on two hosts showed
+they do not discriminate: the pre arm passes on both hosts, and one post-arm host
+failed on a correct opening only because the needle was a literal status code
+where the model chose a synonym. An earlier single-sample run had shown the pre
+arm reproducing the defective shape on one host; it did not replicate.
 
-| Cell | Arm | Host | Result |
-|---|---|---|---|
-| `enabler-opening-carries-the-program` | pre | Claude | FAILED — "A per-user session stamp now exists as a single readable, incrementable value. Nothing consumes it yet ... so this PR changes no behavior on its own." The exact #1572 rejected shape. |
-| `enabler-opening-carries-the-program` | pre | Codex | PASSED — "This adds the monotonic per-user stamp that server-side session revocation will build on. It is the first of three PRs..." Codex ignored the absolute. |
-| `enabler-opening-carries-the-program` | post | Claude | PASSED |
-| `enabler-opening-carries-the-program` | post | Codex | PASSED |
-| `standalone-slice-keeps-its-outcome` | pre and post | both | PASSED — no run led with the arc and lost the local outcome. |
+So this file records **no measured effect** of the prose change. That is a
+measurement failure rather than evidence of no effect
+(`strong-models-mask-defensive-skill-fixes.md`), and the case for the fix rests
+on the incident and the internal contradiction above, not on an eval.
 
-A single-host eval on Codex would have passed the defective rule outright.
+Three things generalize from the attempt. Each was already this repo's stated
+policy, and each was re-learned here the expensive way:
 
-The second cell is the other half of the method: when a fix relaxes an absolute,
-pin the failure the absolute existed to prevent as its own scenario, and require
-it to pass on **both** arms. That is what distinguishes a fix from an inverted
-bias. A third, ad-hoc run — the slice fixture with all series context
-stripped from the prompt — confirmed neither host invents a series. It is not a pinned
-catalog cell, so it is evidence from this session rather than a standing guard.
+- A substring grader cannot judge whether prose satisfies a semantic condition.
+  Both of its failure modes appeared in one change: a **vacuous pass**, where the
+  needle is satisfied by vocabulary the fixture supplies anyway, and a **false
+  fail**, where the needle is one of several valid wordings.
+- An authored fixture whose vocabulary overlaps the property under test cannot
+  discriminate. Here the program was "session revocation" and the local mechanism
+  was naturally called a revocation stamp, so an opening carrying only the local
+  half still contained the program's own word. Treat an author-built corpus, and
+  a perfect score, as smells (`authored-eval-corpora-contain-the-happy-path.md`).
+- N=1 on a synthetic fixture is not a directional read
+  (`safe-auto-rubric-calibration.md`). The single sample here produced a
+  confident conclusion that a re-run withdrew.
+
+The second cell states the other half of the method, whatever instrument later
+carries it: when a fix relaxes an absolute, pin the failure that absolute existed
+to prevent as its own scenario and require it to pass on **both** arms, so a fix
+cannot pass by inverting the bias.
 
 ## Why This Matters
 
