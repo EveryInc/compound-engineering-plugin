@@ -211,7 +211,7 @@ No. That is the point of the skill, and why it is the wrong tool for in-the-loop
 The pipeline stops. Non-software tasks, requirements-only leftovers, knowledge-work plans, and invalidating settlement conflicts all halt before implementation.
 
 **Where do leftover review findings go?**
-Not into the PR description. They are filed in the project tracker when possible, and carried in one run-report comment on the PR.
+They are listed as an `## Unapplied review findings` checklist in the PR body for the reviewer to decide on: fix in-branch, dismiss, or file a ticket. `lfg` files tickets itself only when no PR will exist.
 
 **What happens if there is no `origin`?**
 Local commits only. No push, no PR, no CI watch.
