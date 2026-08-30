@@ -1334,6 +1334,7 @@ def _empty_trajectory():
         "heads_since_progress": 0,     # head changes since progress (a new low OR something cleared)
         "last_head": None,             # head as of the last AGENT tick — hsp counts moves between ticks,
                                        # NOT poll-observed head moves (state["head_sha"] advances on polls)
+        "invariant_heads": {},         # resolver-supplied invariant_key -> unique heads it was marked on
     }
 
 
@@ -1348,6 +1349,36 @@ def _load_trajectory(state):
         tj.setdefault(key, value)
     state["trajectory"] = tj
     return tj
+
+
+_INVARIANT_KEY_RE = re.compile(r"^[A-Za-z0-9._:-]{1,120}$")
+
+
+def _record_invariant_round(state, key, head):
+    """Count a resolver-supplied invariant against unique heads. Never infer keys."""
+    if not key:
+        return
+    if not _INVARIANT_KEY_RE.match(key):
+        raise SystemExit("--invariant-key must be 1-120 chars of A-Za-z0-9._:-")
+    if not head:
+        return
+    tj = _load_trajectory(state)
+    heads = tj.setdefault("invariant_heads", {})
+    seen = heads.setdefault(key, [])
+    if not isinstance(seen, list):
+        seen = []
+        heads[key] = seen
+    if head not in seen:
+        seen.append(head)
+
+
+def _invariant_rounds_view(tj):
+    """Public trajectory view: resolver keys counted per unique head."""
+    items = []
+    for key, heads in sorted((tj.get("invariant_heads") or {}).items()):
+        if isinstance(heads, list):
+            items.append({"key": key, "rounds": len(heads)})
+    return items
 
 
 def _push_bounded(lst, item, cap):
@@ -1484,6 +1515,7 @@ def _update_trajectory(state, head, new_checks, new_threads, new_feedback, actio
         "new_threads_this_tick": len(new_arrivals),
         "stream_alternations": _stream_alternations(tj["stream_series"]),
         "heads_since_progress": tj["heads_since_progress"],
+        "invariant_rounds": _invariant_rounds_view(tj),
     }
 
 
@@ -3431,6 +3463,8 @@ def cmd_mark(args):
                     entry["acted_identity"] = [args.acted_edit_id]
             state["last_action"] = f"{args.disposition} {label} {item_id}"
             marked = marked or item_id
+        if getattr(args, "invariant_key", None) and args.disposition == DISPOSITION_DISPATCHED:
+            _record_invariant_round(state, args.invariant_key, state.get("head_sha"))
     if isinstance(marked, dict):
         print(json.dumps({"marked": marked.get("id"), "decision": marked}, indent=2))
     else:
@@ -3523,6 +3557,8 @@ def main():
                    help="exact current decision ID whose human answer is being recorded")
     m.add_argument("--answer-file", default=None,
                    help="file containing the human answer to preserve until covered work moves")
+    m.add_argument("--invariant-key", default=None,
+                   help="resolver-supplied review invariant; counted per unique head, never inferred")
     m.set_defaults(func=cmd_mark)
 
     w = sub.add_parser("watch")

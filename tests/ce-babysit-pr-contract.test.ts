@@ -70,6 +70,7 @@ const TRAJECTORY_FIELDS = [
   "new_threads_this_tick",
   "stream_alternations",
   "heads_since_progress",
+  "invariant_rounds",
 ]
 const BABYSIT_TRAJECTORY_REFS = [
   "check_recur_max",
@@ -78,6 +79,7 @@ const BABYSIT_TRAJECTORY_REFS = [
   "new_threads_this_tick",
   "stream_alternations",
   "heads_since_progress",
+  "invariant_rounds",
 ]
 const CERESOLVE_TRAJECTORY_REFS = ["unresolved_trend", "new_threads_this_tick"]
 

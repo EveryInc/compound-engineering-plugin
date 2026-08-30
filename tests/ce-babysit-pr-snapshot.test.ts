@@ -3137,6 +3137,25 @@ print(json.dumps({
     expect(d.trajectory.heads_since_progress).toBe(1) // head moved s1->s2 between agent ticks; not starved by the poll
   }, 15000)
 
+  test("invariant_rounds count unique heads for a resolver-supplied key (#1575)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "inv-rounds-"))
+    const state = path.join(dir, "state")
+    const t = (head: string) => ({
+      ...FAILING,
+      head_sha: head,
+      checks: [],
+      threads: [{ thread_id: "T1", last_comment_id: head, last_comment_at: head }],
+    })
+    snapshot(state, fetchFile(dir, "h1.json", t("h1")))
+    mark(state, ["--thread", "T1", "--invariant-key", "golden-boundary"])
+    snapshot(state, fetchFile(dir, "h2.json", t("h2")))
+    mark(state, ["--thread", "T1", "--invariant-key", "golden-boundary"])
+    snapshot(state, fetchFile(dir, "h3.json", t("h3")))
+    mark(state, ["--thread", "T1", "--invariant-key", "golden-boundary"])
+    const d = snapshot(state, fetchFile(dir, "h3b.json", { ...FAILING, head_sha: "h3", checks: [], threads: [] }))
+    expect(d.trajectory.invariant_rounds).toEqual([{ key: "golden-boundary", rounds: 3 }])
+  })
+
   test("check recurrence catches a CLEAR observed only on a watch poll (C1)", () => {
     const sd = path.join(dir, "recurwatch")
     const RED = { key: "CI/x", name: "x", status: "COMPLETED", conclusion: "FAILURE", details_url: "u" }
