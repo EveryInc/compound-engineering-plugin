@@ -11,6 +11,7 @@ while (tasks remain):
   - Mark task as in-progress
   - Read any referenced files from the plan or discovered during Phase 0
   - **If the unit's work is already present and matches the plan's intent** (files exist with the expected capability, or the unit's `Verification` criteria are already satisfied by the current code), the work has likely shipped on a prior branch or session. Verify it matches, mark the task complete, and move on. Do not silently reimplement.
+  - **If the unit's deliverable is out-of-repo state** (a console setting, DNS record, CMS object, live-system rows) there is no git-derived completion signal. Do not treat a clean tree as not-started and re-apply a non-idempotent side effect. Ask, or record status in a tracker outside the plan. Git completeness is not this unit's completeness.
   - Look for similar patterns in codebase
   - Find existing test files for implementation files being changed (Test Discovery — see below)
   - Choose the evidence strategy for this task before changing behavior: use an existing failing test, update or strengthen an existing test, add a new failing test, add characterization coverage, or record a deliberate no-test exception with replacement verification
