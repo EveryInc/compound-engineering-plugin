@@ -24,7 +24,7 @@
 #                   explicitly named peer, but its receipt remains unverified;
 #                   automatic discovery must exclude it before calling this worker.
 #   <fixed-route>   one host-resolved and pre-sanctioned route: codex, claude,
-#                   grok-cli, grok-cursor, cursor, or composer. A route failure
+#                   grok-cli, grok-cursor, zcode, cursor, or composer. A route failure
 #                   returns no artifact; only the host may disclose and retry a
 #                   different recipient.
 #   <subject-payload> framed question plus any conversation-only subject material.
@@ -38,7 +38,7 @@
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-pov.sh --emit-adapter <route>
 #     prints the exact argv the given route would run (route in:
-#     codex | claude | grok-cli | grok-cursor | cursor | composer). Both this mode and the
+#     codex | claude | grok-cli | grok-cursor | zcode | cursor | composer). Both this mode and the
 #     live run build their argv from adapter_argv(), so the U7 route-safety test
 #     asserts on the same command string the peer actually runs.
 #
@@ -88,6 +88,23 @@ M_GROK="grok-4.6"              # grok CLI             (--effort high)
 M_GROK_CURSOR="cursor-grok-4.6-high" # cursor-agent grok route (reasoning baked into id)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
+route_effort() {
+  case "$1" in
+    codex|claude|grok-cli) printf 'high' ;;
+    zcode) printf 'configured-unverified' ;;
+    grok-cursor) printf 'model-implied-high' ;;
+    composer) printf 'fast' ;;
+    cursor) printf 'unverified' ;;
+  esac
+}
+
+route_receipt_supported() {
+  case "$1" in
+    claude) printf 'true' ;;
+    *) printf 'false' ;;
+  esac
+}
+
 # --- model-identity receipt (R7/R8) -----------------------------------------
 # "Which model ran" is a claim that needs a serving-side receipt. Only the
 # claude CLI reports one today: its JSON envelope carries a modelUsage object
@@ -108,12 +125,29 @@ expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id fami
   esac
 }
 
-route_model() {   # <route> -> the M_* constant that route requests
+ZCODE_MODEL=""
+validate_zcode_model() {
+  local config="${HOME:-}/.zcode/cli/config.json" model=""
+  if command -v jq >/dev/null 2>&1 && [ -f "$config" ]; then
+    model="$(jq -r '.model.main // empty' "$config" 2>/dev/null)"
+  fi
+  case "$model" in
+    glm-*|GLM-*|zai/glm-*|zai/GLM-*) ZCODE_MODEL="$model" ;;
+    *) ZCODE_MODEL=""; return 1 ;;
+  esac
+}
+
+zcode_model() {
+  [ -n "$ZCODE_MODEL" ] || validate_zcode_model || return 1
+  printf '%s' "$ZCODE_MODEL"
+}
+
+route_model() {   # <route> -> requested model (fixed mapping, or ZCode's explicit main config)
   local target
   target="$(route_target "$1")"
   if [ -n "${CROSS_MODEL_MODEL_OVERRIDE:-}" ] &&
      [ "${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" = "$target" ] &&
-     [ "$target" != "cursor" ]; then
+     [ "$target" != "cursor" ] && [ "$target" != "glm" ]; then
     printf '%s' "$CROSS_MODEL_MODEL_OVERRIDE"
     return 0
   fi
@@ -121,6 +155,7 @@ route_model() {   # <route> -> the M_* constant that route requests
     codex)       printf '%s' "$M_CODEX" ;;
     claude)      printf '%s' "$M_CLAUDE" ;;
     grok-cli)    printf '%s' "$M_GROK" ;;
+    zcode)       zcode_model ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
@@ -131,6 +166,7 @@ route_target() {
   case "$1" in
     codex|claude|cursor|composer) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
+    zcode) printf 'glm' ;;
   esac
 }
 
@@ -139,13 +175,14 @@ route_harness() {
     codex) printf 'codex' ;;
     claude) printf 'claude' ;;
     grok-cli) printf 'grok' ;;
+    zcode) printf 'zcode' ;;
     grok-cursor|cursor|composer) printf 'cursor-agent' ;;
   esac
 }
 
 target_serving_family() {
   case "$1" in
-    codex|claude|grok|composer) printf '%s' "$1" ;;
+    codex|claude|grok|composer|glm) printf '%s' "$1" ;;
     cursor) printf 'unknown' ;;
   esac
 }
@@ -231,6 +268,16 @@ adapter_argv() {
         --no-subagents --max-turns 15 \
         --json-schema "$SCHEMA_REF" --output-format json
       ;;
+    zcode)
+      # ZCode owns GLM model selection in ~/.zcode/cli/config.json. Plan mode
+      # is not a filesystem sandbox, so deny every filesystem, shell, web, MCP,
+      # and delegation tool. The complete subject is attached instead.
+      printf '%s\0' zcode --prompt 'Follow the attached POV brief exactly and return one schema-shaped JSON object.' \
+        --attach "$PROMPT_FILE" --cwd "$PEER_WORKDIR" --mode plan \
+        --allowed-tools '__ce_toolless__' \
+        --disallowed-tools 'Bash Read Glob Grep Edit Write NotebookEdit Task WebFetch WebSearch Skill' \
+        --json --no-color
+      ;;
     grok-cursor)
       printf '%s\0' cursor-agent -p --model "$(route_model grok-cursor)" --mode ask --trust \
         --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
@@ -277,7 +324,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   apply_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|zcode|cursor|composer)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -323,16 +370,16 @@ INCLUDE_PATHS="${CROSS_MODEL_INCLUDE_PATHS:-}"
 EXCLUDE_PATHS="${CROSS_MODEL_EXCLUDE_PATHS:-}"
 
 case "$HOST_PROVIDER" in
-  codex|claude|grok|composer|unknown) ;;
-  *) skip "host serving family '$HOST_PROVIDER' invalid (want codex|claude|grok|composer|unknown)" ;;
+  codex|claude|grok|composer|glm|unknown) ;;
+  *) skip "host serving family '$HOST_PROVIDER' invalid (want codex|claude|grok|composer|glm|unknown)" ;;
 esac
 case "$HOST_HARNESS" in
-  codex|claude|grok|cursor|unknown) ;;
-  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|unknown)" ;;
+  codex|claude|grok|cursor|zcode|unknown) ;;
+  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|zcode|unknown)" ;;
 esac
 
 case "$FIXED_ROUTE" in
-  codex|claude|grok-cli|grok-cursor|cursor|composer) ;;
+  codex|claude|grok-cli|grok-cursor|zcode|cursor|composer) ;;
   *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;
 esac
 TARGET="$(route_target "$FIXED_ROUTE")" || skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress"
@@ -376,7 +423,7 @@ out_final() { [ -s "$RAW_OUT" ] && jq -e '.final == true' "$RAW_OUT" >/dev/null 
 route_allowlisted() {
   [ -z "$ALLOW" ] && return 0
   case "$1" in
-    codex|claude|grok-cli) in_csv "$(route_target "$1")" "$ALLOW" ;;
+    codex|claude|grok-cli|zcode) in_csv "$(route_target "$1")" "$ALLOW" ;;
     cursor) in_csv cursor "$ALLOW" ;;
     composer) in_csv composer "$ALLOW" ;;
     grok-cursor)
@@ -412,12 +459,16 @@ route_available() {
     codex) command -v codex >/dev/null 2>&1 ;;
     claude) command -v claude >/dev/null 2>&1 ;;
     grok-cli) command -v grok >/dev/null 2>&1 ;;
+    zcode) command -v zcode >/dev/null 2>&1 ;;
     grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
 route_allowlisted "$FIXED_ROUTE" || skip "fixed route '$FIXED_ROUTE' is not fully sanctioned by CROSS_MODEL_PEERS; skipping before egress"
 route_available "$FIXED_ROUTE" || skip "fixed route '$FIXED_ROUTE' is unavailable; host must disclose and choose any retry"
+if [ "$FIXED_ROUTE" = "zcode" ] && ! validate_zcode_model; then
+  skip "ZCode main model is missing, malformed, or not an allowed GLM model; skipping before egress"
+fi
 log "fixed cross-model POV route: target=$TARGET route=$FIXED_ROUTE (host $HOST_PROVIDER excluded)"
 
 # --- compose the peer prompt from the canonical persona (single source) ----
@@ -450,19 +501,25 @@ trap 'cleanup_private_scratch' EXIT
   printf 'Return ONE JSON object and nothing else (no prose, no code fence) matching this schema:\n\n'
   printf '%s' "$SCHEMA_CONTENT"
   printf '\n\nSet the top-level "voice" field to "peer" (it will be namespaced to the provider on fold-in).\n'
-  printf '\n<repository-read-scope enforcement="cooperative-unless-adapter-supported">\n'
-  printf 'root: %s\nincludes: %s\nexcludes: %s\n' "$READ_ROOT" "${INCLUDE_PATHS:-<all>}" "${EXCLUDE_PATHS:-<none>}"
-  printf '</repository-read-scope>\n'
+  if [ "$FIXED_ROUTE" = "zcode" ]; then
+    printf '\n<repository-read-scope availability="unavailable-on-tool-less-route">\n'
+    printf 'Do not claim repository inspection. Ground only in the attached subject payload.\n'
+    printf '</repository-read-scope>\n'
+  else
+    printf '\n<repository-read-scope enforcement="cooperative-unless-adapter-supported">\n'
+    printf 'root: %s\nincludes: %s\nexcludes: %s\n' "$READ_ROOT" "${INCLUDE_PATHS:-<all>}" "${EXCLUDE_PATHS:-<none>}"
+    printf '</repository-read-scope>\n'
+  fi
   printf '\n<subject-payload>\n'
   cat "$PAYLOAD_PATH"
   printf '\n</subject-payload>\n'
 } > "$PROMPT_FILE"
 
-# --- run machinery: idle-timeout for streaming peers, hard-only for grok-cli --
+# --- run machinery: idle-timeout for streaming peers, hard-only for buffered routes --
 # On idle-guarded routes the idle cap is the liveness guard and HARD_SECS only
 # backstops a peer that stays productive past any useful budget. Claude and
 # cursor-agent stream (`stream-json`) so run_timeout_cmd polls PEERLOG (#1270).
-# grok-cli keeps --json-schema (buffered) and stays hard-only on
+# grok-cli and zcode are buffered and stay hard-only on
 # UNGUARDED_HARD_SECS. This skill's default HARD_SECS stays at 600s because its
 # codex route runs the lower sol/high tier -- ce-code-review and ce-doc-review
 # run luna/xhigh and default higher. `CROSS_MODEL_HARD_SECS` is shared across
@@ -766,6 +823,22 @@ parse_structured() {   # <logfile> <outfile>
   [ "$picked" = true ]
 }
 
+zcode_terminal_success() {   # <logfile>
+  jq -s -e '
+    [ .[] | select(type == "object" and .type == "result") ] | last as $r
+    | ($r != null)
+      and (($r.error // null) == null)
+      and (($r.is_error // false) == false)
+      and (($r.response | type) == "string")
+      and (($r.subtype? // "success") == "success")
+      and (($r.status? // 200) as $s
+        | if ($s | type) == "number"
+          then ($s >= 200 and $s < 300)
+          else (["ok", "success", "completed"] | index(($s | tostring | ascii_downcase))) != null
+          end)
+  ' "$1" >/dev/null 2>&1
+}
+
 bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then bounded head+tail
   local path="$1" human ancillary evidence
   human="$(jq -r '
@@ -802,11 +875,12 @@ attempt_route() {   # <provider> <route>
     codex)       note="$(route_model codex) (effort high)" ;;
     claude)      note="$(route_model claude) (effort high)" ;;
     grok-cli)    note="$(route_model grok-cli) (effort high)" ;;
+    zcode)       note="$(route_model zcode) (effort configured-unverified)" ;;
     grok-cursor) note="$(route_model grok-cursor)" ;;
     cursor)      note="auto (serving model unverified)" ;;
     composer)    note="$(route_model composer)" ;;
   esac
-  log "peer run: provider=$provider route=$route model=$note POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; grok-cli hard-only ${UNGUARDED_HARD_SECS}s)"
+  log "peer run: provider=$provider route=$route model=$note POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; buffered route hard-only ${UNGUARDED_HARD_SECS}s)"
   case "$route" in
     codex)
       run_codex_cmd
@@ -816,6 +890,12 @@ attempt_route() {   # <provider> <route>
       ;;
     grok-cli)    run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
+    zcode)       run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle
+                 if [ "$RUN_SUCCEEDED" = true ] && ! zcode_terminal_success "$PEERLOG"; then
+                   log "ZCode returned no successful terminal result envelope; skipping fold-in"
+                   RUN_SUCCEEDED=false
+                 fi
+                 [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
     claude)      run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
     grok-cursor|cursor|composer)
@@ -859,7 +939,11 @@ run_fixed_route() {
       rm -f "$RAW_OUT"
     else
       log "peer returned a non-final position (\"${position:0:120}\"); retrying once on the same route with a final-answer requirement (${remaining}s left)"
-      printf '\n\nYour previous response set final to false. This response is the final one: inspect the subject and shared working tree now, then return the settled position with its evidence and final set to true.\n' >> "$PROMPT_FILE"
+      if [ "$FIXED_ROUTE" = "zcode" ]; then
+        printf '\n\nYour previous response set final to false. This response is the final one: inspect only the attached subject payload, then return the settled position with its evidence and final set to true. Do not claim repository inspection.\n' >> "$PROMPT_FILE"
+      else
+        printf '\n\nYour previous response set final to false. This response is the final one: inspect the subject and shared working tree now, then return the settled position with its evidence and final set to true.\n' >> "$PROMPT_FILE"
+      fi
       HARD_SECS="$remaining"; UNGUARDED_HARD_SECS="$remaining"
       attempt_route "$provider" "$FIXED_ROUTE"
       if [ "$RUN_SUCCEEDED" = true ] && ! out_missing_or_invalid && ! out_final; then
@@ -880,7 +964,7 @@ run_fixed_route() {
   if [ -s "$RAW_OUT" ]; then
     _norm="$PEER_WORKDIR/normalized.json"
     case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
-      cursor:*) serving_family="unknown" ;;
+      cursor:*|zcode:*) serving_family="unknown" ;;
       composer:unverified|grok-cursor:unverified) serving_family="unknown" ;;
       *) serving_family="$(target_serving_family "$provider")" ;;
     esac
@@ -890,6 +974,8 @@ run_fixed_route() {
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$serving_family" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
+         --arg ereq "$(route_effort "$ACTUAL_ROUTE")" \
+         --argjson receipt "$(route_receipt_supported "$ACTUAL_ROUTE")" \
          --argjson independent "$independence" \
          'if ((.voice|type)=="string" and (.voice|length)>0 and (.position|type)=="string" and (.position|length)>0 and (.reasoning|type)=="string" and (.reasoning|length)>0 and (.evidence|type)=="array" and all(.evidence[]; type=="string" and length>0) and (.external_check=="ran" or .external_check=="unavailable") and (.mode=="independent" or .mode=="skeptic") and (.movement=="initial" or .movement=="moved" or .movement=="held") and .final==true)
           then { voice: $v,
@@ -899,6 +985,9 @@ run_fixed_route() {
                  serving_family: $family,
                  model_requested: $mreq,
                  model_actual: $mact,
+                 effort_requested: $ereq,
+                 effort_actual: "unverified",
+                 receipt_supported: $receipt,
                  independence_verified: $independent,
                  position: .position,
                  reasoning: .reasoning,

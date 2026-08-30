@@ -122,7 +122,7 @@ const DOC_SCRIPT = path.join(
   "../../skills/ce-doc-review/scripts/cross-model-doc-review.sh",
 )
 
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "zcode", "cursor", "composer"] as const
 
 const NEVER_FLAGS = [
   "--yolo",
@@ -189,7 +189,7 @@ function run(
     }).stdout?.trim())
     effectiveEnv.CROSS_MODEL_FIXED_ROUTE = target === "grok"
       ? (grokAvailable ? "grok-cli" : "grok-cursor")
-      : target
+      : target === "glm" ? "zcode" : target
   }
   const r = spawnSync("bash", [SCRIPT, ...args], {
     encoding: "utf8",
@@ -205,7 +205,7 @@ function run(
 }
 
 function peerOutputs(files: string[]): string[] {
-  return files.filter((file) => /^adversarial-(codex|claude|grok|cursor|composer)\.json$/.test(file))
+  return files.filter((file) => /^adversarial-(codex|claude|grok|glm|cursor|composer)\.json$/.test(file))
 }
 
 function resolvePeers(
@@ -250,6 +250,22 @@ describe("cross-model-adversarial-review route safety", () => {
     }
   })
 
+  test("zcode is a fixed, least-privilege GLM adapter with config-owned model and effort", () => {
+    const cmd = emitAdapter("zcode")
+    expect(cmd).toContain("zcode --prompt")
+    expect(cmd).toContain("--attach")
+    expect(cmd).toContain("--cwd <peer-workdir>")
+    expect(cmd).toContain("--mode plan")
+    expect(cmd).toContain("--allowed-tools __ce_toolless__")
+    expect(cmd).toContain("--disallowed-tools")
+    for (const tool of ["Read", "Glob", "Grep", "WebFetch", "WebSearch"]) {
+      expect(cmd).toContain(tool)
+    }
+    expect(cmd).toContain("--json --no-color")
+    expect(cmd).not.toContain("--model")
+    expect(cmd).not.toContain("--effort")
+  })
+
   test("ordinary code-review peers get finishing headroom below the large-diff ceiling", () => {
     for (const route of ["claude", "grok-cli"] as const) {
       expect(emitAdapter(route)).toContain("--max-turns 25")
@@ -258,7 +274,7 @@ describe("cross-model-adversarial-review route safety", () => {
   })
 
   test("turn limits are validated only for adapters that consume them", () => {
-    for (const route of ["codex", "grok-cursor", "cursor", "composer"] as const) {
+    for (const route of ["codex", "grok-cursor", "zcode", "cursor", "composer"] as const) {
       expect(emitAdapter(route, SCRIPT, { PEER_MAX_TURNS: "invalid" })).not.toContain("--max-turns")
     }
 
@@ -529,6 +545,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   test("adapters target repo-root, not shared run-dir fold-in path", () => {
     expect(emitAdapter("codex")).toContain("-C <repo-root>")
     expect(emitAdapter("grok-cli")).toContain("--cwd <repo-root>")
+    expect(emitAdapter("zcode")).toContain("--cwd <peer-workdir>")
     for (const route of ["grok-cursor", "cursor", "composer"]) {
       expect(emitAdapter(route)).toContain("--workspace <repo-root>")
     }
@@ -577,6 +594,12 @@ describe("cross-model-adversarial-review provider selection", () => {
 
   test("an explicit Cursor preference uses the Cursor default target", () => {
     expect(resolvePeers("claude", "cursor", ["cursor-agent"])).toBe("cursor")
+  })
+
+  test("an explicit GLM preference resolves only through zcode", () => {
+    expect(resolvePeers("codex", "glm", ["zcode"])).toBe("glm")
+    expect(resolvePeers("glm", "glm,codex", ["zcode", "codex"])).toBe("codex")
+    expect(resolvePeers("codex", "glm", [])).toBe("")
   })
 
   test("CROSS_MODEL_MAX_PEERS=2 resolves two different providers", () => {
@@ -1590,6 +1613,57 @@ describe("cross-model-adversarial-review normalization", () => {
     })
     expect(crossFamily.status).toBe(2)
     expect(crossFamily.stderr).toContain("not compatible with route")
+  })
+
+  test("zcode route unwraps GLM JSON and records config-owned identity conservatively", () => {
+    const payload = JSON.stringify({
+      type: "result",
+      response: JSON.stringify({
+        reviewer: "adversarial",
+        findings: [{ title: "from-glm" }],
+        residual_risks: [],
+        testing_gaps: [],
+      }),
+      usage: { reasoningTokens: 0 },
+    })
+    const { env } = sandbox(["zcode"], `#!/bin/sh\nprintf '%s' '${payload}'\n`)
+    const home = mkTempRoot("xmodel-zcode-home-")
+    mkdirSync(path.join(home, ".zcode", "cli"), { recursive: true })
+    writeFileSync(path.join(home, ".zcode", "cli", "config.json"), JSON.stringify({ model: { main: "zai/glm-5.1" } }))
+    const runDir = makeRunDir()
+    const r = run(["codex", "glm", "HEAD", runDir], runDir, { ...env, HOME: home })
+    expect(r.files).toContain("adversarial-glm.json")
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-glm.json"), "utf8"))
+    expect(out.reviewer).toBe("adversarial-glm")
+    expect(out.cross_model_target).toBe("glm")
+    expect(out.cross_model_route).toBe("zcode")
+    expect(out.cross_model_harness).toBe("zcode")
+    expect(out.serving_family).toBe("unknown")
+    expect(out.independence_verified).toBe(false)
+    expect(out.model_requested).toBe("zai/glm-5.1")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.effort_requested).toBe("configured-unverified")
+    expect(out.effort_actual).toBe("unverified")
+    expect(out.receipt_supported).toBe(false)
+  })
+
+  test.each([
+    ["missing", null],
+    ["malformed", "{"],
+    ["non-GLM", JSON.stringify({ model: { main: "openai/gpt-5.6-sol" } })],
+  ])("zcode skips before egress when its main-model config is %s", (_label, config) => {
+    const marker = path.join(mkTempRoot("xmodel-zcode-marker-"), "invoked")
+    const { env } = sandbox(["zcode"], `#!/bin/sh\n: > '${marker}'\n`)
+    const home = mkTempRoot("xmodel-zcode-invalid-home-")
+    if (config !== null) {
+      mkdirSync(path.join(home, ".zcode", "cli"), { recursive: true })
+      writeFileSync(path.join(home, ".zcode", "cli", "config.json"), config)
+    }
+    const runDir = makeRunDir()
+    const r = run(["codex", "glm", "HEAD", runDir], runDir, { ...env, HOME: home })
+    expect(r.files).not.toContain("adversarial-glm.json")
+    expect(existsSync(marker)).toBe(false)
+    expect(r.stderr).toContain("skipping before egress")
   })
 
   test("codex route records model_actual unverified — no served-model receipt on that route (R8)", () => {

@@ -26,7 +26,7 @@ function temp(prefix: string): string {
 afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 
 const SCRIPT = path.join(__dirname, "../../skills/ce-pov/scripts/cross-model-pov.sh")
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "zcode", "cursor", "composer"] as const
 const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerously-skip-permissions"]
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "dirname",
@@ -139,6 +139,16 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("grok-cli")).toContain("--verbatim")
     expect(emit("grok-cli")).toContain("--output-format json")
     expect(emit("grok-cli")).not.toContain("stream-json")
+    expect(emit("zcode")).toContain("--attach <prompt-file>")
+    expect(emit("zcode")).toContain("--cwd <peer-workdir>")
+    expect(emit("zcode")).toContain("--mode plan")
+    expect(emit("zcode")).toContain("--allowed-tools __ce_toolless__")
+    expect(emit("zcode")).toContain("--disallowed-tools")
+    for (const tool of ["Read", "Glob", "Grep", "WebFetch", "WebSearch"]) {
+      expect(emit("zcode")).toContain(tool)
+    }
+    expect(emit("zcode")).toContain("--json --no-color")
+    expect(emit("zcode")).not.toContain("--model")
     for (const route of ["grok-cursor", "cursor", "composer"]) {
       expect(emit(route)).toContain("--mode ask")
       expect(emit(route)).toContain("--sandbox enabled")
@@ -149,6 +159,8 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("composer")).toContain("--model")
     expect(emit("grok-cursor")).toContain("--model cursor-grok-4.6-high")
     const source = readFileSync(SCRIPT, "utf8")
+    expect(source).toContain("inspect only the attached subject payload")
+    expect(source).toContain("Do not claim repository inspection")
     // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
     expect(source).toContain('[ "${st#Z}" = "$st" ]')
     // Match peer-job-runner: empty ps state => not alive; kill -0 only if ps missing.
@@ -253,6 +265,80 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.model_requested).toBe("fable")
     expect(out.model_actual).toBe("claude-fable-5")
     expect(result.stderr).not.toContain("model mismatch")
+  })
+
+  test("zcode unwraps a final GLM POV and records config-owned identity conservatively", () => {
+    const review = JSON.stringify({
+      voice: "peer",
+      position: "Choose A",
+      reasoning: "Lower correction cost",
+      evidence: ["src/a.ts:1"],
+      external_check: "unavailable",
+      mode: "independent",
+      movement: "initial",
+      final: true,
+    })
+    const envelope = JSON.stringify({ type: "result", response: review, usage: { reasoningTokens: 0 } })
+    const { env } = sandbox(["zcode"], `#!/bin/sh\nprintf '%s' '${envelope}'\n`)
+    const home = temp("pov-zcode-home-")
+    mkdirSync(path.join(home, ".zcode", "cli"), { recursive: true })
+    writeFileSync(path.join(home, ".zcode", "cli", "config.json"), JSON.stringify({ model: { main: "zai/glm-5.1" } }))
+    const dir = runDir()
+    const result = run(["codex", "zcode", payload(), dir], dir, { ...env, HOME: home })
+    expect(result.files).toContain("pov-glm.json")
+    const out = JSON.parse(readFileSync(path.join(dir, "pov-glm.json"), "utf8"))
+    expect(out.voice).toBe("peer-glm")
+    expect(out.cross_model_target).toBe("glm")
+    expect(out.cross_model_route).toBe("zcode")
+    expect(out.cross_model_harness).toBe("zcode")
+    expect(out.serving_family).toBe("unknown")
+    expect(out.independence_verified).toBe(false)
+    expect(out.model_requested).toBe("zai/glm-5.1")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.effort_requested).toBe("configured-unverified")
+    expect(out.effort_actual).toBe("unverified")
+    expect(out.receipt_supported).toBe(false)
+  })
+
+  test.each([
+    ["missing", null],
+    ["malformed", "{"],
+    ["non-GLM", JSON.stringify({ model: { main: "openai/gpt-5.6-sol" } })],
+  ])("zcode skips before egress when its main-model config is %s", (_label, config) => {
+    const marker = path.join(temp("pov-zcode-marker-"), "invoked")
+    const { env } = sandbox(["zcode"], `#!/bin/sh\n: > '${marker}'\n`)
+    const home = temp("pov-zcode-invalid-home-")
+    if (config !== null) {
+      mkdirSync(path.join(home, ".zcode", "cli"), { recursive: true })
+      writeFileSync(path.join(home, ".zcode", "cli", "config.json"), config)
+    }
+    const dir = runDir()
+    const result = run(["codex", "zcode", payload(), dir], dir, { ...env, HOME: home })
+    expect(result.files).not.toContain("pov-glm.json")
+    expect(existsSync(marker)).toBe(false)
+    expect(result.stderr).toContain("skipping before egress")
+  })
+
+  test("zcode discards a schema-shaped response from a failed terminal envelope", () => {
+    const review = JSON.stringify({
+      voice: "peer",
+      position: "Choose A",
+      reasoning: "Lower correction cost",
+      evidence: ["src/a.ts:1"],
+      external_check: "unavailable",
+      mode: "independent",
+      movement: "initial",
+      final: true,
+    })
+    const envelope = JSON.stringify({ type: "result", subtype: "error", response: review, error: "provider failure" })
+    const { env } = sandbox(["zcode"], `#!/bin/sh\nprintf '%s' '${envelope}'\n`)
+    const home = temp("pov-zcode-failed-home-")
+    mkdirSync(path.join(home, ".zcode", "cli"), { recursive: true })
+    writeFileSync(path.join(home, ".zcode", "cli", "config.json"), JSON.stringify({ model: { main: "zai/glm-5.1" } }))
+    const dir = runDir()
+    const result = run(["codex", "zcode", payload(), dir], dir, { ...env, HOME: home })
+    expect(result.files).not.toContain("pov-glm.json")
+    expect(result.stderr).toContain("no successful terminal result envelope")
   })
 
   test("reads grok's camelCase structuredOutput instead of a first-turn placeholder in text", () => {

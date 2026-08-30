@@ -15,7 +15,7 @@ multiple plausible referents would materially change the POV.
 
 Keep four identities separate for the host and every peer:
 
-- **target** — the user-facing choice (`codex`, `claude`, `grok`, `cursor`, or
+- **target** — the user-facing choice (`codex`, `claude`, `grok`, `glm`, `cursor`, or
   `composer`);
 - **harness/intermediary route** — the CLI or intermediary that runs it;
 - **requested model** — an explicit model or the route's declared default; and
@@ -41,8 +41,8 @@ else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 
 Both tokens come from the same peer-key vocabulary as the targets above, never
 from a provider's corporate name: `<host-serving-family>` (`XHOST_FAMILY`) is
-`codex`, `claude`, `grok`, `composer`, or `unknown`. `<host-harness>`
-(`XHOST_HARNESS`) is `codex`, `claude`, `grok`, `cursor`, or `unknown`. The
+`codex`, `claude`, `grok`, `composer`, `glm`, or `unknown`. `<host-harness>`
+(`XHOST_HARNESS`) is `codex`, `claude`, `grok`, `cursor`, `zcode`, or `unknown`. The
 snippet is evidence, not the verdict: it resolves the harnesses whose
 environment markers it already names, and where it yields `unknown` on a harness
 you can identify from your own runtime, attest what you know instead. A harness
@@ -56,7 +56,7 @@ Never infer serving family from the Cursor brand.
 
 Section 4 passes `XHOST_FAMILY` as the worker's first argument and
 `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; a provider name such as
-`anthropic`, `openai`, or `xai` in either slot fail-closes the job with no
+`anthropic`, `openai`, `xai`, or `zai` in either slot fail-closes the job with no
 artifact.
 
 `Cursor` and `Composer` are distinct targets:
@@ -69,6 +69,11 @@ artifact.
   `cursor-agent`.
 - `grok` prefers the native Grok CLI; Grok through Cursor is a different route
   and recipient. Section 3 binds which token.
+- `glm` uses the ZCode CLI and requires an allowed GLM main model in ZCode's
+  own configuration; missing, malformed, or non-GLM configuration skips before
+  egress. ZCode exposes no per-invocation model or reasoning flag and no served
+  family/model/effort receipt, so those fields and independence remain
+  unverified. The POV remains attributed evidence without convergence weight.
 
 Apply exactly one participation branch:
 
@@ -172,10 +177,11 @@ fail-closes on anything else (including route-shaped guesses like `codex-cli`):
 | `codex` | `codex` |
 | `claude` | `claude` |
 | `grok` | `grok-cli` (native CLI) or `grok-cursor` (via Cursor intermediary) |
+| `glm` | `zcode` |
 | `cursor` | `cursor` |
 | `composer` | `composer` |
 
-The host harness does not choose the Grok route. Target `grok` binds `grok-cli` when that CLI is installed. Bind `grok-cursor` only when the user asked for Grok through Cursor, or when the grok CLI is absent and Cursor is a sanctioned recipient.
+The host harness does not choose the Grok route. Target `grok` binds `grok-cli` when that CLI is installed. Bind `grok-cursor` only when the user asked for Grok through Cursor, or when the grok CLI is absent and Cursor is a sanctioned recipient. Target `glm` binds only `zcode` and remains explicit/configured rather than joining the default automatic panel order. Its worker is tool-less and receives only the attached subject payload; it does not inspect the repository tree because ZCode's workspace root is not a path sandbox.
 
 Binary presence proves only that a route is a candidate. Pre-dispatch capability
 evidence may refine the fixed route only when the current host context makes that
@@ -193,8 +199,9 @@ consultation also requires approval. Otherwise the explicit peer, cross-check,
 or `oracle` invocation is the authority to proceed. A named peer that cannot run
 within these rules is reported, never silently replaced or dropped.
 
-The pre-dispatch update should say who will inspect the subject and that the
-review is read-only. Do not recite scope mechanics, promise that repository
+The pre-dispatch update should say who will inspect the subject, that the
+review is read-only, and which external provider receives it (`glm`/`zcode`
+means Z.AI). Do not recite scope mechanics, promise that repository
 secrets are inaccessible, or describe probe results, CLI versions, model tiers,
 commit hashes, repository identity, route health, job lifecycle, or scratch
 paths. Mention a cooperative scope restriction only when it materially changes
@@ -206,9 +213,10 @@ unless the user supplied a recognizable name.
 Prepare one complete canonical payload containing the framed question, subject
 shape, normalized read scope, repository-scope identity, mode, paths to subject
 material already in the workspace, and required conversational material that is
-not available there. Let peers inspect and ground against the shared working
-tree. Do not duplicate readable files or add a host-curated architecture summary
-merely to brief the peer.
+not available there. Let read-capable peers inspect and ground against the
+shared working tree. ZCode is tool-less: its payload must be self-contained, and
+it must not claim repository inspection. Do not duplicate readable files or add
+a host-curated architecture summary merely to brief another read-capable peer.
 
 For an initial `independent` round, exclude ce-pov's position and every other
 voice's conclusion. The proposal, document, or approach set being judged is the
@@ -259,8 +267,9 @@ clear any ambient one on the start prefix (`CE_PEER_HARD_SECS=`) so a stale
 export cannot undercut the derivation. Do not re-export a *resolved*
 `CROSS_MODEL_HARD_SECS` onto the worker's command line: that converts a
 fallback into an override and strips the worker of its route-aware default
-(idle-guarded streaming routes share `HARD_SECS`; `grok-cli` alone keeps the
-lower `UNGUARDED_HARD_SECS` bound because its `--json-schema` path cannot stream).
+(idle-guarded streaming routes share `HARD_SECS`; buffered `grok-cli` and
+`zcode` keep the lower `UNGUARDED_HARD_SECS` bound because they cannot stream
+usable progress).
 
 Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that

@@ -107,6 +107,7 @@ route_effort() {   # <route> -> requested effort: the override where the route t
   case "$1" in
     codex) printf 'xhigh' ;;
     claude|grok-cli) printf 'high' ;;
+    zcode) printf 'configured-unverified' ;;
     grok-cursor) printf 'model-implied-high' ;;
     composer) printf 'fast' ;;
     cursor) printf 'unverified' ;;
@@ -133,12 +134,29 @@ expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id fami
   esac
 }
 
-route_model() {   # <route> -> the M_* constant that route requests
+ZCODE_MODEL=""
+validate_zcode_model() {
+  local config="${HOME:-}/.zcode/cli/config.json" model=""
+  if command -v jq >/dev/null 2>&1 && [ -f "$config" ]; then
+    model="$(jq -r '.model.main // empty' "$config" 2>/dev/null)"
+  fi
+  case "$model" in
+    glm-*|GLM-*|zai/glm-*|zai/GLM-*) ZCODE_MODEL="$model" ;;
+    *) ZCODE_MODEL=""; return 1 ;;
+  esac
+}
+
+zcode_model() {
+  [ -n "$ZCODE_MODEL" ] || validate_zcode_model || return 1
+  printf '%s' "$ZCODE_MODEL"
+}
+
+route_model() {   # <route> -> requested model (fixed mapping, or ZCode's explicit main config)
   local target
   target="$(route_target "$1")"
   if [ -n "${CROSS_MODEL_MODEL_OVERRIDE:-}" ] &&
      [ "${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" = "$target" ] &&
-     [ "$target" != "cursor" ]; then
+     [ "$target" != "cursor" ] && [ "$target" != "glm" ]; then
     printf '%s' "$CROSS_MODEL_MODEL_OVERRIDE"
     return 0
   fi
@@ -146,6 +164,7 @@ route_model() {   # <route> -> the M_* constant that route requests
     codex)       printf '%s' "$M_CODEX" ;;
     claude)      printf '%s' "$M_CLAUDE" ;;
     grok-cli)    printf '%s' "$M_GROK" ;;
+    zcode)       zcode_model ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
@@ -156,6 +175,7 @@ route_target() {
   case "$1" in
     codex|claude|cursor|composer) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
+    zcode) printf 'glm' ;;
   esac
 }
 
@@ -164,13 +184,14 @@ route_harness() {
     codex) printf 'codex' ;;
     claude) printf 'claude' ;;
     grok-cli) printf 'grok' ;;
+    zcode) printf 'zcode' ;;
     grok-cursor|cursor|composer) printf 'cursor-agent' ;;
   esac
 }
 
 target_serving_family() {
   case "$1" in
-    codex|claude|grok|composer) printf '%s' "$1" ;;
+    codex|claude|grok|composer|glm) printf '%s' "$1" ;;
     cursor) printf 'unknown' ;;
   esac
 }
@@ -259,6 +280,16 @@ adapter_argv() {
         --disable-web-search --no-subagents --max-turns 15 \
         --json-schema "$SCHEMA_REF" --output-format json
       ;;
+    zcode)
+      # The full document is already embedded in PROMPT_FILE. ZCode's plan mode
+      # and explicit tool denials preserve the empty-scratch boundary; model and
+      # reasoning selection remain owned by the CLI configuration.
+      printf '%s\0' zcode --prompt 'Follow the attached review brief exactly and return one schema-shaped JSON object.' \
+        --attach "$PROMPT_FILE" --cwd "$PEER_WORKDIR" --mode plan \
+        --allowed-tools '__ce_toolless__' \
+        --disallowed-tools 'Bash Read Glob Grep Edit Write NotebookEdit Task WebFetch WebSearch Skill' \
+        --json --no-color
+      ;;
     grok-cursor)
       printf '%s\0' cursor-agent -p --model "$(route_model grok-cursor)" --mode ask --trust \
         --sandbox enabled --workspace "$PEER_WORKDIR" --output-format stream-json
@@ -321,7 +352,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   validate_effort_override "$route" 2>/dev/null || { echo "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|zcode|cursor|composer)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -352,12 +383,12 @@ command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 # Validate the host identity tuple. An unknown serving family is allowed, but
 # normalization marks every result non-independent.
 case "$HOST_PROVIDER" in
-  codex|claude|grok|composer|unknown) ;;
-  *) skip "host serving family '${HOST_PROVIDER:-<empty>}' invalid (want codex|claude|grok|composer|unknown); skipping cross-model pass" ;;
+  codex|claude|grok|composer|glm|unknown) ;;
+  *) skip "host serving family '${HOST_PROVIDER:-<empty>}' invalid (want codex|claude|grok|composer|glm|unknown); skipping cross-model pass" ;;
 esac
 case "$HOST_HARNESS" in
-  codex|claude|grok|cursor|unknown) ;;
-  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|unknown); skipping cross-model pass" ;;
+  codex|claude|grok|cursor|zcode|unknown) ;;
+  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|zcode|unknown); skipping cross-model pass" ;;
 esac
 [ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
 
@@ -446,6 +477,7 @@ provider_available() {
     codex)    command -v codex >/dev/null 2>&1 ;;
     claude)   command -v claude >/dev/null 2>&1 ;;
     grok)     command -v grok >/dev/null 2>&1 || { cursor_egress_ok && command -v cursor-agent >/dev/null 2>&1; } ;;
+    glm)      command -v zcode >/dev/null 2>&1 ;;
     cursor)   command -v cursor-agent >/dev/null 2>&1 ;;
     composer) command -v cursor-agent >/dev/null 2>&1 ;;
     *) return 1 ;;
@@ -464,7 +496,7 @@ OLDIFS="$IFS"; IFS=','
 for p in $CANDIDATES; do
   p="$(printf '%s' "$p" | tr -d '[:space:]')"
   [ -n "$p" ] || continue
-  case "$p" in codex|claude|grok|cursor|composer) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
+  case "$p" in codex|claude|grok|glm|cursor|composer) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
   [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
   case " $SELECTED " in *" $p "*) continue ;; esac   # dedup
   if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
@@ -475,7 +507,7 @@ IFS="$OLDIFS"
 SELECTED="$(printf '%s' "$SELECTED" | sed 's/^ *//')"
 
 [ "$MAX_PEERS" -ge 1 ] || skip "CROSS_MODEL_MAX_PEERS=0; cross-model pass disabled"
-[ -n "$SELECTED" ] || skip "no different-provider peer reachable (host=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (codex, claude, grok, or cursor-agent), not an API key alone; skipping"
+[ -n "$SELECTED" ] || skip "no different-provider peer reachable (host=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (zcode, codex, claude, grok, or cursor-agent), not an API key alone; skipping"
 log "reachable cross-model candidates for lens $REVIEWER_NAME: $SELECTED (host $HOST_PROVIDER excluded; up to $MAX_PEERS successful peer(s))"
 
 # first_n <max> <space-separated list> -> the first <max> tokens.
@@ -937,6 +969,8 @@ def terminal_success(value):
     if value.get("type") == "result":
         if subtype:
             return subtype == "success"
+        if route == "zcode":
+            return isinstance(value.get("response"), str)
         return route in {"grok-cursor", "cursor", "composer"}
     if "stopReason" in value or "terminal_reason" in value or terminal_status is not None or "api_error_status" in value:
         return True
@@ -1009,7 +1043,7 @@ attempt_route() {   # <provider> <route>
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   build_cmd "$route"
   case "$route" in
-    codex|claude|grok-cli) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;
+    codex|claude|grok-cli|zcode) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
@@ -1025,6 +1059,9 @@ attempt_route() {   # <provider> <route>
     grok-cli)    run_timeout_cmd "" "$attempt_hard" no-idle
                  classify_route_output
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
+    zcode)       run_timeout_cmd "" "$attempt_hard" no-idle
+                 classify_route_output
+                 [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
     claude)      run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle
                  classify_route_output
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
@@ -1054,7 +1091,10 @@ provider_overloaded() {
 }
 
 route_hard_budget() {
-  if [ "$1" = "grok-cli" ]; then printf '%s\n' "$UNGUARDED_HARD_SECS"; else printf '%s\n' "$HARD_SECS"; fi
+  if [ "$1" = "grok-cli" ]; then printf '%s\n' "$UNGUARDED_HARD_SECS"
+  elif [ "$1" = "zcode" ]; then printf '%s\n' "$UNGUARDED_HARD_SECS"
+  else printf '%s\n' "$HARD_SECS"
+  fi
 }
 
 # Run one host-resolved provider through its fixed route.
@@ -1083,6 +1123,11 @@ run_provider() {   # <provider>
   [ -n "$PY_BIN" ] || { log "working Python 3 interpreter required for peer outcome classification; skipping"; rm -f "$OUT"; return 0; }
   validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   validate_effort_override "$primary" || { log "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
+  if [ "$primary" = "zcode" ] && ! validate_zcode_model; then
+    log "ZCode main model is missing, malformed, or not an allowed GLM model; skipping before egress"
+    rm -f "$OUT"
+    return 0
+  fi
   # Track the route that actually produced the fold-in, so the artifact records
   # whether a grok return went out directly (grok-cli -> xAI) or through Cursor
   # (grok-cursor -> Cursor also received the full document). The <lens>-<provider>
@@ -1128,7 +1173,7 @@ run_provider() {   # <provider>
   if [ -s "$RAW_OUT" ]; then
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-norm-XXXXXX")"
     case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
-      cursor:*) _target_family="unknown" ;;
+      cursor:*|zcode:*) _target_family="unknown" ;;
       composer:unverified|grok-cursor:unverified) _target_family="unknown" ;;
       *) _target_family="$(target_serving_family "$provider")" ;;
     esac
