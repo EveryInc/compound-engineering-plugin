@@ -531,10 +531,13 @@ describe("ce-code-review contract", () => {
     )
     expect(dispatch).toContain('isolation: "worktree"')
     expect(dispatch).toContain("Mutation testing on the shared tree is forbidden")
+    expect(dispatch).toContain("faithful snapshot of the reviewed tree")
+    expect(dispatch).toContain("local-aligned")
     const testing = await readRepoFile(
       "skills/ce-code-review/references/personas/testing-reviewer.md",
     )
     expect(testing).toContain("Never mutate the shared checkout")
+    expect(testing).toContain("faithful snapshot of the reviewed tree")
   })
 
   test("Stage 4 collects by observed return shape and fails closed without a collector", async () => {
