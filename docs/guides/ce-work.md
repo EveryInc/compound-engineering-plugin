@@ -101,7 +101,7 @@ Asking an agent "implement this plan" goes wrong in predictable ways:
 
 `ce-work` reads the plan as a decision artifact, not a script. For unified plans it checks metadata first and refuses `artifact_readiness: requirements-only` artifacts until `ce-plan` enriches them. Scope, decisions, U-IDs, files, test scenarios, and verification criteria are authoritative. The plan body stays read-only during execution. Progress lives in git commits and the task tracker.
 
-Before each task, it checks whether the unit's work is already present and matches the plan's intent. If verification is already satisfied, it marks the task complete and moves on. No silent reimplementation. That matters most when resuming after context compaction, picking up someone else's branch, or returning to a partly-shipped plan weeks later. A unit whose deliverable is out-of-repo state (console, DNS, CMS, live rows) has no git-derived completion signal — do not treat a clean tree as not-started and re-apply a non-idempotent side effect.
+Before each task, it checks whether the unit's work is already present and matches the plan's intent. If verification is already satisfied, it marks the task complete and moves on. No silent reimplementation. That matters most when resuming after context compaction, picking up someone else's branch, or returning to a partly-shipped plan weeks later. A unit whose deliverable is out-of-repo state (console, DNS, CMS, live rows) has no git-derived completion signal — do not treat a clean tree as not-started and re-apply a non-idempotent side effect. Proceed or mark complete only from positive external-state or tracker evidence; ask or block when completion is unknown and retry is unsafe.
 
 ### Engine, workspace, and scheduling are separate decisions
 
