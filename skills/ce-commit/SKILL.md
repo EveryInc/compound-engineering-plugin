@@ -43,16 +43,14 @@ Treat this as a snapshot. Re-read branch and staged set immediately before commi
    - Good: `Fix double-submit on checkout`
    - Good: `Add per-subscription mute (U3)`
 
-6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Honor `exclude:<paths>` when the invocation carries it: those files stay uncommitted no matter what else changed; say in the report that they were left out. Prefer one shell call per commit group:
+6. **Stage and commit** — stage **named files only** (never `git add -A` or `git add .`). Honor `exclude:<paths>` when the invocation carries it: those files stay uncommitted no matter what else changed; say in the report that they were left out. Stage, then commit, each as its own call per commit group:
 
 ```bash
-git add file1 file2 file3 && git commit -m "$(cat <<'EOF'
-type(scope): subject line here
-
-Optional body when the why is not obvious from the subject.
-EOF
-)" -- file1 file2 file3
+git add file1 file2 file3
+git commit -m "type(scope): subject line here" -m "Optional body when the why is not obvious from the subject." -- file1 file2 file3
 ```
+
+Each `-m` after the first adds a blank-line-separated body paragraph, so a multi-line message needs no heredoc.
 
 The trailing path list on `git commit` is load-bearing: a bare `git commit` takes the whole index, so anything already staged before this run (a caller's `exclude:` paths, or work the user staged and did not name) would ride into the commit. Naming the paths commits exactly the group and leaves other index entries alone.
 
