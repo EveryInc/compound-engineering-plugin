@@ -81,7 +81,7 @@ const BABYSIT_TRAJECTORY_REFS = [
   "heads_since_progress",
   "invariant_rounds",
 ]
-const CERESOLVE_TRAJECTORY_REFS = ["unresolved_trend", "new_threads_this_tick"]
+const CERESOLVE_TRAJECTORY_REFS = ["unresolved_trend", "new_threads_this_tick", "invariant_rounds"]
 
 function emittedTrajectoryKeys(script: string): string[] {
   const fn = script.slice(script.indexOf("def _update_trajectory"))
