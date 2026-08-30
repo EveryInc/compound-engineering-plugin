@@ -35,7 +35,7 @@ afterAll(() => {
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "awk",
   "dirname", "basename", "mktemp", "env", "perl", "timeout", "gtimeout", "sleep", "rm",
-  "mv", "chmod", "cp", "printf", "kill", "mkdir", "grep", "tail", "ps",
+  "mv", "chmod", "cp", "cksum", "printf", "kill", "mkdir", "grep", "tail", "ps",
 ]
 // A version-manager shim (pyenv/rbenv/perlbrew/mise) for an interpreter is a
 // wrapper *script*, not a symlink: `command -v python3` returns the shim, but
@@ -219,6 +219,7 @@ describe("cross-model-doc-review route safety (R17)", () => {
     expect(cmd).toContain("zcode --prompt")
     expect(cmd).toContain("--attach")
     expect(cmd).toContain("--cwd <peer-workdir>")
+    expect(cmd).toContain("--settings <zcode-settings>")
     expect(cmd).toContain("--mode plan")
     expect(cmd).toContain("--allowed-tools __ce_toolless__")
     expect(cmd).toContain("--disallowed-tools")
@@ -1422,6 +1423,79 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(out.model_requested).toBe("zai/glm-5.1")
     expect(out.model_actual).toBe("unverified")
     expect(out.effort_requested).toBe("configured-unverified")
+  })
+
+  test("zcode consumes a private snapshot when live config changes during launch", () => {
+    const payload = JSON.stringify({
+      type: "result",
+      response: JSON.stringify({ reviewer: "adversarial", findings: [], residual_risks: [], deferred_questions: [] }),
+    })
+    const home = mkTempRoot("xmodel-doc-zcode-race-home-")
+    const config = path.join(home, ".zcode", "cli", "config.json")
+    mkdirSync(path.dirname(config), { recursive: true })
+    writeFileSync(config, JSON.stringify({
+      model: { main: "zai/glm-5.1" },
+      provider: { zai: { kind: "openai", options: { baseURL: "https://api.z.ai" } } },
+    }))
+    const stub = `#!/bin/sh
+settings=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--settings" ]; then settings="$2"; shift 2; else shift; fi
+done
+printf '%s' '{"model":{"main":"zai/glm-5.1"},"provider":{"zai":{"kind":"openai","options":{"baseURL":"https://not-z.ai"}}}}' > "$HOME/.zcode/cli/config.json"
+[ "$(jq -r '.model.main // empty' "$settings")" = "zai/glm-5.1" ] || exit 1
+[ "$(jq -r '.provider.zai.options.baseURL // empty' "$settings")" = "https://api.z.ai" ] || exit 1
+printf '%s' '${payload}'
+`
+    const { env } = sandbox(["zcode"], stub)
+    const scratch = mkTempRoot("xmodel-doc-zcode-race-scratch-")
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["codex", "glm", "adversarial", doc, "plan", "none", runDir], runDir, { ...env, HOME: home, TMPDIR: scratch })
+    expect(r.files).toContain("adversarial-glm.json")
+    expect(JSON.parse(readFileSync(config, "utf8")).provider.zai.options.baseURL).toBe("https://not-z.ai")
+    expect(readdirSync(scratch)).toEqual([])
+  })
+
+  test("zcode reuses the same validated settings snapshot on overload retry", () => {
+    const counter = path.join(mkTempRoot("xmodel-doc-zcode-retry-counter-"), "count")
+    const seen = path.join(mkTempRoot("xmodel-doc-zcode-retry-settings-"), "path")
+    const overload = JSON.stringify({ type: "error", http_status: 529, error: { message: "API Error: 529 Overloaded" } })
+    const success = JSON.stringify({
+      type: "result",
+      response: JSON.stringify({ reviewer: "adversarial", findings: [], residual_risks: [], deferred_questions: [] }),
+    })
+    const home = mkTempRoot("xmodel-doc-zcode-retry-home-")
+    const config = path.join(home, ".zcode", "cli", "config.json")
+    mkdirSync(path.dirname(config), { recursive: true })
+    writeFileSync(config, JSON.stringify({
+      model: { main: "zai/glm-5.1" },
+      provider: { zai: { options: { baseURL: "https://api.z.ai" } } },
+    }))
+    const stub = `#!/bin/sh
+settings=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--settings" ]; then settings="$2"; shift 2; else shift; fi
+done
+n=0; [ ! -f '${counter}' ] || n="$(cat '${counter}')"; n=$((n + 1)); printf '%s' "$n" > '${counter}'
+if [ "$n" -eq 1 ]; then
+  printf '%s' "$settings" > '${seen}'
+  printf '%s' '{"model":{"main":"zai/glm-5.1"},"provider":{"zai":{"options":{"baseURL":"https://not-z.ai"}}}}' > "$HOME/.zcode/cli/config.json"
+  printf '%s' '${overload}'
+  exit 1
+fi
+[ "$settings" = "$(cat '${seen}')" ] || exit 1
+[ "$(jq -r '.provider.zai.options.baseURL // empty' "$settings")" = "https://api.z.ai" ] || exit 1
+printf '%s' '${success}'
+`
+    const { env } = sandbox(["zcode"], stub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["codex", "glm", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env, HOME: home, CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "0",
+    })
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(r.files).toContain("adversarial-glm.json")
   })
 
   test.each([

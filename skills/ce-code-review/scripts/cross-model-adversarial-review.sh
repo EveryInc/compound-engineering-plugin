@@ -131,8 +131,10 @@ expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id fami
 }
 
 ZCODE_MODEL=""
+ZCODE_SETTINGS_FILE=""
+ZCODE_SETTINGS_FINGERPRINT=""
 validate_zcode_model() {
-  local config="${HOME:-}/.zcode/cli/config.json" model=""
+  local config="${1:-${HOME:-}/.zcode/cli/config.json}" model=""
   if command -v jq >/dev/null 2>&1 && [ -f "$config" ]; then
     model="$(jq -r '.model.main // empty' "$config" 2>/dev/null)"
   fi
@@ -140,6 +142,34 @@ validate_zcode_model() {
     glm-*|GLM-*|zai/glm-*|zai/GLM-*) ZCODE_MODEL="$model" ;;
     *) ZCODE_MODEL=""; return 1 ;;
   esac
+}
+
+prepare_zcode_settings() {   # <private-dir>; snapshot and validate the complete route once
+  local config="${HOME:-}/.zcode/cli/config.json" private_dir="$1" snapshot tmp
+  [ -d "$private_dir" ] && [ -f "$config" ] || return 1
+  snapshot="$private_dir/zcode-settings.json"
+  tmp="$snapshot.tmp.$$"
+  rm -f "$tmp"
+  if ! cp "$config" "$tmp" 2>/dev/null || ! chmod 600 "$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! validate_zcode_model "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  ZCODE_SETTINGS_FINGERPRINT="$(cksum < "$tmp" 2>/dev/null)" || { rm -f "$tmp"; return 1; }
+  [ -n "$ZCODE_SETTINGS_FINGERPRINT" ] || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$snapshot" || { rm -f "$tmp"; return 1; }
+  ZCODE_SETTINGS_FILE="$snapshot"
+}
+
+validate_zcode_launch() {   # every exec/retry must consume the one validated snapshot
+  local model="" fingerprint=""
+  [ -n "$ZCODE_SETTINGS_FILE" ] && [ -f "$ZCODE_SETTINGS_FILE" ] || return 1
+  model="$(jq -r '.model.main // empty' "$ZCODE_SETTINGS_FILE" 2>/dev/null)"
+  fingerprint="$(cksum < "$ZCODE_SETTINGS_FILE" 2>/dev/null)" || return 1
+  [ "$model" = "$ZCODE_MODEL" ] && [ "$fingerprint" = "$ZCODE_SETTINGS_FINGERPRINT" ]
 }
 
 zcode_model() {
@@ -276,13 +306,14 @@ adapter_argv() {
         --json-schema "$SCHEMA_REF" --output-format json
       ;;
     zcode)
-      # ZCode owns model selection in ~/.zcode/cli/config.json and exposes no
-      # per-invocation model or reasoning flag. Attach the complete prompt so
+      # ZCode exposes no per-invocation model or reasoning flag. --settings binds
+      # this launch to the private, prevalidated configuration snapshot. Attach
+      # the complete prompt so
       # inputs never cross the shell argument-size boundary. ZCode's path
       # resolver does not enforce its workspace root, so deny every filesystem,
       # shell, web, MCP, and delegation tool and review only the attachment.
       printf '%s\0' zcode --prompt 'Follow the attached review brief exactly and return one schema-shaped JSON object.' \
-        --attach "$PROMPT_FILE" --cwd "$RAW_DIR" --mode plan \
+        --attach "$PROMPT_FILE" --cwd "$RAW_DIR" --settings "$ZCODE_SETTINGS_FILE" --mode plan \
         --allowed-tools '__ce_toolless__' \
         --disallowed-tools 'Bash Read Glob Grep Edit Write NotebookEdit Task WebFetch WebSearch Skill' \
         --json --no-color
@@ -357,6 +388,7 @@ validate_effort_override() {
 if [ "${1:-}" = "--emit-adapter" ]; then
   RUN_DIR="<run-dir>"; PEER_WORKDIR="<repo-root>"
   RAW_DIR="<peer-workdir>"; RAW_OUT="<raw-out>"
+  ZCODE_SETTINGS_FILE="<zcode-settings>"
   OUT="<run-dir>/adversarial-<provider>.json"
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
@@ -1069,6 +1101,12 @@ attempt_route() {
   [ -n "$attempt_hard" ] || attempt_hard="$(route_hard_budget "$route")"
   PROVIDER_OUTCOME="ok"
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT"
+  if [ "$route" = "zcode" ] && ! validate_zcode_launch; then
+    log "validated ZCode settings snapshot is missing or changed; skipping before egress"
+    RUN_SUCCEEDED=false
+    PROVIDER_OUTCOME="config-changed"
+    return 0
+  fi
   build_cmd "$route"
   case "$route" in
     codex|claude|grok-cli|zcode) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;
@@ -1167,7 +1205,7 @@ run_provider() {
   fi
   validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   validate_effort_override "$primary" || { log "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
-  if [ "$primary" = "zcode" ] && ! validate_zcode_model; then
+  if [ "$primary" = "zcode" ] && ! prepare_zcode_settings "$RAW_DIR"; then
     log "ZCode main model is missing, malformed, or not an allowed GLM model; skipping before egress"
     rm -f "$OUT"
     return 0

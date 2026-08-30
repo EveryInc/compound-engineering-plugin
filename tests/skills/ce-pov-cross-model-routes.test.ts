@@ -31,7 +31,7 @@ const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerous
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "dirname",
   "basename", "mktemp", "env", "perl", "timeout", "gtimeout", "sleep", "rm", "mv",
-  "chmod", "cp", "printf", "kill", "mkdir", "grep", "tail", "ps",
+  "chmod", "cp", "cksum", "printf", "kill", "mkdir", "grep", "tail", "ps",
 ]
 let resolved: Array<[string, string]> | undefined
 function realTools(): Array<[string, string]> {
@@ -141,6 +141,7 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("grok-cli")).not.toContain("stream-json")
     expect(emit("zcode")).toContain("--attach <prompt-file>")
     expect(emit("zcode")).toContain("--cwd <peer-workdir>")
+    expect(emit("zcode")).toContain("--settings <zcode-settings>")
     expect(emit("zcode")).toContain("--mode plan")
     expect(emit("zcode")).toContain("--allowed-tools __ce_toolless__")
     expect(emit("zcode")).toContain("--disallowed-tools")
@@ -298,6 +299,87 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.effort_requested).toBe("configured-unverified")
     expect(out.effort_actual).toBe("unverified")
     expect(out.receipt_supported).toBe(false)
+  })
+
+  test("zcode consumes a private snapshot when live config changes during launch", () => {
+    const review = JSON.stringify({
+      voice: "peer", position: "Choose A", reasoning: "Lower correction cost", evidence: ["src/a.ts:1"],
+      external_check: "unavailable", mode: "independent", movement: "initial", final: true,
+    })
+    const envelope = JSON.stringify({ type: "result", response: review })
+    const home = temp("pov-zcode-race-home-")
+    const config = path.join(home, ".zcode", "cli", "config.json")
+    mkdirSync(path.dirname(config), { recursive: true })
+    writeFileSync(config, JSON.stringify({
+      model: { main: "zai/glm-5.1" },
+      provider: { zai: { kind: "openai", options: { baseURL: "https://api.z.ai" } } },
+    }))
+    const stub = `#!/bin/sh
+settings=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--settings" ]; then settings="$2"; shift 2; else shift; fi
+done
+printf '%s' '{"model":{"main":"zai/glm-5.1"},"provider":{"zai":{"kind":"openai","options":{"baseURL":"https://not-z.ai"}}}}' > "$HOME/.zcode/cli/config.json"
+[ "$(jq -r '.model.main // empty' "$settings")" = "zai/glm-5.1" ] || exit 1
+[ "$(jq -r '.provider.zai.options.baseURL // empty' "$settings")" = "https://api.z.ai" ] || exit 1
+printf '%s' '${envelope}'
+`
+    const { env } = sandbox(["zcode"], stub)
+    const scratch = temp("pov-zcode-race-scratch-")
+    const dir = runDir()
+    const result = run(["codex", "zcode", payload(), dir], dir, { ...env, HOME: home, CROSS_MODEL_SCRATCH_PARENT: scratch })
+    expect(result.files).toContain("pov-glm.json")
+    expect(JSON.parse(readFileSync(config, "utf8")).provider.zai.options.baseURL).toBe("https://not-z.ai")
+    expect(readdirSync(scratch)).toEqual([])
+  })
+
+  test("zcode reuses the same validated settings snapshot on final-answer retry", () => {
+    const counter = path.join(temp("pov-zcode-retry-counter-"), "count")
+    const seen = path.join(temp("pov-zcode-retry-settings-"), "path")
+    const first = JSON.stringify({
+      type: "result",
+      response: JSON.stringify({
+        voice: "peer", position: "Still checking", reasoning: "Need one more pass", evidence: ["subject"],
+        external_check: "unavailable", mode: "independent", movement: "initial", final: false,
+      }),
+    })
+    const second = JSON.stringify({
+      type: "result",
+      response: JSON.stringify({
+        voice: "peer", position: "Choose A", reasoning: "Settled", evidence: ["subject"],
+        external_check: "unavailable", mode: "independent", movement: "moved", final: true,
+      }),
+    })
+    const home = temp("pov-zcode-retry-home-")
+    const config = path.join(home, ".zcode", "cli", "config.json")
+    mkdirSync(path.dirname(config), { recursive: true })
+    writeFileSync(config, JSON.stringify({
+      model: { main: "zai/glm-5.1" },
+      provider: { zai: { options: { baseURL: "https://api.z.ai" } } },
+    }))
+    const stub = `#!/bin/sh
+settings=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--settings" ]; then settings="$2"; shift 2; else shift; fi
+done
+n=0; [ ! -f '${counter}' ] || n="$(cat '${counter}')"; n=$((n + 1)); printf '%s' "$n" > '${counter}'
+if [ "$n" -eq 1 ]; then
+  printf '%s' "$settings" > '${seen}'
+  printf '%s' '{"model":{"main":"zai/glm-5.1"},"provider":{"zai":{"options":{"baseURL":"https://not-z.ai"}}}}' > "$HOME/.zcode/cli/config.json"
+  printf '%s' '${first}'
+  exit 0
+fi
+[ "$settings" = "$(cat '${seen}')" ] || exit 1
+[ "$(jq -r '.provider.zai.options.baseURL // empty' "$settings")" = "https://api.z.ai" ] || exit 1
+printf '%s' '${second}'
+`
+    const { env } = sandbox(["zcode"], stub)
+    const dir = runDir()
+    const result = run(["codex", "zcode", payload(), dir], dir, {
+      ...env, HOME: home, CROSS_MODEL_HARD_SECS: "10", CROSS_MODEL_RETRY_MIN_SECS: "0",
+    })
+    expect(readFileSync(counter, "utf8")).toBe("2")
+    expect(result.files).toContain("pov-glm.json")
   })
 
   test.each([

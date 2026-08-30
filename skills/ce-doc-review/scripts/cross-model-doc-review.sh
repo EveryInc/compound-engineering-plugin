@@ -135,8 +135,10 @@ expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id fami
 }
 
 ZCODE_MODEL=""
+ZCODE_SETTINGS_FILE=""
+ZCODE_SETTINGS_FINGERPRINT=""
 validate_zcode_model() {
-  local config="${HOME:-}/.zcode/cli/config.json" model=""
+  local config="${1:-${HOME:-}/.zcode/cli/config.json}" model=""
   if command -v jq >/dev/null 2>&1 && [ -f "$config" ]; then
     model="$(jq -r '.model.main // empty' "$config" 2>/dev/null)"
   fi
@@ -144,6 +146,34 @@ validate_zcode_model() {
     glm-*|GLM-*|zai/glm-*|zai/GLM-*) ZCODE_MODEL="$model" ;;
     *) ZCODE_MODEL=""; return 1 ;;
   esac
+}
+
+prepare_zcode_settings() {   # <private-dir>; snapshot and validate the complete route once
+  local config="${HOME:-}/.zcode/cli/config.json" private_dir="$1" snapshot tmp
+  [ -d "$private_dir" ] && [ -f "$config" ] || return 1
+  snapshot="$private_dir/zcode-settings.json"
+  tmp="$snapshot.tmp.$$"
+  rm -f "$tmp"
+  if ! cp "$config" "$tmp" 2>/dev/null || ! chmod 600 "$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! validate_zcode_model "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  ZCODE_SETTINGS_FINGERPRINT="$(cksum < "$tmp" 2>/dev/null)" || { rm -f "$tmp"; return 1; }
+  [ -n "$ZCODE_SETTINGS_FINGERPRINT" ] || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$snapshot" || { rm -f "$tmp"; return 1; }
+  ZCODE_SETTINGS_FILE="$snapshot"
+}
+
+validate_zcode_launch() {   # every exec/retry must consume the one validated snapshot
+  local model="" fingerprint=""
+  [ -n "$ZCODE_SETTINGS_FILE" ] && [ -f "$ZCODE_SETTINGS_FILE" ] || return 1
+  model="$(jq -r '.model.main // empty' "$ZCODE_SETTINGS_FILE" 2>/dev/null)"
+  fingerprint="$(cksum < "$ZCODE_SETTINGS_FILE" 2>/dev/null)" || return 1
+  [ "$model" = "$ZCODE_MODEL" ] && [ "$fingerprint" = "$ZCODE_SETTINGS_FINGERPRINT" ]
 }
 
 zcode_model() {
@@ -282,10 +312,10 @@ adapter_argv() {
       ;;
     zcode)
       # The full document is already embedded in PROMPT_FILE. ZCode's plan mode
-      # and explicit tool denials preserve the empty-scratch boundary; model and
-      # reasoning selection remain owned by the CLI configuration.
+      # and explicit tool denials preserve the empty-scratch boundary. --settings
+      # binds this launch to the private, prevalidated configuration snapshot.
       printf '%s\0' zcode --prompt 'Follow the attached review brief exactly and return one schema-shaped JSON object.' \
-        --attach "$PROMPT_FILE" --cwd "$PEER_WORKDIR" --mode plan \
+        --attach "$PROMPT_FILE" --cwd "$PEER_WORKDIR" --settings "$ZCODE_SETTINGS_FILE" --mode plan \
         --allowed-tools '__ce_toolless__' \
         --disallowed-tools 'Bash Read Glob Grep Edit Write NotebookEdit Task WebFetch WebSearch Skill' \
         --json --no-color
@@ -345,6 +375,7 @@ validate_effort_override() {
 if [ "${1:-}" = "--emit-adapter" ]; then
   RUN_DIR="<run-dir>"; PEER_WORKDIR="<peer-workdir>"
   RAW_OUT="<peer-workdir>/<lens>-<provider>.raw.json"
+  ZCODE_SETTINGS_FILE="<zcode-settings>"
   OUT="<run-dir>/<lens>-<provider>.json"
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
@@ -1041,6 +1072,12 @@ attempt_route() {   # <provider> <route>
   [ -n "$attempt_hard" ] || attempt_hard="$(route_hard_budget "$route")"
   PROVIDER_OUTCOME="ok"
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
+  if [ "$route" = "zcode" ] && ! validate_zcode_launch; then
+    log "validated ZCode settings snapshot is missing or changed; skipping before egress"
+    RUN_SUCCEEDED=false
+    PROVIDER_OUTCOME="config-changed"
+    return 0
+  fi
   build_cmd "$route"
   case "$route" in
     codex|claude|grok-cli|zcode) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;
@@ -1107,9 +1144,14 @@ run_provider() {   # <provider>
   # (codex/cursor-agent) can neither list a shared cwd nor read another lens's
   # published <lens>-<provider>.json -- it has no path handle to RUN_DIR at all.
   # OUT is published to RUN_DIR only after the peer process exits (normalize below),
-  # never written into RUN_DIR by the peer itself. Falls back to RUN_DIR only if
-  # mktemp fails (preserves prior behavior over failing the pass).
-  PEER_WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/xmodel-doc-peer-XXXXXX")" || PEER_WORKDIR="$RUN_DIR"
+  # never written into RUN_DIR by the peer itself. Isolation failure skips this
+  # additive pass; the ZCode route also stores its settings snapshot here.
+  if ! PEER_WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/xmodel-doc-peer-XXXXXX")"; then
+    log "provider $provider workspace isolation unavailable; skipping provider"
+    rm -f "$OUT"
+    return 0
+  fi
+  chmod 700 "$PEER_WORKDIR" 2>/dev/null || { rm -rf "$PEER_WORKDIR"; PEER_WORKDIR=""; log "cannot make peer scratch private; skipping provider"; rm -f "$OUT"; return 0; }
   RAW_OUT="$PEER_WORKDIR/$REVIEWER_NAME-$provider.raw.json"
   [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
   [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
@@ -1123,7 +1165,7 @@ run_provider() {   # <provider>
   [ -n "$PY_BIN" ] || { log "working Python 3 interpreter required for peer outcome classification; skipping"; rm -f "$OUT"; return 0; }
   validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   validate_effort_override "$primary" || { log "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
-  if [ "$primary" = "zcode" ] && ! validate_zcode_model; then
+  if [ "$primary" = "zcode" ] && ! prepare_zcode_settings "$PEER_WORKDIR"; then
     log "ZCode main model is missing, malformed, or not an allowed GLM model; skipping before egress"
     rm -f "$OUT"
     return 0

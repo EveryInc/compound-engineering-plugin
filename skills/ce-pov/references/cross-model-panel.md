@@ -71,7 +71,9 @@ artifact.
   and recipient. Section 3 binds which token.
 - `glm` uses the ZCode CLI and requires an allowed GLM main model in ZCode's
   own configuration; missing, malformed, or non-GLM configuration skips before
-  egress. ZCode exposes no per-invocation model or reasoning flag and no served
+  egress. Every launch and retry consumes a private `--settings` snapshot whose
+  main model must still equal that validated request. ZCode exposes no
+  per-invocation model or reasoning flag and no served
   family/model/effort receipt, so those fields and independence remain
   unverified. The POV remains attributed evidence without convergence weight.
 
