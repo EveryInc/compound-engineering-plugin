@@ -265,6 +265,17 @@ describe("cross-model-adversarial-review route safety", () => {
     expect(cmd).toContain("--json --no-color")
     expect(cmd).not.toContain("--model")
     expect(cmd).not.toContain("--effort")
+    const ref = readFileSync(path.join(__dirname, "../../skills/ce-code-review/references/cross-model-review.md"), "utf8")
+    expect(ref).toContain("configured ZCode provider endpoint (recipient identity unverified)")
+    expect(ref).toContain("cross-harness review; independence unverified")
+    expect(ref).toContain("does not attest that endpoint's operator")
+    expect(ref).not.toContain("Z.AI, or Cursor")
+    expect(ref).not.toContain("frames it as an **independent cross-model")
+    const script = readFileSync(SCRIPT, "utf8")
+    expect(script).not.toContain("no different-provider peer reachable")
+    expect(script).not.toContain("host $HOST_PROVIDER excluded")
+    const guide = readFileSync(path.join(__dirname, "../../docs/guides/ce-code-review.md"), "utf8")
+    expect(guide).toContain("receiptless routes such as ZCode are cross-harness checks with independence unverified")
   })
 
   test("ordinary code-review peers get finishing headroom below the large-diff ceiling", () => {
@@ -1646,6 +1657,8 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(out.effort_requested).toBe("configured-unverified")
     expect(out.effort_actual).toBe("unverified")
     expect(out.receipt_supported).toBe(false)
+    expect(r.stderr).toContain("target=glm route=zcode recipient=configured-zcode-endpoint (identity unverified)")
+    expect(r.stderr).toContain("same served family excluded where attested")
   })
 
   test("zcode consumes a private snapshot when live config changes during launch", () => {

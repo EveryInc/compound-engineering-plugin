@@ -299,6 +299,12 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.effort_requested).toBe("configured-unverified")
     expect(out.effort_actual).toBe("unverified")
     expect(out.receipt_supported).toBe(false)
+    expect(result.stderr).toContain("target=glm route=zcode recipient=configured-zcode-endpoint (identity unverified)")
+    const ref = readFileSync(path.join(__dirname, "../../skills/ce-pov/references/cross-model-panel.md"), "utf8")
+    expect(ref).toContain("configured ZCode provider endpoint (recipient identity")
+    expect(ref).toContain("cross-harness review; independence unverified")
+    expect(ref).toContain("infer Z.AI or another operator")
+    expect(ref).not.toContain("means Z.AI")
   })
 
   test("zcode consumes a private snapshot when live config changes during launch", () => {

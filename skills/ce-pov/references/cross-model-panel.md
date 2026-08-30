@@ -75,7 +75,9 @@ artifact.
   main model must still equal that validated request. ZCode exposes no
   per-invocation model or reasoning flag and no served
   family/model/effort receipt, so those fields and independence remain
-  unverified. The POV remains attributed evidence without convergence weight.
+  unverified. The snapshot may select a custom provider endpoint, so neither
+  the `glm` target nor a GLM-looking model id attests the recipient as Z.AI.
+  The POV remains attributed evidence without convergence weight.
 
 Apply exactly one participation branch:
 
@@ -202,8 +204,11 @@ or `oracle` invocation is the authority to proceed. A named peer that cannot run
 within these rules is reported, never silently replaced or dropped.
 
 The pre-dispatch update should say who will inspect the subject, that the
-review is read-only, and which external provider receives it (`glm`/`zcode`
-means Z.AI). Do not recite scope mechanics, promise that repository
+review is read-only, and which external provider receives it. For `glm` through
+`zcode`, call it a **cross-harness review; independence unverified** and say
+**configured ZCode provider endpoint (recipient identity unverified)**; do not
+infer Z.AI or another operator from the target, model id, or route label. Do not
+recite scope mechanics, promise that repository
 secrets are inaccessible, or describe probe results, CLI versions, model tiers,
 commit hashes, repository identity, route health, job lifecycle, or scratch
 paths. Mention a cooperative scope restriction only when it materially changes

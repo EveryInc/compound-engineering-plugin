@@ -498,7 +498,7 @@ route_available() {
 }
 route_allowlisted "$FIXED_ROUTE" || skip "fixed route '$FIXED_ROUTE' is not fully sanctioned by CROSS_MODEL_PEERS; skipping before egress"
 route_available "$FIXED_ROUTE" || skip "fixed route '$FIXED_ROUTE' is unavailable; host must disclose and choose any retry"
-log "fixed cross-model POV route: target=$TARGET route=$FIXED_ROUTE (host $HOST_PROVIDER excluded)"
+log "fixed cross-model POV route: target=$TARGET route=$FIXED_ROUTE (host-family=$HOST_PROVIDER; independence verified only by served-family receipt)"
 
 # --- compose the peer prompt from the canonical persona (single source) ----
 # The payload is prepared by ce-pov and embeds the framed question plus any
@@ -901,7 +901,7 @@ bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then 
 
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
 attempt_route() {   # <provider> <route>
-  local provider="$1" route="$2" note
+  local provider="$1" route="$2" note recipient="$1"
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   if [ "$route" = "zcode" ] && ! validate_zcode_launch; then
     log "validated ZCode settings snapshot is missing or changed; skipping before egress"
@@ -918,7 +918,8 @@ attempt_route() {   # <provider> <route>
     cursor)      note="auto (serving model unverified)" ;;
     composer)    note="$(route_model composer)" ;;
   esac
-  log "peer run: provider=$provider route=$route model=$note POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; buffered route hard-only ${UNGUARDED_HARD_SECS}s)"
+  [ "$route" = "zcode" ] && recipient="configured-zcode-endpoint (identity unverified)"
+  log "peer run: target=$provider route=$route recipient=$recipient model=$note POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; buffered route hard-only ${UNGUARDED_HARD_SECS}s)"
   case "$route" in
     codex)
       run_codex_cmd

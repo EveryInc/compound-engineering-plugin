@@ -494,8 +494,8 @@ IFS="$OLDIFS"
 SELECTED="$(printf '%s' "$SELECTED" | sed 's/^ *//')"
 
 [ "$MAX_PEERS" -ge 1 ] || skip "CROSS_MODEL_MAX_PEERS=0; cross-model pass disabled"
-[ -n "$SELECTED" ] || skip "no different-provider peer reachable (host=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (zcode, codex, claude, grok, or cursor-agent), not an API key alone; skipping"
-log "reachable cross-model candidates for adversarial: $SELECTED (host $HOST_PROVIDER excluded; up to $MAX_PEERS successful peer(s))"
+[ -n "$SELECTED" ] || skip "no eligible cross-model route reachable (host-family=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (zcode, codex, claude, grok, or cursor-agent), not an API key alone; skipping"
+log "eligible cross-model candidates for adversarial: $SELECTED (host-family=$HOST_PROVIDER; same served family excluded where attested; up to $MAX_PEERS successful peer(s))"
 
 first_n() {
   local max="$1"; shift; local n=0 out=""
@@ -1096,7 +1096,7 @@ parse_structured() {   # <logfile> <outfile>
 }
 
 attempt_route() {
-  local provider="$1" route="$2" note scope="read-only in-tree"
+  local provider="$1" route="$2" note recipient="$1" scope="read-only in-tree"
   local attempt_hard="${ATTEMPT_HARD_SECS:-}"
   [ -n "$attempt_hard" ] || attempt_hard="$(route_hard_budget "$route")"
   PROVIDER_OUTCOME="ok"
@@ -1113,8 +1113,11 @@ attempt_route() {
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
-  [ "$route" = "zcode" ] && scope="tool-less attached diff"
-  log "peer run: provider=$provider route=$route model=$note lens=adversarial $scope (idle ${IDLE_SECS}s / attempt hard ${attempt_hard}s); reviewed code/diff may egress to this provider"
+  if [ "$route" = "zcode" ]; then
+    scope="tool-less attached diff"
+    recipient="configured-zcode-endpoint (identity unverified)"
+  fi
+  log "peer run: target=$provider route=$route recipient=$recipient model=$note lens=adversarial $scope (idle ${IDLE_SECS}s / attempt hard ${attempt_hard}s); reviewed code/diff may egress to this recipient"
   case "$route" in
     codex)
       compose_prompt_codex

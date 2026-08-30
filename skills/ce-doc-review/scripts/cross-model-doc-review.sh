@@ -538,8 +538,8 @@ IFS="$OLDIFS"
 SELECTED="$(printf '%s' "$SELECTED" | sed 's/^ *//')"
 
 [ "$MAX_PEERS" -ge 1 ] || skip "CROSS_MODEL_MAX_PEERS=0; cross-model pass disabled"
-[ -n "$SELECTED" ] || skip "no different-provider peer reachable (host=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (zcode, codex, claude, grok, or cursor-agent), not an API key alone; skipping"
-log "reachable cross-model candidates for lens $REVIEWER_NAME: $SELECTED (host $HOST_PROVIDER excluded; up to $MAX_PEERS successful peer(s))"
+[ -n "$SELECTED" ] || skip "no eligible cross-model route reachable (host-family=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (zcode, codex, claude, grok, or cursor-agent), not an API key alone; skipping"
+log "eligible cross-model candidates for lens $REVIEWER_NAME: $SELECTED (host-family=$HOST_PROVIDER; same served family excluded where attested; up to $MAX_PEERS successful peer(s))"
 
 # first_n <max> <space-separated list> -> the first <max> tokens.
 first_n() {
@@ -1067,7 +1067,7 @@ parse_structured() {   # <logfile> <outfile>
 
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
 attempt_route() {   # <provider> <route>
-  local provider="$1" route="$2" note
+  local provider="$1" route="$2" note recipient="$1"
   local attempt_hard="${ATTEMPT_HARD_SECS:-}"
   [ -n "$attempt_hard" ] || attempt_hard="$(route_hard_budget "$route")"
   PROVIDER_OUTCOME="ok"
@@ -1084,7 +1084,8 @@ attempt_route() {   # <provider> <route>
     grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
-  log "peer run: provider=$provider route=$route model=$note lens=$REVIEWER_NAME read-only least-privilege (idle ${IDLE_SECS}s / attempt hard ${attempt_hard}s); full document content egresses to this provider via this route"
+  [ "$route" = "zcode" ] && recipient="configured-zcode-endpoint (identity unverified)"
+  log "peer run: target=$provider route=$route recipient=$recipient model=$note lens=$REVIEWER_NAME read-only least-privilege (idle ${IDLE_SECS}s / attempt hard ${attempt_hard}s); full document content egresses to this recipient via this route"
   case "$route" in
     codex)
       run_codex_cmd "$attempt_hard"
