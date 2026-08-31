@@ -142,7 +142,12 @@ export function planHost(
   }
   if (host === "opencode") {
     const argv = ["opencode", "run", "--dir", opts.cwd, opts.prompt]
-    if (!opts.readOnly) argv.push("--auto")
+    if (opts.readOnly) {
+      env.OPENCODE_CONFIG_CONTENT = '{"permission":{"edit":"deny","bash":"deny"}}'
+      notes.push("read-only: OPENCODE_CONFIG_CONTENT denies edit and bash")
+    } else {
+      argv.push("--auto")
+    }
     return { host, argv, env, stdin: "null", notes }
   }
   notes.push("progress narration prints to stdout before the answer; grep for trailers, do not treat the whole file as the answer")

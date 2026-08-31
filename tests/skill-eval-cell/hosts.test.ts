@@ -56,6 +56,7 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     const readOnly = planHost("opencode", { cwd, prompt: "task", promptFile, readOnly: true })
     expect(readOnly.argv).toEqual(["opencode", "run", "--dir", cwd, "task"])
     expect(readOnly.argv).not.toContain("--auto")
+    expect(readOnly.env.OPENCODE_CONFIG_CONTENT).toBe('{"permission":{"edit":"deny","bash":"deny"}}')
     expect(attestCurrentHost({ OPENCODE_TERMINAL: "1" })).toBe("opencode")
   })
 

@@ -285,7 +285,7 @@ adapter_argv() {
       printf '%s\0' --output-format stream-json
       ;;
     opencode)
-      printf '%s\0' env 'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny"}}' \
+      printf '%s\0' env 'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","write":"deny","bash":"deny"}}' \
         opencode run --dir "$PEER_WORKDIR" --format json --file "$PROMPT_FILE"
       printf '%s\0' "Follow the attached brief. Return only schema-shaped JSON."
       _oc_model="$(route_model opencode)"
