@@ -137,7 +137,7 @@ The nested windows are one budget with one knob, `CROSS_MODEL_HARD_SECS`. The ru
 Omit `--result-path`; `done` means only that the worker exited. The fixed target determines the expected `<reviewer-name>-<target>.json` filename.
 
 - `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, or `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`, or `unknown`.
-- `<target>` is exactly one of `codex`, `claude`, `grok`, `cursor`, or `composer`; `<fixed-route>` is its already-sanctioned concrete route token from the Step 1 table (`codex`, `claude`, `grok-cli`, `grok-cursor`, `cursor`, or `composer`).
+- `<target>` is exactly one of `codex`, `claude`, `grok`, `cursor`, `composer`, or `opencode`; `<fixed-route>` is its already-sanctioned concrete route token from the Step 1 table (`codex`, `claude`, `grok-cli`, `grok-cursor`, `cursor`, `composer`, or `opencode`).
 - `<reviewer-name>` = the activated lens (`security-lens`, `adversarial`, or `product-lens`). The script derives the persona-brief filename and (per provider) model from this allowlisted value — the brief path is never caller-controlled.
 - `<document-path>` = the document under review.
 - `<document-type>` = the Phase 1 classification (`requirements` / `plan` / `unified-requirements` / `unified-plan`).

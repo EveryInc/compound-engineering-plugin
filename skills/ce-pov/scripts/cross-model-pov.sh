@@ -275,6 +275,7 @@ apply_model_override() {
     grok-cli:grok-* ) ;;
     grok-cursor:cursor-grok-* ) ;;
     composer:composer-* ) ;;
+    opencode:*/* ) ;;
     *) return 1 ;;
   esac
 }
