@@ -110,6 +110,53 @@ describe("ce-commit-push-pr contract", () => {
     )
   })
 
+  test("judges altitude by the condition, and audits the umbrella itself", async () => {
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+
+    // #1594: an opening that named the mechanism ("personas now anchor their
+    // checks to named canonical frameworks") passed every check. The core
+    // principle enumerated moves/renames/adds, and a mechanism description is
+    // none of the three, so it walked through the list. The condition replaces
+    // the enumeration; the failing shape stays as a worked example.
+    expect(content).toMatch(
+      /If the lead describes what was edited rather than what is now different for someone using this/i,
+    )
+    expect(content).not.toMatch(/moves\/renames\/adds/i)
+    expect(content).toContain("names the mechanism, not the outcome")
+
+    // The map sets the altitude the title and opening inherit, so the umbrella
+    // is stated as an outcome where it is named (Step A), not left to a
+    // downstream check that can only compare against it.
+    const sizingSection = content.match(
+      /## Step A: Size the description([\s\S]+?)## Step B:/,
+    )?.[1]
+    expect(sizingSection).toMatch(
+      /State the umbrella as what is now different for someone using this, never as the mechanism that produced it/i,
+    )
+
+    // #1457 made the opening auditable against the map but never tested the map.
+    // The umbrella check runs before the two questions that compare against it.
+    const auditSection = content.match(
+      /## Step E: Pre-apply coverage audit([\s\S]+)\s*$/,
+    )?.[1]
+    expect(auditSection).toMatch(/Is the umbrella itself an outcome/i)
+    expect(auditSection!.indexOf("Is the umbrella itself an outcome")).toBeLessThan(
+      auditSection!.indexOf("Does the title express the umbrella outcome"),
+    )
+
+    // Asked for what *and* why, #1594's revision grew the opening to ~5
+    // sentences rather than fusing them. Step C now says which way the why goes.
+    const assemblySection = content.match(
+      /## Step C: Assemble the body([\s\S]+?)## Step D:/,
+    )?.[1]
+    expect(assemblySection).toMatch(
+      /why belongs inside that one idea when it is the reason the outcome takes its shape/i,
+    )
+    expect(assemblySection).toMatch(/past two sentences it is carrying a second idea/i)
+  })
+
   test("scopes STE-inspired prose to non-load-bearing wording", async () => {
     const content = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
