@@ -457,6 +457,12 @@ Do not push and do not open a PR. Print the description's opening — the one or
       // an opening that names only the arc has no reason to mention.
       must_include: ["revo", "stamp"],
       must_include_field: "OPENING",
+      // The task asks for the commit first, and the skill resolves its range as
+      // origin/main..HEAD: with the change only staged, that range is empty against
+      // the fake origin/main and the skill is supposed to stop rather than compose.
+      // Without this the grade cannot tell an opening composed through the
+      // description path from one printed after skipping or failing the commit.
+      committed_must: ["session-stamp.js"],
     },
   },
   {
@@ -492,6 +498,10 @@ Do not push and do not open a PR. Print the description's opening — the one or
       // false-fail half of why a substring cannot grade prose.
       must_include: ["stamp"],
       must_include_field: "OPENING",
+      // Same as the enabler row: the task asks for the commit first, and an empty
+      // origin/main..HEAD range means the opening was not produced through the
+      // description path, so the commit is graded and not just the printed line.
+      committed_must: ["stale-session-guard.js"],
     },
   },
   {
