@@ -45,7 +45,7 @@ describe("ce-commit contract", () => {
     expect(content).toMatch(/never `git add -A` or `git add \.`/)
     expect(content).toContain("named files")
     expect(content).toContain("git add file1 file2 file3")
-    expect(content).toContain('git commit -m "type(scope): subject line here"')
+    expect(content).toContain("git commit -F <message-file>")
     expect(content).toContain("-- file1 file2 file3")
   })
 
