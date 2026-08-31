@@ -155,8 +155,11 @@ export function planHost(
     if (opts.readOnly) {
       // Omitting --auto is not read-only (defaults are permissive); the deny
       // overlay merges after project config, so it wins on last-match.
+      // A reviewed repo's .opencode/{plugins,agents} load as trusted runtime and
+      // can override the global deny; disable project config so the overlay holds.
+      env.OPENCODE_DISABLE_PROJECT_CONFIG = "1"
       env.OPENCODE_CONFIG_CONTENT = '{"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}'
-      notes.push("read-only: OPENCODE_CONFIG_CONTENT denies edit, bash, webfetch, and task")
+      notes.push("read-only: project config disabled; overlay denies edit, bash, webfetch, task")
     } else {
       argv.push("--auto")
     }

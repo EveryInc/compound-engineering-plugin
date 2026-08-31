@@ -494,6 +494,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     const cmd = emitAdapter("opencode")
     expect(cmd).toContain("opencode run")
     expect(cmd).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}')
+    expect(cmd).toContain("OPENCODE_DISABLE_PROJECT_CONFIG=1")
     expect(cmd).toContain("--dir <repo-root>")
     expect(cmd).toContain("--format json")
     expect(cmd).toContain("--file <prompt-file>")
