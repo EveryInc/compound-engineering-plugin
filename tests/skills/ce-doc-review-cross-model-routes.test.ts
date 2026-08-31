@@ -80,7 +80,7 @@ const SCRIPT = path.join(
   "../../skills/ce-doc-review/scripts/cross-model-doc-review.sh",
 )
 
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer", "opencode"] as const
 
 // Flags that must NEVER appear on any route — they would grant the peer write /
 // auto-approve / no-sandbox privileges (R17).
@@ -312,6 +312,16 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.6-high")
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
+  })
+
+  test("opencode run is --dir --format json without --auto", () => {
+    const cmd = emitAdapter("opencode")
+    expect(cmd).toContain("opencode run")
+    expect(cmd).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny"}}')
+    expect(cmd).toContain("--dir <peer-workdir>")
+    expect(cmd).toContain("--format json")
+    expect(cmd).toContain("--file <prompt-file>")
+    expect(cmd).not.toContain("--auto")
   })
 
   test("peer cwd/workspace is a per-peer dir separate from the shared fold-in run-dir (R17)", () => {

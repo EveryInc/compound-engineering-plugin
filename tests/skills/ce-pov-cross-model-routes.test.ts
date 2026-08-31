@@ -26,7 +26,7 @@ function temp(prefix: string): string {
 afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 
 const SCRIPT = path.join(__dirname, "../../skills/ce-pov/scripts/cross-model-pov.sh")
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer", "opencode"] as const
 const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerously-skip-permissions"]
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "dirname",
@@ -148,6 +148,12 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("cursor")).not.toContain("--model")
     expect(emit("composer")).toContain("--model")
     expect(emit("grok-cursor")).toContain("--model cursor-grok-4.6-high")
+    expect(emit("opencode")).toContain("opencode run")
+    expect(emit("opencode")).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny"}}')
+    expect(emit("opencode")).toContain("--dir <read-root>")
+    expect(emit("opencode")).toContain("--format json")
+    expect(emit("opencode")).toContain("--file <prompt-file>")
+    expect(emit("opencode")).not.toContain("--auto")
     const source = readFileSync(SCRIPT, "utf8")
     // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
     expect(source).toContain('[ "${st#Z}" = "$st" ]')
@@ -564,6 +570,21 @@ printf '%s' '${placeholder}'
 })
 
 describe("ce-pov fixed route and egress allowlist", () => {
+  test("installed opencode satisfies the fixed opencode route", () => {
+    const { env } = sandbox(["opencode"])
+    const dir = runDir()
+    const result = run(["codex", "opencode", payload(), dir], dir, env)
+    expect(result.stderr).not.toContain("is unavailable")
+    expect(result.stderr).not.toContain("not fully sanctioned")
+  })
+
+  test("missing opencode CLI skips the fixed opencode route as unavailable", () => {
+    const { env } = sandbox([])
+    const dir = runDir()
+    const result = run(["codex", "opencode", payload(), dir], dir, env)
+    expect(result.stderr).toContain("is unavailable")
+  })
+
   test("an app-bundled codex CLI off PATH satisfies the fixed codex route (issue #1272)", () => {
     const { env } = sandbox([])
     const bundle = path.join(temp("pov-bundle-"), "Codex.app", "Contents", "Resources")

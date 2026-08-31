@@ -24,7 +24,7 @@ setDefaultTimeout(20_000)
 const SCRIPT = path.join(process.cwd(), "skills/ce-work/scripts/cross-model-work.sh")
 const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspace.py")
 const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementation-result-schema.json")
-const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor", "opencode"] as const
 const ROUTE_CONTRACTS = {
   codex: { target: "codex", harness: "codex", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
   claude: { target: "claude", harness: "claude", intermediaries: [], model: "auto", restriction: "cooperative" },
@@ -32,6 +32,7 @@ const ROUTE_CONTRACTS = {
   cursor: { target: "cursor", harness: "cursor-agent", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
   composer: { target: "composer", harness: "cursor-agent", intermediaries: ["cursor"], model: "composer-2.5-fast", restriction: "adapter-enforced" },
   "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "cursor-grok-4.6-high", restriction: "adapter-enforced" },
+  opencode: { target: "opencode", harness: "opencode", intermediaries: [], model: "auto", restriction: "cooperative" },
 } as const
 const roots: string[] = []
 const templateRoots: string[] = []
@@ -133,6 +134,11 @@ case '${route}' in
   grok-cli)
     printf '%s\\n' '{"type":"activity","message":"editing"}'
     printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
+    ;;
+  opencode)
+    printf '%s\\n' '{"type":"step_start"}'
+    printf '%s\\n' '{"type":"text","part":{"type":"text","text":${JSON.stringify(final)}}}'
+    printf '%s\\n' '{"type":"step_finish","part":{"reason":"stop"}}'
     ;;
 esac
 `
@@ -250,6 +256,13 @@ describe("ce-work fixed write routes", () => {
     expect(emit("cursor").stdout).not.toContain("--model")
     expect(emit("composer").stdout).toContain("--model composer-2.5-fast")
     expect(emit("grok-cursor").stdout).toContain("--model cursor-grok-4.6-high")
+    const opencode = emit("opencode").stdout
+    expect(opencode).toContain("opencode run")
+    expect(opencode).toContain("--dir <workspace>")
+    expect(opencode).toContain("--format json")
+    expect(opencode).toContain("--auto")
+    expect(opencode).toContain("--file <prompt-file>")
+    expect(opencode).not.toContain("--model")
   })
 
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {
@@ -290,7 +303,7 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.activity_posture).toBe("incremental")
     expect(result.result.packet_digest).toBe(createHash("sha256").update(readFileSync(f.packet)).digest("hex"))
     expect(realpathSync(result.result.raw_log)).toBe(path.join(realpathSync(f.resultDir), "adapter.log"))
-    if (route === "codex" || route === "grok-cli") {
+    if (route === "codex" || route === "grok-cli" || route === "opencode") {
       expect(result.result.model_actual).toBe("unverified")
       expect(result.result.model_receipt_status).toBe("unverified")
     } else {
@@ -589,7 +602,7 @@ printf '%02048d' 0
     expect(existsSync(path.join(f.capture, "argv"))).toBe(true)
   })
 
-  test.each(["claude", "grok-cli"] as const)("%s is unavailable when enforceable confinement is required", (route) => {
+  test.each(["claude", "grok-cli", "opencode"] as const)("%s is unavailable when enforceable confinement is required", (route) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)
     const result = run(route, f, {

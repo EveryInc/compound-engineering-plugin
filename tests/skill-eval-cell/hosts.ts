@@ -7,7 +7,7 @@
  */
 import path from "node:path"
 
-export const HOSTS = ["claude", "codex", "grok"] as const
+export const HOSTS = ["claude", "codex", "grok", "opencode"] as const
 export type Host = (typeof HOSTS)[number]
 export type CurrentHost = Host | "unknown"
 
@@ -32,6 +32,7 @@ export function attestCurrentHost(env: NodeJS.ProcessEnv = process.env): Current
     return "codex"
   }
   if (env.GROK_AGENT === "1" || env.GROK_SESSION_ID) return "grok"
+  if (env.OPENCODE_TERMINAL) return "opencode"
   return "unknown"
 }
 
@@ -139,6 +140,11 @@ export function planHost(
     argv.push("--skip-git-repo-check", "-C", opts.cwd, opts.prompt)
     return { host, argv, env, stdin: "null", notes }
   }
+  if (host === "opencode") {
+    const argv = ["opencode", "run", "--dir", opts.cwd, opts.prompt]
+    if (!opts.readOnly) argv.push("--auto")
+    return { host, argv, env, stdin: "null", notes }
+  }
   notes.push("progress narration prints to stdout before the answer; grep for trailers, do not treat the whole file as the answer")
   const argv = [
     "grok",
@@ -167,7 +173,7 @@ export function wrapPrompt(opts: { skillDir: string; workspace: string; task: st
   return [
     `Read the skill at ${path.join(opts.skillDir, "SKILL.md")} first.`,
     `Resolve bundled references and scripts from that directory.`,
-    `Do not read or use an installed plugin copy of this skill (not ~/.claude, ~/.grok, ~/.agents marketplace caches, or a plugin cache).`,
+    `Do not read or use an installed plugin copy of this skill (not ~/.claude, ~/.grok, ~/.agents, ~/.config/opencode, project .opencode, or a plugin cache).`,
     `The project workspace is ${opts.workspace}. Stay inside it.`,
     ``,
     `Task:`,
