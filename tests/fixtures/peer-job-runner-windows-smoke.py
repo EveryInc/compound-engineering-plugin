@@ -20,7 +20,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
+import unittest.mock
 
 IS_WINDOWS = sys.platform == "win32"
 
@@ -81,14 +83,28 @@ class WindowsPeerJobSmoke(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.root, ignore_errors=True)
 
+    # Hosted windows-latest Python intermittently fails `_ctypes` DLL init in a
+    # freshly spawned process. The runner dies at its top-level `import ctypes`,
+    # before any side effect, so relaunching any subcommand is safe. Only this
+    # signature is retried; real failures surface on the first attempt. The CI
+    # step's whole-suite retry remains as backstop for the same flake inside the
+    # detached supervisor, which this spawn site cannot observe.
+    _CTYPES_FLAKE = "DLL load failed while importing _ctypes"
+
     def _run(self, args, timeout=90):
-        return subprocess.run(
-            [sys.executable, RUNNER, *args],
-            env=self.env,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        for attempt in range(3):
+            proc = subprocess.run(
+                [sys.executable, RUNNER, *args],
+                env=self.env,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            if proc.returncode == 0 or self._CTYPES_FLAKE not in (proc.stderr or ""):
+                return proc
+            if attempt < 2:
+                time.sleep(1)
+        return proc
 
     def _job_dir(self, job_id: str, skill="ce-doc-review", run_id="run1"):
         return os.path.join(self.root, skill, run_id, "jobs", job_id)
@@ -785,8 +801,77 @@ class WindowsPeerJobSmoke(unittest.TestCase):
         self.assertEqual(json.loads(got.stdout), {"ok": True})
 
 
+class RunRetryGateUnit(unittest.TestCase):
+    """Platform-independent coverage for `_run`'s signature-gated retry.
+
+    The smoke class only ever exercises `_run`'s success path, and it is
+    win32-gated, so without this class the retry/give-up/immediate-fail
+    branches would run nowhere deterministically.
+    """
+
+    def setUp(self):
+        # _run only reads self.env and self._CTYPES_FLAKE, so a stand-in object
+        # avoids driving the smoke class's real filesystem setUp/tearDown.
+        self.case = types.SimpleNamespace(
+            env={}, _CTYPES_FLAKE=WindowsPeerJobSmoke._CTYPES_FLAKE
+        )
+        self.sleeps = []
+        sleep_patcher = unittest.mock.patch.object(time, "sleep", self.sleeps.append)
+        sleep_patcher.start()
+        self.addCleanup(sleep_patcher.stop)
+
+    def _scripted_run(self, outcomes):
+        """Patch subprocess.run to pop one (returncode, stderr) per call."""
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(argv)
+            code, stderr = outcomes.pop(0)
+            return subprocess.CompletedProcess(argv, code, stdout="", stderr=stderr)
+
+        patcher = unittest.mock.patch.object(subprocess, "run", fake_run)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return calls
+
+    def _run(self, args):
+        return WindowsPeerJobSmoke._run(self.case, args)
+
+    def test_success_returns_first_attempt_without_sleep(self):
+        calls = self._scripted_run([(0, "")])
+        proc = self._run(["status", "job"])
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.sleeps, [])
+
+    def test_non_flake_failure_returns_immediately(self):
+        calls = self._scripted_run([(1, "RunnerError: no usable Git Bash")])
+        proc = self._run(["start", "--", "bash"])
+        self.assertEqual(proc.returncode, 1)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(self.sleeps, [])
+
+    def test_flake_then_success_retries(self):
+        flake = f"ImportError: {WindowsPeerJobSmoke._CTYPES_FLAKE}: init failed"
+        calls = self._scripted_run([(1, flake), (0, "")])
+        proc = self._run(["status", "job"])
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self.sleeps, [1])
+
+    def test_three_flakes_returns_last_failure(self):
+        flake = f"ImportError: {WindowsPeerJobSmoke._CTYPES_FLAKE}: init failed"
+        calls = self._scripted_run([(1, flake), (1, flake), (1, flake)])
+        proc = self._run(["status", "job"])
+        self.assertEqual(proc.returncode, 1)
+        self.assertIn(WindowsPeerJobSmoke._CTYPES_FLAKE, proc.stderr)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(self.sleeps, [1, 1])
+
+
 if __name__ == "__main__":
     if not IS_WINDOWS:
-        print("skip: peer-job-runner Windows smoke is for win32 only", file=sys.stderr)
-        sys.exit(0)
+        suite = unittest.TestLoader().loadTestsFromTestCase(RunRetryGateUnit)
+        result = unittest.TextTestRunner(verbosity=2).run(suite)
+        sys.exit(0 if result.wasSuccessful() else 1)
     unittest.main(verbosity=2)

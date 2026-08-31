@@ -147,7 +147,9 @@ jobs:
         # mid-suite (DLL init on _ctypes) after earlier tests already passed.
         # Product code cannot recover. Retries are signature-gated: only
         # `DLL load failed while importing _ctypes` is retried; any other
-        # nonzero exit fails this step immediately.
+        # nonzero exit fails this step immediately. A retried attempt's log is
+        # suppressed so a green step never shows failure dumps; the full log
+        # prints on success and on the terminal failure.
         shell: pwsh
         run: |
           $max = 3
@@ -156,11 +158,11 @@ jobs:
             python tests/fixtures/peer-job-runner-windows-smoke.py *> $log
             $code = $LASTEXITCODE
             $text = Get-Content -Raw -ErrorAction SilentlyContinue $log
-            if ($null -ne $text) { Write-Host $text }
-            if ($code -eq 0) { exit 0 }
-            if ($text -notmatch 'DLL load failed while importing _ctypes') { exit $code }
-            Write-Host "Windows smoke failed with known _ctypes flake (attempt $i/$max, exit $code)"
-            if ($i -eq $max) { exit $code }
+            if (($code -eq 0) -or ($text -notmatch 'DLL load failed while importing _ctypes') -or ($i -eq $max)) {
+              if ($null -ne $text) { Write-Host $text }
+              exit $code
+            }
+            Write-Host "Windows smoke hit known _ctypes flake (attempt $i/$max, exit $code); output suppressed, retrying"
             Start-Sleep -Seconds 15
           }
 
