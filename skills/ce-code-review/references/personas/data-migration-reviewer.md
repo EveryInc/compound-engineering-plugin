@@ -51,7 +51,7 @@ If neither dump file is in the diff, skip this step.
 - **Swapped or inverted ID/enum mappings** — `1 => TypeA, 2 => TypeB` in code but production has the reverse. Verify each CASE/IF branch and constant hash entry individually.
 - **Irreversible migrations without rollback plan** — column drops, precision-losing type changes, data deletes. Destructive `down` missing or non-restorative needs explicit acknowledgment.
 - **Missing backfill for new non-nullable columns** — `NOT NULL` without default or backfill fails on existing rows.
-- **Deploy-window breaks** — rename/drop before all code paths stop reading; constraints that existing rows violate.
+- **Deploy-window breaks** — rename/drop before all code paths stop reading; constraints that existing rows violate. The fix vocabulary is the expand/contract (parallel change) pattern: additive expand, migrate readers and writers, contract only after nothing reads the old shape.
 - **Orphaned references** — after drop/rename, search serializers, jobs, admin, rake tasks, `includes`/`joins` for stale columns or associations.
 - **Broken dual-write** — transition period requires both old and new columns populated; rollback otherwise sees NULLs.
 - **Missing transaction boundaries** — multi-table backfills without appropriate transaction scope.

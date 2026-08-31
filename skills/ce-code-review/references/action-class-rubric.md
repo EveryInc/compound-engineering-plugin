@@ -27,6 +27,8 @@ Do not use `review-fixer`.
 
 ## Severity Scale
 
+The merge bar is the one from Google's Code Review Developer Guide: the change must improve overall code health, not be perfect. Severity ranks by that bar — functionality and design defects outrank style and taste, and a finding whose only claim is "could be better" never blocks.
+
 All reviewers use P0-P3:
 
 | Level | Meaning | Action |
