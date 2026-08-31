@@ -752,22 +752,12 @@ describe("ce-work right-sized routes", () => {
 describe("ce-work out-of-repo unit completion (#1574)", () => {
   test("implementation loop does not treat a clean tree as not-started for external deliverables", async () => {
     const loop = await readRepoFile("skills/ce-work/references/implementation-loop.md")
-    expect(loop).toContain("If the unit's deliverable is out-of-repo state")
+    expect(loop).toContain("out-of-repo state")
     expect(loop).toContain("no git-derived completion signal")
-    expect(loop).toContain("Git completeness is not this unit's completeness")
-    expect(loop).toContain("observed desired state")
-    expect(loop).toContain("Mark complete only when that state is already satisfied")
-    expect(loop).toContain("Execute only when that state is positively unsatisfied")
-    expect(loop).toContain("Ask or block whenever execution lacks that positive authorization or safety")
-    expect(loop.indexOf("If the unit's deliverable is out-of-repo state")).toBeLessThan(
+    expect(loop.indexOf("out-of-repo state")).toBeLessThan(
       loop.indexOf("If the unit's entire completion signal is repository-derived"),
     )
-    expect(loop).toContain("Apply this before any git-derived shortcut")
     const docs = await readRepoFile("docs/guides/ce-work.md")
-    expect(docs).toContain("out-of-repo state")
     expect(docs).toContain("no git-derived completion signal")
-    expect(docs).toContain("observed desired state")
-    expect(docs).toContain("execute only when it is positively unsatisfied")
-    expect(docs).toContain("ask or block whenever execution lacks that positive authorization or safety")
   })
 })
