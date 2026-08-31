@@ -831,7 +831,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     read_only: true,
     fixture: `${FIX}/plan-holdable-objective`,
     timeout_secs: 600,
-    why: "A HOW-heavy bootstrap invocation names only the settled recommendation catalog. The listing-noise motivation lives in README.md. The pre-change Objective contract only tested user-checkable outcome / different-implementation, so packing the catalog into the Objective (or inventing an outcome from the approach names) is the failing shape. Post arm should write the holdable goal — reports about the platform you subscribed to, not listing links — with leftover constraints on their R-IDs and the catalog on Means. Grade by reading the declared Objective across arms, not by keyword. The automated probes cover the required skill read, that both capsule lines were declared, and the absence of actions.",
+    why: "A HOW-heavy bootstrap invocation names only the settled recommendation catalog. The listing-noise motivation lives in README.md. The pre-change Objective contract only tested user-checkable outcome / different-implementation, so packing the catalog into the Objective (or inventing an outcome from the approach names) is the failing shape. Post arm should write the holdable goal — reports about the platform you subscribed to, not listing links — with leftover constraints on their R-IDs and the catalog on Means. Grade by reading the declared Objective across arms, not by keyword. The automated probes cover the required skill read, the fixture problem-source read (README.md), that both capsule lines were declared, and the absence of actions.",
     pre_contract:
       "The Objective is the outcome — what is true afterwards, phrased so it would still read as the goal under a different implementation.",
     task: `Use the ce-plan skill for this work. Plan the settled Listing Watch retrieval change: infer entity scope and mention topology, compile source-aware query lanes, assign candidate evidence roles before metrics, keep broad retrieval for clean consumer brands, and have existing subscriptions adopt automatically.
@@ -839,6 +839,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
 Do not write the plan file yet. I only want the Goal Capsule right now. Print it in this reply: the Objective line and the Means line, exactly as they would appear in the plan.`,
     grade: {
       files_read_post: ["references/plan-sections.md"],
+      workspace_read: ["README.md"],
       must_include: ["Objective", "Means"],
       actions: "none",
       delegates: "none",
