@@ -160,11 +160,13 @@ describe("ce-work native characterization", () => {
     expect(dispatch).toContain("never receive a different unit")
     expect(dispatch).toContain("never retask it or retain idle implementation workers for reuse")
     expect(dispatch).toContain("Inline execution creates no worker context or handle, so it has nothing to retire")
-    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*If the unit used a native subagent worker, retire its handle.*dispatch the next subagent unit in a new worker context/s)
-    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*closing\/releasing it only when the harness exposes that operation and assigns that lifecycle action to the caller/s)
+    // #1336's scar is retire-per-unit at each action site; the close/release
+    // conditional is stated once, in the fresh worker invariant, and the
+    // after-sites point back to it rather than restating it.
+    expect(dispatch).toMatch(/Invoke an explicit close\/release operation only when the active harness exposes one and assigns that lifecycle action to the caller/)
+    expect(dispatch).toMatch(/After each serial inline\/subagent unit:.*If the unit used a native subagent worker, retire its handle per the fresh worker invariant.*dispatch the next subagent unit in a new worker context/s)
     expect(dispatch).toContain("An inline unit has no worker handle to retire; start the next unit directly")
-    expect(dispatch).toMatch(/After a parallel inline\/subagent batch.*create its canonical commit, then immediately retire that unit's worker before considering the next/s)
-    expect(dispatch).toMatch(/After a parallel inline\/subagent batch.*Invoke an explicit close\/release operation only when the harness exposes it and assigns that lifecycle action to the caller/s)
+    expect(dispatch).toMatch(/After a parallel inline\/subagent batch.*create its canonical commit, then immediately retire that unit's worker per the fresh worker invariant before considering the next/s)
     expect(dispatch).toContain("never infer manual cleanup commands from the provider name")
   })
 
