@@ -138,6 +138,11 @@ The snapshot includes committed, uncommitted, and untracked output. The worker m
 ### Transport commit
 A synthetic, base-parented commit the host builds from an external worker's complete final tree so the host can inspect and fold the result. It is intermediate evidence, not the canonical checkout commit, and it is never the worker's own tip.
 
+### Wave contract
+The condition set under which parallel implementation workers may write one shared working directory: a committed baseline before dispatch, exclusive per-worker ownership of every write surface including hidden ones (lockfiles, generated artifacts, snapshots, manifests), no worker Git operations, verification and commits held by the orchestrator, and an abort that restores the baseline when any worker writes outside its owned set.
+
+It replaces workspace isolation as the entry requirement for concurrency: isolation is the escalation for a worker that must commit, must run its own authoritative verification, or whose write surfaces cannot be audited, not the fee every parallel wave pays. A unit that cannot meet the contract serializes or takes isolation.
+
 ### Warm checkout
 A checkout whose git-ignored inventory already contains what the project's verification command needs to run: installed dependencies, virtualenvs, build caches. It is the normal state of a developer's canonical checkout, and it is the opposite of a fresh clone or newly added worktree, where verification cannot run until something installs those artifacts.
 
