@@ -1164,6 +1164,27 @@ describe("Goal Capsule objective is outcome-shaped (issue #1423)", () => {
     // capsule this reviewer exists to catch.
     expect(coherence).toMatch(/other clauses of the same Objective/i)
   })
+
+  // 2026-08-31: an Objective can pass the who-can-check / different-implementation
+  // tests and still not be holdable as a goal without later sections. Both
+  // section contracts and the coherence reviewer must name that altitude
+  // separately from the component-internals one, and must not bury it after
+  // the "however brief" exemption.
+  test("both section contracts require an Objective a reader can hold without the rest of the plan", () => {
+    for (const [doc, marker] of [
+      [planSections, "**Goal Capsule**"],
+      [brainstormSections, "`## Goal Capsule`"],
+    ] as const) {
+      const capsule = sliceSection(doc, marker, "\n- ")
+      expect(capsule).toMatch(/rest of the plan/i)
+      expect(capsule).toMatch(/owning R-IDs/i)
+    }
+  })
+
+  test("coherence reviewer flags an Objective a reader cannot hold as the goal", () => {
+    expect(coherence).toMatch(/cannot hold as the goal/i)
+    expect(coherence).toMatch(/however brief.*does not apply here/i)
+  })
 })
 
 // 2026-08-22: Lightweight brainstorms end in chat unless a file is earned, and

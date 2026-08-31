@@ -156,6 +156,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-plan/no-implement:references/output-mode.md",
         "ce-plan/no-implement:references/resume.md",
         "ce-plan/objective-above-the-changed-component:references/plan-sections.md",
+        "ce-plan/objective-holdable-without-the-rest-of-the-plan:references/plan-sections.md",
       "ce-polish/https-server-uses-actual-url:references/run.md",
         "ce-polish/start-server-reads-run:references/run.md",
         "ce-pov/oracle-dispatches-peers:references/cross-model-panel.md",

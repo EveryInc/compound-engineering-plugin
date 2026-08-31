@@ -122,7 +122,13 @@ present. They carry the contracts downstream consumers depend on.
 - **Goal Capsule** — objective, means (only when an approach is fixed),
   authority hierarchy, stop conditions, execution profile, and tail
   ownership. This is the fastest way for an executor to avoid drifting from
-  the plan. The **Objective** is always the outcome: what is true for users
+  the plan. A reader who has not read the rest of the plan must be able to
+  hold the Objective as the goal. Remaining-true constraints live on their
+  owning R-IDs, not as extra Objective clauses — user-checkable is not a
+  license to pack them onto the Objective. An Objective that is only
+  understandable after later sections is not yet the Objective, even when a
+  user could check the outcome and a different implementation would still
+  serve it. The **Objective** is always the outcome: what is true for users
   or operators afterwards, phrased so it would still read as the goal under
   a different implementation. It sits outside the component being changed,
   which is a question of who can check it rather than of which nouns it
@@ -146,7 +152,8 @@ present. They carry the contracts downstream consumers depend on.
   altitude, and the Objective is whatever depended on that component. When a
   request supplies only its approach ("move X out of A into B"), that is the
   Means; the Objective is the outcome it serves, derived from the request's
-  motivation or asked for — never the approach restated.
+  motivation, the project's stated problem, or asked for — never the approach
+  restated.
 - **Product Contract** — product scope and behavior. Contains Summary, Problem
   Frame, Requirements with stable R-IDs, and any material Actors, Flows,
   Acceptance Examples, Success Criteria, Scope Boundaries, Dependencies,
@@ -377,9 +384,10 @@ multi-sentence summary of the cited document is restatement of an owner that
 lives outside the doc.
 
 **Named test, run before the plan is declared written:** could the implementer
-find a contradiction in each section in one pass? A sentence carrying more than
-one parenthetical, a sentence chaining more than two semicolons, an item
-specifying two outcomes, or a rule stated in full in more than one section
+find a contradiction in each section in one pass? Could a colleague who was
+not in the session say what this work is after the Objective alone? A sentence
+carrying more than one parenthetical, a sentence chaining more than two
+semicolons, an item specifying two outcomes, or a rule stated in full in more than one section
 fails the test — split it (a semicolon chain becomes a list), defer it, or
 replace the duplicate with its owning ID.
 

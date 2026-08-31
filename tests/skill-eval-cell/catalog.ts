@@ -23,6 +23,8 @@ export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
 export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e2632c"
 /** main after #1514 merged: the product-lens activation leg still read "alternatives plausibly exist". */
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
+/** main before Goal Capsule required a holdable goal, not only a user-checkable outcome. */
+export const HOLDABLE_OBJECTIVE_BASE_REF = "0e758b60b35cec165470443fde5acf60db8bdae9"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -816,6 +818,28 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     grade: {
       files_read_post: ["references/plan-sections.md"],
       workspace_read: ["convex/digest.ts"],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-plan/objective-holdable-without-the-rest-of-the-plan",
+    baseline_ref: HOLDABLE_OBJECTIVE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-holdable-objective`,
+    timeout_secs: 600,
+    why: "A HOW-heavy bootstrap invocation names only the settled recommendation catalog. The listing-noise motivation lives in README.md. The pre-change Objective contract only tested user-checkable outcome / different-implementation, so packing the catalog into the Objective (or inventing an outcome from the approach names) is the failing shape. Post arm should write the holdable goal — reports about the platform you subscribed to, not listing links — with leftover constraints on their R-IDs and the catalog on Means. Grade by reading the declared Objective across arms, not by keyword. The automated probes cover the required skill read, that both capsule lines were declared, and the absence of actions.",
+    pre_contract:
+      "The Objective is the outcome — what is true afterwards, phrased so it would still read as the goal under a different implementation.",
+    task: `Use the ce-plan skill for this work. Plan the settled Listing Watch retrieval change: infer entity scope and mention topology, compile source-aware query lanes, assign candidate evidence roles before metrics, keep broad retrieval for clean consumer brands, and have existing subscriptions adopt automatically.
+
+Do not write the plan file yet. I only want the Goal Capsule right now. Print it in this reply: the Objective line and the Means line, exactly as they would appear in the plan.`,
+    grade: {
+      files_read_post: ["references/plan-sections.md"],
+      must_include: ["Objective", "Means"],
       actions: "none",
       delegates: "none",
     },
