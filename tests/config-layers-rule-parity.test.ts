@@ -64,6 +64,8 @@ describe("config-layers rule shared-asset parity", () => {
     expect(block).toContain("invalid value continues to the next layer")
     expect(block).toContain("including an empty list or map")
     expect(block).toContain("Do not** use this rule for `docs_root`")
+    expect(block).toContain("Confirm each file exists")
+    expect(block).toContain("do not Read a missing path")
   })
 
   test("cross-model peer resolution continues past an invalid local scalar", async () => {
