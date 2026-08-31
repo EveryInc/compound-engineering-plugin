@@ -124,7 +124,17 @@ describe("ce-commit-push-pr contract", () => {
       /If the lead describes what was edited rather than what is now different for someone using this/i,
     )
     expect(content).not.toMatch(/moves\/renames\/adds/i)
-    expect(content).toContain("names the mechanism, not the outcome")
+    expect(content).toContain("Bad (states how the work was done)")
+
+    // #1595 review: an unconditional "naming the mechanism is the same failure"
+    // contradicted the `TokenStore.invalidate` example under the prose rule and
+    // Step E's carve-out for a mechanism that is itself the outcome, so a
+    // literal agent could strip a correct atomicity or protocol lead. The
+    // boundary is stated as a condition, pointing at the prose rule that
+    // already owns it rather than restating the distinction a third time.
+    expect(content).toMatch(
+      /is how the work was done, while a mechanism that \*is\* what the reader gets stays/i,
+    )
 
     // The map sets the altitude the title and opening inherit, so the umbrella
     // is stated as an outcome where it is named (Step A), not left to a

@@ -6,10 +6,10 @@ The diff is already visible on GitHub. The description exists to explain what th
 
 - Bad (lists what was edited): "Adds `evidence-decider.ts`, modifies `ce-commit-push-pr/SKILL.md` to call it, and updates two test files."
 - Good: "Evidence capture now decides automatically whether a change has observable behavior. CLI tools and libraries are now eligible alongside web UIs."
-- Bad (names the mechanism, not the outcome): "`ce-code-review`'s reviewer personas now anchor their checks to named canonical frameworks."
+- Bad (states how the work was done): "`ce-code-review`'s reviewer personas now anchor their checks to named canonical frameworks."
 - Good: "`ce-code-review` now finds nine defect shapes it used to miss, and stops blocking on findings whose only claim is 'could be better.'"
 
-If the lead describes what was edited rather than what is now different for someone using this, rewrite it — restating the diff is the failure mode this skill exists to prevent. Naming the mechanism is the same failure wearing an outcome's grammar: "now anchors its checks to named frameworks" reads like a result and is still a description of the edit. For user-facing bugs, name the visible before/after first; mention the technical cause only if it helps assess risk.
+If the lead describes what was edited rather than what is now different for someone using this, rewrite it — restating the diff is the failure mode this skill exists to prevent. A mechanism written in an outcome's grammar is judged by the same condition: "now anchors its checks to named frameworks" is how the work was done, while a mechanism that *is* what the reader gets stays — the prose rule below owns that line. For user-facing bugs, name the visible before/after first; mention the technical cause only if it helps assess risk.
 
 **Prose (STE-inspired, scoped).** Write framing and connective prose in an ASD-STE100 Simplified Technical English (STE)-inspired style: short, direct sentences; one idea per sentence; one consistent term per concept. Prefer plain wording wherever domain terms are not load-bearing. Keep necessary technical jargon, identifiers, paths, protocols, and error text where they *are* the claim or the review target — do not dilute mechanism language into vague plain English. Shorten sentences, not content.
 
