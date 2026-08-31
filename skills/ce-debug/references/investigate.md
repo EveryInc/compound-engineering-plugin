@@ -29,6 +29,8 @@ Read the **full thread**, not just the opening post — every comment, with part
 
 Confirm the bug exists and understand its behavior — run the test, trigger the error, follow the reported steps, whatever matches the input.
 
+**Reproduction is complete when you hold a named, repeatable check that fails on this bug now and will pass once it is fixed** — a test invocation, a script, a curl, a CLI run — and you have run it at least once and seen it fail on the user's exact symptom, not merely error somewhere nearby. That check is the instrument for everything downstream: Phase 2 tests hypotheses against it, and Phase 3 verifies the fix by re-running it. "I read the code and see the problem" is not reproduction. If no such check can be built here, that is the cannot-reproduce path below — document what was tried and what is missing, and ask the user for the environment, a captured artifact, or the go-ahead to proceed on observation alone; it is never license to start hypothesizing as though reproduction had succeeded.
+
 - **Browser bugs:** prefer `agent-browser` if installed; otherwise use whatever works (MCP browser tools, direct URL testing, screenshots).
 - **Manual setup required:** if reproduction needs conditions the agent cannot create alone (data states, user roles, external services, env config), document the exact setup steps and guide the user through them.
 - **Does not reproduce after 2-3 attempts:** read `references/investigation-techniques.md` for intermittent-bug techniques.
@@ -84,7 +86,7 @@ Read `references/anti-patterns.md` before forming hypotheses. Its rationalizatio
 
 **Assumption audit (before hypothesis formation):** list the concrete "this must be true" beliefs your understanding depends on — the framework behaves as expected here, this function returns what its name implies, the config loads before this runs, the caller passes a non-null value, the database is in the state the test implies. Mark each *verified* (you read the code, checked state, or ran it) or *assumed*. Many "wrong hypotheses" are correct hypotheses tested against a wrong assumption.
 
-**Form hypotheses** ranked by likelihood. Each states:
+**Form hypotheses** ranked by likelihood. Before testing the top one, name at least one competing explanation for the same symptom and why it ranks lower — a single-candidate list anchors on the first plausible idea, and the cheapest moment to catch that is before any probe runs. In interactive mode, include the ranking in what the user sees as findings develop; their domain knowledge often re-ranks it instantly. Each hypothesis states:
 
 - What is wrong and where (file:line).
 - **At least one concrete observation that supports it** — a runtime value, a log line, an instrumented boundary capture, a behavior delta against a working comparison case, or a specific code reference. "X seems off" is not evidence; "X equals null at line 42 because Y was never initialized in the constructor path that runs under condition Z" is. Ungrounded hypotheses are theorizing — go back to Phase 1 and instrument.

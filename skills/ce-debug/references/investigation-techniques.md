@@ -208,6 +208,16 @@ For test runs, most test runners integrate with the above — e.g., `node --insp
 
 ---
 
+## Performance Regressions
+
+When the symptom is "slow" rather than "wrong", logs and code reading mislead: intuition about where time goes is unreliable, and a plausible-looking hot spot is a hypothesis, not evidence. Measure first, change second:
+
+- Establish a numeric baseline before touching anything — a timing harness around the slow operation, a profiler run, a query plan (`EXPLAIN ANALYZE`). The baseline is Phase 1's reproduction check for a perf bug: the number is the red, and the fix is verified by re-measuring the same thing, not by reasoning that the change should be faster.
+- Attribute before optimizing: a profile or per-stage timings that show where the time actually goes. Optimizing an unmeasured suspect is the perf version of shotgun debugging.
+- If the slowness is a regression, bisect against the measurement (see Git Bisect above) rather than reading diffs for something that looks expensive.
+
+---
+
 ## Race Condition Investigation
 
 When timing or concurrency is suspected:

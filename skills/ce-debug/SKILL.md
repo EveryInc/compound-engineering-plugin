@@ -1,6 +1,6 @@
 ---
 name: ce-debug
-description: "Diagnosis loop for bugs and failing behavior. Use when asked to debug or fix failing behavior."
+description: "Diagnosis loop for bugs and failing behavior. Use when asked to debug or fix failing or slow behavior."
 argument-hint: "[issue reference, error message, test path, or description of broken behavior]"
 ---
 
@@ -22,6 +22,10 @@ Default is **interactive**: investigate, run the Phase 2 fix-choice gate, then t
 ## Blocking questions
 
 Wherever this skill asks the user something, use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to numbered options on the host's chat surface only when no such tool is in the list or a real question call errors. Never silently skip the question, and never end a phase without a response.
+
+## Secrets in evidence
+
+Debugging surfaces raw output constantly — command results, captured payloads, log excerpts — and this skill shows evidence to the user, writes it into findings and summaries, and commits artifacts. No secret (credential, token, auth header, connection string) appears in anything shown, written, or committed: redact it in place with `<REDACTED>`, and build reproduction commands against env vars so the credential stays in the environment rather than in the command line. If redaction removes what the diagnosis needs, say so and ask the user rather than un-redacting.
 
 ## Artifact Root
 
