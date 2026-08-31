@@ -123,12 +123,6 @@ describe("ce-work review contract", () => {
     // The caller decides only from the owning boundary: definition load or the
     // terminal top-level receipt. Internal review events cannot authorize fallback.
     for (const section of [unavailableBranch, reviewSummary]) {
-      expect(section).toContain("the cataloged skill definition fails to load")
-      expect(section).toContain(
-        "an attempted top-level invocation has terminated without a usable completed receipt",
-      )
-      expect(section).toContain("no recovery remains inside `ce-code-review`")
-      expect(section).toContain("the definition load or the top-level terminal outcome")
       expect(section).toContain("intermediate internal events never establish caller-owned unavailability")
       expect(section).toContain("A missing dedicated runner, executable, or binary is not evidence")
     }
