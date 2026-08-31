@@ -1111,6 +1111,7 @@ attempt_route() {
     opencode)
       compose_prompt_embedded
       run_timeout_cmd "" "$attempt_hard" idle
+      classify_route_output
       [ "$RUN_SUCCEEDED" = true ] && parse_opencode_events "$PEERLOG" "$RAW_OUT"
       ;;
   esac

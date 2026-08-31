@@ -152,16 +152,19 @@ export function planHost(
   }
   if (host === "opencode") {
     const argv = ["opencode", "run", "--dir", opts.cwd, opts.prompt]
+    // Always disable project config: a fixture's .opencode/{plugins,agents} load
+    // as trusted runtime before wrapPrompt's "don't use project .opencode" can
+    // apply, contaminating the eval (and, in a reviewed repo, overriding the deny).
+    // Only the permission overlay and --auto posture vary between read-only and write.
+    env.OPENCODE_DISABLE_PROJECT_CONFIG = "1"
     if (opts.readOnly) {
       // Omitting --auto is not read-only (defaults are permissive); the deny
       // overlay merges after project config, so it wins on last-match.
-      // A reviewed repo's .opencode/{plugins,agents} load as trusted runtime and
-      // can override the global deny; disable project config so the overlay holds.
-      env.OPENCODE_DISABLE_PROJECT_CONFIG = "1"
       env.OPENCODE_CONFIG_CONTENT = '{"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}'
       notes.push("read-only: project config disabled; overlay denies edit, bash, webfetch, task")
     } else {
       argv.push("--auto")
+      notes.push("write: project config disabled so only the extracted skill ref is exercised")
     }
     return { host, argv, env, stdin: "null", notes }
   }

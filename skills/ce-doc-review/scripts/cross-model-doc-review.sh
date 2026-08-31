@@ -1077,6 +1077,7 @@ attempt_route() {   # <provider> <route>
       classify_route_output
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
     opencode)    run_timeout_cmd "" "$attempt_hard" idle
+                 classify_route_output
                  [ "$RUN_SUCCEEDED" = true ] && parse_opencode_events "$PEERLOG" "$RAW_OUT" ;;
   esac
   if [ "$RUN_SUCCEEDED" != true ]; then
