@@ -47,6 +47,9 @@ Treat this as a snapshot. Re-read branch and staged set immediately before commi
 
 ```bash
 git add file1 file2 file3
+```
+
+```bash
 git commit -F <message-file> -- file1 file2 file3
 ```
 
