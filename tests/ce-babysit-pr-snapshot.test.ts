@@ -3150,7 +3150,9 @@ print(json.dumps({
     mark(state, ["--thread", "T1", "--invariant-key", "golden-boundary"])
     snapshot(state, fetchFile(dir, "h2.json", t("h2")))
     mark(state, ["--thread", "T1", "--invariant-key", "golden-boundary"])
-    snapshot(state, fetchFile(dir, "h3.json", t("h3")))
+    // Two recorded rounds is the trigger state: the next fix would be the third.
+    const atTrigger = snapshot(state, fetchFile(dir, "h3.json", t("h3")))
+    expect(atTrigger.trajectory.invariant_rounds).toEqual([{ key: "golden-boundary", rounds: 2 }])
     mark(state, ["--thread", "T1", "--invariant-key", "golden-boundary"])
     const d = snapshot(state, fetchFile(dir, "h3b.json", { ...FAILING, head_sha: "h3", checks: [], threads: [] }))
     expect(d.trajectory.invariant_rounds).toEqual([{ key: "golden-boundary", rounds: 3 }])
