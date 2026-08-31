@@ -1535,6 +1535,7 @@ describe("cross-model peer skip legibility", () => {
     test(`${reference} keeps Cursor harness identity separate from serving family`, async () => {
       const src = await readRepoFile(reference)
       expect(src).toContain("XHOST_HARNESS=cursor; XHOST_FAMILY=unknown")
+      expect(src).toContain("XHOST_HARNESS=opencode; XHOST_FAMILY=unknown")
       expect(src).not.toContain("XHOST_FAMILY=cursor")
       expect(src).toContain("Never infer serving family from the Cursor brand")
     })

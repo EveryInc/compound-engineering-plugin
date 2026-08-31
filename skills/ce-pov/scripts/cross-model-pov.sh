@@ -124,6 +124,7 @@ route_model() {   # <route> -> the M_* constant that route requests
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
+    opencode)    printf 'auto' ;;
   esac
 }
 
@@ -131,6 +132,7 @@ route_target() {
   case "$1" in
     codex|claude|cursor|composer) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
+    opencode) printf 'opencode' ;;
   esac
 }
 
@@ -140,6 +142,7 @@ route_harness() {
     claude) printf 'claude' ;;
     grok-cli) printf 'grok' ;;
     grok-cursor|cursor|composer) printf 'cursor-agent' ;;
+    opencode) printf 'opencode' ;;
   esac
 }
 
@@ -147,6 +150,7 @@ target_serving_family() {
   case "$1" in
     codex|claude|grok|composer) printf '%s' "$1" ;;
     cursor) printf 'unknown' ;;
+    opencode) printf 'unknown' ;;
   esac
 }
 
@@ -243,6 +247,13 @@ adapter_argv() {
       printf '%s\0' cursor-agent -p --model "$(route_model composer)" --mode ask --trust \
         --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
       ;;
+    opencode)
+      printf '%s\0' env 'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny"}}' \
+        opencode run --dir "$READ_ROOT" --format json --file "$PROMPT_FILE"
+      printf '%s\0' "Follow the attached brief. Return only schema-shaped JSON."
+      _oc_model="$(route_model opencode)"
+      [ "$_oc_model" = "auto" ] || [ -z "$_oc_model" ] || printf '%s\0' --model "$_oc_model"
+      ;;
     *) return 1 ;;
   esac
 }
@@ -277,7 +288,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   apply_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -327,12 +338,12 @@ case "$HOST_PROVIDER" in
   *) skip "host serving family '$HOST_PROVIDER' invalid (want codex|claude|grok|composer|unknown)" ;;
 esac
 case "$HOST_HARNESS" in
-  codex|claude|grok|cursor|unknown) ;;
-  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|unknown)" ;;
+  codex|claude|grok|cursor|opencode|unknown) ;;
+  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|unknown)" ;;
 esac
 
 case "$FIXED_ROUTE" in
-  codex|claude|grok-cli|grok-cursor|cursor|composer) ;;
+  codex|claude|grok-cli|grok-cursor|cursor|composer|opencode) ;;
   *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;
 esac
 TARGET="$(route_target "$FIXED_ROUTE")" || skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress"
@@ -382,6 +393,7 @@ route_allowlisted() {
     grok-cursor)
       in_csv grok "$ALLOW" && { in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
       ;;
+    opencode) in_csv opencode "$ALLOW" ;;
     *) return 1 ;;
   esac
 }
@@ -413,6 +425,7 @@ route_available() {
     claude) command -v claude >/dev/null 2>&1 ;;
     grok-cli) command -v grok >/dev/null 2>&1 ;;
     grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
+    opencode) command -v opencode >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -766,6 +779,19 @@ parse_structured() {   # <logfile> <outfile>
   [ "$picked" = true ]
 }
 
+parse_opencode_events() {  # <logfile> <outfile>
+  local text tmp
+  text="$(jq -rs '[.[] | select(.type=="text") | (.part.text // empty)] | join("")' "$1" 2>/dev/null)" || text=""
+  [ -n "$text" ] || return 1
+  printf '%s' "$text" | jq -e '.' > "$2" 2>/dev/null && return 0
+  tmp="$(mktemp "${TMPDIR:-/tmp}/ce-opencode-text-XXXXXX")" || return 1
+  printf '%s' "$text" > "$tmp"
+  recover_pov_json "$tmp" "$2"
+  local st=$?
+  rm -f "$tmp"
+  return "$st"
+}
+
 bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then bounded head+tail
   local path="$1" human ancillary evidence
   human="$(jq -r '
@@ -805,6 +831,7 @@ attempt_route() {   # <provider> <route>
     grok-cursor) note="$(route_model grok-cursor)" ;;
     cursor)      note="auto (serving model unverified)" ;;
     composer)    note="$(route_model composer)" ;;
+    opencode)    note="auto (serving model unverified)" ;;
   esac
   log "peer run: provider=$provider route=$route model=$note POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; grok-cli hard-only ${UNGUARDED_HARD_SECS}s)"
   case "$route" in
@@ -825,6 +852,8 @@ attempt_route() {   # <provider> <route>
       # the exec with E2BIG on low-limit hosts, whereas stdin has no size limit.
       run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
+    opencode)    run_timeout_cmd "" "$HARD_SECS" idle
+                 [ "$RUN_SUCCEEDED" = true ] && parse_opencode_events "$PEERLOG" "$RAW_OUT" ;;
   esac
   if [ "$RUN_SUCCEEDED" != true ]; then
     rm -f "$RAW_OUT"

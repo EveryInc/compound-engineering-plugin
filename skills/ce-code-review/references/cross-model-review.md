@@ -22,10 +22,11 @@ if [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=claude;
 elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST_HARNESS=codex; XHOST_FAMILY=codex;
 elif [ "${GROK_AGENT:-}" = "1" ] || [ -n "${GROK_SESSION_ID:-}" ]; then XHOST_HARNESS=grok; XHOST_FAMILY=grok;
 elif [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST_HARNESS=cursor; XHOST_FAMILY=unknown;
+elif [ -n "${OPENCODE_TERMINAL:-}" ]; then XHOST_HARNESS=opencode; XHOST_FAMILY=unknown;
 else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 ```
 
-Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the first worker argument. The snippet is evidence, not the verdict: it resolves the harnesses whose environment markers it already names, and where it yields `unknown` on a harness you can identify from your own runtime, attest what you know instead. A harness the snippet does not name needs no new branch here. Both tokens come from the peer-key vocabulary the worker accepts, never a provider's corporate name — family `codex`, `claude`, `grok`, `composer`, or `unknown`; harness `codex`, `claude`, `grok`, `cursor`, or `unknown` — and a name such as `anthropic`, `openai`, or `xai` in either slot fail-closes the job with no artifact.
+Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the first worker argument. The snippet is evidence, not the verdict: it resolves the harnesses whose environment markers it already names, and where it yields `unknown` on a harness you can identify from your own runtime, attest what you know instead. A harness the snippet does not name needs no new branch here. Both tokens come from the peer-key vocabulary the worker accepts, never a provider's corporate name — family `codex`, `claude`, `grok`, `composer`, or `unknown`; harness `codex`, `claude`, `grok`, `cursor`, `opencode`, or `unknown` — and a name such as `anthropic`, `openai`, or `xai` in either slot fail-closes the job with no artifact.
 
 Cursor is the one identity self-knowledge cannot complete, because the harness does not determine the serving model: it keeps family `unknown` unless an observable serving-family attestation supplies `codex`, `claude`, `grok`, or `composer`. Never infer serving family from the Cursor brand. An unknown host family cannot satisfy automatic same-family exclusion, so skip the automatic cross-model pass.
 
@@ -55,6 +56,7 @@ Before egress, resolve the target to one concrete installed route, announce it, 
 | `grok` | `grok-cli` (native CLI) or `grok-cursor` (via Cursor intermediary) |
 | `cursor` | `cursor` |
 | `composer` | `composer` |
+| `opencode` | `opencode` |
 
 The host harness does not choose the Grok route. Target `grok` binds `grok-cli` when that CLI is installed. Bind `grok-cursor` only when the user asked for Grok through Cursor, or when the grok CLI is absent and Cursor is a sanctioned recipient.
 

@@ -50,14 +50,23 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(plan.stdin).toBe("null")
   })
 
-  test("from grok the default peers are claude and codex", () => {
+  test("opencode uses run --dir and omits --auto when read-only", () => {
+    const plan = planHost("opencode", { cwd, prompt: "task", promptFile })
+    expect(plan.argv).toEqual(["opencode", "run", "--dir", cwd, "task", "--auto"])
+    const readOnly = planHost("opencode", { cwd, prompt: "task", promptFile, readOnly: true })
+    expect(readOnly.argv).toEqual(["opencode", "run", "--dir", cwd, "task"])
+    expect(readOnly.argv).not.toContain("--auto")
+    expect(attestCurrentHost({ OPENCODE_TERMINAL: "1" })).toBe("opencode")
+  })
+
+  test("from grok the default peers are claude, codex, and opencode", () => {
     expect(attestCurrentHost({ GROK_AGENT: "1" })).toBe("grok")
-    expect(peerHosts("grok")).toEqual(["claude", "codex"])
+    expect(peerHosts("grok")).toEqual(["claude", "codex", "opencode"])
     const resolved = resolveRunHosts({
       env: { GROK_AGENT: "1" },
-      onPath: (host) => host === "claude" || host === "codex",
+      onPath: (host) => host === "claude" || host === "codex" || host === "opencode",
     })
-    expect(resolved.run).toEqual(["claude", "codex"])
+    expect(resolved.run).toEqual(["claude", "codex", "opencode"])
     expect(resolved.ownEvalOnly).toBe(false)
     expect(resolved.warnings).toEqual([])
   })
@@ -120,5 +129,7 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(prompt.toLowerCase()).not.toContain("eval")
     expect(prompt).toContain("Babysit PR #12.")
     expect(prompt).toContain("FILES_READ:")
+    expect(prompt).toContain("~/.config/opencode")
+    expect(prompt).toContain("project .opencode")
   })
 })

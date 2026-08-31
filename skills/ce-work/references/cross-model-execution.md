@@ -6,7 +6,7 @@ Load this reference only after the cross-model engine is selected or recovery of
 
 Use only these targets: `codex`, `claude`, `grok`, `cursor`, and `composer`. Keep five identity facts separate in every disclosure and receipt: target, harness/intermediary route, requested model, actual model, and receipt status.
 
-**Fixed controller route tokens:** record exactly `codex`, `claude`, `grok-cli`, `cursor`, `composer`, or `grok-cursor` in the egress sanction. `grok-cli` maps target `grok` to its native harness; `grok-cursor` maps target `grok` through intermediary `cursor`. These controller tokens are not descriptive route labels.
+**Fixed controller route tokens:** record exactly `codex`, `claude`, `grok-cli`, `cursor`, `composer`, `grok-cursor`, or `opencode` in the egress sanction. `grok-cli` maps target `grok` to its native harness; `grok-cursor` maps target `grok` through intermediary `cursor`. These controller tokens are not descriptive route labels.
 
 - `cursor` means the Cursor harness with its configured default model.
 - `composer` means a Composer-family model through Cursor.

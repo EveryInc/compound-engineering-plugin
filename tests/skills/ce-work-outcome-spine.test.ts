@@ -362,7 +362,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("claude")
     expect(protocol).toContain("grok")
     expect(protocol).toContain("Fixed controller route tokens")
-    expect(protocol).toContain("`codex`, `claude`, `grok-cli`, `cursor`, `composer`, or `grok-cursor`")
+    expect(protocol).toContain("`codex`, `claude`, `grok-cli`, `cursor`, `composer`, `grok-cursor`, or `opencode`")
   })
 
   test("defines prefer, require, fixed-recipient sanction, and restriction failure", async () => {
