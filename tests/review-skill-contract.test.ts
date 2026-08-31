@@ -530,6 +530,7 @@ describe("ce-code-review contract", () => {
       "skills/ce-code-review/references/dispatch-reviewers.md",
     )
     expect(dispatch).toContain('isolation: "worktree"')
+    expect(dispatch).toContain("HEAD equals the reviewed commit")
     expect(dispatch).toContain("Mutation testing on the shared tree is forbidden")
     expect(dispatch).toContain("faithful snapshot of the reviewed tree")
     expect(dispatch).toContain("local-aligned")
