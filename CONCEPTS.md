@@ -168,6 +168,9 @@ An agent performing a Skill-shaped action without that Skill's instructions load
 ### Reviewer persona
 A single-lens reviewer role that evaluates work from one specific perspective — security, correctness, scope, design, and so on. Review Skills dispatch a panel of personas as subagents and merge their findings.
 
+### Detection condition
+The stated, observable circumstance under which a Reviewer persona check fires — what must be visible in the work under review, not a topic to opine on. When a check carries a canonical framework name from the design or security literature, the name supplies shared vocabulary for the finding while the detection condition alone decides whether the finding exists; a check may also attach an evidence guard, a requirement to quote the occurrences that satisfy the condition before claiming a high Confidence anchor.
+
 ### Confidence anchor
 A discrete, self-scored confidence value on a fixed small scale, each level tied to a behavioral criterion the model can honestly apply, used to gate and rank review findings instead of a continuous score that invites false precision. Each review Skill sets its own actionable threshold; corroboration across personas promotes a finding by one level, but only when those personas meet the bar in Independence.
 
