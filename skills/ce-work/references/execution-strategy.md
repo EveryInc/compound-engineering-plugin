@@ -52,7 +52,7 @@ Give each native worker:
 - **Exclusive ownership, including hidden write surfaces.** Beyond the disjoint declared files the Safety Check already verified, every hidden write surface — lockfiles, generated artifacts, snapshots, formatter sweeps, package manifests — is either excluded from all workers or assigned to exactly one.
 - **No worker Git operations.** Workers must not `git add`, commit, or otherwise write the index — concurrent index writes corrupt the shared index. The orchestrator stages and commits after the batch.
 - **Orchestrator-owned verification.** Workers run no mutating verification (full suites, installs, builds that write shared state); a worker may run a single focused unit test only if it touches no shared state. The authoritative run happens after the wave on the integrated tree.
-- **Abort on unowned writes.** A write outside a worker's exclusive set aborts the wave, restores the baseline, and disables further shared-workspace waves for the run.
+- **Abort on unowned writes.** A write outside every worker's exclusive set aborts the wave and disables further shared-workspace waves for the run. Restore to the baseline only changes attributable to a worker; a change no worker accounts for may be the user's — preserve it and stop for reconciliation rather than discarding it.
 
 **Permission mode:** Omit the `mode` parameter when dispatching subagents so the user's configured permission settings apply. Do not pass `mode: "auto"` — it overrides user-level settings like `bypassPermissions`.
 

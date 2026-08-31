@@ -43,7 +43,7 @@ The replacement contract landed in PR #1598 (opened, unmerged as of this writing
 2. **Exclusive ownership, including hidden write surfaces.** Beyond disjoint declared files, every hidden write surface — lockfiles, generated artifacts, snapshots, formatter sweeps, package manifests — is either excluded from all workers or assigned to exactly one.
 3. **No worker Git operations.** Concurrent index writes corrupt the shared index — the failure class already recorded in `docs/solutions/skill-design/sandbox-workers-must-not-write-linked-worktree-git-index.md`. The orchestrator stages and commits after the batch.
 4. **Orchestrator-owned verification.** Workers run no mutating verification (full suites, installs, builds that write shared state); a worker may run a single focused test only if it touches no shared state. The authoritative run happens after the wave on the integrated tree.
-5. **Abort on unowned writes.** A write outside a worker's exclusive set aborts the wave, restores the baseline, and disables further shared-workspace waves for the run.
+5. **Abort on unowned writes.** A write outside every worker's exclusive set aborts the wave and disables further shared-workspace waves for the run. Only worker-attributable changes are rolled back; a change no worker accounts for may be the user's and is preserved for reconciliation.
 
 **Isolation is the escalation, not the entry fee.** A worker that must commit, must run its own authoritative verification, or has write surfaces that cannot be audited takes an isolated workspace. Everything else can run in a conditioned shared wave.
 
@@ -51,7 +51,7 @@ The replacement contract landed in PR #1598 (opened, unmerged as of this writing
 
 ## Why This Matters
 
-The trade the old rule made was inverted: it paid a certain cost (hours of serial execution on every multi-unit plan, on the harnesses most people run) to buy protection against one residual hazard whose failure cost is bounded and small. If a worker silently overwrites a sibling's owned file, the abort-on-unowned-writes condition catches it at integration, the baseline restore discards the wave, and the redo costs minutes. Serial-by-default costs hours on every run, including the overwhelming majority where nothing would have gone wrong.
+The trade the old rule made was inverted: it paid a certain cost (hours of serial execution on every multi-unit plan, on the harnesses most people run) to buy protection against one residual hazard whose failure cost is bounded and small. If a worker silently overwrites a sibling's owned file, the abort-on-unowned-writes condition catches it at integration, the worker-attributable changes are rolled back, and the redo costs minutes. Serial-by-default costs hours on every run, including the overwhelming majority where nothing would have gone wrong.
 
 The blanket rule also violated this repo's own standard: state conditions, not cases. "Isolation or serial" is a case-shaped answer to a condition-shaped question — the real question is "what must hold for concurrent writes to one directory to be safe?", and it has a five-line answer. When a rule keeps forbidding runs that demonstrably work (the 2026-08-29 Codex run), the representation is wrong, and the fix is to name the conditions the safe runs satisfied.
 
@@ -82,7 +82,7 @@ a shared-workspace worker runs serially regardless of declared file disjointness
 directory is permitted only while all of these hold; a unit that cannot meet
 one serializes or gets isolation: [clean committed baseline; exclusive
 ownership including hidden write surfaces; no worker Git operations;
-orchestrator-owned verification; abort on unowned writes]
+orchestrator-owned verification; abort on unowned writes (rolling back only worker-attributable changes)]
 ```
 
 **Probe outcome.** Given four disjoint units where one adds a dependency (a lockfile write — a hidden write surface no other unit may share), both probe hosts dispatched the three clean units as a single parallel wave, serialized the dependency-adding unit, and forbade worker Git operations. That is the contract working as intended: concurrency where the conditions hold, serialization exactly where one fails, no blanket rule in either direction.
