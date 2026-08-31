@@ -184,11 +184,11 @@ Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your global instruction file
 
 **Offer first** (the agent asks before capturing):
 
-> After a solved, verified problem produces a non-trivial, reusable learning, offer once, before the final handoff, to invoke the `ce-compound` skill. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
+> After a solved, verified problem produces a non-trivial, reusable learning, offer once to invoke the `ce-compound` skill, at the completion checkpoint — when the unit of work is complete and before the PR is opened — so the learning can ship in the PR that produced it. A learning that surfaces mid-work is offered at that checkpoint, not deferred; one that only becomes clear during review is offered before the PR merges. Merge is not the trigger. Only where the repository treats captured learnings as tracked, committed knowledge.
 
 **Run it automatically** (no prompt):
 
-> After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:non-interactive` as the skill argument. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
+> After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:non-interactive` as the skill argument. Fire at the completion checkpoint — when the unit of work is complete and before the PR is opened — so the learning ships in the PR that produced it rather than as a later orphan. A learning that surfaces mid-work is captured at that checkpoint, not deferred; one that only becomes clear during review is captured before the PR merges, not after. Merge is not the trigger. Only where the repository treats captured learnings as tracked, committed knowledge.
 
 Use `mode:non-interactive depth:lightweight` instead when the standing workflow accepts reduced research and validation in exchange for a single-pass, no-subagent closure.
 
@@ -197,9 +197,9 @@ Auto-run writes to `docs/solutions/` (and may touch `CONCEPTS.md`) without askin
 A few phrases in those standing lines are load-bearing:
 
 - "invoke the `ce-compound` skill", not "run `/ce-compound`": instruction files are read by whatever agent you are using, and the slash-command form is not reliably agent-callable across all of them.
-- "before the final handoff", not "at the end of the session": an agent cannot reliably tell when a session has ended, but it does know when it is about to hand a verified result back to you.
+- "at the completion checkpoint ... before the PR is opened", not "at the end of the session" or "before the final handoff": an agent cannot reliably tell when a session has ended, and a handoff can come after the PR is already open. The checkpoint it can recognize is the one it already uses to wrap up a unit of work, and capturing there is what puts the learning in the PR that produced it — reviewable beside the change it describes, instead of an orphan commit afterward.
 - "non-trivial, reusable learning": the bar is a generalizable insight worth re-reading, not an expensive one-off with nothing to reuse.
-- "repositories that accept `docs/solutions/`": the real question is whether the repo welcomes generated learning docs. Forks and open-source projects you contribute to often do not.
+- "treats captured learnings as tracked, committed knowledge", not a named folder: the real question is whether the repo welcomes generated learning docs — forks and open-source projects you contribute to often do not. Naming a path in a standing instruction also goes stale, since `docs_root` can move the store; the skill resolves the location itself.
 
 ---
 
@@ -209,7 +209,7 @@ A few phrases in those standing lines are load-bearing:
 docs/solutions/[category]/[filename].md
 ```
 
-Categories are auto-detected. Bug-track examples: `build-errors/`, `test-failures/`, `runtime-errors/`, `performance-issues/`, `database-issues/`, `security-issues/`, `ui-bugs/`, `integration-issues/`, `logic-errors/`. Knowledge-track examples: `architecture-patterns/`, `design-patterns/`, `tooling-decisions/`, `conventions/`, `workflow-issues/`, `developer-experience/`, `documentation-gaps/`, `best-practices/`.
+That is the default root; the store follows `docs_root` if it is set in `config.yaml`, so on a project that relocates CE artifacts the path is `<docs_root>/solutions/...`. Categories are auto-detected. Bug-track examples: `build-errors/`, `test-failures/`, `runtime-errors/`, `performance-issues/`, `database-issues/`, `security-issues/`, `ui-bugs/`, `integration-issues/`, `logic-errors/`. Knowledge-track examples: `architecture-patterns/`, `design-patterns/`, `tooling-decisions/`, `conventions/`, `workflow-issues/`, `developer-experience/`, `documentation-gaps/`, `best-practices/`.
 
 The doc carries YAML frontmatter (`module`, `tags`, `problem_type`, and so on) for searchability. Validation runs through `scripts/validate-frontmatter.py` to catch silent corruption, and `scripts/validate-doc-claims.py` checks the body's cited paths, SHAs, links, and drafting scaffold against the tree.
 
