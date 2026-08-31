@@ -69,5 +69,5 @@ Give each native worker:
 **Per-harness integration (examples — the universal flow above is the contract):**
 - **Harness-owned worktree/branch:** integrate one branch in dependency order, verify, and commit before the next; on conflict abort and re-run or explicitly resolve that unit against the advanced tree.
 - **Harness-owned uploaded change set:** accept one isolated result, inspect and verify it, commit it canonically, then release the worker before the next result.
-- **Shared workspace:** worker outputs sit uncommitted in the one working directory; attribute each unit by its exclusive file set from the wave contract, then verify and commit in dependency order.
+- **Shared workspace:** worker outputs sit uncommitted in the one working directory. Ownership decides who *may* write a path, never what a delta *is*: attribute each delta from what the unit's worker reports and inspection confirms, and commit or roll back only worker-attributed changes — a delta no worker accounts for, inside or outside an owned set, may be the user's, so preserve it and stop for reconciliation. Verify and commit in dependency order.
 - **External cross-model workspace:** follow the conditionally loaded cross-model parallel-wave protocol and controller receipts; ordinary branch-merge shortcuts do not apply.
