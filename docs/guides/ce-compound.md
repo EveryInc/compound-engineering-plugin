@@ -197,9 +197,9 @@ Auto-run writes to `docs/solutions/` (and may touch `CONCEPTS.md`) without askin
 A few phrases in those standing lines are load-bearing:
 
 - "invoke the `ce-compound` skill", not "run `/ce-compound`": instruction files are read by whatever agent you are using, and the slash-command form is not reliably agent-callable across all of them.
-- "at the completion checkpoint", with the deadline stated as commit-reachability rather than a PR event: an agent cannot reliably tell when a session has ended, and pegging the deadline to PR creation breaks the moment a PR opens early — on a draft-first flow the unit completes after the PR exists, so "before the PR is opened" is already unsatisfiable and an implementation learning found then belongs to no clause at all. Asking whether the learning can still be committed to the producing PR covers every case, because that is the property actually wanted: the learning lands beside the change it describes instead of as an orphan commit afterward. The checkpoint stays the *when*; commit-reachability is only the outer bound, not a licence to defer to it.
-- "non-trivial, reusable learning": the bar is a generalizable insight worth re-reading, not an expensive one-off with nothing to reuse.
-- "treats captured learnings as tracked, committed knowledge", not a named folder: the real question is whether the repo welcomes generated learning docs — forks and open-source projects you contribute to often do not. Naming a path in a standing instruction also goes stale, since `docs_root` can move the store; the skill resolves the location itself.
+- "at the completion checkpoint", with the deadline as commit-reachability rather than a PR event: a PR can open early, so any deadline pegged to PR creation is already past by the time the work finishes. Whether the learning can still be committed to the producing PR holds in every case.
+- "non-trivial, reusable learning": the bar is reuse, not effort — an expensive one-off with nothing generalizable does not qualify.
+- "treats captured learnings as tracked, committed knowledge", not a named folder: the real question is whether the repo welcomes generated docs — forks and OSS projects you contribute to often do not. A named path also goes stale, since `docs_root` can move the store.
 
 ---
 
