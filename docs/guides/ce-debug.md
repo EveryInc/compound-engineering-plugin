@@ -6,7 +6,7 @@
 
 It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) take a fast path in triage: present the cause, ask Fix / Diagnosis only, then stop. Anything else flows through the full framework. The fix is optional. Diagnosis-only is a first-class outcome. When you do choose a fix, non-trivial diffs can continue through simplify and code review before the PR handoff.
 
-It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), and not findings on a diff (`ce-code-review`). Use those when the input is a decision, a planning doc, or a change to review. Use this when something is observably broken.
+It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), and not findings on a diff (`ce-code-review`). Use those when the input is a decision, a planning doc, or a change to review. Use this when something is observably broken — including observably slow: a performance regression's reproduction is a numeric baseline measurement, and the fix is verified by re-measuring, not by reading code.
 
 `ce-plan` offers this skill when a planning prompt is bug-shaped. Orchestrators such as `ce-babysit-pr` and `lfg` invoke it with `mode:pipeline` to fix convergent CI failures without asking.
 
@@ -17,7 +17,7 @@ It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), an
 | Question | Answer |
 |----------|--------|
 | What does it do? | Investigates a bug (reproduce, trace, root-cause), forms hypotheses with predictions, optionally implements a test-first fix, then polishes and reviews non-trivial fixes |
-| When to use it | Failed tests, error messages, regressions, an issue reference from whatever tracker or error monitor you use (GitHub, Linear, Jira, Sentry), "I've been stuck on this for hours" |
+| When to use it | Failed tests, error messages, regressions, a reliably slow operation (performance regression), an issue reference from whatever tracker or error monitor you use (GitHub, Linear, Jira, Sentry), "I've been stuck on this for hours" |
 | What it produces | A debug summary with root cause, recommended tests, and (if you opt in) an applied fix plus post-fix quality notes. Pipeline mode returns structured JSON |
 | What's next | Fix it now, diagnosis only, or rethink the design. After a fix, it commits and — when the branch holds only that fix — opens a PR without asking |
 

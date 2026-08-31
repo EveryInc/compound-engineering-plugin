@@ -25,7 +25,7 @@ Wherever this skill asks the user something, use the host's blocking question to
 
 ## Secrets in evidence
 
-Debugging surfaces raw output constantly — command results, captured payloads, log excerpts — and this skill shows evidence to the user, writes it into findings and summaries, and commits artifacts. No secret (credential, token, auth header, connection string) appears in anything shown, written, or committed: redact it in place with `<REDACTED>`, and build reproduction commands against env vars so the credential stays in the environment rather than in the command line. If redaction removes what the diagnosis needs, say so and ask the user rather than un-redacting.
+Debugging surfaces raw output constantly — command results, captured payloads, log excerpts — and the harness may render a command's output the moment it runs, so the gate fires when you construct the command, not afterward. Keep credentials in env vars rather than on the command line; when a command's output may carry a secret (verbose HTTP traces, dumped headers, config or environment prints), capture it to a file and surface only sanitized excerpts, writing `<REDACTED>` in place of each secret. No secret (credential, token, auth header, connection string) appears in anything shown, written, or committed. If sanitizing removes what the diagnosis needs, say so and ask the user rather than un-redacting.
 
 ## Artifact Root
 

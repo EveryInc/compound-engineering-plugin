@@ -1,6 +1,6 @@
 # Investigation Techniques
 
-Techniques for deeper investigation when standard code tracing is not enough. Load this when a bug does not reproduce reliably, involves timing or concurrency, or requires framework-specific tracing.
+Techniques for deeper investigation when standard code tracing is not enough. Load this when a bug does not reproduce reliably, involves timing or concurrency, is a performance regression, or requires framework-specific tracing.
 
 ---
 

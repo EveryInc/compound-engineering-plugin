@@ -9,6 +9,7 @@ Being invoked by an orchestrator is **not** itself authorization. You mutate und
 ## Non-interactive overrides (per phase)
 
 - **Phase 0 (triage):** If an issue fetch fails, do not ask the user to paste content — proceed with the input you have and note the gap in the return. Do not ask "what have you tried"; infer prior attempts from the input.
+- **Phase 1 (reproduce):** When reproduction cannot run in this environment (a CI- or production-only failure), do not ask for access, artifacts, or a go-ahead — continue on the best evidence already in reach: the failing job's logs, captured artifacts, the seeded log tails. If a gap-free root cause is still established, the ordinary statuses apply; if not, return `needs-human` with a `decision_context` naming what reproduction requires and what was tried.
 - **Phase 2 (root cause + fix gate):** There is no "Fix it now / Diagnosis only" question. The caller invoked this skill to fix, so **fix by default — but only convergent fixes** (see the boundary below). A divergent fix is deferred, not applied.
 - **Phase 3 (workspace/branch):** Operate on the current branch — the orchestrator owns branch context; never prompt to create a branch, never prompt about uncommitted work. Commit the fix (`fix(ci): <summary>` for a CI failure, else `fix: <summary>`) and push. Never weaken, skip, or mock a failing assertion to make it pass — repair the real issue or defer.
 - **Phase 4 (handoff):** No prompt. Emit the structured return below. Skip the compound offer.
