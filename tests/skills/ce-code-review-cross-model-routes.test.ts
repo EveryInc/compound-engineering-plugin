@@ -493,7 +493,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   test("opencode run is --dir --format json without --auto", () => {
     const cmd = emitAdapter("opencode")
     expect(cmd).toContain("opencode run")
-    expect(cmd).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny"}}')
+    expect(cmd).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}')
     expect(cmd).toContain("--dir <repo-root>")
     expect(cmd).toContain("--format json")
     expect(cmd).toContain("--file <prompt-file>")

@@ -149,7 +149,7 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("composer")).toContain("--model")
     expect(emit("grok-cursor")).toContain("--model cursor-grok-4.6-high")
     expect(emit("opencode")).toContain("opencode run")
-    expect(emit("opencode")).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny"}}')
+    expect(emit("opencode")).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}')
     expect(emit("opencode")).toContain("--dir <read-root>")
     expect(emit("opencode")).toContain("--format json")
     expect(emit("opencode")).toContain("--file <prompt-file>")

@@ -97,7 +97,17 @@ function commandExists(name: string): boolean {
 
 export function cellEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const env = { ...base }
+  // Each cell's CLI re-sets its own attestation markers; an inherited marker
+  // from the launching harness makes the child attest as the wrong host.
   delete env.CLAUDECODE
+  delete env.CODEX_SANDBOX
+  delete env.CODEX_SANDBOX_NETWORK_DISABLED
+  delete env.CODEX_SESSION_ID
+  delete env.CODEX_THREAD_ID
+  delete env.CODEX_CI
+  delete env.GROK_AGENT
+  delete env.GROK_SESSION_ID
+  delete env.OPENCODE_TERMINAL
   delete env.CLICOLOR_FORCE
   delete env.GH_FORCE_TTY
   env.NO_COLOR = "1"
@@ -145,8 +155,8 @@ export function planHost(
     if (opts.readOnly) {
       // Omitting --auto is not read-only (defaults are permissive); the deny
       // overlay merges after project config, so it wins on last-match.
-      env.OPENCODE_CONFIG_CONTENT = '{"permission":{"edit":"deny","bash":"deny"}}'
-      notes.push("read-only: OPENCODE_CONFIG_CONTENT denies edit and bash")
+      env.OPENCODE_CONFIG_CONTENT = '{"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}'
+      notes.push("read-only: OPENCODE_CONFIG_CONTENT denies edit, bash, webfetch, and task")
     } else {
       argv.push("--auto")
     }
