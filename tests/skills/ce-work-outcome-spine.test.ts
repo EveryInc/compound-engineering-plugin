@@ -102,6 +102,11 @@ describe("ce-work native characterization", () => {
     expect(engines).not.toContain("inline/subagent flow in `SKILL.md`")
     expect(strategy).toMatch(/\*\*Inline\*\* \| Trivial work/)
     expect(strategy).toContain("native workers")
+    // Worktree-isolated dispatch must verify snapshot fidelity: a harness-cut
+    // worktree can be based on the primary checkout's default branch, not the
+    // session's tree (docs/solutions/skill-design/verify-harness-worktree-snapshot-fidelity.md).
+    expect(strategy).toContain("intended base commit SHA")
+    expect(strategy).toContain("`HEAD` equals that SHA")
     expect(engineGate).toContain("cross-model execution")
   })
 
