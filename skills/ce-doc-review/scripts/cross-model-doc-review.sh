@@ -106,7 +106,7 @@ route_effort() {   # <route> -> requested effort: the override where the route t
       codex|claude|grok-cli) printf '%s' "$CROSS_MODEL_EFFORT_OVERRIDE"; return 0 ;;
       opencode)
         case "$CROSS_MODEL_EFFORT_OVERRIDE" in
-          minimal|high|max) printf '%s' "$CROSS_MODEL_EFFORT_OVERRIDE"; return 0 ;;
+          none|minimal|low|medium|high|xhigh|max|default) printf '%s' "$CROSS_MODEL_EFFORT_OVERRIDE"; return 0 ;;
         esac
         ;;
     esac
@@ -291,7 +291,7 @@ adapter_argv() {
       [ "$_oc_model" = "auto" ] || [ -z "$_oc_model" ] || printf '%s\0' --model "$_oc_model"
       _oc_effort="$(route_effort opencode)"
       case "$_oc_effort" in
-        minimal|high|max) printf '%s\0' --variant "$_oc_effort" ;;
+        none|minimal|low|medium|high|xhigh|max|default) printf '%s\0' --variant "$_oc_effort" ;;
       esac
       ;;
     *) return 1 ;;
@@ -329,7 +329,7 @@ validate_effort_override() {
     claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
     codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
     grok-cli:low|grok-cli:medium|grok-cli:high) ;;
-    opencode:minimal|opencode:high|opencode:max) ;;
+    opencode:none|opencode:minimal|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max|opencode:default) ;;
     *) return 1 ;;
   esac
 }

@@ -1,0 +1,157 @@
+{
+  "pr": {
+    "owner": "EveryInc",
+    "repo": "compound-engineering-plugin",
+    "number": 1597,
+    "url": "https://github.com/EveryInc/compound-engineering-plugin/pull/1597"
+  },
+  "head_sha": "202fc52985ef64241b8f1e6612593a9f9bcf3728",
+  "tick": 1,
+  "state_created_at": "2026-08-31T19:30:31.580500+00:00",
+  "started_at": "2026-08-31T19:30:31.580500+00:00",
+  "invocation_id": "0956ca9f3a7f4bb98a63e127f2b9c547",
+  "invocation_budget_seconds": 28800.0,
+  "last_activity_at": "2026-08-31T19:30:31.580500+00:00",
+  "dead_time_seconds": 0.0,
+  "invocation_backstop_seconds": 259200,
+  "checks": {},
+  "threads": {
+    "PRRT_kwDOP_gZVc6d1sA9": {
+      "thread_id": "PRRT_kwDOP_gZVc6d1sA9",
+      "last_comment_id": "PRRC_kwDOP_gZVc7oTjgP",
+      "last_comment_at": "2026-08-31T18:56:06Z",
+      "url": "https://github.com/EveryInc/compound-engineering-plugin/pull/1597#discussion_r3897440271",
+      "path": "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+      "line": 288,
+      "disposition": "open"
+    },
+    "PRRT_kwDOP_gZVc6d1sA_": {
+      "thread_id": "PRRT_kwDOP_gZVc6d1sA_",
+      "last_comment_id": "PRRC_kwDOP_gZVc7oTjgV",
+      "last_comment_at": "2026-08-31T18:56:06Z",
+      "url": "https://github.com/EveryInc/compound-engineering-plugin/pull/1597#discussion_r3897440277",
+      "path": "skills/ce-work/references/cross-model-execution.md",
+      "line": 9,
+      "disposition": "open"
+    },
+    "PRRT_kwDOP_gZVc6d1sBC": {
+      "thread_id": "PRRT_kwDOP_gZVc6d1sBC",
+      "last_comment_id": "PRRC_kwDOP_gZVc7oTjgY",
+      "last_comment_at": "2026-08-31T18:56:06Z",
+      "url": "https://github.com/EveryInc/compound-engineering-plugin/pull/1597#discussion_r3897440280",
+      "path": "tests/skill-eval-cell/hosts.ts",
+      "line": 145,
+      "disposition": "open"
+    }
+  },
+  "ci_dispatched": {},
+  "human_decisions": [],
+  "answered_human_decisions": [],
+  "review_decision": null,
+  "mergeable": "MERGEABLE",
+  "merge_state_status": "UNSTABLE",
+  "review_in_progress": false,
+  "review_signal_count": 0,
+  "review_signal_identities": [],
+  "review_signal_seen_on_head": false,
+  "review_signal_first_seen_at": null,
+  "review_signal_last_changed_at": null,
+  "blocked_external_head_sha": "202fc52985ef64241b8f1e6612593a9f9bcf3728",
+  "blocked_external_first_seen_at": "2026-08-31T19:30:31.580500+00:00",
+  "blocked_external_review_last_activity_at": "2026-08-31T19:30:31.580500+00:00",
+  "pr_chain": {
+    "manager_status": "absent",
+    "manager_source": null,
+    "relationship_status": "independent",
+    "trunk": null,
+    "default_branch": "main",
+    "current_branch": null,
+    "target_position": null,
+    "target_needs_rebase": null,
+    "upstack_needs_rebase": [],
+    "entries": [],
+    "parent_prs": [],
+    "dependent_prs": []
+  },
+  "base": {
+    "host": "github.com",
+    "repository": "EveryInc/compound-engineering-plugin",
+    "ref": "main",
+    "oid": "98932f162efd31e9cd8f6afce1d2fb5d01c50055",
+    "graphql_oid": "98932f162efd31e9cd8f6afce1d2fb5d01c50055",
+    "historical_oid": "fbfcd1d574b28c232b196490cc9f9e1862c2c650",
+    "merge_commit_oid": "8496e8838b32350020c7eaeab70e3f0bfff0c537",
+    "merge_parent_oids": [
+      "fe02f790d3c20a4a3850740adae1d17acee4f84e",
+      "202fc52985ef64241b8f1e6612593a9f9bcf3728"
+    ],
+    "identity": "race",
+    "stale_computation_candidate": true
+  },
+  "branch_currency_state": {
+    "current_key": null,
+    "items": {},
+    "semantic_parks": {},
+    "head_sha": "202fc52985ef64241b8f1e6612593a9f9bcf3728"
+  },
+  "last_change_at": "2026-08-31T19:30:31.580500+00:00",
+  "last_action": null,
+  "stop_reason": null,
+  "watch_generation": null,
+  "watch_pid": null,
+  "watch_process_identity": null,
+  "trajectory": {
+    "check_history": {},
+    "seen_threads": {
+      "PRRT_kwDOP_gZVc6d1sA9": 1,
+      "PRRT_kwDOP_gZVc6d1sA_": 1,
+      "PRRT_kwDOP_gZVc6d1sBC": 1
+    },
+    "unresolved_series": [
+      3
+    ],
+    "stream_series": [
+      "review"
+    ],
+    "problem_keys": [
+      "m:IC_kwDOP_gZVc8AAAABRs52YA",
+      "m:IC_kwDOP_gZVc8AAAABRtP4Mg",
+      "m:PRR_kwDOP_gZVc8AAAABLjNv8A",
+      "t:PRRT_kwDOP_gZVc6d1sA9",
+      "t:PRRT_kwDOP_gZVc6d1sA_",
+      "t:PRRT_kwDOP_gZVc6d1sBC"
+    ],
+    "min_open_problems": 6,
+    "heads_since_progress": 0,
+    "last_head": "202fc52985ef64241b8f1e6612593a9f9bcf3728"
+  },
+  "stale_merge_computation": {
+    "key": "202fc52985ef64241b8f1e6612593a9f9bcf3728:98932f162efd31e9cd8f6afce1d2fb5d01c50055",
+    "first_seen_at": "2026-08-31T19:30:31.580500+00:00"
+  },
+  "feedback": {
+    "IC_kwDOP_gZVc8AAAABRs52YA": {
+      "id": "IC_kwDOP_gZVc8AAAABRs52YA",
+      "kind": "comment",
+      "author": "chatgpt-codex-connector",
+      "edit_id": "b84e4d018ac5dd52",
+      "disposition": "open"
+    },
+    "IC_kwDOP_gZVc8AAAABRtP4Mg": {
+      "id": "IC_kwDOP_gZVc8AAAABRtP4Mg",
+      "kind": "comment",
+      "author": "tmchow",
+      "edit_id": "7b89f5601ff3bf75",
+      "disposition": "open"
+    },
+    "PRR_kwDOP_gZVc8AAAABLjNv8A": {
+      "id": "PRR_kwDOP_gZVc8AAAABLjNv8A",
+      "kind": "review",
+      "author": "chatgpt-codex-connector",
+      "state": "COMMENTED",
+      "edit_id": "3f0f5c3b26a3300c",
+      "disposition": "open"
+    }
+  },
+  "awaiting_approval": 1
+}
