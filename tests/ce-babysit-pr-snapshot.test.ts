@@ -5131,10 +5131,13 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(wakeReason(base, 300)).toBeNull()
   })
 
-  test("watch: terminal attribution restores the ordinary settle under a widened stale-review re-arm", () => {
-    // A rejected merge-ready wake re-arms at 900s (or once at 1800s) to cover an incomplete review
-    // lifecycle. When that lifecycle's own evidence resolves, the widened window has nothing left to
-    // cover, so readiness must return to the ordinary settle instead of idling out the re-arm.
+  test("watch: the detector never shortens the window the agent armed, so a rejected wake cannot loop", () => {
+    // A rejected merge-ready wake re-arms at 900s (or once at 1800s). That re-arm is the agent's
+    // recorded judgment that the current evidence did not resolve the review lifecycle — terminal
+    // attribution included, since a reactor's checks can finish without the announced review having
+    // landed. If the detector shortened the armed window on that same evidence, the unchanged
+    // snapshot would re-fire merge-ready on the next poll and loop the wake/re-arm cycle forever
+    // instead of following the bounded stale path.
     const base = {
       pr_state: "OPEN",
       counts: { threads: 0, ci: 0, comments: 0 },
@@ -5156,13 +5159,17 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     }
 
     for (const rearmed of [900, 1800]) {
-      expect(wakeReason({ ...base, review_signal_work_terminal: true }, rearmed)).toBe("merge-ready")
-      // A reactor still running has an unresolved lifecycle, so the widened window still holds.
+      // Terminal attribution does NOT re-fire under the armed window — that is the anti-loop rule.
+      expect(wakeReason({ ...base, review_signal_work_terminal: true }, rearmed)).toBeNull()
       expect(wakeReason({ ...base, review_signal_work_terminal: false }, rearmed)).toBeNull()
+      // The armed window still decides once it genuinely elapses.
+      expect(wakeReason({ ...base, quiet_seconds: rearmed, review_signal_work_terminal: true }, rearmed))
+        .toBe("merge-ready")
     }
 
-    // The ordinary window is a floor, not an override: terminal attribution before it elapses waits.
-    expect(wakeReason({ ...base, quiet_seconds: 299, review_signal_work_terminal: true }, 900)).toBeNull()
+    // On the ordinary arm, terminal attribution releases the stale-review hold as designed.
+    expect(wakeReason({ ...base, review_signal_work_terminal: true }, 300)).toBe("merge-ready")
+    expect(wakeReason({ ...base, review_signal_work_terminal: false }, 300)).toBeNull()
   })
 
   test("watch: a no-check MERGEABLE/CLEAN PR still reaches merge-ready (the >=1-check guard is pipeline-only)", () => {

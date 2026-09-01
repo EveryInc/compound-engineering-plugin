@@ -2819,16 +2819,15 @@ def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_
     # still have work running (or whose work cannot be attributed) blocks the ordinary 300s settle
     # and wakes the agent after 900 quiet seconds for the semantic stale-review judgment; the agent
     # may extend once to 1800s by re-arming with that settle value. Once every reactor's own
-    # current-head work is terminal there is no evidence a review is live, so the ordinary settle
-    # decides again — a widened re-arm covers only the incomplete lifecycle and lapses with it — and
-    # the agent judges completion from `review_signal_attribution`. The work-terminal transition is
-    # itself movement, so a full ordinary window of quiet still elapses after the reactor finished.
-    # The detector never decides whether a reviewer is genuinely slow, stuck, or finished.
+    # current-head work is terminal there is no evidence a review is live, so this gate stops
+    # holding and the agent judges completion from `review_signal_attribution`. The detector never
+    # decides whether a reviewer is genuinely slow, stuck, or finished — and for the same reason it
+    # never shortens the window the agent armed: a re-arm is the agent's recorded judgment that this
+    # evidence did not resolve the lifecycle, so overriding it would re-fire on evidence already
+    # rejected and loop the wake instead of following the bounded stale path.
     review_blocking = (a.get("review_in_progress")
                        and not a.get("review_signal_work_terminal")
                        and a.get("quiet_seconds", 0) < REVIEW_INPROGRESS_MAX_WAIT)
-    if a.get("review_signal_work_terminal"):
-        settle_seconds = min(settle_seconds, DEFAULT_SETTLE_SECONDS)
     # Interactive merge-ready does NOT require `all_checks_ok`'s "at least one observed check": a repo
     # with no configured checks has a CLEAN/MERGEABLE PR that should be callable ready. (That guard
     # stays in pipeline success, where a not-yet-created rollup must not read as a pass.)
