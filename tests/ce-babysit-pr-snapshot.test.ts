@@ -3829,7 +3829,7 @@ m.cmd_snapshot(args)
     }
 
     const wake = watch(sd, fetchFile(dir, "approval-drain-feedback-watch.json", withFeedback), [
-      "--blocked-external-drain-seconds", "1",
+      "--blocked-external-drain-seconds", "1", "--feedback-coalesce-seconds", "0",
     ])
     expect(wake.reason).toBe("feedback-candidate")
   })
@@ -4385,7 +4385,7 @@ m._activate_watch = lambda args, generation, now, cur: (
     {}, {"counts": {}, "pr_state": "OPEN", "session_seconds": 0})
 m._terminate_replaced_watch = lambda previous: None
 m._watch_is_current = lambda args, generation: True
-m._wake_reason = lambda actionable, settle_seconds: None
+m._wake_reason = lambda actionable, settle_seconds, *_: None
 threading.Thread(target=stop_when_child_starts, daemon=True).start()
 args = SimpleNamespace(reset_session=False, stop_file=None, settle_seconds=300, max_runtime=0,
                        interval=0.01, state_dir=${JSON.stringify(dir)}, pr=1, repo="o/r")
@@ -4452,7 +4452,7 @@ def caller_handler(_signum, _frame):
     pass
 real_signal(signal.SIGTERM, caller_handler)
 m._watch_is_current = lambda args, generation: True
-m._wake_reason = lambda actionable, settle_seconds: "actionable"
+m._wake_reason = lambda actionable, settle_seconds, *_: "actionable"
 m.cmd_watch(args)
 print(json.dumps({"ordinary_restored": signal.getsignal(signal.SIGTERM) is caller_handler}))
 `
@@ -4599,7 +4599,79 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
       checks: [RUNNING],
       feedback: [{ id: "IC_status", kind: "comment", author: "review-bot", edit_id: "status-v1" }],
     }
-    expect(watch(path.join(dir, "wfc"), fetchFile(dir, "wfc.json", candidate)).reason).toBe("feedback-candidate")
+    expect(watch(path.join(dir, "wfc"), fetchFile(dir, "wfc.json", candidate),
+      ["--feedback-coalesce-seconds", "0"]).reason).toBe("feedback-candidate")
+  }, 15000)
+
+  // Every non-empty top-level body is a candidate the resolver must classify, so a comment-only
+  // wake buys a full ce-resolve-pr-feedback dispatch to conclude "status noise". These three pin
+  // that the wake waits for the set to settle, while the candidates stay actionable throughout.
+  test("watch: a still-settling candidate yields the tick to a lower-priority reason", () => {
+    const sd = path.join(dir, "coalesce-yield")
+    const green = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      feedback: [{ id: "IC_bot", kind: "comment", author: "coverage-bot", edit_id: "v1" }],
+    }
+    const f = fetchFile(dir, "coalesce-yield.json", green)
+    snapshot(sd, f)
+    // merge-ready sits below feedback-candidate in precedence, so before coalescing this woke
+    // as feedback-candidate. The candidate is still counted -- the tick that runs handles it.
+    const wake = watch(sd, f, ["--settle-seconds", "0"])
+    expect(wake.reason).toBe("merge-ready")
+    expect(snapshot(sd, f).counts.comments).toBe(1)
+  }, 15000)
+
+  test("watch: a candidate with no coalesce clock wakes rather than being held", () => {
+    const sd = path.join(dir, "coalesce-noclock")
+    const candidate = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      feedback: [{ id: "IC_human", kind: "comment", author: "reviewer", edit_id: "v1" }],
+    }
+    const f = fetchFile(dir, "coalesce-noclock.json", candidate)
+    snapshot(sd, f)
+    // `_elapsed` reads an absent clock as 0, so holding on it would strand the candidate for the
+    // rest of the run. Unknown must fail toward waking.
+    patchState(sd, { feedback_candidate_changed_at: null })
+    expect(watch(sd, f, ["--settle-seconds", "0"]).reason).toBe("feedback-candidate")
+  }, 15000)
+
+  test("watch: a settled candidate wakes once its window elapses", () => {
+    const sd = path.join(dir, "coalesce-elapsed")
+    const candidate = {
+      ...FAILING,
+      merge_state_status: "CLEAN",
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      feedback: [{ id: "IC_human", kind: "comment", author: "reviewer", edit_id: "v1" }],
+    }
+    const f = fetchFile(dir, "coalesce-elapsed.json", candidate)
+    snapshot(sd, f)
+    patchState(sd, { feedback_candidate_changed_at: isoAgo(600) })
+    expect(watch(sd, f, ["--settle-seconds", "0"]).reason).toBe("feedback-candidate")
+  }, 15000)
+
+  test("a new candidate restarts the window so a burst costs one wake", () => {
+    const sd = path.join(dir, "coalesce-burst")
+    const base = {
+      ...FAILING,
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+      feedback: [{ id: "IC_1", kind: "comment", author: "bot", edit_id: "v1" }],
+    }
+    snapshot(sd, fetchFile(dir, "coalesce-burst-1.json", base))
+    patchState(sd, { feedback_candidate_changed_at: isoAgo(600) })
+    const second = { ...base, feedback: [...base.feedback, { id: "IC_2", kind: "comment", author: "bot", edit_id: "v1" }] }
+    const after = snapshot(sd, fetchFile(dir, "coalesce-burst-2.json", second))
+    expect(after.counts.comments).toBe(2)
+    // The second arrival reset the clock: the aged timestamp did not survive it.
+    expect(new Date(after.feedback_candidate_changed_at).getTime())
+      .toBeGreaterThan(new Date(isoAgo(60)).getTime())
   }, 15000)
 
   test("watch: an in-progress review signal blocks until the 15-minute stale-review check", () => {
