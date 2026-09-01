@@ -36,6 +36,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-babysit-pr/never-merge-under-target` | Looks-ready is not merge authorization |
 | `ce-babysit-pr/announced-review-that-finished-reads-ready` | Standing 👀 + that reviewer's own finished check → ready, not the stale floor (#1606) |
 | `ce-babysit-pr/timed-out-review-is-finished-not-approved` | Terminal-but-verdictless run → stops holding readiness, reported as incomplete rather than passed |
+| `ce-babysit-pr/moved-evidence-restores-the-ordinary-window` | The awaited review lands during a widened window → ordinary settle decides again, not the widened bound |
 | `ce-babysit-pr/silent-reviewer-of-an-earlier-head-still-waits` | A reviewer that never announces but reviewed the previous head → still coming, bounded wait |
 | `ce-babysit-pr/unrelated-terminal-work-is-not-the-review` | The announcing app finished an unrelated check while its review never appeared → still the bounded wait |
 | `ce-babysit-pr/announced-review-with-nothing-to-show-waits` | Announced but nothing observable → the one undecidable case, bounded wait |

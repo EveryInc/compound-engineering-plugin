@@ -4657,6 +4657,43 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
   // #1606: Cursor's review bot adds an eyes reaction and never removes it, even after its own
   // current-head check reaches a terminal conclusion. Presence alone was read as "a review is
   // underway", so every green PR waited out the 900s stale-review floor instead of the 300s settle.
+  test("watch: movement under a widened arm reopens the judgment; unchanged evidence never does", () => {
+    // A widened settle is the agent's judgment about evidence it looked at. When that evidence moves
+    // the judgment may not hold, so the watch hands the decision back. The anti-loop half is the one
+    // that matters: an earlier fix keyed this on a state value instead of on movement, which re-fired
+    // on evidence the agent had already rejected and looped the wake every poll.
+    const base = {
+      pr_state: "OPEN",
+      counts: { threads: 0, ci: 0, comments: 0 },
+      stack_blocker: null,
+      base_ref_blocker: null,
+      unrequested_base_merge: null,
+      branch_currency: {},
+      branch_currency_blocker: null,
+      blocked_external: false,
+      open_needs_human: 0,
+      mergeability_certain: true,
+      mergeable: "MERGEABLE",
+      merge_state_status: "CLEAN",
+      checks_terminal: true,
+      has_failing_checks: false,
+      checks_awaiting_approval: 0,
+    }
+
+    for (const widened of [900, 1800]) {
+      expect(wakeReason({ ...base, quiet_seconds: 5, changed_this_tick: true }, widened))
+        .toBe("review-evidence-moved")
+      // Unchanged evidence must stay silent however long the window has been running.
+      expect(wakeReason({ ...base, quiet_seconds: 500, changed_this_tick: false }, widened)).toBeNull()
+      // ...and the widened bound itself still decides when it genuinely elapses.
+      expect(wakeReason({ ...base, quiet_seconds: widened, changed_this_tick: false }, widened))
+        .toBe("merge-ready")
+    }
+
+    // On the ordinary arm this never fires: movement there just resets the quiet clock.
+    expect(wakeReason({ ...base, quiet_seconds: 5, changed_this_tick: true }, 300)).toBeNull()
+  })
+
   test("watch: a no-check MERGEABLE/CLEAN PR still reaches merge-ready (the >=1-check guard is pipeline-only)", () => {
     // A repo with no configured checks: all_checks_ok is false (no observed check), but the
     // interactive merge-ready wake must still fire for a CLEAN/MERGEABLE PR with no backlog.

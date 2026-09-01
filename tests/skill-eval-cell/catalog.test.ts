@@ -187,6 +187,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-babysit-pr/announced-review-that-finished-reads-ready",
       "ce-babysit-pr/announced-review-with-nothing-to-show-waits",
       "ce-babysit-pr/check-only-answer-reactivates-source",
+      "ce-babysit-pr/moved-evidence-restores-the-ordinary-window",
       "ce-babysit-pr/pipeline-returns-canonical-human-decision",
       "ce-babysit-pr/silent-reviewer-of-an-earlier-head-still-waits",
       "ce-babysit-pr/timed-out-review-is-finished-not-approved",

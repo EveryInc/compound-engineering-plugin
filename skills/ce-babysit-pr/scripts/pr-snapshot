@@ -2565,6 +2565,14 @@ def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_
         return "blocked-external"
     if a.get("open_needs_human", 0):
         return "needs-human"         # parked items block ready; surface them
+    # A widened window is the agent's own judgment about evidence it looked at. When that evidence
+    # moves, the judgment may no longer hold, so hand the decision back rather than sleeping out a
+    # window armed against a state that has since changed. Movement is the whole trigger: unchanged
+    # evidence never fires this, which is what keeps it from re-deciding something the agent already
+    # settled. The engine reports that something moved and nothing more — whether the movement
+    # resolved anything is the agent's call at the settle decision.
+    if settle_seconds > DEFAULT_SETTLE_SECONDS and a.get("changed_this_tick"):
+        return "review-evidence-moved"
     # merge-ready candidate: green, settled, nothing left in the attention set. Whether a review is
     # still on its way is the agent's judgment at the settle decision, from live GitHub evidence the
     # engine does not model; this wake hands it that decision rather than pre-empting it.
