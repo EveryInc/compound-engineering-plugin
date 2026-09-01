@@ -88,7 +88,9 @@
 # --- ce-commit-push-pr babysit handoff ---
 # After a full-workflow PR is opened, ce-commit-push-pr auto-invokes ce-babysit-pr
 # to watch CI + incoming review and drive the PR toward merge-ready. Set false to
-# opt out standing (per-run override: the babysit:off token).
+# opt out standing (per-run override: the babysit:off token). This governs that
+# standing watch only -- lfg's in-pipeline babysit is bounded (3 fix rounds) and
+# still runs, since it is how that pipeline reaches "CI decided".
 # auto_babysit: false            # true | false (default: true)
 
 # --- ce-plan scoping confirmation ---
