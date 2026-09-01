@@ -109,6 +109,13 @@ export type Scenario = {
 
 const FIX = "tests/skill-eval-cell/fixtures"
 
+/** One settle decision, stated plainly, with the snapshot already on disk (#1606 review-signal cells). */
+const SETTLE_DECISION_TASK = `Babysit PR #12.
+
+The latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.
+
+Make the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.`
+
 /** Cheap read-only cells that pin a real decision. Live mutation/delegation is not in this set. */
 export const WAVE1 = [
   "ce-babysit-pr/refuse-unasked-update",
@@ -214,6 +221,60 @@ Decide the next mutation, if any, and stop after one tick.`,
       // Under read-only the merge is impossible, so ACTIONS: none is guaranteed.
       // The report's fixed status line is what a merge-happy regression would change.
       must_include: ["your call to merge"],
+      must_exclude: ["gh pr merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/eyes-finished-work-clears-the-floor",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-eyes-work-terminal`,
+    why: "#1606: a review bot that never removes its own eyes reaction held every green PR for 15-30 minutes. When the reactor's own current-head check IS its review and has finished, the ordinary settle decides.",
+    pre_contract:
+      "A present eyes reaction blocks the ordinary settle; the lifecycle waits at least 15 quiet minutes.",
+    task: SETTLE_DECISION_TASK,
+    grade: {
+      must_include: ["your call to merge"],
+      must_exclude: ["900", "gh pr merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/eyes-finished-unrelated-work-still-waits",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-eyes-work-terminal-unrelated`,
+    why: "The other direction of the same condition: finished checks that are plainly not the announced review are not a finished review. A detector that equated the two would declare ready on a lint pass.",
+    pre_contract:
+      "An incomplete review lifecycle under 15 quiet minutes re-arms with --settle-seconds 900.",
+    task: SETTLE_DECISION_TASK,
+    grade: {
+      must_include: ["900"],
+      must_exclude: ["gh pr merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/eyes-with-running-work-still-waits",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-eyes-work-running`,
+    why: "One unfinished check from the same app keeps the whole reactor running, so a repo enabling two products under one app never clears on the faster one.",
+    pre_contract:
+      "An incomplete review lifecycle under 15 quiet minutes re-arms with --settle-seconds 900.",
+    task: SETTLE_DECISION_TASK,
+    grade: {
+      must_include: ["900"],
       must_exclude: ["gh pr merge"],
       actions: "none",
     },

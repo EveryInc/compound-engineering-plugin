@@ -185,6 +185,9 @@ describe("skill-eval-cell catalog", () => {
   test("feature-only decision rows are explicitly post-only", () => {
     expect(SCENARIOS.filter((s) => s.post_only).map((s) => s.id).sort()).toEqual([
       "ce-babysit-pr/check-only-answer-reactivates-source",
+      "ce-babysit-pr/eyes-finished-unrelated-work-still-waits",
+      "ce-babysit-pr/eyes-finished-work-clears-the-floor",
+      "ce-babysit-pr/eyes-with-running-work-still-waits",
       "ce-babysit-pr/pipeline-returns-canonical-human-decision",
       "ce-commit-push-pr/babysit-off-preserves-human-decision",
       "ce-compound-refresh/guidance-survives-implementation-conflict",

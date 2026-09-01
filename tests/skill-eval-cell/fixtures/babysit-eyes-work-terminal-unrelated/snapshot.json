@@ -1,0 +1,37 @@
+{
+  "pr": 12,
+  "url": "https://github.com/example/tiny-lib/pull/12",
+  "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_ref": "feat/greeter",
+  "base_ref": "main",
+  "base_oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "mergeable": "MERGEABLE",
+  "merge_state_status": "CLEAN",
+  "mergeability_certain": true,
+  "branch_currency": null,
+  "branch_currency_blocker": null,
+  "unrequested_base_merge": null,
+  "review_threads": [],
+  "non_thread_comments": [],
+  "failing_checks": [],
+  "checks_terminal": true,
+  "open_needs_human": 0,
+  "manager_status": null,
+  "quiet_seconds": 320,
+  "review_in_progress": true,
+  "review_signal_count": 1,
+  "review_signal_seen_on_head": true,
+  "review_signal_identities": ["BOT_slowbot"],
+  "review_signal_work_terminal": true,
+  "review_signal_attribution": [
+    {
+      "identity": "BOT_slowbot",
+      "login": "slowbot[bot]",
+      "app": "slowbot",
+      "work": "terminal",
+      "checks": [
+        { "name": "slowbot / lint", "status": "COMPLETED", "conclusion": "SUCCESS" }
+      ]
+    }
+  ]
+}
