@@ -1,5 +1,5 @@
 ---
-title: Building Agent-Friendly CLIs: Practical Principles
+title: "Building Agent-Friendly CLIs: Practical Principles"
 date: 2026-03-26
 module: cli
 problem_type: best_practice
@@ -10,6 +10,9 @@ tags:
   - cli-design
   - structured-output
   - non-interactive
+  - error-handling
+  - exit-codes
+last_updated: 2026-09-01
 ---
 
 # Building Agent-Friendly CLIs: Practical Principles
@@ -289,6 +292,37 @@ Assess the error against these questions:
 - Does it suggest valid values or next steps?
 
 If the answer is only yes to the first question, that is usually `Friction`, not `Optimization`.
+
+### Not every failure is an error
+
+The checks above assume every failure *is* one. A CLI's "not found" path often serves two different things at once: a genuine read failure, and a caller correctly discovering there is nothing there. When the same errno answers both, the routine case is reported as a crash.
+
+`peer-job-runner.py`'s `result --path` read a peer's output artifact. A peer whose gate is not met exits 0 and writes nothing, so an absent artifact is the ordinary outcome — but the command answered with the raw syscall error either way:
+
+```
+# Bad -- the expected outcome, reported as a crash
+$ peer-job-runner.py result --path <run-dir>/adversarial-codex.json
+peer-job-runner: file missing or unreadable: [Errno 2] No such file or directory: '<run-dir>/adversarial-codex.json'
+
+# Better -- name the outcome, and resolve the id into a state
+$ peer-job-runner.py result "<job-id>" --path <run-dir>/adversarial-codex.json
+peer-job-runner: no artifact at <run-dir>/adversarial-codex.json
+peer-job-runner: job <job-id>: done (worker exited 0)
+```
+
+That gap accounted for 91 of 124 recorded failures across 58 sessions in three weeks on one machine (`EveryInc/compound-engineering-plugin#1607`) — a benign, expected condition logged as an error every time.
+
+Two moves fix it. **Name the outcome** rather than the syscall that failed. And **when a stateful id is available at the call site** — a job id, a resource id, a request id — resolve it and report that state, because "still running" and "ran and produced nothing" are different answers that collapse into one indistinguishable error if you stop at the errno.
+
+### Splitting one error into several outcomes is where the next bug hides
+
+Naming more outcomes is not enough on its own. Once a single error path branches into several, each branch must keep the exit code its contract already assigns it. The first cut of the fix above folded an ownership failure and an unresolvable job id into the same code as the routine "settled, nothing there" case. That re-creates the original conflation in the opposite direction, and it is worse: it hides an alarming condition inside the code callers already treat as "nothing to do, move on," where the common case masks it.
+
+The corrected version keeps each outcome on its own documented code — running, ownership failure, unknown id, and settled-with-no-artifact each stay distinct. When you split an error path, re-read the tool's documented exit-code contract and check that every new branch lands on the code its callers already switch on, not the nearest convenient one.
+
+One caveat on where to apply the fix: the tempting alternative is to make the absence impossible to reach, by declaring the expected output up front so the job is only "done" once the artifact exists. That was wrong here, because the same runner classifies a declared-but-absent result after a clean exit as a failure — which would have relabelled every legitimate skip. When one signal has two consumers, fix the reporting rather than redefining what the signal means.
+
+**Evaluation goal:** verify that a caller can tell an expected empty result from a genuine failure, and that each distinct failure keeps its own exit code.
 
 ---
 

@@ -130,6 +130,11 @@ An additive delegated run that sends the host workflow's review or judgment brie
 
 A peer result is usable only after the route reports a successful terminal outcome and the result satisfies that consumer's output contract. Provider-failure retry allowances belong to the route worker and remain inside the original route deadline; once a provider no-review outcome reaches the host, that peer is not restarted. POV position results additionally declare settledness in their output contract: a schema-shaped result not declared final is a placeholder, never a peer voice.
 
+### Clean skip
+A delegated run that reached its gate, judged the work did not apply, and ended without producing output — a terminal outcome of the workflow rather than a failure of it.
+
+Because it ends successfully and writes nothing, its evidence on disk is identical to that of a crash that also wrote nothing; only the runner reporting the two differently keeps them apart, and a consumer that reads absent output as failure turns the ordinary case into recurring noise. A clean skip is silent in a coverage report, where a run that started and then failed must instead be named with its terminal state.
+
 ### Terminalize
 The host-owned step that turns a finished external worker's working tree into one inspectable Transport commit, without requiring the worker to stage or commit.
 
