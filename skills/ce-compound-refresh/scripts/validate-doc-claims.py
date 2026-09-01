@@ -64,9 +64,19 @@ COMMIT_WORDS = frozenset(
     "revert reverts reverted cherry-pick cherry-picked rebase rebased "
     "bisect bisected".split()
 )
-# A hex token is also a citation when the sentence attributes something to it
-# ("landed in <sha>", "resolved by <sha>"). The preposition carries that, so
-# the verb before it needs no list of its own.
+# A hex token is also a citation when the sentence attributes a change landing
+# in this repository to it: "landed in <sha>", "resolved by <sha>". Both halves
+# are needed. The preposition alone attributes without saying what to, so it
+# would read "recorded at <digest>" as a commit; the verb alone does not point
+# at the token. Membership below is that condition, not a tally of phrasings
+# seen so far: a verb belongs when it says a change landed, and does not when
+# it says an identifier was assigned or a value stored.
+CITATION_VERBS = frozenset(
+    "fixed fix fixes landed lands land introduced introduces introduce "
+    "shipped ships ship merged merges merge resolved resolves resolve "
+    "reverted reverts broke breaks broken caused causes regressed "
+    "added adds removed removes released releases".split()
+)
 CITATION_PREPS = frozenset(("in", "by", "at", "with"))
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
@@ -183,7 +193,11 @@ def cites_a_commit(prefix: str) -> bool:
     ]
     if any(word in COMMIT_WORDS for word in words):
         return True
-    return len(words) >= 2 and words[-1] in CITATION_PREPS
+    return (
+        len(words) >= 2
+        and words[-1] in CITATION_PREPS
+        and words[-2] in CITATION_VERBS
+    )
 
 
 def normalize_path(token: str) -> str:

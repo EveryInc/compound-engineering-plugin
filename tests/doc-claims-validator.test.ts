@@ -417,6 +417,15 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         expect(result.code).toBe(0)
       })
 
+      test("does not treat a non-commit attribution as a citation", () => {
+        const docPath = writeRepoDoc(
+          "The content digest is recorded at b3d4f5a6c7 in the manifest.\n" +
+            "The session identifier was issued with dc828513 by the harness.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+      })
+
       test("does not read a commit cue out of a hash named for its algorithm", () => {
         const docPath = writeRepoDoc(
           "The content hash SHA256 is b3d4f5a6c7 in the manifest.\n" +
