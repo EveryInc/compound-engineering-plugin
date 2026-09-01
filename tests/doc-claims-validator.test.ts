@@ -341,7 +341,10 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         expect(result.stdout).toContain("0 SHAs")
       })
 
-      test("flags a fabricated SHA cited by a git command in a code fence", () => {
+      test("notes a SHA in a git command rather than asserting a commit", () => {
+        // `git` precedes every object kind equally, so it ranks the item into
+        // the note tier instead of deciding it. The point of the tier is that
+        // a cue the vocabulary misses is still surfaced.
         const docPath = writeRepoDoc(
           "Reproduce it with:\n\n" +
             "```bash\n" +
@@ -349,8 +352,9 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
             "```\n",
         )
         const result = runValidator(skillDir, docPath)
-        expect(result.code).toBe(1)
-        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+        expect(result.code).toBe(0)
+        expect(result.stdout).toContain("NOTE sha 0123456789abcdef0123")
+        expect(result.stdout).toContain("cannot tell")
       })
 
       test("flags a fabricated SHA cited by a landed-in phrase", () => {
@@ -397,11 +401,13 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
       })
 
-      test("flags a fabricated SHA in a git command carrying options", () => {
+      test("reads a commit operation through its command options", () => {
+        // Options are not part of the citation phrase: without dropping them,
+        // `--no-edit -n` would push `revert` out of the window.
         const docPath = writeRepoDoc(
-          "Inspect it:\n\n" +
+          "Undo it:\n\n" +
             "```bash\n" +
-            "git show --format=%H --stat 0123456789abcdef0123\n" +
+            "git revert --no-edit -n 0123456789abcdef0123\n" +
             "```\n",
         )
         const result = runValidator(skillDir, docPath)
@@ -415,6 +421,41 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         )
         const result = runValidator(skillDir, docPath)
         expect(result.code).toBe(0)
+      })
+
+      test("recognizes a repo pin wrapped in markdown punctuation", () => {
+        const docPath = writeRepoDoc(
+          "Ported from `acme/widgets@0123456789abcdef0123` upstream.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+      })
+
+      test("notes rather than flags a hash the cue vocabulary cannot place", () => {
+        // The three-word window drops the noun here, and a generic `git` no
+        // longer decides. Both land in the note tier: surfaced, not asserted.
+        const docPath = writeRepoDoc(
+          "The commit that introduced the regression is 0123456789abcdef0123.\n" +
+            "The Git blob b3d4f5a6c7 stores the fixture.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).toContain("NOTE sha 0123456789abcdef0123")
+        expect(result.stdout).toContain("NOTE sha b3d4f5a6c7")
+      })
+
+      test("upgrades a noted SHA when a later occurrence cites it", () => {
+        const docPath = writeRepoDoc(
+          "```\n" +
+            "session 0123456789abcdef0123: Write -> /tmp/a.sh\n" +
+            "```\n\n" +
+            "It landed in 0123456789abcdef0123 last week.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+        expect(result.stdout).not.toContain("NOTE sha 0123456789abcdef0123")
       })
 
       test("does not treat every at-sign token as a commit pin", () => {

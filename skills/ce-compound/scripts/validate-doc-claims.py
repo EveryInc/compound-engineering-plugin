@@ -26,9 +26,14 @@ citations against the repository:
     2. Cited commit SHAs (7-40 hex chars with at least one digit and one
        a-f letter) resolve to commits, classified by reachability from
        HEAD and the upstream default branch. Session ids, content hashes
-       and blob hashes are hex too, so a hex word is only reported as a
-       fabricated SHA when the text right before it presents it as a
-       commit reference; one that resolves is classified either way.
+       and blob hashes are hex too, so an unresolvable hex word is
+       reported in one of two tiers rather than asserted to be fabricated:
+       FLAG when the text right before it presents it as a commit (a
+       likely fabricated citation), NOTE otherwise (an identifier this
+       script cannot classify). Only FLAG affects the exit code. The
+       cue vocabulary therefore ranks confidence; it does not decide
+       whether an item is surfaced, so a phrasing it misses is reported
+       one tier down instead of disappearing.
     3. Relative markdown link targets resolve from the doc's location.
     4. Dangling drafting scaffold: "Learning(s) N" numbering and
        unresolved {{...}} placeholder tokens. Inline code spans and fenced
@@ -56,11 +61,12 @@ PLACEHOLDER_SUBSTRINGS = ("path/to", "...", "…")
 
 SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
 # Words that name a commit or a commit operation, so a hex token right after
-# one is a commit citation. Words naming some other git object ("blob", "tree")
-# or any hash ("sha") are deliberately absent — they are what the flag used to
-# mistake for commits.
+# one is a commit citation. Words naming some other git object ("blob", "tree"),
+# any hash ("sha"), and the bare tool name ("git", which precedes every object
+# kind equally) are deliberately absent — they are what the flag used to mistake
+# for commits.
 COMMIT_WORDS = frozenset(
-    "commit commits committed committing revision revisions rev revs git "
+    "commit commits committed committing revision revisions rev revs "
     "revert reverts reverted cherry-pick cherry-picked rebase rebased "
     "bisect bisected".split()
 )
@@ -80,7 +86,7 @@ CITATION_VERBS = frozenset(
 CITATION_PREPS = frozenset(("in", "by", "at", "with"))
 # The pin form that names a commit is owner/repo@<sha>. A bare "@" is not it:
 # it also prefixes account names and image tags, whose identifiers are hex too.
-REPO_PIN_RE = re.compile(r"(?:^|\s)[\w.-]+/[\w.-]+@$")
+REPO_PIN_RE = re.compile(r"(?<![\w./@-])[\w.-]+/[\w.-]+@$")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
@@ -253,6 +259,7 @@ def main(argv: list[str]) -> int:
         return ""
 
     infos: list[str] = []
+    notes: list[str] = []
     flags: list[str] = []
 
     # --- Repo context -----------------------------------------------------
@@ -363,31 +370,49 @@ def main(argv: list[str]) -> int:
 
     # --- 2. Cited commit SHAs ----------------------------------------------
     checked_shas = 0
-    seen_shas: set[str] = set()
     if in_git:
-        resolves: dict[str, bool] = {}
+        # One entry per distinct hex word: the line to report it at, and
+        # whether any occurrence of it is presented as a commit. A doc often
+        # quotes a token in a transcript before citing it, so a later citing
+        # occurrence upgrades the tier and supplies the line.
+        seen_shas: dict[str, tuple[int, bool]] = {}
+        order: list[str] = []
         for m in SHA_RE.finditer(body):
             sha = m.group(0)
             if not (any(c.isdigit() for c in sha) and any(c in "abcdef" for c in sha)):
                 continue  # dates and decimal ids are not SHAs
-            if sha in seen_shas:
-                continue  # already classified on an earlier occurrence
-            if sha not in resolves:
-                code, _ = git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root)
-                resolves[sha] = code == 0
             line_start = body.rfind("\n", 0, m.start()) + 1
-            if not resolves[sha] and not cites_a_commit(body[line_start : m.start()]):
-                continue  # a session id or content hash, not a commit claim
-            seen_shas.add(sha)
-            checked_shas += 1
+            cited = cites_a_commit(body[line_start : m.start()])
             line_no = body_start + body.count("\n", 0, m.start())
+            if sha not in seen_shas:
+                seen_shas[sha] = (line_no, cited)
+                order.append(sha)
+            elif cited and not seen_shas[sha][1]:
+                seen_shas[sha] = (line_no, True)
+        for sha in order:
+            line_no, cited = seen_shas[sha]
+            code, _ = git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root)
+            resolved = code == 0
             loc = f" (line {line_no})"
-            if not resolves[sha]:
+            if not resolved:
+                if not cited:
+                    # Nothing here says "commit", and hex is also how session
+                    # ids and content hashes are written. Surface it without
+                    # claiming to know which it is; the reader adjudicates.
+                    notes.append(
+                        f"NOTE sha {sha}{loc} — an unresolved hex identifier "
+                        "with no commit reference around it. This script cannot "
+                        "tell a session id or content hash from a commit; verify "
+                        "it if it was meant as one."
+                    )
+                    continue
+                checked_shas += 1
                 flags.append(
                     f"FLAG sha {sha}{loc} — does not resolve to a commit in this "
                     "repository. Replace with the PR number, or drop it."
                 )
                 continue
+            checked_shas += 1
             in_head = (
                 git(["merge-base", "--is-ancestor", sha, "HEAD"], repo_root)[0] == 0
             )
@@ -451,12 +476,17 @@ def main(argv: list[str]) -> int:
     # --- Report ---------------------------------------------------------------
     for info in infos:
         print(info)
+    for note in notes:
+        print(note)
     for flag in flags:
         print(flag)
-    print(
+    summary = (
         f"checked {checked_paths} paths, {checked_shas} SHAs, "
         f"{checked_links} links; {len(flags)} flags"
     )
+    if notes:
+        summary += f", {len(notes)} notes"
+    print(summary)
     if flags:
         return 1
     print(f"OK: {doc_path}")
