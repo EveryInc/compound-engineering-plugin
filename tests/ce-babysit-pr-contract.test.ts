@@ -323,6 +323,10 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/is not the review finishing/i)
     // Absence never blocks terminally, and the wait is bounded rather than open-ended.
     expect(babysit).toMatch(/never wait terminally for a done signal/i)
+    // An announcement is not the only evidence a review is coming. Dropping the earlier-head sign
+    // makes the gate inert in repos where no reviewer announces — which is most of them.
+    expect(babysit).toMatch(/reviewed an \*\*earlier\*\* head and not this one/i)
+    expect(babysit).toMatch(/without ever announcing anything/i)
     expect(babysit).toMatch(/wait a bounded while/i)
     // The bound needs a magnitude, not just a count of re-arms.
     expect(babysit).toMatch(/no more than 1800/i)
