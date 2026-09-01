@@ -173,6 +173,16 @@ A proxy holds only while the condition's usual case is its only case, and it for
 ### Context-absent agent
 An agent performing a Skill-shaped action without that Skill's instructions loaded in context — typically reconstructing a half-remembered command, recognizable by parameter values that drift from the Skill's documented defaults. Prose in the unloaded Skill cannot reach it; the only channels that do are the seam it entered through and the output of the tools it runs, which is why fail-closed refusals in bundled CLIs carry their own recovery path.
 
+### Attention set
+The items a watching run must act on this tick — unresolved review threads, unclassified non-thread feedback, failing checks on the current head, and any pending work to bring the branch current — recomputed from remote truth on every observation rather than accumulated in the agent's memory.
+
+Observing an item never marks it handled. An item leaves the set only when the run confirms it acted or remote truth removes it, so a crashed or superseded pass leaves its items present for the next tick.
+
+### Feedback candidate
+A non-thread message on a pull request — a top-level comment or a review submission body — surfaced for classification without any determination that it requires work. The deterministic layer excludes only empty bodies, declining on purpose to judge by author, bot identity, or surface, so the resolving Skill decides whether a candidate is real feedback and may legitimately drop one as noise.
+
+Because every non-empty body becomes a candidate, treating a candidate-only state as immediately actionable spends a full resolver pass to classify routine automation chatter as nothing. Waiting for the candidate set to stop changing merges a burst into a single pass and lets genuine work claim the same tick, without any candidate leaving the Attention set.
+
 ## Review and workflow vocabulary
 
 ### Reviewer persona
