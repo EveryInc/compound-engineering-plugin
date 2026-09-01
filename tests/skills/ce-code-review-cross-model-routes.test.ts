@@ -1937,10 +1937,21 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     }
   })
 
+  test("codex effort override accepts none and max from the Codex CLI enum", () => {
+    for (const script of [SCRIPT, DOC_SCRIPT]) {
+      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "none" })).toContain(
+        'model_reasoning_effort="none"',
+      )
+      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "max" })).toContain(
+        'model_reasoning_effort="max"',
+      )
+    }
+  })
+
   test("an effort override the route cannot honor fails closed in both skills", () => {
     const cases: Array<[string, string]> = [
       ["claude", "minimal"],       // not a claude CLI level
-      ["codex", "max"],            // not a codex reasoning level
+      ["codex", "ultra"],          // not a Codex CLI reasoning level
       ["grok-cli", "xhigh"],       // not a grok level
       ["grok-cursor", "high"],     // cursor-agent routes imply effort in the model id
       ["composer", "high"],
@@ -1960,6 +1971,28 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
 
   test("effort-override validation stays byte-identical across review workers", () => {
     expect(blockBetween(SCRIPT, "validate_effort_override()")).toBe(blockBetween(DOC_SCRIPT, "validate_effort_override()"))
+  })
+
+  test("codex effort enum is pinned across validators, comments, and docs", () => {
+    const caseArm =
+      "codex:none|codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh|codex:max"
+    const commentList = "model_reasoning_effort: none|minimal|low|medium|high|xhigh|max"
+    for (const script of [SCRIPT, DOC_SCRIPT]) {
+      const src = readFileSync(script, "utf8")
+      expect(src).toContain(caseArm)
+      expect(src).toContain(commentList)
+    }
+    const repoRoot = path.join(__dirname, "../..")
+    expect(readFileSync(path.join(repoRoot, "docs/guides/configuration.md"), "utf8")).toContain(
+      "codex `none`..`max`",
+    )
+    const yamlNeedle = "codex none|minimal|low|\n# medium|high|xhigh|max"
+    expect(readFileSync(path.join(repoRoot, ".compound-engineering/config.example.yaml"), "utf8")).toContain(
+      yamlNeedle,
+    )
+    expect(
+      readFileSync(path.join(repoRoot, "skills/ce-setup/references/config-template.yaml"), "utf8"),
+    ).toContain(yamlNeedle)
   })
 
   test("NEVER flags are absent from both skills' adapters", () => {

@@ -123,8 +123,8 @@
 # `fable` or a full id such as `claude-opus-5` for claude; `gpt-*` for codex,
 # optionally namespace-qualified such as `openai.gpt-5.6-sol` when the codex CLI
 # routes through a non-default `model_provider`).
-# Effort levels: claude low|medium|high|xhigh|max, codex minimal|low|medium|
-# high|xhigh, grok low|medium|high; cursor/composer routes take none. A value
+# Effort levels: claude low|medium|high|xhigh|max, codex none|minimal|low|
+# medium|high|xhigh|max, grok low|medium|high; cursor/composer routes take none. A value
 # the peer cannot honor skips the pass with a stated reason -- never substituted.
 
 # cross_model_review_mode: off   # auto | off (default: auto)
