@@ -1732,9 +1732,14 @@ describe("cross-model fold-in read", () => {
       const content = await readRepoFile(
         `skills/${skill}/references/cross-model-review.md`,
       )
-      expect(content).toMatch(/exit 4 is a trust failure/i)
-      expect(content).toMatch(/exit 1 means the job id did not resolve/i)
+      // Exit 3 is the only "peer produced nothing" outcome; every other
+      // non-zero exit is the runner failing to read and has no fold-in branch.
+      expect(content).toMatch(/exit 3 is the only outcome that means the peer produced nothing/i)
+      expect(content).toMatch(/could not complete the read/i)
       expect(content).toMatch(/degraded cross-model pass/i)
+      // Exit 4 must not be described as requiring the artifact to exist: an
+      // absent artifact plus an unreadable job dir also exits 4.
+      expect(content).not.toMatch(/artifact that does exist/i)
     },
   )
 })
