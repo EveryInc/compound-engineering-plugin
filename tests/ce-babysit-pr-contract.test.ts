@@ -258,7 +258,9 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     for (const cmd of watchCommands) {
       expect(cmd, "the normal watch invocation must not set --settle-seconds").not.toContain("--settle-seconds")
     }
-    expect(script, "the script must own the 300s settle default").toMatch(/--settle-seconds"[^)]*default=300/s)
+    expect(script, "the argparse default must be the named ordinary settle window")
+      .toMatch(/--settle-seconds"[^)]*default=DEFAULT_SETTLE_SECONDS/s)
+    expect(script, "the script must own the 300s settle default").toMatch(/^DEFAULT_SETTLE_SECONDS = 300\.0$/m)
     // No prose may reintroduce the bots-present pre-widening rule the wake protocol replaced.
     expect(babysit).not.toMatch(/whenever the repo uses review bots/i)
   })

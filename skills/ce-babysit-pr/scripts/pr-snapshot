@@ -91,6 +91,10 @@ BASE_REF_MERGEABILITY_PENDING = "mergeability-pending"
 BASE_REF_PROBE_ERROR = "probe-error"
 BASE_REF_LEGACY_STALE = "stale"
 
+# Quiet window a merge-ready wake ordinarily requires. Any wider window comes from a re-arm covering
+# an incomplete review lifecycle, so it lapses once that lifecycle's own evidence resolves.
+DEFAULT_SETTLE_SECONDS = 300.0
+
 # First judgment point for an incomplete review lifecycle. The agent may extend once to 1800s when
 # concrete prior-round timing supports it; the skill contract owns that semantic decision.
 REVIEW_INPROGRESS_MAX_WAIT = 900
@@ -2798,11 +2802,15 @@ def _wake_reason(a, settle_seconds):
     # and wakes the agent after 900 quiet seconds for the semantic stale-review judgment; the agent
     # may extend once to 1800s by re-arming with that settle value. Once every reactor's own
     # current-head work is terminal there is no evidence a review is live, so the ordinary settle
-    # decides and the agent judges completion from `review_signal_attribution`. The detector never
-    # decides whether a reviewer is genuinely slow, stuck, or finished.
+    # decides again — a widened re-arm covers only the incomplete lifecycle and lapses with it — and
+    # the agent judges completion from `review_signal_attribution`. The work-terminal transition is
+    # itself movement, so a full ordinary window of quiet still elapses after the reactor finished.
+    # The detector never decides whether a reviewer is genuinely slow, stuck, or finished.
     review_blocking = (a.get("review_in_progress")
                        and not a.get("review_signal_work_terminal")
                        and a.get("quiet_seconds", 0) < REVIEW_INPROGRESS_MAX_WAIT)
+    if a.get("review_signal_work_terminal"):
+        settle_seconds = min(settle_seconds, DEFAULT_SETTLE_SECONDS)
     # Interactive merge-ready does NOT require `all_checks_ok`'s "at least one observed check": a repo
     # with no configured checks has a CLEAN/MERGEABLE PR that should be callable ready. (That guard
     # stays in pipeline success, where a not-yet-created rollup must not read as a pass.)
@@ -3745,7 +3753,8 @@ def main():
     w.add_argument("--downstack-pr", type=int, action="append", default=[],
                    help="lower managed-stack layer to keep probing; a new thread/comment/failing check/head there wakes downstack-actionable")
     w.add_argument("--downstack-fetch-file", action="append", default=[], help="N=path fixture for --downstack-pr N (tests)")
-    w.add_argument("--settle-seconds", type=float, default=300.0, help="quiet window before a merge-ready wake")
+    w.add_argument("--settle-seconds", type=float, default=DEFAULT_SETTLE_SECONDS,
+                   help="quiet window before a merge-ready wake")
     w.add_argument("--blocked-external-drain-seconds", type=float, default=None,
                    help="head-scoped review-quiet bound before a gated-CI handback")
     w.add_argument("--stop-file", default=None, help="path whose existence stops the watch")

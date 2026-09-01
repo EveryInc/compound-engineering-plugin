@@ -5059,6 +5059,40 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(wakeReason(base, 300)).toBeNull()
   })
 
+  test("watch: terminal attribution restores the ordinary settle under a widened stale-review re-arm", () => {
+    // A rejected merge-ready wake re-arms at 900s (or once at 1800s) to cover an incomplete review
+    // lifecycle. When that lifecycle's own evidence resolves, the widened window has nothing left to
+    // cover, so readiness must return to the ordinary settle instead of idling out the re-arm.
+    const base = {
+      pr_state: "OPEN",
+      counts: { threads: 0, ci: 0, comments: 0 },
+      stack_blocker: null,
+      base_ref_blocker: null,
+      unrequested_base_merge: null,
+      branch_currency: {},
+      branch_currency_blocker: null,
+      blocked_external: false,
+      open_needs_human: 0,
+      mergeability_certain: true,
+      mergeable: "MERGEABLE",
+      merge_state_status: "CLEAN",
+      checks_terminal: true,
+      has_failing_checks: false,
+      checks_awaiting_approval: 0,
+      review_in_progress: true,
+      quiet_seconds: 300,
+    }
+
+    for (const rearmed of [900, 1800]) {
+      expect(wakeReason({ ...base, review_signal_work_terminal: true }, rearmed)).toBe("merge-ready")
+      // A reactor still running has an unresolved lifecycle, so the widened window still holds.
+      expect(wakeReason({ ...base, review_signal_work_terminal: false }, rearmed)).toBeNull()
+    }
+
+    // The ordinary window is a floor, not an override: terminal attribution before it elapses waits.
+    expect(wakeReason({ ...base, quiet_seconds: 299, review_signal_work_terminal: true }, 900)).toBeNull()
+  })
+
   test("watch: a no-check MERGEABLE/CLEAN PR still reaches merge-ready (the >=1-check guard is pipeline-only)", () => {
     // A repo with no configured checks: all_checks_ok is false (no observed check), but the
     // interactive merge-ready wake must still fire for a CLEAN/MERGEABLE PR with no backlog.
