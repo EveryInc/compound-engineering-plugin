@@ -25,7 +25,10 @@ citations against the repository:
        URL routes are skipped.
     2. Cited commit SHAs (7-40 hex chars with at least one digit and one
        a-f letter) resolve to commits, classified by reachability from
-       HEAD and the upstream default branch.
+       HEAD and the upstream default branch. Session ids, content hashes
+       and blob hashes are hex too, so a hex word is only reported as a
+       fabricated SHA when the text right before it presents it as a
+       commit reference; one that resolves is classified either way.
     3. Relative markdown link targets resolve from the doc's location.
     4. Dangling drafting scaffold: "Learning(s) N" numbering and
        unresolved {{...}} placeholder tokens. Inline code spans and fenced
@@ -52,6 +55,19 @@ PLACEHOLDER_CHARS = set("<>{}*$")
 PLACEHOLDER_SUBSTRINGS = ("path/to", "...", "…")
 
 SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
+# Words that name a commit or a commit operation, so a hex token right after
+# one is a commit citation. Words naming some other git object ("blob", "tree")
+# or any hash ("sha") are deliberately absent — they are what the flag used to
+# mistake for commits.
+COMMIT_WORDS = frozenset(
+    "commit commits committed committing revision revisions rev revs git "
+    "revert reverts reverted cherry-pick cherry-picked rebase rebased "
+    "bisect bisected".split()
+)
+# A hex token is also a citation when the sentence attributes something to it
+# ("landed in <sha>", "resolved by <sha>"). The preposition carries that, so
+# the verb before it needs no list of its own.
+CITATION_PREPS = frozenset(("in", "by", "at", "with"))
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
@@ -148,6 +164,26 @@ def mask_code(lines: list[str]) -> list[str]:
             continue
         masked.append(BACKTICK_RE.sub(lambda x: " " * len(x.group(0)), line))
     return masked
+
+
+def cites_a_commit(prefix: str) -> bool:
+    """True when the text just before a hex word presents it as a commit.
+
+    Only the last few words on the same line count: a cue further away
+    ("the git history shows session 7e6861b4") describes the surroundings,
+    not the token. Digits are word characters so a hash named after its
+    algorithm ("SHA256") stays one non-cue word, and command flags drop out
+    first so `git show --format=%H <sha>` reads like `git show <sha>`.
+    """
+    if prefix.endswith("@"):
+        return True  # owner/repo@<sha> pins a commit
+    unflagged = " ".join(w for w in prefix.split() if not w.startswith("-"))
+    words = [
+        w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9-]*", unflagged)[-3:]
+    ]
+    if any(word in COMMIT_WORDS for word in words):
+        return True
+    return len(words) >= 2 and words[-1] in CITATION_PREPS
 
 
 def normalize_path(token: str) -> str:
@@ -312,17 +348,24 @@ def main(argv: list[str]) -> int:
     checked_shas = 0
     seen_shas: set[str] = set()
     if in_git:
+        resolves: dict[str, bool] = {}
         for m in SHA_RE.finditer(body):
             sha = m.group(0)
-            if sha in seen_shas:
-                continue
             if not (any(c.isdigit() for c in sha) and any(c in "abcdef" for c in sha)):
                 continue  # dates and decimal ids are not SHAs
+            if sha in seen_shas:
+                continue  # already classified on an earlier occurrence
+            if sha not in resolves:
+                code, _ = git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root)
+                resolves[sha] = code == 0
+            line_start = body.rfind("\n", 0, m.start()) + 1
+            if not resolves[sha] and not cites_a_commit(body[line_start : m.start()]):
+                continue  # a session id or content hash, not a commit claim
             seen_shas.add(sha)
             checked_shas += 1
-            loc = loc_suffix(sha)
-            code, _ = git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root)
-            if code != 0:
+            line_no = body_start + body.count("\n", 0, m.start())
+            loc = f" (line {line_no})"
+            if not resolves[sha]:
                 flags.append(
                     f"FLAG sha {sha}{loc} — does not resolve to a commit in this "
                     "repository. Replace with the PR number, or drop it."

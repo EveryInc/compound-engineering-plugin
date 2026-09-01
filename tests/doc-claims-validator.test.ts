@@ -327,6 +327,131 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         expect(result.code).toBe(0)
       })
 
+      test("does not treat hex identifiers cited as something else as SHAs", () => {
+        const docPath = writeRepoDoc(
+          "The transcript names its sessions:\n\n" +
+            "```\n" +
+            "session 7e6861b4:  Write -> /tmp/attribute.sh\n" +
+            "session dc828513:  Write -> docs/x.md\n" +
+            "```\n\n" +
+            "The content hash was b3d4f5a6c7 and the blob is 9f2c1a8e40.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).toContain("0 SHAs")
+      })
+
+      test("flags a fabricated SHA cited by a git command in a code fence", () => {
+        const docPath = writeRepoDoc(
+          "Reproduce it with:\n\n" +
+            "```bash\n" +
+            "git show 0123456789abcdef0123\n" +
+            "```\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+      })
+
+      test("flags a fabricated SHA cited by a landed-in phrase", () => {
+        const docPath = writeRepoDoc(
+          "The rename landed in 0123456789abcdef0123 last week.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+      })
+
+      test("classifies a resolvable SHA even with no commit-citation context", () => {
+        const sha = mixedShaPrefix(localOnlySha)
+        const docPath = writeRepoDoc(`The tree at ${sha} shows it.\n`)
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("local-only commit")
+      })
+
+      test("flags a fabricated SHA cited as committed", () => {
+        const docPath = writeRepoDoc(
+          "The fix was committed as 0123456789abcdef0123.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+      })
+
+      test("flags a fabricated SHA cited in the repo@sha pin form", () => {
+        const docPath = writeRepoDoc(
+          "Ported from acme/widgets@0123456789abcdef0123 upstream.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+      })
+
+      test("flags a fabricated SHA an attribution phrase points at", () => {
+        const docPath = writeRepoDoc(
+          "The regression was resolved by 0123456789abcdef0123.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+      })
+
+      test("flags a fabricated SHA in a git command carrying options", () => {
+        const docPath = writeRepoDoc(
+          "Inspect it:\n\n" +
+            "```bash\n" +
+            "git show --format=%H --stat 0123456789abcdef0123\n" +
+            "```\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG sha 0123456789abcdef0123")
+      })
+
+      test("does not treat a hash named as some other git object as a commit", () => {
+        const docPath = writeRepoDoc(
+          "The blob's sha is 9f2c1a8e40 and the tree sha is b3d4f5a6c7.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+      })
+
+      test("does not read a commit cue out of a hash named for its algorithm", () => {
+        const docPath = writeRepoDoc(
+          "The content hash SHA256 is b3d4f5a6c7 in the manifest.\n" +
+            "The blob's sha1 is 9f2c1a8e40 per the index.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+      })
+
+      test("ignores a commit cue further back than the citation window", () => {
+        const docPath = writeRepoDoc(
+          "The git history shows session 7e6861b4 in the transcript.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+      })
+
+      test("reports the line of the occurrence that carries the citation", () => {
+        const docPath = writeRepoDoc(
+          "A transcript naming sessions:\n\n" +
+            "```\n" +
+            "session 0123456789abcdef0123: Write -> /tmp/a.sh\n" +
+            "```\n\n" +
+            "It landed in 0123456789abcdef0123 last week.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        const flag = result.stdout
+          .split("\n")
+          .find((line) => line.startsWith("FLAG sha"))
+        // line 13 is the transcript occurrence, 16 the cited one
+        expect(flag).toContain("(line 16)")
+        expect(flag).not.toContain("(line 13)")
+      })
+
       test("flags dangling learning-number scaffold", () => {
         const docPath = writeRepoDoc(
           "This complements Learnings 3, 4, 5 from the same batch.\n",
