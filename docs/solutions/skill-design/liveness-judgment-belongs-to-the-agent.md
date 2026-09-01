@@ -60,7 +60,9 @@ review_blocking = a.get("review_in_progress") and a.get("quiet_seconds", 0) < RE
 
 After, the engine reports quiet and nothing more, and `skills/ce-babysit-pr/references/settle.md` hands the agent the goal:
 
-> A reviewer that announces itself has told you it **started**. Nothing obliges it to retract that when it finishes, so a standing announcement is not evidence that work continues. Look instead for what that same reviewer produced on this head. A check run it owns that reached any terminal conclusion means that reviewer stopped: say which — passed, failed, or timed out — and never read a timeout or a skip as approval.
+> A reviewer that announces itself has told you it **started**. Nothing obliges it to retract that when it finishes, so a standing announcement is not evidence that work continues. Look instead for what that same reviewer produced on this head, and ask whether it accounts for the review it announced. Something carrying that reviewer's verdict having reached a terminal conclusion means it stopped: say which, and never read a timeout or a skip as approval. Output that does not account for the announced review leaves the review outstanding: an unrelated check from the same app finishing while its review has not appeared is not the review finishing.
+
+Ownership of the check is not the test — an app can finish an unrelated check while the review it announced has not started. The first draft of this condition said any terminal check from the announcing app proved the reviewer stopped, and review caught it before it shipped.
 
 The engine kept the parts it can defend: that the PR went quiet, and for how long.
 
