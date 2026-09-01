@@ -277,6 +277,21 @@ describe("release metadata", () => {
     expect(stated.map(Number)).toEqual([skillCount, skillCount, skillCount])
   })
 
+  test("README session guidance pins stay/compact/fresh without claiming review reports reload", async () => {
+    const readme = await Bun.file(path.join(process.cwd(), "README.md")).text()
+    const start = readme.indexOf("## Session guidance")
+    const end = readme.indexOf("## Skills at a glance")
+    expect(start).toBeGreaterThan(0)
+    expect(end).toBeGreaterThan(start)
+    const section = readme.slice(start, end)
+    expect(section).toMatch(/\*\*Stay in the same session\*\*/)
+    expect(section).toMatch(/\*\*Compact\*\*/)
+    expect(section).toMatch(/\*\*Start a fresh session\*\*/)
+    expect(section).toMatch(/ce-handoff/)
+    expect(section).toMatch(/per-run artifact/)
+    expect(section).not.toMatch(/\/ce-plan`, `\/ce-work`, and `\/ce-code-review` all read prior artifacts/)
+  })
+
   // Hosts install the repo's skills/ tree as the plugin payload. A sibling
   // directory without SKILL.md (the #1551 catalog landing under skills/guides)
   // ships user docs with every install. The catalog lives in docs/guides/.
