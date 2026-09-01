@@ -306,6 +306,12 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(doc).toMatch(/engine reports only that the PR went quiet/i)
       expect(doc).not.toMatch(/review_in_progress|review_signal_/)
     }
+    // The on-disk state contract is read as authoritative by a runtime agent, so a removed field
+    // lingering in its example still advertises detector state that no longer exists.
+    const watchLoop = await readRepoFile("skills/ce-babysit-pr/references/watch-loop.md")
+    for (const doc of [watchLoop]) {
+      expect(doc).not.toMatch(/"review_in_progress"|"review_signal_/)
+    }
   })
 
   test("settle policy: readiness judges whether a review is still coming, and bounds the wait", async () => {

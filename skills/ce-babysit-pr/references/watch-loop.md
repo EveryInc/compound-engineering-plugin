@@ -94,7 +94,6 @@ State lives at `<scratch-root>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/state.js
   "human_decisions": [{ "id": "decision:<hash>", "residual": "<complete typed residual>", "sources": [{ "kind": "check", "id": "CI/test", "observation": "<frozen source facts>" }] }],
   "answered_human_decisions": [{ "id": "decision:<hash>", "answer": "<exact human response>", "residual": "<complete typed residual>", "sources": ["<same frozen observations>"] }],
   "review_decision": "APPROVED",
-  "review_in_progress": false,
   "blocked_external_head_sha": "abc123",
   "blocked_external_first_seen_at": "<iso8601>",
   "blocked_external_review_last_activity_at": "<iso8601>",
