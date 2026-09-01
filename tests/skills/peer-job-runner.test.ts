@@ -8,6 +8,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   statSync,
   utimesSync,
   writeFileSync,
@@ -719,6 +720,18 @@ describe("peer-job-runner lifecycle", () => {
     expect(unknown.code).toBe(1)
     expect(unknown.stderr).toContain("no artifact at")
     expect(unknown.stderr).toContain("job not found")
+
+    // A path that exists but is refused -- a planted symlink is what O_NOFOLLOW
+    // guards against -- is a trust failure, not "the peer produced nothing".
+    const linkDir = mkTempRoot("peer-link-")
+    writeFileSync(path.join(linkDir, "real.json"), "{}")
+    symlinkSync(path.join(linkDir, "real.json"), path.join(linkDir, "link.json"))
+    const refused = runner(root, FAST, [
+      "result", "--path", path.join(linkDir, "link.json"),
+    ])
+    expect(refused.code).toBe(4)
+    expect(refused.stdout).toBe("")
+    expect(refused.stderr).toContain("refused to read")
 
     // The ownership-failure branch (exit 4) needs a real fstat-uid mismatch, so
     // it lives in the python fixture -- mode bits would not fail the owner check

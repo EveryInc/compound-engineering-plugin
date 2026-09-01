@@ -183,8 +183,10 @@ exit codes:
   2  usage error; for `result`: the job is still running
   3  for `result`: job settled but not done (failed / timeout /
      died-without-result / never-started), or the result file is missing
-  4  ownership check failed (job state or result not owned by the current
-     user) — content is never emitted
+  4  the read was refused, so content is never emitted: the ownership check
+     failed (job state or result not owned by the current user), or the path
+     is there but unreadable (a symlink rejected by O_NOFOLLOW, a non-regular
+     file, a byte-cap overrun). Only a genuinely absent file is 3.
 
 environment overrides: CE_PEER_JOBS_ROOT, CE_WORK_RUNS_ROOT, CE_PEER_IDLE_SECS,
 CE_PEER_HARD_SECS, CROSS_MODEL_HARD_SECS, CE_PEER_LOG_MAX_BYTES,
@@ -2194,8 +2196,12 @@ def cmd_result(args) -> int:
         except FileNotFoundError:
             return _report_absent_artifact(target, args)
         except OSError as exc:
-            sys.stderr.write(f"peer-job-runner: file unreadable: {exc}\n")
-            return 3
+            # Only a genuine ENOENT is "the peer produced nothing". Every other
+            # read failure means the path is there but was refused -- a planted
+            # symlink rejected by O_NOFOLLOW is the case this guard exists for --
+            # so it takes the trust-failure code, never the routine one.
+            sys.stderr.write(f"peer-job-runner: refused to read {target}: {exc}\n")
+            return 4
         _emit_bytes(data)
         return 0
     job_dir = resolve_job_dir(args.job, args.skill)
