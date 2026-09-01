@@ -1714,14 +1714,13 @@ describe("ce-code-review dispatch templates", () => {
     expect(template).toContain(
       "title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix, first_evidence.",
     )
-    expect(template).toMatch(/`notes` is not a field of either output/)
-    expect(template).toMatch(/why_it_matters.*never as `notes`/)
-    expect(template).toMatch(/Compact returns must include `pre_existing` as a boolean/)
-    expect(template).toMatch(/Do not emit `notes`/)
-    expect(template).toMatch(/Required on both the artifact and the compact return/)
+    expect(template).toMatch(
+      /Exact-key condition: the artifact conforms to the full schema below; the compact finding uses only this merge-tier allowlist, with `pre_existing` as a boolean\. `notes` is not a field\./,
+    )
+    expect(template).not.toMatch(/Do not emit `notes`/)
+    expect(template).not.toMatch(/independence_verified/)
 
     expect(dispatch).toMatch(/not synonyms such as `notes`/)
     expect(dispatch).toMatch(/every compact finding still includes merge-tier `pre_existing`/)
-    expect(template).not.toMatch(/independence_verified/)
   })
 })

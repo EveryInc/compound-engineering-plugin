@@ -28,7 +28,7 @@ You produce up to two outputs depending on whether a run ID was provided:
 
 2. **Compact return (always).** RETURN compact JSON to the parent with ONLY merge-tier fields per finding:
    title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix, first_evidence.
-   Use these exact JSON keys. Do not rename them and do not add synonym keys. `notes` is not a field of either output — free-form impact belongs in `why_it_matters` on the artifact, never as `notes`. Compact returns must include `pre_existing` as a boolean on every finding; omitting it is a validation failure. The artifact must contain `why_it_matters` and `pre_existing` verbatim (the schema keys); do not write the compact shape, or a `notes` stand-in, to disk.
+   Exact-key condition: the artifact conforms to the full schema below; the compact finding uses only this merge-tier allowlist, with `pre_existing` as a boolean. `notes` is not a field.
    Do NOT include why_it_matters or the full evidence array in the returned JSON.
    `first_evidence` is the ONE exception to "no evidence in the compact return": it is the verbatim motivating line with `file:line` (the same string you put first in the `evidence` array). It is **REQUIRED for every finding at anchor 75 or 100** — the orchestrator enforces the quote-the-line gate from this field, and a 75/100 finding without it is demoted to anchor 50 at merge. Omit it only for anchor-50 findings. Keep it to that single line; the rest of `evidence` stays in the artifact file.
    Include reviewer, residual_risks, and testing_gaps at the top level.
@@ -46,8 +46,7 @@ The schema below describes the **full artifact file format** (all fields require
 - `autofix_class`: one of `"gated_auto"`, `"manual"`, `"advisory"`.
 - `owner`: one of `"downstream-resolver"`, `"human"`, `"release"`.
 - `evidence`: an ARRAY of strings with at least one element. A single string value is a validation failure — wrap every quote in `["..."]` even when there is only one. **For any finding at anchor `75` or `100`, the first evidence item MUST be the verbatim motivating line(s) with `file:line`** — the exact code text that makes the finding true (see "Quote-the-line gate" below).
-- `pre_existing`: boolean, never null. Required on both the artifact and the compact return under this exact key.
-- Do not emit `notes`, `reason`, or other synonym keys in place of `why_it_matters` or `pre_existing`.
+- `pre_existing`: boolean, never null.
 - `requires_verification`: boolean, never null.
 - `confidence`: one of exactly `0`, `25`, `50`, `75`, or `100` — a discrete anchor, NOT a continuous number. Any other value (e.g., `72`, `0.85`, `"high"`) is a validation failure. Pick the anchor whose behavioral criterion you can honestly self-apply to this finding (see "Confidence rubric" below).
 
