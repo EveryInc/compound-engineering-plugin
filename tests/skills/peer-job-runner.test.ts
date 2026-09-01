@@ -669,7 +669,73 @@ describe("peer-job-runner lifecycle", () => {
     ])
     expect(missing.code).toBe(3)
     expect(missing.stdout).toBe("")
+    // An absent artifact is an outcome, not a read error: report it as one
+    // rather than dumping errno at the caller (#1607).
+    expect(missing.stderr).toContain("no artifact at")
+    expect(missing.stderr).not.toContain("No such file or directory")
   }, 10000)
+
+  test("result --path with a job id names the job's state instead of a bare errno", () => {
+    const root = makeRoot()
+    const missing = path.join(mkTempRoot("peer-path-"), "adversarial-codex.json")
+
+    // A peer that skips (no different-provider CLI installed) exits 0 without
+    // writing the artifact and is legitimately `done` -- the dominant fold-in
+    // case behind #1607's ~90 phantom file errors.
+    const skipped = startJob(root, FAST, [writeStub("exit 0\n")])
+    trackJob(skipped.dir)
+    expect(
+      runner(root, FAST, ["wait", "--max-secs", "10", skipped.id]).stdout.trim(),
+    ).toBe("done")
+
+    const doneNoArtifact = runner(root, FAST, ["result", skipped.id, "--path", missing])
+    expect(doneNoArtifact.code).toBe(3)
+    expect(doneNoArtifact.stdout).toBe("")
+    expect(doneNoArtifact.stderr).toContain("no artifact at")
+    expect(doneNoArtifact.stderr).toContain(`job ${skipped.id}: done`)
+    // The terminal record's reason is what turns a state word into a diagnosis.
+    expect(doneNoArtifact.stderr).toContain("(worker exited 0)")
+    expect(doneNoArtifact.stderr).not.toContain("No such file or directory")
+
+    // The other actionable state: still running is never reported as exit 3.
+    const running = startJob(root, FAST, [writeStub("sleep 30\n")])
+    trackJob(running.dir)
+    const stillRunning = runner(root, FAST, ["result", running.id, "--path", missing])
+    expect(stillRunning.code).toBe(2)
+    expect(stillRunning.stdout).toBe("")
+    expect(stillRunning.stderr).toContain("still running")
+
+    expect(runner(root, FAST, ["reap", running.id]).code).toBe(0)
+    runner(root, FAST, ["wait", "--max-secs", "10", running.id])
+  }, 20000)
+
+  test("absent --path keeps each failure's own exit code rather than the routine 3", () => {
+    const root = makeRoot()
+    const missing = path.join(mkTempRoot("peer-path-"), "adversarial-codex.json")
+
+    // A job id that does not resolve is a lookup failure, not a peer that
+    // produced nothing -- collapsing it into 3 hides it as a routine skip.
+    const unknown = runner(root, FAST, ["result", "nope-0000", "--path", missing])
+    expect(unknown.code).toBe(1)
+    expect(unknown.stderr).toContain("no artifact at")
+    expect(unknown.stderr).toContain("job not found")
+
+    // A job dir failing its owner check is exit 4, matching the job-id branch.
+    // Its `reason` is never read: job_dir already failed verification.
+    const settled = startJob(root, FAST, [writeStub("exit 0\n")])
+    trackJob(settled.dir)
+    runner(root, FAST, ["wait", "--max-secs", "10", settled.id])
+    writeFileSync(path.join(settled.dir, "reason"), "SHOULD-NOT-BE-READ\n")
+    chmodSync(settled.dir, 0o000)
+    try {
+      const unreadable = runner(root, FAST, ["result", settled.id, "--path", missing])
+      expect(unreadable.code).toBe(4)
+      expect(unreadable.stderr).toContain("unreadable")
+      expect(unreadable.stderr).not.toContain("SHOULD-NOT-BE-READ")
+    } finally {
+      chmodSync(settled.dir, 0o700)
+    }
+  }, 20000)
 
   test("result with neither a job nor --path is a usage error (exit 2)", () => {
     const root = makeRoot()

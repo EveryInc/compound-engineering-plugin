@@ -1702,3 +1702,39 @@ describe("ce-code-review dispatch templates", () => {
     }
   })
 })
+
+describe("cross-model fold-in read", () => {
+  // #1607: `result --path` on an absent artifact can only name the peer's state
+  // when the job id rides along. Without it the runner falls back to a bare
+  // "no artifact" line, and the caller cannot tell a still-running job from one
+  // that produced nothing -- the exact confusion this fold-in step must resolve.
+  test.each([
+    ["ce-code-review", "adversarial"],
+    ["ce-doc-review", "<reviewer-name>"],
+  ])("%s passes the job id to the fold-in read", async (skill, label) => {
+    const content = await readRepoFile(
+      `skills/${skill}/references/cross-model-review.md`,
+    )
+    const call = content
+      .split("\n")
+      .find((l) => l.includes("peer-job-runner.py") && l.includes("result") && l.includes("--path"))
+    expect(call).toBeDefined()
+    expect(call).toContain('result "<job-id>"')
+    expect(call).toContain(`${label}-<target>.json`)
+  })
+
+  // Exit 4 (artifact present, ownership/cap failure) and exit 1 (job id did not
+  // resolve) have no fold-in branch. Prose that folds every nonzero exit into
+  // "no artifact came back" silently drops a trust failure.
+  test.each(["ce-code-review", "ce-doc-review"])(
+    "%s does not treat every nonzero fold-in exit as an absent artifact",
+    async (skill) => {
+      const content = await readRepoFile(
+        `skills/${skill}/references/cross-model-review.md`,
+      )
+      expect(content).toMatch(/exit 4 is a trust failure/i)
+      expect(content).toMatch(/exit 1 means the job id did not resolve/i)
+      expect(content).toMatch(/degraded cross-model pass/i)
+    },
+  )
+})
