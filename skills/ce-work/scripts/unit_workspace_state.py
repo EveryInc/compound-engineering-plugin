@@ -632,6 +632,28 @@ ROUTE_CONTRACTS = {
     "opencode": {"target": "opencode", "harness": "opencode", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
 }
 
+BINDING_EFFORT_TOKENS = frozenset({
+    "none", "minimal", "low", "medium", "high", "xhigh", "max", "default",
+})
+ROUTE_EFFORT_HONOR = {
+    "claude": frozenset({"low", "medium", "high", "xhigh", "max"}),
+    "codex": frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max"}),
+    "grok-cli": frozenset({"low", "medium", "high"}),
+    "opencode": frozenset({"none", "minimal", "low", "medium", "high", "xhigh", "max", "default"}),
+}
+
+
+def normalize_binding(binding: dict) -> dict:
+    out = dict(binding)
+    out.setdefault("effort", None)
+    return out
+
+
+def normalize_authorization(auth: dict) -> dict:
+    out = dict(auth)
+    out.setdefault("effort_requested", None)
+    return out
+
 
 def route_model_allowed(route: str, model: str) -> bool:
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", model):
@@ -658,14 +680,22 @@ def route_model_allowed(route: str, model: str) -> bool:
 def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> dict:
     if not isinstance(binding, dict) or not isinstance(egress, dict):
         raise Operational(word, "run binding or egress sanction is malformed")
-    expected_binding_fields = {"mode", "target", "model", "source"}
-    if set(binding) != expected_binding_fields:
-        raise Operational(word, "binding must contain exactly mode, target, model, and source")
+    required_binding_fields = {"mode", "target", "model", "source"}
+    allowed_binding_fields = required_binding_fields | {"effort"}
+    fields = set(binding)
+    if not required_binding_fields <= fields or not fields <= allowed_binding_fields:
+        raise Operational(word, "binding must contain mode, target, model, and source, and may include effort")
     if binding.get("mode") not in {"prefer", "require"}:
         raise Operational(word, "binding mode must be 'prefer' or 'require'")
     source = binding.get("source")
     if not isinstance(source, str) or not source or "\0" in source or len(source.encode()) > 256:
         raise Operational(word, "binding source must be a non-empty string of at most 256 bytes")
+    effort = binding.get("effort")
+    if effort is not None and (not isinstance(effort, str) or effort not in BINDING_EFFORT_TOKENS):
+        raise Operational(
+            word,
+            "binding effort must be null or one of: none, minimal, low, medium, high, xhigh, max, default",
+        )
     route = egress.get("route")
     contract = ROUTE_CONTRACTS.get(route)
     if not contract:
@@ -712,6 +742,11 @@ def attempt_authorization(
         "harness": contract["harness"],
         "intermediaries": list(contract["intermediaries"]),
         "model_requested": model or contract["default_model"],
+        "effort_requested": (
+            binding.get("effort")
+            if binding.get("effort") in ROUTE_EFFORT_HONOR.get(route, frozenset())
+            else None
+        ),
         "restriction_posture": contract["restriction_posture"],
         "restrictions": list(restrictions),
         "activity_posture": activity_posture,
@@ -791,6 +826,7 @@ def cmd_init(args) -> tuple[str, dict]:
     binding = parse_json_arg(args.binding_json, "binding")
     egress = parse_json_arg(args.egress_json, "egress")
     fixed_route_contract(binding, egress, "REFUSED")
+    binding = normalize_binding(binding)
     rd = run_dir(rid)
     try:
         os.mkdir(rd, 0o700)
@@ -822,7 +858,7 @@ def cmd_init(args) -> tuple[str, dict]:
                 or existing_source.get("digest") != actual_digest
             ):
                 raise Operational("BLOCKED", "run id already belongs to another repository or source")
-            if existing.get("binding") != binding or existing.get("egress") != egress:
+            if normalize_binding(existing.get("binding") or {}) != binding or existing.get("egress") != egress:
                 raise Operational(
                     "BLOCKED",
                     "run id binding or egress sanction differs from the recorded fixed contract; resume with the recorded contract or choose a new run id",

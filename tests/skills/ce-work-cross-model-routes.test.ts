@@ -172,7 +172,7 @@ function run(
     }
     invoke(
       "init", "--run-id", runId, "--repo", f.canonical, "--plan", plan, "--plan-digest", planDigest,
-      "--binding-json", JSON.stringify({ mode: "prefer", target: contract.target, model: forgedAuthorization ? null : authorizationOverrides.model_requested ?? null, source: "test" }),
+      "--binding-json", JSON.stringify({ mode: "prefer", target: contract.target, model: forgedAuthorization ? null : authorizationOverrides.model_requested ?? null, effort: null, source: "test" }),
       "--egress-json", JSON.stringify({ sanction_source: "test", route, intermediaries: [...contract.intermediaries], exposed_material: [unitId], restrictions: [] }),
     )
     const base = spawnSync("git", ["-C", f.canonical, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim()
@@ -263,6 +263,40 @@ describe("ce-work fixed write routes", () => {
     expect(opencode).toContain("--auto")
     expect(opencode).toContain("--file <prompt-file>")
     expect(opencode).not.toContain("--model")
+  })
+
+  test("CE_WORK_EFFORT_OVERRIDE replaces editorial high on effort-bearing routes", () => {
+    expect(emit("codex").stdout).toContain("model_reasoning_effort=high")
+    expect(emit("claude").stdout).toContain("--effort high")
+    expect(emit("grok-cli").stdout).toContain("--effort high")
+
+    const codexMax = emit("codex", { ...process.env, CE_WORK_EFFORT_OVERRIDE: "max" })
+    expect(codexMax.status).toBe(0)
+    expect(codexMax.stdout).toContain("model_reasoning_effort=max")
+    expect(codexMax.stdout).not.toContain("model_reasoning_effort=high")
+
+    const claudeXhigh = emit("claude", { ...process.env, CE_WORK_EFFORT_OVERRIDE: "xhigh" })
+    expect(claudeXhigh.status).toBe(0)
+    expect(claudeXhigh.stdout).toContain("--effort xhigh")
+    expect(claudeXhigh.stdout).not.toContain("--effort high")
+
+    expect(emit("opencode").stdout).not.toContain("--variant")
+    const opencodeHigh = emit("opencode", { ...process.env, CE_WORK_EFFORT_OVERRIDE: "high" })
+    expect(opencodeHigh.status).toBe(0)
+    expect(opencodeHigh.stdout).toContain("--variant high")
+  })
+
+  test("an effort override the route cannot honor fails closed", () => {
+    const cursor = emit("cursor", { ...process.env, CE_WORK_EFFORT_OVERRIDE: "high" })
+    expect(cursor.status).toBe(2)
+    expect(cursor.stderr).toContain("effort override 'high' not compatible with route 'cursor'")
+
+    const banana = emit("codex", { ...process.env, CE_WORK_EFFORT_OVERRIDE: "banana" })
+    expect(banana.status).toBe(2)
+    expect(banana.stderr).toContain("effort override 'banana' not compatible with route 'codex'")
+    expect(banana.stdout).not.toContain("model_reasoning_effort=high")
+    expect(banana.stdout).not.toContain("model_reasoning_effort=medium")
+    expect(banana.stdout).not.toContain("model_reasoning_effort=max")
   })
 
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {

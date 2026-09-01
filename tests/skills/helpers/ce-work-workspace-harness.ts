@@ -163,7 +163,7 @@ export function initWithBinding(
     "--repo", fixture.repo,
     "--plan", fixture.plan,
     "--plan-digest", fixture.digest,
-    "--binding-json", JSON.stringify({ mode, target: "codex", model: null, source: "test" }),
+    "--binding-json", JSON.stringify({ mode, target: "codex", model: null, effort: null, source: "test" }),
     "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U2"],"restrictions":[]}',
   )
 }
@@ -185,7 +185,7 @@ export function initWithPrompt(
       "--repo", fixture.repo,
       "--prompt-brief", brief,
       "--prompt-digest", packetDigest(prompt),
-      "--binding-json", JSON.stringify({ mode: "prefer", target: "codex", model: null, source: "test" }),
+      "--binding-json", JSON.stringify({ mode: "prefer", target: "codex", model: null, effort: null, source: "test" }),
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["P1"],"restrictions":[]}',
     ),
   }

@@ -162,6 +162,29 @@ describe("elevation-dispatch worker", () => {
     for (const flag of NEVER_FLAGS) expect(argv).not.toContain(flag)
   })
 
+  test("CE_ELEVATION_EFFORT_OVERRIDE replaces editorial high when the Claude route honors it", () => {
+    const r = spawnSync("bash", [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"], {
+      encoding: "utf8",
+      env: { ...process.env, CE_ELEVATION_EFFORT_OVERRIDE: "xhigh" },
+    })
+    expect(r.status).toBe(0)
+    const argv = (r.stdout ?? "").split("\0").filter(Boolean)
+    expect(argv).toContain("--effort")
+    expect(argv).toContain("xhigh")
+    expect(argv).not.toContain("high")
+  })
+
+  test("an unhonored CE_ELEVATION_EFFORT_OVERRIDE fails closed", () => {
+    const r = spawnSync("bash", [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"], {
+      encoding: "utf8",
+      env: { ...process.env, CE_ELEVATION_EFFORT_OVERRIDE: "minimal" },
+    })
+    expect(r.status).toBe(2)
+    expect(r.stderr).toContain("effort override 'minimal' not compatible")
+    expect(r.stdout ?? "").not.toContain("high")
+    expect(r.stdout ?? "").not.toContain("xhigh")
+  })
+
   test("a matching receipt yields a matched envelope with the output", () => {
     const stub =
       "#!/bin/sh\n" +

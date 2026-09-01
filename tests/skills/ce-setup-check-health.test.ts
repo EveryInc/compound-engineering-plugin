@@ -188,6 +188,9 @@ describe("ce-setup check-health", () => {
 
     expect(template).toContain("plan_model")
     expect(template).toContain("brainstorm_model")
+    expect(template).toContain("plan_effort")
+    expect(template).toContain("brainstorm_effort")
+    expect(template).toMatch(/^#\s+effort:/m)
     expect(template).not.toContain("plan_use_fable")
     expect(template).not.toContain("brainstorm_use_fable")
     expect(template).not.toContain("fable_nudge")
@@ -583,6 +586,25 @@ describe("ce-setup check-health", () => {
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("invalid harness 'mystery-harness' in work_engine_preferences")
       expect(result.stdout).not.toContain("require -> mystery-harness@default")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("accepts optional effort on a work_engine_preferences entry without emitting it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(
+        root,
+        "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: codex\n    effort: max\n",
+      )
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).not.toContain("unsupported work_engine_preferences entry")
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
+      expect(result.stdout).not.toMatch(/effort:/)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

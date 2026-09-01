@@ -221,7 +221,7 @@ When another workflow owns the post-implementation shipping gates (final simplif
 
 This mode keeps `ce-work` on implementation and local verification. Mid-implementation "Simplify as You Go" still runs during Phase 2. After that, `ce-work` returns a structured envelope with changed files, completed units, verification evidence, and blockers, sets `standalone_shipping_skipped: true`, and does not run the standalone shipping tail. The caller remains responsible for every post-implementation gate.
 
-Automatic callers can also pass `implementation_engine:<compact-json>` (one `mode`, `target`, `model`, and `source` binding) and `implementation_run:<safe-id>` (resume that existing run) before the plan path.
+Automatic callers can also pass `implementation_engine:<compact-json>` (one `mode`, `target`, `model`, `effort`, and `source` binding) and `implementation_run:<safe-id>` (resume that existing run) before the plan path.
 
 ## Choose the Implementation Author
 
@@ -250,12 +250,13 @@ work_engine_preferences:
     model: composer
   - harness: codex
     model: "gpt-5.6"
+    effort: max
   - harness: claude
 ```
 
 The [central configuration reference](./configuration.md#implementation-routing) explains how this checkout-local default interacts with current-task, session, and project instructions.
 
-Each candidate has a `harness` (`codex`, `claude`, `grok`, `cursor`, or `opencode`) and an optional `model`. Omitting `model` means that harness's configured default. Composer is a model family reached through Cursor, so it is written as `harness: cursor` plus `model: composer`. Keep CLI flags and commands out of config.
+Each candidate has a `harness` (`codex`, `claude`, `grok`, `cursor`, or `opencode`), an optional `model`, and an optional `effort` (default: high). Omitting `model` means that harness's configured default. Composer is a model family reached through Cursor, so it is written as `harness: cursor` plus `model: composer`. Keep CLI flags and commands out of config.
 
 `off`, a commented or missing mode, and an invalid mode preserve the native default. `off` affects only standing config; it does not cancel applicable live intent or a caller binding. Both `prefer` and `require` try ordered candidates, then fall back natively on the current harness and session model with one disclosure. `require` keeps the requested external identity fixed while viable and never substitutes an unrequested external recipient.
 
@@ -280,7 +281,7 @@ Every CE Work runner start pins a two-hour hard cap independently of the shared 
 | `<bare prompt>` | Triage by complexity (Trivial / Small-Medium / Large) |
 | `use Codex` / `with Cursor` / `only use Composer` | Request or require an external implementation author. The host still verifies, commits, and ships. |
 | `mode:return-to-caller <plan path>` | Outer-orchestrator use: implement and locally verify, then return structured evidence without the standalone shipping tail |
-| `mode:return-to-caller implementation_engine:<compact-json> <plan path>` | Automatic-caller form carrying one implementation-only `mode`, `target`, `model`, and `source` binding |
+| `mode:return-to-caller implementation_engine:<compact-json> <plan path>` | Automatic-caller form carrying one implementation-only `mode`, `target`, `model`, `effort`, and `source` binding |
 | `implementation_run:<safe-id>` or `resume run <id>` | Resume, inspect, or clean up that existing external run. Does not start new work. |
 | Knowledge-work plan (`execution: knowledge-work`) | Produce the planned deliverable; skip branch, test, review, and PR machinery |
 

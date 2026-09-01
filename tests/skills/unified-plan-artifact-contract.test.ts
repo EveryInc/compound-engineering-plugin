@@ -342,10 +342,10 @@ describe("unified plan artifact contract", () => {
     expect(carrier).toContain('"use Codex for implementation"')
     expect(carrier).toContain('"only use Composer for implementation"')
     expect(carrier).toContain("implementation_engine")
-    for (const field of ["mode", "target", "model", "source"]) {
+    for (const field of ["mode", "target", "model", "effort", "source"]) {
       expect(carrier).toContain(`\`${field}\``)
     }
-    expect(carrier).toContain("exactly these four fields")
+    expect(carrier).toContain("`effort`")
     expect(carrier).toContain("Never pass")
     expect(carrier).toContain("`ce-plan`")
     expect(carrier).toContain("planning or review")
@@ -375,7 +375,7 @@ describe("unified plan artifact contract", () => {
     const step2 = carrier
     expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> <plan-path-from-step-1>")
     expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> implementation_run:<safe-id> <plan-path-from-step-1>")
-    expect(step2).toContain('implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}')
+    expect(step2).toContain('implementation_engine:{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"lfg-current-turn"}')
     expect(step2).toContain("portable string envelope")
     expect(step2).toContain("standing per-checkout configuration")
     expect(carrier).toContain("Do not construct a carrier from standing configuration")

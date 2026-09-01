@@ -13,7 +13,7 @@ Return:
 - `u_ids_completed`
 - `verification_results`
 - `verification_evidence`: one entry per attempted behavior-bearing unit, plus any non-behavioral unit where tests were intentionally skipped. Each entry states the unit/task, `behavior_changed`, `existing_tests_inspected`, `tests_added_or_changed`, tests used unchanged, red failure or characterization observed when applicable, verification commands/results, and any exception reason. For units executed by subagents, this entry is assembled from each worker's returned evidence, not reconstructed from the diff — the red-before-implementation observation exists only in the worker's report.
-- `implementation_engine_binding`: the resolved one-run `mode`, `target`, `model`, and `source`, or `null` when native execution was selected without a binding
+- `implementation_engine_binding`: the resolved one-run `mode`, `target`, `model`, `effort`, and `source`, or `null` when native execution was selected without a binding
 - `requested_route` and `actual_route`: target plus harness/intermediary identity, kept separate when fallback or same-family substitution occurred
 - `requested_model` and `actual_model`: the request and receipt-attributed served identity (`unverified` when the route supplies no trustworthy receipt)
 - `fallback_reason`: `null` when none, otherwise the observed route-unavailable or substitution reason

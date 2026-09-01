@@ -144,7 +144,7 @@ describe("ce-work serial cross-model transaction", () => {
       "--repo", repo,
       "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U-scope"],"restrictions":[]}',
     ).word).toBe("READY")
 
@@ -245,7 +245,7 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
       "--repo", repo,
       "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U-redact"],"restrictions":[]}',
     ).word).toBe("READY")
 
@@ -366,7 +366,7 @@ printf '%s\n' '${JSON.stringify({
       "--repo", repo,
       "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U"],"restrictions":[]}',
     ).word).toBe("READY")
     const prepared = control(
@@ -499,7 +499,7 @@ class FeatureTest(unittest.TestCase):
     expect(control(
       runs, "init", "--run-id", "transaction-run", "--repo", repo, "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
     ).word).toBe("READY")
     const packet = "transaction packet"
@@ -618,7 +618,7 @@ class FeatureTest(unittest.TestCase):
     control(
       runs, "init", "--run-id", "run-verify-lock", "--repo", repo, "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
     )
     const packet = "plan-wide verification lock packet"
@@ -686,7 +686,7 @@ class FeatureTest(unittest.TestCase):
     control(
       runs, "init", "--run-id", "run-verify-abandoned", "--repo", repo, "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
     )
     const packet = "abandoned plan-wide verification packet"
@@ -746,7 +746,7 @@ class FeatureTest(unittest.TestCase):
     control(
       runs, "init", "--run-id", "transaction-fail", "--repo", repo, "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
     )
     const packet = "failing transaction packet"
@@ -812,7 +812,7 @@ class FeatureTest(unittest.TestCase):
     control(
       runs, "init", "--run-id", "transaction-restore-fail", "--repo", repo, "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
     )
     const packet = "restore failure packet"
@@ -879,7 +879,7 @@ class FeatureTest(unittest.TestCase):
       control(
         runs, "init", "--run-id", runId, "--repo", repo, "--plan", plan,
         "--plan-digest", planDigest,
-        "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+        "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
         "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
       )
       const prepared = control(
@@ -948,7 +948,7 @@ class FeatureTest(unittest.TestCase):
       "--repo", repo,
       "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U4a"],"restrictions":[]}',
     ).word).toBe("READY")
 
@@ -1100,7 +1100,7 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
     expect(control(
       runs, "init", "--run-id", "wave-run", "--repo", repo, "--plan", plan,
       "--plan-digest", planDigest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["wave"],"restrictions":[]}',
     ).word).toBe("READY")
 

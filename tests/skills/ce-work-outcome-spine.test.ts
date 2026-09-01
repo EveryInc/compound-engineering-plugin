@@ -282,17 +282,19 @@ describe("ce-work cross-model engine contract", () => {
     expect(triage).toContain("prove the canonical Git snapshot is byte-for-byte unchanged")
   })
 
-  test("keeps the caller carrier implementation-only and exactly four fields", async () => {
+  test("keeps the caller carrier implementation-only with required mode, target, model, and source", async () => {
     const triage = await readTriage()
     const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
     const carrier = sliceSection(engines, "### Typed caller binding", "### Target and identity vocabulary")
 
-    expect(triage).toContain("exactly four fields")
-    for (const field of ["mode", "target", "model", "source"]) {
+    expect(triage).toContain("must contain `mode`, `target`, `model`, and `source`")
+    for (const field of ["mode", "target", "model", "effort", "source"]) {
       expect(triage).toContain(`\`${field}\``)
     }
     expect(triage).toContain("`mode` is `prefer` or `require`")
     expect(triage).toContain("`model` is a string pin or `null`")
+    expect(triage).toContain("`effort` is a string pin or `null`")
+    expect(triage).toContain("Omitted `effort` is not a missing field")
     expect(triage).toContain("`source` is a non-empty caller-visible provenance string")
     expect(triage).toContain("Fully validate and normalize both before any workspace action")
     expect(carrier).toContain("fully validated and normalized typed caller binding")
@@ -319,7 +321,8 @@ describe("ce-work cross-model engine contract", () => {
 
     expect(phase0).toContain("implementation_engine:")
     expect(phase0).toContain("one compact JSON object")
-    expect(phase0).toContain("exactly four fields")
+    expect(phase0).toContain("must contain `mode`, `target`, `model`, and `source`")
+    expect(phase0).toContain("Omitted `effort` is not a missing field")
     expect(phase0).toContain("implementation_run:<safe-id>")
     expect(phase0).toContain("`^[A-Za-z0-9._-]{1,128}$`")
     expect(phase0).toContain("Reject malformed JSON, missing/extra fields, invalid field types or values")

@@ -54,7 +54,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       { GIT_DIR: path.join(decoy.repo, ".git"), GIT_WORK_TREE: decoy.repo },
       "init", "--run-id", "run-sanitized-git-env", "--repo", f.repo,
       "--plan", f.plan, "--plan-digest", f.digest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U"],"restrictions":[]}',
     )
     expect(initialized.word).toBe("READY")
@@ -133,7 +133,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       { CE_WORK_RUNS_ROOT: "", CE_PEER_JOBS_ROOT: peerRoot },
       "init", "--run-id", "run-peer-root-only", "--repo", f.repo,
       "--plan", f.plan, "--plan-digest", f.digest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U2"],"restrictions":[]}',
     )
     expect(result.word).toBe("READY")
@@ -267,7 +267,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     const resumed = ctl(
       runs, "init", "--run-id", "run-prompt", "--repo", f.repo,
       "--prompt-brief", first.brief, "--prompt-digest", first.digest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["P1"],"restrictions":[]}',
     )
     expect(resumed).toMatchObject({
@@ -289,7 +289,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
     const brief = packetFile("bounded prompt\n")
-    const binding = '{"mode":"prefer","target":"codex","model":null,"source":"test"}'
+    const binding = '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}'
     const egress = '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["P1"],"restrictions":[]}'
 
     expect(ctl(
@@ -348,7 +348,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
   test("validates the fixed route at init and refuses conflicting resume sanctions", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
-    const binding = JSON.stringify({ mode: "require", target: "codex", model: null, source: "test" })
+    const binding = JSON.stringify({ mode: "require", target: "codex", model: null, effort: null, source: "test" })
     const invalid = ctl(
       runs, "init", "--run-id", "invalid-route", "--repo", f.repo, "--plan", f.plan,
       "--plan-digest", f.digest, "--binding-json", binding,
@@ -360,10 +360,11 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     expect(existsSync(path.join(runs, "invalid-route"))).toBe(false)
 
     for (const [runId, malformed, message] of [
-      ["missing-binding-mode", { target: "codex", model: null, source: "test" }, "exactly mode, target, model, and source"],
-      ["invalid-binding-mode", { mode: "preferred", target: "codex", model: null, source: "test" }, "mode must be 'prefer' or 'require'"],
-      ["extra-binding-field", { mode: "prefer", target: "codex", model: null, source: "test", extra: true }, "exactly mode, target, model, and source"],
-      ["empty-binding-source", { mode: "prefer", target: "codex", model: null, source: "" }, "source must be a non-empty string"],
+      ["missing-binding-mode", { target: "codex", model: null, effort: null, source: "test" }, "must contain mode, target, model, and source"],
+      ["invalid-binding-mode", { mode: "preferred", target: "codex", model: null, effort: null, source: "test" }, "mode must be 'prefer' or 'require'"],
+      ["extra-binding-field", { mode: "prefer", target: "codex", model: null, effort: null, source: "test", extra: true }, "must contain mode, target, model, and source"],
+      ["empty-binding-source", { mode: "prefer", target: "codex", model: null, effort: null, source: "" }, "source must be a non-empty string"],
+      ["invalid-binding-effort", { mode: "prefer", target: "codex", model: null, effort: "banana", source: "test" }, "effort must be null or one of"],
     ] as const) {
       const malformedResult = ctl(
         runs, "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
@@ -375,12 +376,41 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       expect(existsSync(path.join(runs, runId))).toBe(false)
     }
 
+    const pinned = ctl(
+      runs, "init", "--run-id", "effort-pin", "--repo", f.repo, "--plan", f.plan,
+      "--plan-digest", f.digest,
+      "--binding-json", JSON.stringify({ mode: "prefer", target: "codex", model: null, effort: "max", source: "test" }),
+      "--egress-json", JSON.stringify({ sanction_source: "test", route: "codex", intermediaries: [], exposed_material: ["U"], restrictions: [] }),
+    )
+    expect(pinned.word).toBe("READY")
+    expect(JSON.parse(readFileSync(path.join(runs, "effort-pin", "manifest.json"), "utf8")).binding.effort).toBe("max")
+
+    const legacy = ctl(
+      runs, "init", "--run-id", "legacy-four-field", "--repo", f.repo, "--plan", f.plan,
+      "--plan-digest", f.digest,
+      "--binding-json", JSON.stringify({ mode: "prefer", target: "codex", model: null, source: "test" }),
+      "--egress-json", JSON.stringify({ sanction_source: "test", route: "codex", intermediaries: [], exposed_material: ["U"], restrictions: [] }),
+    )
+    expect(legacy.word).toBe("READY")
+    expect(JSON.parse(readFileSync(path.join(runs, "legacy-four-field", "manifest.json"), "utf8")).binding.effort).toBeNull()
+    const legacyManifestPath = path.join(runs, "legacy-four-field", "manifest.json")
+    const legacyDoc = JSON.parse(readFileSync(legacyManifestPath, "utf8"))
+    delete legacyDoc.binding.effort
+    writeFileSync(legacyManifestPath, `${JSON.stringify(legacyDoc)}\n`)
+    const legacyResume = ctl(
+      runs, "init", "--run-id", "legacy-four-field", "--repo", f.repo, "--plan", f.plan,
+      "--plan-digest", f.digest,
+      "--binding-json", JSON.stringify({ mode: "prefer", target: "codex", model: null, effort: null, source: "test" }),
+      "--egress-json", JSON.stringify({ sanction_source: "test", route: "codex", intermediaries: [], exposed_material: ["U"], restrictions: [] }),
+    )
+    expect(legacyResume).toMatchObject({ word: "READY", body: { resumed: true } })
+
     for (const [index, model] of ["composer-2.5-fast", "grok-4.6", "cursor-grok-4.6-high", "model@beta"].entries()) {
       const runId = `invalid-cursor-model-${index}`
       const invalidModel = ctl(
         runs, "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
         "--plan-digest", f.digest,
-        "--binding-json", JSON.stringify({ mode: "require", target: "cursor", model, source: "test" }),
+        "--binding-json", JSON.stringify({ mode: "require", target: "cursor", model, effort: null, source: "test" }),
         "--egress-json", JSON.stringify({ route: "cursor", intermediaries: [], restrictions: [] }),
       )
       expect(invalidModel.word).toBe("REFUSED")
@@ -425,6 +455,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       harness: "codex",
       intermediaries: [],
       model_requested: "auto",
+      effort_requested: null,
       restriction_posture: "adapter-enforced",
       restrictions: [],
       activity_posture: "hard-only",
@@ -757,7 +788,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       linkedController, runs,
       "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
       "--plan-digest", f.digest,
-      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"effort":null,"source":"test"}',
       "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U"],"restrictions":[]}',
     ).word).toBe("READY")
     const packet = packetFile("linked adapter packet")

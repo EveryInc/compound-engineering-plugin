@@ -102,6 +102,24 @@ def cmd_prepare(args) -> tuple[str, dict]:
         authorization = attempt_authorization(doc, args.activity_posture, uid, attempt_id, packet_digest)
         authorization_bytes = (json.dumps(authorization, sort_keys=True, separators=(",", ":")) + "\n").encode()
         authorization_digest = digest_bytes(authorization_bytes)
+        if existing:
+            matching_recorded = [
+                attempt for attempt in existing.get("attempts", []) if attempt.get("attempt_id") == attempt_id
+            ]
+            if matching_recorded:
+                recorded_auth = matching_recorded[0].get("authorization")
+                recorded_digest = matching_recorded[0].get("authorization_digest")
+                if (
+                    isinstance(recorded_auth, dict)
+                    and isinstance(recorded_digest, str)
+                    and normalize_authorization(recorded_auth) == normalize_authorization(authorization)
+                    and os.path.lexists(authorization_path)
+                ):
+                    recorded_bytes = read_private(authorization_path, MAX_JSON_BYTES)
+                    if digest_bytes(recorded_bytes) == recorded_digest:
+                        authorization = recorded_auth
+                        authorization_bytes = recorded_bytes
+                        authorization_digest = recorded_digest
         contract_wave_base = existing.get("wave", {}).get("base") if existing else base
         expected_contract = {
             "dependencies": list(args.dependency),

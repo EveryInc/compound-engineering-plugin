@@ -95,7 +95,7 @@ Planning has to land an implementation-ready code plan. Implementation has to re
 
 ### You can route two stages, not the whole run
 
-Planning can be authored on a named model (`plan with fable`) via `ce-plan`'s model elevation. Implementation can be sent to a harness (`use Codex for implementation`, `only use Composer for implementation`). Unscoped assignments bind to implementation only. Standing defaults live in CE config (`plan_model`, `work_engine_mode`, `work_engine_preferences`). See [Implementation routing](./configuration.md#implementation-routing).
+Planning can be authored on a named model (`plan with fable`) via `ce-plan`'s model elevation. Implementation can be sent to a harness (`use Codex for implementation`, `only use Composer for implementation`); an explicit effort token rides that same carrier. Unscoped assignments bind to implementation only. Standing defaults live in CE config (`plan_model`, `work_engine_mode`, `work_engine_preferences`). See [Implementation routing](./configuration.md#implementation-routing).
 
 Both a preference and a requirement fall back to the current harness/session model with one disclosure when the external route cannot run. A requirement keeps the requested external identity fixed while viable; it never authorizes another external recipient. `lfg` does not ask whether to weaken the route.
 

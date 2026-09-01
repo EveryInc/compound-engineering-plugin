@@ -278,6 +278,15 @@ read_work_engine_preferences() {
         if (!have_item) have_item = 1
         next
       }
+      if (line ~ /^[[:space:]]*-[[:space:]]*effort[[:space:]]*:/) {
+        emit_item()
+        have_item = 1
+        next
+      }
+      if (line ~ /^[[:space:]]+effort[[:space:]]*:/) {
+        if (!have_item) have_item = 1
+        next
+      }
       print "ERROR\tunsupported work_engine_preferences entry: " trim(line)
     }
     END {

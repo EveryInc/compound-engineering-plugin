@@ -31,7 +31,13 @@ RUN_SUCCEEDED=false
 
 log() { printf '[elevation] %s\n' "$*" >&2; }
 
-EFFORT="high"   # settled: elevation runs at high effort
+EFFORT="high"
+if [ -n "${CE_ELEVATION_EFFORT_OVERRIDE:-}" ]; then
+  case "$CE_ELEVATION_EFFORT_OVERRIDE" in
+    low|medium|high|xhigh|max) EFFORT="$CE_ELEVATION_EFFORT_OVERRIDE" ;;
+    *) log "effort override '${CE_ELEVATION_EFFORT_OVERRIDE}' not compatible with claude elevation"; exit 2 ;;
+  esac
+fi
 
 # Read-only tool posture (R7): the available built-in set, not a denylist. The
 # elevated step reads the repo (Read/Glob/Grep) and may check current facts on

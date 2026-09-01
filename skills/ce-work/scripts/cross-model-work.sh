@@ -95,6 +95,40 @@ validate_model_override() {
   esac
 }
 
+route_effort() {   # <route> -> authorized effort, else CE_WORK_EFFORT_OVERRIDE on emit-adapter, else high
+  if [ "${AUTH_BOUND:-}" = 1 ]; then
+    if [ -n "${EFFORT_REQUESTED:-}" ]; then
+      printf '%s' "$EFFORT_REQUESTED"
+      return
+    fi
+    printf 'high'
+    return
+  fi
+  if [ -n "${CE_WORK_EFFORT_OVERRIDE:-}" ]; then
+    case "$1" in
+      codex|claude|grok-cli|opencode) printf '%s' "$CE_WORK_EFFORT_OVERRIDE"; return 0 ;;
+    esac
+  fi
+  printf 'high'
+}
+
+# Accept CE_WORK_EFFORT_OVERRIDE only where the route exposes an effort flag
+# and the value is in that route's honor set (claude: low|medium|high|xhigh|max;
+# codex: none|minimal|low|medium|high|xhigh|max; grok: low|medium|high;
+# opencode --variant: none|minimal|low|medium|high|xhigh|max|default).
+# Cursor-family work routes honor none. Empty means "no override".
+validate_effort_override() {
+  local route="$1" effort="${CE_WORK_EFFORT_OVERRIDE:-}"
+  [ -n "$effort" ] || return 0
+  case "$route:$effort" in
+    claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
+    codex:none|codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh|codex:max) ;;
+    grok-cli:low|grok-cli:medium|grok-cli:high) ;;
+    opencode:none|opencode:minimal|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max|opencode:default) ;;
+    *) return 1 ;;
+  esac
+}
+
 adapter_argv() {
   case "$1" in
     codex)
@@ -102,7 +136,7 @@ adapter_argv() {
       # editorial tier explicitly, matching the claude/grok routes' --effort high.
       printf '%s\0' codex exec --ignore-user-config --ignore-rules --ephemeral \
         -s workspace-write -C "$WORKSPACE" --json -o "$RAW_RESULT" \
-        -c model_reasoning_effort=high
+        -c model_reasoning_effort="$(route_effort codex)"
       [ "$(route_model codex)" = auto ] || printf '%s\0' -m "$(route_model codex)"
       printf '%s\0' -
       ;;
@@ -112,14 +146,14 @@ adapter_argv() {
       printf '%s\0' claude -p --safe-mode --no-session-persistence \
         --permission-mode bypassPermissions --tools Read,Write,Edit,Bash \
         --allowed-tools 'Bash(*)' \
-        --effort high --output-format stream-json --verbose
+        --effort "$(route_effort claude)" --output-format stream-json --verbose
       [ "$claude_model" = auto ] || printf '%s\0' --model "$claude_model"
       ;;
     grok-cli)
       local grok_model
       grok_model="$(route_model grok-cli)"
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --cwd "$WORKSPACE" \
-        --effort high --permission-mode acceptEdits \
+        --effort "$(route_effort grok-cli)" --permission-mode acceptEdits \
         --tools Read,Write,Edit --disable-web-search --no-memory --no-subagents \
         --no-plan --max-turns 50 --output-format streaming-json --verbatim
       [ "$grok_model" = auto ] || printf '%s\0' --model "$grok_model"
@@ -143,6 +177,11 @@ adapter_argv() {
       printf '%s\0' opencode run --dir "$WORKSPACE" --format json --auto --file "$PROMPT_FILE"
       printf '%s\0' "Follow the attached unit packet. Return only the implementation result JSON."
       [ "$(route_model opencode)" = auto ] || printf '%s\0' --model "$(route_model opencode)"
+      if [ "${AUTH_BOUND:-}" = 1 ]; then
+        [ -n "${EFFORT_REQUESTED:-}" ] && printf '%s\0' --variant "$(route_effort opencode)"
+      elif [ -n "${CE_WORK_EFFORT_OVERRIDE:-}" ]; then
+        printf '%s\0' --variant "$(route_effort opencode)"
+      fi
       ;;
     *) return 1 ;;
   esac
@@ -155,6 +194,10 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   ROUTE="${2:-}"
   validate_model_override "$ROUTE" || {
     printf "model override '%s' not compatible with route '%s'\n" "${CE_WORK_MODEL_OVERRIDE:-}" "$ROUTE" >&2
+    exit 2
+  }
+  validate_effort_override "$ROUTE" || {
+    printf "effort override '%s' not compatible with route '%s'\n" "${CE_WORK_EFFORT_OVERRIDE:-}" "$ROUTE" >&2
     exit 2
   }
   adapter_argv "$ROUTE" >/dev/null 2>&1 || { printf "unknown route '%s'\n" "$ROUTE" >&2; exit 2; }
@@ -211,7 +254,7 @@ import json, os, re, stat, sys
 source, expected_packet_digest, output = sys.argv[1:]
 required = {
     "schema_version", "run_id", "unit_id", "attempt_id", "route", "target", "harness",
-    "intermediaries", "model_requested", "restriction_posture",
+    "intermediaries", "model_requested", "effort_requested", "restriction_posture",
     "restrictions", "activity_posture", "packet_digest",
 }
 contracts = {
@@ -283,7 +326,16 @@ try:
         value = json.loads(b"".join(chunks))
     except (ValueError, UnicodeDecodeError) as exc:
         fail(f"authorization is malformed JSON: {exc}")
-    if not isinstance(value, dict) or set(value) != required:
+    if not isinstance(value, dict):
+        fail("authorization keys do not match the exact controller schema")
+    keys = set(value)
+    required_without_effort = required - {"effort_requested"}
+    if keys == required:
+        pass
+    elif keys == required_without_effort:
+        value = dict(value)
+        value["effort_requested"] = None
+    else:
         fail("authorization keys do not match the exact controller schema")
     if type(value["schema_version"]) is not int or value["schema_version"] != 1:
         fail("authorization schema_version must be 1")
@@ -303,6 +355,19 @@ try:
         fail("authorization restrictions must be a string list")
     if not model_allowed(route, value["model_requested"]):
         fail("authorization model is incompatible with the fixed route")
+    effort = value["effort_requested"]
+    effort_tokens = {"none", "minimal", "low", "medium", "high", "xhigh", "max", "default"}
+    if effort is not None and (not isinstance(effort, str) or effort not in effort_tokens):
+        fail("authorization effort is incompatible with the fixed route")
+    honor = {
+        "claude": {"low", "medium", "high", "xhigh", "max"},
+        "codex": {"none", "minimal", "low", "medium", "high", "xhigh", "max"},
+        "grok-cli": {"low", "medium", "high"},
+        "opencode": {"none", "minimal", "low", "medium", "high", "xhigh", "max", "default"},
+    }
+    if effort is not None and route in honor and effort not in honor[route]:
+        fail("authorization effort is incompatible with the fixed route")
+    effort_field = "" if effort is None else effort
     packet_digest = value["packet_digest"]
     if not isinstance(packet_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", packet_digest):
         fail("authorization packet_digest is not lowercase SHA-256")
@@ -311,7 +376,7 @@ try:
     authorization_digest = __import__("hashlib").sha256(b"".join(chunks)).hexdigest()
     fields = (
         authorization_digest, value["run_id"], value["unit_id"], value["attempt_id"],
-        route, target, harness, value["model_requested"], value["activity_posture"], posture,
+        route, target, harness, value["model_requested"], effort_field, value["activity_posture"], posture,
     )
     out = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
@@ -327,7 +392,7 @@ AUTH_EXIT=$?
 
 AUTH_FIELDS=()
 while IFS= read -r -d '' field; do AUTH_FIELDS+=("$field"); done < "$AUTH_VALUES"
-[ "${#AUTH_FIELDS[@]}" -eq 10 ] || { log "controller authorization projection is incomplete"; exit 2; }
+[ "${#AUTH_FIELDS[@]}" -eq 11 ] || { log "controller authorization projection is incomplete"; exit 2; }
 OBSERVED_AUTH_DIGEST="${AUTH_FIELDS[0]}"
 RUN_ID="${AUTH_FIELDS[1]}"
 UNIT_ID="${AUTH_FIELDS[2]}"
@@ -336,8 +401,10 @@ ROUTE="${AUTH_FIELDS[4]}"
 AUTH_TARGET="${AUTH_FIELDS[5]}"
 AUTH_HARNESS="${AUTH_FIELDS[6]}"
 MODEL_REQUESTED="${AUTH_FIELDS[7]}"
-ACTIVITY_POSTURE="${AUTH_FIELDS[8]}"
-RESTRICTION_POSTURE="${AUTH_FIELDS[9]}"
+EFFORT_REQUESTED="${AUTH_FIELDS[8]}"
+ACTIVITY_POSTURE="${AUTH_FIELDS[9]}"
+RESTRICTION_POSTURE="${AUTH_FIELDS[10]}"
+AUTH_BOUND=1
 RUNNER_JOB_ID="${CE_PEER_JOB_ID:-}"
 [[ "$RUNNER_JOB_ID" =~ ^[A-Za-z0-9._-]{1,128}$ && "$RUNNER_JOB_ID" =~ [A-Za-z0-9_-] ]] || {
   log "runner job identity is missing or unsafe"
@@ -690,6 +757,13 @@ fi
 if ! command -v "$BINARY" >/dev/null 2>&1; then
   publish_unavailable "fixed route executable '$BINARY' is unavailable" || exit 2
   exit 2
+fi
+
+if [ "${AUTH_BOUND:-}" != 1 ]; then
+  validate_effort_override "$ROUTE" || {
+    printf "effort override '%s' not compatible with route '%s'\n" "${CE_WORK_EFFORT_OVERRIDE:-}" "$ROUTE" >&2
+    exit 2
+  }
 fi
 
 ARGS=()

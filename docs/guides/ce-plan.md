@@ -297,7 +297,7 @@ No. Proof is on the non-software wrap-up menu (save, publish, or both). Software
 
 ## Model elevation
 
-When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on that model instead of your session model. Only the interpret-findings-then-author step is dispatched, with read access so it can verify its brief. Dialogue and research stay on your session model. Name a model in the prompt (`use fable`, `have opus plan this`), or set `plan_model: <model>` in CE config (`config.local.yaml` then `config.yaml`). A prompt request overrides the config key.
+When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on that model instead of your session model. Only the interpret-findings-then-author step is dispatched, with read access so it can verify its brief. Dialogue and research stay on your session model. Name a model in the prompt (`use fable`, `have opus plan this`), or set `plan_model: <model>` in CE config (`config.local.yaml` then `config.yaml`). A prompt request overrides the config key. Optional `plan_effort` pins Claude CLI effort for that elevated step; default: high.
 
 This works on any harness. The host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and says which precondition was unmet. Setting `plan_model` therefore takes effect in every harness you run `ce-plan` in, not just Claude Code.
 

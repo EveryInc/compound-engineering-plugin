@@ -21,7 +21,7 @@ Lower sources may fill an unspecified detail but cannot contradict or broaden a 
 
 A live request such as "use Codex" is preference-strength by default. Interpret unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. The resolved mode is `prefer` or `require`. Requirement strength fixes the requested external identity while that route is viable; it never authorizes another external recipient and does not turn route unavailability into a blocker.
 
-Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Grok, then Codex"). Preserve that order and normalize each harness/model candidate with the same rules as standing configuration. A typed caller binding remains a single already-selected candidate; do not widen its exact four-field grammar into a list.
+Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Grok, then Codex"). Preserve that order and normalize each harness/model candidate with the same rules as standing configuration. A typed caller binding remains a single already-selected candidate; do not widen its grammar into a list.
 
 For example, current-task strict Composer resolves to Composer with `require` even when a caller Codex binding and config Cursor preference are both present. Without that task instruction, a caller Codex binding sourced from the current LFG task keeps that provenance. Without applicable live or caller intent, the ordered config candidates apply only when standing mode is enabled.
 
@@ -63,6 +63,7 @@ work_engine_preferences:
 - `work_engine_preferences`: one or more ordered candidate objects
 - `harness`: `codex | claude | grok | cursor | opencode`
 - optional `model`: a model id or family understood by that harness; omission means its configured default
+- optional `effort`: default high; a token the route cannot honor is omitted, never substituted
 
 Do not put CLI commands or flags in configuration. The list expresses implementation intent; the skill's adapter recipes and local inspection determine how to invoke it. Composer is therefore `{ harness: cursor, model: composer }`, while `{ harness: cursor }` means Cursor's configured default.
 

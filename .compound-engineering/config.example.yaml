@@ -72,7 +72,9 @@
 # elevation.
 
 # plan_model: fable              # model alias for the plan-authoring step (no default)
+# plan_effort: high              # optional Claude CLI effort; default: high
 # brainstorm_model: fable        # model alias for approach generation (no default)
+# brainstorm_effort: high        # optional Claude CLI effort; default: high
 
 # --- PR concept teaching (ce-commit-push-pr) ---
 # When a PR introduces a concept new to the codebase, the generated PR
@@ -123,8 +125,8 @@
 # `fable` or a full id such as `claude-opus-5` for claude; `gpt-*` for codex,
 # optionally namespace-qualified such as `openai.gpt-5.6-sol` when the codex CLI
 # routes through a non-default `model_provider`).
-# Effort levels: claude low|medium|high|xhigh|max, codex minimal|low|medium|
-# high|xhigh, grok low|medium|high; cursor/composer routes take none. A value
+# Effort levels: claude low|medium|high|xhigh|max, codex none|minimal|low|medium|
+# high|xhigh|max, grok low|medium|high; cursor/composer routes take none. A value
 # the peer cannot honor skips the pass with a stated reason -- never substituted.
 
 # cross_model_review_mode: off   # auto | off (default: auto)
@@ -151,6 +153,7 @@
 #     model: composer
 #   - harness: codex
 #     model: "gpt-5.6"
+#     effort: max                 # optional; default: high
 #   - harness: claude             # configured default model
 
 # --- ce-promote ---
