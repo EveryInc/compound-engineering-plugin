@@ -334,6 +334,13 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/say plainly what you could not confirm/i)
     // Readiness stays a recommendation.
     expect(babysit).toMatch(/never authorization to merge/i)
+    // ...but not as an absolute: SKILL.md already excepts stack-land, where selecting the posture
+    // was the user's advance yes and a settled prefix does land. A local absolute here contradicts
+    // the always-loaded body and mis-states what an early call costs in that posture.
+    expect(babysit).toMatch(/except under `posture:stack-land`/i)
+    expect(babysit).toMatch(/costs landing sooner than the reviewer finished/i)
+    // Omitting the flag on a re-arm is not a smaller wait, it re-fires on the next poll.
+    expect(babysit).toMatch(/passing it is what makes the re-arm real/i)
   })
 
   test("watcher silence is defined as no-information, with a fresh snapshot for mid-watch status asks", async () => {

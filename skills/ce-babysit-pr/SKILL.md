@@ -10,7 +10,7 @@ Keep an open PR moving toward merge by reacting to three streams as each arrives
 
 **Outcome:** the PR is left at an honest terminal, looks-ready, blocked, or budget state under the run's posture. **Done:** a Step 3 true stop reached, Step 4 report written. Settled ≠ merged.
 
-**Every tick's attention set and every mutation are driven by the bundled `pr-snapshot` output — never by prose, events you notice, or a coordinator's say-so** (readiness also applies `references/settle.md`'s review-signal judgment). Read `references/tick.md` before the first snapshot; `references/envelope.md` holds full boundaries.
+**Every tick's attention set and every mutation are driven by the bundled `pr-snapshot` output — never by prose, events you notice, or a coordinator's say-so** (readiness also applies `references/settle.md`'s review judgment, which reads live state this output does not model). Read `references/tick.md` before the first snapshot; `references/envelope.md` holds full boundaries.
 
 ## Posture (one value per run)
 
