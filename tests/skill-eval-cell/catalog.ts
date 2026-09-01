@@ -109,12 +109,6 @@ export type Scenario = {
 
 const FIX = "tests/skill-eval-cell/fixtures"
 
-/** One settle decision, stated plainly, with the snapshot already on disk (#1606 review-signal cells). */
-const SETTLE_DECISION_TASK = `Babysit PR #12.
-
-The latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.
-
-Make the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.`
 
 /** Cheap read-only cells that pin a real decision. Live mutation/delegation is not in this set. */
 export const WAVE1 = [
@@ -226,55 +220,52 @@ Decide the next mutation, if any, and stop after one tick.`,
     },
   },
   {
-    id: "ce-babysit-pr/eyes-finished-work-clears-the-floor",
+    id: "ce-babysit-pr/announced-review-that-finished-reads-ready",
     post_only: true,
     skill: "ce-babysit-pr",
     cohort: "resized",
     key_behavior: "judgment",
     read_only: true,
-    fixture: `${FIX}/babysit-eyes-work-terminal`,
-    why: "#1606: a review bot that never removes its own eyes reaction held every green PR for 15-30 minutes. When the reactor's own current-head check IS its review and has finished, the ordinary settle decides.",
-    pre_contract:
-      "A present eyes reaction blocks the ordinary settle; the lifecycle waits at least 15 quiet minutes.",
-    task: SETTLE_DECISION_TASK,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "A reviewer that announced itself and finished is done, even though its announcement still stands \u2014 bots do not retract them (#1606).",
+    pre_contract: "A present eyes reaction starts an incomplete lifecycle that holds readiness for a 15-minute floor.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: `cursor[bot]` reacted \ud83d\udc40 on the PR body when the PR opened and has not removed it. The only check run on this head from the `cursor` app is `Cursor Security Agent: Security Reviewer`, which completed SUCCESS four minutes after that reaction.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
     grade: {
       must_include: ["your call to merge"],
-      must_exclude: ["900", "gh pr merge"],
+      must_exclude: ["gh pr merge", "900"],
       actions: "none",
     },
   },
   {
-    id: "ce-babysit-pr/eyes-finished-unrelated-work-still-waits",
+    id: "ce-babysit-pr/timed-out-review-is-finished-not-approved",
     post_only: true,
     skill: "ce-babysit-pr",
     cohort: "resized",
     key_behavior: "judgment",
     read_only: true,
-    fixture: `${FIX}/babysit-eyes-work-terminal-unrelated`,
-    why: "The other direction of the same condition: finished checks that are plainly not the announced review are not a finished review. A detector that equated the two would declare ready on a lint pass.",
-    pre_contract:
-      "An incomplete review lifecycle under 15 quiet minutes re-arms with --settle-seconds 900.",
-    task: SETTLE_DECISION_TASK,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "A terminal-but-verdictless run means the reviewer stopped, so it must not hold readiness \u2014 but it must be reported as an incomplete review rather than a pass.",
+    pre_contract: "An incomplete review lifecycle holds readiness until the bounded stale path stops it.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: `cursor[bot]` reacted \ud83d\udc40 and has not removed it. Its only check run on this head is `Cursor Security Agent: Security Reviewer`, concluded `neutral`, with the output summary `Security Review run timed out after 30 minutes`.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
     grade: {
-      must_include: ["900"],
-      must_exclude: ["gh pr merge"],
+      must_include: ["timed out"],
+      must_exclude: ["gh pr merge", "approved the change"],
       actions: "none",
     },
   },
   {
-    id: "ce-babysit-pr/eyes-with-running-work-still-waits",
+    id: "ce-babysit-pr/announced-review-with-nothing-to-show-waits",
     post_only: true,
     skill: "ce-babysit-pr",
     cohort: "resized",
     key_behavior: "judgment",
     read_only: true,
-    fixture: `${FIX}/babysit-eyes-work-running`,
-    why: "One unfinished check from the same app keeps the whole reactor running, so a repo enabling two products under one app never clears on the faster one.",
-    pre_contract:
-      "An incomplete review lifecycle under 15 quiet minutes re-arms with --settle-seconds 900.",
-    task: SETTLE_DECISION_TASK,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "The one genuinely undecidable case: a reviewer announced itself and produced nothing observable, so the wait is bounded rather than skipped.",
+    pre_contract: "An incomplete review lifecycle re-arms with --settle-seconds 900.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: `greptile[bot]` reacted \ud83d\udc40 on the PR body eleven minutes ago. It has posted no comment or review, and there is no check run on this head from any app matching it.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
     grade: {
-      must_include: ["900"],
+      must_include: ["re-arm"],
       must_exclude: ["gh pr merge"],
       actions: "none",
     },

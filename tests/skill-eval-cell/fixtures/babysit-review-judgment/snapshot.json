@@ -18,20 +18,5 @@
   "open_needs_human": 0,
   "manager_status": null,
   "quiet_seconds": 320,
-  "review_in_progress": true,
-  "review_signal_count": 1,
-  "review_signal_seen_on_head": true,
-  "review_signal_identities": ["BOT_slowbot"],
-  "review_signal_work_terminal": true,
-  "review_signal_attribution": [
-    {
-      "identity": "BOT_slowbot",
-      "login": "slowbot[bot]",
-      "app": "slowbot",
-      "work": "terminal",
-      "checks": [
-        { "name": "slowbot / lint", "status": "COMPLETED", "conclusion": "SUCCESS" }
-      ]
-    }
-  ]
+  "note": "green, CLEAN, zero backlog, quiet past the ordinary settle window"
 }

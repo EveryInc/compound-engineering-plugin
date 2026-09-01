@@ -279,21 +279,21 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).not.toMatch(/whenever the repo uses review bots/i)
   })
 
-  test("settle policy: an incomplete review lifecycle gets a 15-minute floor and 30-minute ceiling", async () => {
-    const [babysit, script] = await Promise.all([readBabysit(), readRepoFile(PR_SNAPSHOT)])
-    expect(babysit).toContain("incomplete review lifecycle")
-    expect(babysit).toContain("15 minutes")
-    expect(babysit).toContain("30 minutes")
-    expect(babysit).toMatch(/trajectory.*extend/i)
-    expect(babysit).toMatch(/never.*shorten/i)
-    expect(babysit).toMatch(/must not re-arm.*same unchanged signal/i)
-    expect(babysit).toMatch(/unattributed lifecycle incomplete/i)
-    expect(babysit).toMatch(/reviewer when identifiable.*observed signal/i)
-    expect(babysit).toMatch(/only uncleared condition.*incomplete lifecycle.*15 quiet minutes.*30-minute terminal ceiling/i)
-    expect(script).toContain("review_signal_seen_on_head")
-    // A done signal on the current head must end the wait, not start another settle period.
-    expect(babysit).toContain("never extends the wait")
-    expect(babysit).toContain("no further settle period")
+  test("settle policy: readiness judges whether a review is still coming, and bounds the wait", async () => {
+    const babysit = await readBabysit()
+    // The engine reports quiet; the agent decides whether a review is on its way. Pinning the
+    // asymmetry and the bound, not a state vocabulary — the 15/30-minute lifecycle machinery this
+    // replaced generated every defect in #1611 by making the engine re-decide it (#1606).
+    expect(babysit).toMatch(/has told you it \*\*started\*\*/i)
+    expect(babysit).toMatch(/not evidence that work continues/i)
+    expect(babysit).toMatch(/terminal conclusion means that reviewer stopped/i)
+    expect(babysit).toMatch(/never read a timeout or a skip as approval/i)
+    // Absence never blocks terminally, and the wait is bounded rather than open-ended.
+    expect(babysit).toMatch(/never wait terminally for a done signal/i)
+    expect(babysit).toMatch(/wait a bounded while/i)
+    expect(babysit).toMatch(/say plainly what you could not confirm/i)
+    // Readiness stays a recommendation.
+    expect(babysit).toMatch(/never authorization to merge/i)
   })
 
   test("watcher silence is defined as no-information, with a fresh snapshot for mid-watch status asks", async () => {
@@ -549,6 +549,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     const babysit = await readBabysit()
     expect(babysit).toContain("blocked-external-drained")
     expect(babysit).toContain("--blocked-external-drain-seconds")
+    // The drain keeps its own tiers; they are independent of the removed review-signal lifecycle.
     for (const bound of ["300", "900", "1800"]) expect(babysit).toContain(bound)
     expect(babysit).toMatch(/without asking|do not ask/i)
     expect(babysit).toMatch(/pipeline[^.]{0,300}(terminate|return)/i)

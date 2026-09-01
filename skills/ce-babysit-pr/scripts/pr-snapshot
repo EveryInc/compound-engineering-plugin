@@ -91,28 +91,14 @@ BASE_REF_MERGEABILITY_PENDING = "mergeability-pending"
 BASE_REF_PROBE_ERROR = "probe-error"
 BASE_REF_LEGACY_STALE = "stale"
 
-# Quiet window a merge-ready wake ordinarily requires. Any wider window comes from a re-arm covering
-# an incomplete review lifecycle, so it lapses once that lifecycle's own evidence resolves.
+# Quiet window a merge-ready wake ordinarily requires. The agent widens it by re-arming when it
+# judges more waiting is warranted; the engine never adjusts the window it was given.
 DEFAULT_SETTLE_SECONDS = 300.0
 
 # Quiet window before a comment-only wake. Every non-empty top-level body is a candidate the
 # resolver must classify, so waking on the first one spends a full ce-resolve-pr-feedback dispatch
 # to conclude "status noise". Only this reason waits; real work never consults the clock.
 FEEDBACK_COALESCE_SECONDS = 180
-
-# First judgment point for an incomplete review lifecycle. The agent may extend once to 1800s when
-# concrete prior-round timing supports it; the skill contract owns that semantic decision.
-REVIEW_INPROGRESS_MAX_WAIT = 900
-
-# A GitHub App's bot account logs in as "<app-slug>[bot]" — the only link between a PR-body
-# reaction and the check runs the same app produced.
-BOT_LOGIN_SUFFIX = "[bot]"
-
-# What a 👀 reactor's own current-head check runs say about it (emitted, compared by ==).
-WORK_TERMINAL = "terminal"
-WORK_RUNNING = "running"
-WORK_NONE = "none"
-WORK_UNKNOWN = "unknown"
 
 # Trajectory check-history states (persisted, compared by ==).
 CHECK_UNKNOWN = "unknown"
@@ -512,142 +498,6 @@ def _base_ref_blocker(base):
     return BASE_REF_PROBE_ERROR
 
 
-def _flatten_pages(pages):
-    """One flat item list from `gh api --paginate --slurp` output (a list of per-page lists), or an
-    already-flat single page passed through."""
-    if not isinstance(pages, list):
-        return []
-    return [item for page in pages for item in page] \
-        if all(isinstance(page, list) for page in pages) else pages
-
-
-def _bot_app_slug(login):
-    """The GitHub App slug behind a bot account's login, or None for a human or a missing login.
-    This is the only link between a PR-body reaction and the check runs the same app produced."""
-    return login[:-len(BOT_LOGIN_SUFFIX)] if login and login.endswith(BOT_LOGIN_SUFFIX) else None
-
-
-def _eyes_reaction_reactors(reaction_pages):
-    """Identity and login for each current PR-body eyes reactor, from paginated REST results.
-    The identity is what the lifecycle compares across ticks; the login is what lets the reactor's
-    own work be found on the current head (see `_review_signal_attribution`)."""
-    by_identity = {}
-    for reaction in _flatten_pages(reaction_pages):
-        if not isinstance(reaction, dict) or reaction.get("content") not in (None, "eyes"):
-            continue
-        user = reaction.get("user") or {}
-        identity = user.get("node_id") or user.get("id") or user.get("login")
-        # Deleted-user reactions have no user identity. The reaction identity still lets an
-        # add/remove or same-count substitution move the lifecycle instead of becoming invisible.
-        identity = identity or reaction.get("node_id") or reaction.get("id")
-        if identity is None:
-            continue
-        login = user.get("login")
-        by_identity[str(identity)] = str(login) if login else None
-    return [{"identity": identity, "login": by_identity[identity]}
-            for identity in sorted(by_identity)]
-
-
-def _eyes_reaction_identities(reaction_pages):
-    """Stable identities for current PR-body eyes reactors — the persisted lifecycle's comparison key."""
-    return [reactor["identity"] for reactor in _eyes_reaction_reactors(reaction_pages)]
-
-
-def fetch_eyes_reactors(pr, owner, name, host=None):
-    """Fetch every current PR-body eyes reactor; `gh pr view` exposes only their count."""
-    r = _run_checked([
-        "gh", "api", *_host_args(host), "--paginate", "--slurp",
-        f"repos/{owner}/{name}/issues/{pr}/reactions?content=eyes&per_page=100",
-    ], "gh api reactions")
-    return _eyes_reaction_reactors(json.loads(r.stdout))
-
-
-def _check_runs_by_app(check_run_pages):
-    """Group current-head check runs by the GitHub App that produced them: for each app slug, the
-    runs it owns and whether any is still going. An app whose runs have all finished has no work
-    left on this head; one unfinished run keeps the whole app running, so a repo enabling two
-    products under one app never reads as finished while the slower one is going. Returns None when
-    a run carries a field in an unreadable shape — the grouping cannot be trusted then."""
-    apps = {}
-    for run in _flatten_pages(check_run_pages):
-        if not isinstance(run, dict):
-            continue
-        app = run.get("app")
-        status = run.get("status")
-        conclusion = run.get("conclusion")
-        # A field present in a shape this cannot read makes the whole grouping untrustworthy:
-        # silently skipping such a run would hide a still-running check and read its app as
-        # finished. Give up on the payload instead and let the caller report it as unknown.
-        if not (app is None or isinstance(app, dict)) \
-                or not (status is None or isinstance(status, str)) \
-                or not (conclusion is None or isinstance(conclusion, str)):
-            return None
-        slug = (app or {}).get("slug")
-        if not slug or not isinstance(slug, str):
-            continue
-        status = status.upper() if status else "IN_PROGRESS"
-        entry = apps.setdefault(slug, {"work": WORK_TERMINAL, "checks": []})
-        entry["checks"].append({
-            "name": run.get("name"),
-            "status": status,
-            "conclusion": conclusion.upper() if conclusion else None,
-        })
-        if status != "COMPLETED":
-            entry["work"] = WORK_RUNNING
-    return apps
-
-
-def fetch_head_check_apps(owner, name, head, host=None):
-    """Current-head check runs grouped by producing app, or None when the probe cannot answer.
-    `gh pr view --json statusCheckRollup` carries no app identity, so this is the only read that
-    can tell whose work a check run is. None (not {}) on failure keeps an unreadable probe from
-    reading as 'this app has nothing running'."""
-    if not head:
-        return None
-    r = _run(["gh", "api", *_host_args(host), "--paginate", "--slurp",
-              f"repos/{owner}/{name}/commits/{head}/check-runs?per_page=100"])
-    if r.returncode != 0:
-        return None
-    try:
-        pages = json.loads(r.stdout)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(pages, list):
-        return None
-    # Each page of this endpoint is an object wrapping the run list; --slurp yields a list of them.
-    return _check_runs_by_app([page.get("check_runs", page) if isinstance(page, dict) else page
-                               for page in pages])
-
-
-def _review_signal_attribution(reactors, check_apps):
-    """What each current 👀 reactor's own work on this head says about it — the evidence the agent
-    judges completion from, never a completion verdict itself. A GitHub App's bot account logs in as
-    `<app-slug>[bot]`, which is the only link between a reaction and a check run. `work` is
-    `terminal` (the app has current-head runs and all have finished), `running`, `none` (a human, or
-    an app with no current-head run of its own), or `unknown` (the probe could not answer)."""
-    attribution = []
-    for reactor in reactors or []:
-        login = reactor.get("login")
-        app = _bot_app_slug(login)
-        if check_apps is None:
-            work = WORK_UNKNOWN if app else WORK_NONE
-            checks = []
-        else:
-            entry = check_apps.get(app) if app else None
-            work = entry["work"] if entry else WORK_NONE
-            checks = entry["checks"] if entry else []
-        attribution.append({"identity": reactor.get("identity"), "login": login,
-                            "app": app, "work": work, "checks": checks})
-    return attribution
-
-
-def _review_signal_work_terminal(attribution):
-    """True when every present reactor has finished the work it could be running here. This is the
-    absence of evidence that a review is live — not proof one completed, which stays the agent's
-    call at the settle decision."""
-    return bool(attribution) and all(entry.get("work") == WORK_TERMINAL for entry in attribution)
-
-
 def _stack_schema_unavailable(stderr):
     """Recognize only GraphQL schema errors for the private-preview PullRequest stack fields."""
     unavailable_markers = ("doesn't exist on type", "does not exist on type",
@@ -973,22 +823,6 @@ def fetch(pr, repo, light=False):
         if isinstance(capability, bool):
             host_branch_update_capability = capability
 
-    # In-progress review signal: an 👀 (EYES) reaction on the PR body is how several review bots
-    # (Codex among them) announce a review is *underway*. A present signal is meaningful; absence
-    # tells us nothing (many reviewers give no signal), so this only ever *delays* a merge-ready read.
-    # But the reaction is evidence a review *started*, not that one is still running: a bot that
-    # never removes its own 👀 leaves it standing forever (#1606). So alongside the signal, report
-    # what each reactor's own current-head work says about it and leave completion to the agent. The
-    # app probe runs only when a bot actually reacted, so an unreacted or human-reacted PR costs
-    # nothing extra.
-    review_signal_reactors = [] if light else fetch_eyes_reactors(v.get("number") or pr, owner, name, host)
-    review_signal_identities = [reactor["identity"] for reactor in review_signal_reactors]
-    review_signal_count = len(review_signal_identities)
-    review_in_progress = review_signal_count > 0
-    has_bot_reactor = any(_bot_app_slug(reactor.get("login")) for reactor in review_signal_reactors)
-    check_apps = fetch_head_check_apps(owner, name, head, host) if has_bot_reactor else {}
-    review_signal_attribution = _review_signal_attribution(review_signal_reactors, check_apps)
-
     return {
         "pr_state": v.get("state"),
         "pr_is_draft": v.get("isDraft"),
@@ -1000,11 +834,6 @@ def fetch(pr, repo, light=False):
         "host_branch_update_capability": host_branch_update_capability,
         "url": v.get("url"),
         "checks": checks,
-        "review_in_progress": review_in_progress,
-        "review_signal_count": review_signal_count,
-        "review_signal_identities": review_signal_identities,
-        "review_signal_attribution": review_signal_attribution,
-        "review_signal_work_terminal": _review_signal_work_terminal(review_signal_attribution),
         "threads": fetch_threads(pr, owner, name, host),
         # Non-thread feedback: top-level PR comments + review submission bodies. ce-resolve-pr-feedback
         # handles these too, so a Changes-Requested review body or an actionable top-level comment with
@@ -1138,10 +967,6 @@ def _empty_state(pr, repo, url, now):
         "checks": {}, "threads": {}, "ci_dispatched": {},
         "human_decisions": [], "answered_human_decisions": [],
         "review_decision": None, "mergeable": None, "merge_state_status": None,
-        "review_in_progress": False, "review_signal_count": 0, "review_signal_identities": [],
-        "review_signal_work_terminal": False,
-        "review_signal_seen_on_head": False,
-        "review_signal_first_seen_at": None, "review_signal_last_changed_at": None,
         "blocked_external_head_sha": None,
         "blocked_external_first_seen_at": None,
         "feedback_candidate_changed_at": None, "feedback_candidate_ids": [],
@@ -2166,65 +1991,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
     }
     prior_review_decision = state.get("review_decision")
     prior_change_sig = _change_sig(state)
-    prior_review_in_progress = bool(state.get("review_in_progress", False))
-    prior_review_signal_count = state.get("review_signal_count")
-    if prior_review_signal_count is None:
-        prior_review_signal_count = 1 if prior_review_in_progress else 0
-    review_in_progress = bool(cur.get("review_in_progress", False))
-    review_signal_count = cur.get("review_signal_count")
-    if review_signal_count is None:
-        review_signal_count = 1 if review_in_progress else 0
-    prior_review_signal_identities = state.get("review_signal_identities")
-    if not isinstance(prior_review_signal_identities, list):
-        prior_review_signal_identities = None
-    else:
-        prior_review_signal_identities = sorted(set(map(str, prior_review_signal_identities)))
-    review_signal_identities = cur.get("review_signal_identities")
-    if not isinstance(review_signal_identities, list):
-        review_signal_identities = None
-    else:
-        review_signal_identities = sorted(set(map(str, review_signal_identities)))
-        review_signal_count = len(review_signal_identities)
-    review_in_progress = review_signal_count > 0
-    # Attribution speaks only for the reactors currently holding the signal, and only when it
-    # accounts for every one of them. Comparing identity *sets* is what makes that true: a count
-    # match alone lets a duplicated terminal entry stand in for a reactor nobody described, which
-    # would release the wake while that reactor is still working.
-    review_signal_attribution = cur.get("review_signal_attribution")
-    if not isinstance(review_signal_attribution, list):
-        review_signal_attribution = []
-    else:
-        review_signal_attribution = [entry for entry in review_signal_attribution
-                                     if isinstance(entry, dict)]
-        if review_signal_identities is not None:
-            current = set(review_signal_identities)
-            review_signal_attribution = [entry for entry in review_signal_attribution
-                                         if str(entry.get("identity")) in current]
-    attributed = {str(entry.get("identity")) for entry in review_signal_attribution}
-    signal_fully_attributed = (attributed == set(review_signal_identities)
-                               if review_signal_identities is not None
-                               else len(attributed) == review_signal_count)
-    review_signal_work_terminal = (signal_fully_attributed
-                                   and _review_signal_work_terminal(review_signal_attribution))
-    signal_changed = (review_signal_identities != prior_review_signal_identities
-                      if review_signal_identities is not None else
-                      review_signal_count != prior_review_signal_count)
-
     if head_changed:
         # SHA-scoped state is meaningless on a new head.
         state["ci_dispatched"] = {}
-        state["review_signal_seen_on_head"] = review_in_progress
-        state["review_signal_first_seen_at"] = _iso(now) if review_in_progress else None
-        state["review_signal_last_changed_at"] = _iso(now) if review_in_progress else None
-    else:
-        # Preserve a signal seen on this head after it disappears; the agent owns completion judgment,
-        # while this structural fact distinguishes an incomplete lifecycle from "no signal ever."
-        if (prior_review_in_progress or review_in_progress) and not state.get("review_signal_seen_on_head", False):
-            state["review_signal_seen_on_head"] = True
-            legacy_seen_at = state.get("last_change_at") if prior_review_in_progress else None
-            state["review_signal_first_seen_at"] = legacy_seen_at or _iso(now)
-        if signal_changed:
-            state["review_signal_last_changed_at"] = _iso(now)
 
     # --- CI: a failing check on the current head is actionable until the agent
     # marks it dispatched (recorded in ci_dispatched[head]) or the head moves.
@@ -2304,7 +2073,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
         or current_thread_activity != prior_thread_activity
         or current_feedback_activity != prior_feedback_activity
         or cur.get("review_decision") != prior_review_decision
-        or signal_changed
     )
     open_needs_human = len(needs_human_residuals)
     # Compatibility view for consumers that display source identities. The canonical set above,
@@ -2319,10 +2087,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
     state["review_decision"] = cur["review_decision"]
     state["mergeable"] = cur["mergeable"]
     state["merge_state_status"] = cur["merge_state_status"]
-    state["review_in_progress"] = review_in_progress
-    state["review_signal_count"] = review_signal_count
-    state["review_signal_identities"] = review_signal_identities
-    state["review_signal_work_terminal"] = review_signal_work_terminal
     observed_awaiting_approval = cur.get("awaiting_approval")
     approval_probe_succeeded = observed_awaiting_approval is not None
     awaiting_approval = (
@@ -2437,14 +2201,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "checks_terminal": checks_terminal,
         "checks_present": bool(cur["checks"]),
         "all_checks_ok": all_checks_ok,
-        "review_in_progress": review_in_progress,
-        "review_signal_count": review_signal_count,
-        "review_signal_identities": review_signal_identities,
-        "review_signal_attribution": review_signal_attribution,
-        "review_signal_work_terminal": review_signal_work_terminal,
-        "review_signal_seen_on_head": bool(state.get("review_signal_seen_on_head", False)),
-        "review_signal_first_seen_at": state.get("review_signal_first_seen_at"),
-        "review_signal_last_changed_at": state.get("review_signal_last_changed_at"),
         "checks_awaiting_approval": awaiting_approval,
         "blocked_external": blocked_external,
         "blocked_external_first_seen_at": state.get("blocked_external_first_seen_at"),
@@ -2522,13 +2278,7 @@ def _change_sig(state):
     current_currency = currency.get("items", {}).get(currency.get("current_key")) or {}
     return (checks, threads, feedback, human_decisions,
             state.get("review_decision"), state.get("mergeable"),
-            state.get("merge_state_status"), state.get("review_in_progress"),
-            state.get("review_signal_count"),
-            tuple(state.get("review_signal_identities") or []),
-            # A reactor's own work going running <-> terminal is review movement. The check that
-            # carries it usually also moves `checks` above, but the two come from different
-            # endpoints and can disagree, so the settle clock cannot rely on that coincidence.
-            bool(state.get("review_signal_work_terminal", False)),
+            state.get("merge_state_status"),
             json.dumps(state.get("pr_chain") or _default_pr_chain(), sort_keys=True),
             json.dumps(_settle_base(state.get("base")), sort_keys=True),
             (current_currency.get("host_branch_update_capability")
@@ -2815,19 +2565,9 @@ def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_
         return "blocked-external"
     if a.get("open_needs_human", 0):
         return "needs-human"         # parked items block ready; surface them
-    # merge-ready candidate: green + settled with no fresh review movement. A 👀 whose reactors
-    # still have work running (or whose work cannot be attributed) blocks the ordinary 300s settle
-    # and wakes the agent after 900 quiet seconds for the semantic stale-review judgment; the agent
-    # may extend once to 1800s by re-arming with that settle value. Once every reactor's own
-    # current-head work is terminal there is no evidence a review is live, so this gate stops
-    # holding and the agent judges completion from `review_signal_attribution`. The detector never
-    # decides whether a reviewer is genuinely slow, stuck, or finished — and for the same reason it
-    # never shortens the window the agent armed: a re-arm is the agent's recorded judgment that this
-    # evidence did not resolve the lifecycle, so overriding it would re-fire on evidence already
-    # rejected and loop the wake instead of following the bounded stale path.
-    review_blocking = (a.get("review_in_progress")
-                       and not a.get("review_signal_work_terminal")
-                       and a.get("quiet_seconds", 0) < REVIEW_INPROGRESS_MAX_WAIT)
+    # merge-ready candidate: green, settled, nothing left in the attention set. Whether a review is
+    # still on its way is the agent's judgment at the settle decision, from live GitHub evidence the
+    # engine does not model; this wake hands it that decision rather than pre-empting it.
     # Interactive merge-ready does NOT require `all_checks_ok`'s "at least one observed check": a repo
     # with no configured checks has a CLEAN/MERGEABLE PR that should be callable ready. (That guard
     # stays in pipeline success, where a not-yet-created rollup must not read as a pass.)
@@ -2840,7 +2580,6 @@ def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_
             and a.get("checks_terminal") and not a.get("has_failing_checks")
             and a.get("checks_awaiting_approval", 0) == 0
             and a.get("branch_currency_blocker") is None
-            and not review_blocking
             and a.get("quiet_seconds", 0) >= settle_seconds):
         return "merge-ready"
     return None
@@ -2872,8 +2611,7 @@ def _blocker_sig(a):
         sig.add("__terminal_red__")
     if a.get("blocked_external"):
         sig.add("__blocked_external__")
-        sig.add(("approval-review-state", bool(a.get("review_signal_seen_on_head")),
-                 tuple(a.get("review_signal_identities") or []), a.get("review_decision")))
+        sig.add(("approval-review-state", a.get("review_decision")))
     if a.get("stack_blocker"):
         sig.add(f"__stack__:{a['stack_blocker']}")
     if a.get("base_ref_blocker"):

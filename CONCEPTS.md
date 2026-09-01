@@ -249,7 +249,7 @@ Because clearing it only shows that things stopped changing, a run that clears i
 ### Liveness marker
 A signal a third party sets to announce it has begun work — a reaction, a label, a status flag. It is evidence the work started and never evidence it is still running, because nothing obliges the party to clear it when done.
 
-A detector therefore attributes liveness to that party's own observable output rather than reading the marker's continued presence as proof of activity, and bounds its wait when no such output exists. Where that output does not settle whether the announced work actually landed, the completion judgment belongs to the agent at the decision point rather than to the detector, which stops asserting what it cannot support and hands over the evidence it has.
+Liveness is therefore read from that party's own observable output on the current unit of work, never from the marker's continued presence, and the wait is bounded when no such output exists. Judging whether the announced work actually landed belongs to the reasoning layer rather than to a deterministic detector: the question is semantic, so a component that answers it mechanically is wrong in exactly the cases that matter.
 
 ### Residual
 A review finding a run accepted or deferred rather than fixed, which must reach a durable sink before the run reports itself done — a section in the pull request body, or a ticket in the project's tracker. A finding that lives only in the session is lost when the session ends, so an accepted residual blocks a merge-ready claim until it is recorded somewhere a human will find it.

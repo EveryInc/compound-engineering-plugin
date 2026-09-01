@@ -91,7 +91,7 @@ A `needs-human` item blocks the ready call. It does **not** end the watch. New c
 
 Within a tick: terminal check, then comments, then re-check the head SHA, then CI only if that SHA did not move. A CI fix is never applied against a pre-comment commit.
 
-The same rule applies to an in-progress review (an 👀 or a "reviewing…" note). Already-posted comments are handled immediately. The signal only withholds the "looks ready" call.
+The same rule applies to a review that is still running. Already-posted comments are handled immediately; a review in flight only withholds the "looks ready" call.
 
 ### One tick, any driver
 
@@ -101,7 +101,7 @@ Default budget is **8 hours of active watch time** (laptop-sleep gaps are exclud
 
 ### Looks ready is a cooling-off judgment
 
-Ready is not "CI is green." GitHub must report the PR mergeable against the current base, the attention set must be empty, and the quiet window (default 5 minutes when no review signal was seen) must have elapsed. An incomplete review lifecycle uses the 15 / 30 minute bounds above — except that some review bots never remove their own 👀 after finishing, so a reaction whose reactor's own app has finished all its current-head checks falls back to the ordinary 5-minute window, and the skill judges from that reactor's own check runs whether the review it announced actually landed. Even then the summary says "looks ready, your call" or "cautiously looks ready."
+Ready is not "CI is green." GitHub must report the PR mergeable against the current base, the attention set must be empty, and the quiet window (5 minutes by default) must have elapsed. Then the skill judges separately whether a review is still on its way, from what the current head shows — a reviewer that announced itself but has produced nothing yet earns a bounded extra wait, while one whose own check has finished does not, whatever that check concluded. Even then the summary says "looks ready, your call" or "cautiously looks ready."
 
 When a fork PR's CI is waiting on maintainer approval, the skill drains review for a bounded window (5, 15, or 30 minutes) and then hands back. It never approves the workflow run. Pipeline mode returns that blocker immediately.
 

@@ -34,9 +34,9 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-babysit-pr/behind-reads-branch-currency` | Snapshot emitted BEHIND → must load `branch-currency.md` |
 | `ce-babysit-pr/check-only-answer-reactivates-source` | User answered a check-only decision -> consume the exact decision ID, preserve the answer, then reactivate the check |
 | `ce-babysit-pr/never-merge-under-target` | Looks-ready is not merge authorization |
-| `ce-babysit-pr/eyes-finished-work-clears-the-floor` | Leftover 👀 whose reactor's own check *is* its finished review → ordinary settle, not the 15-minute floor (#1606) |
-| `ce-babysit-pr/eyes-finished-unrelated-work-still-waits` | Same reactor state, but the finished check is not the announced review → still re-arms at 900 |
-| `ce-babysit-pr/eyes-with-running-work-still-waits` | One unfinished check from the same app keeps the reactor running → still re-arms at 900 |
+| `ce-babysit-pr/announced-review-that-finished-reads-ready` | Standing 👀 + that reviewer's own finished check → ready, not the stale floor (#1606) |
+| `ce-babysit-pr/timed-out-review-is-finished-not-approved` | Terminal-but-verdictless run → stops holding readiness, reported as incomplete rather than passed |
+| `ce-babysit-pr/announced-review-with-nothing-to-show-waits` | Announced but nothing observable → the one undecidable case, bounded wait |
 | `ce-babysit-pr/ci-delegates-debug-pipeline` | Red CI → names `ce-debug mode:pipeline` once, not merge (routing probe — read-only, so it cannot observe the dispatch) |
 | `ce-ideate/own-idea-routes-to-brainstorm` | User's own idea routes to brainstorm, not a build |
 | `ce-work/requirements-only-stops` | `requirements-only` plan is not executable |
