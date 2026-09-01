@@ -720,21 +720,9 @@ describe("peer-job-runner lifecycle", () => {
     expect(unknown.stderr).toContain("no artifact at")
     expect(unknown.stderr).toContain("job not found")
 
-    // A job dir failing its owner check is exit 4, matching the job-id branch.
-    // Its `reason` is never read: job_dir already failed verification.
-    const settled = startJob(root, FAST, [writeStub("exit 0\n")])
-    trackJob(settled.dir)
-    runner(root, FAST, ["wait", "--max-secs", "10", settled.id])
-    writeFileSync(path.join(settled.dir, "reason"), "SHOULD-NOT-BE-READ\n")
-    chmodSync(settled.dir, 0o000)
-    try {
-      const unreadable = runner(root, FAST, ["result", settled.id, "--path", missing])
-      expect(unreadable.code).toBe(4)
-      expect(unreadable.stderr).toContain("unreadable")
-      expect(unreadable.stderr).not.toContain("SHOULD-NOT-BE-READ")
-    } finally {
-      chmodSync(settled.dir, 0o700)
-    }
+    // The ownership-failure branch (exit 4) needs a real fstat-uid mismatch, so
+    // it lives in the python fixture -- mode bits would not fail the owner check
+    // and are inert as root and on Windows.
   }, 20000)
 
   test("result with neither a job nor --path is a usage error (exit 2)", () => {
