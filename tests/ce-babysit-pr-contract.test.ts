@@ -286,11 +286,18 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     // replaced generated every defect in #1611 by making the engine re-decide it (#1606).
     expect(babysit).toMatch(/has told you it \*\*started\*\*/i)
     expect(babysit).toMatch(/not evidence that work continues/i)
-    expect(babysit).toMatch(/terminal conclusion means that reviewer stopped/i)
+    expect(babysit).toMatch(/reached a terminal conclusion means it stopped/i)
     expect(babysit).toMatch(/never read a timeout or a skip as approval/i)
+    // Terminal work only ends the wait when it accounts for the review that was announced —
+    // an app can finish an unrelated check while its review has not appeared.
+    expect(babysit).toMatch(/accounts for the review it announced/i)
+    expect(babysit).toMatch(/is not the review finishing/i)
     // Absence never blocks terminally, and the wait is bounded rather than open-ended.
     expect(babysit).toMatch(/never wait terminally for a done signal/i)
     expect(babysit).toMatch(/wait a bounded while/i)
+    // The bound needs a magnitude, not just a count of re-arms.
+    expect(babysit).toMatch(/no more than 1800/i)
+    expect(babysit).toMatch(/never re-arm past it on the same unchanged evidence/i)
     expect(babysit).toMatch(/say plainly what you could not confirm/i)
     // Readiness stays a recommendation.
     expect(babysit).toMatch(/never authorization to merge/i)

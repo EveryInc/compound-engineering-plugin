@@ -189,6 +189,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-babysit-pr/check-only-answer-reactivates-source",
       "ce-babysit-pr/pipeline-returns-canonical-human-decision",
       "ce-babysit-pr/timed-out-review-is-finished-not-approved",
+      "ce-babysit-pr/unrelated-terminal-work-is-not-the-review",
       "ce-commit-push-pr/babysit-off-preserves-human-decision",
       "ce-compound-refresh/guidance-survives-implementation-conflict",
       "ce-debug/pipeline-divergent-defer",
