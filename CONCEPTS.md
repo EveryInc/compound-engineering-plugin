@@ -170,8 +170,24 @@ A rule that states its condition correctly and then enforces it with an absolute
 
 A proxy holds only while the condition's usual case is its only case, and it forbids the input for which the condition demands the opposite form. Replication is how the defect spreads rather than an aggravating detail — a copy placed at a site that does not own the decision gets rewritten for that site's local job, which compresses the condition into whatever that job can act on, and the compression then contradicts the owner. The characteristic failure is an audit built on the proxy: it does not merely fail to catch bad work, it instructs a reader to degrade correct work. A proxy also reads differently across hosts, since a literal reader obeys the absolute where a permissive one treats it as style, so a single-host evaluation can pass one.
 
+### Case accretion
+A block that grows one entry per review round — a word added to a trigger list, a clause added to a rule — because each round finds a case the block missed, while the condition those cases have in common is never stated. It differs from a Proxy rule in having no condition to begin with: a proxy states its condition and then enforces a stand-in for it, where accretion offers only the cases.
+*Avoid:* accretion loop, case list
+
+The list looks like it is converging and is not, because a reviewer can always produce one more valid case against an enumeration, and each entry dilutes what the block was meant to express. The signal to stop is a second round of "also handle this" against the same block, not a threshold count. The answer is to state the rule that decides membership, then ask whether that rule can decide without the cases: where it can, they go; where the distinction is lexical and has no structural tell, they stay as the rule's implementation and the stated rule is the fix. Deleting cases that were carrying real knowledge produces the mirror defect rather than a repair. When the rounds keep coming because the block is being asked to decide something it cannot decide at that layer, neither keeping nor deleting the cases helps: split the outcome by confidence so a miss costs a tier instead of a wrong answer, and leave the judgment to whoever reads the output. Two reviewers who did not see each other's findings landing on one block, each with a different case, is the same signal reached from outside: agreement on the location while disagreeing about the case says the block is misrepresented rather than incomplete. Accretion happens in code as readily as in prose — a lexicon gating a branch is the same defect as a case list qualifying a rule.
+
 ### Context-absent agent
 An agent performing a Skill-shaped action without that Skill's instructions loaded in context — typically reconstructing a half-remembered command, recognizable by parameter values that drift from the Skill's documented defaults. Prose in the unloaded Skill cannot reach it; the only channels that do are the seam it entered through and the output of the tools it runs, which is why fail-closed refusals in bundled CLIs carry their own recovery path.
+
+### Attention set
+The items a watching run must act on this tick — unresolved review threads, unclassified non-thread feedback, failing checks on the current head, and any pending work to bring the branch current — recomputed from remote truth on every observation rather than accumulated in the agent's memory.
+
+Observing an item never marks it handled. An item leaves the set only when the run confirms it acted or remote truth removes it, so a crashed or superseded pass leaves its items present for the next tick.
+
+### Feedback candidate
+A non-thread message on a pull request — a top-level comment or a review submission body — surfaced for classification without any determination that it requires work. The deterministic layer excludes only empty bodies, declining on purpose to judge by author, bot identity, or surface, so the resolving Skill decides whether a candidate is real feedback and may legitimately drop one as noise.
+
+Because every non-empty body becomes a candidate, treating a candidate-only state as immediately actionable spends a full resolver pass to classify routine automation chatter as nothing. Waiting for the candidate set to stop changing merges a burst into a single pass and lets genuine work claim the same tick, without any candidate leaving the Attention set.
 
 ## Review and workflow vocabulary
 

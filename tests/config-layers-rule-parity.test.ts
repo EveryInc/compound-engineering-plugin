@@ -16,6 +16,10 @@ const CONSUMERS = [
   // ce-commit-push-pr resolves the ordinary keys at Step 4, in the reference
   // the body mandates before composition.
   "skills/ce-commit-push-pr/references/compose.md",
+  // The Step 5 babysit handoff is a separate reader: `auto_babysit` is consumed
+  // there, and a run that reached the gate on Step 4's memory alone handed off
+  // against a standing `auto_babysit: false` (#1601).
+  "skills/ce-commit-push-pr/references/apply-and-handoff.md",
   // ce-work resolves the ordinary engine keys inside the reference its route-resolution
   // gate mandates before any implementation write.
   "skills/ce-work/references/execution-engines.md",

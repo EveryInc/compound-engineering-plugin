@@ -25,7 +25,15 @@ citations against the repository:
        URL routes are skipped.
     2. Cited commit SHAs (7-40 hex chars with at least one digit and one
        a-f letter) resolve to commits, classified by reachability from
-       HEAD and the upstream default branch.
+       HEAD and the upstream default branch. Session ids, content hashes
+       and blob hashes are hex too, so an unresolvable hex word is
+       reported in one of two tiers rather than asserted to be fabricated:
+       FLAG when the text right before it presents it as a commit (a
+       likely fabricated citation), NOTE otherwise (an identifier this
+       script cannot classify). Only FLAG affects the exit code. The
+       cue vocabulary therefore ranks confidence; it does not decide
+       whether an item is surfaced, so a phrasing it misses is reported
+       one tier down instead of disappearing.
     3. Relative markdown link targets resolve from the doc's location.
     4. Dangling drafting scaffold: "Learning(s) N" numbering and
        unresolved {{...}} placeholder tokens. Inline code spans and fenced
@@ -52,6 +60,33 @@ PLACEHOLDER_CHARS = set("<>{}*$")
 PLACEHOLDER_SUBSTRINGS = ("path/to", "...", "…")
 
 SHA_RE = re.compile(r"\b[0-9a-f]{7,40}\b")
+# Words that name a commit or a commit operation, so a hex token right after
+# one is a commit citation. Words naming some other git object ("blob", "tree"),
+# any hash ("sha"), and the bare tool name ("git", which precedes every object
+# kind equally) are deliberately absent — they are what the flag used to mistake
+# for commits.
+COMMIT_WORDS = frozenset(
+    "commit commits committed committing revision revisions rev revs "
+    "revert reverts reverted cherry-pick cherry-picked rebase rebased "
+    "bisect bisected".split()
+)
+# A hex token is also a citation when the sentence attributes a change landing
+# in this repository to it: "landed in <sha>", "resolved by <sha>". Both halves
+# are needed. The preposition alone attributes without saying what to, so it
+# would read "recorded at <digest>" as a commit; the verb alone does not point
+# at the token. Membership below is that condition, not a tally of phrasings
+# seen so far: a verb belongs when it says a change landed, and does not when
+# it says an identifier was assigned or a value stored.
+CITATION_VERBS = frozenset(
+    "fixed fix fixes landed lands land introduced introduces introduce "
+    "shipped ships ship merged merges merge resolved resolves resolve "
+    "reverted reverts broke breaks broken caused causes regressed "
+    "added adds removed removes released releases".split()
+)
+CITATION_PREPS = frozenset(("in", "by", "at", "with"))
+# The pin form that names a commit is owner/repo@<sha>. A bare "@" is not it:
+# it also prefixes account names and image tags, whose identifiers are hex too.
+REPO_PIN_RE = re.compile(r"(?<![\w./@-])[\w.-]+/[\w.-]+@$")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
@@ -150,6 +185,30 @@ def mask_code(lines: list[str]) -> list[str]:
     return masked
 
 
+def cites_a_commit(prefix: str) -> bool:
+    """True when the text just before a hex word presents it as a commit.
+
+    Only the last few words on the same line count: a cue further away
+    ("the git history shows session 7e6861b4") describes the surroundings,
+    not the token. Digits are word characters so a hash named after its
+    algorithm ("SHA256") stays one non-cue word, and command flags drop out
+    first so `git show --format=%H <sha>` reads like `git show <sha>`.
+    """
+    if REPO_PIN_RE.search(prefix):
+        return True  # owner/repo@<sha> pins a commit
+    unflagged = " ".join(w for w in prefix.split() if not w.startswith("-"))
+    words = [
+        w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9-]*", unflagged)[-3:]
+    ]
+    if any(word in COMMIT_WORDS for word in words):
+        return True
+    return (
+        len(words) >= 2
+        and words[-1] in CITATION_PREPS
+        and words[-2] in CITATION_VERBS
+    )
+
+
 def normalize_path(token: str) -> str:
     token = token.strip().rstrip(".,;")
     token = re.sub(r":\d+(-\d+)?$", "", token)  # strip `:line` / `:a-b` refs
@@ -200,6 +259,7 @@ def main(argv: list[str]) -> int:
         return ""
 
     infos: list[str] = []
+    notes: list[str] = []
     flags: list[str] = []
 
     # --- Repo context -----------------------------------------------------
@@ -310,24 +370,49 @@ def main(argv: list[str]) -> int:
 
     # --- 2. Cited commit SHAs ----------------------------------------------
     checked_shas = 0
-    seen_shas: set[str] = set()
     if in_git:
+        # One entry per distinct hex word: the line to report it at, and
+        # whether any occurrence of it is presented as a commit. A doc often
+        # quotes a token in a transcript before citing it, so a later citing
+        # occurrence upgrades the tier and supplies the line.
+        seen_shas: dict[str, tuple[int, bool]] = {}
+        order: list[str] = []
         for m in SHA_RE.finditer(body):
             sha = m.group(0)
-            if sha in seen_shas:
-                continue
             if not (any(c.isdigit() for c in sha) and any(c in "abcdef" for c in sha)):
                 continue  # dates and decimal ids are not SHAs
-            seen_shas.add(sha)
-            checked_shas += 1
-            loc = loc_suffix(sha)
+            line_start = body.rfind("\n", 0, m.start()) + 1
+            cited = cites_a_commit(body[line_start : m.start()])
+            line_no = body_start + body.count("\n", 0, m.start())
+            if sha not in seen_shas:
+                seen_shas[sha] = (line_no, cited)
+                order.append(sha)
+            elif cited and not seen_shas[sha][1]:
+                seen_shas[sha] = (line_no, True)
+        for sha in order:
+            line_no, cited = seen_shas[sha]
             code, _ = git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root)
-            if code != 0:
+            resolved = code == 0
+            loc = f" (line {line_no})"
+            if not resolved:
+                if not cited:
+                    # Nothing here says "commit", and hex is also how session
+                    # ids and content hashes are written. Surface it without
+                    # claiming to know which it is; the reader adjudicates.
+                    notes.append(
+                        f"NOTE sha {sha}{loc} — an unresolved hex identifier "
+                        "with no commit reference around it. This script cannot "
+                        "tell a session id or content hash from a commit; verify "
+                        "it if it was meant as one."
+                    )
+                    continue
+                checked_shas += 1
                 flags.append(
                     f"FLAG sha {sha}{loc} — does not resolve to a commit in this "
                     "repository. Replace with the PR number, or drop it."
                 )
                 continue
+            checked_shas += 1
             in_head = (
                 git(["merge-base", "--is-ancestor", sha, "HEAD"], repo_root)[0] == 0
             )
@@ -391,12 +476,17 @@ def main(argv: list[str]) -> int:
     # --- Report ---------------------------------------------------------------
     for info in infos:
         print(info)
+    for note in notes:
+        print(note)
     for flag in flags:
         print(flag)
-    print(
+    summary = (
         f"checked {checked_paths} paths, {checked_shas} SHAs, "
         f"{checked_links} links; {len(flags)} flags"
     )
+    if notes:
+        summary += f", {len(notes)} notes"
+    print(summary)
     if flags:
         return 1
     print(f"OK: {doc_path}")

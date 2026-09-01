@@ -308,7 +308,15 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/never ask yes\/no/i)
     // Off is the explicit choice: per-run token + standing config opt-out.
     expect(content).toContain("babysit:off")
-    expect(content).toContain("auto_babysit: false")
+    // The standing opt-out must be READ at the handoff, not merely named: naming it
+    // while the only config read lived in the Step 4 reference is how a run reached
+    // the gate and handed off against `auto_babysit: false` (#1601).
+    expect(content).toContain("auto_babysit")
+    expect(content).toContain("<!-- ce-config-layers:start -->")
+    expect(content).toContain(".compound-engineering/config.local.yaml")
+    // A skipped handoff is a successful terminal, not a blocked one -- otherwise the
+    // completion gate's "stop and report it blocked" swallows the opt-out.
+    expect(content).toMatch(/opted out[^.]{0,120}successful terminal/i)
     // Hard-off cases (orchestrated, no PR, non-GitHub, non-pushable head).
     expect(content).toMatch(/do not fire/i)
     expect(content).toMatch(/mode:pipeline/)

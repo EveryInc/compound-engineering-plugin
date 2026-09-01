@@ -95,6 +95,11 @@ BASE_REF_LEGACY_STALE = "stale"
 # an incomplete review lifecycle, so it lapses once that lifecycle's own evidence resolves.
 DEFAULT_SETTLE_SECONDS = 300.0
 
+# Quiet window before a comment-only wake. Every non-empty top-level body is a candidate the
+# resolver must classify, so waking on the first one spends a full ce-resolve-pr-feedback dispatch
+# to conclude "status noise". Only this reason waits; real work never consults the clock.
+FEEDBACK_COALESCE_SECONDS = 180
+
 # First judgment point for an incomplete review lifecycle. The agent may extend once to 1800s when
 # concrete prior-round timing supports it; the skill contract owns that semantic decision.
 REVIEW_INPROGRESS_MAX_WAIT = 900
@@ -1139,6 +1144,7 @@ def _empty_state(pr, repo, url, now):
         "review_signal_first_seen_at": None, "review_signal_last_changed_at": None,
         "blocked_external_head_sha": None,
         "blocked_external_first_seen_at": None,
+        "feedback_candidate_changed_at": None, "feedback_candidate_ids": [],
         "blocked_external_review_last_activity_at": None,
         "pr_chain": _default_pr_chain(),
         "base": None,
@@ -2357,6 +2363,14 @@ def diff(state, cur, now=None, advance_trajectory=True):
         branch_currency["attention"] = None
 
     actionable = {"ci": actionable_ci, "threads": actionable_threads, "comments": actionable_feedback}
+    # Reset on any change to the candidate id-set so a burst arriving over several polls settles
+    # into one wake; clear when it empties so the next candidate starts a fresh window.
+    feedback_ids = sorted(str(f.get("id")) for f in actionable_feedback)
+    if not feedback_ids:
+        state["feedback_candidate_changed_at"] = None
+    elif feedback_ids != state.get("feedback_candidate_ids"):
+        state["feedback_candidate_changed_at"] = _iso(now)
+    state["feedback_candidate_ids"] = feedback_ids
     if advance_trajectory:
         state["tick"] = state.get("tick", 0) + 1
     # Record CI recurrence transitions on EVERY observation (polls too) so a fail->clear->fail seen
@@ -2434,6 +2448,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "checks_awaiting_approval": awaiting_approval,
         "blocked_external": blocked_external,
         "blocked_external_first_seen_at": state.get("blocked_external_first_seen_at"),
+        "feedback_candidate_changed_at": state.get("feedback_candidate_changed_at"),
         "blocked_external_review_last_activity_at": state.get(
             "blocked_external_review_last_activity_at"),
         "blocked_external_review_quiet_seconds": blocked_external_review_quiet_seconds,
@@ -2756,10 +2771,10 @@ def cmd_snapshot(args):
     if (getattr(args, "_started_new_invocation", False)
             and _elapsed(result.get("invocation_started_at"), _now()) > 60):
         raise SystemExit("new invocation unexpectedly inherited more than 60 seconds of elapsed time")
-    print(json.dumps(result, indent=2))
+    print(json.dumps(result, separators=(",", ":")))
 
 
-def _wake_reason(a, settle_seconds):
+def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_SECONDS):
     """Why the in-session agent should wake and run a tick, or None to keep watching.
     Ordered by precedence — a terminal/blocked/needs-human state outranks a merge-ready read."""
     if a.get("pr_state") in ("MERGED", "CLOSED"):
@@ -2768,9 +2783,12 @@ def _wake_reason(a, settle_seconds):
     if c.get("threads", 0) or c.get("ci", 0):
         return "actionable"
     if c.get("comments", 0):
-        # Non-thread bodies are feedback candidates, not a deterministic conclusion that work is
-        # required. The resolver may legitimately silent-drop status noise or review wrappers.
-        return "feedback-candidate"
+        # Coalesced per FEEDBACK_COALESCE_SECONDS above; falling through costs nothing, since the
+        # set stays actionable and whichever tick runs still sees every candidate. `_elapsed` reads
+        # a missing or unparseable clock as 0, so unknown must wake rather than hold forever.
+        changed_at = a.get("feedback_candidate_changed_at")
+        if changed_at is None or _elapsed(changed_at, _now()) >= feedback_coalesce_seconds:
+            return "feedback-candidate"
     if a.get("stack_blocker"):
         return "stack-blocked"
     base_ref_blocker = (a.get("base_ref_blocker")
@@ -3141,7 +3159,9 @@ def cmd_watch(args):
             actionable["invocation_wall_elapsed_seconds"] = wall_elapsed
             actionable["persisted_state_age_seconds"] = _elapsed(
                 actionable.get("persisted_state_created_at"), now)
-            reason = _wake_reason(actionable, args.settle_seconds)
+            reason = _wake_reason(
+                actionable, args.settle_seconds,
+                getattr(args, "feedback_coalesce_seconds", FEEDBACK_COALESCE_SECONDS))
             if reason in ("terminal", "merge-ready"):
                 _emit_wake_if_current(args, generation, reason, url=actionable.get("url"),
                                       pr_state=actionable.get("pr_state"), counts=actionable.get("counts"))
@@ -3650,7 +3670,7 @@ def cmd_mark(args):
         if getattr(args, "invariant_key", None) and args.disposition == DISPOSITION_DISPATCHED:
             _record_invariant_round(state, args.invariant_key, state.get("head_sha"))
     if isinstance(marked, dict):
-        print(json.dumps({"marked": marked.get("id"), "decision": marked}, indent=2))
+        print(json.dumps({"marked": marked.get("id"), "decision": marked}, separators=(",", ":")))
     else:
         print(json.dumps({"marked": marked}))
 
@@ -3755,6 +3775,8 @@ def main():
     w.add_argument("--downstack-fetch-file", action="append", default=[], help="N=path fixture for --downstack-pr N (tests)")
     w.add_argument("--settle-seconds", type=float, default=DEFAULT_SETTLE_SECONDS,
                    help="quiet window before a merge-ready wake")
+    w.add_argument("--feedback-coalesce-seconds", type=float, default=FEEDBACK_COALESCE_SECONDS,
+                   help="quiet window before a comment-only wake, so a burst costs one dispatch")
     w.add_argument("--blocked-external-drain-seconds", type=float, default=None,
                    help="head-scoped review-quiet bound before a gated-CI handback")
     w.add_argument("--stop-file", default=None, help="path whose existence stops the watch")

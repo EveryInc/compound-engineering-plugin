@@ -1,0 +1,3 @@
+# Compound Engineering project configuration.
+pr_teaching_section: false
+auto_babysit: false

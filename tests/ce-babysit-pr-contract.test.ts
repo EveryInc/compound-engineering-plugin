@@ -38,6 +38,20 @@ async function readBabysit(): Promise<string> {
   return parts.join("\n")
 }
 const CEDEBUG_PIPELINE = "skills/ce-debug/references/pipeline-mode.md"
+
+describe("pr-snapshot emits agent-read payloads compactly", () => {
+  // The agent reads a snapshot every tick. Pretty-printing it spent ~31% of the payload
+  // (6,473 -> 4,453 bytes on a 6-thread / 14-check / 5-comment PR) on whitespace nothing
+  // reads. The persisted state file is the deliberate exception: it costs no agent tokens
+  // and a human debugging a stuck watch reads it.
+  test("stdout is compact; the on-disk state file stays indented", async () => {
+    const script = await readRepoFile("skills/ce-babysit-pr/scripts/pr-snapshot")
+    expect(script).toContain('print(json.dumps(result, separators=(",", ":")))')
+    expect(script).not.toMatch(/print\(json\.dumps\([^)]*indent=2/)
+    expect(script).toContain('json.dump(box["state"], tmp, indent=2)')
+  })
+})
+
 const CERESOLVE = "skills/ce-resolve-pr-feedback/SKILL.md"
 const CERESOLVE_FULL_MODE = "skills/ce-resolve-pr-feedback/references/full-mode.md"
 const CERESOLVE_PIPELINE = "skills/ce-resolve-pr-feedback/references/pipeline-mode.md"

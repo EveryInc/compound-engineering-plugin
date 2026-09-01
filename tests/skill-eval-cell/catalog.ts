@@ -469,6 +469,39 @@ The same decision owns open review thread PRRT_ci_contract_7 at https://github.c
     },
   },
   {
+    id: "ce-commit-push-pr/babysit-standing-optout",
+    skill: "ce-commit-push-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/cpp-babysit-optout`,
+    why: "#1601: the handoff named `auto_babysit` but nothing told the run to read it, and the only config read lived in the Step 4 reference. A run that reached Step 5 without that memory handed off against the user's standing choice.",
+    pre_contract:
+      "An active `auto_babysit: false` in CE config is the standing opt-out; only the exact winning `false` disables the default.",
+    task: `I already committed and pushed. PR https://github.com/acme/widgets/pull/42 is open for this branch and this run added new commits to it. This directory is the repo root. Work through to Step 5 and tell me what happens next. Do not run git or gh. Finish with exactly one line: DECISION: <what you do next>`,
+    grade: {
+      must_include: ["auto_babysit"],
+      must_exclude: ["ce-babysit-pr mode", "arming a watch"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-commit-push-pr/babysit-default-still-hands-off",
+    skill: "ce-commit-push-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/cpp-babysit-default`,
+    why: "Regression guard for the row above: the key is present only as a commented template line, so the default must still drive to the handoff. A fix that reads any mention of the key as opt-out fails here.",
+    pre_contract:
+      "After a newly-created PR or new commits on an existing open PR, this run is not done until `ce-babysit-pr` owns follow-on.",
+    task: `I already committed and pushed. PR https://github.com/acme/widgets/pull/42 is open for this branch and this run added new commits to it. This directory is the repo root. Work through to Step 5 and tell me what happens next. Do not run git or gh. Finish with exactly one line: DECISION: <what you do next>`,
+    grade: {
+      must_include: ["ce-babysit-pr"],
+      actions: "none",
+    },
+  },
+  {
     id: "ce-commit-push-pr/description-only-no-commit",
     skill: "ce-commit-push-pr",
     cohort: "resized",
