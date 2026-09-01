@@ -1701,4 +1701,27 @@ describe("ce-code-review dispatch templates", () => {
       expect(counts.get(name)).toBe(1)
     }
   })
+
+  test("compact-return contract forbids notes synonyms for why_it_matters and pre_existing", async () => {
+    const template = await readRepoFile(
+      "skills/ce-code-review/references/subagent-template.md",
+    )
+    const dispatch = await readRepoFile(
+      "skills/ce-code-review/references/dispatch-reviewers.md",
+    )
+
+    expect(template).toMatch(/ONLY merge-tier fields per finding:/)
+    expect(template).toContain(
+      "title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix, first_evidence.",
+    )
+    expect(template).toMatch(/`notes` is not a field of either output/)
+    expect(template).toMatch(/why_it_matters.*never as `notes`/)
+    expect(template).toMatch(/Compact returns must include `pre_existing` as a boolean/)
+    expect(template).toMatch(/Do not emit `notes`/)
+    expect(template).toMatch(/Required on both the artifact and the compact return/)
+
+    expect(dispatch).toMatch(/not synonyms such as `notes`/)
+    expect(dispatch).toMatch(/every compact finding still includes merge-tier `pre_existing`/)
+    expect(template).not.toMatch(/independence_verified/)
+  })
 })
