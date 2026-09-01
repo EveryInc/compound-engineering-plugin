@@ -417,6 +417,15 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         expect(result.code).toBe(0)
       })
 
+      test("does not treat every at-sign token as a commit pin", () => {
+        const docPath = writeRepoDoc(
+          "The account is user@abcdef12 in the directory.\n" +
+            "The image tag is release@b3d4f5a6c7 upstream.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+      })
+
       test("does not treat a non-commit attribution as a citation", () => {
         const docPath = writeRepoDoc(
           "The content digest is recorded at b3d4f5a6c7 in the manifest.\n" +

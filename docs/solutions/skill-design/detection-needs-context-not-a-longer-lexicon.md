@@ -36,7 +36,7 @@ The script's docstring is explicit that flags are adjudication input rather than
 
 **A detector that recognizes a syntactic shape must check whether the surrounding context makes the token that thing.** Matching the shape answers "could this be X"; only the context answers "is this presented as X".
 
-The fix (PR #1608, open as of this writing) leaves resolution alone — a hex word that resolves to a commit is a commit, and its reachability classification is unchanged. Only the "does not resolve" branch is gated, on whether the same-line text before the token presents it as a commit reference, in `cites_a_commit` (`skills/ce-compound/scripts/validate-doc-claims.py:169`), called at the point of decision (`skills/ce-compound/scripts/validate-doc-claims.py:362`).
+The fix (PR #1608, open as of this writing) leaves resolution alone — a hex word that resolves to a commit is a commit, and its reachability classification is unchanged. Only the "does not resolve" branch is gated, on whether the same-line text before the token presents it as a commit reference, in `cites_a_commit` (`skills/ce-compound/scripts/validate-doc-claims.py:182`), called at the point of decision (`skills/ce-compound/scripts/validate-doc-claims.py:379`).
 
 **Then state the condition the list implements, and keep the list where the distinction is lexical.** The first draft of the gate was a bare lexicon — commit nouns, plus a list of verbs each paired with a preposition — with no statement anywhere of what made a word belong. Review found the gaps one at a time, across five rounds:
 
@@ -52,13 +52,15 @@ Every round added a case without changing the shape of the test, so the next rou
 
 The distinction this check needs is lexical. Nothing structural separates a verb that says a change landed from one that says an identifier was assigned; only knowing the verbs does. So the list is not a proxy for a condition, it is the condition's implementation, and the failure was never that a list existed. It was that nothing said what made a word belong — which is what makes each addition look arbitrary and makes deleting the whole list look principled. The shipped version keeps both halves, verb and preposition, under a stated membership rule: a verb belongs when it says a change landed in this repository, and does not when it says an identifier was assigned or a value stored. A reader can now decide a candidate word themselves, which is the thing the original list did not let anyone do.
 
+**Half of stating the rule is checking that the code implements exactly it.** Two of the review rounds on this block were the same defect wearing different clothes: a rule stated correctly in a comment, and code beside it that accepted more than the rule allowed. The comment said the pin form is `owner/repo@<sha>`; the code accepted any `@`, so an account name or an image tag with a hex-looking identifier read as a commit. The comment said the phrase must attribute a change landing; the code accepted any preposition. In both cases the rule was already written down and already right — reading it was not enough, because nobody compared it against the branch it governed. A stated rule that the implementation quietly widens is worse than no rule, since it reads as settled.
+
 The noun list gets the same treatment — words naming a commit or a commit operation (`skills/ce-compound/scripts/validate-doc-claims.py:62`), with words naming some other git object, or any hash, deliberately absent, because those are exactly what the old flag mistook for commits.
 
 ## Why This Matters
 
 This was the second false-positive class on this one script, and the first was never written down.
 
-Issue #1212 / PR #1213 was the first: legitimate `{{PLACEHOLDER}}` content — documented Handlebars, a CI variable, a ruleset placeholder — flagged as leaked drafting scaffold. The fix was `mask_code` (`skills/ce-compound/scripts/validate-doc-claims.py:140`), which blanks fenced blocks and inline spans before the scaffold patterns run, so a placeholder shown *as* documented syntax does not read as one left behind by drafting.
+Issue #1212 / PR #1213 was the first: legitimate `{{PLACEHOLDER}}` content — documented Handlebars, a CI variable, a ruleset placeholder — flagged as leaked drafting scaffold. The fix was `mask_code` (`skills/ce-compound/scripts/validate-doc-claims.py:153`), which blanks fenced blocks and inline spans before the scaffold patterns run, so a placeholder shown *as* documented syntax does not read as one left behind by drafting.
 
 Same shape, one check over: a detector recognizing a pattern without checking whether the context makes it what the pattern implies. Because that episode had no entry under `docs/solutions/`, a reviewer working issue #1591 had to reconstruct it from git-log archaeology, and the connection between the two arrived too late to shape the first draft of the fix. A third instance is already open as issue #1545, on the same script's path check.
 

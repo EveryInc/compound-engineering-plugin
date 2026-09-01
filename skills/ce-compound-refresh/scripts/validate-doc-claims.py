@@ -78,6 +78,9 @@ CITATION_VERBS = frozenset(
     "added adds removed removes released releases".split()
 )
 CITATION_PREPS = frozenset(("in", "by", "at", "with"))
+# The pin form that names a commit is owner/repo@<sha>. A bare "@" is not it:
+# it also prefixes account names and image tags, whose identifiers are hex too.
+REPO_PIN_RE = re.compile(r"(?:^|\s)[\w.-]+/[\w.-]+@$")
 BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
@@ -185,7 +188,7 @@ def cites_a_commit(prefix: str) -> bool:
     algorithm ("SHA256") stays one non-cue word, and command flags drop out
     first so `git show --format=%H <sha>` reads like `git show <sha>`.
     """
-    if prefix.endswith("@"):
+    if REPO_PIN_RE.search(prefix):
         return True  # owner/repo@<sha> pins a commit
     unflagged = " ".join(w for w in prefix.split() if not w.startswith("-"))
     words = [
