@@ -17,7 +17,7 @@ The script reports flags; you decide each one. Three resolutions — **fix**, **
 
 | Flag | Likely meaning | Resolution |
 |------|----------------|------------|
-| path not found anywhere | Typo, or drafted from memory | Fix the citation or remove the claim |
+| path not found under the search base | Typo, or a real path this repo-scoped check cannot see — another store, or a target the citing sentence itself says is gone | Read that sentence and check stores outside this repository before treating the citation as wrong; then fix it, or annotate it as historical |
 | path missing here, exists at upstream | Stale checkout | Verify the claim against upstream; annotate if the doc implies the file is present locally |
 | path deliberately gone (doc says removed/renamed) | Historical citation | Confirm the surrounding prose marks it as historical ("removed by this fix", "pre-fix state"); add that marker if absent |
 | SHA does not resolve | Fabricated or from another repo | Replace with the PR number, or drop |
