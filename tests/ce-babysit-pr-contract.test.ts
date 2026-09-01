@@ -279,6 +279,35 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).not.toMatch(/whenever the repo uses review bots/i)
   })
 
+  test("readiness gate: GitHub's mergeability is one conjunct, never the whole answer", async () => {
+    const babysit = await readBabysit()
+    // Two regimes in the wild: required checks make GitHub enforce mergeability, and advisory code
+    // review does not. The gate never asks which a repo is in — the first lands in GitHub's verdict
+    // and the second in its own conjuncts, so a PR GitHub would merge today is still not ready while
+    // feedback is outstanding. Pin that the review conjuncts survive any future restatement of the
+    // gate; nothing else fails if they are collapsed into the mergeable read.
+    expect(babysit).toMatch(/defers required-check and required-review policy to GitHub/i)
+    expect(babysit).toMatch(/counts\.threads == 0[^.]{0,80}counts\.comments == 0/)
+    expect(babysit).toMatch(/open_needs_human == 0/)
+    expect(babysit).toMatch(/zero actionable backlog/i)
+    // And the report may never upgrade "GitHub would let you" into "safe".
+    expect(babysit).toMatch(/your call to merge/i)
+  })
+
+  test("the boundary summary and the settle reference state the review gate identically", async () => {
+    // envelope.md and settle.md carry this paragraph in parity; fixing one and not the other is how
+    // a stale claim about a removed mechanism survived a repo-wide edit (#1611).
+    const [envelope, settle] = await Promise.all([
+      readRepoFile("skills/ce-babysit-pr/references/envelope.md"),
+      readRepoFile("skills/ce-babysit-pr/references/settle.md"),
+    ])
+    for (const doc of [envelope, settle]) {
+      expect(doc).toMatch(/gates only the \*merge-ready declaration\* — never the work/)
+      expect(doc).toMatch(/engine reports only that the PR went quiet/i)
+      expect(doc).not.toMatch(/review_in_progress|review_signal_/)
+    }
+  })
+
   test("settle policy: readiness judges whether a review is still coming, and bounds the wait", async () => {
     const babysit = await readBabysit()
     // The engine reports quiet; the agent decides whether a review is on its way. Pinning the
