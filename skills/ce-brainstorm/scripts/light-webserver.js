@@ -15,9 +15,12 @@ const LIFECYCLE_CHECK_MS = Number(process.env.CE_LIGHT_WEB_LIFECYCLE_CHECK_MS) |
 const WAIT_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_WAIT_TIMEOUT_MS) || 30 * 1000
 const SSE_GRACE_MS = Number(process.env.CE_LIGHT_WEB_SSE_GRACE_MS) || 5000
 const BODY_LIMIT = 64 * 1024
+// Reserved URL namespace for the overlay, so a screen's own /annotate.js or
+// /annotate.css under screens/ is never shadowed.
+const OVERLAY_PREFIX = "/__ce-annotate"
 const OVERLAY_FILES = {
-  "/annotate.js": "annotate.js",
-  "/annotate.css": "annotate.css",
+  [`${OVERLAY_PREFIX}/annotate.js`]: "annotate.js",
+  [`${OVERLAY_PREFIX}/annotate.css`]: "annotate.css",
 }
 
 function usage() {
@@ -259,8 +262,8 @@ function refreshScript(options) {
 
 function annotateBoot() {
   return `<div id="ce-annotate-host"></div>
-<link rel="stylesheet" href="/annotate.css">
-<script src="/annotate.js"></script>`
+<link rel="stylesheet" href="${OVERLAY_PREFIX}/annotate.css">
+<script src="${OVERLAY_PREFIX}/annotate.js"></script>`
 }
 
 function wrapFragment(options, content) {
@@ -346,16 +349,18 @@ function cookieValue(req, name) {
   return null
 }
 
-function requestToken(req, cookieName) {
+// Every credential the request presents. A prototype may use ?token= for its
+// own purposes, so no single source may shadow another: the gate accepts the
+// request when any of these matches.
+function requestCredentials(req, cookieName) {
   const url = new URL(req.url, "http://127.0.0.1")
-  const queryToken = url.searchParams.get("token")
-  if (queryToken) return queryToken
-  const headerToken = req.headers["x-session-token"]
-  if (typeof headerToken === "string" && headerToken) return headerToken
   const auth = req.headers.authorization
-  if (typeof auth === "string" && auth.startsWith("Bearer ")) return auth.slice(7)
-  if (cookieName) return cookieValue(req, cookieName)
-  return null
+  return [
+    url.searchParams.get("token"),
+    req.headers["x-session-token"],
+    typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7) : null,
+    cookieName ? cookieValue(req, cookieName) : null,
+  ].filter((value) => typeof value === "string" && value)
 }
 
 function tokenMatches(candidate, expected) {
@@ -673,7 +678,7 @@ async function serve(options) {
   }
 
   function requireAnnotateToken(req, res) {
-    if (tokenMatches(requestToken(req, cookieName), sessionToken)) return true
+    if (requestCredentials(req, cookieName).some((candidate) => tokenMatches(candidate, sessionToken))) return true
     sendJson(res, 401, { error: "unauthorized" })
     return false
   }

@@ -272,8 +272,21 @@ describe("ce-prototype light-webserver.js", () => {
     const html = await page.text()
     expect(html).toContain("Pin me")
     expect(html).toContain("ce-annotate-host")
-    expect(html).toContain("/annotate.js")
+    expect(html).toContain('src="/__ce-annotate/annotate.js"')
+    expect(html).toContain('href="/__ce-annotate/annotate.css"')
     expect(html).not.toContain(token)
+
+    // The overlay lives in a reserved namespace, ungated and never cached; a
+    // screen's own /annotate.js is served from screens/ untouched.
+    const overlayJs = await fetch(`${origin}/__ce-annotate/annotate.js`)
+    expect(overlayJs.status).toBe(200)
+    expect(overlayJs.headers.get("cache-control")).toBe("no-store")
+    expect(await overlayJs.text()).toContain("ce-annotate-host")
+    expect((await fetch(`${origin}/__ce-annotate/annotate.css`)).status).toBe(200)
+    await fs.writeFile(path.join(String(info.screen_dir), "annotate.js"), "window.prototypeOwned = true")
+    const screenJs = await fetch(`${origin}/annotate.js`)
+    expect(screenJs.status).toBe(200)
+    expect(await screenJs.text()).toBe("window.prototypeOwned = true")
     expect(html).not.toContain("WebSocket")
     expect(html).not.toContain('fetch("/version"')
     expect(await fs.readFile(path.join(String(info.screen_dir), "001-screen.html"), "utf8")).not.toContain("ce-annotate-host")
@@ -461,6 +474,13 @@ describe("ce-prototype light-webserver.js", () => {
     expect(navigated.status).toBe(200)
     expect(await navigated.text()).toContain("Variant home")
     expect((await fetch(`${origin}/events`, { headers: { cookie: pair } })).status).toBe(200)
+
+    // A prototype may use ?token= for itself; a wrong query value must not
+    // shadow the valid cookie, and alone it is still no credential.
+    const shadowed = await fetch(`${origin}/?token=demo`, { headers: { cookie: pair } })
+    expect(shadowed.status).toBe(200)
+    expect(await shadowed.text()).toContain("Variant home")
+    expect((await fetch(`${origin}/?token=demo`)).status).toBe(401)
 
     expect((await fetch(`${origin}/?variant=a`)).status).toBe(401)
     expect((await fetch(`${origin}/`, { headers: { cookie: `ce-light-web-1=${info.token}` } })).status).toBe(401)

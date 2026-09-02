@@ -4,7 +4,7 @@
   const shadow = host.attachShadow({ mode: "open" })
   const css = document.createElement("link")
   css.rel = "stylesheet"
-  css.href = "/annotate.css"
+  css.href = "/__ce-annotate/annotate.css"
   shadow.appendChild(css)
 
   const chrome = document.createElement("div")
