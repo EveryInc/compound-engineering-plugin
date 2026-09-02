@@ -2,7 +2,7 @@
 
 > Make local git commit(s) from the working tree. No push, no PR.
 
-`ce-commit` is a **git-workflow** skill, not a core-loop step. Use it when you want changes saved on the current branch and nothing else. It reads the repo's commit convention, stages named files only, and splits into separate commits when the files fall into distinct concerns.
+`ce-commit` is a **git-workflow** skill, not a core-loop step. Use it when you want changes saved on the current branch and nothing else. It reads the repo's commit convention, stages files by name, and splits into separate commits when the files fall into distinct concerns.
 
 It is the local-only sibling of `/ce-commit-push-pr`. That skill ships a PR. This one stops after the commit.
 
@@ -21,7 +21,7 @@ It is the local-only sibling of `/ce-commit-push-pr`. That skill ships a PR. Thi
 
 ## Example invocations
 
-Most prompts are a hint for the subject or the file grouping. There is no mode flag. An empty invoke is the common case.
+The prompt, if any, is a hint for the subject or the file grouping. There is no mode flag. An empty invoke is the common case.
 
 ```text
 # Current work, local only. On main or detached HEAD, create a feature branch first.
@@ -53,37 +53,13 @@ A rushed commit often does one of these:
 
 `ce-commit` treats commit creation as a short, fixed pass:
 
-- Convention comes from project instructions already in context, then the last 10 commits, then conventional commits
-- Files are staged by name. Never `git add -A` or `git add .`
-- Distinct concerns become separate commits at file level only (2-3 max, no `git add -p`). Ambiguous grouping stays one commit
-- Detached HEAD or the default branch gets a feature branch first, with no prompt
-- The subject is imperative and names what is now possible or fixed. A body is added only when the why is not obvious. When a plan unit ID is already in hand for that commit, that U-ID is appended in parentheses (`(U3)` for unit 3)
+- **Convention comes from the repo.** Project instructions already in context win, then a clear pattern in the last 10 commits (conventional commits, ticket prefixes, emoji prefixes), then conventional commits (`type(scope): description`) as the fallback. Under conventional commits, when `fix:` and `feat:` both fit it defaults to `fix:`. You can override.
+- **Files are staged by name.** An explicit `git add file1 file2 file3`, never `git add -A` or `git add .`. That keeps credentials, `dist/` output, and untracked notes out of the commit. An `exclude:<paths>` in the invocation keeps those files uncommitted and the report says so.
+- **Splits stay at the file boundary.** Two or three distinct concerns become separate commits (a data-layer change in one directory, a UI change in another). `git add -p` is out of scope. When the grouping is unclear, one commit is correct.
+- **Unsafe HEAD gets a branch.** On detached HEAD or the default branch, it creates a feature branch from the change content and continues there, without asking. It does not leave the only copy of the work somewhere it can be lost.
+- **The subject names the outcome.** Imperative, states what is now possible or fixed. A body appears only when the why is not obvious. When a plan unit ID is already in hand for the commit, it is appended in parentheses (`(U3)` for unit 3).
 
----
-
-## What Makes It Novel
-
-### Convention before the message
-
-The skill matches the repo rather than forcing a house style:
-
-1. Project conventions already in context
-2. A clear pattern in the last 10 commits (conventional commits, ticket prefixes, emoji prefixes)
-3. Conventional commits as fallback: `type(scope): description`
-
-When conventional commits are in use and both `fix:` and `feat:` fit, it defaults to `fix:` (a change that remedies broken or missing behavior, even if it adds code). You can override.
-
-### Named files only
-
-It stages an explicit list (`git add file1 file2 file3`). That keeps `.env` credentials, `dist/` / `.next/` output, generated files, and untracked notes out of the commit.
-
-### File-level splits only
-
-If the changed files group into two or three distinct concerns (a data-layer change in one directory, a UI change in another), it makes separate commits. Splits stay at the file boundary. `git add -p` is out of scope. When the grouping is unclear, one commit is correct.
-
-### Feature branch when HEAD is unsafe
-
-On detached HEAD, or on `main` / `master` / the resolved default, it creates a feature branch from the change content and continues there. It does not ask, and it does not leave the only copy of the work on detached HEAD or the default branch.
+The message goes to git via a file (`git commit -F`), so quotes, backticks, and multi-line bodies pass through literally with no shell quoting to get wrong.
 
 ---
 
@@ -121,7 +97,7 @@ Use `ce-commit` when:
 Skip it when:
 
 - You also want a push and a PR -> `/ce-commit-push-pr`
-- You need hunk-level splits -> `git add -p` yourself; this skill is file-level
+- You need hunk-level splits -> `git add -p` yourself, then invoke this skill; agent-driven interactive staging is easy to get wrong, so the skill stays at file level
 - There is nothing to commit. The skill reports that and stops.
 
 ---
@@ -147,27 +123,11 @@ Skip it when:
 |----------|--------|
 | _(empty)_ | Commit current changes on this branch. Creates a feature branch first if HEAD is detached or on the default. |
 | `<hint>` | Natural-language steer for the subject or which files to group, e.g. `commit the auth changes` |
+| `exclude:<paths>` | Leave those files uncommitted no matter what else changed |
 
 No mode flags. No push. No PR.
 
----
-
-## FAQ
-
-**Why not `git add -A`?**
-It sweeps in files you did not mean to commit. Staging by name keeps secrets and junk out.
-
-**Why no hunk-level splitting?**
-`git add -p` is interactive and easy to get wrong in an agent flow. Distinct concerns usually already sit in different files. If you need hunks, do that yourself, then invoke this skill.
-
-**What if the repo does not use conventional commits?**
-Project instructions win, then recent history. Conventional commits are only the fallback.
-
-**Why a feature branch on the default or on detached HEAD?**
-A default-branch commit fights PR workflow and branch protection. A detached HEAD commit is easy to lose. Creating a feature branch is the same safe default `/ce-commit-push-pr` uses.
-
-**What if I want the PR after all?**
-Run `/ce-commit-push-pr`. It will see the commits already made and continue from there.
+Wanting the PR after all is not a restart: run `/ce-commit-push-pr` and it continues from the commits already made.
 
 ---
 

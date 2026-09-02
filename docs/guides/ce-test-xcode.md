@@ -49,7 +49,6 @@ Manual simulator testing is slow and easy to do incompletely:
 - "I tested it, looks fine" does not say which screens or what was skipped
 - Sign in with Apple, sandbox purchases, and push need a person, and they get forgotten
 - Simulated taps on SwiftUI inline `Text` links report success and do nothing
-- Screenshots and logs stay on one machine
 
 ## The Solution
 
@@ -60,9 +59,11 @@ A gated flow on top of [XcodeBuildMCP](https://github.com/getsentry/xcodebuildmc
 - Build, install, launch, start log capture
 - Per screen: screenshot, log check, pass or fail
 - Pause for device-only flows (and for SwiftUI inline links)
-- On failure, ask investigate-now (`ce-debug`, then rebuild and retest any accepted fix) or continue the remaining checks
+- On failure, ask whether to investigate now with `ce-debug` or continue the remaining checks
 - Print a summary you can paste into a PR
 - Stop log capture; optionally shut down the simulator
+
+A failed build never proceeds to install or launch.
 
 ---
 
@@ -96,13 +97,13 @@ No shell-`xcodebuild` fallback.
 | Location | Allow location and verify the map updates |
 | SwiftUI `Text` links | Tap the link yourself. Automated taps cannot trigger inline `AttributedString` links |
 
-You do the action on the simulator, then yes (continue) or no (describe the issue). Those flows are not silently skipped.
+You do the action on the simulator, then answer yes (continue) or no (describe the issue). Those flows are not silently skipped.
 
 Simulated taps do not fire gesture recognizers on SwiftUI `Text` with inline links. The tap looks successful. If the target URL is known, `xcrun simctl openurl <device> <URL>` is the fallback.
 
 ### Investigate now or continue
 
-A failed screen gets a screenshot, logs, and repro steps. You choose whether to hand the evidence to `ce-debug` or continue the remaining checks without investigation. That choice does not change the observed Fail. After an applied fix, rebuild and retest, then update status from the completed retest evidence. Without completed retest evidence, preserve Fail.
+A failed screen gets a screenshot, logs, and repro steps. You choose: hand the evidence to `ce-debug` now, or keep going through the remaining checks. Either way the screen stays Fail: the choice does not change the observed Fail. Only a completed, passing retest after a fix changes its status.
 
 ### Summary shape
 
@@ -113,9 +114,7 @@ A failed screen gets a screenshot, logs, and repro steps. You choose whether to 
 - Human verifications
 - Overall PASS / FAIL / PARTIAL
 
-Statuses follow evidence. Pass requires a completed passing check. Fail records observed failing evidence until a completed retest replaces it. Skip is only for a check with no completed outcome. Any remaining Fail makes the overall result FAIL. With no Fail, an unanswered or otherwise incomplete scoped check makes it PARTIAL; otherwise it is PASS.
-
-A failed build never proceeds to install or launch.
+Statuses follow evidence, not intentions. Pass means a completed passing check. Fail sticks until a retest replaces it. Without completed retest evidence, preserve Fail. Skip is only for a check with no completed outcome. Any Fail makes the overall result FAIL; no Fail but an incomplete scoped check makes it PARTIAL; otherwise PASS.
 
 ---
 
@@ -157,16 +156,6 @@ On-demand. `ce-work` and `ce-code-review` do not call this today. Run it yoursel
 
 ---
 
-## Use Standalone
-
-- **Default scheme:** `/ce-test-xcode`
-- **Named scheme:** `/ce-test-xcode MyApp-Debug`
-- **Last-used:** `/ce-test-xcode current`
-
-It prefers iPhone 15 Pro when that simulator exists, otherwise another available device.
-
----
-
 ## Reference
 
 | Argument | Effect |
@@ -175,7 +164,7 @@ It prefers iPhone 15 Pro when that simulator exists, otherwise another available
 | `<scheme name>` | Build that scheme |
 | `current` | Default / last-used scheme |
 
-Required: Xcode with CLT, a connected XcodeBuildMCP server, an Xcode project or workspace, at least one iOS Simulator.
+Required: Xcode with CLT, a connected XcodeBuildMCP server, an Xcode project or workspace, at least one iOS Simulator. It prefers iPhone 15 Pro when that simulator exists, otherwise another available device.
 
 ---
 

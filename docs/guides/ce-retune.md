@@ -2,13 +2,13 @@
 
 > Retune a skill corpus for a new model, measurement-first.
 
-`ce-retune` is an on-demand **corpus** skill. Use it when a model upgrade made an agent workflow worse: it stalls, stops mid-run, or burns far more tokens than before, or someone wants to rewrite skill prose to "fix" the new model.
+`ce-retune` is an on-demand **corpus** skill. Use it when a model upgrade made an agent workflow worse. The pipeline stalls, stops mid-run, or burns far more tokens than before, and someone wants to rewrite skill prose to fix it.
 
 It is not a general skill editor. Reading the corpus and rewriting what looks wrong produces a plausible fix list and no way to tell whether any item mattered. This skill mines the run archive, measures a noise floor on two identical builds, audits with an adversary that defends the existing prose, then cuts in measured passes until a bar you registered in advance clears.
 
 Hard requirement: a benchmark harness that can A/B two builds of the corpus. Without one, the skill stops and names what to build. It will not pretend a static audit is a retune.
 
-The skill is user-invoked only. It spends many paid runs, so an agent is not allowed to route into it on its own.
+The skill is user-invoked only. It spends many paid runs, so an agent may not route into it on its own.
 
 ---
 
@@ -49,26 +49,18 @@ If any of the three measurement pieces is missing (archive or a harness that pro
 
 ---
 
-## The Problem
+## How it works
 
-A model upgrade can make a working corpus worse. The instinct is to read the skills and rewrite what looks off. That fails because the corpus is large enough that nobody can reason about its prose reliably, including the people who wrote it.
+The failure this skill targets is stochastic. Identical inputs produce a wide spread of outcomes, so one run tells you nothing and a before-and-after drawn from a handful of runs is indistinguishable from doing nothing. The fix is to measure in a fixed order, where each step buys the right to take the next.
 
-The failure is usually stochastic. Identical inputs produce a wide spread of outcomes. One run tells you nothing. A small sample tells you nothing. A before-and-after drawn from a handful of runs is indistinguishable from doing nothing. Fix lists assembled this way feel rigorous and are not.
-
-## The Solution
-
-Measure first, in a fixed order. Each step buys the right to take the next.
-
-1. **Gate on measurability.** No archive, no build selector, no repeatable task: stop and say what to build. An audit-only pass is a legitimate request and a different one.
+1. **Gate on measurability.** No archive, no build selector, no repeatable task: stop and say what to build.
 2. **Mine the archive.** Historical runs are a free baseline, usually larger than any experiment you can afford this week.
-3. **Find the noise floor.** Two identical builds, same commit. Whatever difference appears is the floor every later claim must clear, and it sets the sample size. Register the bar in writing before any change exists.
-4. **Audit adversarially.** One agent per unit proposes cuts. A second defends the existing prose from the project's learnings, tests, and git history. A defended keep leaves the list.
+3. **Find the noise floor.** Run the harness against two identical builds, same commit on both sides. Whatever difference appears is the floor every later claim must clear, and it sets the sample size. Register the bar in writing before any change exists. A bar chosen after seeing results is not a bar.
+4. **Audit adversarially.** One agent per skill proposes cuts. A second defends the existing prose from the project's learnings, tests, and git history. A defended keep leaves the list.
 5. **Cut in surgical passes.** One problem per agent, disjoint file ownership, reconcile after every edit.
-6. **Let the failure choose the next fix.** Where a run failed matters more than whether it did. Loop until the bar clears.
+6. **Measure, and let the failure choose the next fix.** Where a run failed matters more than whether it did. Loop until the bar clears.
 
-Done is a cleared bar, or a report of the claim the run could not support. A green test suite is not done. It proves nothing broke, not that behavior improved.
-
-Word count is not the result. Leanness and performance share a corpus and are separate programs.
+Done is a cleared bar, or a report of the claim the run could not support. A green test suite is not done. It proves nothing broke, not that behavior improved. And word count is not the result: leanness and performance share a corpus and are separate programs.
 
 ---
 
@@ -84,7 +76,7 @@ Empty transcripts and error exits look like model failures and silently inflate 
 
 ### The noise floor comes before the claim
 
-Two identical builds are compared before anything is credited. That is the step most retuning skips, and skipping it is why those results do not survive scrutiny. It also yields the cheap one-armed test: once the baseline rate is known, N consecutive clean runs has an exact probability under it, so a streak can clear a bar without a control arm.
+Two identical builds are compared before anything is credited. That is the step most retuning skips, and skipping it is why those results do not survive scrutiny. It also yields a cheap one-armed test: once the baseline rate is known, N consecutive clean runs has an exact probability under it, so a streak can clear a bar without a control arm.
 
 ### An adversary defends the prose
 
@@ -92,9 +84,13 @@ Every proposed cut faces an agent whose job is to find why that line exists. "A 
 
 Proposal and defense need separate contexts. If the host cannot run them as separate agents, the audit stops rather than arguing both sides in one conversation and calling that an audit.
 
+### Not every stop is the enemy
+
+Some workflows exist to stop and ask; that is the product. Every stop gets sorted by who is actually on the other side before anyone touches it. And a removed string that a test pins is a finding to report, never a test to weaken.
+
 ### It expects to be wrong
 
-The write-up has to report what contradicts the premise: where defenders won, which unit was leaner than its word count implied, and where the corpus already argued against its own ceremony. Confirming a thesis you already hold teaches nothing. Hypotheses that died are recorded on purpose, so the next attempt does not rerun a dead end.
+The write-up has to report what contradicts the premise: where defenders won, which unit was leaner than its word count implied, and where the corpus already argued against its own ceremony. Hypotheses that died are recorded on purpose, so the next attempt does not rerun a dead end.
 
 ### It audits what the instrument cannot reach
 
@@ -146,9 +142,7 @@ Adjacent: `/ce-optimize` is a generic metric-driven loop. It knows nothing about
 
 ## Use Standalone
 
-Most runs start from a symptom in chat. The default corpus is `./skills`. Name another tree when that is not the one that degraded.
-
-The skill will not be suggested by the model. You have to invoke it.
+Most runs start from a symptom in chat. The default corpus is `./skills`; name another tree when that is not the one that degraded. The model will never suggest this skill on its own. You have to invoke it.
 
 ---
 
@@ -182,7 +176,7 @@ The skill stops and names the missing piece. Build the harness (archive, build s
 Yes, if you ask for it as an audit. That pass can say what looks cuttable. It cannot say whether cutting helped.
 
 **What does `bar:8` mean?**
-Eight consecutive clean runs under the one-armed test, once the baseline rate is known. The bar is written down before any change exists. A bar chosen after seeing results is not a bar.
+Eight consecutive clean runs under the one-armed test, once the baseline rate is known. The bar is written down before any change exists.
 
 **Is a green test suite enough?**
 No. Tests prove the suite still passes. They do not prove the new model finishes the workflow.

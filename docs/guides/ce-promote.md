@@ -2,31 +2,15 @@
 
 > Draft user-facing announcement copy for a feature that just shipped. It never posts.
 
-`ce-promote` is the **post-ship messaging** utility. After a merge, it figures out what a user can now do, picks channels, and drafts copy you can paste: an X post or thread, a one-line changelog blurb, a LinkedIn post, an email, a blog intro, a short demo script.
+`ce-promote` writes the announcement while the ship context is still in your session. After a merge, it works out what a user can now do, picks channels, and hands you copy-pasteable drafts: an X post or thread, a one-line changelog blurb, a LinkedIn post, an email, a blog intro, a short demo script.
 
-It drafts with nothing extra installed. When the [Spiral CLI](https://www.npmjs.com/package/@every-env/spiral-cli) is present and signed in, those drafts are voice-matched to your brand. Declining the one-time Spiral setup offer is remembered in checkout-local config. See the [configuration reference](./configuration.md).
+It needs nothing installed. If the [Spiral CLI](https://www.npmjs.com/package/@every-env/spiral-cli) is present and signed in, drafts come back voice-matched to your brand; if you decline the one-time Spiral setup offer, that decline is remembered in checkout-local config (see the [configuration reference](./configuration.md)).
 
-It is explicit-invocation only (`disable-model-invocation: true`). Shipping a feature does not start it on its own.
-
-It drafts only. It never posts, publishes, schedules, commits, or opens a PR.
-
----
-
-## TL;DR
-
-| Question | Answer |
-|----------|--------|
-| What does it do? | Summarizes the user-facing value, picks channels, drafts copy, and presents it for review |
-| When to use it | Right after a user-facing feature ships, while the context is still in the session |
-| What it produces | Copy-pasteable drafts, labeled by channel. Never an auto-post. |
-| What's next | You paste and publish. The skill offers a revision if the tone or channel is wrong. |
-| Spiral | Optional. Ready CLI: voice-matched drafts plus a web URL per draft. Otherwise a one-time setup offer, then direct drafts. |
+Two hard limits. It only runs when you invoke it (`disable-model-invocation: true`), so shipping a feature does not start it on its own. And it only drafts. It never posts, publishes, schedules, commits, or opens a PR. Posting stays a human action because it is outward-facing and hard to undo.
 
 ---
 
 ## Example invocations
-
-Empty invoke derives what shipped from the repo. Named channels change the set. The skill always drafts and never posts.
 
 ```text
 # Derive what shipped from the merged PR, diff, changelog, and recent commits
@@ -48,76 +32,47 @@ Empty invoke derives what shipped from the repo. Named channels change the set. 
 /ce-promote a short demo script for the CSV export
 ```
 
-Name channels when you need a particular shape. Otherwise the default is an X post (or short thread) plus a one-line changelog blurb.
+An empty invoke derives what shipped from the repo and drafts the default set: an X post (or short thread) plus a one-line changelog blurb. Name channels when you want a different shape.
 
 ---
 
-## The Problem
+## Why it exists
 
-Announcement copy usually waits for a later marketing pass, so it lags the ship. The engineer who knows the user value is often not the person who writes it. Ad hoc drafts tend toward "We're thrilled to announce…", hashtag spam, and implementation talk instead of what a user can now do.
+Announcement copy usually waits for a later marketing pass, so it lags the ship. The engineer who knows the user value is rarely the person who writes it. And ad hoc drafts drift toward "We're thrilled to announce...", hashtag spam, and implementation talk instead of what a user can now do.
 
-## The Solution
+`ce-promote` drafts at ship time, from ship context. A free-form description in the prompt is the source of truth; without one, it reads the merged or active PR, the diff, the changelog, and recent commits, then writes a short user-facing summary. Outcome, not the serializer or endpoint. If it cannot tell what shipped, it asks one short question rather than guessing.
 
-`ce-promote` drafts at ship time, from ship context:
-
-- A free-form description in the prompt is the source of truth. Otherwise it derives what shipped from the merged or active PR, the diff, the changelog, and recent commits, then writes a short **user-facing** summary. Outcome, not the serializer or endpoint.
-- Default channels are an X post plus a changelog blurb. Named channels replace or add to that. A small fix gets one or two short drafts. A flagship change can get a cross-channel set.
-- If Spiral is ready, drafts come back voice-matched and persist to the Spiral account. If not, the skill offers setup once, then drafts itself. A decline is recorded so the offer does not repeat in this repo.
-- Every draft is presented as a labeled, copy-pasteable block. Then it offers a revision. It does not post.
+It scales to the change: a small fix gets one or two short drafts, a flagship feature can get a cross-channel set. Every draft arrives as a labeled block, followed by an offer to revise. Then it stops.
 
 ---
 
-## What Makes It Novel
+## How Spiral fits in
 
-### Spiral is optional
+Detection is `which spiral` plus `spiral auth status --json`, which lands in one of three states: ready, installed but not signed in, or absent.
 
-Detection is `which spiral` plus `spiral auth status --json`: ready, installed but not signed in, or absent. Ready uses Spiral. Otherwise it offers setup once (sign in, or the one-step install). You approve in a browser. The API key never goes through the agent. Decline and it drafts directly, then writes `ce_promote_spiral_optout: true` in `.compound-engineering/config.local.yaml` so it does not ask again.
+Ready means Spiral writes the drafts, voice-matched, and each one comes back with a web URL so you can keep tweaking in the Spiral app. Not ready means a one-time setup offer: sign in, or the one-step install. You approve in a browser, and the API key never passes through the agent. Decline and the skill drafts directly, then writes `ce_promote_spiral_optout: true` to `.compound-engineering/config.local.yaml` so it does not ask again in this repo. Non-interactive runs skip the offer entirely.
 
-Non-interactive runs skip the offer and draft directly.
+A Spiral failure never blocks the skill. An error or unusable output falls back silently to direct drafting for the affected channels.
 
 ### Phrasing picks one channel or many
 
-Spiral treats "3 tweet options" as N variations of one channel. Words like `campaign`, `across`, `multi-channel`, `everywhere`, or `cross-post`, or naming two or more channels, switch it to a cross-channel set. The skill phrases the request so you get the shape you asked for. When you want several tweets, avoid those cue words. When you want a launch set, name the channels.
+Spiral treats "3 tweet options" as N variations of one channel. Words like `campaign`, `across`, `multi-channel`, `everywhere`, or `cross-post`, or naming two or more channels, switch it to a cross-channel set, and campaign mode ignores the variation count. So if you asked for three tweets and got one, a cue word or a second channel name is usually why. Want several tweets, avoid those words. Want a launch set, name the channels.
 
-Without Spiral, the same split still holds: one strong draft per named channel, or more only when you ask (`3 tweet options`), capped at about three.
+Without Spiral the same split holds: one strong draft per named channel, more only when you ask, capped at about three.
 
-### Drafts only
+### Direct drafts have standards too
 
-The summary is what a user can now do and why they would care. Direct drafts ban AI tells, throat-clearing, and hashtag spam, and match length to the channel. Posting stays a human action because it is outward-facing and hard to undo.
-
----
-
-## Quick Example
-
-A PR adding one-click CSV export just merged.
-
-`/ce-promote 3 tweet options for the new one-click CSV export` summarizes the value, then returns three distinct X drafts as labeled blocks. If Spiral is ready, each draft also has a web URL you can tweak.
-
-`/ce-promote a launch across X, LinkedIn, and email` returns a labeled set for those channels. Spiral decides how many drafts per channel. Without Spiral, you get one draft per named channel.
+The summary is what a user can now do and why they would care. Direct drafts ban AI tells, throat-clearing, and hashtag spam, lead with the outcome, and match each channel's native length and shape. Nothing gets reused verbatim across channels.
 
 ---
 
-## When to Reach For It
+## When to reach for it
 
-Use `ce-promote` when:
+Use it when a user-facing feature just shipped and you want the announcement drafted before the context fades, when you need several channels from one prompt, or when you want voice-matched copy and Spiral is installed.
 
-- A user-facing feature just shipped and you want the announcement drafted before the context fades
-- You need several channels from one prompt
-- You want voice-matched copy and Spiral is installed
+Skip it when nothing user-facing shipped (internal refactor, CI-only, test-only), when you only need internal release history (use GitHub Releases), or when you want the agent to actually post or open a PR. It will not.
 
-Skip it when:
-
-- Nothing user-facing shipped (internal refactor, CI-only, test-only)
-- You only need internal release history (use GitHub Releases for plugin history)
-- You want the agent to post or open a PR. This skill will not do that.
-
----
-
-## Use Standalone
-
-This is a post-ship utility, not a pipeline stage. Invoke it after merge, or after you already know what to announce.
-
-It does not run as a side effect of `/ce-work`, `/lfg`, or `/ce-commit-push-pr`. Call it when you want the copy.
+This is a post-ship utility, not a pipeline stage. It does not run as a side effect of `/ce-work`, `/lfg`, or `/ce-commit-push-pr`. Call it when you want the copy.
 
 ---
 
@@ -135,23 +90,7 @@ Spiral CLI details live in the skill's `references/spiral-cli.md`.
 
 ---
 
-## FAQ
-
-**Will it post the tweet or publish the email?**
-No. It prints labeled drafts and reminds you they are yours to ship.
-
-**What if I do not have Spiral?**
-It still drafts. You get a one-time setup offer. Decline it and the skill will not ask again in this repo.
-
-**Why did I get one tweet when I asked for three?**
-A cue word (`campaign`, `across`, `multi-channel`, and similar) or a second channel name switches Spiral into campaign mode, which ignores the variation count. Ask for `3 tweet options` and do not name other channels.
-
-**What if it cannot tell what shipped?**
-It asks one short question rather than guessing.
-
----
-
-## See Also
+## See also
 
 - [Compound Engineering configuration](./configuration.md): `ce_promote_spiral_optout` and how local config is resolved
 - Harness-native screenshots or recordings: useful visual context to pair with the copy when you have them

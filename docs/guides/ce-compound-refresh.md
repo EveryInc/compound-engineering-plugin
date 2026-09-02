@@ -2,9 +2,9 @@
 
 > Maintain `docs/solutions/` over time: review existing learnings against the current codebase, then update, consolidate, replace, or delete the ones that drifted.
 
-`ce-compound-refresh` is the **maintenance** skill for the knowledge store. `ce-compound` captures a new learning. This skill keeps the existing set honest as code moves. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `docs/solutions/` as grounding. This one is how that folder stays trustworthy.
+`ce-compound-refresh` is the **maintenance** skill for the knowledge store. `ce-compound` captures a new learning; this skill keeps the existing set honest as code moves. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `docs/solutions/` as grounding. This one is how that folder stays worth reading.
 
-As the repo changes, paths move, recommended fixes become anti-patterns, and two docs on the same problem start to disagree. Without a periodic pass, the store misleads more than it helps.
+As a repo changes, paths move, recommended fixes become anti-patterns, and two docs on the same problem start to disagree. Without a periodic pass, the store misleads more than it helps.
 
 ```text
 /ce-compound                 /ce-compound-refresh
@@ -32,7 +32,7 @@ Capture a new learning       Review the existing set
 
 ## Example invocations
 
-A scope hint is a category directory, filename slug, module, or keyword. Empty is a broad sweep. `mode:non-interactive` applies unambiguous edits and reports the rest.
+A scope hint is a category directory, filename slug, module, or keyword. Prefer one: an unscoped run has to triage the whole store first.
 
 ```text
 # Review learnings for one module or topic
@@ -47,17 +47,20 @@ A scope hint is a category directory, filename slug, module, or keyword. Empty i
 # Pattern-doc topic
 /ce-compound-refresh critical-patterns
 
-# No hint: triage the whole store, then start at the highest-impact cluster. Interactive asks before going deep.
+# No hint: triage the whole store, then start at the highest-impact cluster.
+# Interactive asks before going deep.
 /ce-compound-refresh
 
-# Apply unambiguous maintenance without questions. Ambiguous docs are marked stale. On the default branch this opens a PR.
+# Apply unambiguous maintenance without questions. Ambiguous docs are marked
+# stale. On the default branch this opens a PR.
 /ce-compound-refresh authentication mode:non-interactive
 
-# Build a repo-wide CONCEPTS.md glossary. Interactive asks whether you meant a refresh instead.
+# Build a repo-wide CONCEPTS.md glossary. Interactive asks whether you meant
+# a refresh instead.
 /ce-compound-refresh create a CONCEPTS.md
 ```
 
-Prefer a topic, module, category, or filename. An unscoped run has to triage everything first.
+With no hint, the skill clusters the store and recommends a starting area. Interactive confirms that area; non-interactive processes every cluster in impact order. A hint that matches nothing asks you to clarify (interactive) or reports the miss and exits (non-interactive). An empty store tells you to run `ce-compound` first.
 
 ---
 
@@ -76,15 +79,15 @@ Future agents (and humans) then take advice that no longer applies. The store ma
 
 ## The Solution
 
-`ce-compound-refresh` is a structured review with five outcomes:
+A structured review with five outcomes per doc:
 
-- **Keep**: accurate and useful. No edit. No review breadcrumb.
+- **Keep**: accurate and useful. No edit, no review breadcrumb.
 - **Update**: the solution is still right; references drifted. Fix in place, including relocating a doc whose directory and frontmatter category clearly disagree.
 - **Consolidate**: two docs overlap. Merge unique content into the canonical one and delete the other. The inverse, **Split**, breaks one multi-problem doc into focused successors when the fragments have independent retrieval value.
 - **Replace**: the old guidance is now misleading. Write a successor, then delete the old file.
-- **Delete**: the code and the problem domain are gone, and inbound citations are absent or decorative. Git history is the archive. There is no `_archived/` destination.
+- **Delete**: the code and the problem domain are gone, and inbound citations are absent or decorative. Git history is the archive; there is no `_archived/` destination.
 
-It investigates each doc against the tree, then looks at the set (overlap, supersession, contradictions), then classifies, then executes. Interactive mode asks only on genuine judgment calls. Non-interactive applies the safe subset and marks the rest stale.
+The skill investigates each doc against the tree, then looks at the set (overlap, supersession, contradictions), then classifies and executes. Interactive mode asks only on genuine judgment calls. Non-interactive applies the safe subset and marks the rest stale.
 
 ---
 
@@ -92,29 +95,29 @@ It investigates each doc against the tree, then looks at the set (overlap, super
 
 ### Five outcomes, not "is this still right?"
 
-Each doc gets a specific action and an evidence bar. Age alone is not staleness. Typos and wording are not a reason to edit. When current-mechanics claims disagree with the code, the doc changes. Independently supported guidance is classified from its governing evidence instead: if the implementation stops satisfying it, preserve the guidance and report the conflict as a potential product regression. The skill never edits or adjudicates product code.
+Each doc gets a specific action and an evidence bar. Age alone is not staleness, and typos are not a reason to edit. When a doc's claims about current mechanics disagree with the code, the doc changes. Guidance with independent support is different: if the implementation stops satisfying it, the skill preserves the guidance and reports the conflict as a potential product regression. It never edits or adjudicates product code.
 
 ### Two modes
 
 **Interactive** (default) applies Keep, Update, and obvious Consolidate directly. It asks before a Replace, a Split, a Delete that fails the auto-delete gate, or a Consolidate whose canonical doc is not obvious.
 
-**Non-interactive** never pauses. It applies Keep, Update, Consolidate, gated auto-Delete, and Replace when the evidence is enough. Ambiguous cases get `status: stale`, `stale_reason`, and `stale_date` in frontmatter. Relocations auto-apply only under a four-condition gate; otherwise they are recommended. Splits are always recommend-only. The report splits into Applied (writes that succeeded) and Recommended (writes that failed, plus everything that never runs unattended).
+**Non-interactive** never pauses. It applies Keep, Update, Consolidate, gated auto-Delete, and Replace when the evidence is enough. Ambiguous cases get `status: stale`, `stale_reason`, and `stale_date` in frontmatter. Relocations auto-apply only under a four-condition gate; Splits are always recommend-only. The report separates Applied (writes that succeeded) from Recommended (writes that failed, plus everything that never runs unattended).
 
 ### Set-level problems
 
-After the per-doc pass, the skill looks for overlap, a newer doc that subsumes an older one, and contradictions between docs. Contradictions outrank individual drift. For a knowledge-track learning, it also compares any guidance file the learning names (a skill's `SKILL.md`, a runbook, a root instruction file) for a conflicting order or rule on the same procedure — only guidance the learning names, never a search — and reports a wrong guidance file rather than editing it. Category-shape notes (a directory that mixes unrelated themes, a near-empty category) are report-only. It never renames categories or invents new ones.
+After the per-doc pass, the skill looks for overlap, a newer doc that subsumes an older one, and contradictions between docs. Contradictions outrank individual drift. For a knowledge-track learning, it also compares any guidance file the learning names (a skill's `SKILL.md`, a runbook, a root instruction file) for a conflicting order or rule on the same procedure. Only guidance the learning names, never a search, and a wrong guidance file is reported, not edited. Category-shape notes (a directory that mixes unrelated themes, a near-empty category) are report-only. It never renames categories or invents new ones.
 
 ### Delete is conservative
 
-Auto-delete requires all three: the implementation that lived in this repo is gone (or a successor already states the same guidance); the problem domain is gone; inbound markdown citations are absent or decorative. A doc that never pointed at in-repo code never auto-deletes. A citation that the other doc depends on is a Replace or Keep signal, not a cleanup task.
+Auto-delete requires all three: the implementation that lived in this repo is gone (or a successor already states the same guidance); the problem domain is gone; inbound markdown citations are absent or decorative. A doc that never pointed at in-repo code never auto-deletes. A citation another doc depends on is a Replace or Keep signal, not a cleanup task.
 
 If the current approach cannot be documented from a file scan, the doc is marked stale rather than guessed into a replacement. The recommendation is `/ce-compound` the next time you work in that area.
 
 ### Vocabulary and findability
 
-After the doc actions, the skill reconciles domain terms with `CONCEPTS.md` at the repo root (creates it when enough terms qualify). That pass is silent in both modes.
+After the doc actions, the skill reconciles domain terms with `CONCEPTS.md` at the repo root (creating it when enough terms qualify). That pass is silent in both modes.
 
-Every run also checks whether the project's instruction files would lead an agent to `docs/solutions/`. Interactive mode proposes the smallest addition and asks before editing. Non-interactive only recommends it. The same check runs for `CONCEPTS.md` when that file exists.
+Every run also checks whether the project's instruction files would lead an agent to `docs/solutions/`. Interactive mode proposes the smallest addition and asks before editing; non-interactive only recommends it. The same check runs for `CONCEPTS.md` when that file exists.
 
 ---
 
@@ -126,11 +129,9 @@ The skill finds five learnings and two pattern docs that match via directory, fr
 
 Investigation: three still name files that moved (`auth_token.rb` → `session_token.rb`). One is fully superseded by a newer doc. One is still accurate. One pattern doc generalizes a rule the rename broke. Set analysis then shows two learnings covering the same auth-error problem; the newer one is broader.
 
-Classification: three Updates (rename the references), one Consolidate (merge the older error doc into the newer and delete the older), one Keep, one Replace (the pattern). The successor is written, then the old pattern file is deleted.
+Classification: three Updates (rename the references), one Consolidate (merge the older error doc into the newer and delete the older), one Keep, one Replace (the pattern doc gets a successor, then the old file is deleted).
 
-Interactive mode confirms the consolidation if the canonical choice is not obvious. Other actions apply directly. If you are on a feature branch, the recommended close is a separate commit of only the refresh files.
-
-The printed report lists every doc, the outcome, the evidence, and what was done.
+Interactive mode confirms the consolidation if the canonical choice is not obvious; other actions apply directly. On a feature branch, the recommended close is a separate commit of only the refresh files. The printed report lists every doc, the outcome, the evidence, and what was done.
 
 ---
 
@@ -144,11 +145,11 @@ Reach for `ce-compound-refresh` when:
 - You want a periodic hygiene pass (for example quarterly), preferably scoped
 - You want a repo-wide `CONCEPTS.md` seeded from the declared domain model
 
-Skip `ce-compound-refresh` when:
+Skip it when:
 
 - You have not seen any drift. Broad sweeps without evidence produce churn.
 - The docs are recent and that area of the codebase has not moved
-- You are mid debug or mid build. Capture first with `/ce-compound`. Refresh later.
+- You are mid debug or mid build. Capture first with `/ce-compound`; refresh later.
 
 ---
 
@@ -161,20 +162,6 @@ This skill is the maintenance counterpart to `/ce-compound`. It is not on the id
 - **Pre-release**: a pass so documented learnings match what is shipping
 
 `ce-compound` adds docs. `ce-compound-refresh` keeps the set lean. Without the second skill, the first eventually clutters.
-
----
-
-## Use Standalone
-
-- Specific file: `/ce-compound-refresh plugin-versioning-requirements`
-- Module or keyword: `/ce-compound-refresh payments`
-- Category: `/ce-compound-refresh performance-issues`
-- Pattern topic: `/ce-compound-refresh critical-patterns`
-- Non-interactive: `/ce-compound-refresh auth mode:non-interactive`
-- Repo-wide glossary: `/ce-compound-refresh create a CONCEPTS.md` (or `build the concept map`)
-- Broad sweep (rare): `/ce-compound-refresh`
-
-With no hint, the skill clusters the store and recommends a starting area before deep investigation. Interactive confirms that area. Non-interactive processes every cluster in impact order. A hint that matches nothing asks you to clarify (interactive) or reports the miss and exits (non-interactive). An empty store tells you to run `ce-compound` first.
 
 ---
 
@@ -201,7 +188,7 @@ On the default branch, non-interactive commits on a named branch and attempts a 
 Update fixes drift and keeps the recommended solution (renamed file, moved class, broken link, unambiguous misfile). Replace rewrites the guidance because the recommended approach changed. If you would rewrite the solution section, that is Replace.
 
 **What happens when code and guidance disagree?**
-Current-mechanics claims follow the code. Independently supported guidance follows its governing evidence; if the implementation no longer satisfies it, the skill preserves the guidance and reports a potential product regression without editing or adjudicating product code.
+Claims about current mechanics follow the code. Guidance with independent support follows its governing evidence; if the implementation no longer satisfies it, the skill preserves the guidance and reports a potential product regression without touching product code.
 
 **When should I use non-interactive mode?**
 Periodic or large-scope runs where stopping on every question is impractical. Ambiguous cases are marked stale, so the report is something a human can review.
@@ -216,7 +203,7 @@ Archive folders accumulate and pollute search. `git log --diff-filter=D -- docs/
 Only the safe subset. Unambiguous misfilings can move with inbound-link rewrites. One multi-problem doc can be split (always recommend-only when unattended). Catalog README rows update when a listed doc is removed or renamed. Renaming categories or inventing new ones is never automated.
 
 **Does it treat pattern docs differently?**
-Same five outcomes, different evidence. Keep means the supporting learnings still back the rule. Replace means the generalization is now wrong, and the successor is based on the refreshed learnings, not a new invention.
+Same five outcomes, different evidence. Keep means the supporting learnings still back the rule. Replace means the generalization is now wrong, and the successor is built from the refreshed learnings, not invented fresh.
 
 **What does a CONCEPTS.md run do?**
 It seeds the project's core domain nouns into a repo-root glossary. A normal refresh also accretes terms from the docs in scope and will create `CONCEPTS.md` if enough terms qualify. The explicit bootstrap is the only repo-wide seed.

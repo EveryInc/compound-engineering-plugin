@@ -2,7 +2,7 @@
 
 > Create or maintain `STRATEGY.md`: what the product is, who it is for, how it succeeds, and where the team is investing.
 
-`ce-strategy` is the **upstream anchor**. It writes its sections of `STRATEGY.md`, the shared project document at the repo root next to `README.md` — a file other tools and people also write their own sections into, so the skill owns only what its template names and preserves the rest. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `STRATEGY.md` when it exists and weight their suggestions toward the active tracks and the stated approach. `ce-product-pulse` also reads it to seed the metrics it measures.
+`ce-strategy` writes the upstream anchor. `STRATEGY.md` lives at the repo root next to `README.md` and is a shared project document. Other tools and people write their own sections into it, so the skill owns only what its template names and leaves the rest alone. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `STRATEGY.md` when it exists and weight their suggestions toward the active tracks and the stated approach. `ce-product-pulse` also reads it to seed the metrics it measures.
 
 The doc is short on purpose. The skill grounds itself in what the repo already says the product is, asks a handful of sharp questions, pushes back on slogans and feature lists, and writes what you actually said.
 
@@ -23,7 +23,7 @@ of the loop.                                                         this?"
 |----------|--------|
 | What does it do? | Reads what the repo already says the product is, interviews you with pushback rules, stress-tests the answers, then writes or updates `STRATEGY.md` at the repo root |
 | When to use it | New product; adding a strategy doc to an existing repo; direction changed; "what are we working on?" has no written answer; a downstream skill flagged missing strategy grounding |
-| What it produces | `STRATEGY.md` with purpose, positioning, users, 3-5 key metrics, 2-4 tracks, boundaries, and optional milestones / brand. Frontmatter carries `name` and `last_updated`. |
+| What it produces | `STRATEGY.md` with purpose, positioning, users, 3-5 key metrics, 2-4 tracks, boundaries, and optional milestones and brand. Frontmatter carries `name` and `last_updated`. |
 | What's next | `/ce-ideate` or `/ce-brainstorm` if nothing downstream has run yet. `/ce-product-pulse` if you want those metrics measured. |
 
 ---
@@ -51,7 +51,7 @@ An empty invoke follows the file. A section name or scope hint jumps to that par
 /ce-strategy purpose
 ```
 
-Prefer a section or scope hint for maintenance. A bare invoke on an existing file is the broader path: it asks which section to open.
+Prefer a section or scope hint for maintenance. A bare invoke on an existing file asks which section to open.
 
 ---
 
@@ -72,15 +72,14 @@ A useful strategy doc is short and opened often. A generic "write a strategy" pr
 
 `ce-strategy` runs a repo-grounded interview with named pushback rules.
 
-- It reads the README, `CONCEPTS.md`, and `docs/` first, so the interview opens from a working model of the product instead of a blank page. Recent commits and PRs are read separately, as a signal of where attention has gone lately - useful for tracks, not for what the product is.
-
+- It reads the README, `CONCEPTS.md`, and `docs/` first, so the interview opens from a working model of the product instead of a blank page. Recent commits and PRs are read separately, as a signal of where attention has gone lately. That signal informs tracks, not what the product is.
 - Strategy is what the product is and why. Features belong in `ce-brainstorm`. Schedules belong in the issue tracker.
 - Section headers are plain English. The interview is where the discipline lives.
 - The template is constrained. Extra sections get pushback.
 - Re-runs update in place. Accurate sections stay; weak ones get the same pushback as a first write.
 - Each section has anti-patterns and probe questions that catch slogans, goals-as-strategy, and feature lists.
 
-The "Purpose / Positioning / Tracks" shape follows Richard Rumelt's kernel in *Good Strategy Bad Strategy*: diagnosis, guiding policy, and coherent action.
+The Purpose / Positioning / Tracks shape follows Richard Rumelt's kernel in *Good Strategy Bad Strategy*: diagnosis, guiding policy, coherent action.
 
 ---
 
@@ -88,23 +87,23 @@ The "Purpose / Positioning / Tracks" shape follows Richard Rumelt's kernel in *G
 
 ### Grounded in the repo, decided by you
 
-Before the first question the skill shows a three-to-five-line repo model - what it takes the product to be, who it seems to serve, where recent attention has gone - with sources named, and asks you to correct it. Evidence seeds the questions and sharpens the pushback ("the README says X; you just said Y - which is it?"). It never fills in a section on its own, and a burst of recent work in one area is offered as a question about tracks, not treated as the product's focus. A new or empty repo runs the interview ungrounded; that is a normal path.
+Before the first question the skill shows a three-to-five-line repo model with sources named: what it takes the product to be, who it seems to serve, where recent attention has gone. You correct it. Evidence seeds the questions and sharpens the pushback ("the README says X; you just said Y. Which is it?"). It never fills in a section on its own, and a burst of recent work in one area becomes a question about tracks, not a conclusion about the product's focus. A new or empty repo runs the interview ungrounded. That is a normal path, not a failure.
 
 ### Pushback in the interview
 
-For each section the skill asks the opening question, then applies that section's pushback rules. Two rounds maximum. If the answer is still weak, it captures what you gave and notes the section is worth another pass next run. Without that step the interview is just transcription.
+For each section the skill asks the opening question, then applies that section's pushback rules. Two rounds maximum. If the answer is still weak, it writes what you gave and notes the section is worth another pass next run. Without that step the interview is just transcription.
 
-Required sections, in the document's order: Purpose, Positioning, Users, Boundaries (always written, even if only to say nothing is named yet), Key metrics, Tracks - the universal sections first, then direction. The interview asks Boundaries after the stress test, since that is where its content comes from. Optional: Milestones, Brand - skipped when nothing came up. Unused optional sections are omitted, not left as empty headers. Metrics stay at 3-5. Tracks stay at 2-4.
+Required sections, in the document's order: Purpose, Positioning, Users, Boundaries (always written, even if only to say nothing is named yet), Key metrics, Tracks. The interview asks Boundaries after the stress test, since that is where its content comes from. Milestones and Brand are optional and skipped when nothing came up; unused optional sections are omitted, not left as empty headers. Metrics stay at 3-5. Tracks stay at 2-4.
 
 On a first run, the filled draft is shown in chat and you get one edit pass before anything is written.
 
 ### Stress test before the draft
 
-After the five required sections, the skill poses three to five concrete proposals aimed at the draft's fault lines - a tempting feature just off the approach, a second persona pulling the other way, a track that would starve another - chosen so your answer is not predictable from the draft. If the strategy already decides a proposal, it is confirmed. If it cannot, the approach or a track gets sharpened. Proposals you resist become Boundaries entries and feed a one-line "Resist a change when ..." test, so that section carries real content a downstream agent can apply.
+After the five required sections, the skill poses three to five concrete proposals aimed at the draft's fault lines: a tempting feature just off the approach, a second persona pulling the other way, a track that would starve another. They are chosen so your answer is not predictable from the draft. If the strategy already decides a proposal, that confirms it. If it cannot, the approach or a track gets sharpened. Proposals you resist become Boundaries entries and feed a one-line "Resist a change when ..." test, so that section carries real content a downstream agent can apply.
 
 ### Updates in place
 
-A second run does not start over. It reads the existing doc, summarizes it in 3-5 lines, checks it for drift against the repo and what has landed since `last_updated`, names any section that looks stale as a candidate, and either jumps to the section you named or asks which to revisit. The menu is Purpose; Positioning; Users; or Metrics, tracks, boundaries, or other. Sections you confirm are still accurate are left alone. `last_updated` is set to today.
+A second run does not start over. It reads the existing doc, summarizes it in 3-5 lines, checks for drift against the repo and what has landed since `last_updated`, and names any stale-looking section as a candidate. Then it jumps to the section you named, or asks which to revisit: Purpose; Positioning; Users; or Metrics, tracks, boundaries, or other. Sections you confirm are still accurate are left alone. `last_updated` is set to today.
 
 ### Read by downstream skills
 
@@ -115,7 +114,9 @@ When `STRATEGY.md` is at the repo root:
 - `ce-plan` flags decisions that pull away from the tracks or the stated positioning, or land inside the stated boundaries
 - `ce-product-pulse` seeds product name and key metrics, then wires sources to measure them
 
-The skills work without the file. With it, they have a signal for what kind of work matters right now. `ce-ideate`, `ce-brainstorm`, and `ce-plan` read by section meaning rather than exact heading and fall back to a legacy `PRODUCT.md` or `VISION.md` only for meanings `STRATEGY.md` lacks; `ce-dogfood` reads the persona section (`Users`, or `Who it's for` in older files) and then a legacy sibling; `ce-strategy` itself reads those as stated intent when grounding. `ce-product-pulse` reads `STRATEGY.md` (or, when absent, the first of `VISION.md`, `PRODUCT.md` that exists); it takes metrics from `## Key metrics` when `ce-strategy` wrote it, otherwise from whichever section lists the success measures — following a linked legacy doc when `STRATEGY.md` defers them there — and says when none are on file yet.
+The skills work without the file. With it, they know what kind of work matters right now.
+
+Readers match sections by meaning, not exact heading. `ce-ideate`, `ce-brainstorm`, and `ce-plan` fall back to a legacy `PRODUCT.md` or `VISION.md` only for meanings `STRATEGY.md` lacks. `ce-dogfood` reads the persona section (`Users`, or `Who it's for` in older files), then a legacy sibling. `ce-strategy` itself reads those files as stated intent when grounding. `ce-product-pulse` reads `STRATEGY.md`, or the first of `VISION.md` and `PRODUCT.md` when it is absent; it takes metrics from `## Key metrics` when `ce-strategy` wrote it, otherwise from whichever section lists the success measures, following a linked legacy doc when `STRATEGY.md` defers them there, and says when none are on file yet.
 
 The skill does not compute metric values, update the issue tracker, prioritize a backlog, or write requirements or plans.
 
@@ -129,7 +130,7 @@ Purpose: you answer "we help teams ship faster." That is a slogan, so the pushba
 
 Positioning: you answer "use AI." That is a tool, not a bet. The pushback asks what you are betting AI does here that the obvious alternative does not. You name the actual choice.
 
-The interview continues through Users, Key metrics, and Tracks - where the skill asks whether the recent GitHub work is a track or a push, and you say push. Then three proposals test the draft; you resist one ("a Slack bot for review nudges"), and it lands under Boundaries. You see the full draft, get one edit pass, and the file is written to `STRATEGY.md`.
+The interview continues through Users, Key metrics, and Tracks, where the skill asks whether the recent GitHub work is a track or a push, and you say push. Then three proposals test the draft; you resist one ("a Slack bot for review nudges"), and it lands under Boundaries. You see the full draft, get one edit pass, and the file is written to `STRATEGY.md`.
 
 The skill notes that `ce-ideate`, `ce-brainstorm`, and `ce-plan` will pick the file up on their next run, and suggests `ce-ideate` or `ce-brainstorm` if nothing downstream has run yet.
 
@@ -179,7 +180,7 @@ This skill is always invoked on its own. Nothing in the loop produces `STRATEGY.
 - Targeted update: `/ce-strategy positioning` jumps to that section
 - Open update: `/ce-strategy` (file exists, no argument) asks which section to revisit
 
-The sections this skill writes are meant to be readable in under five minutes; other tools' sections in the shared file are their own.
+The sections this skill writes should be readable in under five minutes. Other tools' sections in the shared file are their own.
 
 ---
 

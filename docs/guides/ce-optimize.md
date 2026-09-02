@@ -4,9 +4,9 @@
 
 `ce-optimize` is an on-demand **experimentation** skill. Use it when the right change is not obvious, you can try several variants, and "better" is a number or a judged score. If you already know the change, make it. If you need a root cause, that is `ce-debug`.
 
-It writes a spec (or loads yours), measures a baseline, then runs experiments in isolated worktrees (or via Codex when the spec says so). Wins stay on an `optimize/<spec-name>` branch. Losses revert. Every result is written to disk so a long run can survive a crash or a compacted context.
+It writes a spec (or loads yours), measures a baseline, then runs experiments in isolated worktrees (or via Codex when the spec says so). Wins stay on an `optimize/<spec-name>` branch. Losses revert. It writes every result to disk, so a long run survives a crash or a compacted context.
 
-Karpathy's autoresearch is the nearest ancestor. This version is for multi-file code changes and for non-ML work: clustering, search, prompts, build time, latency, anything you can score the same way twice.
+It handles multi-file code changes and non-ML work alike: clustering, search, prompts, build time, latency, anything you can score the same way twice.
 
 Skip it when you already know the change, when you are hunting a root cause, or when nothing can be measured.
 
@@ -91,13 +91,13 @@ Judge runs bucket the output (large, mid, small, singletons, or the equivalent f
 
 ### Disk is the run, not the chat
 
-Each result is appended to the experiment log as soon as it is measured, then read back. A `result.yaml` in the experiment worktree covers the gap if the orchestrator dies before the log update. On resume the log is the source of truth; leftover markers are recovered into it.
+The loop appends each result to the experiment log the moment it is measured, then reads it back. A `result.yaml` in the experiment worktree covers the gap if the orchestrator dies before the log update. On resume the log is the source of truth; leftover markers are recovered into it.
 
 The files under `.context/compound-engineering/ce-optimize/<spec-name>/` are local scratch. They are gitignored, so they survive a resume on this machine and do not travel with the branch.
 
 ### Parallel isolation, then file-disjoint combines
 
-Each experiment owns a worktree and a branch. Merges are serial. After the winner lands, runners-up that edited completely different files can be combined and scored again, up to a cap. A combo that is not eligible on the re-measurement is reverted and logged as promising alone but neutral or harmful together.
+Each experiment owns a worktree and a branch. Merges are serial. After the winner lands, the loop combines runners-up that edited completely different files and scores them again, up to a cap. A combo that is not eligible on the re-measurement is reverted and logged as promising alone but neutral or harmful together.
 
 After each batch a strategy digest (categories tried, what worked, what is still untried, current best) steers the next hypotheses. The digest is working state for the loop, not a kept deliverable.
 
@@ -201,7 +201,7 @@ The `optimize/<spec-name>` branch, with a commit per kept experiment. The spec a
 Yes. Put them in `metric.objectives` as `role: required`. An experiment that improves one required target without regressing the others is eligible. The loop is not done until every declared required target is met. A spec that omits `objectives` still uses the single primary metric.
 
 **What if each measurement takes minutes?**
-Use `stability.mode: ladder` and a relative or paired comparison. The five-run protocol is for baseline, a candidate you are about to keep, and final confirmation — not for every exploratory try. See `references/example-expensive-benchmark-spec.yaml`.
+Use `stability.mode: ladder` and a relative or paired comparison. The five-run protocol is for baseline, a candidate you are about to keep, and final confirmation, not for every exploratory try. See `references/example-expensive-benchmark-spec.yaml`.
 
 **Does it debug?**
 No. It searches a scored design space. A failing test, a stack trace, or "why is this wrong" is `/ce-debug`.
