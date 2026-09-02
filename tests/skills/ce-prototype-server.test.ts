@@ -80,8 +80,8 @@ async function startServer(
 // carried the session token, an inline synchronous store of it from the
 // location (no token literal); always the deferred overlay on the request origin.
 const BOOT_STORE = '<script>(function(){try{var k="ce-annotate-token";var t=new URLSearchParams(location.search).get("token");if(t){sessionStorage.setItem(k,t);try{localStorage.setItem(k,t)}catch(e2){}}}catch(e){}})()</script>'
-function annotateBoot(origin: string, storeToken = true): string {
-  const overlay = `<script defer src="${origin}/__ce-annotate/annotate.js"></script>`
+function annotateBoot(origin: string, storeToken = true, page = "/"): string {
+  const overlay = `<script defer src="${origin}/__ce-annotate/annotate.js" data-ce-page="${page}"></script>`
   return storeToken ? `${BOOT_STORE}\n${overlay}` : overlay
 }
 // What a browser sends when it navigates to a page, as opposed to a script's fetch.
@@ -479,7 +479,7 @@ describe("ce-prototype light-webserver.js", () => {
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
     // A linked page is ungated, so its boot stores no token unless the request carried the session's.
-    const boot = `<!doctype html>\n${annotateBoot(origin, false)}\n`
+    const boot = `<!doctype html>\n${annotateBoot(origin, false, "/details.html")}\n`
     const details = '<!DOCTYPE html><html><head><link rel="stylesheet" href="/styles.css"></head><body><h1 id="detail">Details</h1></body></html>'
     await fs.mkdir(path.join(String(info.screen_dir), "pages"))
     await fs.writeFile(path.join(String(info.screen_dir), "details.html"), details)
@@ -500,7 +500,7 @@ describe("ce-prototype light-webserver.js", () => {
     // A prototype's own `?token=demo` on a linked page must not displace the stored credential:
     // no store snippet; the session token on the same page stores, as the gated root always does.
     expect(await (await fetch(`${origin}/details.html?token=demo`, { headers: NAVIGATE })).text()).toBe(`${boot}${details}`)
-    expect(await (await fetch(`${origin}/details.html?token=${info.token}`, { headers: NAVIGATE })).text()).toBe(`<!doctype html>\n${annotateBoot(origin)}\n${details}`)
+    expect(await (await fetch(`${origin}/details.html?token=${info.token}`, { headers: NAVIGATE })).text()).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/details.html")}\n${details}`)
     expect(await (await fetch(String(info.url), { headers: NAVIGATE })).text()).toContain(annotateBoot(origin))
     expect(BOOT_STORE).toContain("sessionStorage.setItem")
 
@@ -508,7 +508,7 @@ describe("ce-prototype light-webserver.js", () => {
     const part = await (await fetch(`${origin}/pages/part.html`, { headers: NAVIGATE })).text()
     expect(part).toContain("<h2>Part</h2>")
     expect(part).toContain("CE local web")
-    expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js"><\/script>[\s\S]*<\/head>/)
+    expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js" data-ce-page="\/pages\/part\.html"><\/script>[\s\S]*<\/head>/)
 
     // A script fetching the same files gets them raw: a partial is not a screen.
     for (const headers of [
@@ -897,7 +897,10 @@ describe("ce-prototype light-webserver.js", () => {
     // by reference only — no id or class an authored stylesheet could match,
     // and no `div` or `html > div` either — with an important inline box that
     // outranks an authored `!important`.
-    expect(overlay).toContain('document.createElement("ce-annotate-" + crypto.randomUUID())')
+    expect(overlay).toContain("crypto.getRandomValues(new Uint8Array(16))")
+    expect(overlay).toContain('hostId += byte.toString(16).padStart(2, "0")')
+    expect(overlay).toContain("document.createElement(hostId)")
+    expect(overlay).not.toContain("randomUUID")
     expect(overlay).not.toContain('createElement("ce-annotate-host")')
     expect(overlay).not.toMatch(/host\.(id|className) =/)
     expect(overlay).toContain("Math.max(0, Math.min(x + 12, window.innerWidth - width))")
@@ -906,8 +909,10 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("document.documentElement.appendChild(host)")
     expect(overlay).not.toContain("document.body.appendChild(")
     expect(overlay).toMatch(/host\.style\.cssText =\s*"display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: \d+ !important;/)
-    // The pin names the page it was placed on; the helper resolves the file.
-    expect(overlay).toContain("page: window.location.pathname,")
+    // The pin names the screen the helper served, not a History API pathname.
+    expect(overlay).toContain('document.currentScript?.getAttribute("data-ce-page") || "/"')
+    expect(overlay).toContain("page: servedPage,")
+    expect(overlay).not.toContain("window.location.pathname")
     const css = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
     expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  pointer-events: none;/)
     expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*pointer-events: auto;/)

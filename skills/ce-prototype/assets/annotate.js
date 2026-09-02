@@ -17,6 +17,9 @@
       return new URLSearchParams(window.location.search).get("token")
     }
   })()
+  // The helper stamps the path it served on this script. History API rewrites
+  // change location.pathname without changing which screen file this is.
+  const servedPage = document.currentScript?.getAttribute("data-ce-page") || "/"
   // The overlay owns its host: created here (this script is deferred, so the
   // document has parsed) and held by reference only. The tag is a per-load
   // unregistered custom-element name, so an authored `ce-annotate-host`
@@ -25,8 +28,11 @@
   // which outranks an authored `!important`. It hangs off <html>, not <body>,
   // so it is outside every body-scoped selector and document.body.children,
   // and takes no part in the authored layout. The inline box applies before
-  // the stylesheet arrives.
-  const host = document.createElement("ce-annotate-" + crypto.randomUUID())
+  // the stylesheet arrives. getRandomValues is available on plain HTTP origins.
+  const hostIdBytes = crypto.getRandomValues(new Uint8Array(16))
+  let hostId = "ce-annotate-"
+  for (const byte of hostIdBytes) hostId += byte.toString(16).padStart(2, "0")
+  const host = document.createElement(hostId)
   host.style.cssText =
     "display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: 2147483645 !important; margin: 0 !important; padding: 0 !important; border: 0 !important;"
   document.documentElement.appendChild(host)
@@ -317,7 +323,7 @@
     // The path names the screen this pin is on; the helper resolves it to the
     // file the agent edits. Path only: no query, so no token.
     const payload = {
-      page: window.location.pathname,
+      page: servedPage,
       comment,
       selector: draft.selector,
       textSnippet: draft.textSnippet,

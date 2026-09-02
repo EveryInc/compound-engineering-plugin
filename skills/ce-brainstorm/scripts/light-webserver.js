@@ -273,9 +273,15 @@ function refreshScript(options) {
 // `?token=demo` — gets no store, so the credential already in sessionStorage
 // stands. Then the overlay, deferred; it creates its own host and stylesheet
 // once the document has parsed. Its URL is absolute on the request's own
-// origin, so a screen's <base href> cannot redirect it.
-function annotateBoot(origin, storeToken) {
-  const overlay = `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
+// origin, so a screen's <base href> cannot redirect it. data-ce-page is the
+// path this response served, so a later History API rewrite is not the screen.
+function htmlAttr(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
+}
+
+function annotateBoot(origin, storeToken, page = "/") {
+  const servedPage = typeof page === "string" && page.startsWith("/") ? page : "/"
+  const overlay = `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js" data-ce-page="${htmlAttr(servedPage)}"></script>`
   if (!storeToken) return overlay
   const key = JSON.stringify(TOKEN_STORAGE_KEY)
   const store = `try{var k=${key};var t=new URLSearchParams(location.search).get("token");if(t){sessionStorage.setItem(k,t);try{localStorage.setItem(k,t)}catch(e2){}}}catch(e){}`
@@ -375,8 +381,8 @@ function injectRefresh(options, html) {
 // head children in head, ignores the second doctype and <head> start tag, and
 // creates <body> with its attributes. Nothing in the authored text is located
 // or rewritten, so a "</body>" in a script string or comment cannot mislead it.
-function annotateScreen(html, origin, storeToken) {
-  const boot = annotateBoot(origin, storeToken)
+function annotateScreen(html, origin, storeToken, page = "/") {
+  const boot = annotateBoot(origin, storeToken, page)
   const text = html.replace(/^\uFEFF/, "")
   if (!isFullDocument(text)) return wrapAnnotateFragment(text, boot)
   return `<!doctype html>\n${boot}\n${text}`
@@ -986,7 +992,7 @@ async function serve(options) {
         const filePath = resolveContainedFile(options.screensDir, req, res)
         if (!filePath) return
         if (contentType(filePath) === CONTENT_TYPES[".html"] && isDocumentNavigation(req)) {
-          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req), authorized(req)))
+          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req), authorized(req), urlPath))
           return
         }
         // A reload must pick up a revised stylesheet or script whose URL did
