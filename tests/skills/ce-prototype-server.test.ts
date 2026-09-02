@@ -345,7 +345,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
   })
 
-  test("closing the last morph stream ends the session after a reconnect grace", async () => {
+  test("closing the last change stream ends the session after a reconnect grace", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-end-"))
     const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_SSE_GRACE_MS: "80" })
     const origin = `http://localhost:${info.port}`
@@ -381,13 +381,21 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 
-  test("annotate morphs the current screen body without writing overlay into screens", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-morph-"))
+  test("annotate pushes a screen-changed event for screen and asset edits without writing overlay into screens", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-change-"))
     const info = await startServer(root, ["--annotate"])
     const screenPath = path.join(String(info.screen_dir), "001-screen.html")
-    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:red}</style></head><body class=\"calm\"><h1 id=\"heading\">Original</h1></body></html>")
+    const cssPath = path.join(String(info.screen_dir), "styles.css")
+    await fs.writeFile(cssPath, "#heading{color:red}")
+    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><link rel=\"stylesheet\" href=\"/styles.css\"></head><body><h1 id=\"heading\">Original</h1></body></html>")
     const origin = `http://localhost:${info.port}`
-    expect((await fetch(String(info.url))).status).toBe(200)
+    const page = await fetch(String(info.url))
+    expect(page.status).toBe(200)
+    // A reload must fetch the revised screen and assets, never a cached copy.
+    expect(page.headers.get("cache-control")).toBe("no-store")
+    const asset = await fetch(`${origin}/styles.css`)
+    expect(asset.status).toBe(200)
+    expect(asset.headers.get("cache-control")).toBe("no-store")
     const stream = await fetch(`${origin}/events?token=${info.token}`)
     expect(stream.status).toBe(200)
     const reader = stream.body!.getReader()
@@ -410,30 +418,30 @@ describe("ce-prototype light-webserver.js", () => {
       }
     }
 
-    // A stream opened right after the page was served must not replay the
-    // screen it already shows; that re-ran the prototype's scripts on load.
-    await readUntil(() => text.includes("event: morph"), 700)
-    expect(text).toContain(":ok")
-    expect(text).not.toContain("event: morph")
+    const events = () => text.split("event: screen-changed").length - 1
 
-    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:blue}</style></head><body class=\"dense\"><h1 id=\"heading\">Revised</h1></body></html>")
-    await readUntil(() => text.includes("Revised"), 2000)
-    expect(text).toContain("event: morph")
-    expect(text).toContain("Revised")
-    expect(text).toContain("\"document\"")
-    expect(text).toContain("color:blue")
-    expect(text).toContain("<body class=\\\"dense\\\">")
-    expect(text).not.toContain("ce-annotate-host")
+    // A stream opened right after the page was served must not announce the
+    // screen it already shows; that reloaded (earlier: re-ran) the page on load.
+    await readUntil(() => events() > 0, 700)
+    expect(text).toContain(":ok")
+    expect(events()).toBe(0)
+
+    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><link rel=\"stylesheet\" href=\"/styles.css\"></head><body><h1 id=\"heading\">Revised</h1></body></html>")
+    await readUntil(() => events() >= 1, 2000)
+    expect(events()).toBe(1)
+    // The client reloads on the event; the payload names the version only.
+    expect(text).toMatch(/event: screen-changed\ndata: \{"version":"[0-9a-f]{40}"\}\n\n/)
+    expect(text).not.toContain("Revised")
+    expect(text).not.toContain("<h1")
     expect(await fs.readFile(screenPath, "utf8")).not.toContain("ce-annotate-host")
 
-    // A fragment screen morphs as the same shell the page first rendered.
+    // An asset the screen links changed while the screen file did not.
     await new Promise((resolve) => setTimeout(resolve, 20))
-    await fs.writeFile(path.join(String(info.screen_dir), "002-fragment.html"), "<h2 id=\"fragment\">Just a fragment</h2>")
-    await readUntil(() => text.includes("Just a fragment"), 2000)
-    const fragmentMorph = text.slice(text.lastIndexOf("event: morph"))
-    expect(fragmentMorph).toContain("CE local web - newest screen")
-    expect(fragmentMorph).toContain("<main><h2")
-    expect(fragmentMorph).not.toContain("annotate.js")
+    await fs.writeFile(cssPath, "#heading{color:blue}")
+    await readUntil(() => events() >= 2, 2000)
+    expect(events()).toBe(2)
+    const versions = [...text.matchAll(/"version":"([0-9a-f]{40})"/g)].map((match) => match[1])
+    expect(new Set(versions).size).toBe(2)
     await reader.cancel()
   })
 
@@ -462,7 +470,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(await bare.text()).not.toContain(String(info.token))
   })
 
-  test("idle shutdown ends the session instead of hanging on an open morph stream", async () => {
+  test("idle shutdown ends the session instead of hanging on an open change stream", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-idle-"))
     const info = await startServer(root, ["--annotate"], {
       CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "250",
@@ -527,20 +535,20 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("target-gone")
     expect(overlay).toContain("EventSource")
     expect(overlay).toContain("ce-prototype-root")
-    expect(overlay).toContain("advancePinsAfterMorph")
+    expect(overlay).toContain("advancePinsAfterRevision")
     expect(overlay).toContain("Stop failed")
     expect(overlay).toContain('if (pin.status === "working")')
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
     expect(overlay).toContain('addEventListener("scroll", reattachPins')
     expect(overlay).toContain("EventSource.CLOSED")
-    // Scripts never re-run in the live realm: a screen that carries any script
-    // or <base> reloads as a document with the pins carried across.
-    expect(overlay).toContain('querySelectorAll("script, base")')
+    // Every screen change reloads the document with the pins carried across;
+    // the overlay never reconciles DOM, head, or scripts itself.
+    expect(overlay).toContain('addEventListener("screen-changed"')
     expect(overlay).toContain("sessionStorage.setItem(STATE_KEY")
     expect(overlay).toContain("window.location.reload()")
-    expect(overlay).toContain("new DOMParser()")
-    expect(overlay).toContain("syncAttributes(document.body, doc.body)")
-    expect(overlay).not.toContain("activateScripts")
+    expect(overlay).not.toContain("DOMParser")
+    expect(overlay).not.toContain("adoptNode")
+    expect(overlay).not.toMatch(/\bmorph\b/i)
     expect(overlay).not.toMatch(/WebSocket/)
   })
 

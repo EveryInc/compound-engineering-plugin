@@ -52,44 +52,9 @@
     return document.getElementById("ce-prototype-root") || document.body
   }
 
-  function isOverlayAsset(node) {
-    if (!(node instanceof Element)) return false
-    const href = node.getAttribute("href")
-    const src = node.getAttribute("src")
-    return href === "/annotate.css" || src === "/annotate.js" || node.id === "ce-annotate-host"
-  }
-
-  // Scripts only run correctly in a fresh realm (top-level bindings, listeners,
-  // timers), and <base> rewrites every relative URL already resolved; either
-  // one means the screen must load as a document. Everything else morphs.
-  function needsFreshDocument(doc) {
-    return [...doc.querySelectorAll("script, base")].some((node) => !isOverlayAsset(node))
-  }
-
-  function replaceChildrenExceptOverlay(target, incoming) {
-    for (const child of [...target.childNodes]) {
-      if (isOverlayAsset(child)) continue
-      child.remove()
-    }
-    const anchor = [...target.childNodes].find(isOverlayAsset) || null
-    for (const node of incoming) target.insertBefore(document.adoptNode(node), anchor)
-  }
-
-  function syncAttributes(target, source) {
-    for (const attr of [...target.attributes]) {
-      if (!source.hasAttribute(attr.name)) target.removeAttribute(attr.name)
-    }
-    for (const attr of source.attributes) target.setAttribute(attr.name, attr.value)
-  }
-
-  function applyDocument(doc) {
-    const currentHead = [...document.head.children].filter((node) => !isOverlayAsset(node)).map((node) => node.outerHTML).join("")
-    const nextHead = [...doc.head.children].map((node) => node.outerHTML).join("")
-    if (currentHead !== nextHead) replaceChildrenExceptOverlay(document.head, [...doc.head.childNodes])
-    syncAttributes(document.body, doc.body)
-    replaceChildrenExceptOverlay(document.body, [...doc.body.childNodes])
-  }
-
+  // A revised screen is shown by reloading the document, so the browser owns
+  // every reconciliation (head, html/body attributes, linked assets, scripts);
+  // only the explorer's pins and tool state are carried across.
   function persistAndReload() {
     try {
       sessionStorage.setItem(STATE_KEY, JSON.stringify({ commentToolOn, pins }))
@@ -115,7 +80,7 @@
     return true
   }
 
-  function advancePinsAfterMorph() {
+  function advancePinsAfterRevision() {
     for (const pin of pins) {
       if (pin.status === "working") pin.status = "attached"
     }
@@ -323,27 +288,15 @@
   }, true)
 
   if (restorePersistedState()) {
-    advancePinsAfterMorph()
+    advancePinsAfterRevision()
     reattachPins()
   }
 
   if ("EventSource" in window) {
     const source = new EventSource(tokenUrl("/events"))
-    source.addEventListener("morph", (event) => {
-      let doc
-      try {
-        doc = new DOMParser().parseFromString(JSON.parse(event.data).document, "text/html")
-      } catch {
-        return
-      }
-      if (needsFreshDocument(doc)) {
-        source.close()
-        persistAndReload()
-        return
-      }
-      applyDocument(doc)
-      advancePinsAfterMorph()
-      reattachPins()
+    source.addEventListener("screen-changed", () => {
+      source.close()
+      persistAndReload()
     })
     source.addEventListener("session-ended", markEnded)
     source.addEventListener("error", () => {

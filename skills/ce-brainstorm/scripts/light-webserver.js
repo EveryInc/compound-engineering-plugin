@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { randomUUID, timingSafeEqual } from "node:crypto"
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto"
 import { execFileSync, spawn } from "node:child_process"
 import fs from "node:fs"
 import http from "node:http"
@@ -198,7 +198,39 @@ function versionKey(version) {
   return `${version?.screen ?? ""}:${version?.mtimeMs ?? 0}`
 }
 
+// Annotate mode reloads the explorer's page on any change under screens/,
+// including a stylesheet or script the newest screen links, so the change key
+// covers every regular file there, not only the newest screen.
+function screensChangeKey(options) {
+  const hash = createHash("sha1")
+  const walk = (dir, prefix) => {
+    let entries
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      const rel = `${prefix}${entry.name}`
+      if (entry.isDirectory()) {
+        walk(path.join(dir, entry.name), `${rel}/`)
+        continue
+      }
+      if (!entry.isFile()) continue
+      try {
+        const stat = fs.statSync(path.join(dir, entry.name))
+        hash.update(`${rel}:${stat.mtimeMs}:${stat.size}\n`)
+      } catch {
+        // Removed between readdir and stat: the next tick sees the settled tree.
+      }
+    }
+  }
+  walk(options.screensDir, "")
+  return hash.digest("hex")
+}
+
 const WAITING_HTML = "<h1>Waiting for a page...</h1><p>The agent will update this page when a screen is ready.</p>"
+const NO_STORE = { "Cache-Control": "no-store" }
 
 function refreshScript(options) {
   const initialVersion = JSON.stringify(screenVersion(options))
@@ -287,9 +319,7 @@ function injectAnnotate(html) {
   return `${html}\n${boot}`
 }
 
-// The document the annotate client sees, before the overlay is injected. The
-// morph stream sends exactly this, so a fragment keeps its shell and a full
-// document keeps its body attributes on both the first paint and every update.
+// The document the annotate client sees, before the overlay is injected.
 function annotateDocument(options) {
   const screen = newestScreen(options)
   if (!screen) return wrapAnnotateFragment(WAITING_HTML)
@@ -381,7 +411,7 @@ function parseAnnotation(raw) {
   }
 }
 
-function safeFileResponse(rootDir, req, res) {
+function safeFileResponse(rootDir, req, res, headers = {}) {
   let name
   try {
     // A malformed percent-escape throws URIError; without this the throw is
@@ -416,7 +446,7 @@ function safeFileResponse(rootDir, req, res) {
     res.end("Not found")
     return
   }
-  res.writeHead(200, { "Content-Type": contentType(filePath) })
+  res.writeHead(200, { "Content-Type": contentType(filePath), ...headers })
   res.end(fs.readFileSync(filePath))
 }
 
@@ -549,7 +579,7 @@ async function serve(options) {
   let sessionEnded = false
   let sawSseClient = false
   let sseGraceTimer = null
-  let lastBroadcastKey = versionKey(screenVersion(options))
+  let lastBroadcastKey = options.annotate ? screensChangeKey(options) : null
   let lastActivity = Date.now()
   const touch = () => {
     lastActivity = Date.now()
@@ -592,19 +622,21 @@ async function serve(options) {
     }
   }
 
-  function broadcastMorph() {
-    const payload = JSON.stringify({ document: annotateDocument(options) })
-    lastBroadcastKey = versionKey(screenVersion(options))
+  // The client reloads on this event; the browser then owns every
+  // reconciliation (head, html/body attributes, linked assets, scripts).
+  function broadcastScreenChange(key) {
+    lastBroadcastKey = key
+    const payload = JSON.stringify({ version: key })
     for (const client of sseClients) {
       if (!client.writableEnded) {
-        client.write(`event: morph\ndata: ${payload}\n\n`)
+        client.write(`event: screen-changed\ndata: ${payload}\n\n`)
       }
     }
   }
 
-  function maybeBroadcastMorph() {
-    const key = versionKey(screenVersion(options))
-    if (key !== lastBroadcastKey) broadcastMorph()
+  function broadcastIfChanged() {
+    const key = screensChangeKey(options)
+    if (key !== lastBroadcastKey) broadcastScreenChange(key)
   }
 
   function requireAnnotateToken(req, res) {
@@ -640,7 +672,7 @@ async function serve(options) {
           sendJson(res, 410, { status: "session-ended" })
           return
         }
-        maybeBroadcastMorph()
+        broadcastIfChanged()
         if (annotationQueue.length > 0) {
           sendJson(res, 200, annotationQueue.shift())
           return
@@ -721,7 +753,7 @@ async function serve(options) {
       }
 
       if (req.method === "GET" && OVERLAY_FILES[urlPath]) {
-        safeFileResponse(assetsDir, { url: `/${OVERLAY_FILES[urlPath]}` }, res)
+        safeFileResponse(assetsDir, { url: `/${OVERLAY_FILES[urlPath]}` }, res, NO_STORE)
         return
       }
 
@@ -731,12 +763,13 @@ async function serve(options) {
         // A page being served is a tab loading, not the last tab closing: a
         // reload's stream reconnects only once this document's scripts run.
         if (sseGraceTimer) armSseGrace()
-        // Sync the morph key to what this page will render, so a stream that
-        // connects right after load does not replay the same screen. Any
+        // Sync the change key to what this page will render, so a stream that
+        // connects right after load does not reload the same screen. Any
         // already-open stream still receives the change.
-        maybeBroadcastMorph()
+        broadcastIfChanged()
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
+          ...NO_STORE,
           // The token rides in this document's URL; never let a prototype's
           // outbound link or asset carry it in a Referer.
           "Referrer-Policy": "no-referrer",
@@ -757,7 +790,9 @@ async function serve(options) {
     }
     if (req.method === "GET") {
       touch()
-      safeFileResponse(options.screensDir, req, res)
+      // Annotate mode reloads to pick up a revised stylesheet or script whose
+      // URL did not change; a cached copy would show the old screen.
+      safeFileResponse(options.screensDir, req, res, options.annotate ? NO_STORE : {})
       return
     }
     res.writeHead(404)
@@ -795,7 +830,7 @@ async function serve(options) {
     console.log(JSON.stringify(info))
   })
 
-  // An open morph stream or parked wait is an active connection, and
+  // An open change stream or parked wait is an active connection, and
   // server.close waits for those forever; end the session so they drain.
   function shutdown() {
     endSession()
@@ -813,10 +848,10 @@ async function serve(options) {
   idleTimer.unref()
 
   if (options.annotate) {
-    const morphTimer = setInterval(() => {
-      if (sseClients.size > 0) maybeBroadcastMorph()
+    const changeTimer = setInterval(() => {
+      if (sseClients.size > 0) broadcastIfChanged()
     }, 250)
-    morphTimer.unref()
+    changeTimer.unref()
   }
 }
 
