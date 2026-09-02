@@ -7,6 +7,36 @@ async function readRepoFile(relativePath: string): Promise<string> {
 }
 
 describe("ce-commit-push-pr contract", () => {
+  test("gates every commit publication on project-defined requirements", async () => {
+    const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    expect(skill).toContain("**Project publishing gate.**")
+    expect(skill).toMatch(/project's active instructions and conventions already in context/)
+    expect(skill).toMatch(/exact commit state being sent/)
+    expect(skill).toMatch(/stop before the external write/)
+    expect(skill).toMatch(/If none, proceed/)
+
+    const publishSurfaces = await Promise.all(
+      [
+        ["skills/ce-commit-push-pr/references/commit-and-push.md", "git push -u origin HEAD"],
+        ["skills/ce-commit-push-pr/references/stack-submit.md", "gh stack submit --auto --open"],
+        ["skills/ce-commit-push-pr/references/apply-and-handoff.md", "then push"],
+      ].map(async ([relativePath, publish]) => ({
+        relativePath,
+        publish,
+        content: await readRepoFile(relativePath),
+      })),
+    )
+
+    for (const { relativePath, publish, content } of publishSurfaces) {
+      const gate = content.indexOf("Project publishing gate")
+      const action = content.indexOf(publish)
+      expect(gate, `${relativePath} must apply the publishing gate`).toBeGreaterThan(-1)
+      expect(action, `${relativePath} must retain its publish transition`).toBeGreaterThan(-1)
+      expect(gate, `${relativePath} must gate publication at the point of use`).toBeLessThan(action)
+    }
+  })
+
   test("reconciles the complete branch scope before composition", async () => {
     const content = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",

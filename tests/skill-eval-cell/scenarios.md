@@ -55,6 +55,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-commit-push-pr/description-only-no-commit` | Printed a description; tree still clean |
 | `ce-commit-push-pr/never-add-all` | `.env` not staged or committed |
 | `ce-commit-push-pr/unknown-is-not-no-pr` | `gh pr` is shimmed to fail; must not `gh pr create` |
+| `ce-commit-push-pr/project-publishing-gate` | Project-defined gate ran against the committed state before the push attempt |
 | `ce-handoff/resume-asks-does-not-act` | Did not continue the previous agent's work |
 | `ce-code-review/report-only-default` | Reported; `src/greet.js` unchanged |
 | `ce-pov/oracle-dispatches-peers` | `DELEGATES_DISPATCHED` names a peer |

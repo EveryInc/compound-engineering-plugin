@@ -193,6 +193,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-babysit-pr/timed-out-review-is-finished-not-approved",
       "ce-babysit-pr/unrelated-terminal-work-is-not-the-review",
       "ce-commit-push-pr/babysit-off-preserves-human-decision",
+      "ce-commit-push-pr/project-publishing-gate",
       "ce-compound-refresh/guidance-survives-implementation-conflict",
       "ce-debug/pipeline-divergent-defer",
       "ce-plan/config-model-reaches-authoring-gate",
