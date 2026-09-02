@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { randomUUID } from "node:crypto"
+import { randomUUID, timingSafeEqual } from "node:crypto"
 import { execFileSync, spawn } from "node:child_process"
 import fs from "node:fs"
 import http from "node:http"
@@ -330,6 +330,13 @@ function requestToken(req) {
   return null
 }
 
+function tokenMatches(candidate, expected) {
+  if (typeof candidate !== "string" || typeof expected !== "string") return false
+  const a = Buffer.from(candidate)
+  const b = Buffer.from(expected)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
 function sendJson(res, status, value) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" })
   res.end(`${JSON.stringify(value)}\n`)
@@ -605,7 +612,7 @@ async function serve(options) {
   }
 
   function requireAnnotateToken(req, res) {
-    if (requestToken(req) === sessionToken) return true
+    if (tokenMatches(requestToken(req), sessionToken)) return true
     sendJson(res, 401, { error: "unauthorized" })
     return false
   }
@@ -722,7 +729,16 @@ async function serve(options) {
       if (req.method === "GET" && urlPath === "/") {
         if (!requireAnnotateToken(req, res)) return
         touch()
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
+        // Sync the morph key to what this page will render, so a stream that
+        // connects right after load does not replay the same screen and re-run
+        // its scripts. Any already-open stream still receives the change.
+        maybeBroadcastMorph()
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          // The token rides in this document's URL; never let a prototype's
+          // outbound link or asset carry it in a Referer.
+          "Referrer-Policy": "no-referrer",
+        })
         res.end(renderPage(options))
         return
       }
@@ -773,11 +789,19 @@ async function serve(options) {
     console.log(JSON.stringify(info))
   })
 
+  // An open morph stream or parked wait is an active connection, and
+  // server.close waits for those forever; end the session so they drain.
+  function shutdown() {
+    endSession()
+    server.close(() => process.exit(0))
+    server.closeAllConnections()
+  }
+
   const idleTimer = setInterval(() => {
     if (options.ownerPid && !processAlive(options.ownerPid)) {
-      server.close(() => process.exit(0))
+      shutdown()
     } else if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-      server.close(() => process.exit(0))
+      shutdown()
     }
   }, LIFECYCLE_CHECK_MS)
   idleTimer.unref()

@@ -58,12 +58,20 @@
     return href === "/annotate.css" || src === "/annotate.js" || node.id === "ce-annotate-host"
   }
 
+  function isClassicScript(script) {
+    const type = (script.getAttribute("type") || "").trim().toLowerCase()
+    return type === "" || /^(text|application)\/(x-)?(java|ecma)script$/.test(type)
+  }
+
   function activateScripts(container) {
     for (const old of container.querySelectorAll("script")) {
       if (isOverlayAsset(old)) continue
       const script = document.createElement("script")
       for (const attr of old.attributes) script.setAttribute(attr.name, attr.value)
-      if (!script.src) script.textContent = `{\n${old.textContent || ""}\n}`
+      const source = old.textContent || ""
+      // A re-run classic script would redeclare its top-level const/let; a
+      // block scope avoids that. Modules and data scripts must stay verbatim.
+      if (!script.src) script.textContent = isClassicScript(old) ? `{\n${source}\n}` : source
       old.replaceWith(script)
     }
   }
@@ -195,20 +203,31 @@
       } catch {
         node = null
       }
+      const queued = pin.status === "pending" || pin.status === "working"
       if (node) {
-        if (pin.status !== "pending") pin.status = "attached"
+        if (!queued) pin.status = "attached"
         Object.assign(pin, positionFromNode(node))
-      } else if (pin.status !== "pending") {
+      } else if (!queued) {
         pin.status = "target-gone"
       }
     }
     renderPins()
   }
 
+  function markEnded() {
+    sessionEnded = true
+    commentToolOn = false
+    toggle.disabled = true
+    stop.disabled = true
+    setStatus("Session ended")
+    closeComposer()
+  }
+
   function openComposer(target, event) {
     const selector = cssPath(target)
     if (!selector) return
     draft = {
+      ...positionFromNode(target),
       selector,
       textSnippet: (target.textContent || "").trim().slice(0, 240),
       rect: {
@@ -263,8 +282,8 @@
       pins.push({
         ...payload,
         status: hasWorking ? "pending" : "working",
-        x: draft.rect.x,
-        y: draft.rect.y,
+        x: draft.x,
+        y: draft.y,
       })
       renderPins()
       closeComposer()
@@ -287,12 +306,11 @@
       setStatus("Stop failed — retry")
       return
     }
-    sessionEnded = true
-    commentToolOn = false
-    toggle.disabled = true
-    setStatus("Session ended")
-    closeComposer()
+    markEnded()
   })
+
+  window.addEventListener("scroll", reattachPins, { capture: true, passive: true })
+  window.addEventListener("resize", reattachPins)
 
   document.addEventListener("click", (event) => {
     if (!commentToolOn || sessionEnded) return
@@ -314,18 +332,14 @@
       } catch {
         return
       }
-      if (typeof data.html === "string") applyScreenHtml(data.html)
       applyHead(data.head)
+      if (typeof data.html === "string") applyScreenHtml(data.html)
       advancePinsAfterMorph()
       reattachPins()
     })
-    source.addEventListener("session-ended", () => {
-      sessionEnded = true
-      commentToolOn = false
-      toggle.disabled = true
-      stop.disabled = true
-      setStatus("Session ended")
-      closeComposer()
+    source.addEventListener("session-ended", markEnded)
+    source.addEventListener("error", () => {
+      if (source.readyState === EventSource.CLOSED) markEnded()
     })
   }
 })()

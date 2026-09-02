@@ -267,7 +267,9 @@ describe("ce-prototype light-webserver.js", () => {
     expect(denied.status).toBe(401)
     expect(await denied.text()).not.toContain(token)
 
-    const html = await (await fetch(String(info.url))).text()
+    const page = await fetch(String(info.url))
+    expect(page.headers.get("referrer-policy")).toBe("no-referrer")
+    const html = await page.text()
     expect(html).toContain("Pin me")
     expect(html).toContain("ce-annotate-host")
     expect(html).toContain("/annotate.js")
@@ -294,6 +296,10 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait`)).status).toBe(401)
     expect((await fetch(`${origin}/events`)).status).toBe(401)
     expect((await fetch(`${origin}/annotation`, { method: "POST", headers, body: "{}" })).status).toBe(401)
+    const sameLength = `${String(info.token).slice(0, -1)}${String(info.token).endsWith("0") ? "1" : "0"}`
+    expect((await fetch(`${origin}/wait?token=${sameLength}`)).status).toBe(401)
+    expect((await fetch(`${origin}/wait?token=${String(info.token).slice(0, 8)}`)).status).toBe(401)
+    expect(/timingSafeEqual\(/.test(await fs.readFile(serverScript, "utf8"))).toBe(true)
 
     const authed = `${origin}/annotation?token=${info.token}`
     expect((await fetch(authed, { method: "POST", headers, body: "" })).status).toBe(400)
@@ -360,27 +366,64 @@ describe("ce-prototype light-webserver.js", () => {
     const screenPath = path.join(String(info.screen_dir), "001-screen.html")
     await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:red}</style></head><body><h1 id=\"heading\">Original</h1></body></html>")
     const origin = `http://localhost:${info.port}`
+    expect((await fetch(String(info.url))).status).toBe(200)
     const stream = await fetch(`${origin}/events?token=${info.token}`)
     expect(stream.status).toBe(200)
     const reader = stream.body!.getReader()
-    await reader.read()
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:blue}</style></head><body><h1 id=\"heading\">Revised</h1></body></html>")
-
     const decoder = new TextDecoder()
     let text = ""
-    const deadline = Date.now() + 2000
-    while (Date.now() < deadline && !text.includes("Revised")) {
-      const { done, value } = await reader.read()
-      if (done) break
-      text += decoder.decode(value, { stream: true })
+    const timedOut = Symbol("timed out")
+    let pendingRead: Promise<ReadableStreamReadResult<Uint8Array>> | null = null
+    const readUntil = async (predicate: () => boolean, ms: number) => {
+      const deadline = Date.now() + ms
+      while (Date.now() < deadline && !predicate()) {
+        pendingRead ??= reader.read()
+        const chunk = await Promise.race([
+          pendingRead,
+          new Promise<typeof timedOut>((resolve) => setTimeout(() => resolve(timedOut), Math.max(1, deadline - Date.now()))),
+        ])
+        if (chunk === timedOut) break
+        pendingRead = null
+        if (chunk.done) break
+        text += decoder.decode(chunk.value, { stream: true })
+      }
     }
+
+    // A stream opened right after the page was served must not replay the
+    // screen it already shows; that re-ran the prototype's scripts on load.
+    await readUntil(() => text.includes("event: morph"), 700)
+    expect(text).toContain(":ok")
+    expect(text).not.toContain("event: morph")
+
+    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:blue}</style></head><body><h1 id=\"heading\">Revised</h1></body></html>")
+    await readUntil(() => text.includes("Revised"), 2000)
     expect(text).toContain("event: morph")
     expect(text).toContain("Revised")
     expect(text).toContain("\"head\"")
     expect(text).toContain("color:blue")
     expect(await fs.readFile(screenPath, "utf8")).not.toContain("ce-annotate-host")
     await reader.cancel()
+  })
+
+  test("idle shutdown ends the session instead of hanging on an open morph stream", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-idle-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "250",
+      CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "50",
+    })
+    const origin = `http://localhost:${info.port}`
+    const stream = await fetch(`${origin}/events?token=${info.token}`)
+    expect(stream.status).toBe(200)
+    const text = await stream.text()
+    expect(text).toContain("event: session-ended")
+
+    let status = { status: "running" }
+    for (let i = 0; i < 20; i++) {
+      status = JSON.parse((await runServerCommand(["status", "--root", root])).stdout.trim())
+      if (status.status === "stopped") break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    expect(status.status).toBe("stopped")
   })
 
   test("annotation POST resets idle timeout while wait and /version do not", async () => {
@@ -432,7 +475,11 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("data-ce-morph-head")
     expect(overlay).toContain("Stop failed")
     expect(overlay).toContain('if (pin.status === "working")')
-    expect(overlay).toContain('pin.status === "pending"')
+    expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
+    expect(overlay).toContain("isClassicScript(old)")
+    expect(overlay.indexOf("applyHead(data.head)")).toBeLessThan(overlay.indexOf("applyScreenHtml(data.html)"))
+    expect(overlay).toContain('addEventListener("scroll", reattachPins')
+    expect(overlay).toContain("EventSource.CLOSED")
     expect(overlay).not.toMatch(/WebSocket/)
   })
 
