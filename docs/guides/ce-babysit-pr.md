@@ -119,6 +119,30 @@ A just-landed `MERGED` under `stack-land` is a layer transition, not the end of 
 
 ---
 
+## Why All This Machinery
+
+Much simpler PR-watch skills exist — a page of prose that polls `gh pr checks`, fixes comments, and stops after a few rounds. If a strong model can reason from a goal statement, why does this skill carry a ~3,500-line snapshot engine and a directory of references?
+
+The short answer: the prose here *is* the goal statement — the always-loaded body is about 60 lines. The engine holds the parts that prose has already failed at in production. The split is deliberate and documented: **the engine reports what is observable and cheap to establish; the agent decides what those observations mean** (see `docs/solutions/skill-design/liveness-judgment-belongs-to-the-agent.md`, which records the one time a judgment leaked into the engine and had to be deleted).
+
+Each major piece of the engine exists because a specific failure happened without it:
+
+| Machinery | The failure it prevents |
+|-----------|------------------------|
+| Consumption-only branch currency | A run merged the base into two CLEAN, MERGEABLE PRs after a sibling merged. The correct rule was stated three times in prose and still missed; the engine now emits the item and prose only consumes it |
+| File-locked state, claim -> act -> confirm dedup | Two drivers (a resume plus a wake, or concurrent sessions) acting on the same thread twice, or re-fixing the same CI failure across restarts |
+| Token-free `watch` with agent wake | An 8-hour unattended run. Polling in agent prose burns tokens every interval; the Python watcher spends none and wakes the agent only on actionable change |
+| Active-time budget accounting | Laptop sleep does not count against the 8-hour budget; a wall-clock budget would silently expire overnight |
+| `needs-human` decision ledger | Unattended and pipeline runs must surface a human decision durably and keep watching, instead of blocking on a question nobody is there to answer or silently dropping it |
+| Trajectory / non-convergence evidence | A fix loop that oscillates (A fixed, B appears, A returns) looks like progress from inside any single tick. Session history is lossy across compaction, so the evidence has to live on disk |
+| Stack topology via the host's manager probe | Advancing or landing the wrong layer of a stack; only a confirmed manager probe activates stack posture |
+
+Simpler skills do not solve these problems — they export them. A bounded "3 rounds then stop" cap is a budget the user enforces by re-invoking; "poll until all reviewers are finished" with no definition of finished hangs on a reviewer that announces itself and never signals completion (the exact bug fixed here in #1606/#1611); and a watcher with no comment-trust rule will follow instructions planted in PR comments, a concretely exploited injection class.
+
+The machinery still has to pay rent. When a piece turns out to encode a judgment rather than an observation, it gets deleted — #1611 removed a nine-function review-liveness detector and replaced it with a stated goal in `settle.md`. The direction of travel is thinner prose over a boring, observable-facts engine, not fewer facts.
+
+---
+
 ## Quick Example
 
 `/ce-commit-push-pr` opens PR #1234 and hands off. `/ce-babysit-pr` confirms GitHub, checks out the PR head, and starts `pr-snapshot watch`.
