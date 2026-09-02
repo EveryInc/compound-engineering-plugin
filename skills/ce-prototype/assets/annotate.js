@@ -302,7 +302,7 @@
   })
 
   commentField.addEventListener("input", syncSubmit)
-  cancel.addEventListener("click", closeComposer)
+  cancel.addEventListener("click", () => closeComposer())
 
   composer.addEventListener("submit", async (event) => {
     event.preventDefault()

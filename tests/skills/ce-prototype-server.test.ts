@@ -879,6 +879,7 @@ describe("ce-prototype light-webserver.js", () => {
     const closeComposer = overlay.slice(overlay.indexOf("function closeComposer("), overlay.indexOf("function renderPins()"))
     expect(closeComposer).not.toContain("inFlight = false")
     expect(overlay).toContain("closeComposer(inFlight)")
+    expect(overlay).toContain('addEventListener("click", () => closeComposer())')
     expect(overlay).toContain("composer.hidden = false")
     // The overlay owns its host: a custom element created at runtime and held
     // by reference only — no id or class an authored stylesheet could match,
