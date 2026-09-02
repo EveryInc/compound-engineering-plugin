@@ -365,13 +365,17 @@ function injectRefresh(options, html) {
 // head children in head, ignores the second doctype and <head> start tag, and
 // creates <body> with its attributes. Nothing in the authored text is located
 // or rewritten, so a "</body>" in a script string or comment cannot mislead it.
-function annotateDocument(options, origin) {
+function annotateScreen(html, origin) {
   const boot = annotateBoot(origin)
+  const text = html.replace(/^\uFEFF/, "")
+  if (!isFullDocument(text)) return wrapAnnotateFragment(text, boot)
+  return `<!doctype html>\n${boot}\n${text}`
+}
+
+function annotateDocument(options, origin) {
   const screen = newestScreen(options)
-  if (!screen) return wrapAnnotateFragment(WAITING_HTML, boot)
-  const html = fs.readFileSync(screen, "utf8").replace(/^\uFEFF/, "")
-  if (!isFullDocument(html)) return wrapAnnotateFragment(html, boot)
-  return `<!doctype html>\n${boot}\n${html}`
+  if (!screen) return wrapAnnotateFragment(WAITING_HTML, annotateBoot(origin))
+  return annotateScreen(fs.readFileSync(screen, "utf8"), origin)
 }
 
 function renderPage(options, origin) {
@@ -447,7 +451,9 @@ function parseAnnotation(raw) {
   }
 }
 
-function safeFileResponse(rootDir, req, res, headers = {}) {
+// The regular file under rootDir that the request names, or null after the
+// error response has been written.
+function resolveContainedFile(rootDir, req, res) {
   let name
   try {
     // A malformed percent-escape throws URIError; without this the throw is
@@ -456,7 +462,7 @@ function safeFileResponse(rootDir, req, res, headers = {}) {
   } catch {
     res.writeHead(400)
     res.end("Bad request")
-    return
+    return null
   }
   name = name.replace(/^\/+/, "")
   // Serve nested paths so a screen can keep the asset layout it was copied
@@ -465,7 +471,7 @@ function safeFileResponse(rootDir, req, res, headers = {}) {
   if (!filePath) {
     res.writeHead(404)
     res.end("Not found")
-    return
+    return null
   }
   let stat
   try {
@@ -473,17 +479,26 @@ function safeFileResponse(rootDir, req, res, headers = {}) {
   } catch {
     res.writeHead(404)
     res.end("Not found")
-    return
+    return null
   }
   // `/files/%2e` resolves to the screens directory itself, which passes an
   // existence check and then throws EISDIR on read — uncaught, killing the server.
   if (!stat.isFile()) {
     res.writeHead(404)
     res.end("Not found")
-    return
+    return null
   }
+  return filePath
+}
+
+function sendFile(filePath, res, headers = {}) {
   res.writeHead(200, { "Content-Type": contentType(filePath), ...headers })
   res.end(fs.readFileSync(filePath))
+}
+
+function safeFileResponse(rootDir, req, res, headers = {}) {
+  const filePath = resolveContainedFile(rootDir, req, res)
+  if (filePath) sendFile(filePath, res, headers)
 }
 
 // A prototype recreated from a real product brings whatever that product uses,
@@ -726,6 +741,25 @@ async function serve(options) {
     return `http://${DEFAULT_URL_HOST}:${server.address().port}`
   }
 
+  // Every document that carries the overlay is served the same way.
+  function serveAnnotateDocument(req, res, html) {
+    // A page being served is a tab loading, not the last tab closing: a
+    // reload's stream reconnects only once this document's scripts run.
+    if (sseGraceTimer) armSseGrace()
+    // Sync the change key to what this page will render, so a stream that
+    // connects right after load does not reload the same screen. Any
+    // already-open stream still receives the change.
+    broadcastIfChanged()
+    res.writeHead(200, {
+      "Content-Type": CONTENT_TYPES[".html"],
+      ...NO_STORE,
+      // The token rides in the root document's URL; never let a prototype's
+      // outbound link or asset carry it in a Referer.
+      "Referrer-Policy": "no-referrer",
+    })
+    res.end(html)
+  }
+
   function armSseGrace() {
     if (sseGraceTimer) clearTimeout(sseGraceTimer)
     sseGraceTimer = setTimeout(() => {
@@ -859,21 +893,25 @@ async function serve(options) {
           return
         }
         touch()
-        // A page being served is a tab loading, not the last tab closing: a
-        // reload's stream reconnects only once this document's scripts run.
-        if (sseGraceTimer) armSseGrace()
-        // Sync the change key to what this page will render, so a stream that
-        // connects right after load does not reload the same screen. Any
-        // already-open stream still receives the change.
-        broadcastIfChanged()
-        res.writeHead(200, {
-          "Content-Type": "text/html; charset=utf-8",
-          ...NO_STORE,
-          // The token rides in this document's URL; never let a prototype's
-          // outbound link or asset carry it in a Referer.
-          "Referrer-Policy": "no-referrer",
-        })
-        res.end(renderPage(options, requestOrigin(req)))
+        serveAnnotateDocument(req, res, renderPage(options, requestOrigin(req)))
+        return
+      }
+
+      // A linked page under screens/ is a screen too: it carries the same
+      // overlay and stream, or the session would end at the first navigation.
+      // It stays ungated like every other screen file; the overlay recovers
+      // the token from sessionStorage. Other assets are served raw.
+      if (req.method === "GET") {
+        touch()
+        const filePath = resolveContainedFile(options.screensDir, req, res)
+        if (!filePath) return
+        if (contentType(filePath) === CONTENT_TYPES[".html"]) {
+          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req)))
+          return
+        }
+        // A reload must pick up a revised stylesheet or script whose URL did
+        // not change; a cached copy would show the old screen.
+        sendFile(filePath, res, NO_STORE)
         return
       }
     }
@@ -886,9 +924,7 @@ async function serve(options) {
     }
     if (req.method === "GET") {
       touch()
-      // Annotate mode reloads to pick up a revised stylesheet or script whose
-      // URL did not change; a cached copy would show the old screen.
-      safeFileResponse(options.screensDir, req, res, options.annotate ? NO_STORE : {})
+      safeFileResponse(options.screensDir, req, res)
       return
     }
     res.writeHead(404)

@@ -365,6 +365,51 @@ describe("ce-prototype light-webserver.js", () => {
     expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
   })
 
+  test("annotate mode serves every HTML file under screens/ with the overlay; assets stay raw; default mode is untouched", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-linked-"))
+    const info = await startServer(root, ["--annotate"])
+    const origin = `http://localhost:${info.port}`
+    const boot = `<!doctype html>\n<script defer src="${origin}/__ce-annotate/annotate.js"></script>\n`
+    const details = '<!DOCTYPE html><html><head><link rel="stylesheet" href="/styles.css"></head><body><h1 id="detail">Details</h1></body></html>'
+    await fs.mkdir(path.join(String(info.screen_dir), "pages"))
+    await fs.writeFile(path.join(String(info.screen_dir), "details.html"), details)
+    await fs.writeFile(path.join(String(info.screen_dir), "pages", "part.html"), "<h2>Part</h2>")
+    // Newest top-level .html is what / serves, unchanged: the home screen is written last.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await fs.writeFile(path.join(String(info.screen_dir), "001-home.html"), '<a href="/details.html">details</a>')
+    await fs.writeFile(path.join(String(info.screen_dir), "styles.css"), "h1 { color: red }")
+
+    const page = await fetch(`${origin}/details.html`)
+    expect(page.status).toBe(200)
+    expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8")
+    expect(page.headers.get("cache-control")).toBe("no-store")
+    expect(page.headers.get("referrer-policy")).toBe("no-referrer")
+    expect(await page.text()).toBe(`${boot}${details}`)
+
+    // A fragment page gets the same shell as a fragment root screen.
+    const part = await (await fetch(`${origin}/pages/part.html`)).text()
+    expect(part).toContain("<h2>Part</h2>")
+    expect(part).toContain("CE local web")
+    expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js"><\/script>[\s\S]*<\/head>/)
+
+    const css = await fetch(`${origin}/styles.css`)
+    expect(css.headers.get("content-type")).toBe("text/css; charset=utf-8")
+    expect(css.headers.get("cache-control")).toBe("no-store")
+    expect(await css.text()).toBe("h1 { color: red }")
+
+    // The root still serves the newest screen, not the linked page.
+    const home = await (await fetch(String(info.url))).text()
+    expect(home).toContain('<a href="/details.html">details</a>')
+    expect(home).not.toContain("Details</h1>")
+
+    const plainRoot = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-linked-plain-"))
+    const plain = await startServer(plainRoot)
+    await fs.writeFile(path.join(String(plain.screen_dir), "details.html"), details)
+    const raw = await fetch(`http://localhost:${plain.port}/details.html`)
+    expect(raw.headers.get("cache-control")).toBeNull()
+    expect(await raw.text()).toBe(details)
+  })
+
   test("an annotation whose body is still arriving when the session ends is refused, not queued", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-late-body-"))
     const info = await startServer(root, ["--annotate"])
@@ -692,7 +737,16 @@ describe("ce-prototype light-webserver.js", () => {
     expect(closeComposer).not.toContain("inFlight = false")
     // The overlay owns its host: created at runtime and held by reference, so a
     // screen carrying the same id can neither hijack it nor be mistaken for it.
-    expect(overlay).toContain('const host = document.body.appendChild(Object.assign(document.createElement("div"), { id: "ce-annotate-host" }))')
+    expect(overlay).toContain('const host = document.createElement("div")')
+    // Parented on <html>, fixed and click-through, so it is outside every
+    // body-scoped selector, document.body.children, and the authored layout.
+    expect(overlay).toContain("document.documentElement.appendChild(host)")
+    expect(overlay).not.toContain("document.body.appendChild(")
+    expect(overlay).toMatch(/host\.style\.cssText = "position: fixed; inset: 0; pointer-events: none; z-index: \d+;/)
+    const css = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
+    expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  pointer-events: none;/)
+    expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*pointer-events: auto;/)
+    expect(css).toMatch(/\.ce-annotate-composer \{[^}]*pointer-events: auto;/)
     expect(overlay).not.toContain("getElementById(\"ce-annotate-host\")")
     expect(overlay).not.toContain("#ce-annotate-host")
     expect(overlay).toContain("if (host.contains(target)) return")

@@ -14,9 +14,15 @@
     }
   })()
   // The overlay owns its host: created here (this script is deferred, so the
-  // body exists) and held by reference. The id is for styling and debugging;
-  // a screen using the same id is never resolved as the host.
-  const host = document.body.appendChild(Object.assign(document.createElement("div"), { id: "ce-annotate-host" }))
+  // document has parsed) and held by reference. The id is for styling and
+  // debugging; a screen using the same id is never resolved as the host. It
+  // hangs off <html>, not <body>, so it is outside every body-scoped selector
+  // and document.body.children, and takes no part in the authored layout. The
+  // inline box applies before the stylesheet arrives.
+  const host = document.createElement("div")
+  host.id = "ce-annotate-host"
+  host.style.cssText = "position: fixed; inset: 0; pointer-events: none; z-index: 2147483645; margin: 0; padding: 0; border: 0;"
+  document.documentElement.appendChild(host)
   const shadow = host.attachShadow({ mode: "open" })
   const css = document.createElement("link")
   css.rel = "stylesheet"
