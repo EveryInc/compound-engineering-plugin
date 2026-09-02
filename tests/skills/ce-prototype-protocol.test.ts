@@ -9,6 +9,7 @@ const SKILLS_ROOT = path.join(process.cwd(), "skills")
 const SKILL_DIR = path.join(SKILLS_ROOT, "ce-prototype")
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 const PREVIEW_BODY = readFileSync(path.join(SKILL_DIR, "references/preview.md"), "utf8")
+const ANNOTATION_LOOP_BODY = readFileSync(path.join(SKILL_DIR, "references/annotation-loop.md"), "utf8")
 const CRAFT_FLOOR_BODY = readFileSync(path.join(SKILL_DIR, "references/craft-floor.md"), "utf8")
 // Assert executed shell against the fenced blocks, never the whole file: a probe quoted in
 // explanatory prose would otherwise satisfy every guard while no command actually runs.
@@ -55,6 +56,7 @@ describe("ce-prototype protocol", () => {
     const mentioned = [
       ...SKILL_BODY.matchAll(/`((?:references|scripts)\/[^`]+)`/g),
       ...PREVIEW_BODY.matchAll(/`((?:references|scripts)\/[^`]+)`/g),
+      ...ANNOTATION_LOOP_BODY.matchAll(/`((?:references|scripts)\/[^`]+)`/g),
     ].map((match) => match[1].replace(/#.*/, ""))
 
     expect(mentioned.length).toBeGreaterThan(0)
@@ -67,8 +69,16 @@ describe("ce-prototype protocol", () => {
 
   test("executed preview commands use SKILL_DIR with a trailing semicolon", () => {
     expect(PREVIEW_BODY).toMatch(/SKILL_DIR="[^"]+";/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/SKILL_DIR="[^"]+";/)
     expect(PREVIEW_BODY).not.toContain("${CLAUDE_SKILL_DIR}")
+    expect(ANNOTATION_LOOP_BODY).not.toContain("${CLAUDE_SKILL_DIR}")
     expect(SKILL_BODY).not.toContain("${CLAUDE_SKILL_DIR}")
+    expect(ANNOTATION_LOOP_BODY).toMatch(/light-webserver\.js" wait --root/)
+    expect(PREVIEW_BODY).toMatch(/start --root "\$PROTO_DIR" --annotate/)
+    expect(PREVIEW_BODY).not.toMatch(/no browser-to-agent event path/)
+    expect(ANNOTATION_LOOP_BODY).not.toMatch(/no browser-to-agent event path/)
+    expect(SKILL_BODY).toContain("`references/annotation-loop.md`")
+    expect(PREVIEW_BODY).toContain("`references/annotation-loop.md`")
   })
 
   test("one organizing rule governs modality, fidelity, and medium", () => {

@@ -71,6 +71,7 @@ While you try the prototype:
 
 - Competing options sit on one surface so you can judge them together.
 - After each action or option change, the relevant state is visible.
+- On an isolated web preview you can pin a comment on a live element; the agent revises that screen in place. Chat is the fallback when the wait loop cannot run, and the only path on overlays and yielded media.
 - It never marks a question answered on its own judgment. It waits for you to experience the thing and choose.
 - After you decide, it re-lists what is still worth building. A decision often answers a later question, kills one, or turns up one nobody had listed.
 - If what you decide changes *what you want to build* rather than answering the question, it stops and hands back what it learned.
@@ -147,7 +148,7 @@ Standalone prompt-only runs stay file-free and continue into `ce-brainstorm` or 
 ## FAQ
 
 **How is this different from a visual probe in `ce-brainstorm`?**
-A visual probe is a rough, display-only sketch for a one-decision question you can judge in chat. Use `ce-prototype` when the question turns on finish, motion, or behavior you have to drive, or when a sketch was built and failed to settle it.
+A visual probe is a rough, display-only sketch for a one-decision question you can judge in chat. Feedback there stays in chat. Use `ce-prototype` when the question turns on finish, motion, or behavior you have to drive, or when a sketch was built and failed to settle it. Isolated web prototypes can take in-page pins; probes cannot.
 
 **Does it become the real feature?**
 No. The prototype is unmaintained and unshipped. A scratch prototype is kept so implementation can read it. An overlay on the real app is undone when the try ends.

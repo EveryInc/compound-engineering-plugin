@@ -99,6 +99,11 @@ describe("ce-prototype light-webserver.js", () => {
     expect(html).toContain("First slice")
     expect(html).toContain("CE local web")
     expect(html).toContain('fetch("/version"')
+    expect(html).not.toContain("WebSocket")
+    expect(html).not.toContain("events")
+    expect(html).not.toContain("EventSource")
+    expect(html).not.toContain("annotate.js")
+    expect(html).not.toContain("ce-annotate-host")
 
     response = await fetch(`${String(info.url)}/version`)
     let version = await response.json()
@@ -245,5 +250,169 @@ describe("ce-prototype light-webserver.js", () => {
     } finally {
       owner.kill()
     }
+  })
+
+  test("annotate start writes a token URL and injects overlay only at serve time", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-annotate-"))
+    const info = await startServer(root, ["--annotate"])
+    const token = String(info.token)
+    expect(token).toMatch(/^[0-9a-f-]{36}$/)
+    expect(info.url).toBe(`http://localhost:${info.port}?token=${token}`)
+    expect(JSON.parse(await fs.readFile(path.join(root, "state", "display-info.json"), "utf8")).token).toBe(token)
+
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1 id=\"heading\">Pin me</h1>")
+    const origin = `http://localhost:${info.port}`
+
+    const denied = await fetch(`${origin}/`)
+    expect(denied.status).toBe(401)
+    expect(await denied.text()).not.toContain(token)
+
+    const html = await (await fetch(String(info.url))).text()
+    expect(html).toContain("Pin me")
+    expect(html).toContain("ce-annotate-host")
+    expect(html).toContain("/annotate.js")
+    expect(html).not.toContain(token)
+    expect(html).not.toContain("WebSocket")
+    expect(html).not.toContain('fetch("/version"')
+    expect(await fs.readFile(path.join(String(info.screen_dir), "001-screen.html"), "utf8")).not.toContain("ce-annotate-host")
+  })
+
+  test("annotate routes require the token and reject a bad annotation body", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-annotate-auth-"))
+    const info = await startServer(root, ["--annotate"])
+    const origin = `http://localhost:${info.port}`
+    const headers = { "Content-Type": "application/json" }
+
+    expect((await fetch(`${origin}/wait`)).status).toBe(401)
+    expect((await fetch(`${origin}/events`)).status).toBe(401)
+    expect((await fetch(`${origin}/annotation`, { method: "POST", headers, body: "{}" })).status).toBe(401)
+
+    const authed = `${origin}/annotation?token=${info.token}`
+    expect((await fetch(authed, { method: "POST", headers, body: "" })).status).toBe(400)
+    expect((await fetch(authed, { method: "POST", headers, body: "not-json" })).status).toBe(400)
+    expect((await fetch(authed, { method: "POST", headers, body: "{}" })).status).toBe(400)
+    expect((await fetch(authed, { method: "POST", headers, body: JSON.stringify({ comment: "x" }) })).status).toBe(400)
+    expect((await fetch(authed, { method: "POST", headers, body: JSON.stringify({ selector: "h1" }) })).status).toBe(400)
+  })
+
+  test("wait prints one annotation and session end unblocks the next wait", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-"))
+    const info = await startServer(root, ["--annotate"])
+    const origin = `http://localhost:${info.port}`
+    const record = {
+      comment: "more padding above this heading",
+      selector: "h1",
+      textSnippet: "Pin me",
+      rect: { x: 12, y: 8, width: 40, height: 20 },
+    }
+
+    const waiting = runServerCommand(["wait", "--root", root])
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    const posted = await fetch(`${origin}/annotation?token=${info.token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    })
+    expect(posted.status).toBe(200)
+
+    const result = await waiting
+    expect(result.exitCode, result.stderr).toBe(0)
+    const payload = JSON.parse(result.stdout.trim())
+    expect(payload.comment).toBe(record.comment)
+    expect(payload.selector).toBe(record.selector)
+    expect(payload.textSnippet).toBe(record.textSnippet)
+    expect(payload.rect).toEqual(record.rect)
+
+    const ending = runServerCommand(["wait", "--root", root])
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect((await fetch(`${origin}/session/end?token=${info.token}`, { method: "POST" })).status).toBe(200)
+    const ended = await ending
+    expect(ended.exitCode, ended.stderr).toBe(1)
+    expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
+  })
+
+  test("closing the last morph stream ends the session after a reconnect grace", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-end-"))
+    const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_SSE_GRACE_MS: "80" })
+    const origin = `http://localhost:${info.port}`
+    const stream = await fetch(`${origin}/events?token=${info.token}`)
+    expect(stream.status).toBe(200)
+    await stream.body?.cancel()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const result = await runServerCommand(["wait", "--root", root])
+    expect(result.exitCode, result.stderr).toBe(1)
+    expect(JSON.parse(result.stdout.trim()).status).toBe("session-ended")
+  })
+
+  test("annotate morphs the current screen body without writing overlay into screens", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-morph-"))
+    const info = await startServer(root, ["--annotate"])
+    const screenPath = path.join(String(info.screen_dir), "001-screen.html")
+    await fs.writeFile(screenPath, "<h1 id=\"heading\">Original</h1>")
+    const origin = `http://localhost:${info.port}`
+    const stream = await fetch(`${origin}/events?token=${info.token}`)
+    expect(stream.status).toBe(200)
+    const reader = stream.body!.getReader()
+    await reader.read()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await fs.writeFile(screenPath, "<h1 id=\"heading\">Revised</h1>")
+
+    const decoder = new TextDecoder()
+    let text = ""
+    const deadline = Date.now() + 2000
+    while (Date.now() < deadline && !text.includes("Revised")) {
+      const { done, value } = await reader.read()
+      if (done) break
+      text += decoder.decode(value, { stream: true })
+    }
+    expect(text).toContain("event: morph")
+    expect(text).toContain("Revised")
+    expect(await fs.readFile(screenPath, "utf8")).not.toContain("ce-annotate-host")
+    await reader.cancel()
+  })
+
+  test("annotation POST resets idle timeout while wait and /version do not", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-annotate-idle-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "250",
+      CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "50",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "80",
+    })
+    const origin = `http://localhost:${info.port}`
+    await fetch(String(info.url))
+
+    await fetch(`${origin}/annotation?token=${info.token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comment: "keep alive", selector: "h1" }),
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 180))
+    let status = JSON.parse((await runServerCommand(["status", "--root", root])).stdout.trim())
+    expect(status.status).toBe("running")
+
+    const deadline = Date.now() + 700
+    while (Date.now() < deadline) {
+      try {
+        await fetch(`${origin}/version`)
+        await fetch(`${origin}/wait?token=${info.token}`)
+      } catch {
+        break
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    status = JSON.parse((await runServerCommand(["status", "--root", root])).stdout.trim())
+    expect(status.status).toBe("stopped")
+  })
+
+  test("overlay arms comments only when the tool is on and Stop ends the session", async () => {
+    const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
+    expect(overlay).toContain("let commentToolOn = false")
+    expect(overlay).toMatch(/if \(!commentToolOn \|\| sessionEnded\) return/)
+    expect(overlay).toContain('tokenUrl("/session/end")')
+    expect(overlay).toContain("target-gone")
+    expect(overlay).toContain("EventSource")
+    expect(overlay).not.toMatch(/WebSocket/)
   })
 })

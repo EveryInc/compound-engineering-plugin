@@ -1,0 +1,107 @@
+.ce-annotate-chrome {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 2147483646;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font: 13px/1.3 system-ui, -apple-system, sans-serif;
+}
+
+.ce-annotate-chrome button,
+.ce-annotate-composer button {
+  appearance: none;
+  border: 1px solid #1f2328;
+  background: #fff;
+  color: #1f2328;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ce-annotate-toggle.is-on,
+.ce-annotate-toggle[aria-pressed="true"] {
+  background: #1f2328;
+  color: #fff;
+}
+
+.ce-annotate-stop {
+  background: #fff5f5;
+}
+
+.ce-annotate-status {
+  padding: 4px 8px;
+  background: #fff;
+  border: 1px solid #d8dee4;
+  border-radius: 6px;
+}
+
+.ce-annotate-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2147483645;
+}
+
+.ce-annotate-pin {
+  position: fixed;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #1f2328;
+  background: #ffe08a;
+  pointer-events: none;
+  font: 11px/20px system-ui, sans-serif;
+}
+
+.ce-annotate-pin.is-working {
+  background: #9ecbff;
+}
+
+.ce-annotate-pin.is-pending {
+  background: #e6edf3;
+}
+
+.ce-annotate-pin.is-target-gone {
+  background: #ffb3b3;
+}
+
+.ce-annotate-composer {
+  position: fixed;
+  z-index: 2147483647;
+  width: 260px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #1f2328;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 32, 0.18);
+  font: 13px/1.4 system-ui, -apple-system, sans-serif;
+}
+
+.ce-annotate-comment {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 72px;
+  font: inherit;
+}
+
+.ce-annotate-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ce-annotate-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ce-annotate-error {
+  margin: 8px 0 0;
+  color: #9b111e;
+}

@@ -25,7 +25,7 @@ Read `references/scoping.md` before you ask the user anything or touch the repo.
 
 ## Build it
 
-Read `references/build.md` and `references/preview.md` before writing anything.
+Read `references/build.md` and `references/preview.md` before writing anything. Once an isolated web preview is up, load `references/annotation-loop.md`. Overlay and yielded-medium runs stay on chat.
 
 A question is settled by seeing when the judgment lands on the rendered result: how a layout reads, what a palette does, how dense a screen feels. It is settled by driving when the judgment lands on what happens as the user moves through it: a flow, a state model, how a control answers. Load `references/craft-floor.md` for a seeing question. It carries the quality floor the render has to clear and the rule for how avenues differ, and neither of those lives here. A question settled by driving does not load it and gains no finish from it.
 

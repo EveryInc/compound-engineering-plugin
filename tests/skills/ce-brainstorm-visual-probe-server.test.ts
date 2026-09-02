@@ -102,6 +102,9 @@ describe("ce-brainstorm light-webserver.js", () => {
     expect(html).not.toContain("WebSocket")
     expect(html).not.toContain("data-choice")
     expect(html).not.toContain("events")
+    expect(html).not.toContain("EventSource")
+    expect(html).not.toContain("annotate.js")
+    expect(html).not.toContain("ce-annotate-host")
 
     response = await fetch(`${String(info.url)}/version`)
     let version = await response.json()

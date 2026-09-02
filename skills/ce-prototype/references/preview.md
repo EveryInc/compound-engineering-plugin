@@ -1,6 +1,6 @@
 # Preview helper
 
-Load this when serving a local web prototype. Feedback stays in chat.
+Load this when serving a local web prototype. Isolated web runs start the helper with annotation on; `references/annotation-loop.md` owns the wait loop and when chat is the fallback.
 
 This skill ships its own `scripts/light-webserver.js`. Do not import a sibling skill's copy — isolation forbids that. The file is a byte-identical copy of brainstorm's helper.
 
@@ -67,7 +67,7 @@ Start (detached), with `PROTO_DIR` set to the absolute path the resolution print
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 PROTO_DIR="<absolute question directory the resolution block printed>";
 if [ -L "$PROTO_DIR" ] || [ ! -O "$PROTO_DIR" ]; then echo "unsafe run directory: $PROTO_DIR" >&2; exit 1; fi;
-node "$SKILL_DIR/scripts/light-webserver.js" start --root "$PROTO_DIR"
+node "$SKILL_DIR/scripts/light-webserver.js" start --root "$PROTO_DIR" --annotate
 ```
 
 The server takes `--root` on trust — it resolves the path and creates it, and checks nothing — so each call re-checks the directory it is about to hand over. The path arrives here by transcription across separate shell invocations, and a mistyped or stale one would otherwise be written to unverified.
@@ -84,11 +84,11 @@ node "$SKILL_DIR/scripts/light-webserver.js" status --root "$PROTO_DIR"
 
 If `SKILL_DIR` cannot be resolved to a concrete skill directory, do not guess from the project CWD. Stop and report that the preview cannot start; do not settle the question in chat instead.
 
-The helper creates `screens/` and `state/`, serves the newest `.html` file in `screens/` at `/`, writes `state/display-info.json`, and exposes `/version` so the browser can poll for screen changes. Every other path is read from `screens/` at that same path — `/img/blot.webp` serves `screens/img/blot.webp` — so a screen keeps whatever asset layout it was copied from, nesting included. Put the assets the screen references under `screens/` at the paths it asks for, or inline them as data URIs. Anything resolving outside `screens/` is refused.
+The helper creates `screens/` and `state/`, serves the newest `.html` file in `screens/` at `/`, writes `state/display-info.json`, and exposes `/version` so a default (annotate-off) browser can poll for screen changes. Isolated web starts pass `--annotate`: the printed URL carries a per-run token, overlay assets are injected at serve time, and disk screens stay agent-clean. Every other path is read from `screens/` at that same path — `/img/blot.webp` serves `screens/img/blot.webp` — so a screen keeps whatever asset layout it was copied from, nesting included. Put the assets the screen references under `screens/` at the paths it asks for, or inline them as data URIs. Anything resolving outside `screens/` is refused.
 
 Before handing over the URL, look at the rendered screen — a screenshot where the platform has one, otherwise measure the laid-out result in the DOM. A 200 on every asset is not that check: an image that loads correctly at the wrong size passes it, as does a script that leaves the page inert. Check each variant at rest, not just the page — one bug in shared scaffolding reads as several bad designs. Drive an interaction only when its behavior is invisible at rest, which is also the case where telling them to try something you have not tried is a claim you made up. Measurement lies by default — computed styles read mid-transition, scroll events coalesce — so read after things settle, and suspect the instrument before you conclude the page is broken. You are done when they could judge the idea, not when the code is correct. If you have no way to see the rendered result, say so when you hand over the URL rather than implying it was checked.
 
-The browser reloads only when the newest screen changes; it must not continually reload on a timer. `/version` polling does not count as activity. Detached servers monitor the owning harness process when it can be resolved, and all servers exit after an idle timeout. The helper has no browser-to-agent event path. Interactive HTML is allowed.
+A default start reloads only when the newest screen changes; it must not continually reload on a timer. Annotate-on uses a morph stream instead of that full reload. `/version` polling and `wait` do not count as activity; an annotation POST does. Detached servers monitor the owning harness process when it can be resolved, and all servers exit after an idle timeout. Interactive HTML is allowed.
 
 Write screens under:
 
@@ -116,6 +116,6 @@ The server is the same everywhere; only the launch mode changes.
 - **Claude Code / Claude desktop app:** detached `start` is the default path. If the app opens localhost URLs, show the returned URL and continue.
 - **Codex CLI / Codex app:** if detached processes are reaped or the URL dies after the tool call, use `start --foreground` through the platform's long-running/background terminal mechanism.
 - **Plain terminal UI:** print the returned URL for the user to open manually.
-- **Remote or containerized sessions:** if `localhost` is not reachable from the user's browser, start with `--host 0.0.0.0` and tell the user which host/port to open. That serves the run directory to anything that can reach the port, with no auth — do it only on a network the user trusts, and say so when you hand over the URL.
+- **Remote or containerized sessions:** if `localhost` is not reachable from the user's browser, start with `--host 0.0.0.0` and tell the user which host/port to open. That serves the run directory to anything that can reach the port; annotation and wait routes stay token-gated — do it only on a network the user trusts, and say so when you hand over the URL.
 
 If the helper path is unavailable or the platform cannot display a local URL cleanly, stop and report that. Do not settle the question in chat instead — a question that needs a real artifact to be decided is not answered by talking about it.
