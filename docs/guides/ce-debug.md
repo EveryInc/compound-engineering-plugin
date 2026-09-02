@@ -175,7 +175,7 @@ Skip `ce-debug` when:
 - Runs post-fix quality checks through `/ce-simplify-code` and `/ce-code-review` on non-trivial interactive fixes
 - Hands off to `/ce-commit-push-pr` with `branding:on` after a successful fix, without asking permission, when the branch holds only that fix. It previews what it is about to commit so you can interrupt. If the branch also carries unrelated work, or there is no remote, it commits just the fix-owned files locally and pushes nothing. Project instructions that say otherwise (for example "don't open PRs from skills") outrank the default
 
-After a PR opens, the skill may offer `/ce-compound` when the lesson is generalizable: a one-sentence insight, a pattern in 3+ locations, or a wrong assumption about a shared dependency. Localized mechanical fixes are skipped so `docs/solutions/` does not fill with one-off entries.
+After a PR opens, the skill offers `/ce-compound` only when the verified fix produced non-obvious, durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. If removing the learning document would not make a future engineer likely to repeat the mistake or redo substantial investigation, the skill skips the offer.
 
 ---
 

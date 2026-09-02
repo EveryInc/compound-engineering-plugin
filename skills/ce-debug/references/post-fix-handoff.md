@@ -53,10 +53,8 @@ SKILL.md's Phase 4 **Routing** block owns the bare per-case actions — which sk
 
 ## Learning-capture criteria (after a PR is open)
 
-Most bugs are localized mechanical fixes where the only "lesson" is the bug itself, and compounding those clutters `<root>/solutions/` without adding value.
+Offer once only when the verified fix produced non-obvious, durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery.
 
-- **Skip silently** when the fix is mechanical with no generalizable insight. Default to this when in doubt.
-- **Offer neutrally** when the lesson fits in one sentence — "X.foo() returns T | undefined when Y, not just T", or "the diagnostic path was non-obvious and worth recording." If you cannot articulate the lesson, skip rather than offer.
-- **Lean into the offer** when the pattern appears in 3+ locations, or the root cause reveals a wrong assumption about a shared dependency, framework, or convention that other code is likely to repeat.
+Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, skip silently. Completion, effort, and diff size do not establish eligibility.
 
 These are the criteria only; SKILL.md's Routing block owns what fires when the user accepts.

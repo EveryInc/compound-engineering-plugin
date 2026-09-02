@@ -609,6 +609,35 @@ describe("ce-debug regression test selection", () => {
     // Linking an existing ticket stays allowed; only creating one is forbidden.
     expect(handoff).toMatch(/never open a new record/i)
   })
+
+  // ce-compound's durable-learning gate must be applied by ce-debug before it
+  // offers the handoff. The old sentence-length and location-count heuristics
+  // admitted routine fixes that the callee then had to reject.
+  test("applies ce-compound eligibility before offering learning capture", async () => {
+    const compound = await readRepoFile("skills/ce-compound/SKILL.md")
+    const debug = await readRepoFile("skills/ce-debug/SKILL.md")
+    const handoff = await readRepoFile("skills/ce-debug/references/post-fix-handoff.md")
+    const guide = await readRepoFile("docs/guides/ce-debug.md")
+
+    for (const condition of [
+      "durable project reasoning",
+      "not readily recoverable from the final code, tests, types, comments, or existing documentation",
+      "recurrence, material risk, or substantial rediscovery",
+      "if the learning document disappeared",
+      "Completion, effort, and diff size do not establish eligibility",
+    ]) {
+      expect(compound).toContain(condition)
+      expect(handoff).toContain(condition)
+    }
+
+    expect(debug).toMatch(/Only when that gate qualifies the fix, offer capture/i)
+    expect(debug).toMatch(/commit and push only the artifacts it actually wrote or updated/i)
+    expect(debug).toMatch(/If it writes nothing, end without a documentation commit/i)
+
+    const debugContract = [debug, handoff, guide].join("\n")
+    expect(debugContract).not.toMatch(/one-sentence insight|fits in one sentence/i)
+    expect(debugContract).not.toMatch(/pattern (?:appears )?in 3\+ locations/i)
+  })
 })
 
 describe("ce-plan review contract", () => {
