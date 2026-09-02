@@ -87,6 +87,14 @@ function annotateBoot(origin: string, storeToken = true): string {
 // What a browser sends when it navigates to a page, as opposed to a script's fetch.
 const NAVIGATE = { "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", Accept: "text/html,*/*;q=0.8" }
 
+function postAnnotation(origin: string, token: unknown, body: object) {
+  return fetch(`${origin}/annotation?token=${token}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
 afterEach(async () => {
   while (rootsToStop.length > 0) {
     const root = rootsToStop.pop()!
@@ -396,11 +404,7 @@ describe("ce-prototype light-webserver.js", () => {
 
     const waiting = runServerCommand(["wait", "--root", root])
     await new Promise((resolve) => setTimeout(resolve, 80))
-    const posted = await fetch(`${origin}/annotation?token=${info.token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(record),
-    })
+    const posted = await postAnnotation(origin, info.token, record)
     expect(posted.status).toBe(200)
 
     const result = await waiting
@@ -438,11 +442,7 @@ describe("ce-prototype light-webserver.js", () => {
     await fs.writeFile(path.join(screens, "002-home.html"), "<h1>Home</h1>")
 
     const post = (body: Record<string, unknown>) =>
-      fetch(`${origin}/annotation?token=${info.token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comment: "c", selector: "h1", ...body }),
-      })
+      postAnnotation(origin, info.token, { comment: "c", selector: "h1", ...body })
     const nextRecord = async () => {
       const waited = await fetch(`${origin}/wait?token=${info.token}`)
       expect(waited.status).toBe(200)
@@ -814,11 +814,7 @@ describe("ce-prototype light-webserver.js", () => {
     await fetch(String(info.url))
 
     await new Promise((resolve) => setTimeout(resolve, 400))
-    await fetch(`${origin}/annotation?token=${info.token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comment: "keep alive", selector: "h1" }),
-    })
+    await postAnnotation(origin, info.token, { comment: "keep alive", selector: "h1" })
 
     // Past the original idle budget, so only the POST can explain a live server.
     // /version is not activity, so probing with it cannot extend the budget.
@@ -906,17 +902,8 @@ describe("ce-prototype light-webserver.js", () => {
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Queue</h1>")
-    const headers = { "Content-Type": "application/json" }
-    expect((await fetch(`${origin}/annotation?token=${info.token}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ comment: "first", selector: "h1" }),
-    })).status).toBe(200)
-    expect((await fetch(`${origin}/annotation?token=${info.token}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ comment: "second", selector: "h2" }),
-    })).status).toBe(200)
+    expect((await postAnnotation(origin, info.token, { comment: "first", selector: "h1" })).status).toBe(200)
+    expect((await postAnnotation(origin, info.token, { comment: "second", selector: "h2" })).status).toBe(200)
 
     const first = await runServerCommand(["wait", "--root", root])
     expect(first.exitCode, first.stderr).toBe(0)
@@ -932,13 +919,8 @@ describe("ce-prototype light-webserver.js", () => {
     const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40" })
     const origin = `http://localhost:${info.port}`
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Lifecycle</h1>")
-    const headers = { "Content-Type": "application/json" }
     const post = async (comment: string) => {
-      const response = await fetch(`${origin}/annotation?token=${info.token}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ comment, selector: "h1" }),
-      })
+      const response = await postAnnotation(origin, info.token, { comment, selector: "h1" })
       expect(response.status).toBe(200)
       const body = await response.json()
       expect(body.id).toMatch(/^[0-9a-f-]{36}$/)
