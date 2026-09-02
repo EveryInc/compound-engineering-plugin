@@ -8,25 +8,26 @@ async function readRepoFile(relativePath: string): Promise<string> {
 
 describe("ce-commit-push-pr contract", () => {
   test("gates every commit publication on project-defined requirements", async () => {
-    const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
-
-    expect(skill).toContain("**Project publishing gate.**")
-    expect(skill).toMatch(/project's active instructions and conventions already in context/)
-    expect(skill).toMatch(/exact commit state being sent/)
-    expect(skill).toMatch(/stop before the external write/)
-    expect(skill).toMatch(/If none, proceed/)
-
-    const publishSurfaces = await Promise.all(
-      [
-        ["skills/ce-commit-push-pr/references/commit-and-push.md", "git push -u origin HEAD"],
-        ["skills/ce-commit-push-pr/references/stack-submit.md", "gh stack submit --auto --open"],
-        ["skills/ce-commit-push-pr/references/apply-and-handoff.md", "then push"],
-      ].map(async ([relativePath, publish]) => ({
+    const publishSurfaceSpecs = [
+      ["skills/ce-commit-push-pr/references/commit-and-push.md", "git push -u origin HEAD"],
+      ["skills/ce-commit-push-pr/references/stack-submit.md", "gh stack submit --auto --open"],
+      ["skills/ce-commit-push-pr/references/apply-and-handoff.md", "then push"],
+    ] as const
+    const [skill, ...publishSurfaces] = await Promise.all([
+      readRepoFile("skills/ce-commit-push-pr/SKILL.md"),
+      ...publishSurfaceSpecs.map(async ([relativePath, publish]) => ({
         relativePath,
         publish,
         content: await readRepoFile(relativePath),
       })),
-    )
+    ])
+
+    expect(skill).toContain("**Project publishing gate.**")
+    expect(skill).toMatch(/project's active instructions and conventions already in context/)
+    expect(skill).toMatch(/scoped instructions governing the committed paths/)
+    expect(skill).toMatch(/exact commit state being sent/)
+    expect(skill).toMatch(/stop before the external write/)
+    expect(skill).toMatch(/If none, proceed/)
 
     for (const { relativePath, publish, content } of publishSurfaces) {
       const gate = content.indexOf("Project publishing gate")

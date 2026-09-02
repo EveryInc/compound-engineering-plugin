@@ -71,7 +71,15 @@ function runCell(scenario: Scenario, arm: EvalArm, out: string, hosts?: string) 
   if (scenario.git_untracked?.length) argv.push("--git-untracked", scenario.git_untracked.join(","))
   if (scenario.git_staged?.length) argv.push("--git-staged", scenario.git_staged.join(","))
   if (scenario.git_remote) argv.push("--git-remote")
-  if (scenario.shim_git_push) argv.push("--shim-git-push")
+  if (scenario.shim_git_push) {
+    argv.push("--shim-git-push")
+    if (typeof scenario.shim_git_push === "object") {
+      argv.push(
+        "--shim-git-push-requires-head-marker",
+        scenario.shim_git_push.requiredHeadMarkerPath,
+      )
+    }
+  }
   if (scenario.shim_gh_pr) argv.push("--shim-gh-pr")
   if (scenario.fixture) argv.push("--fixture", path.join(REPO_ROOT, scenario.fixture))
   if (hosts) argv.push("--hosts", hosts)

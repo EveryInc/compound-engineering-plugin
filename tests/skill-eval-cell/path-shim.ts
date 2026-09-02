@@ -5,13 +5,28 @@ import { resolveOnPath } from "./hosts"
 /** Every shimmed call is appended here, so an attempt is observable even when it failed. */
 export const SHIM_LOG = "shim-invocations.log"
 
-export type PathShim = {
-  bin: string
-  subcommand: string
+type PathShimBase = {
   exitCode: number
   stdout?: string
   stderr?: string
 }
+
+export type PathShim = PathShimBase &
+  (
+    | {
+        bin: "git"
+        subcommand: "push"
+        precondition: {
+          kind: "git-head-marker"
+          path: string
+        }
+      }
+    | {
+        bin: string
+        subcommand: string
+        precondition?: never
+      }
+  )
 
 function resolveRealBin(bin: string): string {
   const resolved = resolveOnPath(bin)
@@ -41,31 +56,90 @@ export function installPathShims(dir: string, shims: PathShim[]): Record<string,
       fs.writeFileSync(path.join(binDir, `${stem}.exit`), `${shim.exitCode}\n`)
       fs.writeFileSync(path.join(binDir, `${stem}.stdout`), shim.stdout ?? "")
       fs.writeFileSync(path.join(binDir, `${stem}.stderr`), shim.stderr ?? "")
+      if (shim.precondition) {
+        if (bin !== "git" || shim.subcommand !== "push") {
+          throw new Error("git-head-marker precondition requires a git push shim")
+        }
+        fs.writeFileSync(path.join(binDir, `${stem}.head-marker`), `${shim.precondition.path}\n`)
+      }
     }
-    const subcommands = list.map((s) => s.subcommand)
+    const needsGitContext = list.some((shim) => shim.precondition?.kind === "git-head-marker")
     const script = `#!/bin/sh
 REAL=${JSON.stringify(real)}
 DIR=$(dirname "$0")
 LOG="$DIR/${SHIM_LOG}"
 cmd=""
-skip=0
+pending=""
+repo_dir=$PWD
+git_dir=""
+work_tree=""
 for arg in "$@"; do
-  if [ "$skip" = 1 ]; then skip=0; continue; fi
+  if [ -n "$pending" ]; then
+    case "$pending" in
+      -C)
+        case "$arg" in
+          /*) repo_dir=$arg ;;
+          *) repo_dir="$repo_dir/$arg" ;;
+        esac
+        ;;
+      --git-dir)
+        case "$arg" in
+          /*) git_dir=$arg ;;
+          *) git_dir="$repo_dir/$arg" ;;
+        esac
+        ;;
+      --work-tree)
+        case "$arg" in
+          /*) work_tree=$arg ;;
+          *) work_tree="$repo_dir/$arg" ;;
+        esac
+        ;;
+    esac
+    pending=""
+    continue
+  fi
   case "$arg" in
-    -C|--git-dir|--work-tree|--namespace|--config-env|-c|-R|--repo|--hostname) skip=1 ;;
-    --git-dir=*|--work-tree=*|--namespace=*|-c*|--repo=*|--hostname=*) ;;
+    -C|--git-dir|--work-tree) pending=$arg ;;
+    --git-dir=*)
+      value=\${arg#*=}
+      case "$value" in /*) git_dir=$value ;; *) git_dir="$repo_dir/$value" ;; esac
+      ;;
+    --work-tree=*)
+      value=\${arg#*=}
+      case "$value" in /*) work_tree=$value ;; *) work_tree="$repo_dir/$value" ;; esac
+      ;;
+    --namespace|--config-env|-c|-R|--repo|--hostname) pending=skip ;;
+    --namespace=*|-c*|--repo=*|--hostname=*) ;;
     -*) ;;
     *) cmd=$arg; break ;;
   esac
 done
-case "$cmd" in
-${subcommands
+${
+  needsGitContext
+    ? `git_in_context() (
+  cd "$repo_dir" || exit 1
+  [ -n "$git_dir" ] && export GIT_DIR="$git_dir"
+  [ -n "$work_tree" ] && export GIT_WORK_TREE="$work_tree"
+  "$REAL" "$@"
+)
+`
+    : ""
+}case "$cmd" in
+${list
   .map(
-    (sub) => `  ${sub})
-    echo "${bin} $*" >> "$LOG"
-    [ -s "$DIR/${bin}.${sub}.stdout" ] && cat "$DIR/${bin}.${sub}.stdout"
-    [ -s "$DIR/${bin}.${sub}.stderr" ] && cat "$DIR/${bin}.${sub}.stderr" >&2
-    exit "$(cat "$DIR/${bin}.${sub}.exit")"
+    (shim) => `  ${shim.subcommand})
+${
+  shim.precondition?.kind === "git-head-marker"
+    ? `    marker_rel=$(cat "$DIR/${bin}.${shim.subcommand}.head-marker")
+    repo_root=$(git_in_context rev-parse --show-toplevel 2>/dev/null || true)
+    head=$(git_in_context rev-parse HEAD 2>/dev/null || true)
+    [ -n "$repo_root" ] && [ -n "$head" ] && grep -Fq -- "$head" "$repo_root/$marker_rel" || echo "precondition-missing ${bin} $*" >> "$LOG"
+`
+    : ""
+}    echo "${bin} $*" >> "$LOG"
+    [ -s "$DIR/${bin}.${shim.subcommand}.stdout" ] && cat "$DIR/${bin}.${shim.subcommand}.stdout"
+    [ -s "$DIR/${bin}.${shim.subcommand}.stderr" ] && cat "$DIR/${bin}.${shim.subcommand}.stderr" >&2
+    exit "$(cat "$DIR/${bin}.${shim.subcommand}.exit")"
     ;;`,
   )
   .join("\n")}

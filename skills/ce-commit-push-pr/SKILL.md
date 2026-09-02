@@ -48,11 +48,11 @@ Resolve `<root>` once when archival is on: it writes an explainer under `<root>/
 
 ## Step 3: Commit and push
 
-**Read `references/commit-and-push.md`** for branch creation (including default-branch hazards via `references/branch-creation.md`), commit grouping, staging, messages, and push. If stack mode already committed its layers, skip to Step 4; Step 5 submits them.
+**Read `references/commit-and-push.md`** for commit/push mechanics and default-branch handling via `references/branch-creation.md`. If stack mode committed its layers, skip to Step 4; Step 5 submits them.
 
-**Project publishing gate.** Before publishing commits, apply pre-push or review-ready requirements in the project's active instructions and conventions already in context. Only evidence valid for the exact commit state being sent satisfies them; otherwise stop before the external write and report what is missing or failing. If none, proceed.
+**Project publishing gate.** Before publishing commits, resolve every applicable pre-push or review-ready requirement from the project's active instructions and conventions already in context and any additional scoped instructions governing the committed paths. Only evidence valid for the exact commit state being sent satisfies them; otherwise stop before the external write and report what is missing or failing. If none, proceed.
 
-Never use `git add -A` or `git add .`. Name each file in both `git add` and `git commit`, keeping unrelated staged files out. Honor `exclude:<paths>`: leave them uncommitted and report them.
+Never use `git add -A` or `git add .`. Name files in both add and commit so unrelated staged files stay out. Honor `exclude:<paths>`: leave and report them.
 
 ## Step 4: Compose the PR title and body
 
