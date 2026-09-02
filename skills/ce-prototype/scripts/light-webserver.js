@@ -641,6 +641,14 @@ async function waitForInfo(options, pid) {
   return null
 }
 
+// The address a local client uses to reach the bound interface: a wildcard
+// bind is reached through its loopback, anything else through itself.
+function localAddressFor(host) {
+  if (!host || host === "0.0.0.0") return DEFAULT_HOST
+  if (host === "::" || host === "[::]") return "[::1]"
+  return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host
+}
+
 async function wait(options) {
   const info = getRunningInfo(options)
   if (!info?.port) {
@@ -652,7 +660,7 @@ async function wait(options) {
     process.exit(2)
   }
 
-  const url = `http://127.0.0.1:${info.port}/wait?token=${encodeURIComponent(info.token)}`
+  const url = `http://${localAddressFor(info.host)}:${info.port}/wait?token=${encodeURIComponent(info.token)}`
   while (true) {
     let response
     try {

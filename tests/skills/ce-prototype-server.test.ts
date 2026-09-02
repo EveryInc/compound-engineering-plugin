@@ -342,6 +342,25 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(authed, { method: "POST", headers, body: JSON.stringify({ selector: "h1" }) })).status).toBe(400)
   })
 
+  test("wait reaches a server bound to a specific interface", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-host-"))
+    const info = await startServer(root, ["--annotate", "--host", "127.0.0.2"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "80" })
+    expect(info.host).toBe("127.0.0.2")
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Pin me</h1>")
+
+    const waiting = runServerCommand(["wait", "--root", root])
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    const posted = await fetch(`http://127.0.0.2:${info.port}/annotation?token=${info.token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ comment: "reach me", selector: "h1" }),
+    })
+    expect(posted.status).toBe(200)
+    const result = await waiting
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout.trim()).comment).toBe("reach me")
+  })
+
   test("wait prints one annotation and session end unblocks the next wait", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-"))
     const info = await startServer(root, ["--annotate"])
