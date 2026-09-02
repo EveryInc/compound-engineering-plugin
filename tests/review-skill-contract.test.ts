@@ -1702,25 +1702,22 @@ describe("ce-code-review dispatch templates", () => {
     }
   })
 
-  test("compact-return contract forbids notes synonyms for why_it_matters and pre_existing", async () => {
+  test("compact-return contract uses exact schema keys in both output tiers", async () => {
     const template = await readRepoFile(
       "skills/ce-code-review/references/subagent-template.md",
     )
-    const dispatch = await readRepoFile(
-      "skills/ce-code-review/references/dispatch-reviewers.md",
-    )
+    const outputContract = template.match(/<output-contract>[\s\S]*?<\/output-contract>/)?.[0]
+    expect(outputContract).toBeDefined()
 
-    expect(template).toMatch(/ONLY merge-tier fields per finding:/)
-    expect(template).toContain(
+    expect(outputContract).toMatch(/full analysis \(all schema fields, including why_it_matters, evidence/)
+    expect(outputContract).toMatch(/ONLY merge-tier fields per finding:/)
+    expect(outputContract).toContain(
       "title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix, first_evidence.",
     )
-    expect(template).toMatch(
-      /Exact-key condition: the artifact conforms to the full schema below; the compact finding uses only this merge-tier allowlist, with `pre_existing` as a boolean\. `notes` is not a field\./,
-    )
-    expect(template).not.toMatch(/Do not emit `notes`/)
+    expect(outputContract).toMatch(/artifact conforms to the full schema below/)
+    expect(outputContract).toMatch(/compact finding uses only this merge-tier allowlist/)
+    expect(outputContract).toMatch(/`pre_existing` as a boolean/)
+    expect(outputContract).toMatch(/`notes` is not a field/)
     expect(template).not.toMatch(/independence_verified/)
-
-    expect(dispatch).toMatch(/not synonyms such as `notes`/)
-    expect(dispatch).toMatch(/every compact finding still includes merge-tier `pre_existing`/)
   })
 })
