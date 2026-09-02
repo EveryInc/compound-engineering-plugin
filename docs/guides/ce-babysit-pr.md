@@ -130,7 +130,7 @@ Each major piece of the engine exists because a specific failure happened withou
 | Machinery | The failure it prevents |
 |-----------|------------------------|
 | Consumption-only branch currency | A run merged the base into two CLEAN, MERGEABLE PRs after a sibling merged. The correct rule was stated three times in prose and still missed; the engine now emits the item and prose only consumes it |
-| File-locked state, claim -> act -> confirm dedup | Two drivers (a resume plus a wake, or concurrent sessions) acting on the same thread twice, or re-fixing the same CI failure across restarts |
+| File-locked state, claim -> act -> confirm dedup | Re-fixing the same thread or CI failure across restarts and resumes; a superseded watcher acting after a newer invocation takes ownership. (Not a concurrent-session guarantee: feedback is confirmed after the delegate acts, so two invocations overlapping in the same window can still both act once) |
 | Token-free `watch` with agent wake | An 8-hour unattended run. Polling in agent prose burns tokens every interval; the Python watcher spends none and wakes the agent only on actionable change |
 | Active-time budget accounting | Laptop sleep does not count against the 8-hour budget; a wall-clock budget would silently expire overnight |
 | `needs-human` decision ledger | Unattended and pipeline runs must surface a human decision durably and keep watching, instead of blocking on a question nobody is there to answer or silently dropping it |
