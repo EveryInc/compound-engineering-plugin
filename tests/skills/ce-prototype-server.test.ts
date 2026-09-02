@@ -76,12 +76,13 @@ async function startServer(
   return JSON.parse(result.stdout.trim())
 }
 
-// The exact boot the helper puts ahead of every served screen: an inline
-// synchronous store of the token from the location (no token literal), then
-// the deferred overlay on the request origin.
+// The exact boot the helper puts ahead of every served screen: when the request
+// carried the session token, an inline synchronous store of it from the
+// location (no token literal); always the deferred overlay on the request origin.
 const BOOT_STORE = '<script>(function(){try{var t=new URLSearchParams(location.search).get("token");if(t)sessionStorage.setItem("ce-annotate-token",t)}catch(e){}})()</script>'
-function annotateBoot(origin: string): string {
-  return `${BOOT_STORE}\n<script defer src="${origin}/__ce-annotate/annotate.js"></script>`
+function annotateBoot(origin: string, storeToken = true): string {
+  const overlay = `<script defer src="${origin}/__ce-annotate/annotate.js"></script>`
+  return storeToken ? `${BOOT_STORE}\n${overlay}` : overlay
 }
 // What a browser sends when it navigates to a page, as opposed to a script's fetch.
 const NAVIGATE = { "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", Accept: "text/html,*/*;q=0.8" }
@@ -342,23 +343,43 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(authed, { method: "POST", headers, body: JSON.stringify({ selector: "h1" }) })).status).toBe(400)
   })
 
-  test("wait reaches a server bound to a specific interface", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-host-"))
-    const info = await startServer(root, ["--annotate", "--host", "127.0.0.2"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "80" })
-    expect(info.host).toBe("127.0.0.2")
-    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Pin me</h1>")
+  test("wait reaches a server bound to a specific interface, and 127.0.0.1 when bound to every interface", async () => {
+    // The POST goes through Node's own fetch in a subprocess, which ignores
+    // HTTP_PROXY; the test runner's fetch may not, and a proxy cannot reach
+    // a loopback alias.
+    const postFromNode = async (url: string, comment: string) => {
+      const proc = Bun.spawn(["node", "-e", `fetch(process.argv[1], { method: "POST", headers: { "Content-Type": "application/json" }, body: process.argv[2] }).then((r) => { console.log(r.status) }, (e) => { console.error(e); process.exit(1) })`, url, JSON.stringify({ comment, selector: "h1" })], { stdout: "pipe", stderr: "pipe" })
+      const [exitCode, stdout, stderr] = await Promise.all([proc.exited, new Response(proc.stdout).text(), new Response(proc.stderr).text()])
+      expect(exitCode, stderr).toBe(0)
+      return Number(stdout.trim())
+    }
+    const roundTrip = async (host: string, postHost: string, comment: string) => {
+      const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-host-"))
+      const info = await startServer(root, ["--annotate", "--host", host], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "80" })
+      expect(info.host).toBe(host)
+      await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Pin me</h1>")
+      const waiting = runServerCommand(["wait", "--root", root])
+      await new Promise((resolve) => setTimeout(resolve, 80))
+      expect(await postFromNode(`http://${postHost}:${info.port}/annotation?token=${info.token}`, comment)).toBe(200)
+      const result = await waiting
+      expect(result.exitCode, result.stderr).toBe(0)
+      expect(JSON.parse(result.stdout.trim()).comment).toBe(comment)
+    }
 
-    const waiting = runServerCommand(["wait", "--root", root])
-    await new Promise((resolve) => setTimeout(resolve, 80))
-    const posted = await fetch(`http://127.0.0.2:${info.port}/annotation?token=${info.token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comment: "reach me", selector: "h1" }),
+    // Wildcard bind: wait talks to 127.0.0.1, which the server answers on.
+    await roundTrip("0.0.0.0", "127.0.0.1", "reach me on loopback")
+
+    // A loopback alias is bindable on Linux but not on default macOS; probe before relying on it.
+    const aliasBindable = await new Promise<boolean>((resolve) => {
+      const probe = net.createServer()
+      probe.once("error", () => resolve(false))
+      probe.listen(0, "127.0.0.2", () => probe.close(() => resolve(true)))
     })
-    expect(posted.status).toBe(200)
-    const result = await waiting
-    expect(result.exitCode, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout.trim()).comment).toBe("reach me")
+    if (!aliasBindable) {
+      console.log("skip: 127.0.0.2 is not bindable on this host; the specific-interface branch was not exercised")
+      return
+    }
+    await roundTrip("127.0.0.2", "127.0.0.2", "reach me on the alias")
   })
 
   test("wait prints one annotation and session end unblocks the next wait", async () => {
@@ -457,7 +478,8 @@ describe("ce-prototype light-webserver.js", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-linked-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
-    const boot = `<!doctype html>\n${annotateBoot(origin)}\n`
+    // A linked page is ungated, so its boot stores no token unless the request carried the session's.
+    const boot = `<!doctype html>\n${annotateBoot(origin, false)}\n`
     const details = '<!DOCTYPE html><html><head><link rel="stylesheet" href="/styles.css"></head><body><h1 id="detail">Details</h1></body></html>'
     await fs.mkdir(path.join(String(info.screen_dir), "pages"))
     await fs.writeFile(path.join(String(info.screen_dir), "details.html"), details)
@@ -475,6 +497,12 @@ describe("ce-prototype light-webserver.js", () => {
     expect(await page.text()).toBe(`${boot}${details}`)
     // A browser that sends no fetch metadata still navigates: it accepts HTML and states no mode.
     expect(await (await fetch(`${origin}/details.html`, { headers: { Accept: "text/html,application/xhtml+xml" } })).text()).toBe(`${boot}${details}`)
+    // A prototype's own `?token=demo` on a linked page must not displace the stored credential:
+    // no store snippet; the session token on the same page stores, as the gated root always does.
+    expect(await (await fetch(`${origin}/details.html?token=demo`, { headers: NAVIGATE })).text()).toBe(`${boot}${details}`)
+    expect(await (await fetch(`${origin}/details.html?token=${info.token}`, { headers: NAVIGATE })).text()).toBe(`<!doctype html>\n${annotateBoot(origin)}\n${details}`)
+    expect(await (await fetch(String(info.url), { headers: NAVIGATE })).text()).toContain(annotateBoot(origin))
+    expect(BOOT_STORE).toContain("sessionStorage.setItem")
 
     // A fragment page gets the same shell as a fragment root screen.
     const part = await (await fetch(`${origin}/pages/part.html`, { headers: NAVIGATE })).text()
@@ -684,8 +712,11 @@ describe("ce-prototype light-webserver.js", () => {
     const server = await fs.readFile(serverScript, "utf8")
     expect(overlay).toContain('const TOKEN_KEY = "ce-annotate-token"')
     expect(server).toContain('const TOKEN_STORAGE_KEY = "ce-annotate-token"')
-    expect(overlay).toContain("sessionStorage.setItem(TOKEN_KEY, fromUrl)")
+    // Only the helper's boot writes the token (when the request carried the
+    // session's); the overlay reads it, so a linked page's own ?token=demo
+    // can neither be stored nor used.
     expect(overlay).toContain("sessionStorage.getItem(TOKEN_KEY)")
+    expect(overlay).not.toContain("sessionStorage.setItem(TOKEN_KEY")
     expect(server).not.toContain("Set-Cookie")
     expect(server).not.toMatch(/cookie/i)
   })

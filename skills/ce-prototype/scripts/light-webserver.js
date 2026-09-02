@@ -265,16 +265,20 @@ function refreshScript(options) {
 </script>`
 }
 
-// Two scripts, both ahead of the authored document. The first is inline and
-// synchronous: it stores the token from the location before any authored
+// Ahead of the authored document: when the request carried the session token,
+// an inline synchronous script stores it from the location before any authored
 // script runs, so a screen that rewrites its own URL (history.replaceState)
-// cannot lose it; it carries no token literal, only the storage key. The
-// second is the overlay, deferred; it creates its own host and stylesheet once
-// the document has parsed. Its URL is absolute on the request's own origin, so
-// a screen's <base href> cannot redirect it.
-function annotateBoot(origin) {
+// cannot lose it; it carries no token literal, only the storage key. A request
+// whose token is not the session's — an ungated linked page with its own
+// `?token=demo` — gets no store, so the credential already in sessionStorage
+// stands. Then the overlay, deferred; it creates its own host and stylesheet
+// once the document has parsed. Its URL is absolute on the request's own
+// origin, so a screen's <base href> cannot redirect it.
+function annotateBoot(origin, storeToken) {
+  const overlay = `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
+  if (!storeToken) return overlay
   const store = `try{var t=new URLSearchParams(location.search).get("token");if(t)sessionStorage.setItem(${JSON.stringify(TOKEN_STORAGE_KEY)},t)}catch(e){}`
-  return `<script>(function(){${store}})()</script>\n<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
+  return `<script>(function(){${store}})()</script>\n${overlay}`
 }
 
 // Served in place of the screen when a root navigation arrives without the
@@ -370,17 +374,18 @@ function injectRefresh(options, html) {
 // head children in head, ignores the second doctype and <head> start tag, and
 // creates <body> with its attributes. Nothing in the authored text is located
 // or rewritten, so a "</body>" in a script string or comment cannot mislead it.
-function annotateScreen(html, origin) {
-  const boot = annotateBoot(origin)
+function annotateScreen(html, origin, storeToken) {
+  const boot = annotateBoot(origin, storeToken)
   const text = html.replace(/^\uFEFF/, "")
   if (!isFullDocument(text)) return wrapAnnotateFragment(text, boot)
   return `<!doctype html>\n${boot}\n${text}`
 }
 
+// The root is gated, so a request that reaches here carried the session token.
 function annotateDocument(options, origin) {
   const screen = newestScreen(options)
-  if (!screen) return wrapAnnotateFragment(WAITING_HTML, annotateBoot(origin))
-  return annotateScreen(fs.readFileSync(screen, "utf8"), origin)
+  if (!screen) return wrapAnnotateFragment(WAITING_HTML, annotateBoot(origin, true))
+  return annotateScreen(fs.readFileSync(screen, "utf8"), origin, true)
 }
 
 function renderPage(options, origin) {
@@ -961,14 +966,15 @@ async function serve(options) {
       // A linked page under screens/ is a screen too: navigated to, it carries
       // the same overlay and stream, or the session would end at the first
       // navigation. It stays ungated like every other screen file; the overlay
-      // recovers the token from sessionStorage. Fetched by a script, the same
-      // file is a partial and is served raw, like every other asset.
+      // recovers the token from sessionStorage, and only a request carrying the
+      // session token may (re)store it. Fetched by a script, the same file is a
+      // partial and is served raw, like every other asset.
       if (req.method === "GET") {
         touch()
         const filePath = resolveContainedFile(options.screensDir, req, res)
         if (!filePath) return
         if (contentType(filePath) === CONTENT_TYPES[".html"] && isDocumentNavigation(req)) {
-          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req)))
+          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req), authorized(req)))
           return
         }
         // A reload must pick up a revised stylesheet or script whose URL did

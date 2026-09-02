@@ -4,13 +4,15 @@
   // this origin including the port, so the token never reaches another local
   // service the way a cookie would.
   const TOKEN_KEY = "ce-annotate-token"
+  // The helper's boot stores the URL's token only when it is the session's,
+  // so the stored value is the credential; a prototype's own `?token=demo` on
+  // a linked page is never written or used. The URL is a fallback only when
+  // storage itself is unavailable.
   const token = (() => {
-    const fromUrl = new URLSearchParams(window.location.search).get("token")
     try {
-      if (fromUrl) sessionStorage.setItem(TOKEN_KEY, fromUrl)
-      return fromUrl || sessionStorage.getItem(TOKEN_KEY)
+      return sessionStorage.getItem(TOKEN_KEY)
     } catch {
-      return fromUrl
+      return new URLSearchParams(window.location.search).get("token")
     }
   })()
   // The overlay owns its host: created here (this script is deferred, so the
