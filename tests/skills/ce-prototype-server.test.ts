@@ -275,6 +275,14 @@ describe("ce-prototype light-webserver.js", () => {
     expect(html).not.toContain("WebSocket")
     expect(html).not.toContain('fetch("/version"')
     expect(await fs.readFile(path.join(String(info.screen_dir), "001-screen.html"), "utf8")).not.toContain("ce-annotate-host")
+
+    await fs.writeFile(
+      path.join(String(info.screen_dir), "001-screen.html"),
+      "<!DOCTYPE html><html><head></head><body><main><h1 id=\"heading\">Pin me</h1></main></body></html>",
+    )
+    const full = await (await fetch(String(info.url))).text()
+    expect(full).toMatch(/<body[^>]*>\s*<main>/)
+    expect(full).not.toContain("ce-prototype-root")
   })
 
   test("annotate routes require the token and reject a bad annotation body", async () => {
@@ -335,9 +343,10 @@ describe("ce-prototype light-webserver.js", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-end-"))
     const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_SSE_GRACE_MS: "80" })
     const origin = `http://localhost:${info.port}`
-    const stream = await fetch(`${origin}/events?token=${info.token}`)
+    const controller = new AbortController()
+    const stream = await fetch(`${origin}/events?token=${info.token}`, { signal: controller.signal })
     expect(stream.status).toBe(200)
-    await stream.body?.cancel()
+    controller.abort()
     await new Promise((resolve) => setTimeout(resolve, 200))
 
     const result = await runServerCommand(["wait", "--root", root])
@@ -418,9 +427,12 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain('querySelectorAll("script")')
     expect(overlay).toContain("ce-prototype-root")
     expect(overlay).toContain("applyHead")
+    expect(overlay).toContain("applyScreenHtml")
+    expect(overlay).toContain("advancePinsAfterMorph")
     expect(overlay).toContain("data-ce-morph-head")
     expect(overlay).toContain("Stop failed")
     expect(overlay).toContain('if (pin.status === "working")')
+    expect(overlay).toContain('pin.status === "pending"')
     expect(overlay).not.toMatch(/WebSocket/)
   })
 

@@ -284,10 +284,8 @@ function wrapAnnotateFragment(content) {
   </style>
 </head>
 <body>
-  <div id="ce-prototype-root">
   <header>CE local web - newest screen</header>
   <main>${content}</main>
-  </div>
   ${annotateBoot()}
 </body>
 </html>`
@@ -302,12 +300,10 @@ function injectRefresh(options, html) {
 
 function injectAnnotate(html) {
   const boot = annotateBoot()
-  if (/<body[^>]*>/i.test(html) && html.includes("</body>")) {
-    return html
-      .replace(/<body([^>]*)>/i, `<body$1><div id="ce-prototype-root">`)
-      .replace("</body>", `</div>\n${boot}\n</body>`)
+  if (html.includes("</body>")) {
+    return html.replace("</body>", `${boot}\n</body>`)
   }
-  return `<div id="ce-prototype-root">${html}</div>\n${boot}`
+  return `${html}\n${boot}`
 }
 
 function renderPage(options) {

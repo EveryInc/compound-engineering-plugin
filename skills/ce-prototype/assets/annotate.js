@@ -51,18 +51,32 @@
     return document.getElementById("ce-prototype-root") || document.body
   }
 
+  function isOverlayAsset(node) {
+    if (!(node instanceof Element)) return false
+    const href = node.getAttribute("href")
+    const src = node.getAttribute("src")
+    return href === "/annotate.css" || src === "/annotate.js" || node.id === "ce-annotate-host"
+  }
+
   function activateScripts(container) {
     for (const old of container.querySelectorAll("script")) {
+      if (isOverlayAsset(old)) continue
       const script = document.createElement("script")
       for (const attr of old.attributes) script.setAttribute(attr.name, attr.value)
-      script.textContent = old.textContent
+      if (!script.src) script.textContent = `{\n${old.textContent || ""}\n}`
       old.replaceWith(script)
     }
   }
 
   function applyHead(headHtml) {
-    if (typeof headHtml !== "string" || !headHtml) return
-    for (const old of document.querySelectorAll("[data-ce-morph-head]")) old.remove()
+    if (typeof headHtml !== "string") return
+    for (const node of [...document.head.children]) {
+      if (isOverlayAsset(node)) continue
+      if (node.hasAttribute("data-ce-morph-head") || ["STYLE", "LINK", "SCRIPT"].includes(node.tagName)) {
+        node.remove()
+      }
+    }
+    if (!headHtml) return
     const tmp = document.createElement("div")
     tmp.innerHTML = headHtml
     for (const node of [...tmp.children]) {
@@ -77,13 +91,42 @@
     activateScripts(document.head)
   }
 
+  function applyScreenHtml(html) {
+    const root = document.getElementById("ce-prototype-root")
+    if (root) {
+      root.innerHTML = html
+      activateScripts(root)
+      return
+    }
+    const tmp = document.createElement("div")
+    tmp.innerHTML = html
+    const incoming = [...tmp.childNodes]
+    for (const child of [...document.body.childNodes]) {
+      if (isOverlayAsset(child)) continue
+      child.remove()
+    }
+    const host = document.getElementById("ce-annotate-host")
+    for (const node of incoming) {
+      document.body.insertBefore(node, host)
+    }
+    activateScripts(document.body)
+  }
+
+  function advancePinsAfterMorph() {
+    for (const pin of pins) {
+      if (pin.status === "working") pin.status = "attached"
+    }
+    const next = pins.find((pin) => pin.status === "pending")
+    if (next) next.status = "working"
+  }
+
   function cssPath(el) {
     if (!(el instanceof Element)) return ""
     if (el.id) return `#${CSS.escape(el.id)}`
     const parts = []
     let node = el
     while (node && node.nodeType === 1 && node !== document.documentElement) {
-      if (node.id === "ce-prototype-root") break
+      if (node.id === "ce-prototype-root" || node === document.body) break
       if (node.id) {
         parts.unshift(`#${CSS.escape(node.id)}`)
         break
@@ -271,15 +314,9 @@
       } catch {
         return
       }
-      const root = document.getElementById("ce-prototype-root")
-      if (root && typeof data.html === "string") {
-        root.innerHTML = data.html
-        activateScripts(root)
-      }
+      if (typeof data.html === "string") applyScreenHtml(data.html)
       applyHead(data.head)
-      for (const pin of pins) {
-        if (pin.status === "working") pin.status = "attached"
-      }
+      advancePinsAfterMorph()
       reattachPins()
     })
     source.addEventListener("session-ended", () => {
