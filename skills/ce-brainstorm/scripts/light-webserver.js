@@ -801,6 +801,15 @@ async function serve(options) {
     return false
   }
 
+  function requireLiveAnnotate(req, res) {
+    if (!requireAnnotateToken(req, res)) return false
+    if (sessionEnded) {
+      sendJson(res, 410, { status: "session-ended" })
+      return false
+    }
+    return true
+  }
+
   function requestOrigin(req) {
     const host = req.headers.host
     if (typeof host === "string" && HOST_HEADER.test(host)) return `http://${host}`
@@ -848,11 +857,7 @@ async function serve(options) {
 
     if (options.annotate) {
       if (req.method === "GET" && urlPath === "/wait") {
-        if (!requireAnnotateToken(req, res)) return
-        if (sessionEnded) {
-          sendJson(res, 410, { status: "session-ended" })
-          return
-        }
+        if (!requireLiveAnnotate(req, res)) return
         broadcastIfChanged()
         completeWorking()
         if (annotationQueue.length > 0) {
@@ -878,11 +883,7 @@ async function serve(options) {
       }
 
       if (req.method === "POST" && urlPath === "/annotation") {
-        if (!requireAnnotateToken(req, res)) return
-        if (sessionEnded) {
-          sendJson(res, 410, { status: "session-ended" })
-          return
-        }
+        if (!requireLiveAnnotate(req, res)) return
         let raw
         try {
           raw = await readBody(req)
@@ -917,11 +918,7 @@ async function serve(options) {
       }
 
       if (req.method === "GET" && urlPath === "/events") {
-        if (!requireAnnotateToken(req, res)) return
-        if (sessionEnded) {
-          sendJson(res, 410, { status: "session-ended" })
-          return
-        }
+        if (!requireLiveAnnotate(req, res)) return
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
