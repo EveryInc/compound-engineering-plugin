@@ -51,12 +51,39 @@
     return document.getElementById("ce-prototype-root") || document.body
   }
 
+  function activateScripts(container) {
+    for (const old of container.querySelectorAll("script")) {
+      const script = document.createElement("script")
+      for (const attr of old.attributes) script.setAttribute(attr.name, attr.value)
+      script.textContent = old.textContent
+      old.replaceWith(script)
+    }
+  }
+
+  function applyHead(headHtml) {
+    if (typeof headHtml !== "string" || !headHtml) return
+    for (const old of document.querySelectorAll("[data-ce-morph-head]")) old.remove()
+    const tmp = document.createElement("div")
+    tmp.innerHTML = headHtml
+    for (const node of [...tmp.children]) {
+      if (node.tagName === "TITLE") {
+        document.title = node.textContent || document.title
+        continue
+      }
+      if (!["STYLE", "LINK", "SCRIPT"].includes(node.tagName)) continue
+      node.setAttribute("data-ce-morph-head", "")
+      document.head.appendChild(node)
+    }
+    activateScripts(document.head)
+  }
+
   function cssPath(el) {
     if (!(el instanceof Element)) return ""
     if (el.id) return `#${CSS.escape(el.id)}`
     const parts = []
     let node = el
     while (node && node.nodeType === 1 && node !== document.documentElement) {
+      if (node.id === "ce-prototype-root") break
       if (node.id) {
         parts.unshift(`#${CSS.escape(node.id)}`)
         break
@@ -121,14 +148,14 @@
     for (const pin of pins) {
       let node = null
       try {
-        node = root.querySelector(pin.selector)
+        node = root.querySelector(pin.selector) || document.querySelector(pin.selector)
       } catch {
         node = null
       }
       if (node) {
-        pin.status = pin.status === "pending" ? "pending" : "attached"
+        if (pin.status !== "pending") pin.status = "attached"
         Object.assign(pin, positionFromNode(node))
-      } else {
+      } else if (pin.status !== "pending") {
         pin.status = "target-gone"
       }
     }
@@ -208,15 +235,18 @@
 
   stop.addEventListener("click", async () => {
     if (sessionEnded) return
+    stop.disabled = true
     try {
-      await fetch(tokenUrl("/session/end"), { method: "POST" })
+      const response = await fetch(tokenUrl("/session/end"), { method: "POST" })
+      if (!response.ok) throw new Error("retry")
     } catch {
-      // Ended locally even if the POST fails; the next wait still needs the server flag.
+      stop.disabled = false
+      setStatus("Stop failed — retry")
+      return
     }
     sessionEnded = true
     commentToolOn = false
     toggle.disabled = true
-    stop.disabled = true
     setStatus("Session ended")
     closeComposer()
   })
@@ -244,15 +274,11 @@
       const root = document.getElementById("ce-prototype-root")
       if (root && typeof data.html === "string") {
         root.innerHTML = data.html
-        for (const old of root.querySelectorAll("script")) {
-          const script = document.createElement("script")
-          for (const attr of old.attributes) script.setAttribute(attr.name, attr.value)
-          script.textContent = old.textContent
-          old.replaceWith(script)
-        }
+        activateScripts(root)
       }
+      applyHead(data.head)
       for (const pin of pins) {
-        if (pin.status === "working" || pin.status === "pending") pin.status = "attached"
+        if (pin.status === "working") pin.status = "attached"
       }
       reattachPins()
     })

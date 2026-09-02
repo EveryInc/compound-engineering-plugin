@@ -349,14 +349,14 @@ describe("ce-prototype light-webserver.js", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-morph-"))
     const info = await startServer(root, ["--annotate"])
     const screenPath = path.join(String(info.screen_dir), "001-screen.html")
-    await fs.writeFile(screenPath, "<h1 id=\"heading\">Original</h1>")
+    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:red}</style></head><body><h1 id=\"heading\">Original</h1></body></html>")
     const origin = `http://localhost:${info.port}`
     const stream = await fetch(`${origin}/events?token=${info.token}`)
     expect(stream.status).toBe(200)
     const reader = stream.body!.getReader()
     await reader.read()
     await new Promise((resolve) => setTimeout(resolve, 20))
-    await fs.writeFile(screenPath, "<h1 id=\"heading\">Revised</h1>")
+    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:blue}</style></head><body><h1 id=\"heading\">Revised</h1></body></html>")
 
     const decoder = new TextDecoder()
     let text = ""
@@ -368,6 +368,8 @@ describe("ce-prototype light-webserver.js", () => {
     }
     expect(text).toContain("event: morph")
     expect(text).toContain("Revised")
+    expect(text).toContain("\"head\"")
+    expect(text).toContain("color:blue")
     expect(await fs.readFile(screenPath, "utf8")).not.toContain("ce-annotate-host")
     await reader.cancel()
   })
@@ -414,6 +416,11 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("target-gone")
     expect(overlay).toContain("EventSource")
     expect(overlay).toContain('querySelectorAll("script")')
+    expect(overlay).toContain("ce-prototype-root")
+    expect(overlay).toContain("applyHead")
+    expect(overlay).toContain("data-ce-morph-head")
+    expect(overlay).toContain("Stop failed")
+    expect(overlay).toContain('if (pin.status === "working")')
     expect(overlay).not.toMatch(/WebSocket/)
   })
 

@@ -209,6 +209,15 @@ function newestScreenInnerHtml(options) {
   return match ? match[1] : html
 }
 
+function newestScreenHeadHtml(options) {
+  const screen = newestScreen(options)
+  if (!screen) return ""
+  const html = fs.readFileSync(screen, "utf8")
+  if (!isFullDocument(html)) return ""
+  const match = html.match(/<head[^>]*>([\s\S]*)<\/head>/i)
+  return match ? match[1] : ""
+}
+
 function refreshScript(options) {
   const initialVersion = JSON.stringify(screenVersion(options))
   return `<script>
@@ -582,7 +591,10 @@ async function serve(options) {
   }
 
   function broadcastMorph() {
-    const payload = JSON.stringify({ html: newestScreenInnerHtml(options) })
+    const payload = JSON.stringify({
+      html: newestScreenInnerHtml(options),
+      head: newestScreenHeadHtml(options),
+    })
     lastBroadcastKey = versionKey(screenVersion(options))
     for (const client of sseClients) {
       if (!client.writableEnded) {
