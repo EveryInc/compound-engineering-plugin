@@ -42,10 +42,16 @@
   const error = composer.querySelector(".ce-annotate-error")
 
   const STATE_KEY = "ce-annotate-state"
+  const PIN_STATUS = { queued: "pending", working: "working", done: "attached" }
   let commentToolOn = false
   let sessionEnded = false
   let inFlight = false
+  let reloadPending = false
   let draft = null
+  let source = null
+  // The helper's view of each annotation's lifecycle, keyed by id. Pin status
+  // follows it; a reload or a screen change never changes a pin on its own.
+  let annotationStates = {}
   const pins = []
 
   function prototypeRoot() {
@@ -54,14 +60,30 @@
 
   // A revised screen is shown by reloading the document, so the browser owns
   // every reconciliation (head, html/body attributes, linked assets, scripts);
-  // only the explorer's pins and tool state are carried across.
+  // the explorer's pins, tool state, and open draft are carried across.
   function persistAndReload() {
+    const state = {
+      commentToolOn,
+      pins,
+      draft: draft ? { ...draft, text: commentField.value, left: composer.style.left, top: composer.style.top } : null,
+    }
     try {
-      sessionStorage.setItem(STATE_KEY, JSON.stringify({ commentToolOn, pins }))
+      sessionStorage.setItem(STATE_KEY, JSON.stringify(state))
     } catch {
       // Without storage the reload still shows the revised screen; only the pins are lost.
     }
     window.location.reload()
+  }
+
+  // A screen change arriving while a comment is being sent waits for that
+  // request to settle, so the pin gets its id (or its retry) before the reload.
+  function requestReload() {
+    if (inFlight) {
+      reloadPending = true
+      return
+    }
+    if (source) source.close()
+    persistAndReload()
   }
 
   function restorePersistedState() {
@@ -77,15 +99,41 @@
       if (pin && typeof pin.selector === "string" && typeof pin.comment === "string") pins.push(pin)
     }
     if (saved.commentToolOn) setCommentTool(true)
+    if (saved.draft && typeof saved.draft.selector === "string") restoreDraft(saved.draft)
     return true
   }
 
-  function advancePinsAfterRevision() {
-    for (const pin of pins) {
-      if (pin.status === "working") pin.status = "attached"
+  function restoreDraft(saved) {
+    let node = null
+    try {
+      node = document.querySelector(saved.selector)
+    } catch {
+      node = null
     }
-    const next = pins.find((pin) => pin.status === "pending")
-    if (next) next.status = "working"
+    draft = { selector: saved.selector, textSnippet: saved.textSnippet, rect: saved.rect, x: saved.x, y: saved.y }
+    composer.hidden = false
+    if (node) {
+      const rect = node.getBoundingClientRect()
+      Object.assign(draft, positionFromNode(node))
+      placeComposer(rect.left, rect.top + rect.height)
+    } else {
+      composer.style.left = saved.left || ""
+      composer.style.top = saved.top || ""
+    }
+    commentField.value = typeof saved.text === "string" ? saved.text : ""
+    error.hidden = true
+    commentField.focus()
+    syncSubmit()
+  }
+
+  function applyAnnotationStates(states) {
+    if (!states || typeof states !== "object") return
+    annotationStates = states
+    for (const pin of pins) {
+      const status = PIN_STATUS[states[pin.id]]
+      if (status) pin.status = status
+    }
+    reattachPins()
   }
 
   function cssPath(el) {
@@ -198,11 +246,15 @@
       },
     }
     composer.hidden = false
-    composer.style.left = `${Math.min(event.clientX + 12, window.innerWidth - 280)}px`
-    composer.style.top = `${Math.min(event.clientY + 12, window.innerHeight - 160)}px`
+    placeComposer(event.clientX, event.clientY)
     error.hidden = true
     commentField.focus()
     syncSubmit()
+  }
+
+  function placeComposer(x, y) {
+    composer.style.left = `${Math.min(x + 12, window.innerWidth - 280)}px`
+    composer.style.top = `${Math.min(y + 12, window.innerHeight - 160)}px`
   }
 
   function setCommentTool(on) {
@@ -242,10 +294,11 @@
         body: JSON.stringify(payload),
       })
       if (!response.ok) throw new Error("retry")
-      const hasWorking = pins.some((pin) => pin.status === "working")
+      const { id } = await response.json()
       pins.push({
         ...payload,
-        status: hasWorking ? "pending" : "working",
+        id,
+        status: PIN_STATUS[annotationStates[id]] || "pending",
         x: draft.x,
         y: draft.y,
       })
@@ -257,6 +310,7 @@
       error.textContent = "Could not send — retry"
       syncSubmit()
     }
+    if (reloadPending) requestReload()
   })
 
   stop.addEventListener("click", async () => {
@@ -287,16 +341,19 @@
     openComposer(target, event)
   }, true)
 
-  if (restorePersistedState()) {
-    advancePinsAfterRevision()
-    reattachPins()
-  }
+  if (restorePersistedState()) reattachPins()
 
   if ("EventSource" in window) {
-    const source = new EventSource(tokenUrl("/events"))
-    source.addEventListener("screen-changed", () => {
-      source.close()
-      persistAndReload()
+    source = new EventSource(tokenUrl("/events"))
+    source.addEventListener("screen-changed", requestReload)
+    source.addEventListener("annotations", (event) => {
+      let states
+      try {
+        states = JSON.parse(event.data)
+      } catch {
+        return
+      }
+      applyAnnotationStates(states)
     })
     source.addEventListener("session-ended", markEnded)
     source.addEventListener("error", () => {

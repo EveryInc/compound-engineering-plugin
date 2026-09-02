@@ -535,9 +535,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("target-gone")
     expect(overlay).toContain("EventSource")
     expect(overlay).toContain("ce-prototype-root")
-    expect(overlay).toContain("advancePinsAfterRevision")
     expect(overlay).toContain("Stop failed")
-    expect(overlay).toContain('if (pin.status === "working")')
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
     expect(overlay).toContain('addEventListener("scroll", reattachPins')
     expect(overlay).toContain("EventSource.CLOSED")
@@ -546,6 +544,14 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain('addEventListener("screen-changed"')
     expect(overlay).toContain("sessionStorage.setItem(STATE_KEY")
     expect(overlay).toContain("window.location.reload()")
+    // Pin status follows the helper's annotation lifecycle, never a reload;
+    // an open draft survives a reload; a reload waits for an in-flight POST.
+    expect(overlay).toContain('addEventListener("annotations"')
+    expect(overlay).toContain('{ queued: "pending", working: "working", done: "attached" }')
+    expect(overlay).not.toContain("advancePinsAfterRevision")
+    expect(overlay).toMatch(/draft: draft \? \{ \.\.\.draft, text: commentField\.value/)
+    expect(overlay).toMatch(/if \(inFlight\) \{\n\s+reloadPending = true/)
+    expect(overlay).toContain("if (reloadPending) requestReload()")
     expect(overlay).not.toContain("DOMParser")
     expect(overlay).not.toContain("adoptNode")
     expect(overlay).not.toMatch(/\bmorph\b/i)
@@ -575,5 +581,62 @@ describe("ce-prototype light-webserver.js", () => {
     const second = await runServerCommand(["wait", "--root", root])
     expect(second.exitCode, second.stderr).toBe(0)
     expect(JSON.parse(second.stdout.trim()).comment).toBe("second")
+  })
+
+  test("annotation lifecycle follows POST, wait, and re-entering wait, and is streamed to the overlay", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-lifecycle-"))
+    const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40" })
+    const origin = `http://localhost:${info.port}`
+    const headers = { "Content-Type": "application/json" }
+    const post = async (comment: string) => {
+      const response = await fetch(`${origin}/annotation?token=${info.token}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ comment, selector: "h1" }),
+      })
+      expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body.id).toMatch(/^[0-9a-f-]{36}$/)
+      return body.id as string
+    }
+    const wait = async () => {
+      const response = await fetch(`${origin}/wait?token=${info.token}`)
+      return response.status === 200 ? await response.json() : null
+    }
+    const lifecycle = async () => {
+      const controller = new AbortController()
+      const stream = await fetch(`${origin}/events?token=${info.token}`, { signal: controller.signal })
+      const reader = stream.body!.getReader()
+      let text = ""
+      while (!/event: annotations\ndata: .*\n\n/.test(text)) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        text += new TextDecoder().decode(chunk.value)
+      }
+      controller.abort()
+      return JSON.parse(text.match(/event: annotations\ndata: (.*)\n\n/)![1])
+    }
+
+    const first = await post("first")
+    const second = await post("second")
+    expect(await lifecycle()).toEqual({ [first]: "queued", [second]: "queued" })
+
+    const served = await wait()
+    expect(served.id).toBe(first)
+    expect(served.comment).toBe("first")
+    expect(await lifecycle()).toEqual({ [first]: "working", [second]: "queued" })
+
+    // Re-entering wait completes the served annotation and serves the next.
+    expect((await wait()).id).toBe(second)
+    expect(await lifecycle()).toEqual({ [first]: "done", [second]: "working" })
+
+    // A 204 wait while idle completes the last one; nothing else is served.
+    expect(await wait()).toBeNull()
+    expect(await lifecycle()).toEqual({ [first]: "done", [second]: "done" })
+
+    const third = await post("third")
+    expect(await lifecycle()).toEqual({ [first]: "done", [second]: "done", [third]: "queued" })
+    await fetch(`${origin}/session/end?token=${info.token}`, { method: "POST" })
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 })

@@ -574,6 +574,9 @@ async function serve(options) {
   const sessionToken = options.annotate ? randomUUID() : null
   let cookieName = null
   const annotationQueue = []
+  // id -> queued | working | done, in POST order. The overlay's pin status
+  // follows this, never the screen changes an annotation happens to cause.
+  const annotationStates = new Map()
   const waiters = []
   const sseClients = new Set()
   let sessionEnded = false
@@ -592,6 +595,8 @@ async function serve(options) {
       clearTimeout(sseGraceTimer)
       sseGraceTimer = null
     }
+    for (const id of annotationStates.keys()) annotationStates.set(id, "done")
+    broadcastAnnotations()
     const body = `${JSON.stringify({ status: "session-ended" })}\n`
     while (waiters.length > 0) {
       const parked = waiters.shift()
@@ -610,15 +615,43 @@ async function serve(options) {
     sseClients.clear()
   }
 
+  function annotationsPayload() {
+    return JSON.stringify(Object.fromEntries(annotationStates))
+  }
+
+  function broadcastAnnotations() {
+    const frame = `event: annotations\ndata: ${annotationsPayload()}\n\n`
+    for (const client of sseClients) {
+      if (!client.writableEnded) client.write(frame)
+    }
+  }
+
+  // The agent asking for the next annotation is the completion signal for the
+  // one it was serving; the wait CLI only re-enters after a 204 while idle.
+  function completeWorking() {
+    let changed = false
+    for (const [id, state] of annotationStates) {
+      if (state === "working") {
+        annotationStates.set(id, "done")
+        changed = true
+      }
+    }
+    if (changed) broadcastAnnotations()
+  }
+
+  function serveAnnotation(res, item) {
+    annotationStates.set(item.id, "working")
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
+    res.end(`${JSON.stringify(item)}\n`)
+    broadcastAnnotations()
+  }
+
   function fulfillWaiters() {
     while (waiters.length > 0 && annotationQueue.length > 0) {
       const parked = waiters.shift()
-      const item = annotationQueue.shift()
       clearTimeout(parked.timer)
-      if (!parked.res.writableEnded) {
-        parked.res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
-        parked.res.end(`${JSON.stringify(item)}\n`)
-      }
+      if (parked.res.writableEnded) continue
+      serveAnnotation(parked.res, annotationQueue.shift())
     }
   }
 
@@ -673,8 +706,9 @@ async function serve(options) {
           return
         }
         broadcastIfChanged()
+        completeWorking()
         if (annotationQueue.length > 0) {
-          sendJson(res, 200, annotationQueue.shift())
+          serveAnnotation(res, annotationQueue.shift())
           return
         }
         const parked = { res, timer: null }
@@ -714,7 +748,9 @@ async function serve(options) {
           return
         }
         annotationQueue.push(record)
+        annotationStates.set(record.id, "queued")
         touch()
+        broadcastAnnotations()
         fulfillWaiters()
         sendJson(res, 200, { ok: true, id: record.id })
         return
@@ -739,6 +775,8 @@ async function serve(options) {
           Connection: "keep-alive",
         })
         res.write(":ok\n\n")
+        // A client that just reloaded reconciles its pins from this frame.
+        res.write(`event: annotations\ndata: ${annotationsPayload()}\n\n`)
         sawSseClient = true
         if (sseGraceTimer) {
           clearTimeout(sseGraceTimer)
