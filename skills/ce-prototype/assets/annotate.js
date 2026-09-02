@@ -14,14 +14,16 @@
     }
   })()
   // The overlay owns its host: created here (this script is deferred, so the
-  // document has parsed) and held by reference. The id is for styling and
-  // debugging; a screen using the same id is never resolved as the host. It
-  // hangs off <html>, not <body>, so it is outside every body-scoped selector
-  // and document.body.children, and takes no part in the authored layout. The
-  // inline box applies before the stylesheet arrives.
-  const host = document.createElement("div")
-  host.id = "ce-annotate-host"
-  host.style.cssText = "position: fixed; inset: 0; pointer-events: none; z-index: 2147483645; margin: 0; padding: 0; border: 0;"
+  // document has parsed) and held by reference only. It is a custom element
+  // with no id or class, so no ordinary authored selector (`div`, `#id`,
+  // `html > div`) matches it, and its box is inline and important, which
+  // outranks an authored `!important`. It hangs off <html>, not <body>, so it
+  // is outside every body-scoped selector and document.body.children, and takes
+  // no part in the authored layout. The inline box applies before the
+  // stylesheet arrives.
+  const host = document.createElement("ce-annotate-host")
+  host.style.cssText =
+    "display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: 2147483645 !important; margin: 0 !important; padding: 0 !important; border: 0 !important;"
   document.documentElement.appendChild(host)
   const shadow = host.attachShadow({ mode: "open" })
   const css = document.createElement("link")
@@ -304,7 +306,10 @@
     if (!comment) return
     // The composer can be closed (tool toggled off) while the request is in
     // flight; the submission is complete in itself from here on.
+    // The path names the screen this pin is on; the helper resolves it to the
+    // file the agent edits. Path only: no query, so no token.
     const payload = {
+      page: window.location.pathname,
       comment,
       selector: draft.selector,
       textSnippet: draft.textSnippet,

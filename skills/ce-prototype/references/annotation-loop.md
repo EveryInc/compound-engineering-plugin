@@ -4,7 +4,7 @@ Load this once an isolated web preview is up. Overlay and yielded-medium runs do
 
 ## When to wait
 
-While the isolated web preview is running, wait for the next annotation or a terminal session-ended status. On an annotation, edit the current newest screen in this question's `screens/` directory. On session-ended or wait failure, stop the loop.
+While the isolated web preview is running, wait for the next annotation or a terminal session-ended status. On an annotation, edit the file the record's `screen` field names, relative to this question's `screens/` directory — the page the pin was placed on, not necessarily the newest screen. On session-ended or wait failure, stop the loop.
 
 Chat is valid when wait is unreachable, failed, or has already returned. Do not read chat while a wait is in flight. Stop on the overlay is how the explorer leaves the loop for conversation.
 

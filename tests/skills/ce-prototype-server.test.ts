@@ -76,6 +76,16 @@ async function startServer(
   return JSON.parse(result.stdout.trim())
 }
 
+// The exact boot the helper puts ahead of every served screen: an inline
+// synchronous store of the token from the location (no token literal), then
+// the deferred overlay on the request origin.
+const BOOT_STORE = '<script>(function(){try{var t=new URLSearchParams(location.search).get("token");if(t)sessionStorage.setItem("ce-annotate-token",t)}catch(e){}})()</script>'
+function annotateBoot(origin: string): string {
+  return `${BOOT_STORE}\n<script defer src="${origin}/__ce-annotate/annotate.js"></script>`
+}
+// What a browser sends when it navigates to a page, as opposed to a script's fetch.
+const NAVIGATE = { "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", Accept: "text/html,*/*;q=0.8" }
+
 afterEach(async () => {
   while (rootsToStop.length > 0) {
     const root = rootsToStop.pop()!
@@ -272,11 +282,14 @@ describe("ce-prototype light-webserver.js", () => {
     expect(page.headers.get("referrer-policy")).toBe("no-referrer")
     const html = await page.text()
     expect(html).toContain("Pin me")
-    // The boot is one deferred script; the overlay creates its own host and
-    // stylesheet at runtime, so the served document names neither.
-    const boot = `<script defer src="${origin}/__ce-annotate/annotate.js"></script>`
+    // The boot stores the token synchronously before any authored script, then
+    // defers the overlay; the overlay creates its own host and stylesheet at
+    // runtime, so the served document names neither.
+    const boot = annotateBoot(origin)
     expect(html.split(boot).length).toBe(2)
     expect(html).toMatch(new RegExp(`<head>[\\s\\S]*${boot.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}[\\s\\S]*</head>`))
+    expect(boot).not.toContain(token)
+    expect(boot.indexOf("sessionStorage.setItem")).toBeLessThan(boot.indexOf("<script defer"))
     expect(html).not.toContain("ce-annotate-host")
     expect(html).not.toContain("annotate.css")
     expect(html).not.toContain(token)
@@ -333,6 +346,7 @@ describe("ce-prototype light-webserver.js", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Pin me</h1>")
     const record = {
       comment: "more padding above this heading",
       selector: "h1",
@@ -352,6 +366,9 @@ describe("ce-prototype light-webserver.js", () => {
     const result = await waiting
     expect(result.exitCode, result.stderr).toBe(0)
     const payload = JSON.parse(result.stdout.trim())
+    expect(Object.keys(payload)).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect"])
+    // No page names the root, and the root is the newest screen.
+    expect(payload.screen).toBe("001-screen.html")
     expect(payload.comment).toBe(record.comment)
     expect(payload.selector).toBe(record.selector)
     expect(payload.textSnippet).toBe(record.textSnippet)
@@ -365,11 +382,63 @@ describe("ce-prototype light-webserver.js", () => {
     expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
   })
 
-  test("annotate mode serves every HTML file under screens/ with the overlay; assets stay raw; default mode is untouched", async () => {
+  test("the record names the screen file the annotated page resolves to; a page that does not is refused", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-screen-"))
+    const info = await startServer(root, ["--annotate"])
+    const origin = `http://localhost:${info.port}`
+    const screens = String(info.screen_dir)
+    await fs.mkdir(path.join(screens, "pages"))
+    await fs.writeFile(path.join(screens, "details.html"), "<h1>Details</h1>")
+    await fs.writeFile(path.join(screens, "pages", "part.html"), "<h2>Part</h2>")
+    await fs.writeFile(path.join(screens, "styles.css"), "h1 {}")
+    await fs.mkdir(path.join(root, "outside"))
+    await fs.writeFile(path.join(root, "outside", "leak.html"), "<h1>Leak</h1>")
+    await fs.symlink(path.join(root, "outside"), path.join(screens, "escape"))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await fs.writeFile(path.join(screens, "002-home.html"), "<h1>Home</h1>")
+
+    const post = (body: Record<string, unknown>) =>
+      fetch(`${origin}/annotation?token=${info.token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: "c", selector: "h1", ...body }),
+      })
+    const nextRecord = async () => {
+      const waited = await fetch(`${origin}/wait?token=${info.token}`)
+      expect(waited.status).toBe(200)
+      return waited.json()
+    }
+
+    expect((await post({ page: "/details.html" })).status).toBe(200)
+    const details = await nextRecord()
+    expect(Object.keys(details)).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect"])
+    expect(details.screen).toBe("details.html")
+    expect(details).not.toHaveProperty("page")
+
+    expect((await post({ page: "/pages/part.html" })).status).toBe(200)
+    expect((await nextRecord()).screen).toBe("pages/part.html")
+
+    // "/" and a missing page (an older overlay) are the newest screen at that moment.
+    expect((await post({ page: "/" })).status).toBe(200)
+    expect((await nextRecord()).screen).toBe("002-home.html")
+    expect((await post({})).status).toBe(200)
+    expect((await nextRecord()).screen).toBe("002-home.html")
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await fs.writeFile(path.join(screens, "003-next.html"), "<h1>Next</h1>")
+    expect((await post({ page: "/" })).status).toBe(200)
+    expect((await nextRecord()).screen).toBe("003-next.html")
+
+    // Anything that is not an HTML file under screens/ is refused, not guessed.
+    for (const page of ["/nope.html", "../x", "/../outside/leak.html", "/styles.css", "/pages", "/escape/leak.html", "details.html", "/details.html?token=x", "/%ZZ", 5, null, ["/details.html"]]) {
+      expect((await post({ page })).status, JSON.stringify(page)).toBe(400)
+    }
+  })
+
+  test("annotate mode serves every HTML page the browser navigates to under screens/ with the overlay; fetches and assets stay raw; default mode is untouched", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-linked-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
-    const boot = `<!doctype html>\n<script defer src="${origin}/__ce-annotate/annotate.js"></script>\n`
+    const boot = `<!doctype html>\n${annotateBoot(origin)}\n`
     const details = '<!DOCTYPE html><html><head><link rel="stylesheet" href="/styles.css"></head><body><h1 id="detail">Details</h1></body></html>'
     await fs.mkdir(path.join(String(info.screen_dir), "pages"))
     await fs.writeFile(path.join(String(info.screen_dir), "details.html"), details)
@@ -379,18 +448,35 @@ describe("ce-prototype light-webserver.js", () => {
     await fs.writeFile(path.join(String(info.screen_dir), "001-home.html"), '<a href="/details.html">details</a>')
     await fs.writeFile(path.join(String(info.screen_dir), "styles.css"), "h1 { color: red }")
 
-    const page = await fetch(`${origin}/details.html`)
+    const page = await fetch(`${origin}/details.html`, { headers: NAVIGATE })
     expect(page.status).toBe(200)
     expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8")
     expect(page.headers.get("cache-control")).toBe("no-store")
     expect(page.headers.get("referrer-policy")).toBe("no-referrer")
     expect(await page.text()).toBe(`${boot}${details}`)
+    // A browser that sends no fetch metadata still navigates: it accepts HTML and states no mode.
+    expect(await (await fetch(`${origin}/details.html`, { headers: { Accept: "text/html,application/xhtml+xml" } })).text()).toBe(`${boot}${details}`)
 
     // A fragment page gets the same shell as a fragment root screen.
-    const part = await (await fetch(`${origin}/pages/part.html`)).text()
+    const part = await (await fetch(`${origin}/pages/part.html`, { headers: NAVIGATE })).text()
     expect(part).toContain("<h2>Part</h2>")
     expect(part).toContain("CE local web")
     expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js"><\/script>[\s\S]*<\/head>/)
+
+    // A script fetching the same files gets them raw: a partial is not a screen.
+    for (const headers of [
+      { "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors", Accept: "*/*" },
+      { "Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate", Accept: "text/html" },
+      { Accept: "*/*" },
+      {},
+    ]) {
+      const raw = await fetch(`${origin}/pages/part.html`, { headers })
+      expect(raw.headers.get("cache-control"), JSON.stringify(headers)).toBe("no-store")
+      expect(await raw.text(), JSON.stringify(headers)).toBe("<h2>Part</h2>")
+    }
+    expect(await (await fetch(`${origin}/details.html`)).text()).toBe(details)
+    // The root is always a document.
+    expect(await (await fetch(String(info.url), { headers: { Accept: "*/*", "Sec-Fetch-Dest": "empty" } })).text()).toContain(annotateBoot(origin))
 
     const css = await fetch(`${origin}/styles.css`)
     expect(css.headers.get("content-type")).toBe("text/css; charset=utf-8")
@@ -622,21 +708,23 @@ describe("ce-prototype light-webserver.js", () => {
     const html = await (await fetch(String(info.url))).text()
     // A full document is served verbatim behind our doctype and the deferred
     // boot; nothing in the authored text is located or rewritten.
-    expect(html).toBe(`<!doctype html>\n<script defer src="${origin}/__ce-annotate/annotate.js"></script>\n${authored}`)
+    expect(html).toBe(`<!doctype html>\n${annotateBoot(origin)}\n${authored}`)
     expect(html).not.toContain('src="/__ce-annotate')
 
     // So a "</body>" literal in a script string or a trailing comment, or a
     // leading BOM, cannot mislead the boot.
     const literalDoc = '<!DOCTYPE html><html><body><script>const closing = "</body>"</script><h1>Literal</h1></body></html><!-- marker: </body> -->'
+    // The root serves the newest mtime; a write in the same filesystem tick as the previous screen ties.
+    await new Promise((resolve) => setTimeout(resolve, 20))
     await fs.writeFile(path.join(String(info.screen_dir), "002-screen.html"), `\uFEFF${literalDoc}`)
     const literal = await (await fetch(String(info.url))).text()
-    expect(literal).toBe(`<!doctype html>\n<script defer src="${origin}/__ce-annotate/annotate.js"></script>\n${literalDoc}`)
+    expect(literal).toBe(`<!doctype html>\n${annotateBoot(origin)}\n${literalDoc}`)
 
     // A Host header that cannot be reflected safely falls back to the listen address.
     const odd = await fetch(String(info.url), { headers: { host: 'evil"><script>' } })
     expect(odd.status).toBe(200)
     const oddHtml = await odd.text()
-    expect(oddHtml).toContain(`<script defer src="http://localhost:${info.port}/__ce-annotate/annotate.js"></script>`)
+    expect(oddHtml).toContain(annotateBoot(`http://localhost:${info.port}`))
     expect(oddHtml).not.toContain('evil"')
 
     const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
@@ -672,6 +760,7 @@ describe("ce-prototype light-webserver.js", () => {
       CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "80",
     })
     const origin = `http://localhost:${info.port}`
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Idle</h1>")
     await fetch(String(info.url))
 
     await new Promise((resolve) => setTimeout(resolve, 400))
@@ -735,14 +824,19 @@ describe("ce-prototype light-webserver.js", () => {
     expect(submitHandler.slice(submitHandler.indexOf("await "))).not.toMatch(/\bdraft\b/)
     const closeComposer = overlay.slice(overlay.indexOf("function closeComposer()"), overlay.indexOf("function renderPins()"))
     expect(closeComposer).not.toContain("inFlight = false")
-    // The overlay owns its host: created at runtime and held by reference, so a
-    // screen carrying the same id can neither hijack it nor be mistaken for it.
-    expect(overlay).toContain('const host = document.createElement("div")')
+    // The overlay owns its host: a custom element created at runtime and held
+    // by reference only — no id or class an authored stylesheet could match,
+    // and no `div` or `html > div` either — with an important inline box that
+    // outranks an authored `!important`.
+    expect(overlay).toContain('const host = document.createElement("ce-annotate-host")')
+    expect(overlay).not.toMatch(/host\.(id|className) =/)
     // Parented on <html>, fixed and click-through, so it is outside every
     // body-scoped selector, document.body.children, and the authored layout.
     expect(overlay).toContain("document.documentElement.appendChild(host)")
     expect(overlay).not.toContain("document.body.appendChild(")
-    expect(overlay).toMatch(/host\.style\.cssText = "position: fixed; inset: 0; pointer-events: none; z-index: \d+;/)
+    expect(overlay).toMatch(/host\.style\.cssText =\s*"display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: \d+ !important;/)
+    // The pin names the page it was placed on; the helper resolves the file.
+    expect(overlay).toContain("page: window.location.pathname,")
     const css = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
     expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  pointer-events: none;/)
     expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*pointer-events: auto;/)
@@ -761,6 +855,7 @@ describe("ce-prototype light-webserver.js", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-queue-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Queue</h1>")
     const headers = { "Content-Type": "application/json" }
     expect((await fetch(`${origin}/annotation?token=${info.token}`, {
       method: "POST",
@@ -786,6 +881,7 @@ describe("ce-prototype light-webserver.js", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-lifecycle-"))
     const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40" })
     const origin = `http://localhost:${info.port}`
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Lifecycle</h1>")
     const headers = { "Content-Type": "application/json" }
     const post = async (comment: string) => {
       const response = await fetch(`${origin}/annotation?token=${info.token}`, {

@@ -265,11 +265,16 @@ function refreshScript(options) {
 </script>`
 }
 
-// The overlay is one deferred script; it creates its own host and stylesheet
-// once the document has parsed. The URL is absolute on the request's own
-// origin, so a screen's <base href> cannot redirect it.
+// Two scripts, both ahead of the authored document. The first is inline and
+// synchronous: it stores the token from the location before any authored
+// script runs, so a screen that rewrites its own URL (history.replaceState)
+// cannot lose it; it carries no token literal, only the storage key. The
+// second is the overlay, deferred; it creates its own host and stylesheet once
+// the document has parsed. Its URL is absolute on the request's own origin, so
+// a screen's <base href> cannot redirect it.
 function annotateBoot(origin) {
-  return `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
+  const store = `try{var t=new URLSearchParams(location.search).get("token");if(t)sessionStorage.setItem(${JSON.stringify(TOKEN_STORAGE_KEY)},t)}catch(e){}`
+  return `<script>(function(){${store}})()</script>\n<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
 }
 
 // Served in place of the screen when a root navigation arrives without the
@@ -428,7 +433,42 @@ function readBody(req, limit = BODY_LIMIT) {
   })
 }
 
-function parseAnnotation(raw) {
+// The screens/-relative HTML file the annotated page resolves to, or null.
+// "/" (also a missing page, from an older overlay) is the newest screen at
+// that moment; any other path must name an HTML file under screens/, through
+// the same containment as the route that served it. This is the file the
+// agent edits, so it is resolved here rather than trusted from the client.
+function screenForPage(options, page = "/") {
+  if (typeof page !== "string" || !page.startsWith("/")) return null
+  let filePath
+  if (page === "/") {
+    filePath = newestScreen(options)
+  } else {
+    let name
+    try {
+      name = decodeURIComponent(page)
+    } catch {
+      return null
+    }
+    filePath = containedRealPath(options.screensDir, path.resolve(options.screensDir, name.replace(/^\/+/, "")))
+    if (!filePath || contentType(filePath) !== CONTENT_TYPES[".html"]) return null
+    try {
+      if (!fs.statSync(filePath).isFile()) return null
+    } catch {
+      return null
+    }
+  }
+  if (!filePath) return null
+  let root
+  try {
+    root = fs.realpathSync(options.screensDir)
+  } catch {
+    return null
+  }
+  return path.relative(root, filePath).split(path.sep).join("/")
+}
+
+function parseAnnotation(raw, options) {
   if (!raw || !raw.trim()) return null
   let body
   try {
@@ -440,15 +480,28 @@ function parseAnnotation(raw) {
   const comment = typeof body.comment === "string" ? body.comment.trim() : ""
   const selector = typeof body.selector === "string" ? body.selector.trim() : ""
   if (!comment || !selector) return null
+  const screen = screenForPage(options, body.page)
+  if (!screen) return null
   const textSnippet = typeof body.textSnippet === "string" ? body.textSnippet : null
   const rect = body.rect && typeof body.rect === "object" && !Array.isArray(body.rect) ? body.rect : null
   return {
     id: randomUUID(),
+    screen,
     comment,
     selector,
     textSnippet,
     rect,
   }
+}
+
+// Whether a request for an HTML file is the browser navigating to it, as
+// opposed to a script fetching it. Fetch metadata decides when the browser
+// sends it (frames stay raw: only a top-level document is a screen); without
+// it, a request that accepts HTML and states no fetch mode is a navigation.
+function isDocumentNavigation(req) {
+  const dest = req.headers["sec-fetch-dest"]
+  if (dest) return dest === "document"
+  return !req.headers["sec-fetch-mode"] && /\btext\/html\b/.test(req.headers.accept || "")
 }
 
 // The regular file under rootDir that the request names, or null after the
@@ -829,7 +882,7 @@ async function serve(options) {
           sendJson(res, 410, { status: "session-ended" })
           return
         }
-        const record = parseAnnotation(raw)
+        const record = parseAnnotation(raw, options)
         if (!record) {
           sendJson(res, 400, { error: "invalid annotation" })
           return
@@ -897,15 +950,16 @@ async function serve(options) {
         return
       }
 
-      // A linked page under screens/ is a screen too: it carries the same
-      // overlay and stream, or the session would end at the first navigation.
-      // It stays ungated like every other screen file; the overlay recovers
-      // the token from sessionStorage. Other assets are served raw.
+      // A linked page under screens/ is a screen too: navigated to, it carries
+      // the same overlay and stream, or the session would end at the first
+      // navigation. It stays ungated like every other screen file; the overlay
+      // recovers the token from sessionStorage. Fetched by a script, the same
+      // file is a partial and is served raw, like every other asset.
       if (req.method === "GET") {
         touch()
         const filePath = resolveContainedFile(options.screensDir, req, res)
         if (!filePath) return
-        if (contentType(filePath) === CONTENT_TYPES[".html"]) {
+        if (contentType(filePath) === CONTENT_TYPES[".html"] && isDocumentNavigation(req)) {
           serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req)))
           return
         }

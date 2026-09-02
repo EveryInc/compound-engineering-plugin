@@ -26,7 +26,7 @@ When the question is which option wins, put the options on one surface so they c
 
 After each user-facing action or variant change, show the relevant state so they can see what changed.
 
-While an annotation loop is running, edit the current newest screen in place. Do not mint a new numbered `00N-*.html` per pin.
+While an annotation loop is running, revise the screen the record names, in place. Do not mint a new numbered `00N-*.html` per pin.
 
 Give each question in a multi-question run its own child directory under the run directory. Never delete a kept prototype — the directory is theirs to prune. Calling the prototype throwaway is not a request to delete it; throwaway describes the code.
 
