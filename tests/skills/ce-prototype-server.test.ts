@@ -741,6 +741,13 @@ describe("ce-prototype light-webserver.js", () => {
     expect(reused.status).toBe("running")
     expect(reused.pid).toBe(annotated.pid)
 
+    expect((await fetch(`http://localhost:${annotated.port}/session/end?token=${annotated.token}`, { method: "POST" })).status).toBe(200)
+    const restarted = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "200" })
+    expect(restarted.status).toBe("started")
+    expect(restarted.pid).not.toBe(annotated.pid)
+    expect(String(restarted.token)).toMatch(/^[0-9a-f-]{36}$/)
+    expect((await fetch(`http://localhost:${restarted.port}/wait?token=${restarted.token}`)).status).toBe(204)
+
     const back = await startServer(root)
     expect(back.status).toBe("started")
     expect(back.pid).not.toBe(annotated.pid)

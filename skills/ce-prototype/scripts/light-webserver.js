@@ -596,7 +596,7 @@ async function start(options) {
   ensureDirs(options)
   options.ownerPid = options.ownerPid ?? resolveOwnerPid()
   const running = getRunningInfo(options)
-  if (running && Boolean(running.annotate) === options.annotate) {
+  if (running && Boolean(running.annotate) === options.annotate && !running.session_ended) {
     jsonOut({ ...running, status: "running" })
     return
   }
@@ -700,6 +700,7 @@ async function serve(options) {
   const waiters = []
   const sseClients = new Set()
   let sessionEnded = false
+  let publishedInfo = null
   let sawSseClient = false
   let sseGraceTimer = null
   let lastBroadcastKey = options.annotate ? screensChangeKey(options) : null
@@ -711,6 +712,14 @@ async function serve(options) {
   function endSession() {
     if (sessionEnded) return
     sessionEnded = true
+    if (publishedInfo && options.infoFile) {
+      publishedInfo = { ...publishedInfo, session_ended: true }
+      try {
+        fs.writeFileSync(options.infoFile, `${JSON.stringify(publishedInfo, null, 2)}\n`)
+      } catch {
+        // Reuse without this flag would report a live session that cannot wait.
+      }
+    }
     if (sseGraceTimer) {
       clearTimeout(sseGraceTimer)
       sseGraceTimer = null
@@ -1022,6 +1031,7 @@ async function serve(options) {
       owner_pid: options.ownerPid ?? null,
       ...(sessionToken ? { token: sessionToken, annotate: true } : {}),
     }
+    publishedInfo = info
     fs.writeFileSync(options.pidFile, `${process.pid}\n`)
     fs.writeFileSync(options.infoFile, `${JSON.stringify(info, null, 2)}\n`)
     console.log(JSON.stringify(info))
