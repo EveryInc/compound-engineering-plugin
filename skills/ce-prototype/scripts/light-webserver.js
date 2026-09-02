@@ -265,12 +265,11 @@ function refreshScript(options) {
 </script>`
 }
 
-// Absolute URLs on the request's own origin: a screen's <base href> would
-// otherwise send root-relative overlay URLs to whatever origin it names.
+// The overlay is one deferred script; it creates its own host and stylesheet
+// once the document has parsed. The URL is absolute on the request's own
+// origin, so a screen's <base href> cannot redirect it.
 function annotateBoot(origin) {
-  return `<div id="ce-annotate-host"></div>
-<link rel="stylesheet" href="${origin}${OVERLAY_PREFIX}/annotate.css">
-<script src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
+  return `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
 }
 
 // Served in place of the screen when a root navigation arrives without the
@@ -332,13 +331,14 @@ function wrapFragment(options, content) {
 </html>`
 }
 
-function wrapAnnotateFragment(content) {
+function wrapAnnotateFragment(content, boot) {
   return `<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CE local web</title>
+  ${boot}
   <style>
     body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f7f8; color: #1f2328; }
     header { padding: 10px 18px; border-bottom: 1px solid #d8dee4; background: #fff; color: #57606a; font-size: 13px; }
@@ -359,27 +359,23 @@ function injectRefresh(options, html) {
   return `${html}\n${refreshScript(options)}`
 }
 
-function injectAnnotate(html, origin) {
+// The document the annotate client sees. A full document is served unchanged
+// behind our doctype and the boot script: the parser opens html/head for the
+// script, then merges the authored <html> attributes, processes the authored
+// head children in head, ignores the second doctype and <head> start tag, and
+// creates <body> with its attributes. Nothing in the authored text is located
+// or rewritten, so a "</body>" in a script string or comment cannot mislead it.
+function annotateDocument(options, origin) {
   const boot = annotateBoot(origin)
-  // The real closing tag is the last one; an earlier match may sit inside a
-  // script string or comment.
-  const close = html.lastIndexOf("</body>")
-  if (close !== -1) {
-    return `${html.slice(0, close)}${boot}\n${html.slice(close)}`
-  }
-  return `${html}\n${boot}`
-}
-
-// The document the annotate client sees, before the overlay is injected.
-function annotateDocument(options) {
   const screen = newestScreen(options)
-  if (!screen) return wrapAnnotateFragment(WAITING_HTML)
-  const html = fs.readFileSync(screen, "utf8")
-  return isFullDocument(html) ? html : wrapAnnotateFragment(html)
+  if (!screen) return wrapAnnotateFragment(WAITING_HTML, boot)
+  const html = fs.readFileSync(screen, "utf8").replace(/^\uFEFF/, "")
+  if (!isFullDocument(html)) return wrapAnnotateFragment(html, boot)
+  return `<!doctype html>\n${boot}\n${html}`
 }
 
 function renderPage(options, origin) {
-  if (options.annotate) return injectAnnotate(annotateDocument(options), origin)
+  if (options.annotate) return annotateDocument(options, origin)
   const screen = newestScreen(options)
   if (!screen) return wrapFragment(options, WAITING_HTML)
   const html = fs.readFileSync(screen, "utf8")
@@ -792,6 +788,11 @@ async function serve(options) {
           raw = await readBody(req)
         } catch {
           sendJson(res, 400, { error: "invalid annotation" })
+          return
+        }
+        // The session can end while the body is still arriving.
+        if (sessionEnded) {
+          sendJson(res, 410, { status: "session-ended" })
           return
         }
         const record = parseAnnotation(raw)

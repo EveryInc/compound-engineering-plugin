@@ -13,7 +13,10 @@
       return fromUrl
     }
   })()
-  const host = document.getElementById("ce-annotate-host") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "ce-annotate-host" }))
+  // The overlay owns its host: created here (this script is deferred, so the
+  // body exists) and held by reference. The id is for styling and debugging;
+  // a screen using the same id is never resolved as the host.
+  const host = document.body.appendChild(Object.assign(document.createElement("div"), { id: "ce-annotate-host" }))
   const shadow = host.attachShadow({ mode: "open" })
   const css = document.createElement("link")
   css.rel = "stylesheet"
@@ -348,7 +351,7 @@
     if (event.composedPath().includes(host)) return
     const target = event.target
     if (!(target instanceof Element)) return
-    if (target.id === "ce-annotate-host" || target.closest("#ce-annotate-host")) return
+    if (host.contains(target)) return
     event.preventDefault()
     event.stopPropagation()
     openComposer(target, event)
