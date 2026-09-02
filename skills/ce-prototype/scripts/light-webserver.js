@@ -22,6 +22,11 @@ const OVERLAY_FILES = {
   [`${OVERLAY_PREFIX}/annotate.js`]: "annotate.js",
   [`${OVERLAY_PREFIX}/annotate.css`]: "annotate.css",
 }
+// Shared with assets/annotate.js: where the overlay keeps the session token
+// for the bootstrap page to re-enter with.
+const TOKEN_STORAGE_KEY = "ce-annotate-token"
+// A Host header is reflected into the served document only in this shape.
+const HOST_HEADER = /^[A-Za-z0-9.\-]+(:\d{1,5})?$|^\[[0-9A-Fa-f:.]+\](:\d{1,5})?$/
 
 function usage() {
   return [
@@ -260,10 +265,50 @@ function refreshScript(options) {
 </script>`
 }
 
-function annotateBoot() {
+// Absolute URLs on the request's own origin: a screen's <base href> would
+// otherwise send root-relative overlay URLs to whatever origin it names.
+function annotateBoot(origin) {
   return `<div id="ce-annotate-host"></div>
-<link rel="stylesheet" href="${OVERLAY_PREFIX}/annotate.css">
-<script src="${OVERLAY_PREFIX}/annotate.js"></script>`
+<link rel="stylesheet" href="${origin}${OVERLAY_PREFIX}/annotate.css">
+<script src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
+}
+
+// Served in place of the screen when a root navigation arrives without the
+// session token, as a prototype's own href="/?variant=a" does. The overlay
+// keeps the token in sessionStorage, which is scoped to this origin including
+// the port, so the page re-enters with the token set and nothing leaves the
+// server. A stored token the server just refused belongs to an earlier
+// server on this port and is dropped rather than retried.
+function bootstrapPage() {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CE local web</title>
+  <style>
+    body { margin: 0; padding: 24px; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f7f8; color: #1f2328; }
+  </style>
+</head>
+<body>
+  <p id="ce-annotate-bootstrap" hidden>This preview needs its session link. Open the URL the agent gave you.</p>
+  <script>
+(function(){
+  var key = ${JSON.stringify(TOKEN_STORAGE_KEY)};
+  var stored = null;
+  try { stored = sessionStorage.getItem(key); } catch (error) {}
+  var url = new URL(window.location.href);
+  if (stored && url.searchParams.get("token") !== stored) {
+    url.searchParams.set("token", stored);
+    window.location.replace(url.toString());
+    return;
+  }
+  try { sessionStorage.removeItem(key); } catch (error) {}
+  document.getElementById("ce-annotate-bootstrap").hidden = false;
+})();
+  </script>
+</body>
+</html>`
 }
 
 function wrapFragment(options, content) {
@@ -314,8 +359,8 @@ function injectRefresh(options, html) {
   return `${html}\n${refreshScript(options)}`
 }
 
-function injectAnnotate(html) {
-  const boot = annotateBoot()
+function injectAnnotate(html, origin) {
+  const boot = annotateBoot(origin)
   if (html.includes("</body>")) {
     return html.replace("</body>", `${boot}\n</body>`)
   }
@@ -330,36 +375,23 @@ function annotateDocument(options) {
   return isFullDocument(html) ? html : wrapAnnotateFragment(html)
 }
 
-function renderPage(options) {
-  if (options.annotate) return injectAnnotate(annotateDocument(options))
+function renderPage(options, origin) {
+  if (options.annotate) return injectAnnotate(annotateDocument(options), origin)
   const screen = newestScreen(options)
   if (!screen) return wrapFragment(options, WAITING_HTML)
   const html = fs.readFileSync(screen, "utf8")
   return isFullDocument(html) ? injectRefresh(options, html) : wrapFragment(options, html)
 }
 
-function cookieValue(req, name) {
-  const header = req.headers.cookie
-  if (typeof header !== "string") return null
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=")
-    if (eq === -1) continue
-    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim()
-  }
-  return null
-}
-
-// Every credential the request presents. A prototype may use ?token= for its
-// own purposes, so no single source may shadow another: the gate accepts the
-// request when any of these matches.
-function requestCredentials(req, cookieName) {
+// Every credential the request presents; the gate accepts the request when any
+// of them matches, so no single source shadows another.
+function requestCredentials(req) {
   const url = new URL(req.url, "http://127.0.0.1")
   const auth = req.headers.authorization
   return [
     url.searchParams.get("token"),
     req.headers["x-session-token"],
     typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7) : null,
-    cookieName ? cookieValue(req, cookieName) : null,
   ].filter((value) => typeof value === "string" && value)
 }
 
@@ -491,10 +523,13 @@ async function start(options) {
   ensureDirs(options)
   options.ownerPid = options.ownerPid ?? resolveOwnerPid()
   const running = getRunningInfo(options)
-  if (running) {
+  if (running && Boolean(running.annotate) === options.annotate) {
     jsonOut({ ...running, status: "running" })
     return
   }
+  // A server in the other mode cannot serve this start: a default server has
+  // no token for wait, and an annotate server would gate a default preview.
+  if (running) await stopServer(options)
 
   fs.rmSync(options.pidFile, { force: true })
   fs.rmSync(options.infoFile, { force: true })
@@ -577,7 +612,6 @@ async function serve(options) {
   ensureDirs(options)
 
   const sessionToken = options.annotate ? randomUUID() : null
-  let cookieName = null
   const annotationQueue = []
   // id -> queued | working | done, in POST order. The overlay's pin status
   // follows this, never the screen changes an annotation happens to cause.
@@ -677,10 +711,20 @@ async function serve(options) {
     if (key !== lastBroadcastKey) broadcastScreenChange(key)
   }
 
+  function authorized(req) {
+    return requestCredentials(req).some((candidate) => tokenMatches(candidate, sessionToken))
+  }
+
   function requireAnnotateToken(req, res) {
-    if (requestCredentials(req, cookieName).some((candidate) => tokenMatches(candidate, sessionToken))) return true
+    if (authorized(req)) return true
     sendJson(res, 401, { error: "unauthorized" })
     return false
+  }
+
+  function requestOrigin(req) {
+    const host = req.headers.host
+    if (typeof host === "string" && HOST_HEADER.test(host)) return `http://${host}`
+    return `http://${DEFAULT_URL_HOST}:${server.address().port}`
   }
 
   function armSseGrace() {
@@ -801,7 +845,15 @@ async function serve(options) {
       }
 
       if (req.method === "GET" && urlPath === "/") {
-        if (!requireAnnotateToken(req, res)) return
+        if (!authorized(req)) {
+          res.writeHead(401, {
+            "Content-Type": "text/html; charset=utf-8",
+            ...NO_STORE,
+            "Referrer-Policy": "no-referrer",
+          })
+          res.end(bootstrapPage())
+          return
+        }
         touch()
         // A page being served is a tab loading, not the last tab closing: a
         // reload's stream reconnects only once this document's scripts run.
@@ -816,11 +868,8 @@ async function serve(options) {
           // The token rides in this document's URL; never let a prototype's
           // outbound link or asset carry it in a Referer.
           "Referrer-Policy": "no-referrer",
-          // Prototype navigation such as href="/?variant=a" drops the query;
-          // the cookie keeps that navigation authenticated on this port.
-          "Set-Cookie": `${cookieName}=${sessionToken}; HttpOnly; SameSite=Strict; Path=/`,
         })
-        res.end(renderPage(options))
+        res.end(renderPage(options, requestOrigin(req)))
         return
       }
     }
@@ -854,7 +903,6 @@ async function serve(options) {
   server.listen(options.port, options.host, () => {
     const address = server.address()
     const port = typeof address === "object" && address ? address.port : options.port
-    cookieName = `ce-light-web-${port}`
     const baseUrl = `http://${DEFAULT_URL_HOST}:${port}`
     const info = {
       status: "running",
@@ -898,33 +946,27 @@ async function serve(options) {
   }
 }
 
-async function stop(options) {
+async function stopServer(options) {
   const pid = readPid(options)
-  if (!processAlive(pid)) {
-    fs.rmSync(options.pidFile, { force: true })
-    jsonOut({ status: "stopped", root: options.root })
-    return
-  }
-  if (!ownsServerProcess(options, pid)) {
-    fs.rmSync(options.pidFile, { force: true })
-    jsonOut({ status: "stopped", root: options.root })
-    return
-  }
-
-  process.kill(pid)
-  for (let i = 0; i < 20; i++) {
-    if (!processAlive(pid)) break
-    await new Promise((resolve) => setTimeout(resolve, 100))
-  }
-  if (processAlive(pid)) {
-    try {
-      process.kill(pid, "SIGKILL")
-    } catch {
-      // Process may have exited between the liveness check and kill.
+  if (processAlive(pid) && ownsServerProcess(options, pid)) {
+    process.kill(pid)
+    for (let i = 0; i < 20; i++) {
+      if (!processAlive(pid)) break
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    if (processAlive(pid)) {
+      try {
+        process.kill(pid, "SIGKILL")
+      } catch {
+        // Process may have exited between the liveness check and kill.
+      }
     }
   }
-
   fs.rmSync(options.pidFile, { force: true })
+}
+
+async function stop(options) {
+  await stopServer(options)
   jsonOut({ status: "stopped", root: options.root })
 }
 

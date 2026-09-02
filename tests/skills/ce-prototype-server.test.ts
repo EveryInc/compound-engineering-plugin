@@ -272,9 +272,10 @@ describe("ce-prototype light-webserver.js", () => {
     const html = await page.text()
     expect(html).toContain("Pin me")
     expect(html).toContain("ce-annotate-host")
-    expect(html).toContain('src="/__ce-annotate/annotate.js"')
-    expect(html).toContain('href="/__ce-annotate/annotate.css"')
+    expect(html).toContain(`src="${origin}/__ce-annotate/annotate.js"`)
+    expect(html).toContain(`href="${origin}/__ce-annotate/annotate.css"`)
     expect(html).not.toContain(token)
+    expect(page.headers.get("set-cookie")).toBeNull()
 
     // The overlay lives in a reserved namespace, ungated and never cached; a
     // screen's own /annotate.js is served from screens/ untouched.
@@ -458,36 +459,99 @@ describe("ce-prototype light-webserver.js", () => {
     await reader.cancel()
   })
 
-  test("a token-authenticated page sets a cookie that keeps query navigation authenticated", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-cookie-"))
+  test("an unauthenticated root navigation gets a tokenless bootstrap page that re-enters from sessionStorage", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-bootstrap-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Variant home</h1>")
 
-    const page = await fetch(String(info.url))
+    for (const url of [`${origin}/`, `${origin}/?variant=a`, `${origin}/?token=demo`]) {
+      const denied = await fetch(url)
+      expect(denied.status).toBe(401)
+      expect(denied.headers.get("content-type")).toBe("text/html; charset=utf-8")
+      expect(denied.headers.get("cache-control")).toBe("no-store")
+      expect(denied.headers.get("referrer-policy")).toBe("no-referrer")
+      expect(denied.headers.get("set-cookie")).toBeNull()
+      const html = await denied.text()
+      expect(html).toContain('sessionStorage.getItem(key)')
+      expect(html).toContain('url.searchParams.set("token", stored)')
+      expect(html).toContain("window.location.replace(")
+      expect(html).toContain("needs its session link")
+      expect(html).not.toContain(String(info.token))
+      expect(html).not.toContain("Variant home")
+    }
+    // The API routes stay JSON 401s; only a navigation gets the bootstrap.
+    const events = await fetch(`${origin}/events`)
+    expect(events.status).toBe(401)
+    expect(events.headers.get("content-type")).toBe("application/json; charset=utf-8")
+
+    const page = await fetch(`${origin}/?variant=a&token=${info.token}`)
     expect(page.status).toBe(200)
-    const cookie = page.headers.get("set-cookie") ?? ""
-    expect(cookie).toMatch(new RegExp(`^ce-light-web-${info.port}=${info.token}; HttpOnly; SameSite=Strict; Path=/$`))
-    const pair = cookie.split(";")[0]
+    expect(page.headers.get("set-cookie")).toBeNull()
+    expect(await page.text()).toContain("Variant home")
 
-    const navigated = await fetch(`${origin}/?variant=a`, { headers: { cookie: pair } })
-    expect(navigated.status).toBe(200)
-    expect(await navigated.text()).toContain("Variant home")
-    expect((await fetch(`${origin}/events`, { headers: { cookie: pair } })).status).toBe(200)
+    // The overlay and bootstrap agree on the storage key.
+    const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
+    const server = await fs.readFile(serverScript, "utf8")
+    expect(overlay).toContain('const TOKEN_KEY = "ce-annotate-token"')
+    expect(server).toContain('const TOKEN_STORAGE_KEY = "ce-annotate-token"')
+    expect(overlay).toContain("sessionStorage.setItem(TOKEN_KEY, fromUrl)")
+    expect(overlay).toContain("sessionStorage.getItem(TOKEN_KEY)")
+    expect(server).not.toContain("Set-Cookie")
+    expect(server).not.toMatch(/cookie/i)
+  })
 
-    // A prototype may use ?token= for itself; a wrong query value must not
-    // shadow the valid cookie, and alone it is still no credential.
-    const shadowed = await fetch(`${origin}/?token=demo`, { headers: { cookie: pair } })
-    expect(shadowed.status).toBe(200)
-    expect(await shadowed.text()).toContain("Variant home")
-    expect((await fetch(`${origin}/?token=demo`)).status).toBe(401)
+  test("start in the other mode replaces the running server instead of reusing it", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-mode-"))
+    const plain = await startServer(root)
+    expect(plain.status).toBe("started")
+    expect(plain.token).toBeUndefined()
 
-    expect((await fetch(`${origin}/?variant=a`)).status).toBe(401)
-    expect((await fetch(`${origin}/`, { headers: { cookie: `ce-light-web-1=${info.token}` } })).status).toBe(401)
-    const bare = await fetch(`${origin}/`)
-    expect(bare.status).toBe(401)
-    expect(bare.headers.get("set-cookie")).toBeNull()
-    expect(await bare.text()).not.toContain(String(info.token))
+    const annotated = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "200" })
+    expect(annotated.status).toBe("started")
+    expect(annotated.pid).not.toBe(plain.pid)
+    expect(String(annotated.token)).toMatch(/^[0-9a-f-]{36}$/)
+    expect(String(annotated.url)).toContain(`?token=${annotated.token}`)
+    const waited = await fetch(`http://localhost:${annotated.port}/wait?token=${annotated.token}`)
+    expect(waited.status).toBe(204)
+    await expect(fetch(`http://localhost:${plain.port}/version`)).rejects.toThrow()
+
+    const reused = await startServer(root, ["--annotate"])
+    expect(reused.status).toBe("running")
+    expect(reused.pid).toBe(annotated.pid)
+
+    const back = await startServer(root)
+    expect(back.status).toBe("started")
+    expect(back.pid).not.toBe(annotated.pid)
+    expect(back.token).toBeUndefined()
+    expect(String(back.url)).toMatch(/^http:\/\/localhost:\d+$/)
+    expect((await fetch(String(back.url))).status).toBe(200)
+    await expect(fetch(`http://localhost:${annotated.port}/version`)).rejects.toThrow()
+  })
+
+  test("overlay asset URLs are absolute on the request origin so a screen's <base> cannot redirect them", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-base-"))
+    const info = await startServer(root, ["--annotate"])
+    const origin = `http://localhost:${info.port}`
+    await fs.writeFile(
+      path.join(String(info.screen_dir), "001-screen.html"),
+      '<!DOCTYPE html><html><head><base href="https://example.invalid/"></head><body><h1>Based</h1></body></html>',
+    )
+    const html = await (await fetch(String(info.url))).text()
+    expect(html).toContain('<base href="https://example.invalid/">')
+    expect(html).toContain(`<link rel="stylesheet" href="${origin}/__ce-annotate/annotate.css">`)
+    expect(html).toContain(`<script src="${origin}/__ce-annotate/annotate.js"></script>`)
+    expect(html).not.toContain('src="/__ce-annotate')
+
+    // A Host header that cannot be reflected safely falls back to the listen address.
+    const odd = await fetch(String(info.url), { headers: { host: 'evil"><script>' } })
+    expect(odd.status).toBe(200)
+    const oddHtml = await odd.text()
+    expect(oddHtml).toContain(`<script src="http://localhost:${info.port}/__ce-annotate/annotate.js"></script>`)
+    expect(oddHtml).not.toContain('evil"')
+
+    const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
+    expect(overlay).toContain('new URL("/__ce-annotate/annotate.css", document.currentScript?.src || window.location.origin)')
   })
 
   test("idle shutdown ends the session instead of hanging on an open change stream", async () => {
@@ -572,6 +636,15 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toMatch(/draft: draft \? \{ \.\.\.draft, text: commentField\.value/)
     expect(overlay).toMatch(/if \(inFlight\) \{\n\s+reloadPending = true/)
     expect(overlay).toContain("if (reloadPending) requestReload()")
+    // Cancel or toggling the tool off during an in-flight POST must not break
+    // the pending submission: it is snapshotted before the await, Cancel is
+    // disabled, and closing the composer does not reset inFlight.
+    expect(overlay).toContain("cancel.disabled = inFlight")
+    const submitHandler = overlay.slice(overlay.indexOf('composer.addEventListener("submit"'), overlay.indexOf('stop.addEventListener("click"'))
+    expect(submitHandler).toContain("await fetch(")
+    expect(submitHandler.slice(submitHandler.indexOf("await "))).not.toMatch(/\bdraft\b/)
+    const closeComposer = overlay.slice(overlay.indexOf("function closeComposer()"), overlay.indexOf("function renderPins()"))
+    expect(closeComposer).not.toContain("inFlight = false")
     expect(overlay).not.toContain("DOMParser")
     expect(overlay).not.toContain("adoptNode")
     expect(overlay).not.toMatch(/\bmorph\b/i)

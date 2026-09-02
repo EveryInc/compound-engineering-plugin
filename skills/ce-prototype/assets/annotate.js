@@ -1,10 +1,24 @@
 (() => {
-  const token = new URLSearchParams(window.location.search).get("token")
+  // Shared with the helper's bootstrap page, which re-enters a root navigation
+  // that lost the token with the one stored here. sessionStorage is scoped to
+  // this origin including the port, so the token never reaches another local
+  // service the way a cookie would.
+  const TOKEN_KEY = "ce-annotate-token"
+  const token = (() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("token")
+    try {
+      if (fromUrl) sessionStorage.setItem(TOKEN_KEY, fromUrl)
+      return fromUrl || sessionStorage.getItem(TOKEN_KEY)
+    } catch {
+      return fromUrl
+    }
+  })()
   const host = document.getElementById("ce-annotate-host") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "ce-annotate-host" }))
   const shadow = host.attachShadow({ mode: "open" })
   const css = document.createElement("link")
   css.rel = "stylesheet"
-  css.href = "/__ce-annotate/annotate.css"
+  // Resolved against this script's own URL, not the document base a screen may set.
+  css.href = new URL("/__ce-annotate/annotate.css", document.currentScript?.src || window.location.origin).href
   shadow.appendChild(css)
 
   const chrome = document.createElement("div")
@@ -171,6 +185,7 @@
 
   function syncSubmit() {
     submit.disabled = sessionEnded || inFlight || commentField.value.trim() === ""
+    cancel.disabled = inFlight
   }
 
   function closeComposer() {
@@ -179,7 +194,6 @@
     error.hidden = true
     error.textContent = ""
     commentField.value = ""
-    inFlight = false
     syncSubmit()
   }
 
@@ -278,15 +292,18 @@
     if (!draft || inFlight || sessionEnded) return
     const comment = commentField.value.trim()
     if (!comment) return
-    inFlight = true
-    syncSubmit()
-    error.hidden = true
+    // The composer can be closed (tool toggled off) while the request is in
+    // flight; the submission is complete in itself from here on.
     const payload = {
       comment,
       selector: draft.selector,
       textSnippet: draft.textSnippet,
       rect: draft.rect,
     }
+    const submission = { ...payload, x: draft.x, y: draft.y }
+    inFlight = true
+    syncSubmit()
+    error.hidden = true
     try {
       const response = await fetch(tokenUrl("/annotation"), {
         method: "POST",
@@ -295,19 +312,14 @@
       })
       if (!response.ok) throw new Error("retry")
       const { id } = await response.json()
-      pins.push({
-        ...payload,
-        id,
-        status: PIN_STATUS[annotationStates[id]] || "pending",
-        x: draft.x,
-        y: draft.y,
-      })
+      pins.push({ ...submission, id, status: PIN_STATUS[annotationStates[id]] || "pending" })
       renderPins()
       closeComposer()
     } catch {
-      inFlight = false
       error.hidden = false
       error.textContent = "Could not send — retry"
+    } finally {
+      inFlight = false
       syncSubmit()
     }
     if (reloadPending) requestReload()
