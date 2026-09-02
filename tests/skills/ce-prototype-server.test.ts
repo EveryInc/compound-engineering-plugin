@@ -543,6 +543,15 @@ describe("ce-prototype light-webserver.js", () => {
     expect(html).toContain(`<script src="${origin}/__ce-annotate/annotate.js"></script>`)
     expect(html).not.toContain('src="/__ce-annotate')
 
+    // A literal </body> inside a script string is not the document's body boundary.
+    await fs.writeFile(
+      path.join(String(info.screen_dir), "002-screen.html"),
+      '<!DOCTYPE html><html><body><script>const closing = "</body>"</script><h1>Literal</h1></body></html>',
+    )
+    const literal = await (await fetch(String(info.url))).text()
+    expect(literal).toContain('const closing = "</body>"</script><h1>Literal</h1><div id="ce-annotate-host">')
+    expect(literal.indexOf("ce-annotate-host")).toBeGreaterThan(literal.indexOf("<h1>Literal</h1>"))
+
     // A Host header that cannot be reflected safely falls back to the listen address.
     const odd = await fetch(String(info.url), { headers: { host: 'evil"><script>' } })
     expect(odd.status).toBe(200)
@@ -619,6 +628,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("target-gone")
     expect(overlay).toContain("EventSource")
     expect(overlay).toContain("ce-prototype-root")
+    expect(overlay).toContain('if (el === document.body) return "body"')
     expect(overlay).toContain("Stop failed")
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
     expect(overlay).toContain('addEventListener("scroll", reattachPins')

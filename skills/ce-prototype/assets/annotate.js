@@ -153,6 +153,7 @@
   function cssPath(el) {
     if (!(el instanceof Element)) return ""
     if (el.id) return `#${CSS.escape(el.id)}`
+    if (el === document.body) return "body"
     const parts = []
     let node = el
     while (node && node.nodeType === 1 && node !== document.documentElement) {

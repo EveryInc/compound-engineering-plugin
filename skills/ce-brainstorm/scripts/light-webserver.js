@@ -361,8 +361,11 @@ function injectRefresh(options, html) {
 
 function injectAnnotate(html, origin) {
   const boot = annotateBoot(origin)
-  if (html.includes("</body>")) {
-    return html.replace("</body>", `${boot}\n</body>`)
+  // The real closing tag is the last one; an earlier match may sit inside a
+  // script string or comment.
+  const close = html.lastIndexOf("</body>")
+  if (close !== -1) {
+    return `${html.slice(0, close)}${boot}\n${html.slice(close)}`
   }
   return `${html}\n${boot}`
 }
