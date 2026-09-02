@@ -41,6 +41,7 @@
   const cancel = composer.querySelector(".ce-annotate-cancel")
   const error = composer.querySelector(".ce-annotate-error")
 
+  const STATE_KEY = "ce-annotate-state"
   let commentToolOn = false
   let sessionEnded = false
   let inFlight = false
@@ -58,66 +59,60 @@
     return href === "/annotate.css" || src === "/annotate.js" || node.id === "ce-annotate-host"
   }
 
-  function isClassicScript(script) {
-    const type = (script.getAttribute("type") || "").trim().toLowerCase()
-    return type === "" || /^(text|application)\/(x-)?(java|ecma)script$/.test(type)
+  // Scripts only run correctly in a fresh realm (top-level bindings, listeners,
+  // timers), and <base> rewrites every relative URL already resolved; either
+  // one means the screen must load as a document. Everything else morphs.
+  function needsFreshDocument(doc) {
+    return [...doc.querySelectorAll("script, base")].some((node) => !isOverlayAsset(node))
   }
 
-  function activateScripts(container) {
-    for (const old of container.querySelectorAll("script")) {
-      if (isOverlayAsset(old)) continue
-      const script = document.createElement("script")
-      for (const attr of old.attributes) script.setAttribute(attr.name, attr.value)
-      const source = old.textContent || ""
-      // A re-run classic script would redeclare its top-level const/let; a
-      // block scope avoids that. Modules and data scripts must stay verbatim.
-      if (!script.src) script.textContent = isClassicScript(old) ? `{\n${source}\n}` : source
-      old.replaceWith(script)
-    }
-  }
-
-  function applyHead(headHtml) {
-    if (typeof headHtml !== "string") return
-    for (const node of [...document.head.children]) {
-      if (isOverlayAsset(node)) continue
-      if (node.hasAttribute("data-ce-morph-head") || ["STYLE", "LINK", "SCRIPT"].includes(node.tagName)) {
-        node.remove()
-      }
-    }
-    if (!headHtml) return
-    const tmp = document.createElement("div")
-    tmp.innerHTML = headHtml
-    for (const node of [...tmp.children]) {
-      if (node.tagName === "TITLE") {
-        document.title = node.textContent || document.title
-        continue
-      }
-      if (!["STYLE", "LINK", "SCRIPT"].includes(node.tagName)) continue
-      node.setAttribute("data-ce-morph-head", "")
-      document.head.appendChild(node)
-    }
-    activateScripts(document.head)
-  }
-
-  function applyScreenHtml(html) {
-    const root = document.getElementById("ce-prototype-root")
-    if (root) {
-      root.innerHTML = html
-      activateScripts(root)
-      return
-    }
-    const tmp = document.createElement("div")
-    tmp.innerHTML = html
-    const incoming = [...tmp.childNodes]
-    for (const child of [...document.body.childNodes]) {
+  function replaceChildrenExceptOverlay(target, incoming) {
+    for (const child of [...target.childNodes]) {
       if (isOverlayAsset(child)) continue
       child.remove()
     }
-    const host = document.getElementById("ce-annotate-host")
-    for (const node of incoming) {
-      document.body.insertBefore(node, host)
+    const anchor = [...target.childNodes].find(isOverlayAsset) || null
+    for (const node of incoming) target.insertBefore(document.adoptNode(node), anchor)
+  }
+
+  function syncAttributes(target, source) {
+    for (const attr of [...target.attributes]) {
+      if (!source.hasAttribute(attr.name)) target.removeAttribute(attr.name)
     }
-    activateScripts(document.body)
+    for (const attr of source.attributes) target.setAttribute(attr.name, attr.value)
+  }
+
+  function applyDocument(doc) {
+    const currentHead = [...document.head.children].filter((node) => !isOverlayAsset(node)).map((node) => node.outerHTML).join("")
+    const nextHead = [...doc.head.children].map((node) => node.outerHTML).join("")
+    if (currentHead !== nextHead) replaceChildrenExceptOverlay(document.head, [...doc.head.childNodes])
+    syncAttributes(document.body, doc.body)
+    replaceChildrenExceptOverlay(document.body, [...doc.body.childNodes])
+  }
+
+  function persistAndReload() {
+    try {
+      sessionStorage.setItem(STATE_KEY, JSON.stringify({ commentToolOn, pins }))
+    } catch {
+      // Without storage the reload still shows the revised screen; only the pins are lost.
+    }
+    window.location.reload()
+  }
+
+  function restorePersistedState() {
+    let saved = null
+    try {
+      saved = JSON.parse(sessionStorage.getItem(STATE_KEY) || "null")
+      sessionStorage.removeItem(STATE_KEY)
+    } catch {
+      return false
+    }
+    if (!saved || !Array.isArray(saved.pins)) return false
+    for (const pin of saved.pins) {
+      if (pin && typeof pin.selector === "string" && typeof pin.comment === "string") pins.push(pin)
+    }
+    if (saved.commentToolOn) setCommentTool(true)
+    return true
   }
 
   function advancePinsAfterMorph() {
@@ -245,13 +240,17 @@
     syncSubmit()
   }
 
+  function setCommentTool(on) {
+    commentToolOn = on
+    toggle.setAttribute("aria-pressed", String(on))
+    toggle.classList.toggle("is-on", on)
+    toggle.textContent = on ? "Commenting" : "Comment"
+    if (!on) closeComposer()
+  }
+
   toggle.addEventListener("click", () => {
     if (sessionEnded) return
-    commentToolOn = !commentToolOn
-    toggle.setAttribute("aria-pressed", String(commentToolOn))
-    toggle.classList.toggle("is-on", commentToolOn)
-    toggle.textContent = commentToolOn ? "Commenting" : "Comment"
-    if (!commentToolOn) closeComposer()
+    setCommentTool(!commentToolOn)
   })
 
   commentField.addEventListener("input", syncSubmit)
@@ -323,17 +322,26 @@
     openComposer(target, event)
   }, true)
 
-  if (token && "EventSource" in window) {
+  if (restorePersistedState()) {
+    advancePinsAfterMorph()
+    reattachPins()
+  }
+
+  if ("EventSource" in window) {
     const source = new EventSource(tokenUrl("/events"))
     source.addEventListener("morph", (event) => {
-      let data
+      let doc
       try {
-        data = JSON.parse(event.data)
+        doc = new DOMParser().parseFromString(JSON.parse(event.data).document, "text/html")
       } catch {
         return
       }
-      applyHead(data.head)
-      if (typeof data.html === "string") applyScreenHtml(data.html)
+      if (needsFreshDocument(doc)) {
+        source.close()
+        persistAndReload()
+        return
+      }
+      applyDocument(doc)
       advancePinsAfterMorph()
       reattachPins()
     })

@@ -360,11 +360,32 @@ describe("ce-prototype light-webserver.js", () => {
     expect(JSON.parse(result.stdout.trim()).status).toBe("session-ended")
   })
 
+  test("a page load during the reconnect grace restarts it, so a reload does not end the session", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-reload-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_SSE_GRACE_MS: "400",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
+    })
+    const origin = `http://localhost:${info.port}`
+    const controller = new AbortController()
+    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: controller.signal })).status).toBe(200)
+    controller.abort()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect((await fetch(String(info.url))).status).toBe(200)
+
+    // Past the original expiry, inside the restarted one.
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
+
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
+  })
+
   test("annotate morphs the current screen body without writing overlay into screens", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-morph-"))
     const info = await startServer(root, ["--annotate"])
     const screenPath = path.join(String(info.screen_dir), "001-screen.html")
-    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:red}</style></head><body><h1 id=\"heading\">Original</h1></body></html>")
+    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:red}</style></head><body class=\"calm\"><h1 id=\"heading\">Original</h1></body></html>")
     const origin = `http://localhost:${info.port}`
     expect((await fetch(String(info.url))).status).toBe(200)
     const stream = await fetch(`${origin}/events?token=${info.token}`)
@@ -395,14 +416,50 @@ describe("ce-prototype light-webserver.js", () => {
     expect(text).toContain(":ok")
     expect(text).not.toContain("event: morph")
 
-    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:blue}</style></head><body><h1 id=\"heading\">Revised</h1></body></html>")
+    await fs.writeFile(screenPath, "<!DOCTYPE html><html><head><style>#heading{color:blue}</style></head><body class=\"dense\"><h1 id=\"heading\">Revised</h1></body></html>")
     await readUntil(() => text.includes("Revised"), 2000)
     expect(text).toContain("event: morph")
     expect(text).toContain("Revised")
-    expect(text).toContain("\"head\"")
+    expect(text).toContain("\"document\"")
     expect(text).toContain("color:blue")
+    expect(text).toContain("<body class=\\\"dense\\\">")
+    expect(text).not.toContain("ce-annotate-host")
     expect(await fs.readFile(screenPath, "utf8")).not.toContain("ce-annotate-host")
+
+    // A fragment screen morphs as the same shell the page first rendered.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await fs.writeFile(path.join(String(info.screen_dir), "002-fragment.html"), "<h2 id=\"fragment\">Just a fragment</h2>")
+    await readUntil(() => text.includes("Just a fragment"), 2000)
+    const fragmentMorph = text.slice(text.lastIndexOf("event: morph"))
+    expect(fragmentMorph).toContain("CE local web - newest screen")
+    expect(fragmentMorph).toContain("<main><h2")
+    expect(fragmentMorph).not.toContain("annotate.js")
     await reader.cancel()
+  })
+
+  test("a token-authenticated page sets a cookie that keeps query navigation authenticated", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-cookie-"))
+    const info = await startServer(root, ["--annotate"])
+    const origin = `http://localhost:${info.port}`
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Variant home</h1>")
+
+    const page = await fetch(String(info.url))
+    expect(page.status).toBe(200)
+    const cookie = page.headers.get("set-cookie") ?? ""
+    expect(cookie).toMatch(new RegExp(`^ce-light-web-${info.port}=${info.token}; HttpOnly; SameSite=Strict; Path=/$`))
+    const pair = cookie.split(";")[0]
+
+    const navigated = await fetch(`${origin}/?variant=a`, { headers: { cookie: pair } })
+    expect(navigated.status).toBe(200)
+    expect(await navigated.text()).toContain("Variant home")
+    expect((await fetch(`${origin}/events`, { headers: { cookie: pair } })).status).toBe(200)
+
+    expect((await fetch(`${origin}/?variant=a`)).status).toBe(401)
+    expect((await fetch(`${origin}/`, { headers: { cookie: `ce-light-web-1=${info.token}` } })).status).toBe(401)
+    const bare = await fetch(`${origin}/`)
+    expect(bare.status).toBe(401)
+    expect(bare.headers.get("set-cookie")).toBeNull()
+    expect(await bare.text()).not.toContain(String(info.token))
   })
 
   test("idle shutdown ends the session instead of hanging on an open morph stream", async () => {
@@ -429,24 +486,26 @@ describe("ce-prototype light-webserver.js", () => {
   test("annotation POST resets idle timeout while wait and /version do not", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-annotate-idle-"))
     const info = await startServer(root, ["--annotate"], {
-      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "250",
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "600",
       CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "50",
       CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "80",
     })
     const origin = `http://localhost:${info.port}`
     await fetch(String(info.url))
 
+    await new Promise((resolve) => setTimeout(resolve, 400))
     await fetch(`${origin}/annotation?token=${info.token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ comment: "keep alive", selector: "h1" }),
     })
 
-    await new Promise((resolve) => setTimeout(resolve, 180))
-    let status = JSON.parse((await runServerCommand(["status", "--root", root])).stdout.trim())
-    expect(status.status).toBe("running")
+    // Past the original idle budget, so only the POST can explain a live server.
+    // /version is not activity, so probing with it cannot extend the budget.
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect((await fetch(`${origin}/version`)).status).toBe(200)
 
-    const deadline = Date.now() + 700
+    const deadline = Date.now() + 1500
     while (Date.now() < deadline) {
       try {
         await fetch(`${origin}/version`)
@@ -456,7 +515,7 @@ describe("ce-prototype light-webserver.js", () => {
       }
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
-    status = JSON.parse((await runServerCommand(["status", "--root", root])).stdout.trim())
+    const status = JSON.parse((await runServerCommand(["status", "--root", root])).stdout.trim())
     expect(status.status).toBe("stopped")
   })
 
@@ -467,19 +526,21 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain('tokenUrl("/session/end")')
     expect(overlay).toContain("target-gone")
     expect(overlay).toContain("EventSource")
-    expect(overlay).toContain('querySelectorAll("script")')
     expect(overlay).toContain("ce-prototype-root")
-    expect(overlay).toContain("applyHead")
-    expect(overlay).toContain("applyScreenHtml")
     expect(overlay).toContain("advancePinsAfterMorph")
-    expect(overlay).toContain("data-ce-morph-head")
     expect(overlay).toContain("Stop failed")
     expect(overlay).toContain('if (pin.status === "working")')
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
-    expect(overlay).toContain("isClassicScript(old)")
-    expect(overlay.indexOf("applyHead(data.head)")).toBeLessThan(overlay.indexOf("applyScreenHtml(data.html)"))
     expect(overlay).toContain('addEventListener("scroll", reattachPins')
     expect(overlay).toContain("EventSource.CLOSED")
+    // Scripts never re-run in the live realm: a screen that carries any script
+    // or <base> reloads as a document with the pins carried across.
+    expect(overlay).toContain('querySelectorAll("script, base")')
+    expect(overlay).toContain("sessionStorage.setItem(STATE_KEY")
+    expect(overlay).toContain("window.location.reload()")
+    expect(overlay).toContain("new DOMParser()")
+    expect(overlay).toContain("syncAttributes(document.body, doc.body)")
+    expect(overlay).not.toContain("activateScripts")
     expect(overlay).not.toMatch(/WebSocket/)
   })
 

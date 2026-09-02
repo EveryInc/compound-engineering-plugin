@@ -13,7 +13,7 @@ const DEFAULT_URL_HOST = "localhost"
 const IDLE_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_IDLE_TIMEOUT_MS) || 30 * 60 * 1000
 const LIFECYCLE_CHECK_MS = Number(process.env.CE_LIGHT_WEB_LIFECYCLE_CHECK_MS) || 60 * 1000
 const WAIT_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_WAIT_TIMEOUT_MS) || 30 * 1000
-const SSE_GRACE_MS = Number(process.env.CE_LIGHT_WEB_SSE_GRACE_MS) || 2000
+const SSE_GRACE_MS = Number(process.env.CE_LIGHT_WEB_SSE_GRACE_MS) || 5000
 const BODY_LIMIT = 64 * 1024
 const OVERLAY_FILES = {
   "/annotate.js": "annotate.js",
@@ -198,25 +198,7 @@ function versionKey(version) {
   return `${version?.screen ?? ""}:${version?.mtimeMs ?? 0}`
 }
 
-function newestScreenInnerHtml(options) {
-  const screen = newestScreen(options)
-  if (!screen) {
-    return "<h1>Waiting for a page...</h1><p>The agent will update this page when a screen is ready.</p>"
-  }
-  const html = fs.readFileSync(screen, "utf8")
-  if (!isFullDocument(html)) return html
-  const match = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)
-  return match ? match[1] : html
-}
-
-function newestScreenHeadHtml(options) {
-  const screen = newestScreen(options)
-  if (!screen) return ""
-  const html = fs.readFileSync(screen, "utf8")
-  if (!isFullDocument(html)) return ""
-  const match = html.match(/<head[^>]*>([\s\S]*)<\/head>/i)
-  return match ? match[1] : ""
-}
+const WAITING_HTML = "<h1>Waiting for a page...</h1><p>The agent will update this page when a screen is ready.</p>"
 
 function refreshScript(options) {
   const initialVersion = JSON.stringify(screenVersion(options))
@@ -286,7 +268,6 @@ function wrapAnnotateFragment(content) {
 <body>
   <header>CE local web - newest screen</header>
   <main>${content}</main>
-  ${annotateBoot()}
 </body>
 </html>`
 }
@@ -306,20 +287,36 @@ function injectAnnotate(html) {
   return `${html}\n${boot}`
 }
 
-function renderPage(options) {
+// The document the annotate client sees, before the overlay is injected. The
+// morph stream sends exactly this, so a fragment keeps its shell and a full
+// document keeps its body attributes on both the first paint and every update.
+function annotateDocument(options) {
   const screen = newestScreen(options)
-  if (!screen) {
-    const waiting = "<h1>Waiting for a page...</h1><p>The agent will update this page when a screen is ready.</p>"
-    return options.annotate ? wrapAnnotateFragment(waiting) : wrapFragment(options, waiting)
-  }
+  if (!screen) return wrapAnnotateFragment(WAITING_HTML)
   const html = fs.readFileSync(screen, "utf8")
-  if (options.annotate) {
-    return isFullDocument(html) ? injectAnnotate(html) : wrapAnnotateFragment(html)
-  }
+  return isFullDocument(html) ? html : wrapAnnotateFragment(html)
+}
+
+function renderPage(options) {
+  if (options.annotate) return injectAnnotate(annotateDocument(options))
+  const screen = newestScreen(options)
+  if (!screen) return wrapFragment(options, WAITING_HTML)
+  const html = fs.readFileSync(screen, "utf8")
   return isFullDocument(html) ? injectRefresh(options, html) : wrapFragment(options, html)
 }
 
-function requestToken(req) {
+function cookieValue(req, name) {
+  const header = req.headers.cookie
+  if (typeof header !== "string") return null
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=")
+    if (eq === -1) continue
+    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim()
+  }
+  return null
+}
+
+function requestToken(req, cookieName) {
   const url = new URL(req.url, "http://127.0.0.1")
   const queryToken = url.searchParams.get("token")
   if (queryToken) return queryToken
@@ -327,6 +324,7 @@ function requestToken(req) {
   if (typeof headerToken === "string" && headerToken) return headerToken
   const auth = req.headers.authorization
   if (typeof auth === "string" && auth.startsWith("Bearer ")) return auth.slice(7)
+  if (cookieName) return cookieValue(req, cookieName)
   return null
 }
 
@@ -544,6 +542,7 @@ async function serve(options) {
   ensureDirs(options)
 
   const sessionToken = options.annotate ? randomUUID() : null
+  let cookieName = null
   const annotationQueue = []
   const waiters = []
   const sseClients = new Set()
@@ -594,10 +593,7 @@ async function serve(options) {
   }
 
   function broadcastMorph() {
-    const payload = JSON.stringify({
-      html: newestScreenInnerHtml(options),
-      head: newestScreenHeadHtml(options),
-    })
+    const payload = JSON.stringify({ document: annotateDocument(options) })
     lastBroadcastKey = versionKey(screenVersion(options))
     for (const client of sseClients) {
       if (!client.writableEnded) {
@@ -612,9 +608,17 @@ async function serve(options) {
   }
 
   function requireAnnotateToken(req, res) {
-    if (tokenMatches(requestToken(req), sessionToken)) return true
+    if (tokenMatches(requestToken(req, cookieName), sessionToken)) return true
     sendJson(res, 401, { error: "unauthorized" })
     return false
+  }
+
+  function armSseGrace() {
+    if (sseGraceTimer) clearTimeout(sseGraceTimer)
+    sseGraceTimer = setTimeout(() => {
+      if (sseClients.size === 0) endSession()
+    }, SSE_GRACE_MS)
+    sseGraceTimer.unref()
   }
 
   async function handleRequest(req, res) {
@@ -711,12 +715,7 @@ async function serve(options) {
         sseClients.add(res)
         req.on("close", () => {
           sseClients.delete(res)
-          if (sseClients.size === 0 && sawSseClient && !sessionEnded) {
-            sseGraceTimer = setTimeout(() => {
-              if (sseClients.size === 0) endSession()
-            }, SSE_GRACE_MS)
-            sseGraceTimer.unref()
-          }
+          if (sseClients.size === 0 && sawSseClient && !sessionEnded) armSseGrace()
         })
         return
       }
@@ -729,15 +728,21 @@ async function serve(options) {
       if (req.method === "GET" && urlPath === "/") {
         if (!requireAnnotateToken(req, res)) return
         touch()
+        // A page being served is a tab loading, not the last tab closing: a
+        // reload's stream reconnects only once this document's scripts run.
+        if (sseGraceTimer) armSseGrace()
         // Sync the morph key to what this page will render, so a stream that
-        // connects right after load does not replay the same screen and re-run
-        // its scripts. Any already-open stream still receives the change.
+        // connects right after load does not replay the same screen. Any
+        // already-open stream still receives the change.
         maybeBroadcastMorph()
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
           // The token rides in this document's URL; never let a prototype's
           // outbound link or asset carry it in a Referer.
           "Referrer-Policy": "no-referrer",
+          // Prototype navigation such as href="/?variant=a" drops the query;
+          // the cookie keeps that navigation authenticated on this port.
+          "Set-Cookie": `${cookieName}=${sessionToken}; HttpOnly; SameSite=Strict; Path=/`,
         })
         res.end(renderPage(options))
         return
@@ -771,6 +776,7 @@ async function serve(options) {
   server.listen(options.port, options.host, () => {
     const address = server.address()
     const port = typeof address === "object" && address ? address.port : options.port
+    cookieName = `ce-light-web-${port}`
     const baseUrl = `http://${DEFAULT_URL_HOST}:${port}`
     const info = {
       status: "running",
