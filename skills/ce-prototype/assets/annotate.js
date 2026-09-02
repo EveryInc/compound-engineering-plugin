@@ -1,8 +1,10 @@
 (() => {
   // Shared with the helper's bootstrap page, which re-enters a root navigation
-  // that lost the token with the one stored here. sessionStorage is scoped to
-  // this origin including the port, so the token never reaches another local
-  // service the way a cookie would.
+  // that lost the token with the one stored here. Storage is scoped to this
+  // origin including the port, so the token never reaches another local
+  // service the way a cookie would. sessionStorage is this tab; localStorage
+  // is the same origin so a new tab that did not inherit sessionStorage can
+  // still find the credential.
   const TOKEN_KEY = "ce-annotate-token"
   // The helper's boot stores the URL's token only when it is the session's,
   // so the stored value is the credential; a prototype's own `?token=demo` on
@@ -10,7 +12,7 @@
   // storage itself is unavailable.
   const token = (() => {
     try {
-      return sessionStorage.getItem(TOKEN_KEY)
+      return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY)
     } catch {
       return new URLSearchParams(window.location.search).get("token")
     }
@@ -202,8 +204,9 @@
     cancel.disabled = inFlight
   }
 
-  function closeComposer() {
+  function closeComposer(keep) {
     composer.hidden = true
+    if (keep) return
     draft = null
     error.hidden = true
     error.textContent = ""
@@ -290,7 +293,7 @@
     toggle.setAttribute("aria-pressed", String(on))
     toggle.classList.toggle("is-on", on)
     toggle.textContent = on ? "Commenting" : "Comment"
-    if (!on) closeComposer()
+    if (!on) closeComposer(inFlight)
   }
 
   toggle.addEventListener("click", () => {
@@ -333,6 +336,7 @@
       renderPins()
       closeComposer()
     } catch {
+      composer.hidden = false
       error.hidden = false
       error.textContent = "Could not send — retry"
     } finally {

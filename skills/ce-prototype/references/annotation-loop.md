@@ -8,9 +8,7 @@ While the isolated web preview is running, wait for the next annotation or a ter
 
 Before the first wait, tell the explorer in one line that the URL is live, that the overlay's Comment tool pins a comment to an element, and that Stop hands the conversation back. After each applied revision, one short line: what changed, and that the page reloaded itself. Say nothing while a wait is parked. When the loop ends, one line saying why.
 
-A wait is outstanding until the helper exits. A call the host yields or backgrounds is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked and the session has not ended. The loop ends on session-ended (exit 1), on a wait that cannot run (exit 2), or on the explorer writing in chat instead — nothing else ends it.
-
-Chat is valid when wait is unreachable, failed, or has already returned. Do not read chat while a wait is in flight. Stop on the overlay is how the explorer leaves the loop for conversation.
+A wait is outstanding until the helper exits. A call the host yields or backgrounds is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked and the session has not ended. The loop ends when wait returns session-ended (exit 1) or cannot run (exit 2). Chat is valid only after wait has returned or cannot run — do not read it while a wait is in flight. Stop on the overlay is how the explorer leaves the loop for conversation.
 
 Unattended, LFG, and `mode:pipeline` runs still refuse to start a preview; this file does not override that.
 

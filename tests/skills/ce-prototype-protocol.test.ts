@@ -76,6 +76,8 @@ describe("ce-prototype protocol", () => {
     expect(ANNOTATION_LOOP_BODY).toMatch(/light-webserver\.js" wait --root/)
     // A yielded or backgrounded wait is still outstanding; the turn must not end on it.
     expect(ANNOTATION_LOOP_BODY).toMatch(/do not end the turn while a wait is parked/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Chat is valid only after wait has returned or cannot run/)
+    expect(ANNOTATION_LOOP_BODY).not.toMatch(/explorer writing in chat/)
     expect(PREVIEW_BODY).toMatch(/start --root "\$PROTO_DIR" --annotate/)
     expect(PREVIEW_BODY).not.toMatch(/no browser-to-agent event path/)
     expect(ANNOTATION_LOOP_BODY).not.toMatch(/no browser-to-agent event path/)

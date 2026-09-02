@@ -277,7 +277,8 @@ function refreshScript(options) {
 function annotateBoot(origin, storeToken) {
   const overlay = `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js"></script>`
   if (!storeToken) return overlay
-  const store = `try{var t=new URLSearchParams(location.search).get("token");if(t)sessionStorage.setItem(${JSON.stringify(TOKEN_STORAGE_KEY)},t)}catch(e){}`
+  const key = JSON.stringify(TOKEN_STORAGE_KEY)
+  const store = `try{var k=${key};var t=new URLSearchParams(location.search).get("token");if(t){sessionStorage.setItem(k,t);try{localStorage.setItem(k,t)}catch(e2){}}}catch(e){}`
   return `<script>(function(){${store}})()</script>\n${overlay}`
 }
 
@@ -304,14 +305,14 @@ function bootstrapPage() {
 (function(){
   var key = ${JSON.stringify(TOKEN_STORAGE_KEY)};
   var stored = null;
-  try { stored = sessionStorage.getItem(key); } catch (error) {}
+  try { stored = sessionStorage.getItem(key) || localStorage.getItem(key); } catch (error) {}
   var url = new URL(window.location.href);
   if (stored && url.searchParams.get("token") !== stored) {
     url.searchParams.set("token", stored);
     window.location.replace(url.toString());
     return;
   }
-  try { sessionStorage.removeItem(key); } catch (error) {}
+  try { sessionStorage.removeItem(key); localStorage.removeItem(key); } catch (error) {}
   document.getElementById("ce-annotate-bootstrap").hidden = false;
 })();
   </script>

@@ -79,7 +79,7 @@ async function startServer(
 // The exact boot the helper puts ahead of every served screen: when the request
 // carried the session token, an inline synchronous store of it from the
 // location (no token literal); always the deferred overlay on the request origin.
-const BOOT_STORE = '<script>(function(){try{var t=new URLSearchParams(location.search).get("token");if(t)sessionStorage.setItem("ce-annotate-token",t)}catch(e){}})()</script>'
+const BOOT_STORE = '<script>(function(){try{var k="ce-annotate-token";var t=new URLSearchParams(location.search).get("token");if(t){sessionStorage.setItem(k,t);try{localStorage.setItem(k,t)}catch(e2){}}}catch(e){}})()</script>'
 function annotateBoot(origin: string, storeToken = true): string {
   const overlay = `<script defer src="${origin}/__ce-annotate/annotate.js"></script>`
   return storeToken ? `${BOOT_STORE}\n${overlay}` : overlay
@@ -690,7 +690,7 @@ describe("ce-prototype light-webserver.js", () => {
       expect(denied.headers.get("referrer-policy")).toBe("no-referrer")
       expect(denied.headers.get("set-cookie")).toBeNull()
       const html = await denied.text()
-      expect(html).toContain('sessionStorage.getItem(key)')
+      expect(html).toContain('sessionStorage.getItem(key) || localStorage.getItem(key)')
       expect(html).toContain('url.searchParams.set("token", stored)')
       expect(html).toContain("window.location.replace(")
       expect(html).toContain("needs its session link")
@@ -715,8 +715,9 @@ describe("ce-prototype light-webserver.js", () => {
     // Only the helper's boot writes the token (when the request carried the
     // session's); the overlay reads it, so a linked page's own ?token=demo
     // can neither be stored nor used.
-    expect(overlay).toContain("sessionStorage.getItem(TOKEN_KEY)")
+    expect(overlay).toContain("sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY)")
     expect(overlay).not.toContain("sessionStorage.setItem(TOKEN_KEY")
+    expect(overlay).not.toContain("localStorage.setItem(TOKEN_KEY")
     expect(server).not.toContain("Set-Cookie")
     expect(server).not.toMatch(/cookie/i)
   })
@@ -868,8 +869,10 @@ describe("ce-prototype light-webserver.js", () => {
     const submitHandler = overlay.slice(overlay.indexOf('composer.addEventListener("submit"'), overlay.indexOf('stop.addEventListener("click"'))
     expect(submitHandler).toContain("await fetch(")
     expect(submitHandler.slice(submitHandler.indexOf("await "))).not.toMatch(/\bdraft\b/)
-    const closeComposer = overlay.slice(overlay.indexOf("function closeComposer()"), overlay.indexOf("function renderPins()"))
+    const closeComposer = overlay.slice(overlay.indexOf("function closeComposer("), overlay.indexOf("function renderPins()"))
     expect(closeComposer).not.toContain("inFlight = false")
+    expect(overlay).toContain("closeComposer(inFlight)")
+    expect(overlay).toContain("composer.hidden = false")
     // The overlay owns its host: a custom element created at runtime and held
     // by reference only — no id or class an authored stylesheet could match,
     // and no `div` or `html > div` either — with an important inline box that
