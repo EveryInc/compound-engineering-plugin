@@ -18,14 +18,15 @@
     }
   })()
   // The overlay owns its host: created here (this script is deferred, so the
-  // document has parsed) and held by reference only. It is a custom element
-  // with no id or class, so no ordinary authored selector (`div`, `#id`,
-  // `html > div`) matches it, and its box is inline and important, which
-  // outranks an authored `!important`. It hangs off <html>, not <body>, so it
-  // is outside every body-scoped selector and document.body.children, and takes
-  // no part in the authored layout. The inline box applies before the
-  // stylesheet arrives.
-  const host = document.createElement("ce-annotate-host")
+  // document has parsed) and held by reference only. The tag is a per-load
+  // unregistered custom-element name, so an authored `ce-annotate-host`
+  // definition cannot run as the constructor, and no ordinary selector
+  // (`div`, `#id`, `html > div`) matches it. The box is inline and important,
+  // which outranks an authored `!important`. It hangs off <html>, not <body>,
+  // so it is outside every body-scoped selector and document.body.children,
+  // and takes no part in the authored layout. The inline box applies before
+  // the stylesheet arrives.
+  const host = document.createElement("ce-annotate-" + crypto.randomUUID())
   host.style.cssText =
     "display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: 2147483645 !important; margin: 0 !important; padding: 0 !important; border: 0 !important;"
   document.documentElement.appendChild(host)
@@ -284,8 +285,10 @@
   }
 
   function placeComposer(x, y) {
-    composer.style.left = `${Math.min(x + 12, window.innerWidth - 280)}px`
-    composer.style.top = `${Math.min(y + 12, window.innerHeight - 160)}px`
+    const width = Math.min(280, window.innerWidth)
+    const height = Math.min(160, window.innerHeight)
+    composer.style.left = `${Math.max(0, Math.min(x + 12, window.innerWidth - width))}px`
+    composer.style.top = `${Math.max(0, Math.min(y + 12, window.innerHeight - height))}px`
   }
 
   function setCommentTool(on) {

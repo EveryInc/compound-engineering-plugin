@@ -724,24 +724,29 @@ async function serve(options) {
       clearTimeout(sseGraceTimer)
       sseGraceTimer = null
     }
-    for (const id of annotationStates.keys()) annotationStates.set(id, "done")
+    for (const [id, state] of annotationStates) {
+      if (state === "working") annotationStates.set(id, "done")
+    }
+    annotationQueue.length = 0
     broadcastAnnotations()
     const body = `${JSON.stringify({ status: "session-ended" })}\n`
+    const draining = []
     while (waiters.length > 0) {
       const parked = waiters.shift()
       clearTimeout(parked.timer)
       if (!parked.res.writableEnded) {
         parked.res.writeHead(410, { "Content-Type": "application/json; charset=utf-8" })
-        parked.res.end(body)
+        draining.push(new Promise((resolve) => parked.res.end(body, resolve)))
       }
     }
     for (const client of sseClients) {
       if (!client.writableEnded) {
         client.write("event: session-ended\ndata: {}\n\n")
-        client.end()
+        draining.push(new Promise((resolve) => client.end(resolve)))
       }
     }
     sseClients.clear()
+    return Promise.all(draining)
   }
 
   function annotationsPayload() {
@@ -1040,9 +1045,10 @@ async function serve(options) {
   // An open change stream or parked wait is an active connection, and
   // server.close waits for those forever; end the session so they drain.
   function shutdown() {
-    endSession()
-    server.close(() => process.exit(0))
-    server.closeAllConnections()
+    Promise.resolve(endSession()).finally(() => {
+      server.close(() => process.exit(0))
+      server.closeAllConnections()
+    })
   }
 
   const idleTimer = setInterval(() => {

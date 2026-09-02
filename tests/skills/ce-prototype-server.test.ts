@@ -810,6 +810,18 @@ describe("ce-prototype light-webserver.js", () => {
     expect(status.status).toBe("stopped")
   })
 
+  test("idle shutdown flushes a parked wait as session-ended", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-idle-"))
+    await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "120",
+      CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "30",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "5000",
+    })
+    const ended = await runServerCommand(["wait", "--root", root])
+    expect(ended.exitCode, ended.stderr).toBe(1)
+    expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
+  })
+
   test("annotation POST resets idle timeout while wait and /version do not", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-annotate-idle-"))
     const info = await startServer(root, ["--annotate"], {
@@ -885,8 +897,10 @@ describe("ce-prototype light-webserver.js", () => {
     // by reference only — no id or class an authored stylesheet could match,
     // and no `div` or `html > div` either — with an important inline box that
     // outranks an authored `!important`.
-    expect(overlay).toContain('const host = document.createElement("ce-annotate-host")')
+    expect(overlay).toContain('document.createElement("ce-annotate-" + crypto.randomUUID())')
+    expect(overlay).not.toContain('createElement("ce-annotate-host")')
     expect(overlay).not.toMatch(/host\.(id|className) =/)
+    expect(overlay).toContain("Math.max(0, Math.min(x + 12, window.innerWidth - width))")
     // Parented on <html>, fixed and click-through, so it is outside every
     // body-scoped selector, document.body.children, and the authored layout.
     expect(overlay).toContain("document.documentElement.appendChild(host)")
@@ -923,6 +937,26 @@ describe("ce-prototype light-webserver.js", () => {
     const second = await runServerCommand(["wait", "--root", root])
     expect(second.exitCode, second.stderr).toBe(0)
     expect(JSON.parse(second.stdout.trim()).comment).toBe("second")
+  })
+
+  test("ending a session does not mark undelivered queued annotations done", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-end-queue-"))
+    const info = await startServer(root, ["--annotate"])
+    const origin = `http://localhost:${info.port}`
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Queue</h1>")
+    const first = await (await postAnnotation(origin, info.token, { comment: "first", selector: "h1" })).json()
+    const second = await (await postAnnotation(origin, info.token, { comment: "second", selector: "h2" })).json()
+    const stream = await fetch(`${origin}/events?token=${info.token}`)
+    expect((await fetch(`${origin}/session/end?token=${info.token}`, { method: "POST" })).status).toBe(200)
+    const text = await stream.text()
+    const frames = [...text.matchAll(/event: annotations\ndata: (\{[^\n]*\})\n/g)].map((match) => JSON.parse(match[1]))
+    const last = frames.at(-1)
+    expect(last[first.id]).toBe("queued")
+    expect(last[second.id]).toBe("queued")
+    expect(last[first.id]).not.toBe("done")
+    const ended = await runServerCommand(["wait", "--root", root])
+    expect(ended.exitCode, ended.stderr).toBe(1)
+    expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
   })
 
   test("annotation lifecycle follows POST, wait, and re-entering wait, and is streamed to the overlay", async () => {
