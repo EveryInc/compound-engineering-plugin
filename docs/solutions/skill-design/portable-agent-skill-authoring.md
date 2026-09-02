@@ -18,7 +18,7 @@ tags:
   - protocol
   - judgment
   - skill-eval
-last_updated: 2026-08-21
+last_updated: 2026-09-02
 ---
 
 # Portable Agent Skill Authoring
@@ -159,6 +159,8 @@ The name and description are an activation contract. A correct body is useless i
 - Preserve deliberate invocation as a fallback when automatic routing is unavailable.
 - Use capability language instead of relying on one harness's command syntax.
 - Do not open with identity boilerplate, catalog synonyms or examples of one branch, dump workflow, flags, or procedure, or spend description words on content the body already carries.
+
+For an automatically routed follow-up that writes a durable artifact, a completion signal identifies the checkpoint, not eligibility. Pair it with a value condition that distinguishes knowledge missing from the primary artifacts from facts a reader can readily recover there. Put the cheap full gate in the caller and repeat the no-yield boundary in the skill, so routine completion does not launch an expensive workflow and direct routing still self-skips when it has nothing durable to add. A useful counterfactual is whether removing the secondary artifact would make a future maintainer likely to repeat the mistake or redo substantial investigation.
 
 Evaluate activation separately from execution with a few positive triggers, adjacent negatives, explicit invocations, and description-restraint fixtures for new model-invoked skills. A routing failure is not an execution failure.
 

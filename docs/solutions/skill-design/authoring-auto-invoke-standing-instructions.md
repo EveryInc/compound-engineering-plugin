@@ -1,6 +1,7 @@
 ---
 title: Authoring "Make It Automatic" auto-invoke guidance for CE skills
 date: 2026-07-12
+last_updated: 2026-09-02
 category: skill-design
 module: compound-engineering
 problem_type: convention
@@ -26,7 +27,7 @@ related_components:
 
 ## Context
 
-Several CE skills deliver their value at a moment that's easy to forget — `ce-simplify-code` right after a feature settles, `ce-compound` right after a fix verifies. Users bridge that gap by adding a standing instruction to their agent-instructions file (`AGENTS.md`/`CLAUDE.md`, or a global `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.md`) so the agent invokes the skill on its own. A naive instruction does more harm than good in two concrete ways: it wastes cycles (a homegrown "always simplify after changes" rule ran `ce-simplify-code`'s three reviewer subagents on documentation-only diffs, which yield nothing), and it fires at the wrong moment (mid-build, where a simplification pass rewrites code still being shaped).
+Several CE skills deliver their value at a moment that's easy to forget — `ce-simplify-code` right after a feature settles, `ce-compound` after a verified solution produces durable reasoning worth preserving. Users bridge that gap by adding a standing instruction to their agent-instructions file (`AGENTS.md`/`CLAUDE.md`, or a global `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.md`) so the agent invokes the skill on its own. A naive instruction does more harm than good in two concrete ways: it wastes cycles (a homegrown "always simplify after changes" rule ran `ce-simplify-code`'s three reviewer subagents on documentation-only diffs, which yield nothing), and it fires at the wrong moment (mid-build, where a simplification pass rewrites code still being shaped).
 
 `ce-compound` established the pattern with its "Make Capture Automatic" section (PR #1110). This learning generalizes how to author these sections for any CE skill, based on adding one to `ce-simplify-code` (PR #1113), and pairs it with the skill-side self-guard that makes the whole thing robust.
 
@@ -40,6 +41,8 @@ Put the skip logic in **both** the standing instruction and the skill, but split
 - **The skill self-guards on the no-yield boundary only** — if the resolved scope has no substantive change of the kind the skill acts on, it short-circuits before spending subagents. Crucially, the skill gates on the **kind** of change, **never on size**: an explicit user-named scope on a small function is authoritative and must still run. The numeric size floor is a *cost policy* that belongs only in the caller/standing instruction, not baked into the skill where it would override a legitimate explicit invocation.
 
 `ce-simplify-code` had no self-guard before this: `SKILL.md` Step 1 resolved any non-empty scope and Step 2 unconditionally dispatched three reviewers, so a markdown-only diff burned three dispatches. The added preflight (`skills/ce-simplify-code/SKILL.md` Step 1) short-circuits on a no-code scope and narrows to code files on a mixed diff.
+
+For `ce-compound`, the no-yield boundary is not "no verified fix". A completion phrase only identifies the checkpoint. The learning must preserve durable reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it must plausibly cause recurrence, material risk, or substantial rediscovery. The standing instruction carries that full value gate, while the skill repeats the same no-yield boundary before launching its capture workflow. This prevents every substantive fix from being rationalized into a second artifact that merely narrates the diff.
 
 ### 2. Anchor timing to a completion boundary, not per-edit
 

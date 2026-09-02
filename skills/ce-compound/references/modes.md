@@ -8,6 +8,6 @@ Both are decisions the agent is better positioned to make than the user. Depth d
 
 ## Auto-Invoke
 
-<auto_invoke> <trigger_phrases> - "that worked" - "it's fixed" - "working now" - "problem solved" </trigger_phrases>
+Completion phrases such as "that worked", "it's fixed", "working now", and "problem solved" identify the completion checkpoint; they do not establish that a learning is worth documenting. Auto-invoke only when the Preconditions in `SKILL.md` qualify the learning.
 
-<manual_override> Invoke `ce-compound` with optional context to document immediately without waiting for auto-detection. </manual_override> </auto_invoke>
+An explicit invocation with optional context requests immediate evaluation without waiting for auto-detection. It does not waive the solved, verified, and durable-learning preconditions.

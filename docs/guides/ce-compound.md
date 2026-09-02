@@ -1,12 +1,12 @@
 # `ce-compound`
 
-> Document a recently solved problem so the next encounter takes minutes instead of hours.
+> Preserve the reasoning behind a solved problem when the implementation alone will not.
 
-`ce-compound` is the knowledge-capture skill. After you solve a non-trivial problem, it writes a structured doc to `docs/solutions/` covering symptoms, root cause, what did not work, the working solution, and prevention. `ce-plan` and `ce-ideate` read that folder as institutional memory, so the same investigation does not happen twice.
+`ce-compound` is the knowledge-capture skill. After a verified solution produces durable, non-obvious project knowledge, it writes a structured doc to `docs/solutions/` covering symptoms, root cause, what did not work, the working solution, and prevention. `ce-plan` and `ce-ideate` read that folder as institutional memory, so the same investigation does not happen twice.
 
 It closes the loop on the `/ce-ideate` -> `/ce-brainstorm` -> `/ce-plan` -> `/ce-work` chain. The first time you solve "N+1 query in brief generation" costs 30 minutes of research. The second time, someone finds the doc and the fix takes 2 minutes.
 
-It is optional. Skip it for typos, one-line fixes, and purely mechanical work.
+It is optional. A completed or non-trivial fix is not enough: skip it when the final code and tests already communicate the whole lesson.
 
 ---
 
@@ -15,15 +15,39 @@ It is optional. Skip it for typos, one-line fixes, and purely mechanical work.
 | Question | Answer |
 |----------|--------|
 | What does it do? | Documents a solved problem to `docs/solutions/[category]/[filename].md` with structured frontmatter, bug-track or knowledge-track sections, and cross-references |
-| When to use it | After solving a non-trivial problem; when you say "that worked", "it's fixed", "problem solved" |
+| When to use it | After a verified solution produces durable reasoning that the final implementation does not readily reveal and that would be costly or risky to lose |
 | What it produces | One doc in `docs/solutions/`, plus optional `CONCEPTS.md` vocabulary capture. Interactive Full may also edit `AGENTS.md`/`CLAUDE.md` for discoverability after consent. |
 | What's next | No menu. Optional `/ce-compound-refresh` if the new learning suggests an older doc may be stale. |
 
 ---
 
+## What is worth compounding
+
+Use `ce-compound` only when all three conditions hold:
+
+1. **Non-obvious:** the important reasoning is not readily recoverable from the final code, tests, types, comments, or existing documentation.
+2. **Durable:** it explains an invariant, constraint, root cause, rejected approach, or decision that should remain useful beyond the exact diff.
+3. **Material:** forgetting it would plausibly cause recurrence, meaningful risk, or substantial rediscovery.
+
+Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not compound.
+
+Put knowledge in the narrowest durable home that communicates it completely:
+
+| Knowledge | Best home |
+|-----------|-----------|
+| Machine-enforceable behavior | Test, type, or assertion |
+| Local non-obvious rationale | Code comment |
+| Change-specific history | Commit or PR description |
+| Shared domain language | `CONCEPTS.md` |
+| Durable reasoning that crosses implementation boundaries | `docs/solutions/` through `ce-compound` |
+
+An existing learning that became materially inaccurate or incomplete is worth updating because leaving it would mislead. Let the overlap check update that canonical doc instead of creating a duplicate. Use `ce-compound-refresh` for a broader maintenance pass over stale or overlapping learnings.
+
+---
+
 ## Example invocations
 
-An empty invoke captures the most recent verified fix from this conversation. A context hint focuses the run when the session holds several solved problems. `mode:non-interactive` is for automations and standing instructions: no blocking questions, Full by default. `depth:` is valid only with non-interactive intent.
+An empty invoke evaluates the most recent verified fix from this conversation and captures it when it qualifies. A context hint focuses the run when the session holds several solved problems. `mode:non-interactive` is for automations and standing instructions: no blocking questions, Full by default. `depth:` is valid only with non-interactive intent.
 
 ```text
 # Capture the verified solution from the current conversation
@@ -42,7 +66,7 @@ An empty invoke captures the most recent verified fix from this conversation. A 
 /ce-compound mode:non-interactive depth:full the verified caching fix
 ```
 
-One learning per run. If the session produced several distinct learnings, invoke the skill once per learning. A standalone "bootstrap CONCEPTS.md" request gets redirected to `ce-compound-refresh`. Use non-interactive mode only when the caller should own any follow-up decisions. Ordinary interactive capture can still ask before changing project guidance.
+One learning per run. If the session produced several distinct qualifying learnings, invoke the skill once per learning. A standalone "bootstrap CONCEPTS.md" request gets redirected to `ce-compound-refresh`. Use non-interactive mode only when the caller should own any follow-up decisions. Ordinary interactive capture can still ask before changing project guidance.
 
 ---
 
@@ -68,7 +92,7 @@ Full mode runs three research subagents in parallel (Context Analyzer, Solution 
 
 Lightweight mode writes the same doc type in a single pass. No subagents, no overlap detection, no session-history research, no semantic grounding validation.
 
-The skill picks the mode itself and does not ask. Full is the default. Lightweight only fires under real context pressure: the session is near its limit, or the fix is trivial enough that cross-referencing adds nothing. Those are conditions the agent can observe and you cannot. The first line of its output says which mode ran and why. If it guessed wrong, re-run it.
+The skill picks the mode itself and does not ask. Full is the default. Lightweight only fires when the session is near its context limit. That is a condition the agent can observe and you cannot. The first line of its output says which mode ran and why. If it guessed wrong, re-run it.
 
 Automations select the same tradeoff without a prompt. `mode:non-interactive depth:lightweight` runs the single-pass workflow; `mode:non-interactive depth:full` runs the complete workflow including the session-history probe. Bare `mode:non-interactive` (and the deprecated alias `mode:headless`) is Full by default. Depth is non-interactive-only. A depth flag without non-interactive intent, an unknown value, or conflicting depth flags fails explicitly.
 
@@ -95,21 +119,21 @@ Every run also checks whether the project's instruction file (`AGENTS.md` or `CL
 
 Before the doc compounds, its claims get checked against the tree. A deterministic script checks cited repo paths, commit SHAs, relative links, and dangling scaffold (flags are adjudicated, not auto-failed). Then a read-only validator subagent (Full mode, including non-interactive Full) verifies code-behavior claims by quoting the defining source line, and merge-state claims against remote truth. Lightweight keeps the deterministic check and skips the validator subagent.
 
-### Session history, refresh, and auto-invoke
+### Session history, refresh, and the capture checkpoint
 
 Full mode always runs a cheap two-stage session-history probe. A discovery-and-metadata pass runs in parallel with the research subagents. It lists Claude sessions from `~/.claude/projects/` (or `CLAUDE_CONFIG_DIR/projects` when that env var is set) and keeps the ones whose recorded `cwd` is the repo root, a parent of it, or a path inside it, so sessions started from a parent directory count. Codex sessions come from `~/.codex/sessions/` (or `CODEX_HOME/sessions` when set) plus `~/.agents/sessions/`. It escalates to extraction and synthesis only when a candidate session clears a relevance bar: current-branch match or at least two topic-keyword hits. On a hit, findings fold into "What Didn't Work" (bug track) or "Context" (knowledge track). Lightweight skips all of this.
 
 After capturing the new learning, `ce-compound` checks whether the learning suggests a specific older doc may now be stale. Only then does it recommend or invoke `/ce-compound-refresh`, with a narrow scope hint. It does not run refresh by default.
 
-Phrases like "that worked", "it's fixed", "working now", "problem solved" auto-invoke the skill so capture happens while context is fresh. `/ce-compound [context]` overrides.
+Phrases like "that worked", "it's fixed", "working now", and "problem solved" identify the completion checkpoint. They do not establish that a learning qualifies. Automatic capture still applies the non-obvious, durable, and material gate above. `/ce-compound [context]` requests immediate evaluation without waiting for a completion phrase; it does not lower the bar.
 
 ---
 
 ## Quick example
 
-You've just spent 45 minutes debugging an N+1 query in the brief-generation flow. You confirm the fix works and say "that worked, ship it."
+You've just spent 45 minutes debugging an N+1 query in the brief-generation flow. The root cause spans query assembly and a surprising ORM default that neither the final call site nor its regression test explains. You confirm the fix works and say "that worked, ship it."
 
-`ce-compound` auto-invokes. With plenty of context left, it picks Full mode and notes "Ran Full mode." at the top of its output. No prompt.
+The completion phrase marks the checkpoint. The agent applies the counterfactual, determines that a future engineer could plausibly repeat the investigation from the final implementation alone, and auto-invokes `ce-compound`. With plenty of context left, it picks Full mode and notes "Ran Full mode." at the top of its output. No prompt.
 
 Three subagents dispatch in parallel. Context Analyzer classifies the work as `performance_issue` (bug track) and proposes the filename and category. Solution Extractor structures the fix with before/after code. Related Docs Finder reports moderate overlap with an older doc on a different N+1 case. Alongside them, the session-history probe scans recent sessions; none clear the relevance bar, so it records "no relevant prior sessions."
 
@@ -121,29 +145,28 @@ Phase 3 dispatches the local `performance-oracle` prompt and, because the doc in
 
 ## When to reach for it
 
-Reach for `ce-compound` when:
+Reach for `ce-compound` when a solved and verified problem produced reasoning that is:
 
-- You just solved a non-trivial problem and the context is fresh
-- You say "that worked", "it's fixed", "working now", "problem solved"
-- You are at a natural pause and want to capture the learning before context fades
-- The problem took meaningful investigation, not a typo or one-line fix
+- not readily recoverable from the final implementation or existing docs
+- useful beyond the exact diff
+- costly or risky to lose
 
 Skip it when:
 
 - The problem is in-progress or the solution is unverified
-- The fix is a trivial typo or obvious error with no generalizable insight
-- The work is purely mechanical (formatting, dependency bumps)
+- The final code, tests, types, comments, or existing docs already communicate the reasoning
+- The proposed doc would mainly narrate the diff or preserve change-specific history
 - You want a repo-wide concept map rather than a learning from one solved problem → `/ce-compound-refresh`
 
 ---
 
 ## Use as part of the workflow
 
-`ce-compound` closes out multiple workflows. Invoke it after any verified, non-trivial fix:
+`ce-compound` closes out multiple workflows when the work clears the durable-learning gate:
 
-- After a successful debug and PR, when the bug is generalizable
-- After shipping, when the work yielded a reusable pattern, convention, or tooling decision
-- Stand-alone, after any non-trivial problem-solving session
+- After a successful debug when the root cause or prevention depends on reasoning the regression test cannot express
+- After shipping when the work yielded a durable cross-boundary invariant, convention, or tooling decision
+- Stand-alone after an investigation whose important reasoning would otherwise be lost
 
 The output feeds back upstream: `/ce-plan` reads `docs/solutions/` during Phase 1 research, and `/ce-ideate` reads it as grounding. When the new learning suggests an older doc may now be stale, `ce-compound` recommends `/ce-compound-refresh` with a narrow scope hint.
 
@@ -151,17 +174,17 @@ The output feeds back upstream: `/ce-plan` reads `docs/solutions/` during Phase 
 
 ## Make capture automatic
 
-The auto-invoke trigger phrases ("that worked", "it's fixed") only fire when you happen to say one of them. If you keep forgetting to capture, add a standing instruction to your agent's instruction file so the agent proposes capture on its own once a fix is verified.
+Completion phrases such as "that worked" and "it's fixed" mark a useful checkpoint, but they are not sufficient triggers. Add a standing instruction when you want the agent to evaluate the durable-learning gate at that checkpoint without waiting for you to ask.
 
-Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your global instruction file (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) to make it apply in every repo. Pick the variant that matches how much of a checkpoint you want.
+Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your harness's global instruction file (for example `~/.claude/CLAUDE.md`, `~/.agents/AGENTS.md`, or `~/.codex/AGENTS.md`) to make it apply in every repo. Pick the variant that matches how much of a checkpoint you want.
 
 Offer first (the agent asks before capturing):
 
-> After a solved, verified problem produces a non-trivial, reusable learning, offer once to invoke the `ce-compound` skill, at the completion checkpoint — when the unit of work is complete — so the learning can ship in the PR that produced it. The deadline is while the learning can still be committed to that PR, whether it is not open yet, already open as a draft, or open and under review. Offer at the checkpoint rather than deferring to that deadline. Only where the repository treats captured learnings as tracked, committed knowledge.
+> After a solved, verified problem, offer once to invoke the `ce-compound` skill at the completion checkpoint only when the work produced durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not offer. Completion, effort, and diff size alone are not enough. Offer at the checkpoint so a qualifying learning can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.
 
 Run it automatically (no prompt):
 
-> After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:non-interactive` as the skill argument. Fire at the completion checkpoint — when the unit of work is complete — so the learning ships in the PR that produced it rather than as a later orphan. The deadline is while the learning can still be committed to that PR, whether it is not open yet, already open as a draft, or open and under review. Capture at the checkpoint rather than deferring to that deadline. Only where the repository treats captured learnings as tracked, committed knowledge.
+> After a solved, verified problem, automatically invoke the `ce-compound` skill with `mode:non-interactive` at the completion checkpoint only when the work produced durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not invoke it. Completion, effort, and diff size alone are not enough. Capture at the checkpoint so a qualifying learning can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.
 
 Use `mode:non-interactive depth:lightweight` instead when the standing workflow accepts reduced research and validation in exchange for a single-pass, no-subagent closure.
 
@@ -171,7 +194,7 @@ A few phrases in those standing lines are load-bearing:
 
 - "invoke the `ce-compound` skill", not "run `/ce-compound`": instruction files are read by whatever agent you are using, and the slash-command form is not reliably agent-callable across all of them.
 - "at the completion checkpoint", with the deadline as commit-reachability rather than a PR event: a PR can open early, so any deadline pegged to PR creation is already past by the time the work finishes. Whether the learning can still be committed to the producing PR holds in every case.
-- "non-trivial, reusable learning": the bar is reuse, not effort. An expensive one-off with nothing generalizable does not qualify.
+- "not readily recoverable" and the counterfactual: the bar is preserving reasoning that the primary artifacts do not already carry, not the effort or size of the fix.
 - "treats captured learnings as tracked, committed knowledge", not a named folder: the real question is whether the repo welcomes generated docs. Forks and OSS projects you contribute to often do not, and a named path goes stale since `docs_root` can move the store.
 
 ---
@@ -194,13 +217,13 @@ In interactive Full mode, the skill may also make a small edit to `AGENTS.md`/`C
 
 | Argument | Effect |
 |----------|--------|
-| _(empty)_ | Document the most recent verified fix using conversation context |
+| _(empty)_ | Evaluate the most recent verified fix using conversation context and document it when it qualifies |
 | `<brief context>` | Focuses the capture (for example, "the email digest race condition we fixed") |
 | `mode:non-interactive` | Unattended run: no blocking questions. Defaults to Full. Deprecated alias: `mode:headless`. |
 | `depth:lightweight` | Non-interactive only. Single-pass workflow: no subagents, no overlap research, no session-history probe. |
 | `depth:full` | Non-interactive only. Complete workflow, including the automatic session-history probe. |
 
-Auto-invoke triggers: phrases like "that worked", "it's fixed", "working now", "problem solved" anywhere in conversation.
+Auto-invoke checkpoint phrases include "that worked", "it's fixed", "working now", and "problem solved". They trigger the eligibility judgment, not automatic documentation by themselves.
 
 A standalone request to create or bootstrap `CONCEPTS.md` gets redirected to `ce-compound-refresh`. Vocabulary capture here is a side effect of documenting a real learning, scoped to that learning's area.
 
@@ -209,7 +232,7 @@ A standalone request to create or bootstrap `CONCEPTS.md` gets redirected to `ce
 ## FAQ
 
 **Why two modes, and why doesn't it ask me which one?**
-Full mode is for most cases: the parallel subagents catch duplicates, find related docs, and run specialized reviews. Lightweight exists for simple fixes or sessions running tight on context. The skill picks between them itself because the deciding factor, how much context budget is left, is something the agent can see and you cannot. It reports the choice in its output. Re-run it if it guessed wrong.
+Full mode is for most qualifying learnings: the parallel subagents catch duplicates, find related docs, and run specialized reviews. Lightweight exists for sessions running tight on context. The skill picks between them itself because the deciding factor, how much context budget is left, is something the agent can see and you cannot. It reports the choice in its output. Re-run it if it guessed wrong.
 
 **What's the difference between bug track and knowledge track?**
 Bug track captures incident-level fixes: "X broke, here's why and how we fixed it." Knowledge track captures durable guidance: "this is how we do X here, and why." Bug track has Symptoms / What Didn't Work / Solution. Knowledge track has Context / Guidance / When to Apply.
