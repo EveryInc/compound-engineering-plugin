@@ -413,6 +413,32 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain('tokenUrl("/session/end")')
     expect(overlay).toContain("target-gone")
     expect(overlay).toContain("EventSource")
+    expect(overlay).toContain('querySelectorAll("script")')
     expect(overlay).not.toMatch(/WebSocket/)
+  })
+
+  test("queued annotations stay in the helper until the next wait", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-queue-"))
+    const info = await startServer(root, ["--annotate"])
+    const origin = `http://localhost:${info.port}`
+    const headers = { "Content-Type": "application/json" }
+    expect((await fetch(`${origin}/annotation?token=${info.token}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ comment: "first", selector: "h1" }),
+    })).status).toBe(200)
+    expect((await fetch(`${origin}/annotation?token=${info.token}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ comment: "second", selector: "h2" }),
+    })).status).toBe(200)
+
+    const first = await runServerCommand(["wait", "--root", root])
+    expect(first.exitCode, first.stderr).toBe(0)
+    expect(JSON.parse(first.stdout.trim()).comment).toBe("first")
+
+    const second = await runServerCommand(["wait", "--root", root])
+    expect(second.exitCode, second.stderr).toBe(0)
+    expect(JSON.parse(second.stdout.trim()).comment).toBe("second")
   })
 })

@@ -244,6 +244,12 @@
       const root = document.getElementById("ce-prototype-root")
       if (root && typeof data.html === "string") {
         root.innerHTML = data.html
+        for (const old of root.querySelectorAll("script")) {
+          const script = document.createElement("script")
+          for (const attr of old.attributes) script.setAttribute(attr.name, attr.value)
+          script.textContent = old.textContent
+          old.replaceWith(script)
+        }
       }
       for (const pin of pins) {
         if (pin.status === "working" || pin.status === "pending") pin.status = "attached"
