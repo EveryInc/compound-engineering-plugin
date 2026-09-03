@@ -881,15 +881,24 @@ async function serve(options) {
     return `http://${DEFAULT_URL_HOST}:${server.address().port}`
   }
 
+  function stampOverlayDocument(html, documentId) {
+    const marker = `${OVERLAY_PREFIX}/annotate.js"`
+    const at = html.indexOf(marker)
+    if (at === -1) return html
+    const after = at + marker.length
+    return `${html.slice(0, after)} data-ce-document="${htmlAttr(documentId)}"${html.slice(after)}`
+  }
+
   // Every document that carries the overlay is served the same way.
   function serveAnnotateDocument(req, res, html) {
     // A page being served is a tab loading, not the last tab closing. The
     // overlay is deferred and may sit behind parser-blocking work, so cancel
-    // the reconnect grace until each served document's /events connects;
-    // ending on the short elapsed timeout would kill a still-loading tab. The
-    // old stream's close can arrive after this response; it must not start
-    // grace while any replacement is still pending.
-    const pending = {}
+    // the reconnect grace until that document's /events connects; ending on
+    // the short elapsed timeout would kill a still-loading tab. The old
+    // stream's close can arrive after this response; it must not start grace
+    // while any replacement is still pending. /events names the document it
+    // completes, so another tab's reconnect cannot consume this pending load.
+    const pending = randomUUID()
     pendingDocuments.add(pending)
     if (sseGraceTimer) {
       clearTimeout(sseGraceTimer)
@@ -911,12 +920,7 @@ async function serve(options) {
       // outbound link or asset carry it in a Referer.
       "Referrer-Policy": "no-referrer",
     })
-    res.end(html)
-  }
-
-  function releaseOnePendingDocument() {
-    const { value, done } = pendingDocuments.values().next()
-    if (!done) pendingDocuments.delete(value)
+    res.end(stampOverlayDocument(html, pending))
   }
 
   function armSseGrace() {
@@ -1013,7 +1017,8 @@ async function serve(options) {
         // A client that just reloaded reconciles its pins from this frame.
         res.write(`event: annotations\ndata: ${annotationsPayload()}\n\n`)
         sawSseClient = true
-        releaseOnePendingDocument()
+        const documentId = new URL(req.url, "http://127.0.0.1").searchParams.get("document")
+        if (documentId) pendingDocuments.delete(documentId)
         if (sseGraceTimer) {
           clearTimeout(sseGraceTimer)
           sseGraceTimer = null

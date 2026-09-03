@@ -20,6 +20,7 @@
   // The helper stamps the path it served on this script. History API rewrites
   // change location.pathname without changing which screen file this is.
   const servedPage = document.currentScript?.getAttribute("data-ce-page") || "/"
+  const servedDocument = document.currentScript?.getAttribute("data-ce-document") || ""
   // The overlay owns its host: created here (this script is deferred, so the
   // document has parsed) and held by reference only. The tag is a per-load
   // unregistered custom-element name, so an authored `ce-annotate-host`
@@ -218,9 +219,14 @@
     return parts.join(" > ")
   }
 
-  function tokenUrl(path) {
+  function tokenUrl(path, extra) {
     const url = new URL(path, window.location.origin)
     if (token) url.searchParams.set("token", token)
+    if (extra) {
+      for (const [key, value] of Object.entries(extra)) {
+        if (value) url.searchParams.set(key, value)
+      }
+    }
     return url.toString()
   }
 
@@ -421,7 +427,7 @@
   if (restorePersistedState()) reattachPins()
 
   if ("EventSource" in window) {
-    source = new EventSource(tokenUrl("/events"))
+    source = new EventSource(tokenUrl("/events", { document: servedDocument }))
     source.addEventListener("screen-changed", requestReload)
     source.addEventListener("annotations", (event) => {
       let states

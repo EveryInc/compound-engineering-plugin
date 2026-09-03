@@ -80,9 +80,24 @@ async function startServer(
 // carried the session token, an inline synchronous store of it from the
 // location (no token literal); always the deferred overlay on the request origin.
 const BOOT_STORE = '<script>(function(){try{var k="ce-annotate-token";var t=new URLSearchParams(location.search).get("token");if(t){sessionStorage.setItem(k,t);try{localStorage.setItem(k,t)}catch(e2){}}}catch(e){}})()</script>'
-function annotateBoot(origin: string, storeToken = true, page = "/"): string {
-  const overlay = `<script defer src="${origin}/__ce-annotate/annotate.js" data-ce-page="${page}"></script>`
+function overlayDocumentId(html: string): string {
+  const match = html.match(/data-ce-document="([0-9a-f-]{36})"/)
+  expect(match, html.slice(0, 400)).toBeTruthy()
+  return match![1]
+}
+function annotateBoot(origin: string, storeToken = true, page = "/", documentId?: string): string {
+  const documentAttr = documentId ? ` data-ce-document="${documentId}"` : ""
+  const overlay = `<script defer src="${origin}/__ce-annotate/annotate.js"${documentAttr} data-ce-page="${page}"></script>`
   return storeToken ? `${BOOT_STORE}\n${overlay}` : overlay
+}
+function annotateBootFrom(html: string, origin: string, storeToken = true, page = "/"): string {
+  return annotateBoot(origin, storeToken, page, overlayDocumentId(html))
+}
+function eventsUrl(origin: string, token: unknown, documentId?: string): string {
+  const url = new URL("/events", origin)
+  url.searchParams.set("token", String(token))
+  if (documentId) url.searchParams.set("document", documentId)
+  return url.href
 }
 // What a browser sends when it navigates to a page, as opposed to a script's fetch.
 const NAVIGATE = { "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", Accept: "text/html,*/*;q=0.8" }
@@ -296,7 +311,7 @@ describe("ce-prototype light-webserver.js", () => {
     // The boot stores the token synchronously before any authored script, then
     // defers the overlay; the overlay creates its own host and stylesheet at
     // runtime, so the served document names neither.
-    const boot = annotateBoot(origin, true, "/001-screen.html")
+    const boot = annotateBootFrom(html, origin, true, "/001-screen.html")
     expect(html.split(boot).length).toBe(2)
     expect(html).toMatch(new RegExp(`<head>[\\s\\S]*${boot.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}[\\s\\S]*</head>`))
     expect(boot).not.toContain(token)
@@ -485,7 +500,6 @@ describe("ce-prototype light-webserver.js", () => {
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
     // A linked page is ungated, so its boot stores no token unless the request carried the session's.
-    const boot = `<!doctype html>\n${annotateBoot(origin, false, "/details.html")}\n`
     const details = '<!DOCTYPE html><html><head><link rel="stylesheet" href="/styles.css"></head><body><h1 id="detail">Details</h1></body></html>'
     await fs.mkdir(path.join(String(info.screen_dir), "pages"))
     await fs.writeFile(path.join(String(info.screen_dir), "details.html"), details)
@@ -502,25 +516,30 @@ describe("ce-prototype light-webserver.js", () => {
     expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8")
     expect(page.headers.get("cache-control")).toBe("no-store")
     expect(page.headers.get("referrer-policy")).toBe("no-referrer")
-    expect(await page.text()).toBe(`${boot}${details}`)
+    const pageHtml = await page.text()
+    expect(pageHtml).toBe(`<!doctype html>\n${annotateBootFrom(pageHtml, origin, false, "/details.html")}\n${details}`)
     // A browser that sends no fetch metadata still navigates: it accepts HTML and states no mode.
-    expect(await (await fetch(`${origin}/details.html`, { headers: { Accept: "text/html,application/xhtml+xml" } })).text()).toBe(`${boot}${details}`)
+    const noMeta = await (await fetch(`${origin}/details.html`, { headers: { Accept: "text/html,application/xhtml+xml" } })).text()
+    expect(noMeta).toBe(`<!doctype html>\n${annotateBootFrom(noMeta, origin, false, "/details.html")}\n${details}`)
     // A prototype's own `?token=demo` on a linked page must not displace the stored credential:
     // no store snippet; the session token on the same page stores, as the gated root always does.
-    expect(await (await fetch(`${origin}/details.html?token=demo`, { headers: NAVIGATE })).text()).toBe(`${boot}${details}`)
-    expect(await (await fetch(`${origin}/details.html?token=${info.token}`, { headers: NAVIGATE })).text()).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/details.html")}\n${details}`)
+    const demoToken = await (await fetch(`${origin}/details.html?token=demo`, { headers: NAVIGATE })).text()
+    expect(demoToken).toBe(`<!doctype html>\n${annotateBootFrom(demoToken, origin, false, "/details.html")}\n${details}`)
+    const sessionDetails = await (await fetch(`${origin}/details.html?token=${info.token}`, { headers: NAVIGATE })).text()
+    expect(sessionDetails).toBe(`<!doctype html>\n${annotateBootFrom(sessionDetails, origin, true, "/details.html")}\n${details}`)
     // A comment before the doctype is still a complete document, not a fragment.
     const generatedPage = await (await fetch(`${origin}/generated.html`, { headers: NAVIGATE })).text()
-    expect(generatedPage).toBe(`<!doctype html>\n${annotateBoot(origin, false, "/generated.html")}\n${generated}`)
+    expect(generatedPage).toBe(`<!doctype html>\n${annotateBootFrom(generatedPage, origin, false, "/generated.html")}\n${generated}`)
     expect(generatedPage).not.toContain("CE local web")
-    expect(await (await fetch(String(info.url), { headers: NAVIGATE })).text()).toContain(annotateBoot(origin, true, "/001-home.html"))
+    const homeHtml = await (await fetch(String(info.url), { headers: NAVIGATE })).text()
+    expect(homeHtml).toContain(annotateBootFrom(homeHtml, origin, true, "/001-home.html"))
     expect(BOOT_STORE).toContain("sessionStorage.setItem")
 
     // A fragment page gets the same shell as a fragment root screen.
     const part = await (await fetch(`${origin}/pages/part.html`, { headers: NAVIGATE })).text()
     expect(part).toContain("<h2>Part</h2>")
     expect(part).toContain("CE local web")
-    expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js" data-ce-page="\/pages\/part\.html"><\/script>[\s\S]*<\/head>/)
+    expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js" data-ce-document="[0-9a-f-]{36}" data-ce-page="\/pages\/part\.html"><\/script>[\s\S]*<\/head>/)
     await fs.writeFile(path.join(String(info.screen_dir), "pages", "note.html"), "<!-- note --><h2>Note</h2>")
     const note = await (await fetch(`${origin}/pages/note.html`, { headers: NAVIGATE })).text()
     expect(note).toContain("<h2>Note</h2>")
@@ -539,7 +558,8 @@ describe("ce-prototype light-webserver.js", () => {
     }
     expect(await (await fetch(`${origin}/details.html`)).text()).toBe(details)
     // The root is always a document.
-    expect(await (await fetch(String(info.url), { headers: { Accept: "*/*", "Sec-Fetch-Dest": "empty" } })).text()).toContain(annotateBoot(origin, true, "/001-home.html"))
+    const rootAsFetch = await (await fetch(String(info.url), { headers: { Accept: "*/*", "Sec-Fetch-Dest": "empty" } })).text()
+    expect(rootAsFetch).toContain(annotateBootFrom(rootAsFetch, origin, true, "/001-home.html"))
 
     const css = await fetch(`${origin}/styles.css`)
     expect(css.headers.get("content-type")).toBe("text/css; charset=utf-8")
@@ -615,10 +635,12 @@ describe("ce-prototype light-webserver.js", () => {
     })
     const origin = `http://localhost:${info.port}`
     const controller = new AbortController()
-    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: controller.signal })).status).toBe(200)
+    expect((await fetch(eventsUrl(origin, info.token), { signal: controller.signal })).status).toBe(200)
     controller.abort()
     await new Promise((resolve) => setTimeout(resolve, 200))
-    expect((await fetch(String(info.url))).status).toBe(200)
+    const page = await fetch(String(info.url))
+    expect(page.status).toBe(200)
+    const documentId = overlayDocumentId(await page.text())
 
     // Past the original grace and past a restarted elapsed grace: the
     // replacement document stays live until /events connects again.
@@ -626,7 +648,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
 
     const reconnect = new AbortController()
-    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: reconnect.signal })).status).toBe(200)
+    expect((await fetch(eventsUrl(origin, info.token, documentId), { signal: reconnect.signal })).status).toBe(200)
     reconnect.abort()
     await new Promise((resolve) => setTimeout(resolve, 550))
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
@@ -640,8 +662,10 @@ describe("ce-prototype light-webserver.js", () => {
     })
     const origin = `http://localhost:${info.port}`
     const controller = new AbortController()
-    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: controller.signal })).status).toBe(200)
-    expect((await fetch(String(info.url))).status).toBe(200)
+    expect((await fetch(eventsUrl(origin, info.token), { signal: controller.signal })).status).toBe(200)
+    const page = await fetch(String(info.url))
+    expect(page.status).toBe(200)
+    const documentId = overlayDocumentId(await page.text())
     controller.abort()
 
     // Past a grace that the old-stream close would have started if the
@@ -650,7 +674,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
 
     const reconnect = new AbortController()
-    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: reconnect.signal })).status).toBe(200)
+    expect((await fetch(eventsUrl(origin, info.token, documentId), { signal: reconnect.signal })).status).toBe(200)
     reconnect.abort()
     await new Promise((resolve) => setTimeout(resolve, 550))
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
@@ -664,13 +688,17 @@ describe("ce-prototype light-webserver.js", () => {
     })
     const origin = `http://localhost:${info.port}`
     const first = new AbortController()
-    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: first.signal })).status).toBe(200)
+    expect((await fetch(eventsUrl(origin, info.token), { signal: first.signal })).status).toBe(200)
 
     // Two replacement documents outstanding; only one overlay reconnects.
-    expect((await fetch(String(info.url))).status).toBe(200)
-    expect((await fetch(String(info.url))).status).toBe(200)
+    const firstPage = await fetch(String(info.url))
+    const secondPage = await fetch(String(info.url))
+    expect(firstPage.status).toBe(200)
+    expect(secondPage.status).toBe(200)
+    const firstDocument = overlayDocumentId(await firstPage.text())
+    const secondDocument = overlayDocumentId(await secondPage.text())
     const second = new AbortController()
-    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: second.signal })).status).toBe(200)
+    expect((await fetch(eventsUrl(origin, info.token, firstDocument), { signal: second.signal })).status).toBe(200)
     first.abort()
     second.abort()
 
@@ -678,8 +706,41 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
 
     const reconnect = new AbortController()
-    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: reconnect.signal })).status).toBe(200)
+    expect((await fetch(eventsUrl(origin, info.token, secondDocument), { signal: reconnect.signal })).status).toBe(200)
     reconnect.abort()
+    await new Promise((resolve) => setTimeout(resolve, 550))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
+  })
+
+  test("an overlay reconnect does not release a different document's pending load", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-bind-doc-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_SSE_GRACE_MS: "400",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
+    })
+    const origin = `http://localhost:${info.port}`
+    const loadedPage = await fetch(String(info.url))
+    expect(loadedPage.status).toBe(200)
+    const loadedDocument = overlayDocumentId(await loadedPage.text())
+    const loaded = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token, loadedDocument), { signal: loaded.signal })).status).toBe(200)
+
+    const pendingPage = await fetch(String(info.url))
+    expect(pendingPage.status).toBe(200)
+    const pendingDocument = overlayDocumentId(await pendingPage.text())
+    expect(pendingDocument).not.toBe(loadedDocument)
+
+    const unrelated = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token, loadedDocument), { signal: unrelated.signal })).status).toBe(200)
+    loaded.abort()
+    unrelated.abort()
+
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
+
+    const complete = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token, pendingDocument), { signal: complete.signal })).status).toBe(200)
+    complete.abort()
     await new Promise((resolve) => setTimeout(resolve, 550))
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
@@ -838,7 +899,7 @@ describe("ce-prototype light-webserver.js", () => {
     const html = await (await fetch(String(info.url))).text()
     // A full document is served verbatim behind our doctype and the deferred
     // boot; nothing in the authored text is located or rewritten.
-    expect(html).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/001-screen.html")}\n${authored}`)
+    expect(html).toBe(`<!doctype html>\n${annotateBootFrom(html, origin, true, "/001-screen.html")}\n${authored}`)
     expect(html).not.toContain('src="/__ce-annotate')
 
     // So a "</body>" literal in a script string or a trailing comment, or a
@@ -848,20 +909,20 @@ describe("ce-prototype light-webserver.js", () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     await fs.writeFile(path.join(String(info.screen_dir), "002-screen.html"), `\uFEFF${literalDoc}`)
     const literal = await (await fetch(String(info.url))).text()
-    expect(literal).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/002-screen.html")}\n${literalDoc}`)
+    expect(literal).toBe(`<!doctype html>\n${annotateBootFrom(literal, origin, true, "/002-screen.html")}\n${literalDoc}`)
 
     await new Promise((resolve) => setTimeout(resolve, 20))
     const prologued = "<!-- generated -->\n<!DOCTYPE html><html><body><h1>Prologued</h1></body></html>"
     await fs.writeFile(path.join(String(info.screen_dir), "003-screen.html"), prologued)
     const prologuedHtml = await (await fetch(String(info.url))).text()
-    expect(prologuedHtml).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/003-screen.html")}\n${prologued}`)
+    expect(prologuedHtml).toBe(`<!doctype html>\n${annotateBootFrom(prologuedHtml, origin, true, "/003-screen.html")}\n${prologued}`)
     expect(prologuedHtml).not.toContain("CE local web")
 
     // A Host header that cannot be reflected safely falls back to the listen address.
     const odd = await fetch(String(info.url), { headers: { host: 'evil"><script>' } })
     expect(odd.status).toBe(200)
     const oddHtml = await odd.text()
-    expect(oddHtml).toContain(annotateBoot(`http://localhost:${info.port}`, true, "/003-screen.html"))
+    expect(oddHtml).toContain(annotateBootFrom(oddHtml, `http://localhost:${info.port}`, true, "/003-screen.html"))
     expect(oddHtml).not.toContain('evil"')
 
     const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
@@ -1035,6 +1096,8 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain('nodeName === "DIALOG"')
     // The pin and the reload name the screen the helper served, not a History API pathname.
     expect(overlay).toContain('document.currentScript?.getAttribute("data-ce-page") || "/"')
+    expect(overlay).toContain('document.currentScript?.getAttribute("data-ce-document") || ""')
+    expect(overlay).toContain('tokenUrl("/events", { document: servedDocument })')
     expect(overlay).toContain("page: servedPage,")
     expect(overlay).toContain("window.location.replace(servedPage)")
     expect(overlay).not.toContain("window.location.pathname")
