@@ -116,6 +116,6 @@ The server is the same everywhere; only the launch mode changes.
 - **Claude Code / Claude desktop app:** detached `start` is the default path. If the app opens localhost URLs, show the returned URL and continue.
 - **Codex CLI / Codex app:** if detached processes are reaped or the URL dies after the tool call, use `start --foreground` through the platform's long-running/background terminal mechanism.
 - **Plain terminal UI:** print the returned URL for the user to open manually.
-- **Remote or containerized sessions:** if `localhost` is not reachable from the user's browser, start with `--host 0.0.0.0` and tell the user which host/port to open. That serves the run directory to anything that can reach the port; annotation and wait routes stay token-gated — do it only on a network the user trusts, and say so when you hand over the URL.
+- **Remote or containerized sessions:** if `localhost` is not reachable from the user's browser, start with `--host 0.0.0.0` and hand the explorer the helper's returned URL with only the host rewritten to one they can reach. The query credential stays; a different origin has no stored token. That serves the run directory to anything that can reach the port; annotation and wait routes stay token-gated — do it only on a network the user trusts, and say so when you hand over the URL.
 
 If the helper path is unavailable or the platform cannot display a local URL cleanly, stop and report that. Do not settle the question in chat instead — a question that needs a real artifact to be decided is not answered by talking about it.

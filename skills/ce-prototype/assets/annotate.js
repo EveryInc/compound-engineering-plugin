@@ -371,6 +371,18 @@
 
   window.addEventListener("scroll", reattachPins, { capture: true, passive: true })
   window.addEventListener("resize", reattachPins)
+  const layoutRoot = prototypeRoot()
+  if (typeof ResizeObserver === "function") {
+    new ResizeObserver(reattachPins).observe(layoutRoot)
+  }
+  if (typeof MutationObserver === "function") {
+    new MutationObserver(reattachPins).observe(layoutRoot, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["style", "class", "hidden"],
+    })
+  }
 
   document.addEventListener("click", (event) => {
     if (!commentToolOn || sessionEnded) return

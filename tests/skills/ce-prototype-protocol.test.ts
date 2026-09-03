@@ -79,6 +79,10 @@ describe("ce-prototype protocol", () => {
     expect(ANNOTATION_LOOP_BODY).toMatch(/Chat is valid only after wait has returned or cannot run/)
     expect(ANNOTATION_LOOP_BODY).not.toMatch(/explorer writing in chat/)
     expect(PREVIEW_BODY).toMatch(/start --root "\$PROTO_DIR" --annotate/)
+    expect(
+      /hand the explorer the helper's returned URL with only the host rewritten[\s\S]{0,80}query credential stays/.test(PREVIEW_BODY),
+      "A remote handoff must keep the helper URL's query credential. Host-and-port alone is a distinct origin with no stored token, so the gated root serves the 401 bootstrap.",
+    ).toBe(true)
     expect(PREVIEW_BODY).not.toMatch(/no browser-to-agent event path/)
     expect(ANNOTATION_LOOP_BODY).not.toMatch(/no browser-to-agent event path/)
     expect(SKILL_BODY).toContain("`references/annotation-loop.md`")

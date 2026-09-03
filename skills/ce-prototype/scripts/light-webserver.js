@@ -405,7 +405,7 @@ function annotateScreen(html, origin, storeToken, page = "/") {
 function annotateDocument(options, origin) {
   const screen = newestScreen(options)
   if (!screen) return wrapAnnotateFragment(WAITING_HTML, annotateBoot(origin, true))
-  return annotateScreen(fs.readFileSync(screen, "utf8"), origin, true)
+  return annotateScreen(fs.readFileSync(screen, "utf8"), origin, true, pageForScreen(options, screen))
 }
 
 function renderPage(options, origin) {
@@ -456,6 +456,21 @@ function readBody(req, limit = BODY_LIMIT) {
     req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")))
     req.on("error", reject)
   })
+}
+
+// Screens-relative URL path for a file we just served, so the overlay names
+// that file rather than "/". "/" would re-resolve to newestScreen at POST
+// time, and a newer sibling would steal the pin.
+function pageForScreen(options, filePath) {
+  let root
+  try {
+    root = fs.realpathSync(options.screensDir)
+  } catch {
+    return "/"
+  }
+  const relative = path.relative(root, filePath).split(path.sep).join("/")
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return "/"
+  return `/${relative}`
 }
 
 // The screens/-relative HTML file the annotated page resolves to, or null.

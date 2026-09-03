@@ -294,7 +294,7 @@ describe("ce-prototype light-webserver.js", () => {
     // The boot stores the token synchronously before any authored script, then
     // defers the overlay; the overlay creates its own host and stylesheet at
     // runtime, so the served document names neither.
-    const boot = annotateBoot(origin)
+    const boot = annotateBoot(origin, true, "/001-screen.html")
     expect(html.split(boot).length).toBe(2)
     expect(html).toMatch(new RegExp(`<head>[\\s\\S]*${boot.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}[\\s\\S]*</head>`))
     expect(boot).not.toContain(token)
@@ -463,8 +463,12 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await nextRecord()).screen).toBe("002-home.html")
     expect((await post({})).status).toBe(200)
     expect((await nextRecord()).screen).toBe("002-home.html")
+    const rootHtml = await (await fetch(String(info.url))).text()
+    expect(rootHtml).toContain('data-ce-page="/002-home.html"')
     await new Promise((resolve) => setTimeout(resolve, 20))
     await fs.writeFile(path.join(screens, "003-next.html"), "<h1>Next</h1>")
+    expect((await post({ page: "/002-home.html" })).status).toBe(200)
+    expect((await nextRecord()).screen).toBe("002-home.html")
     expect((await post({ page: "/" })).status).toBe(200)
     expect((await nextRecord()).screen).toBe("003-next.html")
 
@@ -501,7 +505,7 @@ describe("ce-prototype light-webserver.js", () => {
     // no store snippet; the session token on the same page stores, as the gated root always does.
     expect(await (await fetch(`${origin}/details.html?token=demo`, { headers: NAVIGATE })).text()).toBe(`${boot}${details}`)
     expect(await (await fetch(`${origin}/details.html?token=${info.token}`, { headers: NAVIGATE })).text()).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/details.html")}\n${details}`)
-    expect(await (await fetch(String(info.url), { headers: NAVIGATE })).text()).toContain(annotateBoot(origin))
+    expect(await (await fetch(String(info.url), { headers: NAVIGATE })).text()).toContain(annotateBoot(origin, true, "/001-home.html"))
     expect(BOOT_STORE).toContain("sessionStorage.setItem")
 
     // A fragment page gets the same shell as a fragment root screen.
@@ -523,7 +527,7 @@ describe("ce-prototype light-webserver.js", () => {
     }
     expect(await (await fetch(`${origin}/details.html`)).text()).toBe(details)
     // The root is always a document.
-    expect(await (await fetch(String(info.url), { headers: { Accept: "*/*", "Sec-Fetch-Dest": "empty" } })).text()).toContain(annotateBoot(origin))
+    expect(await (await fetch(String(info.url), { headers: { Accept: "*/*", "Sec-Fetch-Dest": "empty" } })).text()).toContain(annotateBoot(origin, true, "/001-home.html"))
 
     const css = await fetch(`${origin}/styles.css`)
     expect(css.headers.get("content-type")).toBe("text/css; charset=utf-8")
@@ -766,7 +770,7 @@ describe("ce-prototype light-webserver.js", () => {
     const html = await (await fetch(String(info.url))).text()
     // A full document is served verbatim behind our doctype and the deferred
     // boot; nothing in the authored text is located or rewritten.
-    expect(html).toBe(`<!doctype html>\n${annotateBoot(origin)}\n${authored}`)
+    expect(html).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/001-screen.html")}\n${authored}`)
     expect(html).not.toContain('src="/__ce-annotate')
 
     // So a "</body>" literal in a script string or a trailing comment, or a
@@ -776,13 +780,13 @@ describe("ce-prototype light-webserver.js", () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     await fs.writeFile(path.join(String(info.screen_dir), "002-screen.html"), `\uFEFF${literalDoc}`)
     const literal = await (await fetch(String(info.url))).text()
-    expect(literal).toBe(`<!doctype html>\n${annotateBoot(origin)}\n${literalDoc}`)
+    expect(literal).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/002-screen.html")}\n${literalDoc}`)
 
     // A Host header that cannot be reflected safely falls back to the listen address.
     const odd = await fetch(String(info.url), { headers: { host: 'evil"><script>' } })
     expect(odd.status).toBe(200)
     const oddHtml = await odd.text()
-    expect(oddHtml).toContain(annotateBoot(`http://localhost:${info.port}`))
+    expect(oddHtml).toContain(annotateBoot(`http://localhost:${info.port}`, true, "/002-screen.html"))
     expect(oddHtml).not.toContain('evil"')
 
     const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
@@ -812,14 +816,19 @@ describe("ce-prototype light-webserver.js", () => {
 
   test("idle shutdown flushes a parked wait as session-ended", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-idle-"))
-    await startServer(root, ["--annotate"], {
-      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "120",
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "400",
       CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "30",
       CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "5000",
     })
-    const ended = await runServerCommand(["wait", "--root", root])
-    expect(ended.exitCode, ended.stderr).toBe(1)
-    expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
+    const origin = `http://localhost:${info.port}`
+    // Root GET is activity, so idle is measured from a parked waiter rather
+    // than from listen() racing a separate Node `wait` process.
+    await fetch(String(info.url))
+    const parked = fetch(`${origin}/wait?token=${info.token}`)
+    const ended = await parked
+    expect(ended.status).toBe(410)
+    expect(await ended.json()).toEqual({ status: "session-ended" })
   })
 
   test("wait reports session-ended after idle already stopped the process", async () => {
@@ -885,6 +894,8 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("Stop failed")
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
     expect(overlay).toContain('addEventListener("scroll", reattachPins')
+    expect(overlay).toContain("new ResizeObserver(reattachPins)")
+    expect(overlay).toContain("new MutationObserver(reattachPins)")
     expect(overlay).toContain("EventSource.CLOSED")
     // Every screen change reloads the document with the pins carried across;
     // the overlay never reconciles DOM, head, or scripts itself.
