@@ -6,7 +6,7 @@
   const servedDocument = document.currentScript?.getAttribute("data-ce-document") || ""
   // Overlay host hangs off <html>, not <body>, so it stays out of body layout
   // and document.body.children. A manual popover puts it on the top layer so
-  // Comment/Stop stay usable over dialog.showModal().
+  // Annotate/End preview stay usable over dialog.showModal().
   const host = document.createElement("ce-annotate-host")
   host.style.cssText =
     "display: block; position: fixed; inset: 0; pointer-events: none; z-index: 2147483645; margin: 0; padding: 0; border: 0;"
@@ -41,8 +41,8 @@
   const chrome = document.createElement("div")
   chrome.className = "ce-annotate-chrome"
   chrome.innerHTML = `
-    <button type="button" class="ce-annotate-toggle" aria-pressed="false">Comment</button>
-    <button type="button" class="ce-annotate-stop">Stop</button>
+    <button type="button" class="ce-annotate-toggle" aria-pressed="false">Annotate</button>
+    <button type="button" class="ce-annotate-stop" title="End preview and return to chat" aria-label="End preview and return to chat"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 2l8 8M10 2L2 10" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg></button>
     <span class="ce-annotate-status" hidden></span>
   `
   shadow.appendChild(chrome)
@@ -301,7 +301,7 @@
     commentToolOn = on
     toggle.setAttribute("aria-pressed", String(on))
     toggle.classList.toggle("is-on", on)
-    toggle.textContent = on ? "Commenting" : "Comment"
+    toggle.textContent = on ? "Annotating" : "Annotate"
     if (!on) closeComposer(inFlight)
   }
 
@@ -365,7 +365,7 @@
       if (!response.ok) throw new Error("retry")
     } catch {
       stop.disabled = false
-      setStatus("Stop failed — retry")
+      setStatus("Could not end preview — retry")
       return
     }
     markEnded()
