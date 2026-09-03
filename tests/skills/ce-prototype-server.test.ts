@@ -106,8 +106,8 @@ function postAnnotation(origin: string, token: unknown, body: object) {
   })
 }
 
-// A tab that received the document and then went away: Connection: close so
-// the helper sees the handshake can no longer complete.
+// Connection: close after a completed body, then destroy the socket. The
+// overlay still has to open /events on a new connection.
 function fetchDocumentClosingConnection(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = http.get(url, { agent: false, headers: { ...NAVIGATE, Connection: "close" } }, (res) => {
@@ -762,8 +762,8 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 
-  test("a completed document whose connection closes before /events does not suppress session end", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-abandoned-doc-"))
+  test("a close-delimited replacement document stays live until the overlay connects", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-close-delimited-doc-"))
     const info = await startServer(root, ["--annotate"], {
       CE_LIGHT_WEB_SSE_GRACE_MS: "100",
       CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
@@ -773,10 +773,14 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(eventsUrl(origin, info.token), { signal: controller.signal })).status).toBe(200)
 
     const html = await fetchDocumentClosingConnection(String(info.url))
-    overlayDocumentId(html)
+    const documentId = overlayDocumentId(html)
     controller.abort()
 
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    const reconnect = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token, documentId), { signal: reconnect.signal })).status).toBe(200)
+    reconnect.abort()
+    await new Promise((resolve) => setTimeout(resolve, 200))
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 

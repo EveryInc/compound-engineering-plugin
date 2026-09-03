@@ -848,18 +848,8 @@ async function serve(options) {
     return `${html.slice(0, after)} data-ce-document="${htmlAttr(documentId)}"${html.slice(after)}`
   }
 
-  function detachPendingSocket(entry) {
-    if (!entry?.socket || !entry.onSocketClose) return
-    entry.socket.removeListener("close", entry.onSocketClose)
-    entry.socket.removeListener("end", entry.onSocketClose)
-  }
-
   function forgetPendingDocument(id) {
-    const entry = pendingDocuments.get(id)
-    if (!entry) return false
-    pendingDocuments.delete(id)
-    detachPendingSocket(entry)
-    return true
+    return pendingDocuments.delete(id)
   }
 
   function abandonPendingDocument(id) {
@@ -872,17 +862,8 @@ async function serve(options) {
     if (!socket) return
     for (const [id, entry] of pendingDocuments) {
       if (entry.socket !== socket || id === exceptId) continue
-      detachPendingSocket(entry)
       entry.socket = null
-      entry.onSocketClose = null
     }
-  }
-
-  function requestClosesConnection(req, res) {
-    if (res.shouldKeepAlive === false) return true
-    return String(req.headers.connection || "")
-      .split(",")
-      .some((part) => part.trim().toLowerCase() === "close")
   }
 
   function retainPendingDocument(id, socket) {
@@ -891,15 +872,7 @@ async function serve(options) {
         if (entry.socket === socket) forgetPendingDocument(previousId)
       }
     }
-    if (!socket || typeof socket.on !== "function") {
-      pendingDocuments.set(id, { socket: null, onSocketClose: null })
-      return
-    }
-    const onSocketClose = () => abandonPendingDocument(id)
-    pendingDocuments.set(id, { socket, onSocketClose })
-    socket.on("close", onSocketClose)
-    socket.on("end", onSocketClose)
-    if (socket.destroyed) onSocketClose()
+    pendingDocuments.set(id, { socket: socket || null })
   }
 
   // Every document that carries the overlay is served the same way.
@@ -911,8 +884,11 @@ async function serve(options) {
     // stream's close can arrive after this response; it must not start grace
     // while any replacement is still pending. /events names the document it
     // completes, so another tab's reconnect cannot consume this pending load.
-    // A completed keep-alive request is not the tab gone; a close-delimited
-    // request, or the socket ending, cannot open /events.
+    // The handshake dies when this document can no longer open /events: the
+    // request aborted before the body was delivered, /events completed it, a
+    // later document on the same connection replaced it, or the session
+    // ended. A completed response is not that; the overlay may connect on a
+    // new connection.
     const pending = randomUUID()
     retainPendingDocument(pending, req.socket)
     if (sseGraceTimer) {
@@ -920,7 +896,7 @@ async function serve(options) {
       sseGraceTimer = null
     }
     req.on("close", () => {
-      if (res.writableEnded && !requestClosesConnection(req, res)) return
+      if (res.writableEnded) return
       abandonPendingDocument(pending)
     })
     // Sync the change key to what this page will render, so a stream that
