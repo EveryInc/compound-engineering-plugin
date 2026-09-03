@@ -77,5 +77,4 @@ expect(await exists(path.join(outputRoot, "compound-engineering", "legacy-backup
 That false-green assertion earned its keep on the first run: an em-dash mismatch in the fork's description made ownership return `false`, which the assertion caught — otherwise the test would have "passed" without exercising the guard at all.
 
 ## Related
-- [A correctness cache needs a COMPLETE, schema-derived invalidation input set](cache-invalidation-input-set-completeness.md) — sibling pattern: a safety-relevant set (there, invalidation inputs) that must be complete, with the gap found by adversarial review.
 - Issue #1048 (repro) and PR #1089 (merged), which fixed both the main-loop clobber and — as a follow-up commit on the same branch — the legacy-sweep gap described here.

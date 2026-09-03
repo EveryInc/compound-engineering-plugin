@@ -2,7 +2,7 @@
 title: "Manual release-please with GitHub Releases for plugin and marketplace releases"
 category: workflow
 date: 2026-03-17
-last_refreshed: 2026-06-23
+last_refreshed: 2026-09-02
 created: 2026-03-17
 severity: medium
 module: release-automation
@@ -20,141 +20,34 @@ tags:
 
 # Manual release-please with GitHub Releases for plugin and marketplace releases
 
-## Problem
+The repo uses release-please manifest mode with one standing release PR: release PR maintenance is automatic on pushes to `main`, the release itself happens only when a maintainer merges that PR, and GitHub Releases (`compound-engineering-vX.Y.Z`, `marketplace-vX.Y.Z`, `cursor-marketplace-vX.Y.Z`) are the canonical release-notes surface. AGENTS.md "Release versioning" and "Commit Conventions" state the contributor-facing rules; this doc keeps the two constraints behind them.
 
-The repo had one automated release path for the npm CLI, but the actual release model was fragmented across root package metadata, plugin manifests, marketplace catalogs, and release-note surfaces. That made it easy for plugin manifests, marketplace metadata, and computed counts to drift out of sync.
+## Why GitHub Releases is canonical: the `..` changelog-path constraint
 
-## Solution
+Release-please does not allow a package `changelog-path` that traverses upward with `..`. A multi-component repo therefore cannot force subpackage release entries back into one shared root changelog with `../../CHANGELOG.md` or `../CHANGELOG.md`. Rather than maintain three committed changelogs, GitHub Releases became the canonical surface and root `CHANGELOG.md` is only a pointer to it. `src/release/config.ts` (`validateReleasePleaseConfig`, run by `bun run release:validate`) rejects an upward-relative path so the mistake fails in CI before the workflow reaches GitHub Actions. Do not try to route multi-component release notes back into one committed file.
 
-Use release-please manifest mode with one standing release PR and explicit component ownership.
+## Component ownership
 
-Current components:
-
-- `compound-engineering` package/plugin at root package path `.`
-- `marketplace` for `.claude-plugin/marketplace.json`
-- `cursor-marketplace` for `.cursor-plugin/marketplace.json`
-
-The root `compound-engineering` package is now the plugin package. It owns the CLI/tooling code, root plugin manifests, native harness metadata, and `skills/`.
-
-Key decisions:
-
-- Keep release timing manual: the actual release happens when the generated release PR is merged.
-- Keep release PR maintenance automatic on pushes to `main`.
-- Use GitHub release PRs and GitHub Releases as the canonical release-notes surface.
-- Keep PR title scopes optional; use file paths to determine affected components.
-- Keep `AGENTS.md` canonical. Root `CLAUDE.md` is a symlink to `AGENTS.md` (required for `claude plugin validate --strict`); `GEMINI.md` remains a compatibility shim.
-
-## Critical constraint discovered
-
-Release-please does not allow package changelog paths that traverse upward with `..`. A multi-component repo cannot force subpackage release entries back into one shared root changelog file using `../../CHANGELOG.md` or `../CHANGELOG.md`.
-
-The practical fix:
-
-- Treat GitHub Releases as the canonical release-notes surface.
-- Keep root `CHANGELOG.md` as a pointer to GitHub Releases.
-- Validate `.github/release-please-config.json` in CI so unsupported changelog paths fail before the workflow reaches GitHub Actions.
-
-## Resulting release process
-
-1. Normal feature PRs merge to `main`.
-2. The `Release PR` workflow updates one standing release PR for the repo.
-3. Additional releasable merges accumulate into that release PR.
-4. Maintainers can inspect the standing release PR or run the manual preview flow.
-5. The actual release happens only when the generated release PR is merged.
-6. Component-specific release notes are published via GitHub Releases such as `compound-engineering-vX.Y.Z`, `marketplace-vX.Y.Z`, and `cursor-marketplace-vX.Y.Z`.
-
-## Component rules
-
-PR title determines release intent:
-
-- `feat` -> minor
-- `fix`, `perf`, `revert` -> patch
-- `refactor` -> visible in release notes under `Refactoring`, but not release-driving unless breaking or explicitly overridden
-- `!` -> major; do not use without explicit maintainer confirmation
-
-File paths determine component ownership:
+File paths, not PR-title scopes, decide which component a change bumps (`FILE_COMPONENT_MAP` in `src/release/components.ts`):
 
 | Component | Paths |
 |---|---|
-| `compound-engineering` | Paths in `src/release/components.ts` `FILE_COMPONENT_MAP`: `skills/`, `src/`, `tests/`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/`, `.kimi-plugin/plugin.json`, `.grok-plugin/`, `.devin-plugin/plugin.json`, `.opencode/`, `.cline/`, `.pi/`, `.agy/`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`. Extra-files such as `.omp-plugin/marketplace.json` ride a root bump; they do not themselves schedule one. |
+| `compound-engineering` (root package = the plugin: CLI, root and native harness manifests, `skills/`) | `skills/`, `src/`, `tests/`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/`, `.kimi-plugin/plugin.json`, `.grok-plugin/`, `.devin-plugin/plugin.json`, `.opencode/`, `.cline/`, `.pi/`, `.agy/`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`. Extra-files such as `.omp-plugin/marketplace.json` ride a root bump; they do not themselves schedule one. |
 | `marketplace` | `.claude-plugin/marketplace.json` |
 | `cursor-marketplace` | `.cursor-plugin/marketplace.json` |
 
-Docs-only, CI-only, and build-only changes are non-releasable unless their conventional type says otherwise and a releasable component path changed.
+Consequences worth knowing:
 
-## Examples
+- A `fix:` touching `.codex-plugin/plugin.json`, `.kimi-plugin/plugin.json`, or root `plugin.json` bumps `compound-engineering`, and `release:validate` requires every root package/plugin manifest version to stay aligned.
+- A marketplace catalog edit bumps only `marketplace`; plugin versions do not bump because the catalog changed.
+- `refactor:` appears in release notes under Refactoring but is not release-driving unless breaking or explicitly overridden. Docs-only, CI-only, and build-only changes are non-releasable unless a releasable component path also changed.
 
-### Plugin-only release
+## Plugin-scoped contributor rule
 
-- A `fix:` PR changes `skills/ce-plan/SKILL.md`
-- `compound-engineering` bumps
-- marketplace versions remain untouched
-
-### Root packaging release
-
-- A `fix:` PR changes `.codex-plugin/plugin.json`, `.kimi-plugin/plugin.json`, or root `plugin.json`
-- `compound-engineering` bumps because those files are root package/plugin extra-files
-- `bun run release:validate` must pass so all root package/plugin versions remain aligned
-
-### Marketplace-only release
-
-- A marketplace catalog entry changes in `.claude-plugin/marketplace.json`
-- `marketplace` bumps
-- plugin versions do not need to bump just because the catalog changed
-
-## Release notes model
-
-- Pending release state is visible in one standing release PR.
-- Published release history is canonical in GitHub Releases.
-- Root `CHANGELOG.md` is only a pointer to GitHub Releases and is not the canonical source for new releases.
-
-## Key files
-
-- `.github/release-please-config.json`
-- `.github/.release-please-manifest.json`
-- `.github/workflows/release-pr.yml`
-- `.github/workflows/release-preview.yml`
-- `.github/workflows/ci.yml`
-- `src/release/components.ts`
-- `src/release/metadata.ts`
-- `scripts/release/preview.ts`
-- `scripts/release/sync-metadata.ts`
-- `scripts/release/validate.ts`
-- `AGENTS.md`
-- `CLAUDE.md`
-- `GEMINI.md`
-
-## Prevention
-
-- Keep release authority in CI only.
-- Do not reintroduce local maintainer-only release flows or hand-managed version bumps.
-- Keep root package/plugin manifests aligned through release-please extra-files, not manual edits.
-- Do not try to force multi-component release notes back into one committed changelog file.
-- Run `bun run release:validate` whenever plugin inventories, release-owned descriptions, marketplace entries, or root plugin manifests may have changed.
-- Prefer maintained CI actions over custom validation when a generic concern does not need repo-specific logic.
-
-## Validation checklist
-
-Before merge:
-
-- Confirm PR title passes semantic validation.
-- Run `bun test`.
-- Run `bun run release:validate`.
-- Run `bun run release:preview ...` for representative changed files when release-component selection is non-obvious.
-
-Before merging a generated release PR:
-
-- Verify untouched components are unchanged.
-- Verify marketplace components only bump for marketplace-level changes.
-- Verify root package/plugin extra-files share the same version.
-
-After merging a generated release PR:
-
-- Confirm no recursive follow-up release PR appears containing only generated churn.
-- Confirm the expected component GitHub Releases were created and release-owned metadata matches the released components.
+Embedded plugin versions across every root and native manifest, the `compound-engineering` entry in `.claude-plugin/marketplace.json`, and release sections in `CHANGELOG.md` are release-owned. Multiple PRs may merge before a release, so a version guessed inside a feature PR is wrong more often than right and produced the drift in `release-please-version-drift-recovery.md`. Feature PRs change inventory (`README.md` counts and tables, `plugin.json` description) and run `bun run release:validate`; they never pick the version.
 
 ## Related docs
 
-- `docs/solutions/plugin-versioning-requirements.md`
+- `docs/solutions/workflow/release-please-version-drift-recovery.md`
 - `docs/solutions/adding-converter-target-providers.md`
 - `AGENTS.md`

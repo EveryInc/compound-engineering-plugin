@@ -178,12 +178,11 @@ at `xhigh` for both `ce-code-review` and `ce-doc-review` adversarial peers.
 
 ## Related
 
-- `docs/solutions/skill-design/fake-cli-harness-for-skill-judgment-evals.md` —
-  faking peer CLIs to eval *orchestration* correctness; complementary to this
-  *quality/cost* benchmark of the real model behind the peer.
 - `docs/solutions/skill-design/paired-old-vs-new-injection-skill-evals.md` —
   non-inferiority framing for skill *prose* changes; same "tie vs improvement"
-  discipline applied to a model/tier change.
+  discipline applied to a model/tier change. Its technique 7 (fake peer CLIs on
+  PATH) evals *orchestration* correctness, complementary to this *quality/cost*
+  benchmark of the real model behind the peer.
 - `docs/solutions/skill-design/confidence-anchored-scoring.md` — judge-scoring
   rigor that pairs with the detection-vs-assertion split here.
 - `docs/solutions/skill-design/requested-vs-verified-model-identity.md` — verifying

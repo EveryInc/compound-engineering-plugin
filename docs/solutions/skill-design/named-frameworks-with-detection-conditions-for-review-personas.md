@@ -79,4 +79,4 @@ Validation of the change itself: fresh-agent probes of the edited personas on bo
 - [portable-agent-skill-authoring.md](portable-agent-skill-authoring.md) — the skill-authoring standard this convention supplements (state conditions, trust agent intelligence).
 - [confidence-anchored-scoring.md](confidence-anchored-scoring.md) — same failure mode (noise from under-specified personas), solved with anchored rubrics; the evidence guards here plug into those anchors.
 - [ce-doc-review-calibration-patterns.md](ce-doc-review-calibration-patterns.md) — persona calibration for doc review; complementary module.
-- [safe-auto-rubric-calibration.md](safe-auto-rubric-calibration.md) — ce-code-review rubric tightening for autofix classification.
+- [paired-old-vs-new-injection-skill-evals.md](paired-old-vs-new-injection-skill-evals.md) — technique 8: variance-first, N>=3 calibration of a rubric change (originally the ce-code-review autofix-class eval).

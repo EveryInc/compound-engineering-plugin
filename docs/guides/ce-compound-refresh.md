@@ -39,7 +39,7 @@ A scope hint is a category directory, filename slug, module, or keyword. Prefer 
 /ce-compound-refresh authentication
 
 # One known file (filename slug)
-/ce-compound-refresh plugin-versioning-requirements
+/ce-compound-refresh release-please-version-drift-recovery
 
 # One category directory
 /ce-compound-refresh performance-issues
@@ -171,7 +171,7 @@ This skill is the maintenance counterpart to `/ce-compound`. It is not on the id
 |----------|--------|
 | _(empty)_ | Broad sweep with triage. Interactive: confirm the starting cluster. Non-interactive: process everything, no narrowing question. |
 | `<directory>` | Category folder, e.g. `performance-issues` |
-| `<filename slug>` | One file, e.g. `plugin-versioning-requirements` |
+| `<filename slug>` | One file, e.g. `release-please-version-drift-recovery` |
 | `<module/keyword>` | Narrow by frontmatter or content, e.g. `auth`, `payments` |
 | `mode:non-interactive` | Append to any of the above. No prompts. Unambiguous actions apply; the rest are stale-marked or recommended. Deprecated alias: `mode:headless`. |
 | `create a CONCEPTS.md` / `build the concept map` | Interactive: ask whether to bootstrap the glossary or run a refresh. Non-interactive: run a refresh and note that a standalone bootstrap was not run. |
