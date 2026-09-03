@@ -160,6 +160,19 @@ function getRunningInfo(options) {
   return readJson(options.infoFile)
 }
 
+function sessionHasEnded(options) {
+  try {
+    return Boolean(readJson(options.infoFile).session_ended)
+  } catch {
+    return false
+  }
+}
+
+function exitSessionEnded() {
+  jsonOut({ status: "session-ended" })
+  process.exit(1)
+}
+
 // Containment has to survive symlinks: path.resolve is lexical, so a link
 // inside the run directory would otherwise be followed straight out of it.
 // Every route that reads a file goes through this — the screen route and the
@@ -664,6 +677,9 @@ function localAddressFor(host) {
 async function wait(options) {
   const info = getRunningInfo(options)
   if (!info?.port) {
+    // Idle/owner shutdown records session_ended and exits; wait must still
+    // report that terminal status rather than "not running".
+    if (sessionHasEnded(options)) exitSessionEnded()
     console.error("Server is not running")
     process.exit(2)
   }
@@ -678,6 +694,7 @@ async function wait(options) {
     try {
       response = await fetch(url)
     } catch {
+      if (sessionHasEnded(options)) exitSessionEnded()
       process.exit(2)
     }
     if (response.status === 200) {

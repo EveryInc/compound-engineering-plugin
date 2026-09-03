@@ -822,6 +822,24 @@ describe("ce-prototype light-webserver.js", () => {
     expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
   })
 
+  test("wait reports session-ended after idle already stopped the process", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-after-idle-"))
+    await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "80",
+      CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "20",
+    })
+    let status = { status: "running" }
+    for (let i = 0; i < 40; i++) {
+      status = JSON.parse((await runServerCommand(["status", "--root", root])).stdout.trim())
+      if (status.status === "stopped") break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    expect(status.status).toBe("stopped")
+    const ended = await runServerCommand(["wait", "--root", root])
+    expect(ended.exitCode, ended.stderr).toBe(1)
+    expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
+  })
+
   test("annotation POST resets idle timeout while wait and /version do not", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-annotate-idle-"))
     const info = await startServer(root, ["--annotate"], {
