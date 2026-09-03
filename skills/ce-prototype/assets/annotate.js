@@ -374,14 +374,16 @@
       renderPins()
       closeComposer()
     } catch {
-      composer.hidden = false
-      error.hidden = false
-      error.textContent = "Could not send — retry"
+      if (!sessionEnded) {
+        composer.hidden = false
+        error.hidden = false
+        error.textContent = "Could not send — retry"
+      }
     } finally {
       inFlight = false
       syncSubmit()
     }
-    if (reloadPending) requestReload()
+    if (reloadPending && !sessionEnded) requestReload()
   })
 
   stop.addEventListener("click", async () => {

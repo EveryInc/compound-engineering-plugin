@@ -751,7 +751,7 @@ async function serve(options) {
   let publishedInfo = null
   let sawSseClient = false
   let sseGraceTimer = null
-  const pendingDocuments = new Set()
+  const pendingDocuments = new Map()
   let lastBroadcastKey = options.annotate ? screensChangeKey(options) : null
   let lastActivity = Date.now()
   const touch = () => {
@@ -769,7 +769,7 @@ async function serve(options) {
         // Reuse without this flag would report a live session that cannot wait.
       }
     }
-    pendingDocuments.clear()
+    for (const id of [...pendingDocuments.keys()]) forgetPendingDocument(id)
     if (sseGraceTimer) {
       clearTimeout(sseGraceTimer)
       sseGraceTimer = null
@@ -889,6 +889,47 @@ async function serve(options) {
     return `${html.slice(0, after)} data-ce-document="${htmlAttr(documentId)}"${html.slice(after)}`
   }
 
+  function forgetPendingDocument(id) {
+    const entry = pendingDocuments.get(id)
+    if (!entry) return false
+    pendingDocuments.delete(id)
+    if (entry.socket && entry.onSocketClose) {
+      entry.socket.removeListener("close", entry.onSocketClose)
+    }
+    return true
+  }
+
+  function abandonPendingDocument(id) {
+    if (forgetPendingDocument(id) && sseClients.size === 0 && sawSseClient && !sessionEnded) {
+      armSseGrace()
+    }
+  }
+
+  function unbindPendingFromSocket(socket, exceptId) {
+    if (!socket) return
+    for (const [id, entry] of pendingDocuments) {
+      if (entry.socket !== socket || id === exceptId) continue
+      if (entry.onSocketClose) socket.removeListener("close", entry.onSocketClose)
+      entry.socket = null
+      entry.onSocketClose = null
+    }
+  }
+
+  function retainPendingDocument(id, socket) {
+    if (socket) {
+      for (const [previousId, entry] of [...pendingDocuments]) {
+        if (entry.socket === socket) forgetPendingDocument(previousId)
+      }
+    }
+    if (!socket || typeof socket.on !== "function") {
+      pendingDocuments.set(id, { socket: null, onSocketClose: null })
+      return
+    }
+    const onSocketClose = () => abandonPendingDocument(id)
+    pendingDocuments.set(id, { socket, onSocketClose })
+    socket.on("close", onSocketClose)
+  }
+
   // Every document that carries the overlay is served the same way.
   function serveAnnotateDocument(req, res, html) {
     // A page being served is a tab loading, not the last tab closing. The
@@ -898,16 +939,17 @@ async function serve(options) {
     // stream's close can arrive after this response; it must not start grace
     // while any replacement is still pending. /events names the document it
     // completes, so another tab's reconnect cannot consume this pending load.
+    // Request close after a completed body is not the tab gone; the socket
+    // closing is. An abandoned tab never reaches /events.
     const pending = randomUUID()
-    pendingDocuments.add(pending)
+    retainPendingDocument(pending, req.socket)
     if (sseGraceTimer) {
       clearTimeout(sseGraceTimer)
       sseGraceTimer = null
     }
     req.on("close", () => {
       if (res.writableEnded) return
-      pendingDocuments.delete(pending)
-      if (sseClients.size === 0 && sawSseClient && !sessionEnded) armSseGrace()
+      abandonPendingDocument(pending)
     })
     // Sync the change key to what this page will render, so a stream that
     // connects right after load does not reload the same screen. Any
@@ -936,6 +978,7 @@ async function serve(options) {
     const urlPath = req.url.split("?")[0].split("#")[0]
 
     if (req.method === "GET" && urlPath === "/version") {
+      unbindPendingFromSocket(req.socket)
       res.writeHead(200, {
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "no-store",
@@ -946,6 +989,7 @@ async function serve(options) {
 
     if (options.annotate) {
       if (req.method === "GET" && urlPath === "/wait") {
+        unbindPendingFromSocket(req.socket)
         if (!requireLiveAnnotate(req, res)) return
         broadcastIfChanged()
         completeWorking()
@@ -972,6 +1016,7 @@ async function serve(options) {
       }
 
       if (req.method === "POST" && urlPath === "/annotation") {
+        unbindPendingFromSocket(req.socket)
         if (!requireLiveAnnotate(req, res)) return
         let raw
         try {
@@ -1000,6 +1045,7 @@ async function serve(options) {
       }
 
       if (req.method === "POST" && urlPath === "/session/end") {
+        unbindPendingFromSocket(req.socket)
         if (!requireAnnotateToken(req, res)) return
         endSession()
         sendJson(res, 200, { status: "session-ended" })
@@ -1018,7 +1064,8 @@ async function serve(options) {
         res.write(`event: annotations\ndata: ${annotationsPayload()}\n\n`)
         sawSseClient = true
         const documentId = new URL(req.url, "http://127.0.0.1").searchParams.get("document")
-        if (documentId) pendingDocuments.delete(documentId)
+        if (documentId) forgetPendingDocument(documentId)
+        unbindPendingFromSocket(req.socket, documentId)
         if (sseGraceTimer) {
           clearTimeout(sseGraceTimer)
           sseGraceTimer = null

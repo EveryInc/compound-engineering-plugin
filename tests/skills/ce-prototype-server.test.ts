@@ -2,6 +2,7 @@ import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 
 setDefaultTimeout(20_000)
 import { promises as fs } from "fs"
+import http from "http"
 import net from "net"
 import os from "os"
 import path from "path"
@@ -107,6 +108,27 @@ function postAnnotation(origin: string, token: unknown, body: object) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  })
+}
+
+// A tab that received the document and then went away: Connection: close so
+// the helper sees the handshake can no longer complete.
+function fetchDocumentClosingConnection(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, { agent: false, headers: { ...NAVIGATE, Connection: "close" } }, (res) => {
+      const chunks: Buffer[] = []
+      res.on("data", (chunk) => {
+        chunks.push(chunk)
+      })
+      res.on("end", () => {
+        req.destroy()
+        resolve(Buffer.concat(chunks).toString("utf8"))
+      })
+    })
+    req.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "ECONNRESET") return
+      reject(err)
+    })
   })
 }
 
@@ -745,6 +767,24 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 
+  test("a completed document whose connection closes before /events does not suppress session end", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-abandoned-doc-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_SSE_GRACE_MS: "100",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
+    })
+    const origin = `http://localhost:${info.port}`
+    const controller = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token), { signal: controller.signal })).status).toBe(200)
+
+    const html = await fetchDocumentClosingConnection(String(info.url))
+    overlayDocumentId(html)
+    controller.abort()
+
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
+  })
+
   test("annotate pushes a screen-changed event for screen and asset edits without writing overlay into screens", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-change-"))
     const info = await startServer(root, ["--annotate"])
@@ -1060,7 +1100,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).not.toContain("advancePinsAfterRevision")
     expect(overlay).toMatch(/draft: draft \? \{ \.\.\.draft, text: commentField\.value/)
     expect(overlay).toMatch(/if \(inFlight\) \{\n\s+reloadPending = true/)
-    expect(overlay).toContain("if (reloadPending) requestReload()")
+    expect(overlay).toContain("if (reloadPending && !sessionEnded) requestReload()")
     // Cancel or toggling the tool off during an in-flight POST must not break
     // the pending submission: it is snapshotted before the await, Cancel is
     // disabled, and closing the composer does not reset inFlight.
@@ -1068,6 +1108,8 @@ describe("ce-prototype light-webserver.js", () => {
     const submitHandler = overlay.slice(overlay.indexOf('composer.addEventListener("submit"'), overlay.indexOf('stop.addEventListener("click"'))
     expect(submitHandler).toContain("await fetch(")
     expect(submitHandler.slice(submitHandler.indexOf("await "))).not.toMatch(/\bdraft\b/)
+    expect(submitHandler).toMatch(/catch \{\n\s+if \(!sessionEnded\) \{/)
+    expect(submitHandler).toContain('error.textContent = "Could not send — retry"')
     const closeComposer = overlay.slice(overlay.indexOf("function closeComposer("), overlay.indexOf("function renderPins()"))
     expect(closeComposer).not.toContain("inFlight = false")
     expect(overlay).toContain("closeComposer(inFlight)")
