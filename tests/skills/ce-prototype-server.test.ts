@@ -831,6 +831,20 @@ describe("ce-prototype light-webserver.js", () => {
     expect(await ended.json()).toEqual({ status: "session-ended" })
   })
 
+  test("stop flushes a parked wait as session-ended", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-stop-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "8000",
+    })
+    const waiting = runServerCommand(["wait", "--root", root])
+    await fetch(String(info.url))
+    const stopped = await runServerCommand(["stop", "--root", root])
+    expect(stopped.exitCode, stopped.stderr).toBe(0)
+    const ended = await waiting
+    expect(ended.exitCode, ended.stderr).toBe(1)
+    expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
+  })
+
   test("wait reports session-ended after idle already stopped the process", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-after-idle-"))
     await startServer(root, ["--annotate"], {

@@ -1082,12 +1082,16 @@ async function serve(options) {
 
   // An open change stream or parked wait is an active connection, and
   // server.close waits for those forever; end the session so they drain.
+  // CLI `stop` sends SIGTERM; without this handler the process exits before
+  // waiters receive session-ended.
   function shutdown() {
     Promise.resolve(endSession()).finally(() => {
       server.close(() => process.exit(0))
       server.closeAllConnections()
     })
   }
+  process.on("SIGTERM", shutdown)
+  process.on("SIGINT", shutdown)
 
   const idleTimer = setInterval(() => {
     if (options.ownerPid && !processAlive(options.ownerPid)) {
