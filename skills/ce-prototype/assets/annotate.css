@@ -84,7 +84,9 @@
   position: fixed;
   z-index: 2147483647;
   pointer-events: auto;
+  box-sizing: border-box;
   width: 260px;
+  max-width: 100vw;
   padding: 10px;
   background: #fff;
   border: 1px solid #1f2328;

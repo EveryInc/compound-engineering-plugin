@@ -121,7 +121,9 @@ function fetchDocumentClosingConnection(url: string): Promise<string> {
         chunks.push(chunk)
       })
       res.on("end", () => {
+        const sock = req.socket || res.socket
         req.destroy()
+        sock?.destroy()
         resolve(Buffer.concat(chunks).toString("utf8"))
       })
     })
@@ -1147,6 +1149,8 @@ describe("ce-prototype light-webserver.js", () => {
     expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  pointer-events: none;/)
     expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*pointer-events: auto;/)
     expect(css).toMatch(/\.ce-annotate-composer \{[^}]*pointer-events: auto;/)
+    expect(css).toMatch(/\.ce-annotate-composer \{[^}]*box-sizing: border-box;/)
+    expect(css).toMatch(/\.ce-annotate-composer \{[^}]*max-width: 100vw;/)
     expect(overlay).not.toContain("getElementById(\"ce-annotate-host\")")
     expect(overlay).not.toContain("#ce-annotate-host")
     expect(overlay).toContain("if (host.contains(target)) return")

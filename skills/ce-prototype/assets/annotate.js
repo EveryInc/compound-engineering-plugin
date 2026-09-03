@@ -320,8 +320,8 @@
   }
 
   function placeComposer(x, y) {
-    const width = Math.min(280, window.innerWidth)
-    const height = Math.min(160, window.innerHeight)
+    const width = composer.offsetWidth || Math.min(260, window.innerWidth)
+    const height = composer.offsetHeight || Math.min(160, window.innerHeight)
     composer.style.left = `${Math.max(0, Math.min(x + 12, window.innerWidth - width))}px`
     composer.style.top = `${Math.max(0, Math.min(y + 12, window.innerHeight - height))}px`
   }
