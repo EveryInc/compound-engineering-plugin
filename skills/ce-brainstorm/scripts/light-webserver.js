@@ -751,7 +751,7 @@ async function serve(options) {
   let publishedInfo = null
   let sawSseClient = false
   let sseGraceTimer = null
-  let pendingDocument = false
+  const pendingDocuments = new Set()
   let lastBroadcastKey = options.annotate ? screensChangeKey(options) : null
   let lastActivity = Date.now()
   const touch = () => {
@@ -769,7 +769,7 @@ async function serve(options) {
         // Reuse without this flag would report a live session that cannot wait.
       }
     }
-    pendingDocument = false
+    pendingDocuments.clear()
     if (sseGraceTimer) {
       clearTimeout(sseGraceTimer)
       sseGraceTimer = null
@@ -885,18 +885,19 @@ async function serve(options) {
   function serveAnnotateDocument(req, res, html) {
     // A page being served is a tab loading, not the last tab closing. The
     // overlay is deferred and may sit behind parser-blocking work, so cancel
-    // the reconnect grace until that document's /events connects; ending on
-    // the short elapsed timeout would kill a still-loading tab. The old
-    // stream's close can arrive after this response; it must not start grace
-    // while this replacement is still pending.
-    pendingDocument = true
+    // the reconnect grace until each served document's /events connects;
+    // ending on the short elapsed timeout would kill a still-loading tab. The
+    // old stream's close can arrive after this response; it must not start
+    // grace while any replacement is still pending.
+    const pending = {}
+    pendingDocuments.add(pending)
     if (sseGraceTimer) {
       clearTimeout(sseGraceTimer)
       sseGraceTimer = null
     }
     req.on("close", () => {
-      if (res.writableEnded || !pendingDocument) return
-      pendingDocument = false
+      if (res.writableEnded) return
+      pendingDocuments.delete(pending)
       if (sseClients.size === 0 && sawSseClient && !sessionEnded) armSseGrace()
     })
     // Sync the change key to what this page will render, so a stream that
@@ -913,11 +914,16 @@ async function serve(options) {
     res.end(html)
   }
 
+  function releaseOnePendingDocument() {
+    const { value, done } = pendingDocuments.values().next()
+    if (!done) pendingDocuments.delete(value)
+  }
+
   function armSseGrace() {
-    if (pendingDocument || sessionEnded) return
+    if (pendingDocuments.size > 0 || sessionEnded) return
     if (sseGraceTimer) clearTimeout(sseGraceTimer)
     sseGraceTimer = setTimeout(() => {
-      if (sseClients.size === 0 && !pendingDocument) endSession()
+      if (sseClients.size === 0 && pendingDocuments.size === 0) endSession()
     }, SSE_GRACE_MS)
     sseGraceTimer.unref()
   }
@@ -1007,7 +1013,7 @@ async function serve(options) {
         // A client that just reloaded reconciles its pins from this frame.
         res.write(`event: annotations\ndata: ${annotationsPayload()}\n\n`)
         sawSseClient = true
-        pendingDocument = false
+        releaseOnePendingDocument()
         if (sseGraceTimer) {
           clearTimeout(sseGraceTimer)
           sseGraceTimer = null

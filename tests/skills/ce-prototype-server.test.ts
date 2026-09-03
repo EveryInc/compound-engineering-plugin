@@ -654,6 +654,34 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 
+  test("a second overlay reconnect does not end the session while another document is still pending", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-two-docs-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_SSE_GRACE_MS: "400",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
+    })
+    const origin = `http://localhost:${info.port}`
+    const first = new AbortController()
+    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: first.signal })).status).toBe(200)
+
+    // Two replacement documents outstanding; only one overlay reconnects.
+    expect((await fetch(String(info.url))).status).toBe(200)
+    expect((await fetch(String(info.url))).status).toBe(200)
+    const second = new AbortController()
+    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: second.signal })).status).toBe(200)
+    first.abort()
+    second.abort()
+
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
+
+    const reconnect = new AbortController()
+    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: reconnect.signal })).status).toBe(200)
+    reconnect.abort()
+    await new Promise((resolve) => setTimeout(resolve, 550))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
+  })
+
   test("annotate pushes a screen-changed event for screen and asset edits without writing overlay into screens", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-change-"))
     const info = await startServer(root, ["--annotate"])
