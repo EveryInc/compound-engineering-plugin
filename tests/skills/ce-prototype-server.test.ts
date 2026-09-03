@@ -262,6 +262,28 @@ describe("ce-prototype light-webserver.js", () => {
     await proc.exited
   })
 
+  test("wait reaches a foreground annotate server", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-fg-wait-"))
+    const proc = Bun.spawn(
+      ["node", serverScript, "start", "--root", root, "--port", "0", "--foreground", "--annotate"],
+      { stdout: "pipe", stderr: "pipe" },
+    )
+    rootsToStop.push(root)
+    const info = await readJsonLine(proc.stdout)
+    expect(info.status).toBe("running")
+    await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Pin me</h1>")
+    const waiting = runServerCommand(["wait", "--root", root])
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    const posted = await postAnnotation(`http://localhost:${info.port}`, info.token, {
+      comment: "from foreground",
+      selector: "h1",
+    })
+    expect(posted.status).toBe(200)
+    const result = await waiting
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout.trim()).comment).toBe("from foreground")
+  })
+
   test("/version polling does not keep an otherwise idle server alive", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-idle-"))
     const info = await startServer(root, [], {

@@ -125,7 +125,10 @@ function ownsServerProcess(options, pid) {
   // Process-command inspection is best-effort; when unavailable, fall back to
   // PID-file behavior so stop still works on platforms without a compatible ps.
   if (args === null) return true
-  return args.includes(scriptPath) && args.includes("serve") && args.includes(options.root)
+  if (!args.includes(scriptPath) || !args.includes(options.root)) return false
+  const tokens = args.split(/\s+/)
+  // Detached start spawns `serve`; `--foreground` keeps `start` in-process.
+  return tokens.includes("serve") || tokens.includes("start")
 }
 
 function resolveOwnerPid() {
