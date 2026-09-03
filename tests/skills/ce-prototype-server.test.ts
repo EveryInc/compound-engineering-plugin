@@ -630,6 +630,30 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 
+  test("a replacement document arriving before the old stream closes keeps the session live", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-doc-first-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_SSE_GRACE_MS: "400",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
+    })
+    const origin = `http://localhost:${info.port}`
+    const controller = new AbortController()
+    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: controller.signal })).status).toBe(200)
+    expect((await fetch(String(info.url))).status).toBe(200)
+    controller.abort()
+
+    // Past a grace that the old-stream close would have started if the
+    // replacement document had not suppressed it.
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
+
+    const reconnect = new AbortController()
+    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: reconnect.signal })).status).toBe(200)
+    reconnect.abort()
+    await new Promise((resolve) => setTimeout(resolve, 550))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
+  })
+
   test("annotate pushes a screen-changed event for screen and asset edits without writing overlay into screens", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-change-"))
     const info = await startServer(root, ["--annotate"])
@@ -936,7 +960,8 @@ describe("ce-prototype light-webserver.js", () => {
     // the overlay never reconciles DOM, head, or scripts itself.
     expect(overlay).toContain('addEventListener("screen-changed"')
     expect(overlay).toContain("sessionStorage.setItem(STATE_KEY")
-    expect(overlay).toContain("window.location.reload()")
+    expect(overlay).toContain("window.location.replace(servedPage)")
+    expect(overlay).not.toContain("window.location.reload()")
     // Pin status follows the helper's annotation lifecycle, never a reload;
     // an open draft survives a reload; a reload waits for an in-flight POST.
     expect(overlay).toContain('addEventListener("annotations"')
@@ -978,9 +1003,10 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("showPopover")
     expect(overlay).toContain("hidePopover")
     expect(overlay).toContain('nodeName === "DIALOG"')
-    // The pin names the screen the helper served, not a History API pathname.
+    // The pin and the reload name the screen the helper served, not a History API pathname.
     expect(overlay).toContain('document.currentScript?.getAttribute("data-ce-page") || "/"')
     expect(overlay).toContain("page: servedPage,")
+    expect(overlay).toContain("window.location.replace(servedPage)")
     expect(overlay).not.toContain("window.location.pathname")
     const css = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
     expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  pointer-events: none;/)

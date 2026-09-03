@@ -117,9 +117,9 @@
     return document.getElementById("ce-prototype-root") || document.body
   }
 
-  // A revised screen is shown by reloading the document, so the browser owns
-  // every reconciliation (head, html/body attributes, linked assets, scripts);
-  // the explorer's pins, tool state, and open draft are carried across.
+  // A revised screen is shown by navigating to the stamped served path, so a
+  // History API rewrite is not what the helper looks up. The browser owns
+  // every reconciliation; pins, tool state, and open draft are carried across.
   function persistAndReload() {
     const state = {
       commentToolOn,
@@ -131,7 +131,7 @@
     } catch {
       // Without storage the reload still shows the revised screen; only the pins are lost.
     }
-    window.location.reload()
+    window.location.replace(servedPage)
   }
 
   // A screen change arriving while a comment is being sent waits for that
