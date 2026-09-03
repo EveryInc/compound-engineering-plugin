@@ -6,9 +6,9 @@ Load this once an isolated web preview is up. Overlay and yielded-medium runs do
 
 While the isolated web preview is running, wait for the next annotation or a terminal session-ended status. On an annotation, edit the file the record's `screen` field names, relative to this question's `screens/` directory — the page the pin was placed on, not necessarily the newest screen.
 
-Before the first wait, tell the explorer in one line that the URL is live, that Annotate pins a note to an element, and that End preview hands the conversation back. After each applied revision, one short line: what changed, and that the page reloaded itself. Say nothing while a wait is parked. When the loop ends, one line saying why.
+Before the first wait, tell the explorer in one line that the URL is live, that Annotate pins a note to an element, and that Send to agent hands the conversation back. After each applied revision, one short line: what changed, and that the page reloaded itself. Say nothing while a wait is parked. When the loop ends, one line saying why.
 
-A wait is outstanding until the helper exits. A call the host yields or backgrounds is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked and the session has not ended. The loop ends when wait returns session-ended (exit 1) or cannot run (exit 2). Chat is valid only after wait has returned or cannot run — do not read it while a wait is in flight. End preview on the overlay is how the explorer leaves the loop for conversation. Closing the tab does the same.
+A wait is outstanding until the helper exits. A call the host yields or backgrounds is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked and the session has not ended. The loop ends when wait returns session-ended (exit 1) or cannot run (exit 2). Chat is valid only after wait has returned or cannot run — do not read it while a wait is in flight. Send to agent on the overlay is how the explorer leaves the loop for conversation. Closing the tab does the same. Wait returns session-ended only after every posted pin has been delivered.
 
 Unattended, LFG, and `mode:pipeline` runs still refuse to start a preview; this file does not override that.
 

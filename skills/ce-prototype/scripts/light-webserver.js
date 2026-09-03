@@ -749,8 +749,8 @@ async function serve(options) {
     for (const [id, state] of annotationStates) {
       if (state === "working") annotationStates.set(id, "done")
     }
-    annotationQueue.length = 0
     broadcastAnnotations()
+    fulfillWaiters()
     const body = `${JSON.stringify({ status: "session-ended" })}\n`
     const draining = []
     while (waiters.length > 0) {
@@ -953,11 +953,15 @@ async function serve(options) {
     if (options.annotate) {
       if (req.method === "GET" && urlPath === "/wait") {
         unbindPendingFromSocket(req.socket)
-        if (!requireLiveAnnotate(req, res)) return
+        if (!requireAnnotateToken(req, res)) return
         broadcastIfChanged()
         completeWorking()
         if (annotationQueue.length > 0) {
           serveAnnotation(res, annotationQueue.shift())
+          return
+        }
+        if (sessionEnded) {
+          sendJson(res, 410, { status: "session-ended" })
           return
         }
         const parked = { res, timer: null }

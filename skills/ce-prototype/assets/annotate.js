@@ -6,7 +6,7 @@
   const servedDocument = document.currentScript?.getAttribute("data-ce-document") || ""
   // Overlay host hangs off <html>, not <body>, so it stays out of body layout
   // and document.body.children. A manual popover puts it on the top layer so
-  // Annotate/End preview stay usable over dialog.showModal().
+  // Annotate/Send to agent stay usable over dialog.showModal().
   const host = document.createElement("ce-annotate-host")
   host.style.cssText =
     "display: block; position: fixed; inset: 0; pointer-events: none; z-index: 2147483645; margin: 0; padding: 0; border: 0;"
@@ -42,7 +42,7 @@
   chrome.className = "ce-annotate-chrome"
   chrome.innerHTML = `
     <button type="button" class="ce-annotate-toggle" aria-pressed="false">Annotate</button>
-    <button type="button" class="ce-annotate-stop" title="End preview and return to chat" aria-label="End preview and return to chat"><svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 2l8 8M10 2L2 10" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg></button>
+    <button type="button" class="ce-annotate-stop" title="Close the preview and send your notes to the agent">Send to agent</button>
     <span class="ce-annotate-status" hidden></span>
   `
   shadow.appendChild(chrome)
@@ -366,7 +366,7 @@
       if (!response.ok) throw new Error("retry")
     } catch {
       stop.disabled = false
-      setStatus("Could not end preview — retry")
+      setStatus("Could not send to agent — retry")
       return
     }
     markEnded()

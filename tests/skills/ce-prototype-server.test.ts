@@ -1142,7 +1142,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(status.status).toBe("stopped")
   })
 
-  test("overlay arms comments only when the tool is on and End preview ends the session", async () => {
+  test("overlay arms comments only when the tool is on and Send to agent ends the session", async () => {
     const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
     expect(overlay).toContain("let commentToolOn = false")
     expect(overlay).toMatch(/if \(!commentToolOn \|\| sessionEnded\) return/)
@@ -1152,13 +1152,13 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("ce-prototype-root")
     expect(overlay).toContain('if (el === document.body) return "body"')
     expect(overlay).toContain(">Annotate</button>")
-    expect(overlay).toContain('aria-label="End preview and return to chat"')
-    expect(overlay).toContain("<svg")
+    expect(overlay).toContain(">Send to agent</button>")
+    expect(overlay).not.toContain("<svg")
     expect(overlay).not.toContain(">End preview</button>")
     expect(overlay).not.toContain(">Comment</button>")
     expect(overlay).not.toContain(">Done</button>")
     expect(overlay).not.toContain(">Stop</button>")
-    expect(overlay).toContain("Could not end preview — retry")
+    expect(overlay).toContain("Could not send to agent — retry")
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
     expect(overlay).toContain('addEventListener("scroll", reattachPins')
     expect(overlay).toContain("new ResizeObserver(reattachPins)")
@@ -1249,7 +1249,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(JSON.parse(second.stdout.trim()).comment).toBe("second")
   })
 
-  test("ending a session does not mark undelivered queued annotations done", async () => {
+  test("session end keeps undelivered pins queued and wait drains them before session-ended", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-end-queue-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
@@ -1264,6 +1264,15 @@ describe("ce-prototype light-webserver.js", () => {
     expect(last[first.id]).toBe("queued")
     expect(last[second.id]).toBe("queued")
     expect(last[first.id]).not.toBe("done")
+
+    const deliveredFirst = await runServerCommand(["wait", "--root", root])
+    expect(deliveredFirst.exitCode, deliveredFirst.stderr).toBe(0)
+    expect(JSON.parse(deliveredFirst.stdout.trim()).comment).toBe("first")
+
+    const deliveredSecond = await runServerCommand(["wait", "--root", root])
+    expect(deliveredSecond.exitCode, deliveredSecond.stderr).toBe(0)
+    expect(JSON.parse(deliveredSecond.stdout.trim()).comment).toBe("second")
+
     const ended = await runServerCommand(["wait", "--root", root])
     expect(ended.exitCode, ended.stderr).toBe(1)
     expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
@@ -1319,6 +1328,7 @@ describe("ce-prototype light-webserver.js", () => {
     const third = await post("third")
     expect(await lifecycle()).toEqual({ [first]: "done", [second]: "done", [third]: "queued" })
     await fetch(`${origin}/session/end?token=${info.token}`, { method: "POST" })
+    expect((await wait()).id).toBe(third)
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 })

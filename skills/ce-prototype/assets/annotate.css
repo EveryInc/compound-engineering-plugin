@@ -54,22 +54,6 @@
   border-color: #1f2328;
 }
 
-.ce-annotate-stop {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-color: #f0b8b8;
-  background: #fff5f5;
-  color: #9b111e;
-}
-
-.ce-annotate-stop svg {
-  display: block;
-}
-
 .ce-annotate-status {
   padding: 4px 6px;
   color: #656d76;
