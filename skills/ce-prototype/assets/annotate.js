@@ -1,44 +1,15 @@
 (() => {
-  // Shared with the helper's bootstrap page, which re-enters a root navigation
-  // that lost the token with the one stored here. Storage is scoped to this
-  // origin including the port, so the token never reaches another local
-  // service the way a cookie would. sessionStorage is this tab; localStorage
-  // is the same origin so a new tab that did not inherit sessionStorage can
-  // still find the credential.
-  const TOKEN_KEY = "ce-annotate-token"
-  // The helper's boot stores the URL's token only when it is the session's,
-  // so the stored value is the credential; a prototype's own `?token=demo` on
-  // a linked page is never written or used. The URL is a fallback only when
-  // storage itself is unavailable.
-  const token = (() => {
-    try {
-      return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY)
-    } catch {
-      return new URLSearchParams(window.location.search).get("token")
-    }
-  })()
+  const token = new URLSearchParams(window.location.search).get("token")
   // The helper stamps the path it served on this script. History API rewrites
   // change location.pathname without changing which screen file this is.
   const servedPage = document.currentScript?.getAttribute("data-ce-page") || "/"
   const servedDocument = document.currentScript?.getAttribute("data-ce-document") || ""
-  // The overlay owns its host: created here (this script is deferred, so the
-  // document has parsed) and held by reference only. The tag is a per-load
-  // unregistered custom-element name, so an authored `ce-annotate-host`
-  // definition cannot run as the constructor, and no ordinary selector
-  // (`div`, `#id`, `html > div`) matches it. The box is inline and important,
-  // which outranks an authored `!important`. It hangs off <html>, not <body>,
-  // so it is outside every body-scoped selector and document.body.children,
-  // and takes no part in the authored layout. The inline box applies before
-  // the stylesheet arrives. getRandomValues is available on plain HTTP origins.
-  // z-index cannot beat the browser top layer (dialog.showModal(), popovers);
-  // a manual popover puts this host there, and re-showing it when an authored
-  // dialog opens keeps Comment/Stop/pins usable on the modal state.
-  const hostIdBytes = crypto.getRandomValues(new Uint8Array(16))
-  let hostId = "ce-annotate-"
-  for (const byte of hostIdBytes) hostId += byte.toString(16).padStart(2, "0")
-  const host = document.createElement(hostId)
+  // Overlay host hangs off <html>, not <body>, so it stays out of body layout
+  // and document.body.children. A manual popover puts it on the top layer so
+  // Comment/Stop stay usable over dialog.showModal().
+  const host = document.createElement("ce-annotate-host")
   host.style.cssText =
-    "display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: 2147483645 !important; margin: 0 !important; padding: 0 !important; border: 0 !important;"
+    "display: block; position: fixed; inset: 0; pointer-events: none; z-index: 2147483645; margin: 0; padding: 0; border: 0;"
   document.documentElement.appendChild(host)
   host.setAttribute("popover", "manual")
   const raiseOverlay = () => {

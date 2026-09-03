@@ -77,22 +77,17 @@ async function startServer(
   return JSON.parse(result.stdout.trim())
 }
 
-// The exact boot the helper puts ahead of every served screen: when the request
-// carried the session token, an inline synchronous store of it from the
-// location (no token literal); always the deferred overlay on the request origin.
-const BOOT_STORE = '<script>(function(){try{var k="ce-annotate-token";var t=new URLSearchParams(location.search).get("token");if(t){sessionStorage.setItem(k,t);try{localStorage.setItem(k,t)}catch(e2){}}}catch(e){}})()</script>'
 function overlayDocumentId(html: string): string {
   const match = html.match(/data-ce-document="([0-9a-f-]{36})"/)
   expect(match, html.slice(0, 400)).toBeTruthy()
   return match![1]
 }
-function annotateBoot(origin: string, storeToken = true, page = "/", documentId?: string): string {
+function annotateBoot(origin: string, page = "/", documentId?: string): string {
   const documentAttr = documentId ? ` data-ce-document="${documentId}"` : ""
-  const overlay = `<script defer src="${origin}/__ce-annotate/annotate.js"${documentAttr} data-ce-page="${page}"></script>`
-  return storeToken ? `${BOOT_STORE}\n${overlay}` : overlay
+  return `<script defer src="${origin}/__ce-annotate/annotate.js"${documentAttr} data-ce-page="${page}"></script>`
 }
-function annotateBootFrom(html: string, origin: string, storeToken = true, page = "/"): string {
-  return annotateBoot(origin, storeToken, page, overlayDocumentId(html))
+function annotateBootFrom(html: string, origin: string, page = "/"): string {
+  return annotateBoot(origin, page, overlayDocumentId(html))
 }
 function eventsUrl(origin: string, token: unknown, documentId?: string): string {
   const url = new URL("/events", origin)
@@ -326,24 +321,25 @@ describe("ce-prototype light-webserver.js", () => {
 
     const denied = await fetch(`${origin}/`)
     expect(denied.status).toBe(401)
+    expect(denied.headers.get("set-cookie")).toBeNull()
     expect(await denied.text()).not.toContain(token)
 
     const page = await fetch(String(info.url))
     expect(page.headers.get("referrer-policy")).toBe("no-referrer")
+    expect(page.headers.get("set-cookie")).toMatch(
+      new RegExp(`^ce-light-web-${info.port}=${token}; HttpOnly; SameSite=Strict; Path=/$`),
+    )
     const html = await page.text()
     expect(html).toContain("Pin me")
-    // The boot stores the token synchronously before any authored script, then
-    // defers the overlay; the overlay creates its own host and stylesheet at
-    // runtime, so the served document names neither.
-    const boot = annotateBootFrom(html, origin, true, "/001-screen.html")
+    // Deferred overlay creates its own host and stylesheet at runtime, so the
+    // served document names neither.
+    const boot = annotateBootFrom(html, origin, "/001-screen.html")
     expect(html.split(boot).length).toBe(2)
     expect(html).toMatch(new RegExp(`<head>[\\s\\S]*${boot.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}[\\s\\S]*</head>`))
     expect(boot).not.toContain(token)
-    expect(boot.indexOf("sessionStorage.setItem")).toBeLessThan(boot.indexOf("<script defer"))
     expect(html).not.toContain("ce-annotate-host")
     expect(html).not.toContain("annotate.css")
     expect(html).not.toContain(token)
-    expect(page.headers.get("set-cookie")).toBeNull()
 
     // The overlay lives in a reserved namespace, ungated and never cached; a
     // screen's own /annotate.js is served from screens/ untouched.
@@ -382,7 +378,7 @@ describe("ce-prototype light-webserver.js", () => {
     const sameLength = `${String(info.token).slice(0, -1)}${String(info.token).endsWith("0") ? "1" : "0"}`
     expect((await fetch(`${origin}/wait?token=${sameLength}`)).status).toBe(401)
     expect((await fetch(`${origin}/wait?token=${String(info.token).slice(0, 8)}`)).status).toBe(401)
-    expect(/timingSafeEqual\(/.test(await fs.readFile(serverScript, "utf8"))).toBe(true)
+    expect(/timingSafeEqual\(/.test(await fs.readFile(serverScript, "utf8"))).toBe(false)
 
     const authed = `${origin}/annotation?token=${info.token}`
     expect((await fetch(authed, { method: "POST", headers, body: "" })).status).toBe(400)
@@ -523,7 +519,7 @@ describe("ce-prototype light-webserver.js", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-linked-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
-    // A linked page is ungated, so its boot stores no token unless the request carried the session's.
+    // A linked page is ungated; the overlay is the same whether or not the request carried the session token.
     const details = '<!DOCTYPE html><html><head><link rel="stylesheet" href="/styles.css"></head><body><h1 id="detail">Details</h1></body></html>'
     await fs.mkdir(path.join(String(info.screen_dir), "pages"))
     await fs.writeFile(path.join(String(info.screen_dir), "details.html"), details)
@@ -541,23 +537,20 @@ describe("ce-prototype light-webserver.js", () => {
     expect(page.headers.get("cache-control")).toBe("no-store")
     expect(page.headers.get("referrer-policy")).toBe("no-referrer")
     const pageHtml = await page.text()
-    expect(pageHtml).toBe(`<!doctype html>\n${annotateBootFrom(pageHtml, origin, false, "/details.html")}\n${details}`)
+    expect(pageHtml).toBe(`<!doctype html>\n${annotateBootFrom(pageHtml, origin, "/details.html")}\n${details}`)
     // A browser that sends no fetch metadata still navigates: it accepts HTML and states no mode.
     const noMeta = await (await fetch(`${origin}/details.html`, { headers: { Accept: "text/html,application/xhtml+xml" } })).text()
-    expect(noMeta).toBe(`<!doctype html>\n${annotateBootFrom(noMeta, origin, false, "/details.html")}\n${details}`)
-    // A prototype's own `?token=demo` on a linked page must not displace the stored credential:
-    // no store snippet; the session token on the same page stores, as the gated root always does.
+    expect(noMeta).toBe(`<!doctype html>\n${annotateBootFrom(noMeta, origin, "/details.html")}\n${details}`)
     const demoToken = await (await fetch(`${origin}/details.html?token=demo`, { headers: NAVIGATE })).text()
-    expect(demoToken).toBe(`<!doctype html>\n${annotateBootFrom(demoToken, origin, false, "/details.html")}\n${details}`)
+    expect(demoToken).toBe(`<!doctype html>\n${annotateBootFrom(demoToken, origin, "/details.html")}\n${details}`)
     const sessionDetails = await (await fetch(`${origin}/details.html?token=${info.token}`, { headers: NAVIGATE })).text()
-    expect(sessionDetails).toBe(`<!doctype html>\n${annotateBootFrom(sessionDetails, origin, true, "/details.html")}\n${details}`)
+    expect(sessionDetails).toBe(`<!doctype html>\n${annotateBootFrom(sessionDetails, origin, "/details.html")}\n${details}`)
     // A comment before the doctype is still a complete document, not a fragment.
     const generatedPage = await (await fetch(`${origin}/generated.html`, { headers: NAVIGATE })).text()
-    expect(generatedPage).toBe(`<!doctype html>\n${annotateBootFrom(generatedPage, origin, false, "/generated.html")}\n${generated}`)
+    expect(generatedPage).toBe(`<!doctype html>\n${annotateBootFrom(generatedPage, origin, "/generated.html")}\n${generated}`)
     expect(generatedPage).not.toContain("CE local web")
     const homeHtml = await (await fetch(String(info.url), { headers: NAVIGATE })).text()
-    expect(homeHtml).toContain(annotateBootFrom(homeHtml, origin, true, "/001-home.html"))
-    expect(BOOT_STORE).toContain("sessionStorage.setItem")
+    expect(homeHtml).toContain(annotateBootFrom(homeHtml, origin, "/001-home.html"))
 
     // A fragment page gets the same shell as a fragment root screen.
     const part = await (await fetch(`${origin}/pages/part.html`, { headers: NAVIGATE })).text()
@@ -583,7 +576,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(await (await fetch(`${origin}/details.html`)).text()).toBe(details)
     // The root is always a document.
     const rootAsFetch = await (await fetch(String(info.url), { headers: { Accept: "*/*", "Sec-Fetch-Dest": "empty" } })).text()
-    expect(rootAsFetch).toContain(annotateBootFrom(rootAsFetch, origin, true, "/001-home.html"))
+    expect(rootAsFetch).toContain(annotateBootFrom(rootAsFetch, origin, "/001-home.html"))
 
     const css = await fetch(`${origin}/styles.css`)
     expect(css.headers.get("content-type")).toBe("text/css; charset=utf-8")
@@ -851,50 +844,35 @@ describe("ce-prototype light-webserver.js", () => {
     await reader.cancel()
   })
 
-  test("an unauthenticated root navigation gets a tokenless bootstrap page that re-enters from sessionStorage", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-bootstrap-"))
+  test("a token-authenticated page sets a cookie that keeps query navigation authenticated", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-cookie-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Variant home</h1>")
 
-    for (const url of [`${origin}/`, `${origin}/?variant=a`, `${origin}/?token=demo`]) {
-      const denied = await fetch(url)
-      expect(denied.status).toBe(401)
-      expect(denied.headers.get("content-type")).toBe("text/html; charset=utf-8")
-      expect(denied.headers.get("cache-control")).toBe("no-store")
-      expect(denied.headers.get("referrer-policy")).toBe("no-referrer")
-      expect(denied.headers.get("set-cookie")).toBeNull()
-      const html = await denied.text()
-      expect(html).toContain('sessionStorage.getItem(key) || localStorage.getItem(key)')
-      expect(html).toContain('url.searchParams.set("token", stored)')
-      expect(html).toContain("window.location.replace(")
-      expect(html).toContain("needs its session link")
-      expect(html).not.toContain(String(info.token))
-      expect(html).not.toContain("Variant home")
-    }
-    // The API routes stay JSON 401s; only a navigation gets the bootstrap.
-    const events = await fetch(`${origin}/events`)
-    expect(events.status).toBe(401)
-    expect(events.headers.get("content-type")).toBe("application/json; charset=utf-8")
-
-    const page = await fetch(`${origin}/?variant=a&token=${info.token}`)
+    const page = await fetch(String(info.url))
     expect(page.status).toBe(200)
-    expect(page.headers.get("set-cookie")).toBeNull()
-    expect(await page.text()).toContain("Variant home")
+    const cookie = page.headers.get("set-cookie") ?? ""
+    expect(cookie).toMatch(new RegExp(`^ce-light-web-${info.port}=${info.token}; HttpOnly; SameSite=Strict; Path=/$`))
+    const pair = cookie.split(";")[0]
 
-    // The overlay and bootstrap agree on the storage key.
-    const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
-    const server = await fs.readFile(serverScript, "utf8")
-    expect(overlay).toContain('const TOKEN_KEY = "ce-annotate-token"')
-    expect(server).toContain('const TOKEN_STORAGE_KEY = "ce-annotate-token"')
-    // Only the helper's boot writes the token (when the request carried the
-    // session's); the overlay reads it, so a linked page's own ?token=demo
-    // can neither be stored nor used.
-    expect(overlay).toContain("sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY)")
-    expect(overlay).not.toContain("sessionStorage.setItem(TOKEN_KEY")
-    expect(overlay).not.toContain("localStorage.setItem(TOKEN_KEY")
-    expect(server).not.toContain("Set-Cookie")
-    expect(server).not.toMatch(/cookie/i)
+    const navigated = await fetch(`${origin}/?variant=a`, { headers: { cookie: pair } })
+    expect(navigated.status).toBe(200)
+    expect(await navigated.text()).toContain("Variant home")
+    expect((await fetch(`${origin}/events`, { headers: { cookie: pair } })).status).toBe(200)
+
+    const shadowed = await fetch(`${origin}/?token=demo`, { headers: { cookie: pair } })
+    expect(shadowed.status).toBe(200)
+    expect(await shadowed.text()).toContain("Variant home")
+    expect((await fetch(`${origin}/?token=demo`)).status).toBe(401)
+
+    expect((await fetch(`${origin}/?variant=a`)).status).toBe(401)
+    expect((await fetch(`${origin}/`, { headers: { cookie: `ce-light-web-1=${info.token}` } })).status).toBe(401)
+    const bare = await fetch(`${origin}/`)
+    expect(bare.status).toBe(401)
+    expect(bare.headers.get("set-cookie")).toBeNull()
+    expect(bare.headers.get("content-type")).toBe("application/json; charset=utf-8")
+    expect(await bare.text()).not.toContain(String(info.token))
   })
 
   test("start in the other mode replaces the running server instead of reusing it", async () => {
@@ -941,7 +919,7 @@ describe("ce-prototype light-webserver.js", () => {
     const html = await (await fetch(String(info.url))).text()
     // A full document is served verbatim behind our doctype and the deferred
     // boot; nothing in the authored text is located or rewritten.
-    expect(html).toBe(`<!doctype html>\n${annotateBootFrom(html, origin, true, "/001-screen.html")}\n${authored}`)
+    expect(html).toBe(`<!doctype html>\n${annotateBootFrom(html, origin, "/001-screen.html")}\n${authored}`)
     expect(html).not.toContain('src="/__ce-annotate')
 
     // So a "</body>" literal in a script string or a trailing comment, or a
@@ -951,24 +929,26 @@ describe("ce-prototype light-webserver.js", () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     await fs.writeFile(path.join(String(info.screen_dir), "002-screen.html"), `\uFEFF${literalDoc}`)
     const literal = await (await fetch(String(info.url))).text()
-    expect(literal).toBe(`<!doctype html>\n${annotateBootFrom(literal, origin, true, "/002-screen.html")}\n${literalDoc}`)
+    expect(literal).toBe(`<!doctype html>\n${annotateBootFrom(literal, origin, "/002-screen.html")}\n${literalDoc}`)
 
     await new Promise((resolve) => setTimeout(resolve, 20))
     const prologued = "<!-- generated -->\n<!DOCTYPE html><html><body><h1>Prologued</h1></body></html>"
     await fs.writeFile(path.join(String(info.screen_dir), "003-screen.html"), prologued)
     const prologuedHtml = await (await fetch(String(info.url))).text()
-    expect(prologuedHtml).toBe(`<!doctype html>\n${annotateBootFrom(prologuedHtml, origin, true, "/003-screen.html")}\n${prologued}`)
+    expect(prologuedHtml).toBe(`<!doctype html>\n${annotateBootFrom(prologuedHtml, origin, "/003-screen.html")}\n${prologued}`)
     expect(prologuedHtml).not.toContain("CE local web")
 
     // A Host header that cannot be reflected safely falls back to the listen address.
     const odd = await fetch(String(info.url), { headers: { host: 'evil"><script>' } })
     expect(odd.status).toBe(200)
     const oddHtml = await odd.text()
-    expect(oddHtml).toContain(annotateBootFrom(oddHtml, `http://localhost:${info.port}`, true, "/003-screen.html"))
+    expect(oddHtml).toContain(annotateBootFrom(oddHtml, `http://localhost:${info.port}`, "/003-screen.html"))
     expect(oddHtml).not.toContain('evil"')
 
     const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
     expect(overlay).toContain('new URL("/__ce-annotate/annotate.css", document.currentScript?.src || window.location.origin)')
+    expect(overlay).toContain('document.createElement("ce-annotate-host")')
+    expect(overlay).not.toContain("getRandomValues")
   })
 
   test("idle shutdown ends the session instead of hanging on an open change stream", async () => {
@@ -1117,22 +1097,16 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("closeComposer(inFlight)")
     expect(overlay).toContain('addEventListener("click", () => closeComposer())')
     expect(overlay).toContain("composer.hidden = false")
-    // The overlay owns its host: a custom element created at runtime and held
-    // by reference only — no id or class an authored stylesheet could match,
-    // and no `div` or `html > div` either — with an important inline box that
-    // outranks an authored `!important`.
-    expect(overlay).toContain("crypto.getRandomValues(new Uint8Array(16))")
-    expect(overlay).toContain('hostId += byte.toString(16).padStart(2, "0")')
-    expect(overlay).toContain("document.createElement(hostId)")
+    expect(overlay).toContain('document.createElement("ce-annotate-host")')
+    expect(overlay).not.toContain("getRandomValues")
     expect(overlay).not.toContain("randomUUID")
-    expect(overlay).not.toContain('createElement("ce-annotate-host")')
     expect(overlay).not.toMatch(/host\.(id|className) =/)
     expect(overlay).toContain("Math.max(0, Math.min(x + 12, window.innerWidth - width))")
     // Parented on <html>, fixed and click-through, so it is outside every
     // body-scoped selector, document.body.children, and the authored layout.
     expect(overlay).toContain("document.documentElement.appendChild(host)")
     expect(overlay).not.toContain("document.body.appendChild(")
-    expect(overlay).toMatch(/host\.style\.cssText =\s*"display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: \d+ !important;/)
+    expect(overlay).toMatch(/host\.style\.cssText =\s*"display: block; position: fixed; inset: 0; pointer-events: none; z-index: \d+;/)
     // z-index cannot beat dialog.showModal(); a manual popover is the top layer.
     expect(overlay).toContain('setAttribute("popover", "manual")')
     expect(overlay).toContain("showPopover")

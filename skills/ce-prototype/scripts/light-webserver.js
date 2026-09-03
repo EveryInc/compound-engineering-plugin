@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { execFileSync, spawn } from "node:child_process"
 import fs from "node:fs"
 import http from "node:http"
@@ -22,9 +22,6 @@ const OVERLAY_FILES = {
   [`${OVERLAY_PREFIX}/annotate.js`]: "annotate.js",
   [`${OVERLAY_PREFIX}/annotate.css`]: "annotate.css",
 }
-// Shared with assets/annotate.js: where the overlay keeps the session token
-// for the bootstrap page to re-enter with.
-const TOKEN_STORAGE_KEY = "ce-annotate-token"
 // A Host header is reflected into the served document only in this shape.
 const HOST_HEADER = /^[A-Za-z0-9.\-]+(:\d{1,5})?$|^\[[0-9A-Fa-f:.]+\](:\d{1,5})?$/
 
@@ -288,65 +285,17 @@ function refreshScript(options) {
 </script>`
 }
 
-// Ahead of the authored document: when the request carried the session token,
-// an inline synchronous script stores it from the location before any authored
-// script runs, so a screen that rewrites its own URL (history.replaceState)
-// cannot lose it; it carries no token literal, only the storage key. A request
-// whose token is not the session's — an ungated linked page with its own
-// `?token=demo` — gets no store, so the credential already in sessionStorage
-// stands. Then the overlay, deferred; it creates its own host and stylesheet
-// once the document has parsed. Its URL is absolute on the request's own
-// origin, so a screen's <base href> cannot redirect it. data-ce-page is the
-// path this response served, so a later History API rewrite is not the screen.
+// Ahead of the authored document: deferred overlay. Its URL is absolute on
+// the request's own origin, so a screen's <base href> cannot redirect it.
+// data-ce-page is the path this response served, so a later History API
+// rewrite is not the screen.
 function htmlAttr(value) {
   return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
 }
 
-function annotateBoot(origin, storeToken, page = "/") {
+function annotateBoot(origin, page = "/") {
   const servedPage = typeof page === "string" && page.startsWith("/") ? page : "/"
-  const overlay = `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js" data-ce-page="${htmlAttr(servedPage)}"></script>`
-  if (!storeToken) return overlay
-  const key = JSON.stringify(TOKEN_STORAGE_KEY)
-  const store = `try{var k=${key};var t=new URLSearchParams(location.search).get("token");if(t){sessionStorage.setItem(k,t);try{localStorage.setItem(k,t)}catch(e2){}}}catch(e){}`
-  return `<script>(function(){${store}})()</script>\n${overlay}`
-}
-
-// Served in place of the screen when a root navigation arrives without the
-// session token, as a prototype's own href="/?variant=a" does. The overlay
-// keeps the token in sessionStorage, which is scoped to this origin including
-// the port, so the page re-enters with the token set and nothing leaves the
-// server. A stored token the server just refused belongs to an earlier
-// server on this port and is dropped rather than retried.
-function bootstrapPage() {
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CE local web</title>
-  <style>
-    body { margin: 0; padding: 24px; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f7f8; color: #1f2328; }
-  </style>
-</head>
-<body>
-  <p id="ce-annotate-bootstrap" hidden>This preview needs its session link. Open the URL the agent gave you.</p>
-  <script>
-(function(){
-  var key = ${JSON.stringify(TOKEN_STORAGE_KEY)};
-  var stored = null;
-  try { stored = sessionStorage.getItem(key) || localStorage.getItem(key); } catch (error) {}
-  var url = new URL(window.location.href);
-  if (stored && url.searchParams.get("token") !== stored) {
-    url.searchParams.set("token", stored);
-    window.location.replace(url.toString());
-    return;
-  }
-  try { sessionStorage.removeItem(key); localStorage.removeItem(key); } catch (error) {}
-  document.getElementById("ce-annotate-bootstrap").hidden = false;
-})();
-  </script>
-</body>
-</html>`
+  return `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js" data-ce-page="${htmlAttr(servedPage)}"></script>`
 }
 
 function wrapFragment(options, content) {
@@ -404,18 +353,17 @@ function injectRefresh(options, html) {
 // head children in head, ignores the second doctype and <head> start tag, and
 // creates <body> with its attributes. Nothing in the authored text is located
 // or rewritten, so a "</body>" in a script string or comment cannot mislead it.
-function annotateScreen(html, origin, storeToken, page = "/") {
-  const boot = annotateBoot(origin, storeToken, page)
+function annotateScreen(html, origin, page = "/") {
+  const boot = annotateBoot(origin, page)
   const text = html.replace(/^\uFEFF/, "")
   if (!isFullDocument(text)) return wrapAnnotateFragment(text, boot)
   return `<!doctype html>\n${boot}\n${text}`
 }
 
-// The root is gated, so a request that reaches here carried the session token.
 function annotateDocument(options, origin) {
   const screen = newestScreen(options)
-  if (!screen) return wrapAnnotateFragment(WAITING_HTML, annotateBoot(origin, true))
-  return annotateScreen(fs.readFileSync(screen, "utf8"), origin, true, pageForScreen(options, screen))
+  if (!screen) return wrapAnnotateFragment(WAITING_HTML, annotateBoot(origin))
+  return annotateScreen(fs.readFileSync(screen, "utf8"), origin, pageForScreen(options, screen))
 }
 
 function renderPage(options, origin) {
@@ -426,23 +374,33 @@ function renderPage(options, origin) {
   return isFullDocument(html) ? injectRefresh(options, html) : wrapFragment(options, html)
 }
 
-// Every credential the request presents; the gate accepts the request when any
-// of them matches, so no single source shadows another.
-function requestCredentials(req) {
+function cookieValue(req, name) {
+  const header = req.headers.cookie
+  if (typeof header !== "string") return null
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=")
+    if (eq === -1) continue
+    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim()
+  }
+  return null
+}
+
+// Every credential the request presents. A prototype may use ?token= for its
+// own purposes, so no single source may shadow another: the gate accepts the
+// request when any of these matches.
+function requestCredentials(req, cookieName) {
   const url = new URL(req.url, "http://127.0.0.1")
   const auth = req.headers.authorization
   return [
     url.searchParams.get("token"),
     req.headers["x-session-token"],
     typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7) : null,
+    cookieName ? cookieValue(req, cookieName) : null,
   ].filter((value) => typeof value === "string" && value)
 }
 
 function tokenMatches(candidate, expected) {
-  if (typeof candidate !== "string" || typeof expected !== "string") return false
-  const a = Buffer.from(candidate)
-  const b = Buffer.from(expected)
-  return a.length === b.length && timingSafeEqual(a, b)
+  return typeof candidate === "string" && candidate === expected
 }
 
 function sendJson(res, status, value) {
@@ -741,6 +699,7 @@ async function serve(options) {
   ensureDirs(options)
 
   const sessionToken = options.annotate ? randomUUID() : null
+  let cookieName = null
   const annotationQueue = []
   // id -> queued | working | done, in POST order. The overlay's pin status
   // follows this, never the screen changes an annotation happens to cause.
@@ -857,7 +816,7 @@ async function serve(options) {
   }
 
   function authorized(req) {
-    return requestCredentials(req).some((candidate) => tokenMatches(candidate, sessionToken))
+    return requestCredentials(req, cookieName).some((candidate) => tokenMatches(candidate, sessionToken))
   }
 
   function requireAnnotateToken(req, res) {
@@ -968,13 +927,15 @@ async function serve(options) {
     // connects right after load does not reload the same screen. Any
     // already-open stream still receives the change.
     broadcastIfChanged()
-    res.writeHead(200, {
+    const headers = {
       "Content-Type": CONTENT_TYPES[".html"],
       ...NO_STORE,
-      // The token rides in the root document's URL; never let a prototype's
-      // outbound link or asset carry it in a Referer.
       "Referrer-Policy": "no-referrer",
-    })
+    }
+    if (authorized(req) && cookieName && sessionToken) {
+      headers["Set-Cookie"] = `${cookieName}=${sessionToken}; HttpOnly; SameSite=Strict; Path=/`
+    }
+    res.writeHead(200, headers)
     res.end(stampOverlayDocument(html, pending))
   }
 
@@ -1097,15 +1058,7 @@ async function serve(options) {
       }
 
       if (req.method === "GET" && urlPath === "/") {
-        if (!authorized(req)) {
-          res.writeHead(401, {
-            "Content-Type": "text/html; charset=utf-8",
-            ...NO_STORE,
-            "Referrer-Policy": "no-referrer",
-          })
-          res.end(bootstrapPage())
-          return
-        }
+        if (!requireAnnotateToken(req, res)) return
         touch()
         serveAnnotateDocument(req, res, renderPage(options, requestOrigin(req)))
         return
@@ -1113,16 +1066,14 @@ async function serve(options) {
 
       // A linked page under screens/ is a screen too: navigated to, it carries
       // the same overlay and stream, or the session would end at the first
-      // navigation. It stays ungated like every other screen file; the overlay
-      // recovers the token from sessionStorage, and only a request carrying the
-      // session token may (re)store it. Fetched by a script, the same file is a
-      // partial and is served raw, like every other asset.
+      // navigation. It stays ungated like every other screen file. Fetched by
+      // a script, the same file is a partial and is served raw.
       if (req.method === "GET") {
         touch()
         const filePath = resolveContainedFile(options.screensDir, req, res)
         if (!filePath) return
         if (contentType(filePath) === CONTENT_TYPES[".html"] && isDocumentNavigation(req)) {
-          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req), authorized(req), urlPath))
+          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req), urlPath))
           return
         }
         // A reload must pick up a revised stylesheet or script whose URL did
@@ -1159,6 +1110,7 @@ async function serve(options) {
   server.listen(options.port, options.host, () => {
     const address = server.address()
     const port = typeof address === "object" && address ? address.port : options.port
+    cookieName = `ce-light-web-${port}`
     const baseUrl = `http://${DEFAULT_URL_HOST}:${port}`
     const info = {
       status: "running",
