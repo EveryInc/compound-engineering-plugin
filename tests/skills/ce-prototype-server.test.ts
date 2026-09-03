@@ -474,6 +474,15 @@ describe("ce-prototype light-webserver.js", () => {
     expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
   })
 
+  test("wait reports an unreadable live info file as an error, not session-ended", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-bad-info-"))
+    await startServer(root, ["--annotate"])
+    await fs.writeFile(path.join(root, "state", "display-info.json"), "{")
+    const result = await runServerCommand(["wait", "--root", root])
+    expect(result.exitCode, result.stderr).toBe(2)
+    expect(result.stdout).toBe("")
+  })
+
   test("the record names the screen file the annotated page resolves to; a page that does not is refused", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-screen-"))
     const info = await startServer(root, ["--annotate"])

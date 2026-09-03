@@ -154,7 +154,11 @@ function getRunningInfo(options) {
   if (!processAlive(pid)) return null
   if (!ownsServerProcess(options, pid)) return null
   if (!fs.existsSync(options.infoFile)) return null
-  return readJson(options.infoFile)
+  try {
+    return readJson(options.infoFile)
+  } catch {
+    return null
+  }
 }
 
 function sessionHasEnded(options) {
@@ -642,7 +646,13 @@ async function start(options) {
 
 async function waitForInfo(options, pid) {
   for (let i = 0; i < 100; i++) {
-    if (fs.existsSync(options.infoFile)) return readJson(options.infoFile)
+    if (fs.existsSync(options.infoFile)) {
+      try {
+        return readJson(options.infoFile)
+      } catch {
+        // Truncated write; keep polling.
+      }
+    }
     if (pid && !processAlive(pid)) return null
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
