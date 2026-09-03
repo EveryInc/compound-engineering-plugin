@@ -488,6 +488,8 @@ describe("ce-prototype light-webserver.js", () => {
     await fs.mkdir(path.join(String(info.screen_dir), "pages"))
     await fs.writeFile(path.join(String(info.screen_dir), "details.html"), details)
     await fs.writeFile(path.join(String(info.screen_dir), "pages", "part.html"), "<h2>Part</h2>")
+    const generated = "<!-- generated --><!DOCTYPE html><html><body><h1>Generated</h1></body></html>"
+    await fs.writeFile(path.join(String(info.screen_dir), "generated.html"), generated)
     // Newest top-level .html is what / serves, unchanged: the home screen is written last.
     await new Promise((resolve) => setTimeout(resolve, 20))
     await fs.writeFile(path.join(String(info.screen_dir), "001-home.html"), '<a href="/details.html">details</a>')
@@ -505,6 +507,10 @@ describe("ce-prototype light-webserver.js", () => {
     // no store snippet; the session token on the same page stores, as the gated root always does.
     expect(await (await fetch(`${origin}/details.html?token=demo`, { headers: NAVIGATE })).text()).toBe(`${boot}${details}`)
     expect(await (await fetch(`${origin}/details.html?token=${info.token}`, { headers: NAVIGATE })).text()).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/details.html")}\n${details}`)
+    // A comment before the doctype is still a complete document, not a fragment.
+    const generatedPage = await (await fetch(`${origin}/generated.html`, { headers: NAVIGATE })).text()
+    expect(generatedPage).toBe(`<!doctype html>\n${annotateBoot(origin, false, "/generated.html")}\n${generated}`)
+    expect(generatedPage).not.toContain("CE local web")
     expect(await (await fetch(String(info.url), { headers: NAVIGATE })).text()).toContain(annotateBoot(origin, true, "/001-home.html"))
     expect(BOOT_STORE).toContain("sessionStorage.setItem")
 
@@ -513,6 +519,10 @@ describe("ce-prototype light-webserver.js", () => {
     expect(part).toContain("<h2>Part</h2>")
     expect(part).toContain("CE local web")
     expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js" data-ce-page="\/pages\/part\.html"><\/script>[\s\S]*<\/head>/)
+    await fs.writeFile(path.join(String(info.screen_dir), "pages", "note.html"), "<!-- note --><h2>Note</h2>")
+    const note = await (await fetch(`${origin}/pages/note.html`, { headers: NAVIGATE })).text()
+    expect(note).toContain("<h2>Note</h2>")
+    expect(note).toContain("CE local web")
 
     // A script fetching the same files gets them raw: a partial is not a screen.
     for (const headers of [
@@ -595,7 +605,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(JSON.parse(result.stdout.trim()).status).toBe("session-ended")
   })
 
-  test("a page load during the reconnect grace restarts it, so a reload does not end the session", async () => {
+  test("a page load during the reconnect grace keeps the session live until the overlay reconnects", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-reload-"))
     const info = await startServer(root, ["--annotate"], {
       CE_LIGHT_WEB_SSE_GRACE_MS: "400",
@@ -608,11 +618,15 @@ describe("ce-prototype light-webserver.js", () => {
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect((await fetch(String(info.url))).status).toBe(200)
 
-    // Past the original expiry, inside the restarted one.
-    await new Promise((resolve) => setTimeout(resolve, 350))
+    // Past the original grace and past a restarted elapsed grace: the
+    // replacement document stays live until /events connects again.
+    await new Promise((resolve) => setTimeout(resolve, 700))
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
 
-    await new Promise((resolve) => setTimeout(resolve, 350))
+    const reconnect = new AbortController()
+    expect((await fetch(`${origin}/events?token=${info.token}`, { signal: reconnect.signal })).status).toBe(200)
+    reconnect.abort()
+    await new Promise((resolve) => setTimeout(resolve, 550))
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 
@@ -782,11 +796,18 @@ describe("ce-prototype light-webserver.js", () => {
     const literal = await (await fetch(String(info.url))).text()
     expect(literal).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/002-screen.html")}\n${literalDoc}`)
 
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const prologued = "<!-- generated -->\n<!DOCTYPE html><html><body><h1>Prologued</h1></body></html>"
+    await fs.writeFile(path.join(String(info.screen_dir), "003-screen.html"), prologued)
+    const prologuedHtml = await (await fetch(String(info.url))).text()
+    expect(prologuedHtml).toBe(`<!doctype html>\n${annotateBoot(origin, true, "/003-screen.html")}\n${prologued}`)
+    expect(prologuedHtml).not.toContain("CE local web")
+
     // A Host header that cannot be reflected safely falls back to the listen address.
     const odd = await fetch(String(info.url), { headers: { host: 'evil"><script>' } })
     expect(odd.status).toBe(200)
     const oddHtml = await odd.text()
-    expect(oddHtml).toContain(annotateBoot(`http://localhost:${info.port}`, true, "/002-screen.html"))
+    expect(oddHtml).toContain(annotateBoot(`http://localhost:${info.port}`, true, "/003-screen.html"))
     expect(oddHtml).not.toContain('evil"')
 
     const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
@@ -952,6 +973,11 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("document.documentElement.appendChild(host)")
     expect(overlay).not.toContain("document.body.appendChild(")
     expect(overlay).toMatch(/host\.style\.cssText =\s*"display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: \d+ !important;/)
+    // z-index cannot beat dialog.showModal(); a manual popover is the top layer.
+    expect(overlay).toContain('setAttribute("popover", "manual")')
+    expect(overlay).toContain("showPopover")
+    expect(overlay).toContain("hidePopover")
+    expect(overlay).toContain('nodeName === "DIALOG"')
     // The pin names the screen the helper served, not a History API pathname.
     expect(overlay).toContain('document.currentScript?.getAttribute("data-ce-page") || "/"')
     expect(overlay).toContain("page: servedPage,")

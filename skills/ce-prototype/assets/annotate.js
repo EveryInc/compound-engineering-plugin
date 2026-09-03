@@ -29,6 +29,9 @@
   // so it is outside every body-scoped selector and document.body.children,
   // and takes no part in the authored layout. The inline box applies before
   // the stylesheet arrives. getRandomValues is available on plain HTTP origins.
+  // z-index cannot beat the browser top layer (dialog.showModal(), popovers);
+  // a manual popover puts this host there, and re-showing it when an authored
+  // dialog opens keeps Comment/Stop/pins usable on the modal state.
   const hostIdBytes = crypto.getRandomValues(new Uint8Array(16))
   let hostId = "ce-annotate-"
   for (const byte of hostIdBytes) hostId += byte.toString(16).padStart(2, "0")
@@ -36,6 +39,26 @@
   host.style.cssText =
     "display: block !important; position: fixed !important; inset: 0 !important; pointer-events: none !important; z-index: 2147483645 !important; margin: 0 !important; padding: 0 !important; border: 0 !important;"
   document.documentElement.appendChild(host)
+  host.setAttribute("popover", "manual")
+  const raiseOverlay = () => {
+    if (typeof host.showPopover !== "function") return
+    try { host.hidePopover() } catch {}
+    try { host.showPopover() } catch {}
+  }
+  raiseOverlay()
+  if (typeof MutationObserver === "function") {
+    new MutationObserver((records) => {
+      for (const record of records) {
+        const nodes = record.type === "attributes" ? [record.target] : record.addedNodes
+        for (const node of nodes) {
+          if (node !== host && node.nodeName === "DIALOG" && node.hasAttribute?.("open")) {
+            raiseOverlay()
+            return
+          }
+        }
+      }
+    }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] })
+  }
   const shadow = host.attachShadow({ mode: "open" })
   const css = document.createElement("link")
   css.rel = "stylesheet"

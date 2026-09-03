@@ -202,7 +202,17 @@ function newestScreen(options) {
 }
 
 function isFullDocument(html) {
-  const trimmed = html.trimStart().toLowerCase()
+  // After ignorable prologue (whitespace, HTML comments), a doctype or <html>
+  // is a complete document; anything else is a fragment.
+  let text = html
+  for (;;) {
+    text = text.trimStart()
+    if (!text.startsWith("<!--")) break
+    const end = text.indexOf("-->")
+    if (end === -1) return false
+    text = text.slice(end + 3)
+  }
+  const trimmed = text.toLowerCase()
   return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")
 }
 
@@ -871,9 +881,14 @@ async function serve(options) {
 
   // Every document that carries the overlay is served the same way.
   function serveAnnotateDocument(req, res, html) {
-    // A page being served is a tab loading, not the last tab closing: a
-    // reload's stream reconnects only once this document's scripts run.
-    if (sseGraceTimer) armSseGrace()
+    // A page being served is a tab loading, not the last tab closing. The
+    // overlay is deferred and may sit behind parser-blocking work, so cancel
+    // the reconnect grace until that document's /events connects; ending on
+    // the short elapsed timeout would kill a still-loading tab.
+    if (sseGraceTimer) {
+      clearTimeout(sseGraceTimer)
+      sseGraceTimer = null
+    }
     // Sync the change key to what this page will render, so a stream that
     // connects right after load does not reload the same screen. Any
     // already-open stream still receives the change.
