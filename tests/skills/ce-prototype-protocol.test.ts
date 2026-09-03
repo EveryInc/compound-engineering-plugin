@@ -80,9 +80,14 @@ describe("ce-prototype protocol", () => {
     expect(ANNOTATION_LOOP_BODY).not.toMatch(/explorer writing in chat/)
     expect(PREVIEW_BODY).toMatch(/start --root "\$PROTO_DIR" --annotate/)
     expect(
-      /hand the explorer the helper's returned URL with only the host rewritten[\s\S]{0,80}query credential stays/.test(PREVIEW_BODY),
-      "A remote handoff must keep the helper URL's query credential. Host-and-port alone is a distinct origin with no stored token, so the gated root serves the 401 bootstrap.",
+      /hand the explorer the helper's returned URL with only the host rewritten/.test(PREVIEW_BODY),
+      "A remote handoff rewrites only the host. The explorer URL is origin-only; visiting that origin sets the session cookie.",
     ).toBe(true)
+    expect(PREVIEW_BODY).toMatch(/Do not also hand localhost/)
+    expect(PREVIEW_BODY).toMatch(/Do not print the token/)
+    expect(PREVIEW_BODY).toMatch(/Wait talks the bind address with the file token/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Annotate pins a note/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/End preview hands the conversation back/)
     expect(PREVIEW_BODY).not.toMatch(/no browser-to-agent event path/)
     expect(ANNOTATION_LOOP_BODY).not.toMatch(/no browser-to-agent event path/)
     expect(SKILL_BODY).toContain("`references/annotation-loop.md`")

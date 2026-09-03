@@ -313,18 +313,15 @@ describe("ce-prototype light-webserver.js", () => {
     const info = await startServer(root, ["--annotate"])
     const token = String(info.token)
     expect(token).toMatch(/^[0-9a-f-]{36}$/)
-    expect(info.url).toBe(`http://localhost:${info.port}?token=${token}`)
+    expect(info.url).toBe(`http://localhost:${info.port}`)
     expect(JSON.parse(await fs.readFile(path.join(root, "state", "display-info.json"), "utf8")).token).toBe(token)
+    expect(JSON.parse(await fs.readFile(path.join(root, "state", "display-info.json"), "utf8")).url).toBe(info.url)
 
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1 id=\"heading\">Pin me</h1>")
     const origin = `http://localhost:${info.port}`
 
-    const denied = await fetch(`${origin}/`)
-    expect(denied.status).toBe(401)
-    expect(denied.headers.get("set-cookie")).toBeNull()
-    expect(await denied.text()).not.toContain(token)
-
-    const page = await fetch(String(info.url))
+    const page = await fetch(`${origin}/`)
+    expect(page.status).toBe(200)
     expect(page.headers.get("referrer-policy")).toBe("no-referrer")
     expect(page.headers.get("set-cookie")).toMatch(
       new RegExp(`^ce-light-web-${info.port}=${token}; HttpOnly; SameSite=Strict; Path=/$`),
@@ -854,29 +851,26 @@ describe("ce-prototype light-webserver.js", () => {
     const origin = `http://localhost:${info.port}`
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Variant home</h1>")
 
-    const page = await fetch(String(info.url))
+    const page = await fetch(`${origin}/`)
     expect(page.status).toBe(200)
-    const cookie = page.headers.get("set-cookie") ?? ""
-    expect(cookie).toMatch(new RegExp(`^ce-light-web-${info.port}=${info.token}; HttpOnly; SameSite=Strict; Path=/$`))
-    const pair = cookie.split(";")[0]
+    expect(await page.text()).toContain("Variant home")
+    expect(page.headers.get("set-cookie")).toMatch(
+      new RegExp(`^ce-light-web-${info.port}=${info.token}; HttpOnly; SameSite=Strict; Path=/$`),
+    )
+    const pair = (page.headers.get("set-cookie") ?? "").split(";")[0]
 
-    const navigated = await fetch(`${origin}/?variant=a`, { headers: { cookie: pair } })
+    const navigated = await fetch(`${origin}/?variant=a`)
     expect(navigated.status).toBe(200)
     expect(await navigated.text()).toContain("Variant home")
     expect((await fetch(`${origin}/events`, { headers: { cookie: pair } })).status).toBe(200)
+    expect((await fetch(`${origin}/events`)).status).toBe(401)
+    expect((await fetch(`${origin}/wait`)).status).toBe(401)
 
-    const shadowed = await fetch(`${origin}/?token=demo`, { headers: { cookie: pair } })
-    expect(shadowed.status).toBe(200)
-    expect(await shadowed.text()).toContain("Variant home")
-    expect((await fetch(`${origin}/?token=demo`)).status).toBe(401)
-
-    expect((await fetch(`${origin}/?variant=a`)).status).toBe(401)
-    expect((await fetch(`${origin}/`, { headers: { cookie: `ce-light-web-1=${info.token}` } })).status).toBe(401)
-    const bare = await fetch(`${origin}/`)
-    expect(bare.status).toBe(401)
-    expect(bare.headers.get("set-cookie")).toBeNull()
-    expect(bare.headers.get("content-type")).toBe("application/json; charset=utf-8")
-    expect(await bare.text()).not.toContain(String(info.token))
+    const demo = await fetch(`${origin}/?token=demo`)
+    expect(demo.status).toBe(200)
+    const demoHtml = await demo.text()
+    expect(demoHtml).toContain("Variant home")
+    expect(demoHtml).not.toContain(String(info.token))
   })
 
   test("start in the other mode replaces the running server instead of reusing it", async () => {
@@ -889,7 +883,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(annotated.status).toBe("started")
     expect(annotated.pid).not.toBe(plain.pid)
     expect(String(annotated.token)).toMatch(/^[0-9a-f-]{36}$/)
-    expect(String(annotated.url)).toContain(`?token=${annotated.token}`)
+    expect(String(annotated.url)).toBe(`http://localhost:${annotated.port}`)
     const waited = await fetch(`http://localhost:${annotated.port}/wait?token=${annotated.token}`)
     expect(waited.status).toBe(204)
     await expect(fetch(`http://localhost:${plain.port}/version`)).rejects.toThrow()
@@ -1058,7 +1052,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(status.status).toBe("stopped")
   })
 
-  test("overlay arms comments only when the tool is on and Stop ends the session", async () => {
+  test("overlay arms comments only when the tool is on and End preview ends the session", async () => {
     const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
     expect(overlay).toContain("let commentToolOn = false")
     expect(overlay).toMatch(/if \(!commentToolOn \|\| sessionEnded\) return/)
@@ -1067,7 +1061,14 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("EventSource")
     expect(overlay).toContain("ce-prototype-root")
     expect(overlay).toContain('if (el === document.body) return "body"')
-    expect(overlay).toContain("Stop failed")
+    expect(overlay).toContain(">Annotate</button>")
+    expect(overlay).toContain('aria-label="End preview and return to chat"')
+    expect(overlay).toContain("<svg")
+    expect(overlay).not.toContain(">End preview</button>")
+    expect(overlay).not.toContain(">Comment</button>")
+    expect(overlay).not.toContain(">Done</button>")
+    expect(overlay).not.toContain(">Stop</button>")
+    expect(overlay).toContain("Could not end preview — retry")
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
     expect(overlay).toContain('addEventListener("scroll", reattachPins')
     expect(overlay).toContain("new ResizeObserver(reattachPins)")
@@ -1126,6 +1127,8 @@ describe("ce-prototype light-webserver.js", () => {
     const css = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
     expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  pointer-events: none;/)
     expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*pointer-events: auto;/)
+    expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*background: #fff;/)
+    expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*box-shadow:/)
     expect(css).toMatch(/\.ce-annotate-composer \{[^}]*pointer-events: auto;/)
     expect(css).toMatch(/\.ce-annotate-composer \{[^}]*box-sizing: border-box;/)
     expect(css).toMatch(/\.ce-annotate-composer \{[^}]*max-width: 100vw;/)

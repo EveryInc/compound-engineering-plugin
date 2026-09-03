@@ -908,7 +908,7 @@ async function serve(options) {
       ...NO_STORE,
       "Referrer-Policy": "no-referrer",
     }
-    if (authorized(req) && cookieName && sessionToken) {
+    if (cookieName && sessionToken) {
       headers["Set-Cookie"] = `${cookieName}=${sessionToken}; HttpOnly; SameSite=Strict; Path=/`
     }
     res.writeHead(200, headers)
@@ -1034,7 +1034,6 @@ async function serve(options) {
       }
 
       if (req.method === "GET" && urlPath === "/") {
-        if (!requireAnnotateToken(req, res)) return
         touch()
         serveAnnotateDocument(req, res, renderPage(options, requestOrigin(req)))
         return
@@ -1093,7 +1092,7 @@ async function serve(options) {
       root: options.root,
       host: options.host,
       port,
-      url: sessionToken ? `${baseUrl}?token=${sessionToken}` : baseUrl,
+      url: baseUrl,
       screen_dir: options.screensDir,
       state_dir: options.stateDir,
       pid: process.pid,
