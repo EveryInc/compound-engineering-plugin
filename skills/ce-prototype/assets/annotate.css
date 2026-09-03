@@ -24,27 +24,27 @@
   font: 13px/1.3 system-ui, -apple-system, sans-serif;
 }
 
-.ce-annotate-chrome button {
+.ce-annotate-chrome button,
+.ce-annotate-composer button {
   appearance: none;
-  border: 1px solid #d8dee4;
-  background: transparent;
-  color: #1f2328;
-  border-radius: 8px;
-  padding: 4px 10px;
   font: inherit;
   cursor: pointer;
+  color: #1f2328;
+}
+
+.ce-annotate-chrome button {
+  border: 1px solid #d8dee4;
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 10px;
   white-space: nowrap;
 }
 
 .ce-annotate-composer button {
-  appearance: none;
   border: 1px solid #1f2328;
   background: #fff;
-  color: #1f2328;
   border-radius: 999px;
   padding: 6px 12px;
-  font: inherit;
-  cursor: pointer;
 }
 
 .ce-annotate-toggle.is-on,

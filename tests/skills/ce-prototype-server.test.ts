@@ -308,14 +308,15 @@ describe("ce-prototype light-webserver.js", () => {
     }
   })
 
-  test("annotate start writes a token URL and injects overlay only at serve time", async () => {
+  test("annotate start writes an origin URL and injects overlay only at serve time", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-annotate-"))
     const info = await startServer(root, ["--annotate"])
     const token = String(info.token)
     expect(token).toMatch(/^[0-9a-f-]{36}$/)
     expect(info.url).toBe(`http://localhost:${info.port}`)
-    expect(JSON.parse(await fs.readFile(path.join(root, "state", "display-info.json"), "utf8")).token).toBe(token)
-    expect(JSON.parse(await fs.readFile(path.join(root, "state", "display-info.json"), "utf8")).url).toBe(info.url)
+    const displayInfo = JSON.parse(await fs.readFile(path.join(root, "state", "display-info.json"), "utf8"))
+    expect(displayInfo.token).toBe(token)
+    expect(displayInfo.url).toBe(info.url)
 
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1 id=\"heading\">Pin me</h1>")
     const origin = `http://localhost:${info.port}`
@@ -845,7 +846,7 @@ describe("ce-prototype light-webserver.js", () => {
     await reader.cancel()
   })
 
-  test("a token-authenticated page sets a cookie that keeps query navigation authenticated", async () => {
+  test("visiting a document sets a cookie that authenticates gated overlay routes", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-cookie-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
@@ -854,10 +855,11 @@ describe("ce-prototype light-webserver.js", () => {
     const page = await fetch(`${origin}/`)
     expect(page.status).toBe(200)
     expect(await page.text()).toContain("Variant home")
-    expect(page.headers.get("set-cookie")).toMatch(
+    const cookie = page.headers.get("set-cookie") ?? ""
+    expect(cookie).toMatch(
       new RegExp(`^ce-light-web-${info.port}=${info.token}; HttpOnly; SameSite=Strict; Path=/$`),
     )
-    const pair = (page.headers.get("set-cookie") ?? "").split(";")[0]
+    const pair = cookie.split(";")[0]
 
     const navigated = await fetch(`${origin}/?variant=a`)
     expect(navigated.status).toBe(200)
