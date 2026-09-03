@@ -90,8 +90,9 @@
   }
 
   // A revised screen is shown by navigating to the stamped served path, so a
-  // History API rewrite is not what the helper looks up. The browser owns
-  // every reconciliation; pins, tool state, and open draft are carried across.
+  // History API rewrite is not what the helper looks up. Query and fragment
+  // on that path stay. The browser owns every reconciliation; pins, tool
+  // state, and open draft are carried across.
   function persistAndReload() {
     const state = {
       commentToolOn,
@@ -103,7 +104,7 @@
     } catch {
       // Without storage the reload still shows the revised screen; only the pins are lost.
     }
-    window.location.replace(servedPage)
+    window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)
   }
 
   // A screen change arriving while a comment is being sent waits for that

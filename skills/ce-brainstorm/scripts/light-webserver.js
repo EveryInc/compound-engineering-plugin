@@ -1035,7 +1035,17 @@ async function serve(options) {
 
       if (req.method === "GET" && urlPath === "/") {
         touch()
-        serveAnnotateDocument(req, res, renderPage(options, requestOrigin(req)))
+        if (isDocumentNavigation(req)) {
+          serveAnnotateDocument(req, res, renderPage(options, requestOrigin(req)))
+          return
+        }
+        const screen = newestScreen(options)
+        if (screen) {
+          sendFile(screen, res, NO_STORE)
+          return
+        }
+        res.writeHead(200, { "Content-Type": CONTENT_TYPES[".html"], ...NO_STORE })
+        res.end(WAITING_HTML)
         return
       }
 
