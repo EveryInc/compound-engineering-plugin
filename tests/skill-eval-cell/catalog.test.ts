@@ -198,6 +198,8 @@ describe("skill-eval-cell catalog", () => {
       "ce-debug/pipeline-divergent-defer",
       "ce-plan/config-model-reaches-authoring-gate",
       "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision",
+      "ce-setup/instruction-file-covered-offers-nothing",
+      "ce-setup/instruction-file-gap-offers-store-and-directive",
     ])
   })
 
