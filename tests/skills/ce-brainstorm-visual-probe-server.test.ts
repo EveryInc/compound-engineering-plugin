@@ -231,14 +231,16 @@ describe("ce-brainstorm light-webserver.js", () => {
   test("/version polling does not keep an otherwise idle server alive", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-visual-probe-idle-"))
     const info = await startServer(root, [], {
-      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "250",
+      // listen() starts idle before startServer() returns; 250ms lost the
+      // page GET to ConnectionRefused under parallel CI (never reached /version).
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "2000",
       CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "50",
     })
 
     await fs.writeFile(path.join(String(info.screen_dir), "001-first.html"), "<h1>First sketch</h1>")
     await fetch(String(info.url))
 
-    const deadline = Date.now() + 700
+    const deadline = Date.now() + 4500
     while (Date.now() < deadline) {
       try {
         await fetch(`${String(info.url)}/version`)
