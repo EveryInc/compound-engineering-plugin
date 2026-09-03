@@ -867,11 +867,7 @@ async function serve(options) {
   }
 
   function retainPendingDocument(id, socket) {
-    if (socket) {
-      for (const [previousId, entry] of [...pendingDocuments]) {
-        if (entry.socket === socket) forgetPendingDocument(previousId)
-      }
-    }
+    unbindPendingFromSocket(socket, id)
     pendingDocuments.set(id, { socket: socket || null })
   }
 
@@ -885,20 +881,24 @@ async function serve(options) {
     // while any replacement is still pending. /events names the document it
     // completes, so another tab's reconnect cannot consume this pending load.
     // The handshake dies when this document can no longer open /events: the
-    // request aborted before the body was delivered, /events completed it, a
-    // later document on the same connection replaced it, or the session
-    // ended. A completed response is not that; the overlay may connect on a
-    // new connection.
+    // request aborted before the body was delivered, /events completed it, or
+    // the session ended. A completed response is not that; the overlay may
+    // connect on a new connection. Keep-alive reuse is not replacement:
+    // another document on the same socket leaves this pending in place.
+    // A script fetching the page is not a tab loading, so it does not create
+    // a handshake.
     const pending = randomUUID()
-    retainPendingDocument(pending, req.socket)
-    if (sseGraceTimer) {
-      clearTimeout(sseGraceTimer)
-      sseGraceTimer = null
+    if (isDocumentNavigation(req)) {
+      retainPendingDocument(pending, req.socket)
+      if (sseGraceTimer) {
+        clearTimeout(sseGraceTimer)
+        sseGraceTimer = null
+      }
+      req.on("close", () => {
+        if (res.writableEnded) return
+        abandonPendingDocument(pending)
+      })
     }
-    req.on("close", () => {
-      if (res.writableEnded) return
-      abandonPendingDocument(pending)
-    })
     // Sync the change key to what this page will render, so a stream that
     // connects right after load does not reload the same screen. Any
     // already-open stream still receives the change.

@@ -129,6 +129,19 @@ function fetchDocumentClosingConnection(url: string): Promise<string> {
   })
 }
 
+function fetchDocumentKeepAlive(url: string, agent: http.Agent): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, { agent, headers: NAVIGATE }, (res) => {
+      const chunks: Buffer[] = []
+      res.on("data", (chunk) => {
+        chunks.push(chunk)
+      })
+      res.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")))
+    })
+    req.on("error", reject)
+  })
+}
+
 afterEach(async () => {
   while (rootsToStop.length > 0) {
     const root = rootsToStop.pop()!
@@ -653,7 +666,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(eventsUrl(origin, info.token), { signal: controller.signal })).status).toBe(200)
     controller.abort()
     await new Promise((resolve) => setTimeout(resolve, 200))
-    const page = await fetch(String(info.url))
+    const page = await fetch(String(info.url), { headers: NAVIGATE })
     expect(page.status).toBe(200)
     const documentId = overlayDocumentId(await page.text())
 
@@ -678,7 +691,7 @@ describe("ce-prototype light-webserver.js", () => {
     const origin = `http://localhost:${info.port}`
     const controller = new AbortController()
     expect((await fetch(eventsUrl(origin, info.token), { signal: controller.signal })).status).toBe(200)
-    const page = await fetch(String(info.url))
+    const page = await fetch(String(info.url), { headers: NAVIGATE })
     expect(page.status).toBe(200)
     const documentId = overlayDocumentId(await page.text())
     controller.abort()
@@ -706,8 +719,8 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(eventsUrl(origin, info.token), { signal: first.signal })).status).toBe(200)
 
     // Two replacement documents outstanding; only one overlay reconnects.
-    const firstPage = await fetch(String(info.url))
-    const secondPage = await fetch(String(info.url))
+    const firstPage = await fetch(String(info.url), { headers: NAVIGATE })
+    const secondPage = await fetch(String(info.url), { headers: NAVIGATE })
     expect(firstPage.status).toBe(200)
     expect(secondPage.status).toBe(200)
     const firstDocument = overlayDocumentId(await firstPage.text())
@@ -734,13 +747,13 @@ describe("ce-prototype light-webserver.js", () => {
       CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
     })
     const origin = `http://localhost:${info.port}`
-    const loadedPage = await fetch(String(info.url))
+    const loadedPage = await fetch(String(info.url), { headers: NAVIGATE })
     expect(loadedPage.status).toBe(200)
     const loadedDocument = overlayDocumentId(await loadedPage.text())
     const loaded = new AbortController()
     expect((await fetch(eventsUrl(origin, info.token, loadedDocument), { signal: loaded.signal })).status).toBe(200)
 
-    const pendingPage = await fetch(String(info.url))
+    const pendingPage = await fetch(String(info.url), { headers: NAVIGATE })
     expect(pendingPage.status).toBe(200)
     const pendingDocument = overlayDocumentId(await pendingPage.text())
     expect(pendingDocument).not.toBe(loadedDocument)
@@ -780,6 +793,50 @@ describe("ce-prototype light-webserver.js", () => {
     reconnect.abort()
     await new Promise((resolve) => setTimeout(resolve, 200))
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
+  })
+
+  test("a script fetch of the root does not keep the session live after the stream closes", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-script-root-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_SSE_GRACE_MS: "80",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
+    })
+    const origin = `http://localhost:${info.port}`
+    const controller = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token), { signal: controller.signal })).status).toBe(200)
+    const page = await fetch(String(info.url), { headers: { Accept: "*/*", "Sec-Fetch-Dest": "empty" } })
+    expect(page.status).toBe(200)
+    expect(await page.text()).toContain("ce-annotate")
+    controller.abort()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
+  })
+
+  test("two keep-alive document navigations keep both pending handshakes", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-sse-keepalive-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_SSE_GRACE_MS: "400",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40",
+    })
+    const origin = `http://localhost:${info.port}`
+    const agent = new http.Agent({ keepAlive: true, maxSockets: 1 })
+    const controller = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token), { signal: controller.signal })).status).toBe(200)
+    const firstHtml = await fetchDocumentKeepAlive(String(info.url), agent)
+    const secondHtml = await fetchDocumentKeepAlive(String(info.url), agent)
+    const firstDocument = overlayDocumentId(firstHtml)
+    const secondDocument = overlayDocumentId(secondHtml)
+    expect(firstDocument).not.toBe(secondDocument)
+    const second = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token, secondDocument), { signal: second.signal })).status).toBe(200)
+    controller.abort()
+    second.abort()
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
+    const first = new AbortController()
+    expect((await fetch(eventsUrl(origin, info.token, firstDocument), { signal: first.signal })).status).toBe(200)
+    first.abort()
+    agent.destroy()
   })
 
   test("annotate pushes a screen-changed event for screen and asset edits without writing overlay into screens", async () => {
