@@ -15,9 +15,13 @@ argument-hint: "[optional: brief context] [mode:non-interactive] [depth:lightwei
 
 ## Preconditions
 
-Document only a problem that is solved and verified. The work must have produced durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation. Losing that reasoning must plausibly cause recurrence, material risk, or substantial rediscovery.
+Document only a problem that is solved and verified.
 
-Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, write nothing and report why. Completion, effort, and diff size do not establish eligibility. Judge this from the session rather than asking. An explicit invocation requests the judgment now but does not lower the bar.
+<!-- ce-durable-bar:start -->
+A learning earns its place only when it holds durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? Completion, effort, and diff size do not establish eligibility.
+<!-- ce-durable-bar:end -->
+
+If the counterfactual fails, write nothing and report why. Judge this from the session rather than asking. An explicit invocation requests the judgment now but does not lower the bar.
 
 An existing learning that became materially inaccurate or incomplete qualifies because leaving it would mislead. Update that learning instead of creating a duplicate.
 

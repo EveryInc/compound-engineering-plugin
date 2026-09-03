@@ -2,7 +2,7 @@
 
 > Check Compound Engineering health, optional tool availability, and repo-local config safety. It does not bulk-install the plugin's dependencies.
 
-`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, and offers to gitignore a local override or CE scratch space. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
+`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, and offers to point your agent-instructions file at the knowledge store and add a standing compounding instruction. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
 
 It runs only when you invoke it explicitly (`disable-model-invocation: true`). Talking about setup does not start it. Outside a git repository it reports capabilities and stops without writing files.
 
@@ -51,6 +51,7 @@ The example config refresh happens on its own (it is the committed template copy
 - Offers to create `.compound-engineering/config.yaml` when missing. Never overwrites an existing `config.yaml` or `config.local.yaml`, and never creates the local override.
 - Offers to add `.compound-engineering/*.local.yaml` to `.gitignore`, but only when `config.local.yaml` already exists and is not ignored.
 - Offers to add `.context/compound-engineering/` to `.gitignore` whether or not that directory exists yet. An uncovered path is a note, not a project issue.
+- Offers to add a line about the `<root>/solutions/` knowledge store to your root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, or equivalent) when the file does not already convey it, placed in the file's own structure. Then offers the standing compounding instruction from the [ce-compound guide](./ce-compound.md#make-capture-automatic), offer-first or automatic, inserted verbatim. Only when the store is tracked in this repo, and never creates the file.
 - Repairs an invalid CE Work implementation-engine block, or leftover retired routing keys, in the config layer that supplied the bad value.
 - Repairs an invalid `docs_root`. This one is a real project issue: CE artifacts will not be written until it is fixed. See [Artifact root](./configuration.md#artifact-root).
 
@@ -123,7 +124,7 @@ Skip it when:
 | Phase | Step |
 |-------|------|
 | Diagnose | Plugin version when the host exposes it, optional capabilities, project config, artifact root, work-engine block |
-| Fix | Obsolete local-md, example refresh, create repo config if wanted, gitignore safety, scratch-space gitignore, repair invalid `docs_root` or work-engine prefs |
+| Fix | Obsolete local-md, example refresh, create repo config if wanted, gitignore safety, scratch-space gitignore, repair invalid `docs_root` or work-engine prefs, knowledge-store mention and compounding directive in the agent-instructions file |
 | Summary | Fixes applied, skipped actions, missing optional tools |
 
 ---

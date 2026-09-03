@@ -58,6 +58,11 @@ A scope hint is a category directory, filename slug, module, or keyword. Prefer 
 # Build a repo-wide CONCEPTS.md glossary. Interactive asks whether you meant
 # a refresh instead.
 /ce-compound-refresh create a CONCEPTS.md
+
+# Judge worth as well as accuracy: cull docs whose reasoning the repo already
+# states in a test, a comment, or the instructions file. Interactive confirms
+# first; non-interactive only recommends.
+/ce-compound-refresh clean up my compounded learnings
 ```
 
 With no hint, the skill clusters the store and recommends a starting area. Interactive confirms that area; non-interactive processes every cluster in impact order. A hint that matches nothing asks you to clarify (interactive) or reports the miss and exits (non-interactive). An empty store tells you to run `ce-compound` first.
@@ -110,6 +115,8 @@ After the per-doc pass, the skill looks for overlap, a newer doc that subsumes a
 ### Delete is conservative
 
 Auto-delete requires all three: the implementation that lived in this repo is gone (or a successor already states the same guidance); the problem domain is gone; inbound markdown citations are absent or decorative. A doc that never pointed at in-repo code never auto-deletes. A citation another doc depends on is a Replace or Keep signal, not a cleanup task.
+
+An accurate doc is never deleted for being redundant with the codebase unless you ask for that judgment. Say you want the store cleaned up, culled, or upgraded to the capture bar and the skill confirms the worth lens once, then applies the same counterfactual `ce-compound` uses before writing: is this reasoning recoverable from a named in-repo artifact? Every worth-based delete or cut quotes the artifact that states the reasoning. Non-interactive runs record those verdicts as recommendations rather than applying them.
 
 If the current approach cannot be documented from a file scan, the doc is marked stale rather than guessed into a replacement. The recommendation is `/ce-compound` the next time you work in that area.
 

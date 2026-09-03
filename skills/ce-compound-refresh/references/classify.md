@@ -35,3 +35,7 @@ A memory-sourced signal never carries an outcome on its own: it corroborates cod
 ## Decide (interactive mode only)
 
 Apply unambiguous Keeps, Updates, and Consolidations directly — no confirmation. Ask (per Blocking questions) only when: the action is genuinely ambiguous; a Delete fails the auto-delete gate; the canonical doc in a Consolidate isn't clear-cut; you are about to Replace; or you are about to Split (it writes successors and deletes the original — confirm fragment boundaries like a Replace). Present the file path, 2-4 evidence bullets, and the recommended action; offer only plausible alternatives plus "skip for now". For broad sweeps, work in batches and confirm continuation between them rather than front-loading a full maintenance queue.
+
+## Relationship to ce-compound
+
+`ce-compound` captures a newly solved problem. This skill maintains the store as the codebase evolves: each doc's accuracy, and the design of the set. Replace only on real evidence; without it, stale-mark the doc and point the user at `ce-compound`. Consolidate proactively, because every capture adds a doc and redundant docs drift.

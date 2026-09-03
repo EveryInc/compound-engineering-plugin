@@ -176,7 +176,7 @@ The output feeds back upstream: `/ce-plan` reads `docs/solutions/` during Phase 
 
 Completion phrases such as "that worked" and "it's fixed" mark a useful checkpoint, but they are not sufficient triggers. Add a standing instruction when you want the agent to evaluate the durable-learning gate at that checkpoint without waiting for you to ask.
 
-Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your harness's global instruction file (for example `~/.claude/CLAUDE.md`, `~/.agents/AGENTS.md`, or `~/.codex/AGENTS.md`) to make it apply in every repo. Pick the variant that matches how much of a checkpoint you want.
+Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your harness's global instruction file (for example `~/.claude/CLAUDE.md`, `~/.agents/AGENTS.md`, or `~/.codex/AGENTS.md`) to make it apply in every repo. Pick the variant that matches how much of a checkpoint you want. `ce-setup` offers to add either variant to the repo file for you, verbatim.
 
 Offer first (the agent asks before capturing):
 
