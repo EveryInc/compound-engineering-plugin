@@ -60,6 +60,8 @@ describe("ce-setup instruction-file offers", () => {
     expect(step).toMatch(/only on approval/i)
     expect(step).toMatch(/never creates one/i)
     expect(step).toMatch(/never the `<root>` placeholder/)
+    expect(step).toMatch(/git tracks at least one file under the resolved `<root>\/solutions\/`/)
+    expect(step).toMatch(/untracked or gitignored directory is not evidence/)
     expect(step).toMatch(/already carries a standing instruction to invoke `ce-compound`/)
     const skill = await readRepoFile("skills/ce-setup/SKILL.md")
     expect(skill).toContain("Steps 4-9")

@@ -94,7 +94,7 @@ Runs whenever the repository has a root agent-instructions file (`AGENTS.md`, `C
 <root>/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
 ```
 
-**Compounding directive.** Offer it only when the store is tracked knowledge in this repository: the resolved `<root>/solutions/` exists in the checkout, or the user just accepted the store mention. Skip the offer when the file already carries a standing instruction to invoke `ce-compound` at a completion checkpoint, in any wording. Otherwise ask:
+**Compounding directive.** Offer it only when the repository treats the store as tracked, committed knowledge: git tracks at least one file under the resolved `<root>/solutions/` (`git ls-files` there is non-empty; an untracked or gitignored directory is not evidence), or the user just accepted the store mention. Skip the offer when the file already carries a standing instruction to invoke `ce-compound` at a completion checkpoint, in any wording. Otherwise ask:
 
 ```text
 Add a standing instruction so agents capture qualifying learnings with ce-compound?
