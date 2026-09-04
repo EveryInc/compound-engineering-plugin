@@ -8,7 +8,7 @@ While the isolated web preview is running, wait for the next annotation batch or
 
 Before the first wait, tell the explorer in one line that the URL is live, that Annotate pins a note, that Ctrl+A freezes hover so a hover can be pinned, that Esc or Ctrl+A again turns annotate off, that Send to agent delivers the current notes as one batch and keeps the session open, and that End session hands the conversation back. After each applied revision, one short line: what changed, and that the page reloaded itself. Say nothing while a wait is parked. When the loop ends, one line saying why.
 
-A wait is outstanding until the helper exits. A call the host yields or backgrounds is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked and the session has not ended. The loop ends when wait returns session-ended (exit 1) or cannot run (exit 2). Chat is valid only after wait has returned or cannot run — do not read it while a wait is in flight. The overlay's Send to agent control delivers held notes without ending the session. End session hands the conversation back when no notes are waiting. Closing the tab ends the session. Wait returns session-ended only after every posted pin has been delivered.
+A wait is outstanding until the helper exits. A call the host yields or backgrounds is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked and the session has not ended. The loop ends when wait returns session-ended (exit 1) or cannot run (exit 2). On exit 2, stop the preview so annotation intake ends; chat is then the only live channel. Chat is valid only after wait has returned or cannot run — do not read it while a wait is in flight. The overlay's Send to agent control delivers held notes without ending the session. End session hands the conversation back when no notes are waiting. Closing the tab ends the session. Wait returns session-ended only after every posted pin has been delivered.
 
 Unattended, LFG, and `mode:pipeline` runs still refuse to start a preview; this file does not override that.
 
@@ -27,4 +27,4 @@ if [ -L "$PROTO_DIR" ] || [ ! -O "$PROTO_DIR" ]; then echo "unsafe run directory
 node "$SKILL_DIR/scripts/light-webserver.js" wait --root "$PROTO_DIR"
 ```
 
-Exit 0 prints a JSON array of annotation records (one or more). Exit 1 is session-ended. Exit 2 is an error — use chat if wait cannot run.
+Exit 0 prints a JSON array of annotation records (one or more). Exit 1 is session-ended. Exit 2 is an error — stop the preview, then use chat. Do not leave the overlay live without a wait.
