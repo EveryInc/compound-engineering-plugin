@@ -75,6 +75,10 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-plan/no-implement` | Plan does not execute |
 | `ce-plan/config-model-reaches-authoring-gate` | At the authoring boundary, active config-only `plan_model` reaches `reasoning-elevation.md` and resolves transparently before dispatch or write |
 | `ce-work/return-to-caller-no-pr` | Return-to-caller does not open a PR |
+| `ce-prototype/batch-conflict-asks` | Conflicting annotation notes stay in chat instead of guessing an edit |
+| `ce-prototype/clear-batch-applies-in-place` | A clear annotation batch iterates in place; conversation does not swallow it |
+| `ce-prototype/question-stays-in-chat` | A question pin is answered in chat, not treated as an edit or a next variant |
+| `ce-prototype/rejected-avenue-does-not-converge` | Rejecting one avenue does not pick the leftover or start the next variant |
 
 ## LFG (merged #1479)
 

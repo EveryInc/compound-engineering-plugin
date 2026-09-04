@@ -161,6 +161,10 @@ describe("skill-eval-cell catalog", () => {
         "ce-polish/start-server-reads-run:references/run.md",
         "ce-pov/oracle-dispatches-peers:references/cross-model-panel.md",
         "ce-pov/stay-read-only:references/method.md",
+        "ce-prototype/batch-conflict-asks:references/annotation-loop.md",
+        "ce-prototype/clear-batch-applies-in-place:references/annotation-loop.md",
+        "ce-prototype/question-stays-in-chat:references/annotation-loop.md",
+        "ce-prototype/rejected-avenue-does-not-converge:references/annotation-loop.md",
         "ce-riffrec-feedback-analysis/quick-notes:references/analyzer.md",
         "ce-riffrec-feedback-analysis/quick-notes:references/quick-bug-report.md",
         "ce-riffrec-feedback-analysis/setup-before-recording:references/install-riffrec.md",
@@ -197,6 +201,10 @@ describe("skill-eval-cell catalog", () => {
       "ce-compound-refresh/guidance-survives-implementation-conflict",
       "ce-debug/pipeline-divergent-defer",
       "ce-plan/config-model-reaches-authoring-gate",
+      "ce-prototype/batch-conflict-asks",
+      "ce-prototype/clear-batch-applies-in-place",
+      "ce-prototype/question-stays-in-chat",
+      "ce-prototype/rejected-avenue-does-not-converge",
       "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision",
     ])
   })

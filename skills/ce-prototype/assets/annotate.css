@@ -1,10 +1,19 @@
-/* The host is a fixed, click-through layer over the viewport; only the chrome
-   and composer take pointer events back. */
+/* The host is a fixed layer over the viewport. Chrome, composer, and the
+   annotate-mode catcher take pointer events; the rest click through. */
 :host {
   position: fixed;
   inset: 0;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  color: inherit;
+  background: transparent;
   pointer-events: none;
   z-index: 2147483645;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 .ce-annotate-chrome {
@@ -47,6 +56,26 @@
   padding: 6px 12px;
 }
 
+.ce-annotate-toggle {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.ce-annotate-hotkey {
+  font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  opacity: 0.78;
+  background: none;
+  color: inherit;
+}
+
 .ce-annotate-toggle.is-on,
 .ce-annotate-toggle[aria-pressed="true"] {
   background: #1f2328;
@@ -54,10 +83,41 @@
   border-color: #1f2328;
 }
 
+.ce-annotate-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ce-annotate-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #1f2328;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
 .ce-annotate-status {
   padding: 4px 6px;
   color: #656d76;
   font-size: 12px;
+}
+
+.ce-annotate-catcher {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483644;
+  pointer-events: auto;
+  cursor: crosshair;
+  background: transparent;
 }
 
 .ce-annotate-layer {

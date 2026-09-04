@@ -12,7 +12,7 @@ Build a throwaway prototype at the fidelity that can answer this question, befor
 
 **Result:** the user decided how the product should work or feel against a prototype that did not fake what they were deciding.
 **Next consumer:** an existing markdown Product Contract, or `ce-brainstorm` / `ce-plan` with this session as the seed.
-**Done:** the questions that needed an artifact are decided, or the user applies and continues into brainstorm or plan.
+**Done:** the user settled the questions that needed an artifact, or they apply and continue into brainstorm or plan. Their choice is the settlement, not a direction you inferred.
 **Not:** a decision a cheap sketch settles, polish, or shipping the prototype as a final product.
 
 If there is no person to experience the prototype — LFG, `mode:pipeline`, or any unattended run — stop. Do not start a preview, and do not invent how it should feel. Return that this skill needs a human.
@@ -26,6 +26,8 @@ Read `references/scoping.md` before you ask the user anything or touch the repo.
 ## Build it
 
 Read `references/build.md` and `references/preview.md` before writing anything. Once an isolated web preview is up, load `references/annotation-loop.md`. Overlay and yielded-medium runs stay on chat.
+
+After they proceed, speak only when they can act on something new, in one short line naming what happened. A screen is up, the helper URL is live, or a blocker only they can lift, are such boundaries. The annotation loop owns the line after an applied revision and silence while a wait is parked.
 
 A question is settled by seeing when the judgment lands on the rendered result: how a layout reads, what a palette does, how dense a screen feels. It is settled by driving when the judgment lands on what happens as the user moves through it: a flow, a state model, how a control answers. Load `references/craft-floor.md` for a seeing question. It carries the quality floor the render has to clear and the rule for how avenues differ, and neither of those lives here. A question settled by driving does not load it and gains no finish from it.
 

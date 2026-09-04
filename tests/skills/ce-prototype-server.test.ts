@@ -106,6 +106,10 @@ function postAnnotation(origin: string, token: unknown, body: object) {
   })
 }
 
+function flushAnnotations(origin: string, token: unknown) {
+  return fetch(`${origin}/session/flush?token=${token}`, { method: "POST" })
+}
+
 // Connection: close after a completed body, then destroy the socket. The
 // overlay still has to open /events on a new connection.
 function fetchDocumentClosingConnection(url: string): Promise<string> {
@@ -279,9 +283,10 @@ describe("ce-prototype light-webserver.js", () => {
       selector: "h1",
     })
     expect(posted.status).toBe(200)
+    expect((await flushAnnotations(`http://localhost:${info.port}`, info.token)).status).toBe(200)
     const result = await waiting
     expect(result.exitCode, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout.trim()).comment).toBe("from foreground")
+    expect(JSON.parse(result.stdout.trim())[0].comment).toBe("from foreground")
   })
 
   test("/version polling does not keep an otherwise idle server alive", async () => {
@@ -408,6 +413,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect((await fetch(`${origin}/wait`)).status).toBe(401)
     expect((await fetch(`${origin}/events`)).status).toBe(401)
     expect((await fetch(`${origin}/annotation`, { method: "POST", headers, body: "{}" })).status).toBe(401)
+    expect((await fetch(`${origin}/session/flush`, { method: "POST" })).status).toBe(401)
     const sameLength = `${String(info.token).slice(0, -1)}${String(info.token).endsWith("0") ? "1" : "0"}`
     expect((await fetch(`${origin}/wait?token=${sameLength}`)).status).toBe(401)
     expect((await fetch(`${origin}/wait?token=${String(info.token).slice(0, 8)}`)).status).toBe(401)
@@ -439,9 +445,10 @@ describe("ce-prototype light-webserver.js", () => {
       const waiting = runServerCommand(["wait", "--root", root])
       await new Promise((resolve) => setTimeout(resolve, 80))
       expect(await postFromNode(`http://${postHost}:${info.port}/annotation?token=${info.token}`, comment)).toBe(200)
+      expect((await flushAnnotations(`http://${postHost}:${info.port}`, info.token)).status).toBe(200)
       const result = await waiting
       expect(result.exitCode, result.stderr).toBe(0)
-      expect(JSON.parse(result.stdout.trim()).comment).toBe(comment)
+      expect(JSON.parse(result.stdout.trim())[0].comment).toBe(comment)
     }
 
     // Wildcard bind: wait talks to 127.0.0.1, which the server answers on.
@@ -460,9 +467,9 @@ describe("ce-prototype light-webserver.js", () => {
     await roundTrip("127.0.0.2", "127.0.0.2", "reach me on the alias")
   })
 
-  test("wait prints one annotation and session end unblocks the next wait", async () => {
+  test("wait prints a flushed batch and session end unblocks the next wait", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-"))
-    const info = await startServer(root, ["--annotate"])
+    const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "200" })
     const origin = `http://localhost:${info.port}`
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Pin me</h1>")
     const record = {
@@ -472,21 +479,25 @@ describe("ce-prototype light-webserver.js", () => {
       rect: { x: 12, y: 8, width: 40, height: 20 },
     }
 
-    const waiting = runServerCommand(["wait", "--root", root])
-    await new Promise((resolve) => setTimeout(resolve, 80))
     const posted = await postAnnotation(origin, info.token, record)
     expect(posted.status).toBe(200)
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
+
+    const waiting = runServerCommand(["wait", "--root", root])
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect((await flushAnnotations(origin, info.token)).status).toBe(200)
 
     const result = await waiting
     expect(result.exitCode, result.stderr).toBe(0)
     const payload = JSON.parse(result.stdout.trim())
-    expect(Object.keys(payload)).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect"])
-    // No page names the root, and the root is the newest screen.
-    expect(payload.screen).toBe("001-screen.html")
-    expect(payload.comment).toBe(record.comment)
-    expect(payload.selector).toBe(record.selector)
-    expect(payload.textSnippet).toBe(record.textSnippet)
-    expect(payload.rect).toEqual(record.rect)
+    expect(Array.isArray(payload)).toBe(true)
+    expect(payload).toHaveLength(1)
+    expect(Object.keys(payload[0])).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect"])
+    expect(payload[0].screen).toBe("001-screen.html")
+    expect(payload[0].comment).toBe(record.comment)
+    expect(payload[0].selector).toBe(record.selector)
+    expect(payload[0].textSnippet).toBe(record.textSnippet)
+    expect(payload[0].rect).toEqual(record.rect)
 
     const ending = runServerCommand(["wait", "--root", root])
     await new Promise((resolve) => setTimeout(resolve, 80))
@@ -523,9 +534,13 @@ describe("ce-prototype light-webserver.js", () => {
     const post = (body: Record<string, unknown>) =>
       postAnnotation(origin, info.token, { comment: "c", selector: "h1", ...body })
     const nextRecord = async () => {
+      expect((await flushAnnotations(origin, info.token)).status).toBe(200)
       const waited = await fetch(`${origin}/wait?token=${info.token}`)
       expect(waited.status).toBe(200)
-      return waited.json()
+      const batch = await waited.json()
+      expect(Array.isArray(batch)).toBe(true)
+      expect(batch).toHaveLength(1)
+      return batch[0]
     }
 
     expect((await post({ page: "/details.html" })).status).toBe(200)
@@ -1142,23 +1157,53 @@ describe("ce-prototype light-webserver.js", () => {
     expect(status.status).toBe("stopped")
   })
 
-  test("overlay arms comments only when the tool is on and Send to agent ends the session", async () => {
+  test("overlay arms comments only when the tool is on and Send to agent flushes a batch", async () => {
     const overlay = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.js"), "utf8")
     expect(overlay).toContain("let commentToolOn = false")
-    expect(overlay).toMatch(/if \(!commentToolOn \|\| sessionEnded\) return/)
-    expect(overlay).toContain('tokenUrl("/session/end")')
+    expect(overlay).toContain("ce-annotate-catcher")
+    expect(overlay).toContain("elementsFromPoint")
+    expect(overlay).toContain("catcher.hidden = !on")
+    const overlayCss = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
+    expect(overlayCss).toContain("cursor: crosshair")
+    expect(overlay).toMatch(/if \(!commentToolOn \|\| sessionEnded \|\| agentHasBatch\(\)\) return/)
+    expect(overlay).not.toMatch(/document\.addEventListener\("click", \(event\)/)
+    expect(overlay).toContain('tokenUrl(sending ? "/session/flush" : "/session/end")')
+    expect(overlay).toContain("unflushedCount")
+    expect(overlay).toContain('held: "pending"')
     expect(overlay).toContain("target-gone")
     expect(overlay).toContain("EventSource")
     expect(overlay).toContain("ce-prototype-root")
     expect(overlay).toContain('if (el === document.body) return "body"')
-    expect(overlay).toContain(">Annotate</button>")
-    expect(overlay).toContain(">Send to agent</button>")
+    expect(overlay).toContain(">Annotate</span>")
+    expect(overlay).toContain(">Ctrl+A</kbd>")
+    expect(overlay).toContain("freezeRootFrom")
+    expect(overlay).toContain("shouldFreezeProp")
+    expect(overlay).toContain("webkit-text-fill")
+    expect(overlay).toContain("window.innerWidth * window.innerHeight")
+    expect(overlay).toContain("background: transparent")
+    expect(overlay).toMatch(/if \(!shouldFreezeProp\(prop\)\) continue/)
+    expect(overlay).toContain("ce-annotate-hotkey")
+    expect(overlay).toContain("freezeHoverThenAnnotate")
+    expect(overlay).toContain("aria-keyshortcuts=\"Control+A Escape\"")
+    expect(overlay).toContain('event.key === "Escape"')
+    expect(overlay).toMatch(/if \(commentToolOn\) \{\n\s+setCommentTool\(false\)/)
+    expect(overlay).toContain(">End session</button>")
+    expect(overlay).toContain("Send to agent")
+    expect(overlay).toContain("ce-annotate-count")
+    expect(overlay).toContain("toggle.hidden = true")
+    expect(overlay).toContain("stop.hidden = true")
+    expect(overlay).toContain("agentHasBatch")
+    expect(overlay).toContain('setStatus("Sent to agent")')
+    // display:inline-flex on the chips otherwise beats the UA [hidden] rule.
+    expect(overlayCss).toMatch(/\[hidden\]\s*\{\s*display:\s*none\s*!important;/)
     expect(overlay).not.toContain("<svg")
     expect(overlay).not.toContain(">End preview</button>")
+    expect(overlay).not.toContain(">Send to agent</button>")
     expect(overlay).not.toContain(">Comment</button>")
     expect(overlay).not.toContain(">Done</button>")
     expect(overlay).not.toContain(">Stop</button>")
     expect(overlay).toContain("Could not send to agent — retry")
+    expect(overlay).toContain("Could not end session — retry")
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
     expect(overlay).toContain('addEventListener("scroll", reattachPins')
     expect(overlay).toContain("new ResizeObserver(reattachPins)")
@@ -1168,14 +1213,18 @@ describe("ce-prototype light-webserver.js", () => {
     // the overlay never reconciles DOM, head, or scripts itself.
     expect(overlay).toContain('addEventListener("screen-changed"')
     expect(overlay).toContain("sessionStorage.setItem(STATE_KEY")
+    expect(overlay).toContain('addEventListener("pagehide"')
+    expect(overlay).toContain("pinOnThisPage")
+    expect(overlay).toContain("event.persisted")
+    expect(overlay).not.toContain("sessionStorage.removeItem")
     expect(overlay).toContain("window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)")
     expect(overlay).not.toContain("window.location.reload()")
     // Pin status follows the helper's annotation lifecycle, never a reload;
     // an open draft survives a reload; a reload waits for an in-flight POST.
     expect(overlay).toContain('addEventListener("annotations"')
-    expect(overlay).toContain('{ queued: "pending", working: "working", done: "attached" }')
+    expect(overlay).toContain('{ held: "pending", queued: "pending", working: "working", done: "attached" }')
     expect(overlay).not.toContain("advancePinsAfterRevision")
-    expect(overlay).toMatch(/draft: draft \? \{ \.\.\.draft, text: commentField\.value/)
+    expect(overlay).toMatch(/draft: draft\n\s+\? \{ \.\.\.draft, page: servedPage, text: commentField\.value/)
     expect(overlay).toMatch(/if \(inFlight\) \{\n\s+reloadPending = true/)
     expect(overlay).toContain("if (reloadPending && !sessionEnded) requestReload()")
     // Cancel or toggling the tool off during an in-flight POST must not break
@@ -1201,7 +1250,7 @@ describe("ce-prototype light-webserver.js", () => {
     // body-scoped selector, document.body.children, and the authored layout.
     expect(overlay).toContain("document.documentElement.appendChild(host)")
     expect(overlay).not.toContain("document.body.appendChild(")
-    expect(overlay).toMatch(/host\.style\.cssText =\s*"display: block; position: fixed; inset: 0; pointer-events: none; z-index: \d+;/)
+    expect(overlay).toMatch(/host\.style\.cssText =\s*"display: block; position: fixed; inset: 0; width: auto; height: auto; overflow: visible; color: inherit; background: transparent; pointer-events: none; z-index: \d+;/)
     // z-index cannot beat dialog.showModal(); a manual popover is the top layer.
     expect(overlay).toContain('setAttribute("popover", "manual")')
     expect(overlay).toContain("showPopover")
@@ -1215,7 +1264,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)")
     expect(overlay).not.toContain("window.location.pathname")
     const css = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
-    expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  pointer-events: none;/)
+    expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  width: auto;\n  height: auto;\n  overflow: visible;\n  color: inherit;\n  background: transparent;\n  pointer-events: none;/)
     expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*pointer-events: auto;/)
     expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*background: #fff;/)
     expect(css).toMatch(/\.ce-annotate-chrome \{[^}]*box-shadow:/)
@@ -1224,32 +1273,32 @@ describe("ce-prototype light-webserver.js", () => {
     expect(css).toMatch(/\.ce-annotate-composer \{[^}]*max-width: 100vw;/)
     expect(overlay).not.toContain("getElementById(\"ce-annotate-host\")")
     expect(overlay).not.toContain("#ce-annotate-host")
-    expect(overlay).toContain("if (host.contains(target)) return")
-    expect(overlay).toContain("event.composedPath().includes(host)")
+    expect(overlay).toContain("el === host || host.contains(el)")
     expect(overlay).not.toContain("DOMParser")
     expect(overlay).not.toContain("adoptNode")
     expect(overlay).not.toMatch(/\bmorph\b/i)
     expect(overlay).not.toMatch(/WebSocket/)
   })
 
-  test("queued annotations stay in the helper until the next wait", async () => {
+  test("held annotations wait for flush and arrive as one batch", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-queue-"))
-    const info = await startServer(root, ["--annotate"])
+    const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "200" })
     const origin = `http://localhost:${info.port}`
     await fs.writeFile(path.join(String(info.screen_dir), "001-screen.html"), "<h1>Queue</h1>")
     expect((await postAnnotation(origin, info.token, { comment: "first", selector: "h1" })).status).toBe(200)
     expect((await postAnnotation(origin, info.token, { comment: "second", selector: "h2" })).status).toBe(200)
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
 
+    expect((await flushAnnotations(origin, info.token)).status).toBe(200)
     const first = await runServerCommand(["wait", "--root", root])
     expect(first.exitCode, first.stderr).toBe(0)
-    expect(JSON.parse(first.stdout.trim()).comment).toBe("first")
+    const batch = JSON.parse(first.stdout.trim())
+    expect(batch.map((item: { comment: string }) => item.comment)).toEqual(["first", "second"])
 
-    const second = await runServerCommand(["wait", "--root", root])
-    expect(second.exitCode, second.stderr).toBe(0)
-    expect(JSON.parse(second.stdout.trim()).comment).toBe("second")
+    expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
   })
 
-  test("session end keeps undelivered pins queued and wait drains them before session-ended", async () => {
+  test("session end flushes held pins as one batch before session-ended", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-end-queue-"))
     const info = await startServer(root, ["--annotate"])
     const origin = `http://localhost:${info.port}`
@@ -1265,20 +1314,16 @@ describe("ce-prototype light-webserver.js", () => {
     expect(last[second.id]).toBe("queued")
     expect(last[first.id]).not.toBe("done")
 
-    const deliveredFirst = await runServerCommand(["wait", "--root", root])
-    expect(deliveredFirst.exitCode, deliveredFirst.stderr).toBe(0)
-    expect(JSON.parse(deliveredFirst.stdout.trim()).comment).toBe("first")
-
-    const deliveredSecond = await runServerCommand(["wait", "--root", root])
-    expect(deliveredSecond.exitCode, deliveredSecond.stderr).toBe(0)
-    expect(JSON.parse(deliveredSecond.stdout.trim()).comment).toBe("second")
+    const delivered = await runServerCommand(["wait", "--root", root])
+    expect(delivered.exitCode, delivered.stderr).toBe(0)
+    expect(JSON.parse(delivered.stdout.trim()).map((item: { comment: string }) => item.comment)).toEqual(["first", "second"])
 
     const ended = await runServerCommand(["wait", "--root", root])
     expect(ended.exitCode, ended.stderr).toBe(1)
     expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
   })
 
-  test("annotation lifecycle follows POST, wait, and re-entering wait, and is streamed to the overlay", async () => {
+  test("annotation lifecycle follows POST, flush, wait, and re-entering wait, and is streamed to the overlay", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-lifecycle-"))
     const info = await startServer(root, ["--annotate"], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "40" })
     const origin = `http://localhost:${info.port}`
@@ -1310,25 +1355,22 @@ describe("ce-prototype light-webserver.js", () => {
 
     const first = await post("first")
     const second = await post("second")
-    expect(await lifecycle()).toEqual({ [first]: "queued", [second]: "queued" })
+    expect(await lifecycle()).toEqual({ [first]: "held", [second]: "held" })
+    expect(await wait()).toBeNull()
 
+    expect((await flushAnnotations(origin, info.token)).status).toBe(200)
     const served = await wait()
-    expect(served.id).toBe(first)
-    expect(served.comment).toBe("first")
-    expect(await lifecycle()).toEqual({ [first]: "working", [second]: "queued" })
+    expect(served.map((item: { id: string }) => item.id)).toEqual([first, second])
+    expect(served[0].comment).toBe("first")
+    expect(await lifecycle()).toEqual({ [first]: "working", [second]: "working" })
 
-    // Re-entering wait completes the served annotation and serves the next.
-    expect((await wait()).id).toBe(second)
-    expect(await lifecycle()).toEqual({ [first]: "done", [second]: "working" })
-
-    // A 204 wait while idle completes the last one; nothing else is served.
     expect(await wait()).toBeNull()
     expect(await lifecycle()).toEqual({ [first]: "done", [second]: "done" })
 
     const third = await post("third")
-    expect(await lifecycle()).toEqual({ [first]: "done", [second]: "done", [third]: "queued" })
+    expect(await lifecycle()).toEqual({ [first]: "done", [second]: "done", [third]: "held" })
     await fetch(`${origin}/session/end?token=${info.token}`, { method: "POST" })
-    expect((await wait()).id).toBe(third)
+    expect((await wait()).map((item: { id: string }) => item.id)).toEqual([third])
     expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(410)
   })
 })

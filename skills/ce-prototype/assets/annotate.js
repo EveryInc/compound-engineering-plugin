@@ -6,10 +6,10 @@
   const servedDocument = document.currentScript?.getAttribute("data-ce-document") || ""
   // Overlay host hangs off <html>, not <body>, so it stays out of body layout
   // and document.body.children. A manual popover puts it on the top layer so
-  // Annotate/Send to agent stay usable over dialog.showModal().
+  // Annotate and the end control stay usable over dialog.showModal().
   const host = document.createElement("ce-annotate-host")
   host.style.cssText =
-    "display: block; position: fixed; inset: 0; pointer-events: none; z-index: 2147483645; margin: 0; padding: 0; border: 0;"
+    "display: block; position: fixed; inset: 0; width: auto; height: auto; overflow: visible; color: inherit; background: transparent; pointer-events: none; z-index: 2147483645; margin: 0; padding: 0; border: 0;"
   document.documentElement.appendChild(host)
   host.setAttribute("popover", "manual")
   const raiseOverlay = () => {
@@ -41,11 +41,16 @@
   const chrome = document.createElement("div")
   chrome.className = "ce-annotate-chrome"
   chrome.innerHTML = `
-    <button type="button" class="ce-annotate-toggle" aria-pressed="false">Annotate</button>
-    <button type="button" class="ce-annotate-stop" title="Close the preview and send your notes to the agent">Send to agent</button>
+    <button type="button" class="ce-annotate-toggle" aria-pressed="false" aria-keyshortcuts="Control+A Escape" title="Click pins the rest state. Ctrl+A while hovering freezes hover, then click to pin. Esc or Ctrl+A again turns it off."><span class="ce-annotate-toggle-label">Annotate</span><kbd class="ce-annotate-hotkey">Ctrl+A</kbd></button>
+    <button type="button" class="ce-annotate-stop" title="Close the preview and return to chat">End session</button>
     <span class="ce-annotate-status" hidden></span>
   `
   shadow.appendChild(chrome)
+
+  const catcher = document.createElement("div")
+  catcher.className = "ce-annotate-catcher"
+  catcher.hidden = true
+  shadow.appendChild(catcher)
 
   const layer = document.createElement("div")
   layer.className = "ce-annotate-layer"
@@ -65,6 +70,7 @@
   shadow.appendChild(composer)
 
   const toggle = chrome.querySelector(".ce-annotate-toggle")
+  const toggleLabel = chrome.querySelector(".ce-annotate-toggle-label")
   const stop = chrome.querySelector(".ce-annotate-stop")
   const status = chrome.querySelector(".ce-annotate-status")
   const commentField = composer.querySelector(".ce-annotate-comment")
@@ -73,9 +79,12 @@
   const error = composer.querySelector(".ce-annotate-error")
 
   const STATE_KEY = "ce-annotate-state"
-  const PIN_STATUS = { queued: "pending", working: "working", done: "attached" }
+  const PIN_STATUS = { held: "pending", queued: "pending", working: "working", done: "attached" }
   let commentToolOn = false
   let sessionEnded = false
+  let lastPointer = { x: 0, y: 0 }
+  let sawPointer = false
+  const frozenStyles = []
   let inFlight = false
   let reloadPending = false
   let draft = null
@@ -92,18 +101,27 @@
   // A revised screen is shown by navigating to the stamped served path, so a
   // History API rewrite is not what the helper looks up. Query and fragment
   // on that path stay. The browser owns every reconciliation; pins, tool
-  // state, and open draft are carried across.
-  function persistAndReload() {
+  // state, and open draft are carried across explorer navigation as well as
+  // helper-driven reloads.
+  function persistState() {
     const state = {
       commentToolOn,
+      sessionEnded,
       pins,
-      draft: draft ? { ...draft, text: commentField.value, left: composer.style.left, top: composer.style.top } : null,
+      annotationStates,
+      draft: draft
+        ? { ...draft, page: servedPage, text: commentField.value, left: composer.style.left, top: composer.style.top }
+        : null,
     }
     try {
       sessionStorage.setItem(STATE_KEY, JSON.stringify(state))
     } catch {
-      // Without storage the reload still shows the revised screen; only the pins are lost.
+      // Without storage a navigation still shows the next screen; only the pins are lost.
     }
+  }
+
+  function persistAndReload() {
+    persistState()
     window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)
   }
 
@@ -122,16 +140,34 @@
     let saved = null
     try {
       saved = JSON.parse(sessionStorage.getItem(STATE_KEY) || "null")
-      sessionStorage.removeItem(STATE_KEY)
     } catch {
       return false
     }
-    if (!saved || !Array.isArray(saved.pins)) return false
-    for (const pin of saved.pins) {
-      if (pin && typeof pin.selector === "string" && typeof pin.comment === "string") pins.push(pin)
+    if (!saved || typeof saved !== "object") return false
+    if (saved.annotationStates && typeof saved.annotationStates === "object" && !Array.isArray(saved.annotationStates)) {
+      annotationStates = { ...saved.annotationStates, ...annotationStates }
     }
-    if (saved.commentToolOn) setCommentTool(true)
-    if (saved.draft && typeof saved.draft.selector === "string") restoreDraft(saved.draft)
+    if (Array.isArray(saved.pins)) {
+      for (const pin of saved.pins) {
+        if (!pin || typeof pin.selector !== "string" || typeof pin.comment !== "string") continue
+        if (pin.id && pins.some((existing) => existing.id === pin.id)) continue
+        pins.push(pin)
+      }
+    }
+    if (saved.sessionEnded) {
+      markEnded()
+      return true
+    }
+    if (saved.commentToolOn && !agentHasBatch()) setCommentTool(true)
+    if (
+      saved.draft &&
+      typeof saved.draft.selector === "string" &&
+      (!saved.draft.page || saved.draft.page === servedPage) &&
+      !agentHasBatch()
+    ) {
+      restoreDraft(saved.draft)
+    }
+    syncStopButton()
     return true
   }
 
@@ -166,6 +202,57 @@
       if (status) pin.status = status
     }
     reattachPins()
+    syncStopButton()
+  }
+
+  function unflushedCount() {
+    const ids = new Set()
+    for (const [id, state] of Object.entries(annotationStates)) {
+      if (state === "held") ids.add(id)
+    }
+    for (const pin of pins) {
+      const state = pin.id ? annotationStates[pin.id] : "held"
+      if (!state || state === "held") ids.add(pin.id || `local:${pins.indexOf(pin)}`)
+    }
+    return ids.size
+  }
+
+  function pinOnThisPage(pin) {
+    return !pin.page || pin.page === servedPage
+  }
+
+  function agentHasBatch() {
+    return Object.values(annotationStates).some((state) => state === "queued" || state === "working")
+  }
+
+  function syncStopButton() {
+    if (sessionEnded) return
+    if (agentHasBatch()) {
+      if (commentToolOn) setCommentTool(false)
+      toggle.hidden = true
+      stop.hidden = true
+      setStatus("Sent to agent")
+      status.title = "Return to chat. You can annotate again after this batch is applied."
+      return
+    }
+    toggle.hidden = false
+    stop.hidden = false
+    status.removeAttribute("title")
+    if (status.textContent === "Sent to agent") setStatus("")
+    const n = unflushedCount()
+    if (n === 0) {
+      stop.textContent = "End session"
+      stop.removeAttribute("aria-label")
+      stop.title = "Close the preview and return to chat"
+      return
+    }
+    const badge = document.createElement("span")
+    badge.className = "ce-annotate-count"
+    badge.textContent = String(n)
+    stop.replaceChildren(badge, document.createTextNode("Send to agent"))
+    const notes = n === 1 ? "1 note" : `${n} notes`
+    stop.setAttribute("aria-label", `Send ${notes} to the agent`)
+    stop.title = `Send ${notes} to the agent. The session stays open for another batch.`
   }
 
   function cssPath(el) {
@@ -225,6 +312,7 @@
   function renderPins() {
     layer.replaceChildren()
     for (const pin of pins) {
+      if (!pinOnThisPage(pin)) continue
       const marker = document.createElement("button")
       marker.type = "button"
       marker.className = `ce-annotate-pin is-${pin.status}`
@@ -244,6 +332,7 @@
   function reattachPins() {
     const root = prototypeRoot()
     for (const pin of pins) {
+      if (!pinOnThisPage(pin)) continue
       let node = null
       try {
         node = root.querySelector(pin.selector) || document.querySelector(pin.selector)
@@ -263,9 +352,9 @@
 
   function markEnded() {
     sessionEnded = true
-    commentToolOn = false
-    toggle.disabled = true
-    stop.disabled = true
+    setCommentTool(false)
+    toggle.hidden = true
+    stop.hidden = true
     setStatus("Session ended")
     closeComposer()
   }
@@ -302,12 +391,113 @@
     commentToolOn = on
     toggle.setAttribute("aria-pressed", String(on))
     toggle.classList.toggle("is-on", on)
-    toggle.textContent = on ? "Annotating" : "Annotate"
-    if (!on) closeComposer(inFlight)
+    toggleLabel.textContent = on ? "Annotating" : "Annotate"
+    catcher.hidden = !on
+    if (!on) {
+      unfreezeHover()
+      closeComposer(inFlight)
+    }
+  }
+
+  function pageElementFromPoint(x, y) {
+    let node = null
+    for (const el of document.elementsFromPoint(x, y)) {
+      if (!(el instanceof Element)) continue
+      if (el === host || host.contains(el)) continue
+      if (el === document.documentElement) continue
+      node = el
+      break
+    }
+    return node || prototypeRoot()
+  }
+
+  function targetFromCatcher(event) {
+    catcher.style.pointerEvents = "none"
+    try {
+      return pageElementFromPoint(event.clientX, event.clientY)
+    } finally {
+      catcher.style.pointerEvents = ""
+    }
+  }
+
+  function unfreezeHover() {
+    for (const item of frozenStyles) {
+      if (item.style == null) item.el.removeAttribute("style")
+      else item.el.setAttribute("style", item.style)
+    }
+    frozenStyles.length = 0
+  }
+
+  const freezeExact = new Set([
+    "display", "visibility", "opacity", "overflow", "overflow-x", "overflow-y",
+    "color", "cursor", "z-index", "font-weight", "font-style",
+    "box-shadow", "text-shadow", "filter", "backdrop-filter", "mix-blend-mode",
+    "translate", "rotate", "scale", "clip-path",
+  ])
+  const freezePrefix = ["background-", "border-", "outline-", "text-decoration", "transform", "mask-", "fill", "stroke"]
+
+  function shouldFreezeProp(prop) {
+    if (prop.includes("webkit-text-fill") || prop.includes("webkit-text-stroke")) return false
+    if (prop === "border-block-size" || prop === "border-inline-size") return false
+    if (freezeExact.has(prop)) return true
+    return freezePrefix.some((prefix) => prop === prefix || prop.startsWith(prefix))
+  }
+
+  function freezeSubtree(root) {
+    const nodes = [root, ...root.querySelectorAll("*")]
+    for (const el of nodes) {
+      frozenStyles.push({ el, style: el.getAttribute("style") })
+      const cs = getComputedStyle(el)
+      let cssText = ""
+      for (let i = 0; i < cs.length; i++) {
+        const prop = cs[i]
+        if (!shouldFreezeProp(prop)) continue
+        cssText += `${prop}: ${cs.getPropertyValue(prop)};`
+      }
+      el.style.cssText = cssText
+    }
+  }
+
+  function freezeRootFrom(hit) {
+    const limit = prototypeRoot()
+    const areaCap = window.innerWidth * window.innerHeight * 0.5
+    let root = hit
+    while (root.parentElement) {
+      const parent = root.parentElement
+      if (parent === limit || parent === document.body || parent === document.documentElement) break
+      const box = parent.getBoundingClientRect()
+      if (box.width * box.height > areaCap) break
+      root = parent
+    }
+    freezeSubtree(root)
+  }
+
+  function freezeHoverThenAnnotate() {
+    catcher.style.pointerEvents = "none"
+    try {
+      if (sawPointer) {
+        unfreezeHover()
+        freezeRootFrom(pageElementFromPoint(lastPointer.x, lastPointer.y))
+      }
+    } finally {
+      catcher.style.pointerEvents = ""
+    }
+    setCommentTool(true)
+  }
+
+  function isTypingTarget(el) {
+    if (!(el instanceof Element)) return false
+    const tag = el.tagName
+    if (tag === "TEXTAREA" || tag === "SELECT") return true
+    if (tag === "INPUT") {
+      const type = (el.getAttribute("type") || "text").toLowerCase()
+      return !["button", "submit", "reset", "checkbox", "radio", "file", "color", "range", "hidden"].includes(type)
+    }
+    return el.isContentEditable
   }
 
   toggle.addEventListener("click", () => {
-    if (sessionEnded) return
+    if (sessionEnded || agentHasBatch()) return
     setCommentTool(!commentToolOn)
   })
 
@@ -344,6 +534,8 @@
       const { id } = await response.json()
       pins.push({ ...submission, id, status: PIN_STATUS[annotationStates[id]] || "pending" })
       renderPins()
+      syncStopButton()
+      persistState()
       closeComposer()
     } catch {
       if (!sessionEnded) {
@@ -360,18 +552,37 @@
 
   stop.addEventListener("click", async () => {
     if (sessionEnded) return
+    const sending = unflushedCount() > 0
     stop.disabled = true
     try {
-      const response = await fetch(tokenUrl("/session/end"), { method: "POST" })
+      const response = await fetch(tokenUrl(sending ? "/session/flush" : "/session/end"), { method: "POST" })
       if (!response.ok) throw new Error("retry")
     } catch {
       stop.disabled = false
-      setStatus("Could not send to agent — retry")
+      setStatus(sending ? "Could not send to agent — retry" : "Could not end session — retry")
+      return
+    }
+    if (sending) {
+      for (const id of Object.keys(annotationStates)) {
+        if (annotationStates[id] === "held") annotationStates[id] = "queued"
+      }
+      for (const pin of pins) {
+        if (pin.id && (!annotationStates[pin.id] || annotationStates[pin.id] === "held")) {
+          annotationStates[pin.id] = "queued"
+        }
+      }
+      persistState()
+      stop.disabled = false
+      syncStopButton()
       return
     }
     markEnded()
   })
 
+  window.addEventListener("pagehide", persistState)
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) restorePersistedState()
+  })
   window.addEventListener("scroll", reattachPins, { capture: true, passive: true })
   window.addEventListener("resize", reattachPins)
   const layoutRoot = prototypeRoot()
@@ -387,18 +598,46 @@
     })
   }
 
-  document.addEventListener("click", (event) => {
-    if (!commentToolOn || sessionEnded) return
-    if (event.composedPath().includes(host)) return
-    const target = event.target
-    if (!(target instanceof Element)) return
-    if (host.contains(target)) return
+  catcher.addEventListener("click", (event) => {
+    if (!commentToolOn || sessionEnded || agentHasBatch()) return
     event.preventDefault()
     event.stopPropagation()
+    const target = targetFromCatcher(event)
+    if (!(target instanceof Element)) return
     openComposer(target, event)
+  })
+
+  document.addEventListener("pointermove", (event) => {
+    sawPointer = true
+    lastPointer.x = event.clientX
+    lastPointer.y = event.clientY
+  }, { capture: true, passive: true })
+
+  document.addEventListener("keydown", (event) => {
+    if (sessionEnded || agentHasBatch()) return
+    if (event.key === "Escape") {
+      if (!commentToolOn && composer.hidden) return
+      event.preventDefault()
+      event.stopPropagation()
+      setCommentTool(false)
+      return
+    }
+    if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+    if (event.key.toLowerCase() !== "a") return
+    const path = event.composedPath()
+    if (path.some((node) => isTypingTarget(node))) return
+    if (isTypingTarget(shadow.activeElement) || isTypingTarget(document.activeElement)) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (commentToolOn) {
+      setCommentTool(false)
+      return
+    }
+    freezeHoverThenAnnotate()
   }, true)
 
   if (restorePersistedState()) reattachPins()
+  syncStopButton()
 
   if ("EventSource" in window) {
     source = new EventSource(tokenUrl("/events", { document: servedDocument }))

@@ -713,9 +713,10 @@ async function serve(options) {
 
   const sessionToken = options.annotate ? randomUUID() : null
   let cookieName = null
+  const heldQueue = []
   const annotationQueue = []
-  // id -> queued | working | done, in POST order. The overlay's pin status
-  // follows this, never the screen changes an annotation happens to cause.
+  // id -> held | queued | working | done, in POST order. The overlay's pin
+  // status follows this, never the screen changes an annotation happens to cause.
   const annotationStates = new Map()
   const waiters = []
   const sseClients = new Set()
@@ -749,6 +750,7 @@ async function serve(options) {
     for (const [id, state] of annotationStates) {
       if (state === "working") annotationStates.set(id, "done")
     }
+    flushHeld()
     broadcastAnnotations()
     fulfillWaiters()
     const body = `${JSON.stringify({ status: "session-ended" })}\n`
@@ -795,10 +797,19 @@ async function serve(options) {
     if (changed) broadcastAnnotations()
   }
 
-  function serveAnnotation(res, item) {
-    annotationStates.set(item.id, "working")
+  function flushHeld() {
+    if (heldQueue.length === 0) return
+    for (const item of heldQueue) {
+      annotationQueue.push(item)
+      if (annotationStates.get(item.id) === "held") annotationStates.set(item.id, "queued")
+    }
+    heldQueue.length = 0
+  }
+
+  function serveBatch(res, items) {
+    for (const item of items) annotationStates.set(item.id, "working")
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
-    res.end(`${JSON.stringify(item)}\n`)
+    res.end(`${JSON.stringify(items)}\n`)
     broadcastAnnotations()
   }
 
@@ -807,7 +818,7 @@ async function serve(options) {
       const parked = waiters.shift()
       clearTimeout(parked.timer)
       if (parked.res.writableEnded) continue
-      serveAnnotation(parked.res, annotationQueue.shift())
+      serveBatch(parked.res, annotationQueue.splice(0, annotationQueue.length))
     }
   }
 
@@ -957,7 +968,7 @@ async function serve(options) {
         broadcastIfChanged()
         completeWorking()
         if (annotationQueue.length > 0) {
-          serveAnnotation(res, annotationQueue.shift())
+          serveBatch(res, annotationQueue.splice(0, annotationQueue.length))
           return
         }
         if (sessionEnded) {
@@ -1002,12 +1013,21 @@ async function serve(options) {
           sendJson(res, 400, { error: "invalid annotation" })
           return
         }
-        annotationQueue.push(record)
-        annotationStates.set(record.id, "queued")
+        heldQueue.push(record)
+        annotationStates.set(record.id, "held")
         touch()
         broadcastAnnotations()
-        fulfillWaiters()
         sendJson(res, 200, { ok: true, id: record.id })
+        return
+      }
+
+      if (req.method === "POST" && urlPath === "/session/flush") {
+        unbindPendingFromSocket(req.socket)
+        if (!requireLiveAnnotate(req, res)) return
+        flushHeld()
+        broadcastAnnotations()
+        fulfillWaiters()
+        sendJson(res, 200, { ok: true })
         return
       }
 

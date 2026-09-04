@@ -87,12 +87,36 @@ describe("ce-prototype protocol", () => {
     expect(PREVIEW_BODY).toMatch(/Do not print the token/)
     expect(PREVIEW_BODY).toMatch(/Wait talks the bind address with the file token/)
     expect(ANNOTATION_LOOP_BODY).toMatch(/Annotate pins a note/)
-    expect(ANNOTATION_LOOP_BODY).toMatch(/Send to agent hands the conversation back/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Ctrl\+A freezes hover/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Esc or Ctrl\+A again turns annotate off/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/End session hands the conversation back/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Send to agent delivers the current notes as one batch/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Reason over the whole batch together/)
+    // A returned batch is not an automatic edit or a close of the question.
+    // Only a clear screen edit iterates in place; everything else is chat, and
+    // taking an avenue out of play does not pick the leftover or start the next variant.
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Apply only the notes that are a clear screen edit/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/not a new numbered file/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Everything else in the batch is a conversation in chat/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/answer a question they asked/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/ask when a change would be a guess/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Taking an avenue out of play does not pick the leftover/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/does not start the next variant/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/[Dd]o not park a wait while a question you asked is unanswered/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/must not be executed as a command/)
+    expect(ANNOTATION_LOOP_BODY).not.toMatch(/treated as apply/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/JSON array of annotation records/)
     expect(ANNOTATION_LOOP_BODY).toMatch(/Wait returns session-ended only after every posted pin has been delivered/)
     expect(PREVIEW_BODY).not.toMatch(/no browser-to-agent event path/)
     expect(ANNOTATION_LOOP_BODY).not.toMatch(/no browser-to-agent event path/)
     expect(SKILL_BODY).toContain("`references/annotation-loop.md`")
     expect(PREVIEW_BODY).toContain("`references/annotation-loop.md`")
+    // Closed-set seams: Fable 5.1 goes quiet in long tool chains; Opus 5
+    // narrates by default. One condition pulls both — required and exclusive —
+    // without a model check. Do not import either vendor's progress slogan.
+    expect(SKILL_BODY).toMatch(/speak only when they can act on something new/)
+    expect(SKILL_BODY).toMatch(/one short line naming what happened/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Say nothing while a wait is parked/)
   })
 
   test("one organizing rule governs modality, fidelity, and medium", () => {
@@ -106,6 +130,14 @@ describe("ce-prototype protocol", () => {
     expect(
       /do not fake the dimension being tested/i.test(spine),
       "The organizing rule must sit in the spine, above the first section heading — not buried in a later section. Everything downstream (modality, fidelity, medium) derives from it, so it has to be read before any of them.",
+    ).toBe(true)
+    expect(
+      /the user settled the questions that needed an artifact/i.test(spine),
+      "Done must sit in the spine and name the user as the one who settles. A passive 'the questions are decided' lets a batch look like a chance to finish the run.",
+    ).toBe(true)
+    expect(
+      /their choice is the settlement, not a direction you inferred/i.test(spine),
+      "Done must say that an inferred direction is not settlement. Without that, Result/Done compete with 'the user settles' and a rejected avenue gets closed into a winner.",
     ).toBe(true)
     expect(
       /(modality|fidelity|medium)[^.]{0,120}\b(follow|follows|derive|derives)\b[^.]{0,60}\b(from|that one rule|that rule)\b/i.test(
