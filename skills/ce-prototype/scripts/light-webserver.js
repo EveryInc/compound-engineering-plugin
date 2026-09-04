@@ -1231,8 +1231,10 @@ function status(options) {
 }
 
 async function main() {
+  let command
   try {
     const options = parseArgs(process.argv)
+    command = options.command
     if (options.command === "start") await start(options)
     else if (options.command === "serve") await serve(options)
     else if (options.command === "stop") await stop(options)
@@ -1240,7 +1242,8 @@ async function main() {
     else if (options.command === "wait") await wait(options)
   } catch (error) {
     console.error(error.message)
-    process.exit(1)
+    // Wait reserves exit 1 for session-ended; any other failure is exit 2.
+    process.exit((command ?? process.argv[2]) === "wait" ? 2 : 1)
   }
 }
 

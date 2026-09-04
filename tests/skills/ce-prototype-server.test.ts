@@ -565,6 +565,12 @@ describe("ce-prototype light-webserver.js", () => {
     expect(result.stdout).toBe("")
   })
 
+  test("unexpected wait failures exit 2 rather than session-ended", async () => {
+    expect(await fs.readFile(serverScript, "utf8")).toMatch(
+      /process.exit\(\(command \?\? process.argv\[2\]\) === "wait" \? 2 : 1\)/,
+    )
+  })
+
   test("the record names the screen file the annotated page resolves to; a page that does not is refused", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-screen-"))
     const info = await startServer(root, ["--annotate"])
