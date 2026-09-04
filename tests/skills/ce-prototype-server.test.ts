@@ -82,12 +82,18 @@ function overlayDocumentId(html: string): string {
   expect(match, html.slice(0, 400)).toBeTruthy()
   return match![1]
 }
-function annotateBoot(origin: string, page = "/", documentId?: string): string {
+function overlaySessionId(html: string): string {
+  const match = html.match(/data-ce-session="([0-9a-f-]{36})"/)
+  expect(match, html.slice(0, 400)).toBeTruthy()
+  return match![1]
+}
+function annotateBoot(origin: string, page = "/", documentId?: string, sessionId?: string): string {
+  const sessionAttr = sessionId ? ` data-ce-session="${sessionId}"` : ""
   const documentAttr = documentId ? ` data-ce-document="${documentId}"` : ""
-  return `<script defer src="${origin}/__ce-annotate/annotate.js"${documentAttr} data-ce-page="${page}"></script>`
+  return `<script defer src="${origin}/__ce-annotate/annotate.js"${sessionAttr}${documentAttr} data-ce-page="${page}"></script>`
 }
 function annotateBootFrom(html: string, origin: string, page = "/"): string {
-  return annotateBoot(origin, page, overlayDocumentId(html))
+  return annotateBoot(origin, page, overlayDocumentId(html), overlaySessionId(html))
 }
 function eventsUrl(origin: string, token: unknown, documentId?: string): string {
   const url = new URL("/events", origin)
@@ -402,6 +408,43 @@ describe("ce-prototype light-webserver.js", () => {
     expect(full).toMatch(/<body[^>]*>\s*<main>/)
     expect(full).not.toContain("ce-prototype-root")
     expect(full).not.toContain("CE local web")
+    const session = overlaySessionId(html)
+    expect(session).not.toBe(token)
+    expect(html).toContain(`data-ce-session="${session}"`)
+  })
+
+  test("overlay session id is unique per server start and is not the auth token", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-session-key-"))
+    const first = await startServer(root, ["--annotate"])
+    const html1 = await (await fetch(String(first.url), { headers: NAVIGATE })).text()
+    const session1 = overlaySessionId(html1)
+    expect(session1).not.toBe(String(first.token))
+    expect(html1).not.toContain(String(first.token))
+    await runServerCommand(["stop", "--root", root])
+    const second = await startServer(root, ["--annotate"])
+    const html2 = await (await fetch(String(second.url), { headers: NAVIGATE })).text()
+    const session2 = overlaySessionId(html2)
+    expect(session2).not.toBe(session1)
+    expect(session2).not.toBe(String(second.token))
+    expect(html2).not.toContain(String(second.token))
+  })
+
+  test("stamped screen pathname percent-encodes URL-significant characters", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-page-encode-"))
+    const info = await startServer(root, ["--annotate"])
+    await fs.writeFile(path.join(String(info.screen_dir), "001 special#view.html"), "<h1>Hash name</h1>")
+    const html = await (await fetch(String(info.url), { headers: NAVIGATE })).text()
+    expect(html).toContain('data-ce-page="/001%20special%23view.html"')
+    expect(html).not.toContain('data-ce-page="/001 special#view.html"')
+    expect((await postAnnotation(String(info.url), info.token, {
+      comment: "rename",
+      selector: "h1",
+      page: "/001%20special%23view.html",
+    })).status).toBe(200)
+    expect((await flushAnnotations(String(info.url), info.token)).status).toBe(200)
+    const waited = await fetch(`http://localhost:${info.port}/wait?token=${info.token}`)
+    expect(waited.status).toBe(200)
+    expect((await waited.json())[0].screen).toBe("001 special#view.html")
   })
 
   test("annotate routes require the token and reject a bad annotation body", async () => {
@@ -619,7 +662,7 @@ describe("ce-prototype light-webserver.js", () => {
     const part = await (await fetch(`${origin}/pages/part.html`, { headers: NAVIGATE })).text()
     expect(part).toContain("<h2>Part</h2>")
     expect(part).toContain("CE local web")
-    expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js" data-ce-document="[0-9a-f-]{36}" data-ce-page="\/pages\/part\.html"><\/script>[\s\S]*<\/head>/)
+    expect(part).toMatch(/<head>[\s\S]*<script defer src="[^"]+\/__ce-annotate\/annotate\.js" data-ce-session="[0-9a-f-]{36}" data-ce-document="[0-9a-f-]{36}" data-ce-page="\/pages\/part\.html"><\/script>[\s\S]*<\/head>/)
     await fs.writeFile(path.join(String(info.screen_dir), "pages", "note.html"), "<!-- note --><h2>Note</h2>")
     const note = await (await fetch(`${origin}/pages/note.html`, { headers: NAVIGATE })).text()
     expect(note).toContain("<h2>Note</h2>")
@@ -1337,6 +1380,8 @@ describe("ce-prototype light-webserver.js", () => {
     // The pin and the reload name the screen the helper served, not a History API pathname.
     expect(overlay).toContain('document.currentScript?.getAttribute("data-ce-page") || "/"')
     expect(overlay).toContain('document.currentScript?.getAttribute("data-ce-document") || ""')
+    expect(overlay).toContain('document.currentScript?.getAttribute("data-ce-session") || ""')
+    expect(overlay).toContain("`ce-annotate-state:${overlaySession}`")
     expect(overlay).toContain('tokenUrl("/events", { document: servedDocument })')
     expect(overlay).toContain("page: servedPage,")
     expect(overlay).toContain("window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)")

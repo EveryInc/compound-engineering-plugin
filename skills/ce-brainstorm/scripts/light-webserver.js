@@ -300,8 +300,19 @@ function htmlAttr(value) {
   return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
 }
 
+function encodePagePath(page) {
+  if (typeof page !== "string" || !page.startsWith("/") || page === "/") return "/"
+  return `/${page.slice(1).split("/").map((segment) => {
+    try {
+      return encodeURIComponent(decodeURIComponent(segment))
+    } catch {
+      return encodeURIComponent(segment)
+    }
+  }).join("/")}`
+}
+
 function annotateBoot(origin, page = "/") {
-  const servedPage = typeof page === "string" && page.startsWith("/") ? page : "/"
+  const servedPage = encodePagePath(typeof page === "string" && page.startsWith("/") ? page : "/")
   return `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js" data-ce-page="${htmlAttr(servedPage)}"></script>`
 }
 
@@ -712,6 +723,7 @@ async function serve(options) {
   ensureDirs(options)
 
   const sessionToken = options.annotate ? randomUUID() : null
+  const overlaySession = options.annotate ? randomUUID() : ""
   let cookieName = null
   const heldQueue = []
   const annotationQueue = []
@@ -869,7 +881,7 @@ async function serve(options) {
     const at = html.indexOf(marker)
     if (at === -1) return html
     const after = at + marker.length
-    return `${html.slice(0, after)} data-ce-document="${htmlAttr(documentId)}"${html.slice(after)}`
+    return `${html.slice(0, after)} data-ce-session="${htmlAttr(overlaySession)}" data-ce-document="${htmlAttr(documentId)}"${html.slice(after)}`
   }
 
   function forgetPendingDocument(id) {
