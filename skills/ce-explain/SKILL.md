@@ -8,7 +8,7 @@ argument-hint: "[a concept, a diff ref, an idea, or 'what happened this week?'] 
 
 Teach the user one thing well: a concept, a change, an idea, or a window of their own recent work. Agent-driven development removed the learning that writing code by hand used to provide; this skill is the replacement. What to explain is the input this skill was invoked with, present in the current prompt or conversation — whether the user asked directly or a calling skill passed it.
 
-**Done:** a durable artifact exists at `$RUN_DIR`, the user has seen it, the destination they chose has been honored (or declined), and any check-in they accepted has been run and corrected. A run that correctly ends without an artifact — the operational-question gate answered it in chat, an empty window, a bare invocation the user did not answer — is equally done.
+**Done:** a durable artifact exists at `$RUN_DIR`, the user has seen it, and the destination they chose has been honored (or declined). A run that correctly ends without an artifact — the operational-question gate answered it in chat, an empty window, a bare invocation the user did not answer — is equally done.
 
 **Note: The current year is 2026.** Use this when weighting external sources and dating artifacts.
 
@@ -53,24 +53,14 @@ echo "$RUN_DIR";
 
 Then match grounding to the input shape per `references/orchestration.md`'s grounding section, which also owns the empty-window and unreachable-web paths. Two rules govern what reaches the user while you gather, so they hold here:
 
-- **Diff mode.** Gather silently: nothing learned here is narrated to the user until Phase 3's ordering rule is satisfied. **Empty range** (the ref resolves to no commits — e.g. `main..HEAD` where the work is still uncommitted): do not silently explain something else. Say what the ref resolved to, name the nearest real candidate (the working tree, the last commit), and use it only after the user agrees — or, when they can't be asked, use it and state the substitution in the artifact's `Subject`. Apply the same rule when the named subject doesn't exist in this repo at all ("the retry logic" where there is none): report that before explaining an adjacent thing.
+- **Diff mode.** The one rule here is the **Empty range** case (the ref resolves to no commits — e.g. `main..HEAD` where the work is still uncommitted): do not silently explain something else. Say what the ref resolved to, name the nearest real candidate (the working tree, the last commit), and use it only after the user agrees — or, when they can't be asked, use it and state the substitution in the artifact's `Subject`. Apply the same rule when the named subject doesn't exist in this repo at all ("the retry logic" where there is none): report that before explaining an adjacent thing.
 - **Recap mode.** Do not pre-scan, count, or characterize the window in the main conversation: an early `git --all` summary seeds the run with a false branch or activity model. Instead dispatch a generic subagent directly at the extraction tier, seeded with `references/agents/work-recap-scout.md` and passed the resolved window, the repo root, and `$RUN_DIR`. **Empty window** (no git activity, no doc changes): say so, offer to widen it, write no artifact, and end the run after the user responds. **When the harness exposes no subagent primitive**, the degradation rule applies: run the scout inline against its own prompt's sources and budgets, and still write `recap-evidence.md`; the no-pre-scan rule then means what it protects rather than where it runs — do the scout's evidence pass first and form no view of the window until it is done.
 
-### Phase 3: Check-in gate — before anything is revealed
+### Phase 3: Compose the explainer
 
-Read `references/check-in.md` now for the warrant test, the offer's wording, the prediction protocol, and exercise design. Judge whether the material warrants a check-in, then offer it with the blocking question tool. **In diff mode, word the offer without describing the change's content or purpose** — an offer that summarizes the change pre-leaks the reveal before the prediction is taken. Record the user's exact Phase 3 choice as **Just the explainer** or **Quiz me** — do not collapse both choices into an "accepted" boolean. Only **Quiz me** enables the prediction and exercise mechanics. **Just the explainer** skips both while still composing and presenting the report. If the warrant test skips the offer, proceed without either mechanic; declining is never re-litigated.
+Read the rendering reference for the resolved format **now**, not earlier: `references/explainer-html.md` (default) or `references/explainer-markdown.md` (when intake resolved `output:md`). Each owns the artifact's invariants and the voice for the audience intake resolved — personal by default, adapted for another reader on request, at unchanged depth. Read `references/check-in.md` with it: it owns whether the artifact ends with a `Check yourself` section and that section's shape. The run never blocks on the check-in — no offer, no prediction turn, no exercise posed in chat; the section is static text the reader works through alone. Compose per those contracts and write the artifact to `$RUN_DIR/explainer.html` (or `explainer.md`) before anything else happens with it, then display it (inline summary plus the file path). The artifact exists at that stable path from this moment — a declined destination ask never loses it.
 
-**Diff mode with Quiz me selected — hard ordering rule.** No interpretive content — explanation, annotation, diagram, or surfaced opportunity — may be shown before the user's prediction turn ends. Show only the raw change reference (the diff or its stat summary), ask for the prediction ("What do you think this change does, and why was it made?"), and **end the turn there**. When no blocking tool exists, ask in chat and stop — never print the reveal in the same message as the prediction prompt. Compose the explainer only after the prediction lands; the reveal names the gaps between the prediction and what the change actually does.
-
-### Phase 4: Compose the explainer
-
-Read the rendering reference for the resolved format **now**, not earlier: `references/explainer-html.md` (default) or `references/explainer-markdown.md` (when intake resolved `output:md`). Each owns the artifact's invariants and the voice for the audience intake resolved — personal by default, adapted for another reader on request, at unchanged depth. Compose per its contract and write the artifact to `$RUN_DIR/explainer.html` (or `explainer.md`) before anything else happens with it, then display it (inline summary plus the file path). The artifact exists at that stable path from this moment — a declined destination ask never loses it.
-
-### Phase 5: Exercises (only when Quiz me was selected)
-
-Run this phase only when the recorded exact Phase 3 choice was **Quiz me**. Pose the exercises from `references/check-in.md` in chat, one at a time, using the blocking question tool where its option shape fits and free chat where the answer is narrative. Check each answer, correct it, and name the gap it exposed. Do not put exercises inside the artifact. When the choice was **Just the explainer**, skip this phase and continue to the destination ask.
-
-### Phase 6: Destination ask and close
+### Phase 4: Destination ask and close
 
 **Required read before you render anything in this phase: `references/destinations.md`.** It owns the destination menu, the per-option routing, each destination's sub-flow, the audience re-render offer and its ordering against a publisher's consent gate, and the improvement observations the run closes on. Read it now; do not render the menu and do not act on the user's selection without it.
 
@@ -83,4 +73,4 @@ Ask for the destination once with the blocking question tool — that governs th
 - **Not a verdict.** "Should we adopt X?" is `ce-pov`. ce-explain teaches what X is and how it works.
 - **Not repo memory.** Documenting a solved problem for future work is `ce-compound`. ce-explain teaches the human, not the repo.
 - **Not ideation or scoping.** An idea input is explained as given — implications and trade-offs — never expanded into options or a requirements dialogue.
-- **The check-in is never headless.** It exists to exercise the human; automating the answers deletes the product.
+- **The check-in never blocks the run.** It is a section of the artifact the reader works through alone; the run asks no question about it.

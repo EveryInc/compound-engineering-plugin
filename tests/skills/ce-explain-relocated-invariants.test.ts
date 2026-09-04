@@ -53,6 +53,22 @@ describe("ce-explain relocated invariants stay greppable in the corpus", () => {
     })
   }
 
+  // Issue #1628: the interactive check-in (an offer, a prediction turn, exercises
+  // in chat) blocked the run on Codex; it now lives in the artifact. No file in
+  // the skill may reintroduce the offer wording, and no reference may point at a
+  // phase number the body no longer has — the check-in's removal renumbered
+  // compose to Phase 3 and the destination ask to Phase 4, so references name
+  // phases by role instead.
+  for (const banned of ["Quiz me", "Just the explainer", "Phase 3 ordering rule"]) {
+    test(`corpus drops: ${banned}`, () => {
+      expect(corpus).not.toContain(banned)
+    })
+  }
+
+  test("no reference names a phase the body no longer has", () => {
+    expect(corpus).not.toMatch(/Phase [56]\b/)
+  })
+
   test("the body names orchestration.md at the point of first use", () => {
     const body = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
     expect(body).toContain("references/orchestration.md")
