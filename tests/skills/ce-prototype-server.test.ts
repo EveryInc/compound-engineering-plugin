@@ -1309,6 +1309,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("background: transparent")
     expect(overlay).toMatch(/if \(!shouldFreezeProp\(prop\)\) continue/)
     expect(overlay).toContain("el.style.setProperty(prop, cs.getPropertyValue(prop))")
+    expect(overlay).toContain("item.el.style.removeProperty(prop)")
     expect(overlay).toContain("ce-annotate-hotkey")
     expect(overlay).toContain("freezeHoverThenAnnotate")
     expect(overlay).toContain("aria-keyshortcuts=\"Control+A Escape\"")

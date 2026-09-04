@@ -423,8 +423,10 @@
 
   function unfreezeHover() {
     for (const item of frozenStyles) {
-      if (item.style == null) item.el.removeAttribute("style")
-      else item.el.setAttribute("style", item.style)
+      for (const [prop, value, priority] of item.overrides) {
+        if (value) item.el.style.setProperty(prop, value, priority)
+        else item.el.style.removeProperty(prop)
+      }
     }
     frozenStyles.length = 0
   }
@@ -447,13 +449,15 @@
   function freezeSubtree(root) {
     const nodes = [root, ...root.querySelectorAll("*")]
     for (const el of nodes) {
-      frozenStyles.push({ el, style: el.getAttribute("style") })
+      const overrides = []
       const cs = getComputedStyle(el)
       for (let i = 0; i < cs.length; i++) {
         const prop = cs[i]
         if (!shouldFreezeProp(prop)) continue
+        overrides.push([prop, el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)])
         el.style.setProperty(prop, cs.getPropertyValue(prop))
       }
+      frozenStyles.push({ el, overrides })
     }
   }
 
