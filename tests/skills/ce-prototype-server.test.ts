@@ -437,6 +437,12 @@ describe("ce-prototype light-webserver.js", () => {
       expect(exitCode, stderr).toBe(0)
       return Number(stdout.trim())
     }
+    const flushFromNode = async (url: string) => {
+      const proc = Bun.spawn(["node", "-e", `fetch(process.argv[1], { method: "POST" }).then((r) => { console.log(r.status) }, (e) => { console.error(e); process.exit(1) })`, url], { stdout: "pipe", stderr: "pipe" })
+      const [exitCode, stdout, stderr] = await Promise.all([proc.exited, new Response(proc.stdout).text(), new Response(proc.stderr).text()])
+      expect(exitCode, stderr).toBe(0)
+      return Number(stdout.trim())
+    }
     const roundTrip = async (host: string, postHost: string, comment: string) => {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-host-"))
       const info = await startServer(root, ["--annotate", "--host", host], { CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "80" })
@@ -445,7 +451,7 @@ describe("ce-prototype light-webserver.js", () => {
       const waiting = runServerCommand(["wait", "--root", root])
       await new Promise((resolve) => setTimeout(resolve, 80))
       expect(await postFromNode(`http://${postHost}:${info.port}/annotation?token=${info.token}`, comment)).toBe(200)
-      expect((await flushAnnotations(`http://${postHost}:${info.port}`, info.token)).status).toBe(200)
+      expect(await flushFromNode(`http://${postHost}:${info.port}/session/flush?token=${info.token}`)).toBe(200)
       const result = await waiting
       expect(result.exitCode, result.stderr).toBe(0)
       expect(JSON.parse(result.stdout.trim())[0].comment).toBe(comment)
@@ -1238,6 +1244,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toMatch(/if \(!commentToolOn \|\| sessionEnded \|\| agentHasBatch\(\)\) return/)
     expect(overlay).not.toMatch(/document\.addEventListener\("click", \(event\)/)
     expect(overlay).toContain('tokenUrl(sending ? "/session/flush" : "/session/end")')
+    expect(overlay).toMatch(/while \(inFlight && !sessionEnded\)/)
     expect(overlay).toContain("unflushedCount")
     expect(overlay).toContain('held: "pending"')
     expect(overlay).toContain("target-gone")
@@ -1252,6 +1259,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("window.innerWidth * window.innerHeight")
     expect(overlay).toContain("background: transparent")
     expect(overlay).toMatch(/if \(!shouldFreezeProp\(prop\)\) continue/)
+    expect(overlay).toContain("el.style.setProperty(prop, cs.getPropertyValue(prop))")
     expect(overlay).toContain("ce-annotate-hotkey")
     expect(overlay).toContain("freezeHoverThenAnnotate")
     expect(overlay).toContain("aria-keyshortcuts=\"Control+A Escape\"")

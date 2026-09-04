@@ -448,13 +448,11 @@
     for (const el of nodes) {
       frozenStyles.push({ el, style: el.getAttribute("style") })
       const cs = getComputedStyle(el)
-      let cssText = ""
       for (let i = 0; i < cs.length; i++) {
         const prop = cs[i]
         if (!shouldFreezeProp(prop)) continue
-        cssText += `${prop}: ${cs.getPropertyValue(prop)};`
+        el.style.setProperty(prop, cs.getPropertyValue(prop))
       }
-      el.style.cssText = cssText
     }
   }
 
@@ -552,8 +550,12 @@
 
   stop.addEventListener("click", async () => {
     if (sessionEnded) return
-    const sending = unflushedCount() > 0
     stop.disabled = true
+    while (inFlight && !sessionEnded) {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    if (sessionEnded) return
+    const sending = unflushedCount() > 0
     try {
       const response = await fetch(tokenUrl(sending ? "/session/flush" : "/session/end"), { method: "POST" })
       if (!response.ok) throw new Error("retry")
