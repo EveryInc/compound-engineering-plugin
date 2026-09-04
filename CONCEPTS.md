@@ -76,7 +76,7 @@ A dense, visual teaching artifact written for the developer personally — expla
 An immutable continuity artifact that lets a fresh agent recover the objective, decisions, current state, and unfinished work without the prior session transcript. CE-created handoffs use managed temporary Markdown by default and point to authoritative project artifacts rather than replacing them. A receiving agent may also resume from any user-selected source with sufficient continuity context; selection supplies context but no authority to continue automatically.
 
 ### Check-in
-The active-recall step that can follow an explainer in the same session: the developer predicts or answers first and the explanation confirms or corrects — predict-then-reveal for changes, checked exercises for concepts. Skippable when the material does not warrant retention work.
+The active-recall section at the end of an explainer, headed `Check yourself`: two to four questions listed first, then their answers, all static text the developer works through alone. Included when the request asks for it or the material warrants retention work; the run never stops to quiz the developer in chat.
 
 ### Concept-teaching section
 A conditional section of a generated PR description, added by agent judgment when the change introduces a concept new to the codebase, that teaches the concept — what it is, why it was chosen here, and an example from the PR — so a reader can understand and re-explain the change without reading the diff. The passive, in-description counterpart of an Explainer.
