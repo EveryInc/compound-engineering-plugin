@@ -1565,6 +1565,89 @@ Units:
     },
   },
   {
+    id: "ce-prototype/batch-conflict-asks",
+    post_only: true,
+    skill: "ce-prototype",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/prototype-annotation-batch`,
+    why: "A returned annotation batch used to be an automatic in-place edit. Conflicting notes would be guessed into the screen instead of asked.",
+    pre_contract:
+      "Wait returning a batch always edits the named screens. Asking is not a valid branch.",
+    task: `The isolated web preview is already up. Annotation wait just returned this JSON array. Handle the batch per ce-prototype, then stop. Do not start another wait. First line of your answer: NEXT: apply  or  NEXT: chat
+
+[{"id":"a1","comment":"Make the primary button 8px taller.","screen":"001-home.html","selector":"button.primary"},{"id":"a2","comment":"The primary button is too tall — shrink it.","screen":"001-home.html","selector":"button.primary"}]`,
+    grade: {
+      files_read_post: ["references/annotation-loop.md"],
+      must_include: ["chat"],
+      must_include_field: "NEXT",
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-prototype/clear-batch-applies-in-place",
+    post_only: true,
+    skill: "ce-prototype",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/prototype-annotation-batch`,
+    why: "The conversation branch must not swallow a batch that is already a clear screen edit. Iteration is in place, not a new numbered file.",
+    pre_contract:
+      "Wait returning a batch always edits the named screens. Asking is not a valid branch.",
+    task: `The isolated web preview is already up. Annotation wait just returned this JSON array. Handle the batch per ce-prototype, then stop. Do not start another wait. First line of your answer: NEXT: apply  or  NEXT: chat
+
+[{"id":"a1","comment":"Make the primary button 8px taller.","screen":"001-home.html","selector":"button.primary"}]`,
+    grade: {
+      files_read_post: ["references/annotation-loop.md"],
+      must_include: ["apply"],
+      must_include_field: "NEXT",
+    },
+  },
+  {
+    id: "ce-prototype/question-stays-in-chat",
+    post_only: true,
+    skill: "ce-prototype",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/prototype-annotation-batch`,
+    why: "A pin can be a question. Old apply-or-ask prose either guessed an edit or asked what to change instead of answering, then pitched the next variant.",
+    pre_contract:
+      "Wait returning a batch always edits the named screens. Asking is not a valid branch.",
+    task: `The isolated web preview is already up with two hub catalog avenues on screen. Annotation wait just returned this JSON array. Handle the batch per ce-prototype, then stop. Do not start another wait. First line of your answer: NEXT: apply  or  NEXT: chat
+
+[{"id":"a1","comment":"I don't understand still how this works to have previews in a real product. Won't that be too expensive?","screen":"001-home.html","selector":".preview"}]`,
+    grade: {
+      files_read_post: ["references/annotation-loop.md"],
+      must_include: ["chat"],
+      must_include_field: "NEXT",
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-prototype/rejected-avenue-does-not-converge",
+    post_only: true,
+    skill: "ce-prototype",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/prototype-annotation-batch`,
+    why: "Rejecting one built avenue was treated as closing the comparison and picking the leftover or a next variant. The note takes that arrangement out of play; it does not pick a winner.",
+    pre_contract:
+      "Wait returning a batch always edits the named screens. Asking is not a valid branch.",
+    task: `The isolated web preview is already up with two live avenues, an orbit catalog and a card wall. Annotation wait just returned this JSON array. Handle the batch per ce-prototype, then stop. Do not start another wait. First line of your answer: NEXT: apply  or  NEXT: chat
+
+[{"id":"a1","comment":"The orbit catalog won't scale well.","screen":"001-home.html","selector":".orbit"}]`,
+    grade: {
+      files_read_post: ["references/annotation-loop.md"],
+      must_include: ["chat"],
+      must_include_field: "NEXT",
+      actions: "none",
+    },
+  },
+  {
     id: "ce-riffrec-feedback-analysis/setup-before-recording",
     skill: "ce-riffrec-feedback-analysis",
     cohort: "resized",

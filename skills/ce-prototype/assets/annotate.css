@@ -1,0 +1,192 @@
+/* The host is a fixed layer over the viewport. Chrome, composer, and the
+   annotate-mode catcher take pointer events; the rest click through. */
+:host {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  color: inherit;
+  background: transparent;
+  pointer-events: none;
+  z-index: 2147483645;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.ce-annotate-chrome {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 2147483646;
+  pointer-events: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #1f2328;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 32, 0.18);
+  font: 13px/1.3 system-ui, -apple-system, sans-serif;
+}
+
+.ce-annotate-chrome button,
+.ce-annotate-composer button {
+  appearance: none;
+  font: inherit;
+  cursor: pointer;
+  color: #1f2328;
+}
+
+.ce-annotate-chrome button {
+  border: 1px solid #d8dee4;
+  background: transparent;
+  border-radius: 8px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.ce-annotate-composer button {
+  border: 1px solid #1f2328;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.ce-annotate-toggle {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.ce-annotate-hotkey {
+  font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  opacity: 0.78;
+  background: none;
+  color: inherit;
+}
+
+.ce-annotate-toggle.is-on,
+.ce-annotate-toggle[aria-pressed="true"] {
+  background: #1f2328;
+  color: #fff;
+  border-color: #1f2328;
+}
+
+.ce-annotate-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ce-annotate-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #1f2328;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ce-annotate-status {
+  padding: 4px 6px;
+  color: #656d76;
+  font-size: 12px;
+}
+
+.ce-annotate-catcher {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483644;
+  pointer-events: auto;
+  cursor: crosshair;
+  background: transparent;
+}
+
+.ce-annotate-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2147483645;
+}
+
+.ce-annotate-pin {
+  position: fixed;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #1f2328;
+  background: #ffe08a;
+  pointer-events: none;
+  font: 11px/20px system-ui, sans-serif;
+}
+
+.ce-annotate-pin.is-working {
+  background: #9ecbff;
+}
+
+.ce-annotate-pin.is-pending {
+  background: #e6edf3;
+}
+
+.ce-annotate-pin.is-target-gone {
+  background: #ffb3b3;
+}
+
+.ce-annotate-composer {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: auto;
+  box-sizing: border-box;
+  width: 260px;
+  max-width: 100vw;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #1f2328;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 32, 0.18);
+  font: 13px/1.4 system-ui, -apple-system, sans-serif;
+}
+
+.ce-annotate-comment {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 72px;
+  font: inherit;
+}
+
+.ce-annotate-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ce-annotate-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ce-annotate-error {
+  margin: 8px 0 0;
+  color: #9b111e;
+}

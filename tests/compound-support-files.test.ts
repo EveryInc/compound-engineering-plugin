@@ -205,9 +205,9 @@ describe("ce-compound-refresh named-guidance comparison", () => {
 })
 
 // Isolation forbids sharing a bundled script, so both skills ship
-// scripts/light-webserver.js. The helper has no product behavior — display-only
-// vs interactive is skill protocol and the HTML the agent writes — so the
-// copies must stay byte-identical.
+// scripts/light-webserver.js. The helper now has an opt-in annotate event
+// path; default start stays event-inert. Display-only vs interactive remains
+// skill protocol, and the copies must stay byte-identical.
 describe("light-webserver.js drift across ce-brainstorm and ce-prototype", () => {
   test("scripts/light-webserver.js is identical across ce-brainstorm, ce-prototype", async () => {
     const contents = await Promise.all(
