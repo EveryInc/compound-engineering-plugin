@@ -949,6 +949,76 @@ describe("ce-prototype light-webserver.js", () => {
     await reader.cancel()
   })
 
+  test("a document serve records the rendered snapshot so a later rewrite still emits screen-changed", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-snapshot-key-"))
+    const info = await startServer(root, ["--annotate"])
+    const screenPath = path.join(String(info.screen_dir), "001-screen.html")
+    await fs.writeFile(screenPath, "<h1>Original</h1>")
+    const origin = `http://localhost:${info.port}`
+    expect((await fetch(String(info.url), { headers: NAVIGATE })).status).toBe(200)
+    const open = await fetch(`${origin}/events?token=${info.token}`)
+    expect(open.status).toBe(200)
+    const reader = open.body!.getReader()
+    const decoder = new TextDecoder()
+    let text = ""
+    const timedOut = Symbol("timed out")
+    let pendingRead: Promise<ReadableStreamReadResult<Uint8Array>> | null = null
+    const readUntil = async (predicate: () => boolean, ms: number) => {
+      const deadline = Date.now() + ms
+      while (Date.now() < deadline && !predicate()) {
+        pendingRead ??= reader.read()
+        const chunk = await Promise.race([
+          pendingRead,
+          new Promise<typeof timedOut>((resolve) => setTimeout(() => resolve(timedOut), Math.max(1, deadline - Date.now()))),
+        ])
+        if (chunk === timedOut) break
+        pendingRead = null
+        if (chunk.done) break
+        text += decoder.decode(chunk.value, { stream: true })
+      }
+    }
+    const events = () => text.split("event: screen-changed").length - 1
+    await readUntil(() => text.includes(":ok"), 700)
+    expect(events()).toBe(0)
+
+    await fs.writeFile(screenPath, "<h1>Served</h1>")
+    const page = await fetch(String(info.url), { headers: NAVIGATE })
+    expect(page.status).toBe(200)
+    expect(await page.text()).toContain("<h1>Served</h1>")
+    await readUntil(() => events() >= 1, 2000)
+    expect(events()).toBe(1)
+
+    await reader.cancel()
+    const followUp = await fetch(`${origin}/events?token=${info.token}`)
+    expect(followUp.status).toBe(200)
+    const followReader = followUp.body!.getReader()
+    let followText = ""
+    let followPending: Promise<ReadableStreamReadResult<Uint8Array>> | null = null
+    const followUntil = async (predicate: () => boolean, ms: number) => {
+      const deadline = Date.now() + ms
+      while (Date.now() < deadline && !predicate()) {
+        followPending ??= followReader.read()
+        const chunk = await Promise.race([
+          followPending,
+          new Promise<typeof timedOut>((resolve) => setTimeout(() => resolve(timedOut), Math.max(1, deadline - Date.now()))),
+        ])
+        if (chunk === timedOut) break
+        followPending = null
+        if (chunk.done) break
+        followText += decoder.decode(chunk.value, { stream: true })
+      }
+    }
+    const followEvents = () => followText.split("event: screen-changed").length - 1
+    await followUntil(() => followEvents() > 0, 700)
+    expect(followText).toContain(":ok")
+    expect(followEvents()).toBe(0)
+
+    await fs.writeFile(screenPath, "<h1>After serve</h1>")
+    await followUntil(() => followEvents() >= 1, 2000)
+    expect(followEvents()).toBe(1)
+    await followReader.cancel()
+  })
+
   test("visiting a document sets a cookie that authenticates gated overlay routes", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-cookie-"))
     const info = await startServer(root, ["--annotate"])

@@ -896,7 +896,8 @@ async function serve(options) {
   }
 
   // Every document that carries the overlay is served the same way.
-  function serveAnnotateDocument(req, res, html) {
+  // `renderedKey` is captured with `html`; scanning screens/ here races a rewrite.
+  function serveAnnotateDocument(req, res, html, renderedKey) {
     // A page being served is a tab loading, not the last tab closing. The
     // overlay is deferred and may sit behind parser-blocking work, so cancel
     // the reconnect grace until that document's /events connects; ending on
@@ -926,7 +927,7 @@ async function serve(options) {
     // Sync the change key to what this page will render, so a stream that
     // connects right after load does not reload the same screen. Any
     // already-open stream still receives the change.
-    broadcastIfChanged()
+    if (renderedKey !== lastBroadcastKey) broadcastScreenChange(renderedKey)
     const headers = {
       "Content-Type": CONTENT_TYPES[".html"],
       ...NO_STORE,
@@ -1073,7 +1074,8 @@ async function serve(options) {
       if (req.method === "GET" && urlPath === "/") {
         touch()
         if (isDocumentNavigation(req)) {
-          serveAnnotateDocument(req, res, renderPage(options, requestOrigin(req)))
+          const renderedKey = screensChangeKey(options)
+          serveAnnotateDocument(req, res, renderPage(options, requestOrigin(req)), renderedKey)
           return
         }
         const screen = newestScreen(options)
@@ -1095,7 +1097,8 @@ async function serve(options) {
         const filePath = resolveContainedFile(options.screensDir, req, res)
         if (!filePath) return
         if (contentType(filePath) === CONTENT_TYPES[".html"] && isDocumentNavigation(req)) {
-          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req), urlPath))
+          const renderedKey = screensChangeKey(options)
+          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req), urlPath), renderedKey)
           return
         }
         // A reload must pick up a revised stylesheet or script whose URL did
