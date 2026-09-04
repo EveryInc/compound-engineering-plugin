@@ -65,7 +65,7 @@ describe("ce-explain relocated invariants stay greppable in the corpus", () => {
     })
   }
 
-  test("no reference names a phase the body no longer has", () => {
+  test("nothing in the skill names a phase the body no longer has", () => {
     expect(corpus).not.toMatch(/Phase [56]\b/)
   })
 
