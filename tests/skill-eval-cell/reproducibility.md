@@ -25,7 +25,10 @@ outputs are sealed too; they do not change the preserved input snapshot.
 context. Committed refs resolve once to a commit before extraction.
 
 Schema-v2 packs freeze each scenario, its original grades, and the grader's
-runtime dependency hashes. Atomic summary writes before collection and after
+runtime dependency hashes. Each completed arm seals the canonical
+`{ grades, ok, pointer_ok }` object as `grade_result_sha256`. Missing or changed
+result hashes are rejected before either reassessment mode reports an original
+grade; do not manufacture hashes for older unsealed results. Atomic summary writes before collection and after
 each arm retain completed progress when later collection fails. Arm status is
 `collecting`, `graded`, or `collection-error`. Host nonzero exits and timeouts
 remain failed grades with diagnostic evidence. Wanted, skipped, and actual hosts
@@ -59,7 +62,9 @@ be specified explicitly.
 
 Both modes verify evidence and write a new `pack.regrade-<uuid>.json` beside the
 pack. Reports retain the selected criteria and their hash, grader fingerprints,
-mode, source-pack hash, and results. A score change under a corrected criterion
+mode, source-pack hash, and results. A `not-assessable` arm retains its verified
+`original_grade` and result hash too; an uncollected arm has no grade to invent.
+A score change under a corrected criterion
 is a reassessment, not proof of model improvement. Compare old and new runs under
 the same criteria and grader when measuring improvement.
 
@@ -74,8 +79,11 @@ Fingerprints cover relative paths, bytes, entry kinds, executable bits, and empt
 directories, independent of root location and mtime. Git internals and symlink
 target contents are excluded. Both initial pack grading and regrading reject
 symlink evidence, traversal, and workspace criteria reading `.git` components.
-The runtime grader dependencies are `grade.ts`, `hosts.ts`, and `path-shim.ts`;
-update `GRADER_FILES` if their runtime import graph changes.
+The trusted assessment fingerprint includes `regrade.ts`, `provenance.ts`,
+`extract.ts`, `grade.ts`, `hosts.ts`, and `path-shim.ts`. Maintain `GRADER_FILES`
+when that assessment path changes, including orchestration and verification,
+not only immediate scoring imports. Mutable catalog criteria are snapshotted
+separately: editing or removing today's scenario must not block original mode.
 
 This is local consistency verification, not hermetic replay or authenticity
 against an actor replacing evidence and hashes together. User configuration,

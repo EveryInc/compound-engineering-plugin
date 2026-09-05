@@ -3,7 +3,10 @@ import fs from "node:fs"
 import path from "node:path"
 
 export const PACK_SCHEMA_VERSION = 2
-export const GRADER_FILES = ["grade.ts", "hosts.ts", "path-shim.ts"]
+// The trusted assessment path, not only gradeArm's immediate dependencies.
+// Original mode does not query catalog.ts: its mutable criteria are separately
+// snapshotted. Include the entry point and evidence/root helpers, not just scoring.
+export const GRADER_FILES = ["extract.ts", "grade.ts", "hosts.ts", "path-shim.ts", "provenance.ts", "regrade.ts"]
 const EVIDENCE_ROOTS = ["extract", "workspace", "hosts", "summary.json", "input-manifest.json", "task.md"]
 
 type Entry = { path: string; kind: "file" | "directory" | "symlink"; sha256?: string; executable?: boolean }

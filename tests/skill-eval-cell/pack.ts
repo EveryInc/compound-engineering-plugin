@@ -175,7 +175,7 @@ function main() {
         }
         const graded = gradeArm({ out, scenario: snapshot, arm })
         if (graded.grades.length === 0) throw new Error("no host results were collected")
-        Object.assign(info, graded, { status: "graded" })
+        Object.assign(info, graded, { status: "graded", grade_result_sha256: valueHash(graded) })
       } catch (error) {
         Object.assign(info, { status: "collection-error", error: String(error), ok: false })
       }

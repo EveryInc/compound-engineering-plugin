@@ -63,7 +63,7 @@ export function regradePack(packPath: string, mode: RegradeMode = "current"): { 
   for (const [id, raw] of Object.entries(pack.scenarios)) {
     const row = raw as {
       scenario_snapshot: Scenario; scenario_sha256: string;
-      arms: Record<string, { status: string; out_relative: string; evidence_sha256: string } & Partial<ArmGrade>>;
+      arms: Record<string, { status: string; out_relative: string; evidence_sha256: string; grade_result_sha256: string } & Partial<ArmGrade>>;
     }
     const original = row.scenario_snapshot
     if (!original || original.id !== id || valueHash(original) !== row.scenario_sha256 || !row.arms) {
@@ -81,6 +81,13 @@ export function regradePack(packPath: string, mode: RegradeMode = "current"): { 
         ok = false
         results[arm] = { status: "not-regraded", original_status: info.status, ok: false }
         continue
+      }
+      const originalGrade = { grades: info.grades, ok: info.ok, pointer_ok: info.pointer_ok }
+      if (!Array.isArray(originalGrade.grades) || typeof originalGrade.ok !== "boolean" ||
+          typeof originalGrade.pointer_ok !== "boolean" ||
+          !/^[a-f0-9]{64}$/.test(info.grade_result_sha256 ?? "") ||
+          valueHash(originalGrade) !== info.grade_result_sha256) {
+        throw new Error(`original grade missing or changed: ${id} ${arm}`)
       }
       if (!/^[a-f0-9]{64}$/.test(info.evidence_sha256 ?? "")) throw new Error("missing evidence hash")
       const out = containedPath(root, info.out_relative)
@@ -103,14 +110,17 @@ export function regradePack(packPath: string, mode: RegradeMode = "current"): { 
       }
       if (unavailable || !usedGrade) {
         ok = false
-        results[arm] = { status: "not-assessable", reason: unavailable, ok: false }
+        results[arm] = {
+          status: "not-assessable", reason: unavailable, ok: false,
+          original_grade: originalGrade, original_grade_sha256: info.grade_result_sha256,
+        }
         continue
       }
       const grade = gradeArm({ out, scenario: { ...original, grade: usedGrade }, arm: arm as EvalArm })
       verifyEvidence(out, info.evidence_sha256)
       results[arm] = {
         status: "regraded", ...grade,
-        original_grade: { grades: info.grades, ok: info.ok, pointer_ok: info.pointer_ok },
+        original_grade: originalGrade, original_grade_sha256: info.grade_result_sha256,
       }
       ok = ok && grade.ok && grade.grades.length > 0
     }

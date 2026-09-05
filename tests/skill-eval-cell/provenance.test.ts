@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { fingerprint, valueHash, prepareOutput, containedPath, writeJSON, graderFingerprint } from "./provenance"
+import { fingerprint, valueHash, prepareOutput, containedPath, writeJSON, graderFingerprint, GRADER_FILES } from "./provenance"
 
 function inTemp(work: (dir: string) => void) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-provenance-test-"))
@@ -83,7 +83,7 @@ test("relative paths cannot escape the pack", () => inTemp((dir) => {
 }))
 
 test("grader fingerprint changes when a dependency changes", () => inTemp((dir) => {
-  for (const name of ["grade.ts", "hosts.ts", "path-shim.ts"]) fs.writeFileSync(path.join(dir, name), "old")
+  for (const name of GRADER_FILES) fs.writeFileSync(path.join(dir, name), "old")
   const before = graderFingerprint(dir).sha256
   fs.writeFileSync(path.join(dir, "hosts.ts"), "new")
   expect(graderFingerprint(dir).sha256).not.toBe(before)

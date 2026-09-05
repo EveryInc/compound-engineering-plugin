@@ -34,12 +34,13 @@ function make(root: string) {
     read_only: true, why: "regression", pre_contract: "proof", task: "task",
     grade: { must_include: ["proof"], actions: "none", delegates: "none" },
   }
+  const initialGrade = gradeArm({ out, scenario, arm: "post" })
   const pack = {
     schema_version: PACK_SCHEMA_VERSION, grader: graderFingerprint(),
     scenarios: { [scenario.id]: {
       scenario_snapshot: scenario, scenario_sha256: valueHash(scenario),
       arms: { post: {
-        ...gradeArm({ out, scenario, arm: "post" }), status: "graded",
+        ...initialGrade, status: "graded", grade_result_sha256: valueHash(initialGrade),
         out: "/obsolete/location", out_relative: "case/post", evidence_sha256,
       } },
     } },
