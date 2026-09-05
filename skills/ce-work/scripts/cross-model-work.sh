@@ -95,14 +95,32 @@ validate_model_override() {
   esac
 }
 
+validate_effort_override() {
+  # Same per-route allowlists as the ce-code-review / ce-doc-review peer paths:
+  # reject a tier the selected route cannot honor instead of forwarding it to a
+  # CLI that will fail the attempt after controller authorization. Routes with
+  # no effort knob (cursor, composer, grok-cursor) reject any override.
+  local route="$1" effort="${CROSS_MODEL_EFFORT_OVERRIDE:-}"
+  [ -n "$effort" ] || return 0
+  case "$route:$effort" in
+    claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
+    codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
+    grok-cli:low|grok-cli:medium|grok-cli:high) ;;
+    opencode:none|opencode:minimal|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max|opencode:default) ;;
+    *) return 1 ;;
+  esac
+}
+
 adapter_argv() {
   case "$1" in
     codex)
       # --ignore-user-config drops the user's model_reasoning_effort, so pin the
       # editorial tier explicitly, matching the claude/grok routes' --effort high.
+      # CROSS_MODEL_EFFORT_OVERRIDE retunes all three effort-taking routes, the
+      # same knob the ce-code-review / ce-doc-review peer paths honor.
       printf '%s\0' codex exec --ignore-user-config --ignore-rules --ephemeral \
         -s workspace-write -C "$WORKSPACE" --json -o "$RAW_RESULT" \
-        -c model_reasoning_effort=high
+        -c model_reasoning_effort="${CROSS_MODEL_EFFORT_OVERRIDE:-high}"
       [ "$(route_model codex)" = auto ] || printf '%s\0' -m "$(route_model codex)"
       printf '%s\0' -
       ;;
@@ -112,14 +130,14 @@ adapter_argv() {
       printf '%s\0' claude -p --safe-mode --no-session-persistence \
         --permission-mode bypassPermissions --tools Read,Write,Edit,Bash \
         --allowed-tools 'Bash(*)' \
-        --effort high --output-format stream-json --verbose
+        --effort "${CROSS_MODEL_EFFORT_OVERRIDE:-high}" --output-format stream-json --verbose
       [ "$claude_model" = auto ] || printf '%s\0' --model "$claude_model"
       ;;
     grok-cli)
       local grok_model
       grok_model="$(route_model grok-cli)"
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --cwd "$WORKSPACE" \
-        --effort high --permission-mode acceptEdits \
+        --effort "${CROSS_MODEL_EFFORT_OVERRIDE:-high}" --permission-mode acceptEdits \
         --tools Read,Write,Edit --disable-web-search --no-memory --no-subagents \
         --no-plan --max-turns 50 --output-format streaming-json --verbatim
       [ "$grok_model" = auto ] || printf '%s\0' --model "$grok_model"
@@ -143,6 +161,8 @@ adapter_argv() {
       printf '%s\0' opencode run --dir "$WORKSPACE" --format json --auto --file "$PROMPT_FILE"
       printf '%s\0' "Follow the attached unit packet. Return only the implementation result JSON."
       [ "$(route_model opencode)" = auto ] || printf '%s\0' --model "$(route_model opencode)"
+      # OpenCode carries effort through --variant, same as the review adapters.
+      [ -z "${CROSS_MODEL_EFFORT_OVERRIDE:-}" ] || printf '%s\0' --variant "$CROSS_MODEL_EFFORT_OVERRIDE"
       ;;
     *) return 1 ;;
   esac
@@ -155,6 +175,10 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   ROUTE="${2:-}"
   validate_model_override "$ROUTE" || {
     printf "model override '%s' not compatible with route '%s'\n" "${CE_WORK_MODEL_OVERRIDE:-}" "$ROUTE" >&2
+    exit 2
+  }
+  validate_effort_override "$ROUTE" || {
+    printf "effort override '%s' not compatible with route '%s'\n" "${CROSS_MODEL_EFFORT_OVERRIDE:-}" "$ROUTE" >&2
     exit 2
   }
   adapter_argv "$ROUTE" >/dev/null 2>&1 || { printf "unknown route '%s'\n" "$ROUTE" >&2; exit 2; }
@@ -691,6 +715,11 @@ if ! command -v "$BINARY" >/dev/null 2>&1; then
   publish_unavailable "fixed route executable '$BINARY' is unavailable" || exit 2
   exit 2
 fi
+
+validate_effort_override "$ROUTE" || {
+  publish_unavailable "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$ROUTE'" || exit 2
+  exit 2
+}
 
 ARGS=()
 while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(adapter_argv "$ROUTE")
