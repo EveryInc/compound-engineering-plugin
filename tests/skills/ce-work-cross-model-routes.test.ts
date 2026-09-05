@@ -21,6 +21,11 @@ import { createHash } from "node:crypto"
 
 setDefaultTimeout(20_000)
 
+// cross-model-work.sh honors CROSS_MODEL_EFFORT_OVERRIDE; make a clean
+// environment the suite-wide default so an ambient export cannot leak into
+// baseline assertions. Tests that exercise the override set it explicitly.
+delete process.env.CROSS_MODEL_EFFORT_OVERRIDE
+
 const SCRIPT = path.join(process.cwd(), "skills/ce-work/scripts/cross-model-work.sh")
 const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspace.py")
 const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementation-result-schema.json")
