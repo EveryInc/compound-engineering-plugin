@@ -10,9 +10,10 @@ import { spawn, spawnSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import { arg, flag } from "./cli"
-import { WORKTREE_REF, extractSkill, mintCellDir } from "./extract"
+import { REPO_ROOT, WORKTREE_REF, extractSkill, mintCellDir } from "./extract"
 import { HOSTS, planHost, resolveRunHosts, wrapPrompt, type Host, type HostPlan } from "./hosts"
 import { installPathShims, type PathShim } from "./path-shim"
+import { fingerprint, prepareOutput, sealEvidence, sha256, writeJSON } from "./provenance"
 
 function parseHosts(): Host[] | undefined {
   const raw = arg("--hosts")
@@ -113,10 +114,11 @@ async function runPlan(
     }
     let stdout = ""
     let stderr = ""
-    child.stdout.on("data", (c) => {
+    // Both output streams are explicitly piped above; numeric stdin prevents overload narrowing.
+    child.stdout!.on("data", (c) => {
       stdout += c.toString()
     })
-    child.stderr.on("data", (c) => {
+    child.stderr!.on("data", (c) => {
       stderr += c.toString()
     })
     let backstop: ReturnType<typeof setTimeout> | undefined
@@ -169,6 +171,7 @@ async function main() {
 
   const ref = arg("--ref", WORKTREE_REF) ?? WORKTREE_REF
   const timeoutMs = Number(arg("--timeout-secs", "600")) * 1000
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error("--timeout-secs must be positive and finite")
   const readOnly = flag("--read-only")
   const resolution = resolveRunHosts({ explicit: parseHosts() })
   for (const line of resolution.warnings) console.error(line)
@@ -178,14 +181,15 @@ async function main() {
     process.exit(2)
   }
 
-  const out = arg("--out") ?? mintCellDir()
-  fs.mkdirSync(out, { recursive: true })
-  const { skillDir } = extractSkill({ skill, ref, dest: path.join(out, "extract") })
+  const out = prepareOutput(arg("--out") ?? mintCellDir())
+  fs.writeFileSync(path.join(out, "task.md"), taskText, { flag: "wx" })
+  const sourceRev = spawnSync("git", ["rev-parse", "--verify", `${ref === WORKTREE_REF ? "HEAD" : ref}^{commit}`], {
+    cwd: REPO_ROOT, encoding: "utf8",
+  })
+  if (ref !== WORKTREE_REF && sourceRev.status !== 0) throw new Error(`cannot resolve ref: ${ref}`)
+  const resolvedRef = ref === WORKTREE_REF ? ref : sourceRev.stdout.trim()
+  const { skillDir } = extractSkill({ skill, ref: resolvedRef, dest: path.join(out, "extract") })
   const workspace = path.join(out, "workspace")
-  // A reused --out otherwise keeps the previous run's files, commits, and mutations,
-  // and --git-init skips reseeding because the old .git is still there.
-  fs.rmSync(workspace, { recursive: true, force: true })
-  fs.rmSync(path.join(out, "hosts"), { recursive: true, force: true })
   const fixture = arg("--fixture")
   if (fixture) copyFixture(fixture, workspace)
   else fs.mkdirSync(workspace, { recursive: true })
@@ -224,6 +228,26 @@ async function main() {
     spawnSync("git", ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"], { cwd: workspace })
   }
 
+  writeJSON(path.join(out, "input-manifest.json"), {
+    schema_version: 1,
+    started_at: new Date().toISOString(),
+    requested_ref: ref,
+    source_commit: sourceRev.status === 0 ? sourceRev.stdout.trim() : null,
+    source_commit_is_skill_identity: ref !== WORKTREE_REF,
+    skill: fingerprint(skillDir),
+    initial_workspace: fingerprint(workspace),
+    task_sha256: sha256(taskText),
+    harness: fingerprint(import.meta.dir, fs.readdirSync(import.meta.dir).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))),
+    runtime: { bun: Bun.version, node: process.version, platform: process.platform, arch: process.arch },
+    timeout_ms: timeoutMs,
+    read_only: readOnly,
+    git_init: flag("--git-init"), git_remote: flag("--git-remote"),
+    git_untracked: arg("--git-untracked") ?? null, git_staged: arg("--git-staged") ?? null,
+    requested_model: null,
+    observed_model: null,
+    limits: ["model/configuration inherited from host; not captured", "provider state and external resources are not frozen", ".git internals and symlink target contents are not hashed"],
+  }, true)
+
   const summary: Record<string, unknown> = {
     skill,
     ref,
@@ -241,12 +265,17 @@ async function main() {
     cells: {},
   }
 
+  writeJSON(path.join(out, "summary.json"), summary)
   for (const host of hosts) {
     const hostDir = path.join(out, "hosts", host)
     const hostWorkspace = path.join(hostDir, "workspace")
+    const hostSkillDir = path.join(hostDir, "skill")
     fs.mkdirSync(hostDir, { recursive: true })
     copyFixture(workspace, hostWorkspace)
-    const hostPrompt = wrapPrompt({ skillDir, workspace: hostWorkspace, task: taskText })
+    // Script imports can create caches. Keep the input snapshot unchanged and
+    // give every host its own execution copy, included in the sealed evidence.
+    fs.cpSync(skillDir, hostSkillDir, { recursive: true })
+    const hostPrompt = wrapPrompt({ skillDir: hostSkillDir, workspace: hostWorkspace, task: taskText })
     const promptFile = path.join(hostDir, "prompt.md")
     fs.writeFileSync(promptFile, hostPrompt)
     const plan = planHost(host, {
@@ -286,6 +315,17 @@ async function main() {
     if (shims.length > 0) Object.assign(plan.env, installPathShims(hostDir, shims))
     fs.writeFileSync(path.join(hostDir, "argv.json"), `${JSON.stringify(plan.argv, null, 2)}\n`)
     fs.writeFileSync(path.join(hostDir, "notes.txt"), `${plan.notes.join("\n")}\n`)
+    const cli = Bun.which(plan.argv[0])
+    const version = cli ? spawnSync(cli, ["--version"], {
+      env: plan.env, cwd: hostWorkspace, encoding: "utf8", timeout: 5000, maxBuffer: 8192,
+    }) : null
+    writeJSON(path.join(hostDir, "runtime.json"), {
+      executable: cli,
+      version: version?.status === 0 ? version.stdout.trim().slice(0, 1024) : null,
+      version_probe_ok: version?.status === 0,
+      requested_model: null,
+      observed_model: null,
+    }, true)
     const result = await runPlan(plan, hostWorkspace, timeoutMs)
     fs.writeFileSync(path.join(hostDir, "stdout.txt"), result.stdout)
     fs.writeFileSync(path.join(hostDir, "stderr.txt"), result.stderr)
@@ -299,11 +339,13 @@ async function main() {
       timedOut: result.timedOut,
       stdout_bytes: Buffer.byteLength(result.stdout),
       stderr_bytes: Buffer.byteLength(result.stderr),
+      process_outcome: result.timedOut ? "timeout" : result.exitCode === 0 ? "completed" : "nonzero-or-spawn-error",
     }
+    writeJSON(path.join(out, "summary.json"), summary)
   }
 
   const summaryPath = path.join(out, "summary.json")
-  fs.writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`)
+  sealEvidence(out)
   console.log(summaryPath)
 }
 

@@ -19,6 +19,7 @@ import {
 import { arg, flag } from "./cli"
 import { REPO_ROOT } from "./extract"
 import { gradeArm, type EvalArm } from "./grade"
+import { PACK_SCHEMA_VERSION, graderFingerprint, prepareOutput, valueHash, verifyEvidence, verifyWorkspaceGradePaths, writeJSON } from "./provenance"
 
 type Arm = EvalArm | "ab"
 
@@ -49,9 +50,9 @@ function hasBaseline(scenario: Scenario): boolean {
 function runCell(scenario: Scenario, arm: EvalArm, out: string, hosts?: string) {
   const ref = resolveArmRef(scenario, arm)
   if (!ref) throw new Error(`${scenario.id}: no ref for arm ${arm}`)
-  const taskFile = path.join(out, "task.md")
-  fs.mkdirSync(out, { recursive: true })
-  fs.writeFileSync(taskFile, scenario.task)
+  const taskFile = path.join(path.dirname(out), `${arm}-task.md`)
+  fs.mkdirSync(path.dirname(out), { recursive: true })
+  fs.writeFileSync(taskFile, scenario.task, { flag: "wx" })
   const argv = [
     "bun",
     path.join(import.meta.dir, "run.ts"),
@@ -88,8 +89,8 @@ function runCell(scenario: Scenario, arm: EvalArm, out: string, hosts?: string) 
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   })
-  fs.writeFileSync(path.join(out, "pack-stdout.txt"), r.stdout)
-  fs.writeFileSync(path.join(out, "pack-stderr.txt"), r.stderr)
+  fs.writeFileSync(path.join(path.dirname(out), `${arm}-collector-stdout.txt`), r.stdout ?? "")
+  fs.writeFileSync(path.join(path.dirname(out), `${arm}-collector-stderr.txt`), r.stderr ?? "")
   if (r.status !== 0) {
     throw new Error(
       `${scenario.id} ${arm} cell failed (exit ${r.status})\n${r.stderr}\n${r.stdout}`,
@@ -135,9 +136,13 @@ function main() {
 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-")
   const explicitOut = arg("--out")
-  const root = explicitOut ?? fs.mkdtempSync(path.join(os.tmpdir(), `ce-skill-eval-pack-${stamp}-`))
-  if (explicitOut) fs.mkdirSync(root, { recursive: true })
-  const pack: Record<string, unknown> = { root, arm: requested, scenarios: {} }
+  const root = prepareOutput(explicitOut ?? fs.mkdtempSync(path.join(os.tmpdir(), `ce-skill-eval-pack-${stamp}-`)))
+  const pack: Record<string, unknown> = {
+    schema_version: PACK_SCHEMA_VERSION, root, arm: requested,
+    started_at: new Date().toISOString(), grader: graderFingerprint(), scenarios: {},
+  }
+  const packPath = path.join(root, "pack.json")
+  writeJSON(packPath, pack)
 
   for (const scenario of selected) {
     const arms = armsFor(scenario, requested)
@@ -145,25 +150,41 @@ function main() {
       console.error(`warning: ${scenario.id} has no ${requested} arm; skip`)
       continue
     }
-    const row: Record<string, unknown> = { id: scenario.id, skill: scenario.skill, arms: {} }
+    const snapshot = JSON.parse(JSON.stringify(scenario)) as Scenario
+    const row: Record<string, unknown> = {
+      id: scenario.id, skill: scenario.skill,
+      scenario_snapshot: snapshot, scenario_sha256: valueHash(snapshot), arms: {},
+    }
+    ;(pack.scenarios as Record<string, unknown>)[scenario.id] = row
     for (const arm of arms) {
       const out = path.join(root, scenario.id.replaceAll("/", "__"), arm)
       console.error(`running ${scenario.id} ${arm} → ${out}`)
-      const summaryPath = runCell(scenario, arm, out, hosts)
-      const graded = gradeArm({ out, scenario, arm })
-      ;(row.arms as Record<string, unknown>)[arm] = {
-        out,
-        summary: summaryPath,
-        grades: graded.grades,
-        ok: graded.ok,
-        pointer_ok: graded.pointer_ok,
+      const info: Record<string, unknown> = {
+        out, out_relative: path.relative(root, out).split(path.sep).join("/"),
+        status: "collecting", ok: false,
       }
+      ;(row.arms as Record<string, unknown>)[arm] = info
+      writeJSON(packPath, pack)
+      try {
+        verifyWorkspaceGradePaths((snapshot.grade.workspace_contains ?? []).map((check) => check.path))
+        info.summary = runCell(snapshot, arm, out, hosts)
+        verifyEvidence(out)
+        info.evidence_sha256 = valueHash(JSON.parse(fs.readFileSync(path.join(out, "evidence-manifest.json"), "utf8")))
+        if (graderFingerprint().sha256 !== (pack.grader as { sha256: string }).sha256) {
+          throw new Error("grader changed during collection")
+        }
+        const graded = gradeArm({ out, scenario: snapshot, arm })
+        if (graded.grades.length === 0) throw new Error("no host results were collected")
+        Object.assign(info, graded, { status: "graded", grade_result_sha256: valueHash(graded) })
+      } catch (error) {
+        Object.assign(info, { status: "collection-error", error: String(error), ok: false })
+      }
+      writeJSON(packPath, pack)
     }
-    ;(pack.scenarios as Record<string, unknown>)[scenario.id] = row
   }
 
-  const packPath = path.join(root, "pack.json")
-  fs.writeFileSync(packPath, `${JSON.stringify(pack, null, 2)}\n`)
+  pack.finished_at = new Date().toISOString()
+  writeJSON(packPath, pack)
   console.log(packPath)
   // Exit status is the verdict: a caller running this as a check must not read a
   // failed arm as a pass. The artifact is written first so failures stay diagnosable.
@@ -185,4 +206,7 @@ function main() {
   }
 }
 
-main()
+try { main() } catch (error) {
+  console.error(error)
+  process.exitCode = 2
+}
