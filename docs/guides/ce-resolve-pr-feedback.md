@@ -2,11 +2,11 @@
 
 > Evaluate, fix, and reply to PR review feedback in one pass. Fix what is real. Do not churn on what is not.
 
-`ce-resolve-pr-feedback` is the **fix-the-comments-now** skill. It is a git-workflow tool, not a core-loop step. After reviewers comment, it fetches unresolved threads, judges every finding in one place, and dispatches fixers only for items it has already approved. Then it commits, pushes, replies, and resolves threads.
+`ce-resolve-pr-feedback` is the fix-the-comments-now skill. It is a git-workflow tool, not a core-loop step. After reviewers comment, it fetches unresolved threads, judges every finding in one place, and dispatches fixers only for items it has already approved. Then it commits, pushes, replies, and resolves threads.
 
-That is a single pass (at most two fix-verify cycles). It is not a watch loop. `/ce-babysit-pr` is the skill that sits on an open PR over time and *calls this one* whenever new comments arrive. Use this skill when you want the comments handled now. Use babysit when you want that repeated until the PR looks ready.
+That is a single pass, at most two fix-verify cycles. It is not a watch loop. `/ce-babysit-pr` is the skill that sits on an open PR over time and calls this one whenever new comments arrive. Use this skill when you want the comments handled now. Use babysit when you want that repeated until the PR looks ready.
 
-It judges on merit, not source or form. Human or bot, inline thread or top-level comment: the finding is either real or it is not. The default is to fix. It diverts only when reading the code trips a concrete signal.
+It judges on merit, not source or form. Human or bot, inline thread or top-level comment, the finding is either real or it is not. The default is to fix. It diverts only when reading the code trips a concrete signal.
 
 GitHub only, including GitHub Enterprise that `gh` is configured for.
 
@@ -25,7 +25,7 @@ GitHub only, including GitHub Enterprise that `gh` is configured for.
 
 ## Example invocations
 
-Empty, a PR number, or a bare `/pull/N` URL is **Full** mode. Only a `#discussion_r` fragment is **Targeted**. A `#issuecomment-` URL is Full: top-level comments have no review thread to pin.
+Empty, a PR number, or a bare `/pull/N` URL is Full mode. Only a `#discussion_r` fragment is Targeted. A `#issuecomment-` URL is Full, because top-level comments have no review thread to pin.
 
 ```text
 # All new unresolved feedback on this branch's PR
@@ -48,37 +48,24 @@ To keep handling later rounds as they arrive, use `/ce-babysit-pr` instead.
 
 ---
 
-## The Problem
+## How it works
 
-Resolving a pile of review comments by hand, or with a "fix everything" reflex, fails in familiar ways:
+Resolving a pile of review comments by hand, or with a fix-everything reflex, fails in familiar ways. Bots over-flag and blind application churns the PR. Findings get taken on authority without checking the code. Top-level comments have no resolve API, so they come back every run. Twelve threads handled one at a time waste wall-clock, and twelve in parallel collide on the same file.
 
-- Review bots over-flag. Blindly applying them churns the PR
-- A finding is taken on authority ("a reviewer said so") without checking the code
-- Top-level comments and review bodies have no resolve API, so they come back every run
-- Bot wrapper text ("Here are some automated review suggestions...") inflates the work count
-- Twelve threads handled one at a time waste wall-clock. Twelve in parallel collide on the same file
-- Each fixer tests only its own change. Cross-agent breakage slips through
-
-## The Solution
-
-The skill runs a fixed pipeline:
+The skill runs a fixed pipeline instead:
 
 1. Fetch unresolved review threads, PR comments, and review bodies
-2. Triage new vs already handled. A substantive deferral counts as handled. Bot wrappers are dropped silently
+2. Triage new vs already handled. A substantive deferral counts as handled. Bot wrapper text ("Here are some automated review suggestions...") is dropped silently
 3. Judge every new item in the orchestrator's own context (the legitimacy gate)
 4. Dispatch fixers only for approved fixes. Overlapping files serialize
 5. One full validation run on the combined diff
 6. Commit and push
 7. Reply with a quote of the original ask, then resolve review threads via GraphQL
-8. Re-fetch. If new threads remain, one more cycle. After two cycles, escalate the pattern as `needs-human`
+8. Re-fetch. If new threads remain, one more cycle. After two cycles, escalate the recurring pattern as `needs-human`
 
 If you have an unsubmitted (PENDING) review on the PR, the skill stops before it replies. Those replies would disappear into the draft. Submit or discard that review yourself; the skill will not.
 
----
-
-## What Makes It Novel
-
-### Default to fixing. Divert only on a tripwire
+### Default to fixing, divert only on a tripwire
 
 Most feedback, nitpicks included, is correct. Validation is not a separate analysis pass. The agent has to read the code to make the fix anyway, and it diverts only on a signal it notices during that read:
 
@@ -91,7 +78,7 @@ Most feedback, nitpicks included, is correct. Validation is not a separate analy
 
 "I'm uneasy" is not a tripwire. Source does not matter. A bot can be right; a human can be wrong.
 
-The one place the default inverts is agent instruction prose (a `SKILL.md`, a skill reference, a persona or rule file). A natural-language condition can always be made more specific, so a case the stated condition already decides is answered with the condition (`not-addressing`), not patched; only a wrong or missing condition, or a mechanism at the wrong owning layer, is a fix. A second round of findings against text the first round added is a signal to restate the block, not qualify it, and the loop cap counts rounds per PR (from the branch's review-fix commits) so it survives re-invocation by `ce-babysit-pr`. The project's own review guidance in context frames these verdicts.
+The one place the default inverts is agent instruction prose (a `SKILL.md`, a skill reference, a persona or rule file). A natural-language condition can always be made more specific, so a case the stated condition already decides is answered with the condition (`not-addressing`), not patched. Only a wrong or missing condition, or a mechanism at the wrong owning layer, is a fix. A second round of findings against text the first round added is a signal to restate the block, not qualify it, and the loop cap counts rounds per PR (from the branch's review-fix commits) so it survives re-invocation by `ce-babysit-pr`.
 
 ### Judge once, then fan out only the fixes
 
@@ -99,7 +86,7 @@ The orchestrator holds every thread from a single fetch. It can read a file once
 
 1-4 fixes run in parallel. 5+ go in batches of 4. Two fixers that touch the same file never run at the same time. Harnesses without parallel dispatch run them sequentially.
 
-When the same invariant applies to other sites **this PR introduced**, those sites become one class fix, not a drip of follow-up nits.
+When the same invariant applies to other sites this PR introduced, those sites become one class fix, not a drip of follow-up nits.
 
 ### Six verdicts
 
@@ -114,16 +101,9 @@ When the same invariant applies to other sites **this PR introduced**, those sit
 
 `needs-human` is rare. It includes what the reviewer said, what was investigated, why a decision is needed, and options with tradeoffs. Escalations never block the rest of the run. That is what lets `/ce-babysit-pr` call this skill unattended.
 
-### Full vs Targeted
-
-| Mode | When | Behavior |
-|------|------|----------|
-| **Full** (default) | Empty, PR number, `/pull/N` URL, or `#issuecomment-` | All unresolved feedback on that PR |
-| **Targeted** | `#discussion_r` fragment | That review thread only |
-
 ---
 
-## Quick Example
+## Quick example
 
 A reviewer and a review bot leave eight comments. You invoke `/ce-resolve-pr-feedback`.
 
@@ -141,7 +121,7 @@ Only three items need a fixer. The two `dispatcher.rb` edits serialize; the thir
 
 ---
 
-## When to Reach For It
+## When to reach for it
 
 Use `ce-resolve-pr-feedback` when:
 
@@ -159,7 +139,7 @@ Skip it when:
 
 ---
 
-## Chain Position
+## Chain position
 
 One-shot closer after a PR has comments. Not a watch.
 
@@ -169,15 +149,7 @@ One-shot closer after a PR has comments. Not a watch.
 /ce-babysit-pr -----------------------------------------------/
 ```
 
-`/ce-code-review` reviews *before* the PR is open. This skill handles incoming feedback *after*. `/ce-debug` is for broken behavior, not review comments.
-
----
-
-## Use Standalone
-
-- Current branch: `/ce-resolve-pr-feedback`
-- Specific PR: `/ce-resolve-pr-feedback 1234` or a `/pull/N` URL
-- One thread: `/ce-resolve-pr-feedback https://github.com/.../pull/1234#discussion_r5678901`
+`/ce-code-review` reviews before the PR is open. This skill handles incoming feedback after. `/ce-debug` is for broken behavior, not review comments.
 
 ---
 
@@ -204,9 +176,6 @@ Yes, by default. A correct nit that improves the code gets fixed. A purely cosme
 **Does it treat bot feedback differently from human feedback?**
 No. Reading the code is the same work either way. An "it's a bot, so ignore it" rule would drop real bugs. Form only changes the reply mechanic: inline threads resolve via GraphQL; review bodies and top-level comments get a top-level reply.
 
-**Why drop bot wrappers silently?**
-Announcing them adds noise. The wrapper around CodeRabbit findings is not actionable. The findings inside it still go through the gate.
-
 **What if two parallel fixers conflict?**
 Overlapping files serialize before dispatch. If a fix expands to callers in another file, combined validation and the verify pass catch the breakage, and those agents re-run sequentially.
 
@@ -221,7 +190,7 @@ The skill stops. Replies posted during a PENDING review are swallowed by that dr
 
 ---
 
-## See Also
+## See also
 
 - [`/ce-babysit-pr`](./ce-babysit-pr.md): watch the PR over time; calls this skill for each comment round
 - [`/ce-code-review`](./ce-code-review.md): pre-PR review

@@ -2,7 +2,7 @@
 title: A predictable-path cache in shared /tmp is a prompt-injection vector — ownership-check reads
 date: 2026-06-29
 category: docs/solutions/best-practices/
-module: repo-grounding-cache
+module: scratch-space
 problem_type: best_practice
 component: tooling
 severity: medium
@@ -15,45 +15,21 @@ tags: [security, prompt-injection, cache, tmp, file-ownership, shared-host]
 
 # A predictable-path cache in shared /tmp is a prompt-injection vector — ownership-check reads
 
-## Context
+## Threat
 
-The repo-grounding cache stored profiles at `/tmp/compound-engineering/repo-profile/<root-sha>/<inputs-digest>.json` (earlier: `<head-sha>.json`). The path components are knowable for any public or shared repo (root commit + a digest of committed profile-input blobs), and `/tmp/compound-engineering/` is world-traversable. Security review found: on a multi-user host, a local co-tenant can **pre-create** that exact path and plant a JSON file that satisfies every validity gate (it sets `inputs_digest` to the victim's current digest, the current schema version, and a `profile` object — cleanliness is checked against the victim's working tree, not the file's authenticity). The victim's skill then prints `HIT` and feeds the attacker's JSON into the agent as the "project profile" — attacker-controlled text into the LLM context, i.e. **indirect prompt injection**.
+A scratch file at a knowable path under world-traversable `/tmp` (keyed by commit SHA, repo name, username, or a digest of committed blobs) can be **pre-created** by a local co-tenant. A planted file can satisfy every content gate the reader applies (schema version, digest, freshness), because those gates check facts about the victim's tree, not who wrote the file. If the reader then feeds the content into an agent's context, the attacker has attacker-controlled text in the LLM prompt: indirect prompt injection.
 
-The repo-orientation profile was later removed entirely after behavioral evaluation showed no marginal value over lean task-specific grounding. The ownership lesson still applies to any predictable shared-temp artifact whose contents are read into an agent context.
-
-Impact is calibrated (needs a local co-tenant + predictable SHAs; payload is text, not code-exec or secret disclosure), but the injection elevation is why it is worth fixing rather than dismissing as "just repo metadata."
+The usual framing ("it's just cache metadata, low impact") misses this. **Anything read into an LLM context is an injection sink**, so "non-sensitive" data does not bound the risk when the data is instructions-adjacent. Impact is calibrated (local co-tenant plus predictable path; payload is text, not code execution), which is why the fix is a cheap check rather than abandoning shared temp.
 
 ## Guidance
 
-When a cache/scratch file in shared `/tmp` will be **read back into an agent's context**, do not trust it by path + content gates alone — verify it is **yours**:
+When a shared-`/tmp` file will be read back into an agent's context, path plus content gates do not prove authenticity. Verify it is **yours**:
 
-- **Reject any cache file not owned by the current user.** After opening, `os.fstat(fd).st_uid != os.geteuid()` -> treat as a miss and re-derive. Check via the *opened fd* (`fstat`), not a pre-open `stat`, so it also defeats a symlink an attacker planted pointing at a file they own. Guard the check where `geteuid` is unavailable (non-POSIX) — the shared-`/tmp` threat doesn't apply there.
-- This composes with the cache's existing principle that it is **never a correctness dependency**: a rejected entry simply degrades to "derive fresh," never blocks.
-- Write side is already safe if you use `tempfile.mkstemp` (`O_EXCL`, mode `0600`) + `os.replace` (atomic). The exposure is purely on the *read* path.
-
-The fstat-on-read check is the load-bearing lesson: path + content gates do not prove authenticity. Current scratch-space practice layers **both** defenses: a per-effective-uid root (`/tmp/compound-engineering-<effective-uid>/…`, mode `0700`, reject symlink or foreign ownership) **and** fstat-on-fd before content enters agent context. The earlier write-up rejected uid namespacing to keep a single `/tmp/compound-engineering/` path; that convention was later replaced. Do not revive the un-namespaced shared root.
-
-## Why This Matters
-
-Predictable paths in shared `/tmp` are a classic local attack surface, and the usual framing ("it's just a cache, low impact") misses the new twist: **anything fed into an LLM context is an injection sink.** A cache of benign-looking metadata becomes an attacker-controlled-text channel into the model. The data being "non-sensitive" does not bound the risk when the data is *instructions-adjacent*.
-
-## When to Apply
-
-- Any agent/skill that reads a `/tmp` (or other shared-dir) file at a guessable path into model context.
-- Caches keyed by values an attacker can compute (commit SHAs, repo names, usernames).
-
-Not needed for per-run `mktemp -d` scratch with an unguessable path consumed only within the same process, or for files never surfaced to the model.
-
-## Examples
+- After opening, `os.fstat(fd).st_uid != os.geteuid()` -> treat as a miss and re-derive. Check via the *opened fd*, not a pre-open `stat`, so a planted symlink pointing at an attacker-owned file is also rejected. Skip where `geteuid` is unavailable (non-POSIX); the shared-`/tmp` threat does not apply there.
+- A rejected entry degrades to "derive fresh"; the cache must never be a correctness dependency.
+- The write side is already safe with `tempfile.mkstemp` (`O_EXCL`, mode `0600`) plus `os.replace`. The exposure is purely on the read path.
 
 ```python
-# Vulnerable: gates check authenticity-irrelevant facts (inputs_digest/schema/cleanliness),
-# never WHO wrote the file.
-with open(path) as f:
-    doc = json.load(f)
-# ... print("HIT"); print(doc["profile"])   # attacker text -> agent context
-
-# Fixed: reject a file we don't own (defeats planted file AND planted symlink via fstat-on-fd).
 with open(path) as f:
     geteuid = getattr(os, "geteuid", None)
     if geteuid is not None and os.fstat(f.fileno()).st_uid != geteuid():
@@ -61,8 +37,10 @@ with open(path) as f:
     doc = json.load(f)
 ```
 
+Current practice layers **both** defenses: the per-effective-uid root from AGENTS.md "Scratch Space" (`/tmp/compound-engineering-<effective-uid>/…`, mode `0700`, reject symlink or foreign ownership) **and** fstat-on-fd before content enters agent context. An earlier write-up rejected uid namespacing to keep a single shared `/tmp/compound-engineering/` root; that was reversed. Do not revive the un-namespaced shared root.
+
+Not needed for per-run `mktemp -d` scratch with an unguessable path consumed only within the same process, or for files never surfaced to the model.
+
 ## Related
 
-- `docs/solutions/skill-design/cross-skill-shared-cache-primitive.md` — the cache this hardened
-- `docs/solutions/best-practices/cache-invalidation-input-set-completeness.md` — the cache's correctness (separate) property
 - AGENTS.md "Scratch Space" (per-effective-uid `/tmp/compound-engineering-<effective-uid>/` plus the `$TMPDIR` fallback)

@@ -1,12 +1,12 @@
 # `ce-riffrec-feedback-analysis`
 
-> Turn a [Riffrec](https://github.com/kieranklaassen/riffrec) capture (or a video, audio clip, or meeting notes) into structured product feedback.
+> Turn a [Riffrec](https://github.com/kieranklaassen/riffrec) capture, or a video, audio clip, or meeting notes, into structured product feedback.
 
-`ce-riffrec-feedback-analysis` is the **consumption** skill for Riffrec recordings. Riffrec is a separate capture tool. It records synchronized screen, voice, and events and emits a `riffrec-*.zip`. This skill analyzes a Riffrec capture bundle, zipped or unpacked, or a standalone video, audio file, or notes file, and routes to setup, a quick bug report, or extensive analysis.
+Riffrec is a separate capture tool. It records synchronized screen, voice, and events and emits a `riffrec-*.zip`. This skill is the consumption side: it takes a Riffrec bundle (zipped or unpacked), or a standalone video, audio file, or notes file, and routes it to setup help, a quick bug report, or extensive analysis.
 
-Use it for those recordings. Short text feedback can go straight into `/ce-brainstorm`. A debug session is `/ce-debug`. Bare transcription, with no structure, is a transcription tool.
+Short text feedback can go straight into `/ce-brainstorm`. A debug session is `/ce-debug`. If all you want is a transcript, use a transcription tool.
 
-The skill also activates when an unpacked Riffrec capture appears (`session.json`, `events.json`, `recording.webm`, `voice.webm`). Pass the capture directory itself so the analyzer preserves its synchronized metadata and media.
+The skill also activates when an unpacked Riffrec capture appears (`session.json`, `events.json`, `recording.webm`, `voice.webm`). Pass the capture directory itself, not just `recording.webm`, so the analyzer keeps the event log and timestamps.
 
 ---
 
@@ -23,7 +23,7 @@ The skill also activates when an unpacked Riffrec capture appears (`session.json
 
 ## Example invocations
 
-Length and wording pick the path. You do not pass a flag.
+Length and wording pick the path. There is no flag.
 
 ```text
 # A complete Riffrec zip. Length and event count pick quick vs extensive
@@ -34,7 +34,7 @@ Length and wording pick the path. You do not pass a flag.
 /ce-riffrec-feedback-analysis voice-memo.m4a
 /ce-riffrec-feedback-analysis meeting-notes.md
 
-# Force the short path: one bug report in chat, no brainstorm, nothing written unless you ask
+# Force the short path: one bug report in chat, nothing written unless you ask
 /ce-riffrec-feedback-analysis just transcribe this clip.mp4
 
 # Longer walkthrough, extract only. Artifacts land, brainstorm does not start
@@ -44,7 +44,7 @@ Length and wording pick the path. You do not pass a flag.
 /ce-riffrec-feedback-analysis how do I install and use Riffrec?
 ```
 
-A Riffrec bundle with no extra wording is inspected first (duration, event count). If that is still unclear, the skill asks before doing the heavy work.
+A Riffrec bundle with no extra wording gets inspected first (duration, event count). If the route is still unclear, the skill asks before doing the heavy work. Better one question than the wrong path.
 
 ---
 
@@ -53,7 +53,7 @@ A Riffrec bundle with no extra wording is inspected first (duration, event count
 A raw walkthrough does not turn into something you can build from:
 
 - A 12-minute session is too dense to act on as a blob
-- Several issues collapse into whichever one is mentioned first
+- Several issues collapse into whichever one gets mentioned first
 - A transcript of what was said misses what the person was trying to do
 - Raw screen and audio sitting in the repo get committed by accident
 - Nothing in the chain consumes the recording as requirements
@@ -61,13 +61,13 @@ A raw walkthrough does not turn into something you can build from:
 
 ## The Solution
 
-Three paths, chosen from the input, not from a mode flag:
+Three paths, chosen from the input:
 
 - **Setup** when there is no recording yet and the question is how to install, capture, or share. The skill walks the Riffrec install guide. The analyzer does not run.
-- **Quick bug report** when the clip is under ~60 seconds, names a single issue, or asks for "quick", "small", or "just transcribe". One concise bug report, printed in chat. No full artifact set, no brainstorm. A file is written only if you ask for one.
+- **Quick bug report** when the clip is under ~60 seconds, names a single issue, or asks for "quick", "small", or "just transcribe". One concise bug report, printed in chat. No artifact set, no brainstorm. A file gets written only if you ask.
 - **Extensive analysis** when the recording is longer, covers several issues or a workflow, or you want requirements material. Structured analysis plus screenshots, then a handoff to `/ce-brainstorm`. Say "extract only" or "analyze, do not brainstorm" to stop after the artifacts.
 
-Raw recordings, audio, zip contents, and extracted frames stay local by default. Text artifacts can be committed when they are needed for traceability and contain no sensitive data.
+Raw recordings, audio, zip contents, and extracted frames stay local by default. Text artifacts can be committed when you need them for traceability and they contain no sensitive data.
 
 ---
 
@@ -75,21 +75,21 @@ Raw recordings, audio, zip contents, and extracted frames stay local by default.
 
 ### The path follows the recording
 
-A short single-issue clip should not pay for a requirements package. A multi-issue walkthrough should not collapse into one ticket. When a zip arrives without context, the skill looks at length and event count before choosing. If a quick-path transcript turns out to hold several issues, it says so and switches to extensive.
+A short single-issue clip should not pay for a requirements package, and a multi-issue walkthrough should not collapse into one ticket. When a zip arrives without context, the skill looks at length and event count before choosing. If a quick-path transcript turns out to hold several issues, it says so and switches to extensive.
 
 ### Privacy default on the raw bits
 
-`raw/` and `frames/` are not committed unless you ask and confirm privacy is acceptable. Committed docs use repo-relative screenshot paths so a later agent can open the evidence without an absolute local path.
+`raw/` and `frames/` never get committed unless you ask and confirm privacy is acceptable. Committed docs use repo-relative screenshot paths, so a later agent can open the evidence without an absolute local path.
 
 ### One intake, several file shapes
 
-Non-setup runs share one analyzer. Accepted inputs: a Riffrec `.zip` or unpacked capture directory; `.mp4` / `.mov` / `.webm` video; `.m4a` / `.mp3` / `.wav` audio; a meeting-notes `.md`. A Riffrec bundle is richer because events and timestamps come along. A video or voice memo still goes through the same router.
+Non-setup runs share one analyzer. It accepts a Riffrec `.zip` or unpacked capture directory; `.mp4` / `.mov` / `.webm` video; `.m4a` / `.mp3` / `.wav` audio; a meeting-notes `.md`. A Riffrec bundle is richer because events and timestamps come along, but a plain video or voice memo goes through the same router.
 
 In a repo that has `docs/brainstorms/`, extensive output defaults to `docs/brainstorms/riffrec-feedback/` as kickoff evidence. The durable plan still comes from `ce-brainstorm` under `docs/plans/`. The quick path writes to a temp directory so a one-issue report does not land in that tree.
 
 ### Extensive always continues, unless you said not to
 
-The recording is what the user experienced. That is evidence, not a decision. After the analysis lands, the skill loads `/ce-brainstorm` with `requirements-kickoff.md` and asks you to confirm, correct, or regroup the captured requirements. The quick path skips that handoff because the bug report is the deliverable.
+The recording is what the user experienced. That is evidence, not a decision. Without brainstorm, the analysis sits on disk and nobody decides what to build. So after the analysis lands, the skill loads `/ce-brainstorm` with `requirements-kickoff.md` and asks you to confirm, correct, or regroup the captured requirements. The quick path skips the handoff because the bug report is the deliverable.
 
 ---
 
@@ -120,7 +120,7 @@ Skip it when:
 
 - The feedback is short and already text. Paste it into `/ce-brainstorm`
 - The recording is a debug session, not product feedback → `/ce-debug`
-- You only want a transcript with no structure. Use a transcription tool
+- You only want a transcript. Use a transcription tool
 - You already have a single known bug and a stack trace. Skip the capture skill
 
 ---
@@ -143,7 +143,7 @@ Extensive analysis is supposed to become a plan. Quick is done when the report i
 
 Most invocations are a file path plus optional intent ("just transcribe", "do not brainstorm", "how do I install").
 
-If you already unzipped a capture, pass its directory to preserve the synchronized metadata. Passing `recording.webm` alone still works as standalone video, but drops the event log and other capture context.
+If you already unzipped a capture, pass its directory to keep the synchronized metadata. Passing `recording.webm` alone still works as standalone video, but drops the event log and other capture context.
 
 ---
 
@@ -167,22 +167,13 @@ The output format the extensive path writes for brainstorm is `references/compou
 ## FAQ
 
 **What is Riffrec?**
-A separate capture tool ([github.com/kieranklaassen/riffrec](https://github.com/kieranklaassen/riffrec)). Screen, microphone, console, network, and DOM events into one `riffrec-*.zip`. This skill does not record. It consumes recordings.
+A separate capture tool ([github.com/kieranklaassen/riffrec](https://github.com/kieranklaassen/riffrec)). Screen, microphone, console, network, and DOM events in one `riffrec-*.zip`. This skill does not record. It consumes recordings.
 
 **Do I have to use Riffrec?**
-No. Video, audio, and markdown notes take the same paths. A Riffrec bundle, zipped or unpacked, is richer because events and timestamps travel with it.
-
-**Why does extensive analysis continue into `/ce-brainstorm`?**
-The recording is evidence. Without brainstorm, the analysis sits on disk and nobody decides what to build. Ask for extract-only if you want the files and not the handoff.
-
-**Why is the quick path different?**
-A 30-second single-bug clip does not need a requirements package. The report is printed in chat so you can confirm it. Nothing is written unless you ask.
-
-**What stays local?**
-Raw recordings, audio, zip contents, and frames stay local by default. Text artifacts can be committed when they are safe and you need the trace.
+No. Video, audio, and markdown notes take the same paths. A Riffrec bundle is richer because events and timestamps travel with it.
 
 **What if the input is ambiguous?**
-The skill inspects length and event count. If that is still unclear, it asks. Better one question than the wrong path.
+The skill inspects length and event count. If that is still unclear, it asks.
 
 ---
 

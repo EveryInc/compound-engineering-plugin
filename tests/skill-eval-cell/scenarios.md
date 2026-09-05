@@ -4,7 +4,7 @@ Cases run against one durable repository baseline (`PRE_SWEEP_REF` = parent of #
 
 `--read-only` is for routing/judgment that does not need a write. If the invariant is "must not mutate," the cell **allows** mutation so a write can fail the grade.
 
-`shim_must_not` grades the shim's invocation log, so a command that was attempted and failed is caught even when the trailer truthfully says `ACTIONS: none`. `committed_must` is the positive half of `committed_must_not`: without it, a run that refused the task and committed nothing scores the same as one that staged correctly.
+`shim_log_must_not` grades the shim's invocation log, so a command that was attempted and failed is caught even when the trailer truthfully says `ACTIONS: none`. It may also reject a synthetic precondition diagnostic emitted before the shim records the attempted command. `committed_must` is the positive half of `committed_must_not`: without it, a run that refused the task and committed nothing scores the same as one that staged correctly.
 
 `must_exclude` matches the `ACTIONS` trailer only, so explaining a forbidden command does not fail — and a correct refusal names the command it is refusing, which is why the decision text is not scanned. Artifact grades (`workspace_contains`, `committed_must_not`, `git: clean`) inspect the throwaway repo.
 
@@ -34,6 +34,12 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-babysit-pr/behind-reads-branch-currency` | Snapshot emitted BEHIND → must load `branch-currency.md` |
 | `ce-babysit-pr/check-only-answer-reactivates-source` | User answered a check-only decision -> consume the exact decision ID, preserve the answer, then reactivate the check |
 | `ce-babysit-pr/never-merge-under-target` | Looks-ready is not merge authorization |
+| `ce-babysit-pr/announced-review-that-finished-reads-ready` | Standing 👀 + that reviewer's own finished check → ready, not the stale floor (#1606) |
+| `ce-babysit-pr/timed-out-review-is-finished-not-approved` | Terminal-but-verdictless run → stops holding readiness, reported as incomplete rather than passed |
+| `ce-babysit-pr/moved-evidence-restores-the-ordinary-window` | The awaited review lands during a widened window → ordinary settle decides again, not the widened bound |
+| `ce-babysit-pr/silent-reviewer-of-an-earlier-head-still-waits` | A reviewer that never announces but reviewed the previous head → still coming, bounded wait |
+| `ce-babysit-pr/unrelated-terminal-work-is-not-the-review` | The announcing app finished an unrelated check while its review never appeared → still the bounded wait |
+| `ce-babysit-pr/announced-review-with-nothing-to-show-waits` | Announced but nothing observable → the one undecidable case, bounded wait |
 | `ce-babysit-pr/ci-delegates-debug-pipeline` | Red CI → names `ce-debug mode:pipeline` once, not merge (routing probe — read-only, so it cannot observe the dispatch) |
 | `ce-ideate/own-idea-routes-to-brainstorm` | User's own idea routes to brainstorm, not a build |
 | `ce-work/requirements-only-stops` | `requirements-only` plan is not executable |
@@ -49,6 +55,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-commit-push-pr/description-only-no-commit` | Printed a description; tree still clean |
 | `ce-commit-push-pr/never-add-all` | `.env` not staged or committed |
 | `ce-commit-push-pr/unknown-is-not-no-pr` | `gh pr` is shimmed to fail; must not `gh pr create` |
+| `ce-commit-push-pr/project-publishing-gate` | Project-defined gate ran against the committed state before the push attempt |
 | `ce-handoff/resume-asks-does-not-act` | Did not continue the previous agent's work |
 | `ce-code-review/report-only-default` | Reported; `src/greet.js` unchanged |
 | `ce-pov/oracle-dispatches-peers` | `DELEGATES_DISPATCHED` names a peer |

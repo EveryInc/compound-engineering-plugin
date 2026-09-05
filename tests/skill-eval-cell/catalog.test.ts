@@ -141,6 +141,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-brainstorm/verdict-routes-to-pov:references/phase-0.md",
         "ce-brainstorm/write-plan-reads-plan-write:references/plan-write.md",
         "ce-commit-push-pr/description-only-no-commit:references/pr-description-writing.md",
+        "ce-compound-refresh/confirmed-worth-lens-deletes-only-with-quoted-artifact:references/worth-audit.md",
         "ce-commit-push-pr/babysit-off-preserves-human-decision:references/apply-and-handoff.md",
         "ce-debug/pipeline-convergent-fix:references/pipeline-mode.md",
         "ce-doc-review/routine-fix-no-product-lens:references/persona-selection.md",
@@ -184,13 +185,25 @@ describe("skill-eval-cell catalog", () => {
 
   test("feature-only decision rows are explicitly post-only", () => {
     expect(SCENARIOS.filter((s) => s.post_only).map((s) => s.id).sort()).toEqual([
+      "ce-babysit-pr/announced-review-that-finished-reads-ready",
+      "ce-babysit-pr/announced-review-with-nothing-to-show-waits",
       "ce-babysit-pr/check-only-answer-reactivates-source",
+      "ce-babysit-pr/moved-evidence-restores-the-ordinary-window",
       "ce-babysit-pr/pipeline-returns-canonical-human-decision",
+      "ce-babysit-pr/silent-reviewer-of-an-earlier-head-still-waits",
+      "ce-babysit-pr/timed-out-review-is-finished-not-approved",
+      "ce-babysit-pr/unrelated-terminal-work-is-not-the-review",
       "ce-commit-push-pr/babysit-off-preserves-human-decision",
+      "ce-commit-push-pr/project-publishing-gate",
+      "ce-compound-refresh/confirmed-worth-lens-deletes-only-with-quoted-artifact",
       "ce-compound-refresh/guidance-survives-implementation-conflict",
+      "ce-compound-refresh/plain-refresh-keeps-redundant-accurate-doc",
+      "ce-compound-refresh/worth-lens-intent-confirms-before-loading",
       "ce-debug/pipeline-divergent-defer",
       "ce-plan/config-model-reaches-authoring-gate",
       "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision",
+      "ce-setup/instruction-file-covered-offers-nothing",
+      "ce-setup/instruction-file-gap-offers-store-and-directive",
     ])
   })
 

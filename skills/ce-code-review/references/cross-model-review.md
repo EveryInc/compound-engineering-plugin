@@ -171,8 +171,10 @@ Repeat that call until the job is terminal or the derived deadline is spent; do 
   ```bash
   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
   PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
-  "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" result --path <run-dir>/adversarial-<target>.json
+  "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" result "<job-id>" --path <run-dir>/adversarial-<target>.json
   ```
+
+  The read is fd-ownership-checked and bounded. Exit 0 emits the artifact. Exit 2 means the job is still running, so the deadline loop above was left early — return to it rather than classifying. Exit 3 is the only outcome that means the peer produced nothing; it names the job's state, which selects the matching branch below. Any other exit means the runner could not complete the read — a trust failure on the artifact or on the job's own state, or a job id that did not resolve. None of those has a branch below: name the failure in Coverage as a degraded cross-model pass, and never fold it into the silent skip.
 
   Its findings enter ordinary dedup, but agreement promotion is allowed **only when `independence_verified` is `true`**. A false or absent value may contribute findings but never raises confidence. `independence_verified` attests a different serving family; it does not claim the exact served model was verified. `receipt_supported`, `model_actual`, and `effort_actual` carry that separate identity evidence. Peer findings never grant silent-apply authority.
 - In final Coverage, name `cross_model_route`, `model_requested`, `effort_requested`, `receipt_supported`, `model_actual`, `effort_actual`, and `independence_verified` from the artifact. Keep the literal `unverified`; never compress a request into a serving claim such as "via Codex high" when actual model or effort is unverified.

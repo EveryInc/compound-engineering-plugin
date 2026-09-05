@@ -1,6 +1,7 @@
 ---
 title: "Prove a skill prose change moved behavior with paired old-vs-new blind injection"
 date: 2026-07-01
+last_updated: 2026-09-02
 category: skill-design
 module: compound-engineering-plugin skill evaluation
 problem_type: design_pattern
@@ -11,6 +12,10 @@ applies_when:
   - Needing to tell "demonstrated improvement" apart from "no regression"
   - One skill's output is consumed or gated by another skill or a test
   - Adding or renaming a field in a cross-skill output contract
+  - Changing the judgment of a skill that calls an external CLI (gh, git, a peer model CLI)
+  - Reading a null result from a harness that freezes an upstream stage
+  - Skill prose instructs constructing a command from recorded variables
+  - Fixing a defect that only appears after context compaction or a mid-flow resume
 related_components:
   - tooling
   - development_workflow
@@ -22,166 +27,112 @@ tags:
   - anti-drift-test
   - frontier-model
   - named-fields
+  - fake-cli
+  - fixture-design
+  - variance
+  - cross-host
+  - eval-methodology
 ---
 
 # Prove a skill prose change moved behavior with paired old-vs-new blind injection
 
 ## Context
 
-Editing the prose of an agent skill (a `SKILL.md`, an embedded persona, or any behavior-shaping prompt) is cheap; *knowing whether the edit actually changed agent behavior* is not. Prose changes look self-evidently good in a diff, so they ship on the author's intuition. Two failure modes hide in that gap:
+Editing the prose of an agent skill is cheap; *knowing whether the edit changed agent behavior* is not. Prose changes look self-evidently good in a diff, so they ship on intuition, and two failure modes hide in that gap: the change is a no-op at the current model tier (a frontier model already does the "new" thing), or the change creates a cross-skill contract no test enforces (producer and consumer drift independently while every test stays green).
 
-- **The change is a no-op at the current model tier.** A frontier model may already do the "new" thing by default, so the added rule buys nothing you can observe — you shipped tokens, not behavior.
-- **The change creates a cross-skill contract that no test enforces.** One skill's output is supposed to be gated by another skill (or a test), but the two ends can drift independently and every existing test stays green.
+Unit tests and code review are blind to this class. `bun test` validates a bundled script for given inputs; it never constructs the invocation the way an agent would. Review reads the diff's logic and the prose's content; across five review rounds on one PR (#1216), no reviewer simulated "what command would an agent emit from this paragraph?" — and a cross-host eval then found 3 of 4 agents emitting a flag the script rejects (technique 9). A behavioral eval that puts a fresh agent in front of the loaded prose is the only layer that catches instruction-interpretation defects, and for an authored-once-converted-many plugin those ship silently to every harness.
 
-This methodology came out of validating a set of prose edits that added a *behavior-verification evidence* contract across four orchestration skills (`ce-work`, `ce-debug`, `ce-plan`, `lfg`): one producer skill emits verification evidence, and a downstream orchestrator gates shipping on that evidence. The goal was to prove — not assume — that the edits changed behavior, and to leave behind a test that fails when the contract is broken.
+Tooling: inject the current on-disk prose into a fresh agent at dispatch time (`bun run test:skill-eval-cell`, `test:skill-eval-pack`), never invoke the already-loaded plugin skill in the same session — cached skill definitions run pre-edit content. Run Claude and Codex both by default; a prose ambiguity often fails on one model and not the other (in #1216: 2/2 Codex wrong, 1/2 Claude wrong).
 
 ## Guidance
 
-Validate behavior-changing prose edits with four complementary techniques. The first two establish *whether* the edit does anything; the last two make a *cross-skill* contract durable.
-
 ### 1. Paired old-vs-new blind injection
 
-Extract the **actual** pre-change excerpt of the changed section from `git HEAD~1` and the post-change excerpt from the working tree — the real bytes, not a paraphrase. Dispatch two subagents:
+Extract the **actual** pre-change excerpt from `git HEAD~1` and the post-change excerpt from the working tree — real bytes, not a paraphrase. Dispatch two subagents, one seeded with each, **both blind** to which version they hold and to the expected answer, given an **identical** realistic scenario, each returning a **concrete decision plus an artifact** (ordered steps, the structured return object, the next pipeline action) — not an opinion. Then compare.
 
-- one seeded with the OLD excerpt, one with the NEW excerpt;
-- **both blind** to which version they hold and blind to the expected answer;
-- **identical** realistic scenario given to each;
-- each must return a **concrete decision plus an artifact** — the ordered steps it would take, the structured return object it would emit, the next pipeline action it would invoke — not a vague opinion.
+- Both produce the same correct decision -> **no-regression only**. Real, but not improvement.
+- Old fails / new succeeds -> **improvement**. Design for this discriminating case explicitly; if you cannot find one, the honest conclusion is that the change is not an improvement at this tier.
 
-Then compare the two artifacts.
-
-- If both produce the **same correct** decision, you have proven **no-regression only** — the new prose did not break the behavior. That is a real result, but it is not evidence of improvement.
-- To claim **improvement**, you need a scenario where the OLD excerpt *fails* and the NEW excerpt *succeeds*. Design for that discriminating case explicitly; if you cannot find one, the honest conclusion is that the change is not an improvement at this tier (see technique 2).
-
-Complement the paired runs with **new-only restraint negatives**: scenarios that prove the new rule does *not* over-fire. If you add a rule "emit an execution note when X," run a plain case with no X and confirm the new prose still omits the note; if you tighten a testing gate, run a pure-config task and confirm it still takes the legitimate no-test exception. A rule that fires on everything is as broken as one that fires on nothing.
+Complement with **new-only restraint negatives**: a plain case with no triggering condition must not emit the new field or note. A rule that fires on everything is as broken as one that fires on nothing.
 
 ### 2. Read a non-discriminating result honestly
 
-At a capable model tier, many prose rules buy **determinism, weaker-model insurance, and run-to-run variance reduction** — not a behavior flip. When a paired eval comes out non-discriminating (old and new both do the right thing, and the old-prose agent even *justifies* the right thing with its own reasoning), do not relabel it as proof of improvement. Record it as: "already emergent at this tier; the rule locks in determinism and protects weaker models." Separate the changes that genuinely discriminate from the ones that only harden — both are worth shipping, but only the former is a behavior change you can demonstrate.
+At a capable tier, many prose rules buy determinism, weaker-model insurance, and variance reduction — not a behavior flip. When old and new both do the right thing (and the old-prose agent even justifies it on its own reasoning), record it as "already emergent at this tier; the rule locks in determinism and protects weaker models." Both kinds are worth shipping; only the discriminating kind is a behavior change you can demonstrate.
 
 ### 3. Standardize the field NAME, not just the information
 
-When one skill's output must be consumed or gated by another skill or a test, the value of the edit is giving the consumer a **stable token to match on**. A capable producer already surfaces the relevant information — but as improvised free-text under an inconsistent name, which nothing downstream can key on. Change the contract to emit a **named field with named subfields**, and write the consumer's gate against that name. "Prompt the producer to consider X" is not testable; "the producer emits `X` and the consumer requires `X` when a condition holds" is mechanically checkable.
+When one skill's output is gated by another skill or a test, the value of the edit is a **stable token to match on**. A capable producer already surfaces the information as improvised free text nothing downstream can key on. Emit a named field with named subfields and write the consumer's gate against that name. "Prompt the producer to consider X" is not testable; "the producer emits `X` and the consumer requires `X` when a condition holds" is.
 
 ### 4. Prove the parity test fails on one-sided drift
 
-Prose-presence tests (`SKILL.md` `.toContain("field_name")`) guard each skill **in isolation** — both stay green if the producer renames the field but the consumer's gate is not updated, or vice versa. To guard the *contract*, write a structural **parity test** that:
-
-- **scopes** its assertions to the *owning section* of each file (the producer's return block, the consumer's gate block) via string-slice anchors, not "anywhere in the file" — an unscoped match passes on an incidental mention elsewhere; and
-- **cross-checks a shared facts map** so both ends are asserted to name the *same* facts (the producer's backtick token `existing_tests_inspected` matched against the consumer's prose "existing tests inspected").
-
-Then do the step that is almost always skipped: **inject one-sided drift and watch the test fail.** Rename the field on the producer side only, run the parity test, confirm it goes red, and restore. A parity test you have never seen fail on injected drift is not known to work — it may be asserting something trivially true.
-
-### 5. Seal the injection — the excerpt must be the *only* source
-
-Injection evals assume the agent answers from the excerpt you gave it. Two leaks break that assumption silently, and both produce a **falsely green** result: the arm looks correct because the agent found the right answer somewhere other than the prose under test.
-
-**Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access. In one run, agents given an excerpt went and read the *installed* plugin's `SKILL.md` instead — so the arm measured the shipped skill, not the edit. Two controls: run with a read-only sandbox *and* state the constraint in the prompt ("answer only from the INSTRUCTIONS above; do not open, read, search, or grep any file"), then **verify compliance** by grepping each transcript for paths outside the eval directory before grading. Do not trust the instruction alone.
-
-This is sharper than it looks for a plugin repo, because the installed skill is usually a *different checkout* than the worktree under test. Measured during one run: installed `ce-doc-review` was 3,746 words against the worktree's 2,886. An eval that invokes `/ce-doc-review` rather than injecting the file tests the pre-change bytes and reports success. **Inject the file; never invoke the installed skill.**
-
-**Leak B — the fixture carries the answer key.** Seeded fixtures often annotate their own planted issues. Stripping HTML comments is not enough: the `ce-doc-review` fixtures also carried inline `(Seeded gated_auto: …)` markers in the body prose, which no comment-stripper touches. Grep the *stripped* fixture for the vocabulary you intend to grade on, not just for comment delimiters.
-
-*Closed 2026-08-13 for this repo's fixtures:* each answer key now lives in a sibling `tests/fixtures/ce-doc-review/<name>.expectations.md` and the fixture body is clean, so a fixture can be injected without stripping. Keep the grep anyway when you author a new fixture — the separation is a convention, not something a test enforces.
-
-A leak that is **identical across arms** still permits an old-vs-new comparison — it is a constant, not a confound — but it invalidates any *absolute* measurement built on that fixture. Say which of the two you are claiming.
-
-**Leak C — the harness froze the layer you changed.** Freezing an upstream stage to kill variance also makes changes to that stage invisible; the run completes and reports no effect, which is indistinguishable from a change that does not work. See [[frozen-finding-sets-cannot-see-emission-changes]] before trusting a null result.
-
-**And a leak that is not about the excerpt at all — the fixtures themselves may be too easy.** Sealing the injection guarantees the agent answered from your prose. It says nothing about whether your prose was tested against anything hard. See [[authored-eval-corpora-contain-the-happy-path]].
-
-### 6. Ground the answer key in the criteria, not in the fixture's intent
-
-A seeded fixture encodes what its author expected *at the time*. When the skill's criteria have since changed, the fixture and the spec can disagree, and grading against the fixture then scores the skill as wrong for correctly following its own rules.
-
-Observed: three `ce-doc-review` fixtures carry no `origin:` or `product_contract_source:` frontmatter, so the criterion "a plan with no validated upstream Product Contract signal" activates the adversarial reviewer on all of them — while one fixture's seed map expects adversarial to stay off. Every run in both arms activated it and cited exactly that clause. The correct move is to drop that dimension from the graded set, report the fixture/spec disagreement as its own finding, and grade only the dimensions where criteria and fixture agree. Silently scoring it either way manufactures a delta.
-
-## Why This Matters
-
-- **Prose diffs are persuasive and unfalsifiable by inspection.** Reading a "better" rule tells you nothing about whether the model's output changes. Blind paired injection is the cheapest way to convert a hunch into evidence.
-- **Blindness removes the two biggest confounds.** An agent told "you have the new, improved version" will rationalize a better answer; an agent told the expected answer will pattern-match to it. Withholding both makes the decision reflect the prose, not the framing.
-- **Honest non-discriminating results prevent overclaiming.** Shipping a rule as a "behavior fix" when it is really weaker-model insurance pollutes the record and inflates confidence in prose as a behavior lever.
-- **Named fields are the unit of cross-skill testability.** Gates and tests key on tokens. Without a stable name, the contract lives only in the model's judgment and silently rots.
-- **Parity tests are a common false comfort.** A test that has never been observed to fail may be asserting a tautology. Injected-drift verification is what separates a real guard from decoration.
-
-## When to Apply
-
-Apply the full methodology when:
-
-- The edit changes the **prose/behavior** of a skill, agent persona, or prompt (not mechanical code that a normal unit test already exercises).
-- The change is intended to **flip a decision** the agent makes, or to **add/rename a field** in an output contract.
-- The output of one skill is **consumed or gated by another skill or a test** (apply techniques 3 and 4).
-
-Scale down when:
-
-- The change is a **pure no-op cleanup** (typo, formatting) — no eval needed.
-- The change only touches a **single skill in isolation** with no downstream consumer — techniques 1 and 2 suffice; skip the parity test.
-
-Note on tooling: use a skill-authoring/eval harness that **injects the excerpt into a fresh subagent's prompt at dispatch time**, so each run reads the current source. Do not iterate by dispatching the already-loaded plugin skill in the same session — cached skill definitions run pre-edit content.
-
-## Examples
-
-### Paired-injection dispatch shape
-
-```
-# Extract the real bytes of the changed section, both sides.
-git show HEAD~1:skills/ce-work/SKILL.md   # -> OLD excerpt of the Return-to-Caller block
-# working tree                            # -> NEW excerpt of the same block
-
-Subagent A (blind): [OLD excerpt] + [identical scenario] -> "return the structured object you would emit"
-Subagent B (blind): [NEW excerpt] + [identical scenario] -> "return the structured object you would emit"
-
-Neither subagent is told which version it holds or what the expected answer is.
-```
-
-Reading the result:
-
-- Both emit the same correct object  ->  NO-REGRESSION proven. Not improvement.
-- Old fails / new succeeds           ->  IMPROVEMENT proven (this is the case you must design for).
-- Old already succeeds on its own reasoning -> NON-DISCRIMINATING: rule buys determinism / weaker-model insurance, not a behavior flip. Say so.
-
-Restraint negative (new-only): give the NEW excerpt a plain task with no triggering
-condition and confirm it does NOT emit the new field / note (proves the rule doesn't over-fire).
-
-### Discriminating vs hardening, from one real change set
-
-- **Discriminating (behavior flipped):** old prose let the pipeline ship after a producer returned with no evidence field ("gate satisfied -> proceed to simplify/ship"); new prose retried the producer once, then STOPPED BLOCKED. Old vs new produced different next pipeline actions -> genuine improvement.
-- **Hardening only (non-discriminating):** an "update the stale test in place, do not add a duplicate" guardrail — both old- and new-prose agents chose update-in-place, the old one reasoning "two contradictory assertions can't both be green." Ship it for determinism, but do not call it a behavior fix.
-
-### Parity test with injected-drift proof
+Prose-presence tests guard each skill in isolation and stay green when the producer renames a field the consumer still gates on. A structural parity test **scopes** its assertions to the owning section of each file via string-slice anchors (an unscoped match passes on an incidental mention elsewhere) and **cross-checks a shared facts map** so both ends name the same facts. Then do the step almost always skipped: rename the field on the producer side only, run the parity test, confirm it goes red, restore. A parity test you have never seen fail on injected drift may be asserting a tautology.
 
 ```ts
-// Scope to the OWNING section, then cross-check a shared facts map.
 const EVIDENCE_FACTS = {
   existing_tests_inspected: "existing tests inspected",   // producer token -> consumer prose
   tests_added_or_changed:   "tests added/changed",
-  behavior_changed:         "behavior_change: true",
 };
-
-const producerBlock = slice(ceWorkSrc, "## Return-to-Caller Mode", "Engine selection ("); // owning section
+const producerBlock = slice(ceWorkSrc, "## Return-to-Caller Mode", "Engine selection (");
 const consumerGate  = slice(lfgSrc, "2. Invoke the `ce-work`", "3. Invoke the `ce-simplify-code`");
-
 for (const [token, prose] of Object.entries(EVIDENCE_FACTS)) {
-  expect(producerBlock).toContain(token);  // producer names the field
-  expect(consumerGate).toContain(prose);   // consumer gate names the same fact
+  expect(producerBlock).toContain(token);
+  expect(consumerGate).toContain(prose);
 }
 ```
 
-Proving it works (the step people skip):
+### 5. Seal the injection — the excerpt must be the only source
 
-```
-1. Rename `existing_tests_inspected` -> `existing_tests_reviewed` in the PRODUCER only.
-2. Run the parity test  ->  MUST go red (consumer still says "existing tests inspected").
-3. Restore the original name.
-```
+Three leaks produce a **falsely green** result because the agent found the answer somewhere other than the prose under test.
 
-If step 2 does not turn the test red, the parity test is not actually guarding the contract — fix the scoping or the facts map before trusting it.
+**Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access; in one run, agents given an excerpt read the *installed* plugin's `SKILL.md` instead. Run with a read-only sandbox *and* state the constraint in the prompt, then **verify compliance** by grepping each transcript for paths outside the eval directory before grading. This bites harder in a plugin repo because the installed skill is usually a different checkout: measured once, installed `ce-doc-review` was 3,746 words against the worktree's 2,886. Inject the file; never invoke the installed skill.
+
+**Leak B — the fixture carries the answer key.** Stripping HTML comments is not enough: `ce-doc-review` fixtures also carried inline `(Seeded gated_auto: …)` markers in body prose. Grep the *stripped* fixture for the vocabulary you grade on. (Closed for this repo's fixtures 2026-08-13: answer keys live in sibling `tests/fixtures/ce-doc-review/<name>.expectations.md`; keep the grep for new fixtures, since nothing enforces the separation.)
+
+A leak identical across arms still permits an old-vs-new comparison — it is a constant, not a confound — but invalidates any *absolute* measurement. Say which you are claiming.
+
+**Leak C — the harness froze the layer you changed.** Evaluating `ce-doc-review`'s synthesis layer meant fighting reviewer variance, so reviewer output was captured once and replayed into every trial. It worked for synthesis. Two later reviewer-facing changes (identifier glossing — `U1 (the load gate)` rather than bare `U1`; the report-versus-question grammar) were then measured on the same harness and appeared to do nothing, because the frozen set was captured from reviewers that never saw them. Freezing removes reviewer *variance* by removing reviewer *execution*; those are the same act, and the harness is structurally blind to everything upstream of the freeze point. The trap is that it reports normally: no error, trials complete, no effect — indistinguishable from a change that does not work. So: locate your change relative to the freeze point *before* running; record which shipped changes a run does not cover where the results are written (silence becomes a false "we tested it"); re-capture the frozen set when the emitting layer changes — it is an artifact with a provenance, not a fixture; and measure emission-layer changes against real output (grep captured runs for the shape you are eliminating — bare identifiers, questions with one option). General form: a harness that controls a variable (frozen output, pinned model, fixed seed, stubbed service) cannot measure a change to the thing it controls.
+
+**And the fixtures may be too easy.** Sealing guarantees the agent answered from your prose; it says nothing about whether the prose was tested against anything hard. See [[authored-eval-corpora-contain-the-happy-path]].
+
+### 6. Ground the answer key in the criteria, not in the fixture's intent
+
+A seeded fixture encodes what its author expected at the time; when the skill's criteria have since changed, grading against the fixture scores the skill as wrong for following its own rules. Observed: three `ce-doc-review` fixtures lacked the frontmatter that the criterion "a plan with no validated upstream Product Contract signal" keys on, so every run in both arms activated the adversarial reviewer while one seed map expected it off. Drop that dimension from the graded set, report the fixture/spec disagreement as its own finding, and grade only where criteria and fixture agree. Silently scoring it either way manufactures a delta.
+
+### 7. Mock the CLI boundary, and make the fixture discriminate
+
+For a skill whose external touchpoints are CLIs (`gh`, `git`, a peer-model CLI), put a fake executable first on `PATH` that dispatches on argv, returns canned fixture JSON in the real output shape, and logs every mutation to a file; run inside a throwaway `git init` repo with a local bare remote so `git push` is a no-op. This drives the skill's *real* bundled scripts unchanged — mock what they call, not what they are. Tag a baseline commit before the run and grade against that tag (not `HEAD`, since the skill commits its own fixes): the work-tree diff, the mutation log, and the run summary.
+
+**The fixture must be discriminating or the eval proves nothing.** Validating `ce-resolve-pr-feedback`'s central legitimacy gate: a single bogus finding disprovable by a guard three lines up in the same file showed 0/4 blind acceptance on *both* the new and old designs — it could not tell them apart, and would have "confirmed" the change with no evidence. A **systematically-wrong cluster** — three individually plausible findings that `req.body.amount` is unvalidated in `handlers.js`, all false because a shared `validateAmount` middleware wired in `routes.js`/`middleware.js` guards every route, plus one genuine bug as a control so a design cannot win by skipping everything — separated them: new 0/4 blind-accepted, old 2/4. Construct findings whose disproof lives **outside the referenced file**, so an isolated narrowly-scoped agent is tempted to "fix" while a design with broader context debunks. Then inspect the mechanism, not just the count: the old-design failures were the predicted pathology exactly (each isolated agent read only its handler, never saw the middleware, added a redundant guard, replied `Addressed:`). The insight is not "old is always wrong" — it is that the old design's correctness depended on whether an isolated agent happened to read the right file.
+
+### 8. Variance first, N>=3, negative control
+
+For any persona-rubric change that outputs into discrete buckets, measure **variance reduction on ambiguous fixtures** as the first-order signal, stable disagreements on boundary cases as the second, and classification-rate shifts on textbook cases as a noise-prone third — textbook fixtures do not move on a well-tuned model. A baseline that emits three different classes across four trials on one input, paired with a tightened version that pins to one class across seven, is a win independent of *which* class was chosen: run-to-run determinism on identical inputs is what justifies the prompt's token cost.
+
+**Never trust N=1 on a synthetic fixture for a directional read.** The fixture feels deterministic, so one trial feels sufficient; it is not. In one calibration, two early N=1 reads produced two confidently-wrong conclusions in succession ("no effect," then "wrong-direction regression"), both reversed at N=3 and resolved only at N=4 to N=7 on the noisy cell — because the baseline was sampling a tri-modal distribution, and any single pair of samples tells a different story. N=3 is the floor; if three trials disagree, run more trials *before* running more fixtures (depth on the noisy cell, not breadth). Aggregate variance explicitly in the summary table (`4 trials, 3 distinct classes`). **Keep a negative-control fixture that must not move** under either version; if it moves, the rubric has a stability problem the calibration is masking. The lens applies less when you have ground-truth labels or free-text output.
+
+### 9. Name the CLI flag, not the recorded variable
+
+When prose instructs constructing a command, name the actual flags. `ce-babysit-pr`'s continuation prose named the recorded variable (`RUN_STARTED_AT`) but never the flag; 3 of 4 fresh agents emitted `--invocation-started-at`, which `pr-snapshot` rejects (the accepted anchor is `--session-started-at`). A variable named `..._STARTED_AT` invites the wrong guess. Pair variables with their flags — `--session-started-at "$RUN_STARTED_AT"` — and re-run the same eval after the fix to confirm the rate flips (it did: both models then emitted the right flag).
+
+### 10. Reproduce the context loss the defect needs
+
+A defect that only manifests after compaction or a mid-flow resume is invisible to the standard cell. `ce-commit-push-pr`'s babysit gate named `auto_babysit: false` as an opt-out but read the key only in an earlier reference for another purpose; a Codex user with the opt-out set got babysat anyway (#1601). The full-skill eval cell passed on both hosts in *both* the pre-fix and post-fix arms — a full-context agent finds the key mentioned anywhere and honors it. Only a fixture that withheld the rest of the skill and handed the agent just the reference owning the gate (what survives compaction) discriminated: pre-fix, Codex handed off and Claude reported the PR "unmonitored"; post-fix, both skipped citing the config. When the defect is context-loss-triggered, build the fixture to reproduce the loss; supplying full context tests a different, easier problem and passes on the buggy version.
+
+## Why This Matters
+
+- Prose diffs are persuasive and unfalsifiable by inspection; blind paired injection is the cheapest conversion of a hunch into evidence.
+- Blindness removes the two biggest confounds: an agent told it has the improved version rationalizes a better answer; one told the expected answer pattern-matches to it.
+- Honest non-discriminating results prevent shipping weaker-model insurance as a "behavior fix."
+- Named fields are the unit of cross-skill testability; parity tests never seen to fail are decoration.
+
+## When to Apply
+
+Full methodology when the edit changes prose/behavior intended to flip a decision or add/rename a contract field, or when one skill's output gates another (techniques 3-4). Techniques 1-2 alone for a single skill with no consumer. Nothing for typo/formatting no-ops. Skip the fake-CLI harness for mechanical changes a normal test already exercises.
 
 ## Related
 
-- [fake-cli-harness-for-skill-judgment-evals](fake-cli-harness-for-skill-judgment-evals.md) — sibling method: new-vs-old skill comparison over a *discriminating* fixture. Same "an easy fixture proves nothing" insight; different mechanism (mocks a CLI boundary rather than injecting SKILL.md excerpts into blind subagents).
-- [frontier-model-skill-modernization-methodology](frontier-model-skill-modernization-methodology.md) — parent eval methodology; its "fresh subagent, bypass the plugin cache, mechanical transcript grading" step is what paired old-vs-new injection refines into a controlled A/B.
-- [safe-auto-rubric-calibration](safe-auto-rubric-calibration.md) — prior art for technique 2: frames a shipped prose change as "mostly a determinism patch, not a rate increase," and argues for measuring variance, not just outcome shift.
-- [cross-skill-shared-cache-primitive](cross-skill-shared-cache-primitive.md) — origin of the field-name contract and the parity-drift gap: renaming a schema field can pass a byte-identity parity test yet silently break per-skill consumers. Technique 4 is the mitigation.
-- [ce-doc-review-calibration-patterns](ce-doc-review-calibration-patterns.md) — reinforces technique 2: skill judgment is non-deterministic, so grade across reps rather than trusting a single run.
-- Source: PR [#1054](https://github.com/EveryInc/compound-engineering-plugin/pull/1054) "fix(testing): require behavior verification evidence" (HEAD `3923315a`), plus the follow-up parity test in `tests/pipeline-review-contract.test.ts`.
+- [ce-doc-review-calibration-patterns](ce-doc-review-calibration-patterns.md) — reinforces techniques 2 and 8: skill judgment is non-deterministic, so grade across reps rather than trusting a single run.
+- [authored-eval-corpora-contain-the-happy-path](authored-eval-corpora-contain-the-happy-path.md) — sealing the injection does not make the corpus hard.
+- [strong-models-mask-defensive-skill-fixes](strong-models-mask-defensive-skill-fixes.md) — a green run must engage the protected failure mode.
+- [confidence-anchored-scoring](confidence-anchored-scoring.md) — the A/B-against-baseline pattern technique 8 generalizes.
+- Source: PR [#1054](https://github.com/EveryInc/compound-engineering-plugin/pull/1054) plus the parity test in `tests/pipeline-review-contract.test.ts`; PR #1216 (technique 9); issue #686 (technique 8); issue #1601 (technique 10).

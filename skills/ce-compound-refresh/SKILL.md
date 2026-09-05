@@ -15,11 +15,23 @@ Audit the learnings under `<root>/solutions/` against the current codebase, appl
 
 Two rules hold in both modes. A failed write is recorded as **recommended**, and the run continues. And a question is asked through the host's blocking tool, or through the numbered-options fallback that reference defines — never silently skipped.
 
+## Worth lens
+
+The ordinary refresh judges accuracy: is each doc still true and still distinct. It never deletes an accurate doc for holding knowledge the repo states elsewhere. That second judgment, worth, runs only when the user asked for it and confirmed it, because it reads the whole scope against the codebase and can delete accurate docs.
+
+Read the invocation arguments for that intent: the user wants the store cleaned up, culled, pruned, trimmed, upgraded, or brought to the capture bar, in any wording, rather than checked for drift. When the intent is present, state the reading back and confirm before any investigation:
+
+```text
+You asked to clean up the learnings. Which do you want?
+1. Delete or shorten docs the codebase already explains. A doc goes when a test, a code comment, or the instructions file states the same reasoning, and every cut quotes that file. Drift is fixed too. Scope: <scope>.
+2. Fix drift only. Stale paths and links, duplicate docs, and guidance the code no longer supports. Nothing accurate is deleted.
+```
+
+On option 1, **read `references/worth-audit.md`** before Investigate; it adds the bar, the evidence rule, and the routing. On option 2, or when the intent is absent, do not read that reference and do not apply its test; the accuracy refresh is the whole run. Non-interactive mode cannot confirm, so `references/modes.md` states what an inferred intent does there.
+
 ## Artifact Root
 
 Resolve `<root>` when you first compose a `<root>/solutions/` path. Pass the resolved `<root>/solutions/` path to any subagent, not the config. Every subagent spawn omits the `mode` parameter, so the user's permission settings apply.
-
-Classify a rejected subagent dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and if another launch failure survives correction, perform that pass in the orchestrator with the same inputs and report the substitution.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -74,7 +86,3 @@ Skip if nothing changed. Otherwise stage **only** the files this refresh modifie
 ## Discoverability Check
 
 After the report, check that the project's instructions would lead an agent to `<root>/solutions/` before working in a documented area. Do this every time: the store only compounds value when agents can find it. **Read `references/discoverability.md`** for what the reader must learn, the smallest-addition rule and its tone, the `CONCEPTS.md` variant, consent versus a report line per mode, and folding a late edit into the commit.
-
-## Relationship to ce-compound
-
-`ce-compound` captures a newly solved problem. This skill maintains the store as the codebase evolves: each doc's accuracy, and the design of the set. Replace only on real evidence; without it, stale-mark the doc and point the user at `ce-compound`. Consolidate proactively, because every capture adds a doc and redundant docs drift.

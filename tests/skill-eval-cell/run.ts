@@ -257,7 +257,23 @@ async function main() {
     })
     const shims: PathShim[] = []
     if (flag("--shim-git-push")) {
-      shims.push({ bin: "git", subcommand: "push", exitCode: 1, stderr: "fatal: no configured remote" })
+      const requiredHeadMarker = arg("--shim-git-push-requires-head-marker")
+      shims.push(
+        requiredHeadMarker
+          ? {
+              bin: "git",
+              subcommand: "push",
+              exitCode: 1,
+              stderr: "fatal: no configured remote",
+              precondition: { kind: "git-head-marker", path: requiredHeadMarker },
+            }
+          : {
+              bin: "git",
+              subcommand: "push",
+              exitCode: 1,
+              stderr: "fatal: no configured remote",
+            },
+      )
     }
     if (flag("--shim-gh-pr")) {
       shims.push({

@@ -45,7 +45,7 @@ Conflating the two is what made #1159 serialize local reviewer dispatch one-at-a
 A portable rule classifies what dispatch actually returned:
 
 - **Terminal outcome:** the launch is collected. Consume a valid compact result; classify a terminal tool error or malformed output under the workflow's failed/degraded rules.
-- **Launch identifier or asynchronous receipt:** the reviewer is uncollected. Use the host's blocking collection capability until the launch reaches a terminal outcome.
+- **Launch identifier or asynchronous receipt:** a launch receipt means the reviewer is uncollected. Use the host's blocking collection capability until the launch reaches a terminal outcome.
 - **No reliable blocking collector:** stop the launched work and take the workflow's failure or degraded path. Fail closed only after discharging lifecycle obligations for detached work already started. Never wait for a notification, emit progress-only output, or synthesize a partial roster.
 
 The same classification governs both reviewer batches and later validator batches. A foreground request is an intent, not evidence that a result arrived. A host-specific collector is acceptable only when its live contract shows that it accepts the launch identifier, blocks until terminal, and returns the terminal outcome; a plausible tool name is not enough.
@@ -76,22 +76,6 @@ Check three questions:
 1. Does the rule treat a foreground request or host name as proof that calls **returned together**?
 2. Does it free pool slots by **awaiting alone**? (Deadlocks without an explicit close.)
 3. Does it distinguish **detached-delegate polling** (banned) from **harness subagent waits** (fine)? (Conflating them serializes for no benefit.)
-
-## Examples
-
-**Before (host-name classification):** assume Claude foreground calls form an all-results barrier and Codex calls return asynchronous ids. This fails when a Claude print-mode call returns a launch receipt despite background execution being requested off.
-
-**After (observed-result classification):** use a verified blocking collector until every successful launch reaches a terminal outcome; consume valid compact results and classify unsuccessful terminal outcomes under the workflow's failed/degraded rules. Treat every launch receipt as uncollected work, and fail closed if no collector exists. Release collected agents when the primitive retains their slots. The anti-poll ban remains scoped to detached shell/CLI polling, not harness-managed blocking collection.
-
-Primitive contrast:
-
-| Observed dispatch result | State | Required transition |
-|---|---|---|
-| Valid compact reviewer or validator JSON | Collected | Consume the result |
-| Terminal tool error or malformed output | Collected | Classify it under the workflow's failed/degraded rules |
-| Launch id or asynchronous receipt | Running, not collected | Use a verified blocking collector until a terminal outcome is in hand |
-| No reliable blocking collector | Cannot complete safely | Stop launched work and emit the workflow's failure or degraded result |
-| Collected agent still holds a host slot | Complete but not released | Release it before refilling or entering a later subagent stage |
 
 ## See Also
 

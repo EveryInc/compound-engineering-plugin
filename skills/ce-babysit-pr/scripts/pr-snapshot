@@ -91,14 +91,14 @@ BASE_REF_MERGEABILITY_PENDING = "mergeability-pending"
 BASE_REF_PROBE_ERROR = "probe-error"
 BASE_REF_LEGACY_STALE = "stale"
 
+# Quiet window a merge-ready wake ordinarily requires. The agent widens it by re-arming when it
+# judges more waiting is warranted; the engine never adjusts the window it was given.
+DEFAULT_SETTLE_SECONDS = 300.0
+
 # Quiet window before a comment-only wake. Every non-empty top-level body is a candidate the
 # resolver must classify, so waking on the first one spends a full ce-resolve-pr-feedback dispatch
 # to conclude "status noise". Only this reason waits; real work never consults the clock.
 FEEDBACK_COALESCE_SECONDS = 180
-
-# First judgment point for an incomplete review lifecycle. The agent may extend once to 1800s when
-# concrete prior-round timing supports it; the skill contract owns that semantic decision.
-REVIEW_INPROGRESS_MAX_WAIT = 900
 
 # Trajectory check-history states (persisted, compared by ==).
 CHECK_UNKNOWN = "unknown"
@@ -498,35 +498,6 @@ def _base_ref_blocker(base):
     return BASE_REF_PROBE_ERROR
 
 
-def _eyes_reaction_identities(reaction_pages):
-    """Stable identities for current PR-body eyes reactors from paginated REST results."""
-    if not isinstance(reaction_pages, list):
-        return []
-    reactions = [reaction for page in reaction_pages for reaction in page] \
-        if reaction_pages and all(isinstance(page, list) for page in reaction_pages) else reaction_pages
-    identities = []
-    for reaction in reactions:
-        if not isinstance(reaction, dict) or reaction.get("content") not in (None, "eyes"):
-            continue
-        user = reaction.get("user") or {}
-        identity = user.get("node_id") or user.get("id") or user.get("login")
-        # Deleted-user reactions have no user identity. The reaction identity still lets an
-        # add/remove or same-count substitution move the lifecycle instead of becoming invisible.
-        identity = identity or reaction.get("node_id") or reaction.get("id")
-        if identity is not None:
-            identities.append(str(identity))
-    return sorted(set(identities))
-
-
-def fetch_eyes_reactors(pr, owner, name, host=None):
-    """Fetch every current PR-body eyes reactor; `gh pr view` exposes only their count."""
-    r = _run_checked([
-        "gh", "api", *_host_args(host), "--paginate", "--slurp",
-        f"repos/{owner}/{name}/issues/{pr}/reactions?content=eyes&per_page=100",
-    ], "gh api reactions")
-    return _eyes_reaction_identities(json.loads(r.stdout))
-
-
 def _stack_schema_unavailable(stderr):
     """Recognize only GraphQL schema errors for the private-preview PullRequest stack fields."""
     unavailable_markers = ("doesn't exist on type", "does not exist on type",
@@ -852,14 +823,6 @@ def fetch(pr, repo, light=False):
         if isinstance(capability, bool):
             host_branch_update_capability = capability
 
-    # In-progress review signal: an 👀 (EYES) reaction on the PR body is how several review bots
-    # (Codex among them) announce a review is *underway* — a present in-progress signal means the PR
-    # is NOT settled, regardless of quiet time. A present signal is meaningful; absence tells us
-    # nothing (many reviewers give no signal), so this only ever *delays* a merge-ready read.
-    review_signal_identities = [] if light else fetch_eyes_reactors(v.get("number") or pr, owner, name, host)
-    review_signal_count = len(review_signal_identities)
-    review_in_progress = review_signal_count > 0
-
     return {
         "pr_state": v.get("state"),
         "pr_is_draft": v.get("isDraft"),
@@ -871,9 +834,6 @@ def fetch(pr, repo, light=False):
         "host_branch_update_capability": host_branch_update_capability,
         "url": v.get("url"),
         "checks": checks,
-        "review_in_progress": review_in_progress,
-        "review_signal_count": review_signal_count,
-        "review_signal_identities": review_signal_identities,
         "threads": fetch_threads(pr, owner, name, host),
         # Non-thread feedback: top-level PR comments + review submission bodies. ce-resolve-pr-feedback
         # handles these too, so a Changes-Requested review body or an actionable top-level comment with
@@ -1007,9 +967,6 @@ def _empty_state(pr, repo, url, now):
         "checks": {}, "threads": {}, "ci_dispatched": {},
         "human_decisions": [], "answered_human_decisions": [],
         "review_decision": None, "mergeable": None, "merge_state_status": None,
-        "review_in_progress": False, "review_signal_count": 0, "review_signal_identities": [],
-        "review_signal_seen_on_head": False,
-        "review_signal_first_seen_at": None, "review_signal_last_changed_at": None,
         "blocked_external_head_sha": None,
         "blocked_external_first_seen_at": None,
         "feedback_candidate_changed_at": None, "feedback_candidate_ids": [],
@@ -2034,45 +1991,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
     }
     prior_review_decision = state.get("review_decision")
     prior_change_sig = _change_sig(state)
-    prior_review_in_progress = bool(state.get("review_in_progress", False))
-    prior_review_signal_count = state.get("review_signal_count")
-    if prior_review_signal_count is None:
-        prior_review_signal_count = 1 if prior_review_in_progress else 0
-    review_in_progress = bool(cur.get("review_in_progress", False))
-    review_signal_count = cur.get("review_signal_count")
-    if review_signal_count is None:
-        review_signal_count = 1 if review_in_progress else 0
-    prior_review_signal_identities = state.get("review_signal_identities")
-    if not isinstance(prior_review_signal_identities, list):
-        prior_review_signal_identities = None
-    else:
-        prior_review_signal_identities = sorted(set(map(str, prior_review_signal_identities)))
-    review_signal_identities = cur.get("review_signal_identities")
-    if not isinstance(review_signal_identities, list):
-        review_signal_identities = None
-    else:
-        review_signal_identities = sorted(set(map(str, review_signal_identities)))
-        review_signal_count = len(review_signal_identities)
-    review_in_progress = review_signal_count > 0
-    signal_changed = (review_signal_identities != prior_review_signal_identities
-                      if review_signal_identities is not None else
-                      review_signal_count != prior_review_signal_count)
-
     if head_changed:
         # SHA-scoped state is meaningless on a new head.
         state["ci_dispatched"] = {}
-        state["review_signal_seen_on_head"] = review_in_progress
-        state["review_signal_first_seen_at"] = _iso(now) if review_in_progress else None
-        state["review_signal_last_changed_at"] = _iso(now) if review_in_progress else None
-    else:
-        # Preserve a signal seen on this head after it disappears; the agent owns completion judgment,
-        # while this structural fact distinguishes an incomplete lifecycle from "no signal ever."
-        if (prior_review_in_progress or review_in_progress) and not state.get("review_signal_seen_on_head", False):
-            state["review_signal_seen_on_head"] = True
-            legacy_seen_at = state.get("last_change_at") if prior_review_in_progress else None
-            state["review_signal_first_seen_at"] = legacy_seen_at or _iso(now)
-        if signal_changed:
-            state["review_signal_last_changed_at"] = _iso(now)
 
     # --- CI: a failing check on the current head is actionable until the agent
     # marks it dispatched (recorded in ci_dispatched[head]) or the head moves.
@@ -2152,7 +2073,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
         or current_thread_activity != prior_thread_activity
         or current_feedback_activity != prior_feedback_activity
         or cur.get("review_decision") != prior_review_decision
-        or signal_changed
     )
     open_needs_human = len(needs_human_residuals)
     # Compatibility view for consumers that display source identities. The canonical set above,
@@ -2167,9 +2087,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
     state["review_decision"] = cur["review_decision"]
     state["mergeable"] = cur["mergeable"]
     state["merge_state_status"] = cur["merge_state_status"]
-    state["review_in_progress"] = review_in_progress
-    state["review_signal_count"] = review_signal_count
-    state["review_signal_identities"] = review_signal_identities
     observed_awaiting_approval = cur.get("awaiting_approval")
     approval_probe_succeeded = observed_awaiting_approval is not None
     awaiting_approval = (
@@ -2284,12 +2201,6 @@ def diff(state, cur, now=None, advance_trajectory=True):
         "checks_terminal": checks_terminal,
         "checks_present": bool(cur["checks"]),
         "all_checks_ok": all_checks_ok,
-        "review_in_progress": review_in_progress,
-        "review_signal_count": review_signal_count,
-        "review_signal_identities": review_signal_identities,
-        "review_signal_seen_on_head": bool(state.get("review_signal_seen_on_head", False)),
-        "review_signal_first_seen_at": state.get("review_signal_first_seen_at"),
-        "review_signal_last_changed_at": state.get("review_signal_last_changed_at"),
         "checks_awaiting_approval": awaiting_approval,
         "blocked_external": blocked_external,
         "blocked_external_first_seen_at": state.get("blocked_external_first_seen_at"),
@@ -2367,9 +2278,7 @@ def _change_sig(state):
     current_currency = currency.get("items", {}).get(currency.get("current_key")) or {}
     return (checks, threads, feedback, human_decisions,
             state.get("review_decision"), state.get("mergeable"),
-            state.get("merge_state_status"), state.get("review_in_progress"),
-            state.get("review_signal_count"),
-            tuple(state.get("review_signal_identities") or []),
+            state.get("merge_state_status"),
             json.dumps(state.get("pr_chain") or _default_pr_chain(), sort_keys=True),
             json.dumps(_settle_base(state.get("base")), sort_keys=True),
             (current_currency.get("host_branch_update_capability")
@@ -2656,11 +2565,17 @@ def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_
         return "blocked-external"
     if a.get("open_needs_human", 0):
         return "needs-human"         # parked items block ready; surface them
-    # merge-ready candidate: green + settled with no fresh review movement. A live 👀 blocks the
-    # ordinary 300s settle, but wakes the agent after 900 quiet seconds for the semantic stale-review
-    # judgment. The agent may extend once to 1800s by re-arming with that settle value; the detector
-    # never decides whether the reviewer is genuinely slow or stuck.
-    review_blocking = a.get("review_in_progress") and a.get("quiet_seconds", 0) < REVIEW_INPROGRESS_MAX_WAIT
+    # A widened window is the agent's own judgment about evidence it looked at. When that evidence
+    # moves, the judgment may no longer hold, so hand the decision back rather than sleeping out a
+    # window armed against a state that has since changed. Movement is the whole trigger: unchanged
+    # evidence never fires this, which is what keeps it from re-deciding something the agent already
+    # settled. The engine reports that something moved and nothing more — whether the movement
+    # resolved anything is the agent's call at the settle decision.
+    if settle_seconds > DEFAULT_SETTLE_SECONDS and a.get("changed_this_tick"):
+        return "review-evidence-moved"
+    # merge-ready candidate: green, settled, nothing left in the attention set. Whether a review is
+    # still on its way is the agent's judgment at the settle decision, from live GitHub evidence the
+    # engine does not model; this wake hands it that decision rather than pre-empting it.
     # Interactive merge-ready does NOT require `all_checks_ok`'s "at least one observed check": a repo
     # with no configured checks has a CLEAN/MERGEABLE PR that should be callable ready. (That guard
     # stays in pipeline success, where a not-yet-created rollup must not read as a pass.)
@@ -2673,7 +2588,6 @@ def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_
             and a.get("checks_terminal") and not a.get("has_failing_checks")
             and a.get("checks_awaiting_approval", 0) == 0
             and a.get("branch_currency_blocker") is None
-            and not review_blocking
             and a.get("quiet_seconds", 0) >= settle_seconds):
         return "merge-ready"
     return None
@@ -2705,8 +2619,7 @@ def _blocker_sig(a):
         sig.add("__terminal_red__")
     if a.get("blocked_external"):
         sig.add("__blocked_external__")
-        sig.add(("approval-review-state", bool(a.get("review_signal_seen_on_head")),
-                 tuple(a.get("review_signal_identities") or []), a.get("review_decision")))
+        sig.add(("approval-review-state", a.get("review_decision")))
     if a.get("stack_blocker"):
         sig.add(f"__stack__:{a['stack_blocker']}")
     if a.get("base_ref_blocker"):
@@ -3605,7 +3518,8 @@ def main():
     w.add_argument("--downstack-pr", type=int, action="append", default=[],
                    help="lower managed-stack layer to keep probing; a new thread/comment/failing check/head there wakes downstack-actionable")
     w.add_argument("--downstack-fetch-file", action="append", default=[], help="N=path fixture for --downstack-pr N (tests)")
-    w.add_argument("--settle-seconds", type=float, default=300.0, help="quiet window before a merge-ready wake")
+    w.add_argument("--settle-seconds", type=float, default=DEFAULT_SETTLE_SECONDS,
+                   help="quiet window before a merge-ready wake")
     w.add_argument("--feedback-coalesce-seconds", type=float, default=FEEDBACK_COALESCE_SECONDS,
                    help="quiet window before a comment-only wake, so a burst costs one dispatch")
     w.add_argument("--blocked-external-drain-seconds", type=float, default=None,

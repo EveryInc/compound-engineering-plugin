@@ -16,6 +16,8 @@ Compound Engineering is a plugin of 33 skills for AI coding agents. It structure
 
 It runs on 14 agent hosts, including Claude Code, Cursor, and Codex.
 
+Maintained by [Kieran Klaassen](https://github.com/kieranklaassen) and [Trevin Chow](https://github.com/tmchow), with contributions from the open-source community.
+
 ## Install
 
 ### Claude Code

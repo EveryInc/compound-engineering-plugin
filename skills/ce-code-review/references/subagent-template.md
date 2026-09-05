@@ -28,6 +28,7 @@ You produce up to two outputs depending on whether a run ID was provided:
 
 2. **Compact return (always).** RETURN compact JSON to the parent with ONLY merge-tier fields per finding:
    title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix, first_evidence.
+   Exact-key condition: the artifact conforms to the full schema below; the compact finding uses only this merge-tier allowlist, with `pre_existing` as a boolean. `notes` is not a field.
    Do NOT include why_it_matters or the full evidence array in the returned JSON.
    `first_evidence` is the ONE exception to "no evidence in the compact return": it is the verbatim motivating line with `file:line` (the same string you put first in the `evidence` array). It is **REQUIRED for every finding at anchor 75 or 100** — the orchestrator enforces the quote-the-line gate from this field, and a 75/100 finding without it is demoted to anchor 50 at merge. Omit it only for anchor-50 findings. Keep it to that single line; the rest of `evidence` stays in the artifact file.
    Include reviewer, residual_risks, and testing_gaps at the top level.

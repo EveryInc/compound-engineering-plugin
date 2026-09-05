@@ -165,6 +165,36 @@ class OwnershipCheck(unittest.TestCase):
         self.assertEqual(out, "")
         self.assertNotIn("SECRET", out + err)
 
+    @unittest.skipIf(IS_WINDOWS, "uid ownership mock is POSIX-only")
+    def test_absent_path_artifact_reports_ownership_failure(self):
+        # An absent --path artifact whose job dir fails the owner check exits 4,
+        # not the routine 3, and never reads that job's `reason` through the
+        # directory that just failed verification (#1607).
+        job_dir, _ = make_done_job()
+        with open(os.path.join(job_dir, "reason"), "w") as f:
+            f.write("SECRET-REASON\n")
+        missing = os.path.join(os.path.dirname(job_dir), "no-artifact.json")
+        with mock.patch("os.fstat", uid_mismatch_fstat()):
+            code, out, err = run_main(["result", job_dir, "--path", missing])
+        self.assertEqual(code, 4)
+        self.assertEqual(out, "")
+        self.assertIn("no artifact at", err)
+        self.assertIn("unreadable", err)
+        self.assertNotIn("SECRET-REASON", out + err)
+
+    def test_control_absent_path_artifact_owned_job_reports_state(self):
+        # Control: the same absent artifact on an owned job reports the settled
+        # state and its reason, proving the case above turns on ownership alone.
+        job_dir, _ = make_done_job()
+        with open(os.path.join(job_dir, "reason"), "w") as f:
+            f.write("worker exited 0\n")
+        missing = os.path.join(os.path.dirname(job_dir), "no-artifact.json")
+        code, out, err = run_main(["result", job_dir, "--path", missing])
+        self.assertEqual(code, 3)
+        self.assertIn("no artifact at", err)
+        self.assertIn("done", err)
+        self.assertIn("worker exited 0", err)
+
     def test_control_owned_job_emits_content(self):
         # Control: without the patch the same fabricated job succeeds, proving
         # the tests above exercise the ownership check and nothing else.

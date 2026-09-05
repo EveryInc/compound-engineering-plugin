@@ -15,146 +15,28 @@ tags:
 applies_when:
   - A skill renders the same finding/result data on more than one output surface (interactive, batch/report, headless envelope, one-line preview)
   - You are strengthening how one surface presents results and the sibling surfaces have their own copy of a weaker rule
-  - Output cites identifiers a reader cannot resolve without opening the document or the reviewed codebase
+  - A routing or authority rule is restated in several files, including the always-loaded skill body
 ---
 
 # Multi-surface skill output needs a shared, parity-tested rendering floor
 
 ## Context
 
-`ce-doc-review` renders a finding on four surfaces, all under `skills/ce-doc-review/references/`: the
-interactive walkthrough terminal block (`walkthrough.md`), the batch report table
-(`review-output-template.md`), the headless envelope (`synthesis-and-presentation.md` Phase 4), and the
-bulk-action preview line (`bulk-preview.md`). Each surface had authored its **own** copy of a
-"self-contained references" rule.
+`ce-doc-review` renders a finding on four surfaces (walkthrough, batch report, headless envelope, bulk preview). Each surface once carried its **own** copy of a "self-contained references" rule. The walkthrough's copy was strengthened over time while the other three kept the original weaker rule, and nothing flagged the drift because each copy was internally consistent. The failure surfaced only when `ce-plan` re-narrated a headless envelope: a correct finding reached the user as one paragraph naming eight opaque tokens of three kinds, undecidable without opening the reviewed codebase. Per-token glossing alone would not have fixed it — the output also needed a decision-first structure.
 
-Over time the walkthrough's rule was strengthened (consequence-first titles; a first sentence
-containing no identifier; glossing that covers document IDs *and* code symbols; a code-span budget)
-while the other three still carried the original, weaker rule that glossed **only** document-defined
-IDs (`R6`, `U3`). Nothing flagged the drift, because each surface's rule was internally consistent.
+The contract now lives once, in `skills/ce-doc-review/references/rendering-floor.md` (decision-first field order; opaque tokens classified by function as navigation, provenance, or mechanism anchors), every surface points at it and maps only its own layout, and `tests/skills/ce-doc-review-rendering-floor.test.ts` asserts the floor's invariant tokens and that every surface references it.
 
-The failure surfaced when `ce-plan` invoked doc-review in `mode:headless` and re-narrated the returned
-envelope. A finding reached the user as one run-on paragraph naming eight opaque tokens of three
-different kinds — a document ID, several code symbols (`clearMuxStatus`, `codebookTranscriptMode.ts:46`),
-and a PR number — with the actual decision buried at the end. It was correct and undecidable: to judge
-"Apply or Skip?" the reader had to open the reviewed product's codebase. Two independent cross-model
-reviews (via `ce-pov oracle`) converged on the same root cause: the contract asymmetry, plus the fact
-that per-token glossing alone does not fix density — the output also needs a decision-first structure.
+## Two rationales
 
-## Guidance
+**1. A per-surface rule set drifts invisibly, so the guard must be a parity assertion, not a review.** Each copy stays internally consistent, the strong surface's own tests keep passing, and whoever consumes the weak surface inherits and can amplify the defect. One source referenced by every consumer, plus a test that every consumer references it, converts an invisible drift class into a failing build. Do not rewrite the surface that already works to route it through the extraction — the walkthrough keeps its rich inline prose and adds a pointer noting it *is* the floor's expression; an additive guard beats replacing an implementation that works. Deterministic tests pin the contract (field order, floor referenced, invariant strings); whether model-generated prose actually chose the true consequence stays a behavioral eval, seeded with the real bad output as a regression fixture.
 
-When a skill renders the same data on multiple output surfaces, do **not** let each surface carry its
-own copy of the presentation rules. Extract one **shared rendering floor** — a surface-agnostic
-reference (`skills/ce-doc-review/references/rendering-floor.md`) that owns the legibility contract — and
-have every surface point at it and map only its own *layout* onto it. Two properties make the floor work:
-
-1. **A decision-first field order**, so the reader decides without reconstructing the finding from
-   expert narrative: Recommendation → Consequence-if-unchanged (one sentence, **no opaque identifier**)
-   → Change (intent) → Basis (≤2 mechanism sentences, ≤2 glossed anchors) → Trace-on-request.
-
-2. **A domain-agnostic opaque-token policy, classified by function** — because a doc-review-style
-   skill reviews arbitrary products and cannot enumerate a vocabulary:
-   - **Navigation anchors** (IDs the document defines: `R6`, `U3`) — keep the ID, gloss at first mention.
-   - **Provenance anchors** (tickets, PR numbers) — gloss only when the referenced event drives the
-     decision; otherwise move to trace.
-   - **Mechanism symbols** (functions, files, line refs the doc names) — translate to the role they
-     play; keep the exact symbol only when precise scope is what the decision turns on.
-   - Cap the default block at ~2 anchors; the rest live in an on-request trace, never deleted.
-
-Protect the unification with a **parity test** (`tests/skills/ce-doc-review-rendering-floor.test.ts`):
-assert the floor exists and pins its invariant tokens, and assert every surface file contains the
-floor's reference path. This is the mechanism that stops a future edit from re-authoring a weaker
-per-surface rule. The proven-working surface (here, the walkthrough) can keep its rich inline prose and
-simply add a pointer noting it *is* the floor's expression — do not rewrite a surface that already works
-just to route it through the extraction (per `docs/solutions/skill-design/portable-agent-skill-authoring.md`:
-prefer an additive guard over replacing an implementation that works).
-
-Deterministic tests can pin the *contract* (field order present, floor referenced, invariant strings
-intact). They cannot verify that model-generated prose actually chose the true consequence or wrote a
-good gloss — that stays a `skill-creator` behavioral eval, ideally seeded with the real bad output as a
-regression fixture. This is the repo's standard CI-vs-behavioral split.
-
-## Why This Matters
-
-A per-surface rule set looks safe because each surface is internally consistent, so drift is invisible
-until output from the weak surface reaches a user. The strong surface's own tests keep passing while a
-sibling silently regresses. Whoever consumes the weak surface (here, `ce-plan` re-narrating the headless
-envelope) inherits and can amplify the illegibility. A single source plus a parity test converts an
-invisible drift class into a failing build.
-
-The deeper point generalizes beyond legibility: **any contract duplicated across surfaces that evolve
-independently is a latent divergence** — the same shape as the coverage/rendering count-invariant fix in
-[[ce-doc-review-calibration-patterns]] ("a single `dependents` array is the source of truth for both
-coverage and rendering"). The remedy is identical: one source of truth, referenced by every consumer,
-guarded by a parity assertion.
-
-## The same shape bites harder for behavior rules than for presentation rules (2026-08-13)
-
-The floor above covers **how a finding is rendered**. The same skill's **routing** rules — which findings
-apply unattended, which are batched, which become questions — had no equivalent, and they are restated in
-roughly eight places: the routing table, the phase that acts on it, an apply gate, an envelope
-description, the always-loaded `SKILL.md`, and several persona and template files.
-
-Changing routing therefore drifted three times in a row. Each time the rule was updated at its table and
-a downstream restatement was left describing the old behavior — and the sequence is worth naming, because
-each fix revealed the next: the table was added and the acting phase left stale; the phase was fixed and
-an apply gate left stale; the gate was fixed and the envelope's vocabulary left stale. A later check found
-`SKILL.md` still claiming a class of finding was returned rather than applied.
-
-Two things make the behavior case worse than the presentation case:
-
-- **A stale presentation rule produces ugly output; a stale routing rule produces wrong action.** One
-  surface saying "return this" while the source says "apply it" is a safety difference, not a formatting
-  difference.
-- **The always-loaded file is the most dangerous copy.** `SKILL.md` is in context for every run, so its
-  stale sentence competes with the reference the agent is told to load — and it is the copy least likely
-  to be reread when the rule changes, precisely because it is always there.
-
-**Guidance:** treat a routing or authority rule the same way this doc treats a presentation rule — one
-source, every other mention a pointer rather than a restatement. When you change one, grep for the
-*behavior* it describes rather than the rule's name, since restatements paraphrase. And check the
-always-loaded file first, not last.
+**2. The same shape bites harder for behavior rules than for presentation rules.** The skill's routing rules — which findings apply unattended, which are batched, which become questions — were restated in roughly eight places, and changing routing drifted three times in a row: the table was updated and the acting phase left stale; the phase fixed and an apply gate left stale; the gate fixed and the envelope vocabulary left stale; a later check found `SKILL.md` still claiming a class of finding was returned rather than applied. Two things make this worse than the presentation case: a stale presentation rule produces ugly output while a stale routing rule produces wrong *action*; and the always-loaded file is the most dangerous copy, because it is in context for every run, competes with the reference the agent is told to load, and is the copy least likely to be reread precisely because it is always there. Treat a routing or authority rule the same way: one source, every other mention a pointer. When you change one, grep for the *behavior* it describes rather than the rule's name, since restatements paraphrase — and check the always-loaded file first.
 
 ## When to Apply
 
-- A skill emits the same result data through two or more surfaces (interactive vs batch vs headless vs
-  preview), and you are about to strengthen one of them.
-- You find yourself copy-editing the "same" presentation rule in more than one reference file.
-- Output cites identifiers — document IDs, tickets/PRs, or code symbols — that a reader cannot resolve
-  without opening the source being reviewed.
+- A skill emits the same result data through two or more surfaces and you are about to strengthen one of them, or you find yourself copy-editing the "same" rule in more than one reference file.
+- Not when a skill has a single surface, or when surfaces genuinely need *different* contracts rather than different layouts — the floor unifies the rules; each surface still owns its visual form.
 
-Do **not** reach for this when a skill has a single output surface, or when the surfaces genuinely need
-*different* contracts (not just different layouts) — the floor unifies the rules, each surface still owns
-its own visual form.
+The general form: any contract duplicated across surfaces that evolve independently is a latent divergence, the same shape as the count-invariant fix in [[ce-doc-review-calibration-patterns]] (one `dependents` array as the source of truth for both coverage and rendering). Remedy: one source, referenced by every consumer, guarded by a parity assertion.
 
-## Examples
-
-**Before** (one finding, weak surface — undecidable without the codebase):
-
-> `[P1] The guarded marker set is itself hand-authored — contradicting R1's own thesis (product-lens, 75).
-> R1 (mechanical discovery...) argues... yet the check keys on a hand-typed marker set
-> (captionProcessingStatus / muxAssetStatus / recordingSetupFailed) that can drift from
-> hasTerminalRecordingFailure at codebookTranscriptMode.ts:46 — ... the PR #1776 failure relocated from
-> "which functions" to "which markers." Fix: add a requirement + U2 assertion...`
-
-**After** (floor's decision-first fields, tokens handled by function):
-
-> **Decision:** Add a drift guard *(recommended)*. **Consequence if unchanged:** a newly added
-> terminal-failure marker can escape the invariant and let invalid retry behavior pass silently.
-> **Change:** require the check and the terminal-failure predicate to stay in sync, backed by one
-> assertion. **Basis:** `R1` (mechanical discovery) is contradicted by a hand-typed marker set that can
-> drift from the predicate claiming they can't. **Anchors:** `U2` (invariant test). *Symbol trace on
-> request.*
-
-**The unification** (single source, four consumers, one guard):
-
-- `skills/ce-doc-review/references/rendering-floor.md` — canonical rules.
-- `synthesis-and-presentation.md`, `review-output-template.md`, `walkthrough.md`, `bulk-preview.md`
-  (same directory) — each references the floor; the batch/headless/preview surfaces stopped restating a
-  weaker rule.
-- `tests/skills/ce-doc-review-rendering-floor.test.ts` — asserts the floor's invariant tokens and that
-  every surface points at it.
-
-Related authoring principles: [[portable-agent-skill-authoring]] (smallest mechanism; parity-test
-duplicated contracts; CI-vs-behavioral eval split) and [[post-menu-routing-belongs-inline]] (keep
-load-bearing reference-load instructions inline at the point of use).
+Related authoring principles: [[portable-agent-skill-authoring]] (smallest mechanism; parity-test duplicated contracts; CI-vs-behavioral split) and [[post-menu-routing-belongs-inline]] (what must stay in the always-loaded body).

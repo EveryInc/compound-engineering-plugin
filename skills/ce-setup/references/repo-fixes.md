@@ -81,3 +81,28 @@ Skills that keep local scratch write it under `.context/compound-engineering/`. 
 Append the entry to the repo-root `.gitignore` only if the user approves. Do not overwrite unrelated `.gitignore` content.
 
 Unlike Step 7 this does not wait for the path to exist. The skill about to write there offers the same entry at its first write, so a repository that never uses one of those skills never needs the line — adding it here only means that prompt never has to fire.
+
+### Step 9: Point Agents At The Knowledge Store, And Offer The Compounding Directive
+
+Runs whenever the repository has a root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or the equivalent this project uses). When one file only `@`-includes another, the substantive file is the target. No such file: skip this step and say so in the summary; setup never creates one.
+
+**Outcome:** an agent that reads the file learns that the knowledge store exists at the resolved `<root>/solutions/` and when it is relevant, and the file carries a standing instruction for capturing learnings if the user wants one. Both additions are offered separately, previewed with their exact placement, and applied only on approval.
+
+**Store mention.** Read the file and judge semantically, not by string match, whether a reader would learn three things: a store of documented solutions exists at the concrete path, enough of its shape to search it (categories, YAML frontmatter fields such as `module`, `tags`, `problem_type`), and that it is relevant when implementing or debugging in a documented area. When the spirit is met, offer nothing. Otherwise draft the smallest addition in the file's own style: one line in the closest existing section (a directory listing, architecture tree, conventions block) beats a new heading, and a new heading is the last resort. Keep the tone informational, not imperative, because an imperative causes redundant reads when a workflow already searches. Write the concrete resolved path, never the `<root>` placeholder, since people and plugin-less agents read this file. Calibration for a directory listing:
+
+```text
+<root>/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
+```
+
+**Compounding directive.** Offer it only when the repository treats the store as tracked, committed knowledge: git tracks at least one file under the resolved `<root>/solutions/` (`git ls-files` there is non-empty; an untracked or gitignored directory is not evidence), or the user just accepted the store mention. Skip the offer when the file already carries a standing instruction to invoke `ce-compound` at a completion checkpoint, in any wording. Otherwise ask:
+
+```text
+Add a standing instruction so agents capture qualifying learnings with ce-compound?
+1. Offer first -- the agent asks before capturing
+2. Run automatically -- the agent captures without asking
+3. No thanks
+```
+
+Insert the chosen variant verbatim from `assets/compounding-directive.md` in this skill's directory; the wording is load-bearing and pinned by a test, so do not paraphrase it. Place it beside the store mention when that landed in a conventions or working-agreement block, otherwise in the block where the file states how agents should work. Match the surrounding form (a bullet in a bullet list, a paragraph in prose). Preview the exact text and location, then append only on approval and leave the rest of the file untouched.
+
+Report both outcomes in the Phase 3 summary under Fixed or Skipped.

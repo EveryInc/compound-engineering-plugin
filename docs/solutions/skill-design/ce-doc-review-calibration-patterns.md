@@ -1,5 +1,5 @@
 ---
-title: "ce-doc-review calibration patterns: tier classification, chain grouping, and FYI routing"
+title: "ce-doc-review calibration patterns: tier classification, schema callouts, and run variance"
 date: 2026-04-19
 category: skill-design
 module: compound-engineering / ce-doc-review
@@ -11,8 +11,6 @@ tags:
   - autofix-classification
   - synthesis-pipeline
   - persona-calibration
-  - premise-dependency
-  - fyi-routing
   - calibration
 applies_when:
   - Changing persona confidence calibration in the doc-review skill-local personas under `skills/ce-doc-review/references/personas/`
@@ -24,100 +22,35 @@ applies_when:
 
 # ce-doc-review calibration patterns
 
-Calibration work on ce-doc-review (PR #601 series, 2026-04-18 and -19) surfaced several non-obvious patterns in how the synthesis pipeline classifies findings. These patterns are durable: they will re-surface any time personas or synthesis guidance are retuned. Future contributors changing calibration should expect them and not "fix" them as bugs.
+Patterns that re-surface whenever personas or synthesis guidance are retuned. Contributors changing calibration should expect them and not "fix" them as bugs.
 
 ## Tier classification is context-sensitive, not purely formal
 
-The naive read of the tier spec says `safe_auto` = "one clear correct fix, applied silently." In practice, the same shape of finding can legitimately land in different tiers depending on scope and verifiability. Two recurring patterns:
+The naive read of the tier spec says `safe_auto` = "one clear correct fix, applied silently." The same shape of finding legitimately lands in different tiers depending on scope and verifiability.
 
-### External stale cross-reference → gated_auto (not safe_auto)
+**External stale cross-reference goes to `gated_auto`, not `safe_auto`.** `see Unit 7` where Unit 7 does not exist in the same document is internal: coherence can verify from the document text alone and apply `safe_auto`. `see docs/guides/keyboard-nav.md Section 4` is external: silently deleting the reference risks masking a legitimate doc, so the fix is "verify before applying" under `gated_auto`.
 
-When the document says `see Unit 7` and Unit 7 doesn't exist in the same document, that's an **internal** stale cross-reference — coherence can verify from the document text alone and apply `safe_auto`. When the document says `see docs/guides/keyboard-nav.md Section 4` and that file isn't verifiable from the document content, that's an **external** cross-reference; applying "delete this reference" silently risks masking a legitimate external doc. The reviewer should route these to `gated_auto` with a "verify before applying" fix, not `safe_auto`.
+**Multi-surface terminology drift goes to `gated_auto`.** Two synonyms in prose only (`data store` / `database`) normalize under `safe_auto`. Drift that crosses surfaces (UI copy, aria-labels, toasts, analytics events, file names, code identifiers) exceeds prose normalization and warrants confirmation. Security-adjacent terms (`token` / `credential` / `secret` / `API key`) carry different semantic weight and route to `gated_auto` with a glossary-fix recommendation.
 
-Observed in: feature-plan fixture runs. The external cross-ref landed at P2 as `gated_auto` with the fix "Verify docs/guides/keyboard-nav.md exists... If stale, either remove the reference or replace with inline guidance."
+Do not tighten coherence's `safe_auto` guidance to force these into `safe_auto`. The reclassification is reviewer judgment doing useful work.
 
-### Multi-surface terminology drift → gated_auto (not safe_auto)
+## Schema compliance needs inline enum callouts, not just `{schema}` injection
 
-When two synonyms appear in prose only (`data store` / `database`), `safe_auto` normalizes correctly. When the drift crosses surfaces — UI copy, aria-labels, toast messages, analytics events, file names, code identifiers — the fix's scope exceeds prose normalization and warrants user confirmation. Security-adjacent terminology (`token` / `credential` / `secret` / `API key`) carries different semantic weight and should also route to `gated_auto` with a glossary-fix recommendation.
+The subagent template injects the full JSON schema into each persona's prompt. Conformance still broke on longer personas (adversarial at 89 lines, scope-guardian at 54): severity emitted as `"high"/"medium"/"low"` instead of `P0..P3`, evidence as strings instead of arrays. Schema injection gets pushed down in attention by dense persona rubrics. What worked is the "Schema conformance — hard constraints" block at the top of the output contract in `references/subagent-template.md`, naming the exact enum values and forbidding common deviations, plus a translation rule so a persona's informal "critical/important/low-signal" language maps to `P0..P3` at emit time instead of leaking into JSON.
 
-Observed in: auth-plan fixture runs (security-lens escalated), feature-plan fixture runs (UI-surface escalated).
+## Reviewer variance is inherent; single runs are not baselines
 
-**Do not tighten coherence's `safe_auto` guidance to force these into `safe_auto`.** The reclassification is reviewer judgment doing useful work.
+Across 7+ runs on the rename fixture, the same document produced `safe_auto`-applied counts of 0, 1, 2, 3 and total user-decision counts of 14, 19, 6, 12, 8, 6. Calibration reduced but did not eliminate variance. Primary sources:
 
-## Premise-dependency chains have scope hierarchy — MECHANISM REMOVED 2026-08-13
+- adversarial reviewer activation: the activation signals (requirement count, architectural decisions, high-stakes domain) are non-deterministic on borderline documents
+- root selection when multiple candidates exist
+- confidence on borderline findings: the same finding lands in FYI on one run and manual on the next because the anchor choice flips at the boundary
 
-**The mechanism this section describes no longer exists.** Synthesis step 3.5c and its sibling 3.3b were
-deleted, along with the rest of the cascade machinery, when the pipeline was simplified. Do not implement
-from this section; it is kept because the reasoning below was hard-won and applies to any future attempt
-at the same problem.
-
-Why it went: the machinery asked the synthesizer to build a dependency graph over findings before it
-could reliably tell which findings carried a genuine choice at all. It was elaborate structure resting on
-a classification the model was not yet doing well, so it added failure modes without reducing the reader's
-decision count. The volume problem was addressed instead by batching settled corrections into one grouped
-confirmation. If chain-linking is revisited, it should be built on top of a classification that has been
-measured, not underneath one that has not.
-
-The original description follows. Step 3.5c grouped manual findings whose fixes cascade from a single
-premise challenge. When multiple premise-level candidates surface, they may be **peer roots** (independent
-premises at different scopes) or **nested** (one premise's resolution moots the other). The decision rules:
-
-### Peer vs nested — mechanical test, not example-based
-
-> "Two candidate roots are peers when accepting root A's proposed fix would not resolve root B's concern (and vice versa). They are nested when one root's fix would moot the other — in which case the subsumed candidate becomes a dependent of the surviving root."
-
-Apply symmetrically: check both directions before deciding. Example-based teaching ("e.g., 'drop the alias'") overfits to specific vocabulary; a mechanical decision test generalizes across domains.
-
-### Surviving root under nested — scope dominates confidence
-
-When nested, the surviving root is the one whose fix moots the other — **not** the higher-confidence candidate. In a rename plan, the broader-scope "rename premise unsupported" root dominates the higher-confidence "alias machinery unjustified" candidate, because rejecting the rename moots the alias entirely, while rejecting the alias still leaves the rename standing. Earlier synthesis picked the higher-confidence candidate as root, which stranded the broader-scope premise's natural dependents as independent findings.
-
-Confidence is for tie-breaking *among peers*, not for deciding which of two nested candidates dominates.
-
-### Multi-root requires explicit elevation
-
-Synthesis defaults to picking a single root when multiple candidates match. A phrase like "typically 0–2 roots surface per review" anchors the synthesizer to elevate only one. Explicit guidance to elevate ALL matching candidates (subject only to the peer-vs-nested test) is needed. The criteria themselves are the filter — no numerical cap on roots.
-
-## FYI routing requires band + template-level anchoring
-
-Advisory observations with no articulable consequence need somewhere to land, or they get either promoted above the gate (appearing as real decisions) or suppressed entirely. The FYI bucket gives them a home, but it stays empty unless two changes are made together:
-
-1. **Per-persona advisory band** tailored to each persona's scope. Each of the 8 skill-local personas needs its own band; a single template-level rule doesn't override persona-specific calibrations.
-2. **Template-level advisory rule** in `subagent-template.md`'s output-contract using the "what actually breaks if we don't fix this?" heuristic. Anchors the scoring decision when a persona's own rubric doesn't make the band's applicability obvious.
-
-Either alone is insufficient. Persona bands without the template rule produce inconsistent results across personas; the template rule without per-persona bands has nothing to calibrate against.
-
-> **Scoring model note:** This pattern predates the anchored-rubric migration. The original calibration used continuous float bands; scoring is now an anchored rubric (discrete `0/25/50/75/100`, with FYI = anchor `50`). See [confidence-anchored-scoring.md](./confidence-anchored-scoring.md) for the canonical scoring model. The band-plus-template structural insight above is independent of the numeric scale.
-
-## Schema compliance requires inline enum callouts, not just `{schema}` injection
-
-The subagent template injects the full JSON schema into each persona's prompt. Schema conformance nonetheless broke on longer personas (adversarial at 89 lines, scope-guardian at 54 lines) — severity emitted as `"high"/"medium"/"low"` instead of `P0/P1/P2/P3`, evidence as strings instead of arrays.
-
-The fix that worked: a **"Schema conformance — hard constraints"** block at the top of the output contract prose, naming the exact enum values and forbidding common deviations. Schema injection alone gets pushed down in attention by dense persona rubrics; inline enum callouts anchor them at the top of the output contract and survive longer prompts.
-
-A severity translation rule ("if your persona's prose discusses 'critical/important/low-signal', map to P0/P1/P2/P3 at emit time") prevents informal priority language in persona rubrics from leaking into JSON output.
-
-## Coverage/rendering count invariants need a single source of truth — MECHANISM REMOVED 2026-08-13
-
-The `dependents` array this section named as source of truth belonged to the cascade / chain-link machinery deleted with synthesis 3.5c. Do not reintroduce a `dependents` field to make this invariant true.
-
-**Invariant that still holds:** name one post-filter snapshot as authoritative for both coverage counts and rendering. Live synthesis uses "The merged finding set produced by this step" at 3.3; coverage and presentation must agree on that set. Any future pipeline change that adds filtering or reorganization must re-state which post-step snapshot is authoritative.
-
-## Reviewer variance is inherent; single runs aren't baselines
-
-Across 7+ runs on the rename fixture, the same document produced user-engagement counts of 0, 1, 2, 3 for `safe_auto` applied and 14, 19, 6, 12, 8, 6 for total user decisions. Calibration work reduced but did not eliminate variance. Primary variance sources:
-
-- **Adversarial reviewer activation** — the activation signals (requirement count, architectural decisions, high-stakes domain) produce non-deterministic decisions at borderline documents
-- **Root selection when multiple candidates exist** — even with scope-dominance guidance, the synthesizer's root choice varies across runs
-- **Confidence calibration on borderline findings** — the same finding lands in FYI on one run and manual on the next, because the reviewer's anchor choice flips at the boundary across runs
-
-**Testing implication:** validate calibration changes against multiple runs, not single samples. A single "bad" run is likely noise; a pattern across 3+ runs is signal. Seeded fixtures document expected tier distributions as targets, not as pass/fail assertions.
+Validate calibration changes against multiple runs. A single bad run is likely noise; a pattern across 3+ runs is signal. Seeded fixtures under `tests/fixtures/ce-doc-review/` document expected tier distributions as targets, not pass/fail assertions.
 
 ## Related documentation
 
-- `skills/ce-doc-review/references/synthesis-and-presentation.md` — canonical synthesis pipeline spec. It no longer contains 3.5c chain linking or the 3.3b cascade step; read it, not this doc, for the current pipeline
-- `skills/ce-doc-review/references/rendering-floor.md` — the presentation contract, including the report-versus-question grammar that governs whether a finding is asked about at all
-- `skills/ce-doc-review/references/subagent-template.md` — output contract with schema conformance block and advisory routing rule
-- `skills/ce-doc-review/references/personas/` — the 8 doc-review persona prompts (`coherence-reviewer.md`, `feasibility-reviewer.md`, `design-lens-reviewer.md`, `security-lens-reviewer.md`, `scope-guardian-reviewer.md`, `product-lens-reviewer.md`, `adversarial-document-reviewer.md`, `whole-doc-reviewer.md`) with their confidence calibration bands
-- `tests/fixtures/ce-doc-review/` — three seeded fixtures (rename, auth, feature) for manual calibration testing; see each fixture's header comment for its specific seed map
-- `docs/solutions/developer-experience/branch-based-plugin-install-and-testing.md` — how to run the skill from a branch checkout for testing
+- `skills/ce-doc-review/references/synthesis-and-presentation.md`: the current pipeline; read it, not this doc, for mechanics
+- `skills/ce-doc-review/references/subagent-template.md`: output contract with the schema conformance block
+- `skills/ce-doc-review/references/personas/`: the persona prompts with their calibration sections
+- [confidence-anchored-scoring.md](./confidence-anchored-scoring.md): the scoring model (discrete `0/25/50/75/100`, FYI = anchor `50`)

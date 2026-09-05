@@ -235,21 +235,6 @@ function extractFeedback(view: unknown): any[] {
   return JSON.parse(r.stdout.trim())
 }
 
-function eyesReactionIdentities(pages: unknown): string[] {
-  const r = spawnSync(
-    "python3",
-    [
-      "-c",
-      `import json; from importlib.machinery import SourceFileLoader; ` +
-        `m=SourceFileLoader('prs', ${JSON.stringify(SCRIPT)}).load_module(); ` +
-        `print(json.dumps(m._eyes_reaction_identities(json.loads(${JSON.stringify(JSON.stringify(pages))}))))`,
-    ],
-    { encoding: "utf8" },
-  )
-  expect(r.status, r.stderr).toBe(0)
-  return JSON.parse(r.stdout.trim())
-}
-
 function probeBaseIdentity(options: {
   refStatus?: number
   refError?: string
@@ -3834,7 +3819,7 @@ m.cmd_snapshot(args)
     expect(wake.reason).toBe("feedback-candidate")
   })
 
-  test("a review lifecycle starting during an approval drain wakes for a longer bound", () => {
+  test("reviewer movement during an approval drain wakes for a longer bound", () => {
     const sd = path.join(dir, "approval-drain-signal")
     const gated = {
       ...FAILING,
@@ -3844,17 +3829,12 @@ m.cmd_snapshot(args)
       threads: [],
       feedback: [],
       awaiting_approval: 1,
-      review_in_progress: false,
-      review_signal_count: 0,
-      review_signal_identities: [],
+      review_decision: null,
     }
     snapshot(sd, fetchFile(dir, "approval-drain-signal-first.json", gated))
-    const withSignal = {
-      ...gated,
-      review_in_progress: true,
-      review_signal_count: 1,
-      review_signal_identities: ["review-bot"],
-    }
+    // Reviewer movement during the drain: the decision state changed, which is external review
+    // activity even though it adds nothing to the attention set.
+    const withSignal = { ...gated, review_decision: "REVIEW_REQUIRED" }
 
     const wake = watch(sd, fetchFile(dir, "approval-drain-signal-watch.json", withSignal), [
       "--blocked-external-drain-seconds", "300",
@@ -4674,145 +4654,44 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
       .toBeGreaterThan(new Date(isoAgo(60)).getTime())
   }, 15000)
 
-  test("watch: an in-progress review signal blocks until the 15-minute stale-review check", () => {
+  // #1606: Cursor's review bot adds an eyes reaction and never removes it, even after its own
+  // current-head check reaches a terminal conclusion. Presence alone was read as "a review is
+  // underway", so every green PR waited out the 900s stale-review floor instead of the 300s settle.
+  test("watch: movement under a widened arm reopens the judgment; unchanged evidence never does", () => {
+    // A widened settle is the agent's judgment about evidence it looked at. When that evidence moves
+    // the judgment may not hold, so the watch hands the decision back. The anti-loop half is the one
+    // that matters: an earlier fix keyed this on a state value instead of on movement, which re-fired
+    // on evidence the agent had already rejected and looped the wake every poll.
     const base = {
-      ...FAILING,
-      merge_state_status: "CLEAN",
-      review_decision: "APPROVED",
-      threads: [],
-      checks: [GREEN_CHECK],
+      pr_state: "OPEN",
       counts: { threads: 0, ci: 0, comments: 0 },
+      stack_blocker: null,
+      base_ref_blocker: null,
+      unrequested_base_merge: null,
+      branch_currency: {},
+      branch_currency_blocker: null,
+      blocked_external: false,
+      open_needs_human: 0,
+      mergeability_certain: true,
+      mergeable: "MERGEABLE",
+      merge_state_status: "CLEAN",
       checks_terminal: true,
       has_failing_checks: false,
       checks_awaiting_approval: 0,
-      open_needs_human: 0,
-      stack_blocker: null,
-    }
-    expect(wakeReason({ ...base, review_in_progress: true, quiet_seconds: 899 }, 0)).toBeNull()
-    expect(wakeReason({ ...base, review_in_progress: true, quiet_seconds: 900 }, 0)).toBe("merge-ready")
-    expect(wakeReason({ ...base, review_in_progress: false, quiet_seconds: 0 }, 0)).toBe("merge-ready")
-  })
-
-  test("snapshot: remembers an incomplete current-head review after the eyes signal disappears", () => {
-    const base = {
-      ...FAILING,
-      merge_state_status: "CLEAN",
-      review_decision: "APPROVED",
-      threads: [],
-      checks: [GREEN_CHECK],
     }
 
-    snapshot(state, fetchFile(dir, "signal-absent.json", { ...base, review_in_progress: false }))
-    const statePath = path.join(state, "state.json")
-    const prior = JSON.parse(readFileSync(statePath, "utf8"))
-    prior.last_change_at = "2026-07-17T12:00:00+00:00"
-    writeFileSync(statePath, JSON.stringify(prior))
-
-    const started = snapshot(state, fetchFile(dir, "signal-started.json", { ...base, review_in_progress: true }))
-    expect(started.review_signal_seen_on_head).toBe(true)
-    expect(started.review_signal_first_seen_at).toBe(started.review_signal_last_changed_at)
-    expect(started.review_signal_first_seen_at).not.toBe(prior.last_change_at)
-    const firstSeenAt = started.review_signal_first_seen_at
-
-    const disappeared = snapshot(state, fetchFile(dir, "signal-disappeared.json", { ...base, review_in_progress: false }))
-    expect(disappeared.review_in_progress).toBe(false)
-    expect(disappeared.review_signal_seen_on_head).toBe(true)
-    expect(disappeared.review_signal_first_seen_at).toBe(firstSeenAt)
-    expect(disappeared.review_signal_last_changed_at).not.toBe(firstSeenAt)
-    expect(disappeared.changed_this_tick).toBe(true)
-    expect(disappeared.quiet_seconds).toBeLessThan(2)
-
-    const nextHead = snapshot(state, fetchFile(dir, "signal-new-head.json", {
-      ...base,
-      head_sha: "s2",
-      review_in_progress: false,
-    }))
-    expect(nextHead.review_signal_seen_on_head).toBe(false)
-    expect(nextHead.review_signal_first_seen_at).toBeNull()
-    expect(nextHead.review_signal_last_changed_at).toBeNull()
-  })
-
-  test("snapshot: eyes identity changes reset quiet time even when the count stays fixed", () => {
-    expect(eyesReactionIdentities([[
-      { content: "eyes", user: { node_id: "U_bot_b" } },
-      { content: "eyes", user: { node_id: "U_bot_a" } },
-      { content: "+1", user: { node_id: "U_other" } },
-    ]])).toEqual(["U_bot_a", "U_bot_b"])
-
-    const base = {
-      ...FAILING,
-      merge_state_status: "CLEAN",
-      review_decision: "APPROVED",
-      threads: [],
-      checks: [GREEN_CHECK],
-      review_in_progress: true,
+    for (const widened of [900, 1800]) {
+      expect(wakeReason({ ...base, quiet_seconds: 5, changed_this_tick: true }, widened))
+        .toBe("review-evidence-moved")
+      // Unchanged evidence must stay silent however long the window has been running.
+      expect(wakeReason({ ...base, quiet_seconds: 500, changed_this_tick: false }, widened)).toBeNull()
+      // ...and the widened bound itself still decides when it genuinely elapses.
+      expect(wakeReason({ ...base, quiet_seconds: widened, changed_this_tick: false }, widened))
+        .toBe("merge-ready")
     }
-    const first = snapshot(state, fetchFile(dir, "signal-count-one.json", {
-      ...base,
-      review_signal_identities: ["U_bot_a"],
-    }))
-    expect(first.review_signal_count).toBe(1)
-    expect(first.review_signal_identities).toEqual(["U_bot_a"])
-    const statePath = path.join(state, "state.json")
-    const prior = JSON.parse(readFileSync(statePath, "utf8"))
-    prior.last_change_at = "2026-07-17T12:00:00+00:00"
-    prior.review_signal_last_changed_at = prior.last_change_at
-    writeFileSync(statePath, JSON.stringify(prior))
 
-    const swapped = snapshot(state, fetchFile(dir, "signal-reviewer-swapped.json", {
-      ...base,
-      review_signal_identities: ["U_bot_b"],
-    }))
-    expect(swapped.review_in_progress).toBe(true)
-    expect(swapped.review_signal_count).toBe(1)
-    expect(swapped.review_signal_identities).toEqual(["U_bot_b"])
-    expect(swapped.review_signal_last_changed_at).not.toBe(prior.review_signal_last_changed_at)
-    expect(swapped.changed_this_tick).toBe(true)
-    expect(swapped.quiet_seconds).toBeLessThan(2)
-
-    const persisted = JSON.parse(readFileSync(statePath, "utf8"))
-    persisted.last_change_at = "2026-07-17T12:00:00+00:00"
-    persisted.review_signal_last_changed_at = persisted.last_change_at
-    writeFileSync(statePath, JSON.stringify(persisted))
-
-    const unchanged = snapshot(state, fetchFile(dir, "signal-reviewer-unchanged.json", {
-      ...base,
-      review_signal_identities: ["U_bot_b"],
-    }))
-    expect(unchanged.review_in_progress).toBe(true)
-    expect(unchanged.review_signal_count).toBe(1)
-    expect(unchanged.changed_this_tick).toBe(false)
-    expect(unchanged.quiet_seconds).toBeGreaterThan(60)
-  })
-
-  test("snapshot: a count-only legacy review signal migrates to reactor identities", () => {
-    const base = {
-      ...FAILING,
-      merge_state_status: "CLEAN",
-      review_decision: "APPROVED",
-      threads: [],
-      checks: [GREEN_CHECK],
-      review_in_progress: true,
-      review_signal_count: 1,
-    }
-    snapshot(state, fetchFile(dir, "signal-legacy-count.json", base))
-    const statePath = path.join(state, "state.json")
-    const legacy = JSON.parse(readFileSync(statePath, "utf8"))
-    delete legacy.review_signal_identities
-    legacy.last_change_at = "2026-07-17T12:00:00+00:00"
-    legacy.review_signal_last_changed_at = legacy.last_change_at
-    writeFileSync(statePath, JSON.stringify(legacy))
-
-    const migrated = snapshot(state, fetchFile(dir, "signal-identity-aware.json", {
-      ...base,
-      review_signal_identities: ["U_bot_a"],
-    }))
-    expect(migrated.review_in_progress).toBe(true)
-    expect(migrated.review_signal_count).toBe(1)
-    expect(migrated.review_signal_identities).toEqual(["U_bot_a"])
-    expect(migrated.review_signal_seen_on_head).toBe(true)
-    expect(migrated.changed_this_tick).toBe(true)
-    expect(migrated.quiet_seconds).toBeLessThan(2)
+    // On the ordinary arm this never fires: movement there just resets the quiet clock.
+    expect(wakeReason({ ...base, quiet_seconds: 5, changed_this_tick: true }, 300)).toBeNull()
   })
 
   test("watch: a no-check MERGEABLE/CLEAN PR still reaches merge-ready (the >=1-check guard is pipeline-only)", () => {

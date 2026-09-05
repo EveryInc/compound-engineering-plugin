@@ -2,9 +2,9 @@
 
 > A time-windowed pulse on what users experienced and how the product performed: usage, quality, errors, and signals worth investigating. One page, every time.
 
-`ce-product-pulse` is the **observation** skill. After work has shipped, it queries the product's data sources for a lookback window and writes a single-page report. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. The loop decides and builds; this skill reports what users actually hit.
+`ce-product-pulse` is the **observation** skill. After work ships, it queries the product's data sources for a lookback window and writes a single-page report. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. The loop decides and builds; this skill reports what users actually hit.
 
-You invoke it yourself (it is not model-invoked). Combined with `ce-strategy` as the upstream anchor, follow-ups from the pulse can feed `ce-ideate` ("what's worth exploring?") or `ce-brainstorm` ("what does this need to be?"). It does not replace Sentry, PostHog, or your dashboards. It consolidates one page so you are not re-deriving "what happened" from four tools.
+You invoke it yourself (it is not model-invoked). With `ce-strategy` as the upstream anchor, follow-ups from the pulse feed `/ce-ideate` ("what's worth exploring?") or `/ce-brainstorm` ("what does this need to be?"). It does not replace Sentry, PostHog, or your dashboards. It saves you from re-deriving "what happened" out of four tools every Monday.
 
 ```text
 /ce-strategy (metrics seed the pulse)
@@ -66,27 +66,21 @@ Pick the shortest window that answers the question. A launch check and a weekly 
 
 ## The Problem
 
-"How are we doing?" reports fail in familiar ways:
+"How are we doing?" reports fail in familiar ways. Forty metrics across six tools, and nobody reads any of them. Red / yellow / green from guessed thresholds that were never calibrated to this product. The last 15 minutes of analytics under-reported, so "what just happened?" is wrong. Emails and account IDs landing in saved files and Slack threads. A "report" tool that turns out to have write access to production.
 
-- Forty metrics across six tools, and nobody reads any of them
-- Red / yellow / green based on guessed thresholds that do not match how the product actually runs
-- The last 15 minutes of analytics are under-reported, so "what just happened?" is wrong
-- Emails, account IDs, and message content land in saved files and Slack threads
-- A "report" tool that can write to the database or mark events
-- Pulses live in chat, so you cannot compare last week to this week
-- The pulse measures whatever happens to be instrumented, not what the strategy says matters
+Two quieter failures matter as much: pulses that live only in chat, so last week can't be compared to this week, and pulses that measure whatever happens to be instrumented instead of what the strategy says matters.
 
 ## The Solution
 
 `ce-product-pulse` is a structured observation pass with a few hard rules:
 
 - One page, about 30-40 lines. Thin sections stay thin.
-- Numbers only. No "good" / "bad" labels and no hardcoded thresholds. You judge.
-- Every query's upper bound is `now - 15m`, so ingestion lag does not under-count the tail of the window
+- Numbers only. No "good" / "bad" labels, no hardcoded thresholds. You judge.
+- Every query's upper bound is `now - 15m`, so ingestion lag does not under-count the tail of the window.
 - Saved reports hold counts and anonymized notes. No emails, account IDs, or message text.
 - Every data source is queried read-only. The interview refuses read-write database credentials.
-- When a strategy doc exists (`STRATEGY.md`, or when absent the first of `VISION.md`, `PRODUCT.md`), setup seeds product name and key metrics from it, then wires sources to measure those metrics
-- Every run writes `docs/pulse-reports/` so past pulses are a browseable timeline
+- When a strategy doc exists (`STRATEGY.md`, or the first of `VISION.md`, `PRODUCT.md` when it is absent), setup seeds the product name and key metrics from it, then wires sources to measure those metrics.
+- Every run writes `docs/pulse-reports/`, so past pulses read as a timeline.
 
 ---
 
@@ -100,11 +94,11 @@ Deltas compare this window to the previous equal-length window. If a comparison 
 
 ### Strategy-seeded setup
 
-On first run (or `reconfigure`), the interview reads the strategy doc when present (`STRATEGY.md`, else the first of `VISION.md`, `PRODUCT.md` that exists; metrics are found by meaning, and a linked legacy doc is followed when `STRATEGY.md` defers them there), shows the seeded product name and key metrics, and lets you correct them before wiring sources. Metrics that are not instrumented yet are not silently dropped: each one is either marked pending (`no data` in every report) or explicitly excluded from the pulse while staying in `STRATEGY.md`.
+On first run (or `reconfigure`), the interview reads the strategy doc when present, shows the seeded product name and key metrics, and lets you correct them before wiring sources. Metrics are found by meaning, and a linked legacy doc is followed when `STRATEGY.md` defers them there. Metrics not instrumented yet are not silently dropped: each one is either marked pending (`no data` in every report) or explicitly excluded from the pulse while staying in `STRATEGY.md`.
 
-When none of those docs exists, setup says so and starts from scratch. It also notes that `ce-strategy` can seed a later reconfigure.
+When no strategy doc exists, setup says so and starts from scratch, noting that `ce-strategy` can seed a later reconfigure.
 
-Every metric, event, and signal you propose is checked for being specific, measurable, actionable, relevant, and timely. Vanity metrics get a sharper question. The interview never uses the word "SMART" with you.
+Every metric, event, and signal you propose gets checked for being specific, measurable, actionable, relevant, and timely. Vanity metrics get a sharper question. The interview never says the word "SMART" to you.
 
 ### Read-only, and a trailing buffer
 
@@ -114,11 +108,11 @@ Database access is optional. Many products finish the pulse on analytics and tra
 
 Analytics, tracing, and payments queries run in parallel. Database queries run one at a time, scoped, never as a full-table scan. An expensive DB query is skipped and noted.
 
-The 15-minute buffer is why a `24h` run queries `[now - 24h - 15m, now - 15m]`. Without it, every short window under-states recent activity.
+The 15-minute buffer is why a `24h` run queries `[now - 24h - 15m, now - 15m]`. Without it, every short window understates recent activity.
 
 ### Optional quality scoring
 
-For AI products, you can opt in to scoring up to 10 sampled sessions 1-5 on one dimension you define. Normal sessions default to 4 or 5. Scores 1-3 are for a clear failure (wrong answer, user stuck, error shown). The report carries the distribution and a short anonymized note on anything below 4, not the transcript.
+For AI products, you can opt in to scoring up to 10 sampled sessions 1-5 on one dimension you define. Normal sessions default to 4 or 5. Scores 1-3 mean a clear failure: wrong answer, user stuck, error shown. The report carries the distribution and a short anonymized note on anything below 4, not the transcript.
 
 ---
 
@@ -132,7 +126,7 @@ If quality scoring is on, it samples up to 10 sessions. A distribution like 7×5
 
 The report lands at `docs/pulse-reports/2026-05-04_08-45.md` with Headlines, Usage (engagement, value, completions, any strategy metrics, the quality sample), System performance (p50 / p95 / p99 and the top 5 errors), and Followups. Chat shows the Headlines, the top follow-up, and the path, not the whole file.
 
-A climbing error pattern is a `/ce-debug` follow-up. A product-shaped gap is `/ce-ideate` or `/ce-brainstorm`.
+A climbing error pattern becomes a `/ce-debug` follow-up. A product-shaped gap goes to `/ce-ideate` or `/ce-brainstorm`.
 
 ---
 
@@ -156,24 +150,7 @@ Skip `ce-product-pulse` when:
 
 ## Use as Part of the Workflow
 
-`ce-product-pulse` sits outside the build loop and feeds it.
-
-```text
-                    /ce-strategy
-                         |
-                         v  (key metrics seed pulse)
-   /ce-product-pulse ----+---- follow-ups ----> /ce-ideate --> /ce-brainstorm --> /ce-plan --> /ce-work
-         ^                                                                              |
-         +------------------------ shipped, observed in production ---------------------+
-```
-
-In a configured project:
-
-- `STRATEGY.md` (from `/ce-strategy`, or a legacy `VISION.md`/`PRODUCT.md` in its absence) names the metrics
-- `/ce-product-pulse` writes the report and surfaces follow-ups
-- Follow-ups go to `/ce-ideate`, `/ce-debug`, or `/ce-brainstorm`
-
-The pulse does not decide what to build. It reports what happened so you can choose the next loop step.
+`ce-product-pulse` sits outside the build loop and feeds it. In a configured project, `STRATEGY.md` (from `/ce-strategy`, or a legacy `VISION.md`/`PRODUCT.md` in its absence) names the metrics, the pulse measures them and surfaces follow-ups, and each follow-up picks its own loop entry: `/ce-ideate`, `/ce-brainstorm`, or `/ce-debug`. The pulse does not decide what to build. It reports what happened so you can choose the next step.
 
 First-run setup offers a recurring run via the harness scheduler (the in-plugin `schedule` skill when present, otherwise cron or GitHub Actions). It never schedules unless you confirm. After three or more manual runs with no schedule on file, it mentions the offer once.
 
@@ -207,22 +184,13 @@ Default report path: `docs/pulse-reports/YYYY-MM-DD_HH-MM.md`. If `docs_root` is
 ## FAQ
 
 **Why no thresholds in the report?**
-Thresholds are theater unless they are calibrated for this product, and calibrating every metric is more work than the pulse. You already know what is normal. If a number looks wrong, you notice.
-
-**Why a 15-minute trailing buffer?**
-Most analytics and tracing tools under-report the last few minutes. Without the buffer, every short window understates recent activity.
-
-**Why is database access read-only?**
-A report skill should not be able to mutate production. The interview refuses read-write credentials. Many products never enable the DB at all.
+Thresholds are theater unless they are calibrated for this product, and calibrating every metric is more work than the pulse. You already know what normal looks like. If a number is wrong, you notice.
 
 **Why is the report a single page?**
 A 40-metric dashboard spreads attention. Four sections on one page force a choice about what matters. Depth still lives in the native tools.
 
 **What's the relationship to `STRATEGY.md`?**
-The first-run interview seeds product name and key metrics from it (or, when it is absent, from the first of `VISION.md`, `PRODUCT.md` that exists — the same rule every report re-resolves). Each later pulse re-reads those metrics from that source. Pending ones render as `no data`. Excluded ones stay in the strategy file and do not appear.
-
-**Does it support scheduling?**
-Yes, as an offer during setup (and a one-time reminder after several manual runs). Confirmation is required. The skill does not schedule itself.
+The first-run interview seeds product name and key metrics from it (or from the first of `VISION.md`, `PRODUCT.md` when it is absent — the same rule every report re-resolves). Each later pulse re-reads those metrics from that source. Pending ones render as `no data`. Excluded ones stay in the strategy file and do not appear.
 
 **What about non-Claude-Code platforms?**
 It runs anywhere you have read-only data-source tools. Config is resolved from the repo at runtime. The interview hands scheduling off to whatever the harness exposes.

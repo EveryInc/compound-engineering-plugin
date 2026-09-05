@@ -272,26 +272,81 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     for (const cmd of watchCommands) {
       expect(cmd, "the normal watch invocation must not set --settle-seconds").not.toContain("--settle-seconds")
     }
-    expect(script, "the script must own the 300s settle default").toMatch(/--settle-seconds"[^)]*default=300/s)
+    expect(script, "the argparse default must be the named ordinary settle window")
+      .toMatch(/--settle-seconds"[^)]*default=DEFAULT_SETTLE_SECONDS/s)
+    expect(script, "the script must own the 300s settle default").toMatch(/^DEFAULT_SETTLE_SECONDS = 300\.0$/m)
     // No prose may reintroduce the bots-present pre-widening rule the wake protocol replaced.
     expect(babysit).not.toMatch(/whenever the repo uses review bots/i)
   })
 
-  test("settle policy: an incomplete review lifecycle gets a 15-minute floor and 30-minute ceiling", async () => {
-    const [babysit, script] = await Promise.all([readBabysit(), readRepoFile(PR_SNAPSHOT)])
-    expect(babysit).toContain("incomplete review lifecycle")
-    expect(babysit).toContain("15 minutes")
-    expect(babysit).toContain("30 minutes")
-    expect(babysit).toMatch(/trajectory.*extend/i)
-    expect(babysit).toMatch(/never.*shorten/i)
-    expect(babysit).toMatch(/must not re-arm.*same unchanged signal/i)
-    expect(babysit).toMatch(/unattributed lifecycle incomplete/i)
-    expect(babysit).toMatch(/reviewer when identifiable.*observed signal/i)
-    expect(babysit).toMatch(/only uncleared condition.*incomplete lifecycle.*15 quiet minutes.*30-minute terminal ceiling/i)
-    expect(script).toContain("review_signal_seen_on_head")
-    // A done signal on the current head must end the wait, not start another settle period.
-    expect(babysit).toContain("never extends the wait")
-    expect(babysit).toContain("no further settle period")
+  test("readiness gate: GitHub's mergeability is one conjunct, never the whole answer", async () => {
+    const babysit = await readBabysit()
+    // Two regimes in the wild: required checks make GitHub enforce mergeability, and advisory code
+    // review does not. The gate never asks which a repo is in — the first lands in GitHub's verdict
+    // and the second in its own conjuncts, so a PR GitHub would merge today is still not ready while
+    // feedback is outstanding. Pin that the review conjuncts survive any future restatement of the
+    // gate; nothing else fails if they are collapsed into the mergeable read.
+    expect(babysit).toMatch(/defers required-check and required-review policy to GitHub/i)
+    expect(babysit).toMatch(/counts\.threads == 0[^.]{0,80}counts\.comments == 0/)
+    expect(babysit).toMatch(/open_needs_human == 0/)
+    expect(babysit).toMatch(/zero actionable backlog/i)
+    // And the report may never upgrade "GitHub would let you" into "safe".
+    expect(babysit).toMatch(/your call to merge/i)
+  })
+
+  test("the boundary summary and the settle reference state the review gate identically", async () => {
+    // envelope.md and settle.md carry this paragraph in parity; fixing one and not the other is how
+    // a stale claim about a removed mechanism survived a repo-wide edit (#1611).
+    const [envelope, settle] = await Promise.all([
+      readRepoFile("skills/ce-babysit-pr/references/envelope.md"),
+      readRepoFile("skills/ce-babysit-pr/references/settle.md"),
+    ])
+    for (const doc of [envelope, settle]) {
+      expect(doc).toMatch(/gates only the \*merge-ready declaration\* — never the work/)
+      expect(doc).toMatch(/engine reports only that the PR went quiet/i)
+      expect(doc).not.toMatch(/review_in_progress|review_signal_/)
+    }
+    // The on-disk state contract is read as authoritative by a runtime agent, so a removed field
+    // lingering in its example still advertises detector state that no longer exists.
+    const watchLoop = await readRepoFile("skills/ce-babysit-pr/references/watch-loop.md")
+    for (const doc of [watchLoop]) {
+      expect(doc).not.toMatch(/"review_in_progress"|"review_signal_/)
+    }
+  })
+
+  test("settle policy: readiness judges whether a review is still coming, and bounds the wait", async () => {
+    const babysit = await readBabysit()
+    // The engine reports quiet; the agent decides whether a review is on its way. Pinning the
+    // asymmetry and the bound, not a state vocabulary — the 15/30-minute lifecycle machinery this
+    // replaced generated every defect in #1611 by making the engine re-decide it (#1606).
+    expect(babysit).toMatch(/has told you it \*\*started\*\*/i)
+    expect(babysit).toMatch(/not evidence that work continues/i)
+    expect(babysit).toMatch(/reached a terminal conclusion means it stopped/i)
+    expect(babysit).toMatch(/never read a timeout or a skip as approval/i)
+    // Terminal work only ends the wait when it accounts for the review that was announced —
+    // an app can finish an unrelated check while its review has not appeared.
+    expect(babysit).toMatch(/accounts for the review it announced/i)
+    expect(babysit).toMatch(/is not the review finishing/i)
+    // Absence never blocks terminally, and the wait is bounded rather than open-ended.
+    expect(babysit).toMatch(/never wait terminally for a done signal/i)
+    // An announcement is not the only evidence a review is coming. Dropping the earlier-head sign
+    // makes the gate inert in repos where no reviewer announces — which is most of them.
+    expect(babysit).toMatch(/reviewed an \*\*earlier\*\* head and not this one/i)
+    expect(babysit).toMatch(/without ever announcing anything/i)
+    expect(babysit).toMatch(/wait a bounded while/i)
+    // The bound needs a magnitude, not just a count of re-arms.
+    expect(babysit).toMatch(/no more than 1800/i)
+    expect(babysit).toMatch(/never re-arm past it on the same unchanged evidence/i)
+    expect(babysit).toMatch(/say plainly what you could not confirm/i)
+    // Readiness stays a recommendation.
+    expect(babysit).toMatch(/never authorization to merge/i)
+    // ...but not as an absolute: SKILL.md already excepts stack-land, where selecting the posture
+    // was the user's advance yes and a settled prefix does land. A local absolute here contradicts
+    // the always-loaded body and mis-states what an early call costs in that posture.
+    expect(babysit).toMatch(/except under `posture:stack-land`/i)
+    expect(babysit).toMatch(/costs landing sooner than the reviewer finished/i)
+    // Omitting the flag on a re-arm is not a smaller wait, it re-fires on the next poll.
+    expect(babysit).toMatch(/passing it is what makes the re-arm real/i)
   })
 
   test("watcher silence is defined as no-information, with a fresh snapshot for mid-watch status asks", async () => {
@@ -547,6 +602,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     const babysit = await readBabysit()
     expect(babysit).toContain("blocked-external-drained")
     expect(babysit).toContain("--blocked-external-drain-seconds")
+    // The drain keeps its own tiers; they are independent of the removed review-signal lifecycle.
     for (const bound of ["300", "900", "1800"]) expect(babysit).toContain(bound)
     expect(babysit).toMatch(/without asking|do not ask/i)
     expect(babysit).toMatch(/pipeline[^.]{0,300}(terminate|return)/i)

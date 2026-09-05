@@ -1,12 +1,12 @@
 # Explainer Markdown Rendering
 
-How an explainer renders as markdown — the fallback format when intake resolved `output:md`. Load at compose time (Phase 4), not earlier. Content rules match the HTML reference; only the presentation medium differs.
+How an explainer renders as markdown — the fallback format when intake resolved `output:md`. Load at compose time, not earlier. Content rules match the HTML reference; only the presentation medium differs.
 
 ## Hard invariants
 
-- **YAML frontmatter carries the metadata:** `title`, `date`, `input_shape` (concept / diff / idea / recap), `subject`, `unverified: true` when Phase 2 fell back to model knowledge, and `rendered_for: <reader>` when the run rendered for another reader (omitted entirely for a personal rendering). Field names are stable — a future library layer indexes them.
+- **YAML frontmatter carries the metadata:** `title`, `date`, `input_shape` (concept / diff / idea / recap), `subject`, `unverified: true` when grounding fell back to model knowledge, and `rendered_for: <reader>` when the run rendered for another reader (omitted entirely for a personal rendering). Field names are stable — a future library layer indexes them.
 - **Pure markdown.** No HTML elements, no `<details>`, no inline styles.
-- **Display-only.** No exercise or quiz content in the artifact; the check-in lives in the session.
+- **Display-only.** No interactive exercise or quiz content. The check-in, when present, is the static `## Check yourself` section that `references/check-in.md` owns: questions first, then their answers, all visible text.
 - **Repo-relative paths** for any file reference; never absolute paths.
 
 ## Show-n-tell in markdown

@@ -8,10 +8,8 @@ component: tooling
 severity: medium
 applies_when:
   - "Building or reviewing a watch-loop skill that polls PR/CI status until merge-ready"
-  - "A PR is a fork->upstream submission from a non-maintainer where CI requires a maintainer's approval to run"
   - "A status signal (e.g., all_checks_ok) is derived only from statusCheckRollup or check-runs"
   - "Classifying a stalled watch-loop into needs-human vs in-progress vs a new blocked-external state"
-  - "Designing pipeline-mode termination behavior for an externally-gated, unbounded-timeline block"
 tags:
   - ce-babysit-pr
   - watch-loop
@@ -19,79 +17,39 @@ tags:
   - fork-pr
   - ci-gating
   - blocked-external
-  - pipeline-mode
   - false-green
 related_components:
   - development_workflow
   - tooling
 ---
 
-## Context
+# Watch-loop skills need a bounded blocked-external handback for fork-PR CI approval gates
 
-`ce-babysit-pr` watches an open GitHub PR toward merge, driven by a deterministic snapshot engine (`skills/ce-babysit-pr/scripts/pr-snapshot`) that fetches both event streams — CI checks and review threads — on every tick and emits an actionable set the skill's prose acts on.
+## The API gap
 
-On `stablyai/orca#8238` (fork `tmchow/orca` -> upstream `stablyai/orca`), the loop reported `all_checks_ok: true` while the PR's real CI had never started. The single check the rollup could see (a lightweight `Track` job) had passed; the substantive workflows were sitting behind GitHub's fork-PR security gate, waiting for a base-repo maintainer to click "Approve and run workflows." Nothing in `gh pr view --json statusCheckRollup` reflected that — a workflow run that is `action_required`/`waiting` has not yet produced a check-run at all, so it is structurally absent from the rollup, not present-and-pending. The only surviving signal was `mergeStateStatus: UNSTABLE`, plus a manual `gh api repos/{owner}/{repo}/actions/runs?head_sha=...` query that showed the gated run.
+On a fork -> upstream PR from a non-maintainer (`stablyai/orca#8238`), `gh pr view --json statusCheckRollup` reported the one ungated lightweight job as passed while the substantive workflows sat behind GitHub's fork-PR security gate waiting for a maintainer to click "Approve and run workflows." **A workflow run that is `action_required`/`waiting` has not produced a check-run at all, so it is structurally absent from the rollup -- not present-and-pending.** The only surviving signals were `mergeStateStatus: UNSTABLE` and `gh api repos/{owner}/{repo}/actions/runs?head_sha=<head>`, which lists the gated run.
 
-This is a partial-truth API problem: `statusCheckRollup` answers "what do check-runs say," not "has CI actually run." A snapshot engine that treats the rollup as the complete picture will report green on a PR whose real CI is dormant. It is also the common open-source case: a contributor who is not a maintainer of the upstream repo cannot approve their own fork-PR workflow run — the block is on a third party, and the wait is unbounded (hours to days), so a naive loop either reports a false green or spins forever.
+`statusCheckRollup` answers "what do check-runs say," not "has CI actually run." An `all_checks_ok` computed from it alone goes true on a PR whose real CI is dormant -- the worst failure for an autonomous monitor, because the false green looks identical to success. `pr-snapshot` therefore queries the Actions runs API independently (`fetch_awaiting_approval`, best-effort, `0` on any API/permission failure) and folds the count into `all_checks_ok` itself, emitting `checks_awaiting_approval` / `blocked_external` as first-class fields rather than leaving prose to infer them. The general rule: do not let a single endpoint's completeness assumption become the loop's completeness assumption; cross-check with a second source where the primary is known to omit a state, and make the omission visible in the engine's boolean.
 
-## Guidance
+## Why it is its own state
 
-**Query a second, independent source for the fact the primary API can't see, and fold it into the "ok" computation rather than layering it on top.** `fetch_awaiting_approval(owner, name, head)` in `pr-snapshot` hits `repos/{owner}/{name}/actions/runs?head_sha=<head>` and counts runs with `status in (action_required, waiting)` or `conclusion == action_required` — best-effort, returning `0` on any API/permission failure rather than failing the tick. `diff()` folds that count into `all_checks_ok`:
+"Blocked on a third party neither the loop nor the user controls, for an unbounded time" fits neither existing bucket:
 
-```python
-awaiting_approval = cur.get("awaiting_approval", 0)
-all_checks_ok = checks_terminal and not has_failing and bool(cur["checks"]) and awaiting_approval == 0
-blocked_external = awaiting_approval > 0 and not has_failing and not actionable_threads
-```
+- `needs-human` says something needs the user's attention, and nothing does -- a contributor cannot approve someone else's maintainer gate.
+- ordinary `in-progress` expects resolution soon, and this wait runs hours to days, so the loop spins indefinitely.
+- immediate termination is too coarse, because an approval-gated **CI stream** does not prove the independent **review stream** is finished.
 
-`all_checks_ok` cannot go true while a workflow is gated, and `checks_awaiting_approval` / `blocked_external` are emitted as first-class fields alongside the actionable set — not inferred later from prose.
+So `ce-babysit-pr` separates the initial `blocked-external` observation (enter a bounded, head-scoped review drain) from the terminal handback (`blocked-external-drained`, with a resume invocation); `references/settle.md` owns the drain tiers and reset rules. Pipeline mode returns a `blocked-external` residual with the run URL and terminates, since its bounded contract does not wait on human approval. **Never auto-approve the run**: that click is the maintainer's security gate and is out of scope for automation entirely, not merely risky.
 
-**Model the discovered state as its own bounded handback, not a variant of an existing blocker.** "Blocked on a third party neither the loop nor the user controls, for an unbounded time" is neither `needs-human` (the user *could* act — resolve a thread, fix code) nor ordinary `in-progress` (expected to resolve on its own soon). But an approval-gated **CI stream** does not prove the independent **review stream** is finished. `ce-babysit-pr` therefore separates initial detection from terminal handback:
-
-- Interactive: the first `blocked-external` observation automatically starts a head-scoped review drain instead of asking whether to stop. Reuse the review lifecycle's evidence tiers: 300 seconds with no incomplete lifecycle, 900 seconds when one is present, and one extension to 1800 seconds only when concrete prior-round timing supports it. Poll at the normal active cadence so the five-minute tier contains more than one observation. New external review activity or a new head resets the narrow drain clock; unrelated check/base/stack movement does not.
-- When the selected drain expires, emit `blocked-external-drained`, report that all observed feedback was handled and CI still needs maintainer approval, give the resume invocation, and stop without another question.
-- Pipeline/unattended: don't drain, ask, or spin — return a `blocked-external` residual with the run URL and terminate. Its separate bounded contract explicitly does not wait on human review or approval.
-- Checkpoint: process one tick, report that monitoring is paused, and give the resume invocation.
-- **Never auto-approve the run.** That click is the maintainer's security gate; the skill treats it as out of scope for automation entirely.
-
-**Gate on push-capability, not fork-status.** A PR from your own fork is still fully drivable — you can push fixes to the head. The distinction that matters is whether *this loop* can push to the PR's head ref, not whether the head repo happens to be a fork; read state from the base repo, push fixes to the head/fork.
-
-## Why This Matters
-
-A watch loop over an external system's API inherits that API's blind spots. If the loop's "done"/"ok" signal is built directly from one endpoint's fields without checking whether that endpoint has a known gap, the loop will confidently report green on a red (or in this case, not-yet-run) reality — the worst failure mode for an autonomous monitor, because the false-positive is silent and looks identical to genuine success.
-
-The fix generalizes past this one API: **don't let a single endpoint's completeness assumption become your loop's completeness assumption.** Cross-check with a second source when you know (or suspect) the primary source omits a state, and make the omission visible in the engine's boolean, not just left to a human noticing `mergeStateStatus` disagrees with the rollup.
-
-The second half — modeling `blocked-external` as its own condition — matters because collapsing it into `needs-human` would tell the user "something needs your attention" when nothing does (they can't approve someone else's maintainer gate), and collapsing it into ordinary in-progress waiting would make the loop spin indefinitely on a wait that can run for days. Immediate termination is also too coarse when another independently actionable stream can still move. A watch loop needs a distinct transition for "one stream is externally blocked": drain the independent streams for an evidence-based bound, then emit a terminal handback with a resume path.
+**Gate on push-capability, not fork-status.** A PR from your own fork is fully drivable; the distinction that matters is whether *this loop* can push to the PR's head ref. Read state from the base repo, push fixes to the head.
 
 ## When to Apply
 
-- Building or reviewing any polling/watch-loop engine (CI watchers, deploy monitors, review-status trackers) that derives an "ok"/"done" signal from a single external API's fields.
-- The external system has a known async-approval or moderation gate (fork-PR CI approval, app review, manual QA sign-off) where the gated item may not appear in the primary status feed until *after* approval.
-- Designing stop conditions for an autonomous loop: check whether "blocked on a third party, unbounded timeline, no one in this loop can act" is already collapsing into an existing bucket (`needs-human`, `in-progress`) rather than getting its own condition and handback UX.
-- Any handback path that could plausibly auto-approve, auto-retry, or auto-bypass a security/approval gate on the user's behalf — treat approval gates as categorically out of scope for automation, not just "risky."
-
-## Examples
-
-**Before:** `pr-snapshot` computed `all_checks_ok` solely from `statusCheckRollup`:
-
-```python
-all_checks_ok = checks_terminal and not has_failing and bool(cur["checks"])
-```
-
-On the gated fork PR, the rollup contained only the one ungated `Track` check (`COMPLETED`/`SUCCESS`), so `checks_terminal=True`, `has_failing=False`, `all_checks_ok=True` — reported ready while the substantive CI had never started. Nothing in the snapshot distinguished this from an actually-green PR, and `ce-babysit-pr` had no stop condition for it, so a "blocked on maintainer approval" PR would either be reported as merge-ready or fall through to the generic `needs-human` bucket with no bounded-wait guidance and no explicit refusal to auto-approve.
-
-**After:** `fetch_awaiting_approval` queries the Actions runs API independently and `diff()` wires it into both the ok-signal and a dedicated flag:
-
-```python
-awaiting_approval = cur.get("awaiting_approval", 0)
-all_checks_ok = checks_terminal and not has_failing and bool(cur["checks"]) and awaiting_approval == 0
-blocked_external = awaiting_approval > 0 and not has_failing and not actionable_threads
-```
-
-`SKILL.md` Step 3 keeps "Blocked on external CI approval" as a distinct readiness state but makes the interactive terminal condition `blocked-external-drained`. `pr-snapshot` persists a narrow head-scoped review-activity clock and `watch --blocked-external-drain-seconds <N>` emits the terminal wake only after the selected quiet bound. The original live evidence on `stablyai/orca#8238` still establishes the API gap: the snapshot returned `blocked_external: true` and `checks_awaiting_approval: 1`, `all_checks_ok: false`, and did not attempt to approve the run. Regression coverage now separately locks the false-green guard, head/activity clock resets, drain expiry, and feedback/lifecycle wake precedence.
+- Any polling engine (CI watchers, deploy monitors, review trackers) that derives an "ok"/"done" signal from one external API's fields, where the system has an async approval or moderation gate whose gated item does not appear in the primary status feed until *after* approval.
+- Designing stop conditions for an autonomous loop: check whether "blocked on a third party, unbounded, no one in this loop can act" is collapsing into `needs-human` or `in-progress` rather than getting its own condition and handback.
+- Any handback path that could plausibly auto-approve, auto-retry, or auto-bypass an approval gate on the user's behalf.
 
 ## Related
 
-- [Git workflow skills need explicit state machines for branch, push, and PR state](./git-workflow-skills-need-explicit-state-machines.md) — the same meta-pattern in a sibling git/gh skill family: an implicitly-assumed state (there, PR/branch existence and cleanliness) silently produces a wrong boolean instead of surfacing as an explicit state. This learning is that pattern applied to "a check-run existing at all," in a watch loop.
-- `docs/plans/pipeline-mode-contract-and-lfg-babysit-consolidation.md` — the originating design contract that defines *pipeline mode*, the *durable residual* (never blocking, never silently applying), and *terminate on a bound / return structured status*. The `blocked-external` handback here is a direct instantiation of those rules for the fork/CI-approval case.
+- [Git workflow skills need explicit state machines](./git-workflow-skills-need-explicit-state-machines.md) -- the same meta-pattern: an implicitly assumed state silently produces a wrong boolean instead of surfacing as an explicit state; here the assumed state is "a check-run exists at all."
+- `docs/plans/pipeline-mode-contract-and-lfg-babysit-consolidation.md` -- the pipeline-mode contract (durable residual, terminate on a bound) this handback instantiates.

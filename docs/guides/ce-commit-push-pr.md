@@ -2,13 +2,11 @@
 
 > Commit, push, and open a PR. Or rewrite an existing PR description. Or print a description and leave git alone.
 
-`ce-commit-push-pr` is the **shipping** skill. It is a git-workflow tool, not a core-loop step. Use it when the code is already written and you want a PR, or when you only want the description.
+`ce-commit-push-pr` is the shipping skill. It is a git-workflow tool, not a core-loop step. Reach for it when the code is written and you want a PR, or when you only want the description.
 
-Three modes cover that range: full workflow, description update on an existing PR, and description-only generation. Descriptions cover the **full PR commit range**, not just the working-tree diff at invoke time. After a new PR (or new commits on an open one), the skill hands off to `/ce-babysit-pr` by default.
+It runs in one of three modes: the full ship, a description rewrite on an existing PR, or a printed description with no git side effects. Descriptions always cover the full PR commit range, not just whatever is uncommitted when you invoke it. After a new PR or new commits on an open one, it hands off to `/ce-babysit-pr` unless you opt out.
 
-It never runs `git add -A`. Distinct file groups can become separate commits. Related work references keep close-vs-link intent. PR bodies go through a temp file (`--body-file`), not a stdin pipe that can succeed with an empty body.
-
-`/ce-commit` is the local-only sibling: same commit pass, no push, no PR.
+`/ce-commit` is the local-only sibling. Same commit pass, no push, no PR.
 
 ---
 
@@ -19,13 +17,13 @@ It never runs `git add -A`. Distinct file groups can become separate commits. Re
 | What does it do? | Commits, pushes, and opens a PR; or rewrites an existing description; or prints a description without touching git |
 | When to use it | You want a PR, a refreshed description, or a draft body for a branch |
 | What it produces | An open PR URL, an updated description, or a printed body |
-| What's next | Hands off to [`/ce-babysit-pr`](./ce-babysit-pr.md) by default (`babysit:off` or `auto_babysit: false` to skip). You merge when babysit reports ready. A clear **stack** request submits via `gh stack` and babysits the bottom open non-draft PR with `posture:stack-ready` (or `stack-land` when land intent is explicit). |
+| What's next | Hands off to [`/ce-babysit-pr`](./ce-babysit-pr.md) by default (`babysit:off` or `auto_babysit: false` to skip). You merge when babysit reports ready. A clear stack request submits via `gh stack` and babysits the bottom open non-draft PR. |
 
 ---
 
 ## Example invocations
 
-Empty invoke is the full ship. Phrasing picks description-only vs rewrite. A PR URL or number alone is description-only. Stack language is opt-in.
+An empty invoke is the full ship. Your phrasing picks description-only vs rewrite. A PR URL or number alone is description-only. Stacks are opt-in.
 
 ```text
 # Commit, push, open a PR, then start /ce-babysit-pr
@@ -63,8 +61,8 @@ Empty invoke is the full ship. Phrasing picks description-only vs rewrite. A PR 
 
 - A one-line fix and a large refactor get the same Summary / Test Plan / Notes template
 - `git add -A` picks up `.env` files, build artifacts, and generated files
-- The description only covers the working-tree diff, and misses commits already on the branch
-- Issue and tracker references get dropped, or a magic word closes work the PR does not resolve
+- The description only covers the working-tree diff and misses commits already on the branch
+- Issue references get dropped, or a magic word closes work the PR does not resolve
 - `--body` via stdin can return a URL while the body is empty (`gh` still exits 0)
 - The commit lands on the default branch, on detached HEAD, or against a stale base
 
@@ -72,31 +70,23 @@ Empty invoke is the full ship. Phrasing picks description-only vs rewrite. A PR 
 
 The skill picks a mode, then runs only that path:
 
-- **Full workflow** (default): commit pending work, push, and open a PR (or push onto the one that already exists)
-- **Description update**: rewrite an existing PR body without a commit or push
-- **Description-only**: print a body. Apply only if you ask.
+- Full workflow (default): commit pending work, push, and open a PR, or push onto the one that already exists
+- Description update: rewrite an existing PR body without a commit or push
+- Description-only: print a body. Apply only if you ask.
 
-On the full path it stages named files, splits distinct concerns at file level (2-3 max), and routes detached HEAD / default-branch / missing-upstream cases before it pushes. Every body is written to a temp file and passed with `--body-file <path>`. Descriptions read the full PR range. Related-work preflight classifies each tracker ID as closing, non-closing, or uncertain.
+On the full path it stages named files, splits distinct concerns at file level (2-3 commits max), and routes detached HEAD, default-branch, and missing-upstream cases before it pushes. Every body goes through a temp file and `--body-file <path>`. Descriptions read the full PR range. A related-work preflight classifies each tracker ID as closing, non-closing, or uncertain. If it guesses the wrong mode, say so in the next prompt (`just write the description, don't apply it`).
 
 ---
 
-## What Makes It Novel
+## How it behaves
 
-### Three modes, not one forced ship
+### Descriptions sized to the change
 
-- **Full workflow** for "ship this" / "create a PR" / "commit push PR"
-- **Description update** for "refresh" / "rewrite" / "update the PR description"
-- **Description-only** for "draft a PR description", "describe this PR", or a PR URL/number alone
-
-If the detected mode is wrong, say so in the next prompt (`just write the description, don't apply it`).
-
-### Descriptions sized to the change, over the full range
-
-There is no fixed template. A typo can be one or two sentences. A large refactor gets motivation, decisions, a test plan, evidence, and risks. The composition pass reads every commit in the PR, not just the uncommitted diff.
+There is no fixed template. A typo fix can be one or two sentences. A large refactor gets motivation, decisions, a test plan, evidence, and risks. The composition pass reads every commit in the PR, not just the uncommitted diff. A project PR template still sets the structural floor.
 
 ### Named-file commits, then a branch decision tree
 
-Same commit rules as `/ce-commit`: no `git add -A`, file-level splits only, convention from context then history then conventional commits (`fix:` when `fix:` and `feat:` both fit). A known plan unit ID is appended to the subject in parentheses (`(U3)` for unit 3) when it is already in hand for that commit.
+Same commit rules as `/ce-commit`: never `git add -A`, splits at file level only, convention from context, then recent history, then conventional commits (`fix:` wins when `fix:` and `feat:` both fit). A plan unit ID already in hand gets appended to the subject in parentheses (`(U3)` for unit 3).
 
 Branch routing is explicit:
 
@@ -107,25 +97,25 @@ Branch routing is explicit:
 - Feature branch, all pushed, no open PR -> skip commit/push, open the PR
 - Feature branch, all pushed, open PR -> report up to date, then ask about a rewrite
 
-### Body-file, related refs, and an existing-PR preview
+### Body files, related refs, and the rewrite preview
 
-Bodies go through a quoted heredoc into a temp file. The skill does not use `--body-file -`, stdin pipes, or `--body "$(cat ...)"`.
+Bodies go through a quoted heredoc into a temp file. The skill does not use `--body-file -`, stdin pipes, or `--body "$(cat ...)"`, because those can hand `gh` an empty body that still returns a URL.
 
-Before composing, it scans the prompt, branch name, full commit messages, existing body, PR template, plan notes, and visible IDs. GitHub Issues get `Fixes #123` only when the PR targets the default branch and truly resolves the issue. Linear uses `Fixes ENG-123` or `Related to ENG-123` in the description, not a comment. Unknown trackers get a neutral link.
+Before composing, it scans the prompt, branch name, full commit messages, existing body, PR template, plan notes, and visible IDs. A GitHub issue gets `Fixes #123` only when the PR targets the default branch and actually resolves the issue. Linear gets `Fixes ENG-123` or `Related to ENG-123` in the description, not a comment. An unknown tracker gets a neutral link.
 
 A rewrite previews the new title, the first two sentences of the Summary, and the body line count, then asks before `gh pr edit`. Decline and you can send focus text for another draft.
 
 ### Concept teaching, branding, and the babysit handoff
 
-When the change introduces a concept that is new to this repo (checked against the **base** ref, not the working tree), the body can gain a `## New concepts` section. Most PRs should not have one. Turn it off with `pr_teaching_section: false`. `pr_teaching_archive: true` (or `archive:on`) writes the explainer under the CE artifact root and links it.
+When the change introduces a concept new to this repo (checked against the base ref, not the working tree), the body can gain a `## New concepts` section. Most PRs should not have one. Turn it off with `pr_teaching_section: false`. `pr_teaching_archive: true` (or `archive:on`) writes the explainer under the CE artifact root and links it.
 
-New PRs get the Compound Engineering badge only with `branding:on` or an explicit ask. Existing rewrites keep whatever branding is already there.
+New PRs get the Compound Engineering badge only with `branding:on` or an explicit ask. Rewrites keep whatever branding is already there.
 
-After a newly created PR, a successful stack submit, or new commits on an open PR, the run is not done until `/ce-babysit-pr` starts. Pass `babysit:off` to skip. `babysit:continuous` / `babysit:checkpoint` force that babysit mode. `auto_babysit: false` in CE config (`config.local.yaml` then `config.yaml`) is the standing opt-out. Description-only, description-update, `mode:pipeline` (except after a stack submit), non-GitHub remotes, a draft this run created, and a head you cannot push all skip the handoff. Fork PRs are fine when you can push the head.
+After a newly created PR, a successful stack submit, or new commits on an open PR, the run is not done until `/ce-babysit-pr` starts. `babysit:off` skips it; `babysit:continuous` and `babysit:checkpoint` force that mode. `auto_babysit: false` in CE config (`config.local.yaml` then `config.yaml`) is the standing opt-out. Description-only, description-update, `mode:pipeline` (except after a stack submit), non-GitHub remotes, a draft this run created, and a head you cannot push all skip the handoff. Fork PRs are fine when you can push the head.
 
 ### Opt-in stacks
 
-Stacks are never the default and are never suggested for a one-line fix. An explicit request is required intent: it is not rewritten as a single PR with a custom `--base`. The skill probes for `gh stack`. A named parent PR is classified by number. It reuses a confirmed topology, or (for completed work) builds the smallest useful linear layers, then submits with `gh stack submit --auto --open` and babysits the **bottom open non-draft** PR. Default posture is `stack-ready`. `stack-land` only when you asked to land or merge when green. Ambiguous review boundaries ask first. `mode:pipeline` returns the proposed topology as a residual instead of guessing.
+Stacks are never the default and never get suggested for a one-line fix. An explicit request is required intent, so it is not rewritten as a single PR with a custom `--base`. The skill probes for `gh stack`, classifies a named parent PR by number, reuses a confirmed topology, or (for completed work) builds the smallest useful linear layers, then submits with `gh stack submit --auto --open` and babysits the bottom open non-draft PR. Default posture is `stack-ready`; `stack-land` only when you asked to land or merge when green. Ambiguous review boundaries ask first. `mode:pipeline` returns the proposed topology as a residual instead of guessing.
 
 ---
 
@@ -146,7 +136,7 @@ Use `ce-commit-push-pr` when:
 - The code is written and you want commits plus a PR
 - An existing PR description is stale and you want it rewritten
 - You want a printed description without committing or pushing
-- You explicitly want a **PR stack** and `gh stack` is available
+- You explicitly want a PR stack and `gh stack` is available
 
 Skip it when:
 
@@ -168,18 +158,7 @@ On-demand shipping. Not a required ideation-chain stage.
 /ce-commit ->  /ce-commit-push-pr     (if you committed first, then decide to ship)
 ```
 
-`/lfg` and `/ce-work` call this with `branding:on` when they own the ship — unless the project's instructions name their own shipping process, which then runs instead. You can also invoke it on a branch you already finished by hand.
-
----
-
-## Use Standalone
-
-- **Full ship** from a feature branch: `/ce-commit-push-pr`
-- **Skip babysit**: `/ce-commit-push-pr babysit:off`
-- **Refresh a description**: `/ce-commit-push-pr update the PR description`
-- **Print only**: `/ce-commit-push-pr draft a PR description for this branch`
-- **Another PR's range**: `/ce-commit-push-pr <PR URL>`
-- **Stack**: `/ce-commit-push-pr stack this on top of PR #123`
+`/lfg` and `/ce-work` call this with `branding:on` when they own the ship, unless the project's instructions name their own shipping process, which then runs instead. You can also invoke it on a branch you already finished by hand.
 
 ---
 
@@ -197,7 +176,7 @@ On-demand shipping. Not a required ideation-chain stage.
 | `babysit:continuous` / `babysit:checkpoint` | Force that babysit mode (also watches a draft this run created) |
 | `mode:pipeline` | Non-interactive. Existing-PR rewrite defaults to no, except in description-update mode, which applies. |
 | `archive:on\|off` | Per-run override of `pr_teaching_archive` |
-| `branding:on\|off` | Add or omit generic Compound Engineering branding on a **new** PR. Omission defaults off. Rewrites keep current branding. |
+| `branding:on\|off` | Add or omit Compound Engineering branding on a new PR. Off unless asked. Rewrites keep current branding. |
 
 See the [configuration reference](./configuration.md) for `pr_teaching_section`, `pr_teaching_archive`, and `auto_babysit`.
 
@@ -206,19 +185,19 @@ See the [configuration reference](./configuration.md) for `pr_teaching_section`,
 ## FAQ
 
 **Why not a fixed PR template?**
-A one-line fix does not need a test-plan heading. A large refactor does. Adaptive composition matches the description to the change. A project PR template still sets the structural floor.
+A one-line fix does not need a test-plan heading. A large refactor does. The description matches the change; a project PR template still sets the structural floor.
 
 **Why `--body-file` instead of `--body`?**
 Stdin wrappers can produce an empty body while `gh` exits 0 and returns a URL. A quoted temp file keeps `$VAR`, backticks, and literal `EOF` from expanding.
 
 **Description-only vs description update?**
-Description-only prints and stops (no `gh pr edit`, no commit, no push). Description update finds the open PR, previews, asks, then applies with `gh pr edit`. A URL or number **alone** is description-only.
+Description-only prints and stops. No `gh pr edit`, no commit, no push. Description update finds the open PR, previews, asks, then applies with `gh pr edit`. A URL or number alone is description-only.
 
 **Does it follow a non-conventional commit style?**
 Yes. Project conventions in context, then recent history, then conventional commits. Ambiguous `fix:` vs `feat:` defaults to `fix:`.
 
 **Does it skip hooks or signing?**
-The commit command does not pass `--no-verify` or `--no-gpg-sign`. Your git config and hooks run as usual.
+No. The commit command does not pass `--no-verify` or `--no-gpg-sign`. Your git config and hooks run as usual.
 
 **Can I open a draft PR?**
 Not as a flag on the full workflow. Use description-only, then `gh pr create --draft --title "..." --body-file "..."`. Stack submit uses `--auto --open` so layers are ready for babysit, not drafts.

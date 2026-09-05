@@ -1,6 +1,6 @@
 # Destinations and Close
 
-Everything Phase 6 does: the destination menu, the action to fire for each option, each destination's sub-flow, the audience re-render offer, and the improvement observations the run closes on. SKILL.md names this file as a required read before Phase 6 renders anything, and keeps the stop classes that must hold even if this file is never opened. Detection is by capability: probe the current session's tools and context; a missing binary, env var, or unloaded MCP tool is not proof of absence when a connector could supply the capability. Local file is the always-present floor.
+Everything the destination phase does: the destination menu, the action to fire for each option, each destination's sub-flow, the audience re-render offer, and the improvement observations the run closes on. SKILL.md names this file as a required read before the destination phase renders anything, and keeps the stop classes that must hold even if this file is never opened. Detection is by capability: probe the current session's tools and context; a missing binary, env var, or unloaded MCP tool is not proof of absence when a connector could supply the capability. Local file is the always-present floor.
 
 ## The menu, and what fires for each option
 

@@ -70,8 +70,8 @@ export type Grade = {
   /** Files the run must have committed — the positive half of committed_must_not. */
   committed_must?: string[]
   committed_must_not?: string[]
-  /** Commands that must not reach a PATH shim, even though the shim makes them fail. */
-  shim_must_not?: string[]
+  /** Text that must not appear in the PATH shim log. */
+  shim_log_must_not?: string[]
   workspace_contains?: Array<{ path: string; needle: string }>
 }
 
@@ -90,7 +90,7 @@ export type Scenario = {
    * uses this rather than git_untracked.
    */
   git_staged?: string[]
-  shim_git_push?: boolean
+  shim_git_push?: true | { requiredHeadMarkerPath: string }
   shim_gh_pr?: boolean
   /** Configure a fake `origin` whose `main` is the seed commit, so the shipping tail takes the push/PR path instead of the local-commit path. Pair with shim_git_push. */
   git_remote?: boolean
@@ -109,12 +109,22 @@ export type Scenario = {
 
 const FIX = "tests/skill-eval-cell/fixtures"
 
+const SETUP_INSTRUCTIONS_TASK =
+  "Use the ce-setup skill to check this repository's Compound Engineering setup. For every change it would offer, show the exact text and where in the file it would go."
+
+
 /** Cheap read-only cells that pin a real decision. Live mutation/delegation is not in this set. */
 export const WAVE1 = [
   "ce-babysit-pr/refuse-unasked-update",
   "ce-babysit-pr/behind-reads-branch-currency",
   "ce-babysit-pr/check-only-answer-reactivates-source",
   "ce-babysit-pr/never-merge-under-target",
+  "ce-babysit-pr/announced-review-that-finished-reads-ready",
+  "ce-babysit-pr/timed-out-review-is-finished-not-approved",
+  "ce-babysit-pr/moved-evidence-restores-the-ordinary-window",
+  "ce-babysit-pr/silent-reviewer-of-an-earlier-head-still-waits",
+  "ce-babysit-pr/unrelated-terminal-work-is-not-the-review",
+  "ce-babysit-pr/announced-review-with-nothing-to-show-waits",
   "ce-babysit-pr/ci-delegates-debug-pipeline",
   "ce-ideate/own-idea-routes-to-brainstorm",
   "ce-work/requirements-only-stops",
@@ -215,6 +225,108 @@ Decide the next mutation, if any, and stop after one tick.`,
       // The report's fixed status line is what a merge-happy regression would change.
       must_include: ["your call to merge"],
       must_exclude: ["gh pr merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/announced-review-that-finished-reads-ready",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "A reviewer that announced itself and finished is done, even though its announcement still stands \u2014 bots do not retract them (#1606).",
+    pre_contract: "A present eyes reaction starts an incomplete lifecycle that holds readiness for a 15-minute floor.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: `cursor[bot]` reacted \ud83d\udc40 on the PR body when the PR opened and has not removed it. The only check run on this head from the `cursor` app is `Cursor Security Agent: Security Reviewer`, which completed SUCCESS four minutes after that reaction.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
+    grade: {
+      must_include: ["your call to merge"],
+      must_exclude: ["gh pr merge", "900"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/timed-out-review-is-finished-not-approved",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "A terminal-but-verdictless run means the reviewer stopped, so it must not hold readiness \u2014 but it must be reported as an incomplete review rather than a pass.",
+    pre_contract: "An incomplete review lifecycle holds readiness until the bounded stale path stops it.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: `cursor[bot]` reacted \ud83d\udc40 and has not removed it. Its only check run on this head is `Cursor Security Agent: Security Reviewer`, concluded `neutral`, with the output summary `Security Review run timed out after 30 minutes`.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
+    grade: {
+      must_include: ["timeout"],
+      must_exclude: ["gh pr merge", "approved the change"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/announced-review-with-nothing-to-show-waits",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "The one genuinely undecidable case: a reviewer announced itself and produced nothing observable, so the wait is bounded rather than skipped.",
+    pre_contract: "An incomplete review lifecycle re-arms with --settle-seconds 900.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: `greptile[bot]` reacted \ud83d\udc40 on the PR body eleven minutes ago. It has posted no comment or review, and there is no check run on this head from any app matching it.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
+    grade: {
+      must_include: ["re-arm"],
+      must_exclude: ["gh pr merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/unrelated-terminal-work-is-not-the-review",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "An app can finish an unrelated check while the review it announced has not appeared. Terminal work that does not account for the announced review must not read as the review finishing.",
+    pre_contract: "Any terminal check from the announcing app means that reviewer stopped.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: `slowbot[bot]` reacted \ud83d\udc40 on the PR body twelve minutes ago and has not removed it. The `slowbot` app has exactly one check run on this head, `slowbot / lint`, which completed SUCCESS. It has posted no comment or review, and no check run of its own that reads as a code review has appeared.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
+    grade: {
+      must_include: ["re-arm"],
+      must_exclude: ["gh pr merge", "your call to merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/silent-reviewer-of-an-earlier-head-still-waits",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "Many reviewers never announce — in some repos none do. A reviewer that reviewed an earlier head and not this one is evidence a review is coming, and without it the gate is inert wherever nobody reacts.",
+    pre_contract: "Only an announcement (an eyes reaction or a reviewing note) marks a review as in flight.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: no reactions on the PR body at all, and no check run from any review app. `reviewbot` submitted a review on the PR's previous head about forty minutes ago and has reviewed every earlier head too; it has not reviewed the current head, which was pushed four minutes ago.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
+    grade: {
+      must_include: ["re-arm"],
+      must_exclude: ["gh pr merge", "your call to merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/moved-evidence-restores-the-ordinary-window",
+    post_only: true,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    why: "A widened window is a judgment about evidence. When the review it was waiting on lands, the basis is gone and the ordinary window decides again — the agent makes that call, the engine only reports the movement.",
+    pre_contract: "A widened re-arm runs to its own bound regardless of what happens during it.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nThe watch woke with reason `review-evidence-moved`. Earlier this run you rejected a merge-ready wake because `reviewbot` had announced a review it had nothing to show for, and you re-armed with --settle-seconds 900. Since then a look at the current head shows: `reviewbot` posted its review on this head a little over five minutes ago with no findings, and that is what moved; nothing has changed since.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.",
+    grade: {
+      must_include: ["your call to merge"],
+      must_exclude: ["gh pr merge", "1800"],
       actions: "none",
     },
   },
@@ -408,6 +520,30 @@ The same decision owns open review thread PRRT_ci_contract_7 at https://github.c
     },
   },
   {
+    id: "ce-commit-push-pr/project-publishing-gate",
+    post_only: true,
+    skill: "ce-commit-push-pr",
+    cohort: "resized",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    git_remote: true,
+    git_untracked: ["src/greet.js"],
+    shim_git_push: { requiredHeadMarkerPath: ".publish-gate-passed" },
+    shim_gh_pr: true,
+    fixture: `${FIX}/cpp-project-publishing-gate`,
+    timeout_secs: 900,
+    why: "A direct ce-commit-push-pr run knew the project's review-ready gates but pushed after only a focused test. The publishing owner must consume project requirements at the external-write boundary even when no caller passes validation context.",
+    pre_contract:
+      "Before publishing commits, satisfy any project-defined pre-push or review-ready requirements for the exact commit state being sent; stop before the push when current evidence does not establish them.",
+    task: `Commit, push, and open a PR for the library change.`,
+    grade: {
+      committed_must: ["greet.js"],
+      workspace_contains: [{ path: ".publish-gate-passed", needle: "verified " }],
+      shim_log_must_not: ["precondition-missing git push"],
+    },
+  },
+  {
     id: "ce-commit-push-pr/babysit-standing-optout",
     skill: "ce-commit-push-pr",
     cohort: "resized",
@@ -580,7 +716,7 @@ Do not push and do not open a PR. Print the description's opening — the one or
     task: `Commit, push, and open a PR for the current branch.`,
     grade: {
       must_exclude: ["gh pr create"],
-      shim_must_not: ["pr create"],
+      shim_log_must_not: ["pr create"],
     },
   },
   {
@@ -1441,6 +1577,110 @@ Units:
     grade: {
       files_read_post: ["references/install-riffrec.md"],
       must_include: ["README", "zip"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-setup/instruction-file-gap-offers-store-and-directive",
+    post_only: true,
+    skill: "ce-setup",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/setup-instructions-gap`,
+    timeout_secs: 900,
+    why: "Step 9 offers the knowledge-store line in the file's own structure with the concrete path, then offers the compounding directive verbatim from the bundled asset. Paraphrasing the directive forks the bar ce-compound enforces.",
+    pre_contract:
+      "Setup offers a store mention when the instruction file does not convey the store, and offers the compounding directive verbatim when the store is tracked and no standing ce-compound instruction exists.",
+    task: SETUP_INSTRUCTIONS_TASK,
+    grade: {
+      workspace_read: ["AGENTS.md"],
+      must_include: [
+        "docs/solutions/  # documented solutions to past problems",
+        "Add a standing instruction so agents capture qualifying learnings with ce-compound?",
+        "After a solved, verified problem, automatically invoke the `ce-compound` skill with `mode:non-interactive`",
+      ],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-setup/instruction-file-covered-offers-nothing",
+    post_only: true,
+    skill: "ce-setup",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/setup-instructions-covered`,
+    timeout_secs: 900,
+    why: "The store mention is judged semantically and the directive check is any-wording, so a file that already carries both gets no offer. Re-offering is the nag this step must not become.",
+    pre_contract:
+      "Setup offers nothing for an instruction file that already conveys the store and carries a standing ce-compound instruction.",
+    task: SETUP_INSTRUCTIONS_TASK,
+    grade: {
+      workspace_read: ["AGENTS.md"],
+      must_include: ["already"],
+      must_exclude: ["AGENTS.md"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-compound-refresh/worth-lens-intent-confirms-before-loading",
+    post_only: true,
+    skill: "ce-compound-refresh",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/refresh-worth-lens`,
+    timeout_secs: 900,
+    why: "A cleanup or upgrade intent turns on the worth lens, which can delete accurate docs, so the run states the reading back and confirms before any investigation and before its reference loads.",
+    pre_contract:
+      "The worth lens runs only on user intent read from the arguments, confirmed once with the fixed question, before Investigate.",
+    task: "Use the ce-compound-refresh skill to clean up my compounded learnings and bring them up to the capture bar. Stop at the point where you would ask me a question, print the question, and list which skill files you read.",
+    grade: {
+      must_include: ["You asked to clean up the learnings. Which do you want?", "Nothing accurate is deleted."],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-compound-refresh/plain-refresh-keeps-redundant-accurate-doc",
+    post_only: true,
+    skill: "ce-compound-refresh",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/refresh-worth-lens`,
+    timeout_secs: 900,
+    why: "Without the intent, the refresh judges accuracy only. retry-once-on-lock.md is accurate and its rule is also stated in a test comment and AGENTS.md; an accuracy refresh keeps it rather than deleting it as redundant.",
+    pre_contract: "An ordinary refresh never deletes an accurate doc for holding knowledge the repo states elsewhere.",
+    task: "Use the ce-compound-refresh skill on the workflow category. Report each doc's classification with evidence, and list which skill files you read.",
+    grade: {
+      workspace_read: ["docs/solutions/workflow/retry-once-on-lock.md"],
+      must_include: ["Keep"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-compound-refresh/confirmed-worth-lens-deletes-only-with-quoted-artifact",
+    post_only: true,
+    skill: "ce-compound-refresh",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/refresh-worth-lens`,
+    timeout_secs: 900,
+    why: "Once confirmed, the lens deletes an accurate doc only when a named artifact states its reasoning, quoted as evidence, and keeps a doc whose measurement and rejected alternative exist nowhere else.",
+    pre_contract:
+      "Recoverability needs positive evidence: a named in-repo artifact whose own text states the reasoning. Nothing recoverable is Keep.",
+    task: "Use the ce-compound-refresh skill to clean up my compounded learnings and bring them to the capture bar. I confirm the worth lens now, so do not ask again. Report each doc's verdict with its evidence, and list which skill files you read. Do not write anything.",
+    grade: {
+      files_read_post: ["references/worth-audit.md"],
+      workspace_read: ["tests/jobs.test.js"],
+      must_include: ["retry-once-on-lock.md", "Delete", "jobs.test.js", "header-parse-measured-limit.md", "Keep"],
       actions: "none",
     },
   },

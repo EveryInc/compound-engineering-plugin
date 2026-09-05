@@ -1,21 +1,29 @@
 ---
 name: ce-compound
-description: Document a recently solved problem as a durable repo learning. Use when capturing a learning after work.
+description: Document a solved problem as a durable repo learning. Use when verified work produced non-obvious reasoning absent from its final code, tests, or existing docs; avoid routine fixes whose artifacts already explain the lesson.
 argument-hint: "[optional: brief context] [mode:non-interactive] [depth:lightweight|full]"
 ---
 
 # /ce-compound
 
-**Outcome:** one solved problem is written as a durable learning under `<root>/solutions/`, grounded against the current tree, discoverable by the next agent.
+**Outcome:** one qualifying solved problem is written as a durable learning under `<root>/solutions/`, grounded against the current tree, discoverable by the next agent.
 
-**Done:** the doc is written or updated, its frontmatter and claims validated, vocabulary capture recorded even when nothing qualified, and the mode's completion report emitted.
+**Done:** a qualifying doc is written or updated, its frontmatter and claims validated, vocabulary capture recorded, and the mode's completion report emitted; when no learning qualifies, nothing is written and the report says why.
 
 **One learning per run.** A session that produced several gets several sequential runs, never one batched run — `references/research.md` carries what batching breaks.
 
 
 ## Preconditions
 
-Document a problem that is solved, verified working, and non-trivial. These are advisory: judge them from the session rather than asking about them. When the session plainly holds no such problem, write nothing and report why.
+Document only a problem that is solved and verified.
+
+<!-- ce-durable-bar:start -->
+A learning earns its place only when it holds durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? Completion, effort, and diff size do not establish eligibility.
+<!-- ce-durable-bar:end -->
+
+If the counterfactual fails, write nothing and report why. Judge this from the session rather than asking. An explicit invocation requests the judgment now but does not lower the bar.
+
+An existing learning that became materially inaccurate or incomplete qualifies because leaving it would mislead. Update that learning instead of creating a duplicate.
 
 `ce-compound` is not a `CONCEPTS.md` bootstrap tool — it seeds the learning's own area as a side effect, never the whole repo. Send a standalone request to create or bootstrap that file to `ce-compound-refresh`, then exit.
 
@@ -53,7 +61,7 @@ The orchestrator writes the one learning under `<root>/solutions/`, plus two mai
 
 ## Choosing the path
 
-**Read `references/modes.md` before step 1.** An interactive run picks its own depth rather than asking the user, and that reference says why neither the depth choice nor session history is a question. Default to **Full**. Choose **Lightweight** only under real context pressure: the session is near its context limit, or the fix is trivial enough that cross-referencing would add nothing. In non-interactive mode, skip the choice and run the depth from Mode Detection.
+**Read `references/modes.md` before step 1.** An interactive run picks its own depth rather than asking the user, and that reference says why neither the depth choice nor session history is a question. Default to **Full**. Choose **Lightweight** only when the session is near its context limit. In non-interactive mode, skip the choice and run the depth from Mode Detection.
 
 Lightweight mode skips session history entirely; non-interactive Full runs the same automatic probe, which asks nothing and so preserves the non-interactive contract.
 

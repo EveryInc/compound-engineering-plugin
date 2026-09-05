@@ -117,4 +117,4 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 
 **Contextual override** ("don't open PRs from skills", "commit only", "stop after the fix") — follow what the user said, and **Stop here** without committing when that is what they asked for. A vague tonal cue is not an override.
 
-**After a PR is open** — apply the reference's learning-capture criteria; if the user accepts, invoke the `ce-compound` skill, then commit the learning doc to the same branch and push so the open PR picks it up.
+**After a PR is open** — apply the reference's learning-capture criteria. Only when that gate qualifies the fix, offer capture; if the user accepts, invoke the `ce-compound` skill, then commit and push only the artifacts it actually wrote or updated so the open PR picks them up. If it writes nothing, end without a documentation commit.

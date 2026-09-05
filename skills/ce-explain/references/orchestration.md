@@ -1,6 +1,6 @@
 # Orchestration: asking, dispatching, scratch, and menu shape
 
-Required read before the first blocking question, the first subagent dispatch, or the run-directory creation in Phase 2 — whichever comes first. The skill body carries the phase order and the ordering rules; `references/destinations.md` carries Phase 6's menu and per-option routing.
+Required read before the first blocking question, the first subagent dispatch, or the run-directory creation in the grounding phase — whichever comes first. The skill body carries the phase order and the ordering rules; `references/destinations.md` carries the destination phase's menu and per-option routing.
 
 ## Interaction method
 
@@ -11,7 +11,7 @@ When you must ask the user a question, use the host's blocking question tool alr
 Dispatch is tiered by task shape, never hardcoded to a model name:
 
 - **Extraction tier** — the work-recap scout: search-and-quote work. Use the platform's cheapest capable model when the harness exposes a known override; otherwise inherit.
-- **Ceiling tier** — the explainer composition, the check-in reasoning, and the corrections. These run in the main conversation on the orchestrator's model; nothing is dispatched for them.
+- **Ceiling tier** — the explainer composition, including its `Check yourself` section. This runs in the main conversation on the orchestrator's model; nothing is dispatched for it.
 
 **Degradation rule.** When the platform's subagent primitive cannot select per-agent models, dispatch scouts on the inherited model and keep their read budgets. When the platform has no subagent primitive at all, run the scout work inline with the same budgets. When a dispatch fails, treat a concurrency or active-agent-limit error as backpressure — retry after a slot frees; a launch that fails for a reason that survives correcting the invocation runs that scout's work inline with the same budgets, disclosed in one line.
 
@@ -23,7 +23,7 @@ The skill body carries the ownership-checked block that creates `$RUN_DIR`; run 
 
 **Repo-touching inputs** (a concept with footprint in this repo, a diff, a recap): use the project's active instructions already in context and go directly to the diff, call-sites, current source, or commits. Read `CONCEPTS.md` when canonical vocabulary matters. If the topic cannot be scoped from the input and existing context, allow one targeted root or workspace probe.
 
-**Diff mode:** resolve the change (the `diff:` ref, or the most recent substantial change when the request points at one implicitly) and gather its evidence — the diff itself, the files it touches, any plan or solution doc that motivated it. Gather silently: nothing learned here is narrated to the user until the Phase 3 ordering rule is satisfied.
+**Diff mode:** resolve the change (the `diff:` ref, or the most recent substantial change when the request points at one implicitly) and gather its evidence — the diff itself, the files it touches, any plan or solution doc that motivated it.
 
 **Recap mode:** seed the scout with `references/agents/work-recap-scout.md` (extraction tier), passing the resolved window, the repo root, and `$RUN_DIR`. It returns an evidence summary with commit shas and `file:line` pointers, and writes `recap-evidence.md`. **Empty window** (no git activity, no doc changes): say so, offer to widen the window, write no artifact, and end the run after the user responds.
 

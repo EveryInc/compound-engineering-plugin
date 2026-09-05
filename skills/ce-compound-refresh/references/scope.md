@@ -2,6 +2,8 @@
 
 Find all `.md` files under `<root>/solutions/`, excluding `README.md` files and anything under `_archived/` (if `_archived/` exists, flag it in the report as legacy to clean up). READMEs are excluded as review *candidates* only: whenever an action deletes, renames, moves, consolidates, or replaces a doc a catalog README lists, update that README's rows mechanically as part of the action's cleanup.
 
+Words that describe the run rather than name a doc, category, module, or keyword are not a scope hint: an operation word (`refresh`, `audit`, `check`), a worth-lens intent (SKILL.md, Worth lens), or a mode token. Remove them first; the remainder is the hint, and an empty remainder means the whole store.
+
 If a scope argument was provided, narrow with the first strategy that produces results: subdirectory name → frontmatter (`module`/`component`/`tags`) → filename → content keyword. No matches: ask the user to clarify (interactive) or report the miss and exit (non-interactive).
 
 If the store is empty, report:

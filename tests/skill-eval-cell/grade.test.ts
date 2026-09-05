@@ -455,10 +455,10 @@ describe("skill-eval-cell host grade", () => {
       host: "claude",
       hostDir: dir,
       arm: "pre",
-      grade: { actions: "none", shim_must_not: ["pr create"] },
+      grade: { actions: "none", shim_log_must_not: ["pr create"] },
     })
     expect(g.ok).toBe(false)
-    expect(g.reasons.some((r) => r.includes("reached the shim"))).toBe(true)
+    expect(g.reasons.some((r) => r.includes("reached shim log"))).toBe(true)
   })
 
   test("committed_must fails a run that committed nothing", () => {

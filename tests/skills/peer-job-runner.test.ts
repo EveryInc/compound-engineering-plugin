@@ -8,6 +8,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   statSync,
   utimesSync,
   writeFileSync,
@@ -669,7 +670,73 @@ describe("peer-job-runner lifecycle", () => {
     ])
     expect(missing.code).toBe(3)
     expect(missing.stdout).toBe("")
+    // An absent artifact is an outcome, not a read error: report it as one
+    // rather than dumping errno at the caller (#1607).
+    expect(missing.stderr).toContain("no artifact at")
+    expect(missing.stderr).not.toContain("No such file or directory")
   }, 10000)
+
+  test("result --path with a job id names the job's state instead of a bare errno", () => {
+    const root = makeRoot()
+    const missing = path.join(mkTempRoot("peer-path-"), "adversarial-codex.json")
+
+    // A peer that skips (no different-provider CLI installed) exits 0 without
+    // writing the artifact and is legitimately `done` -- the dominant fold-in
+    // case behind #1607's ~90 phantom file errors.
+    const skipped = startJob(root, FAST, [writeStub("exit 0\n")])
+    trackJob(skipped.dir)
+    expect(
+      runner(root, FAST, ["wait", "--max-secs", "10", skipped.id]).stdout.trim(),
+    ).toBe("done")
+
+    const doneNoArtifact = runner(root, FAST, ["result", skipped.id, "--path", missing])
+    expect(doneNoArtifact.code).toBe(3)
+    expect(doneNoArtifact.stdout).toBe("")
+    expect(doneNoArtifact.stderr).toContain("no artifact at")
+    expect(doneNoArtifact.stderr).toContain(`job ${skipped.id}: done`)
+    // The terminal record's reason is what turns a state word into a diagnosis.
+    expect(doneNoArtifact.stderr).toContain("(worker exited 0)")
+    expect(doneNoArtifact.stderr).not.toContain("No such file or directory")
+
+    // The other actionable state: still running is never reported as exit 3.
+    const running = startJob(root, FAST, [writeStub("sleep 30\n")])
+    trackJob(running.dir)
+    const stillRunning = runner(root, FAST, ["result", running.id, "--path", missing])
+    expect(stillRunning.code).toBe(2)
+    expect(stillRunning.stdout).toBe("")
+    expect(stillRunning.stderr).toContain("still running")
+
+    expect(runner(root, FAST, ["reap", running.id]).code).toBe(0)
+    runner(root, FAST, ["wait", "--max-secs", "10", running.id])
+  }, 20000)
+
+  test("absent --path keeps each failure's own exit code rather than the routine 3", () => {
+    const root = makeRoot()
+    const missing = path.join(mkTempRoot("peer-path-"), "adversarial-codex.json")
+
+    // A job id that does not resolve is a lookup failure, not a peer that
+    // produced nothing -- collapsing it into 3 hides it as a routine skip.
+    const unknown = runner(root, FAST, ["result", "nope-0000", "--path", missing])
+    expect(unknown.code).toBe(1)
+    expect(unknown.stderr).toContain("no artifact at")
+    expect(unknown.stderr).toContain("job not found")
+
+    // A path that exists but is refused -- a planted symlink is what O_NOFOLLOW
+    // guards against -- is a trust failure, not "the peer produced nothing".
+    const linkDir = mkTempRoot("peer-link-")
+    writeFileSync(path.join(linkDir, "real.json"), "{}")
+    symlinkSync(path.join(linkDir, "real.json"), path.join(linkDir, "link.json"))
+    const refused = runner(root, FAST, [
+      "result", "--path", path.join(linkDir, "link.json"),
+    ])
+    expect(refused.code).toBe(4)
+    expect(refused.stdout).toBe("")
+    expect(refused.stderr).toContain("refused to read")
+
+    // The ownership-failure branch (exit 4) needs a real fstat-uid mismatch, so
+    // it lives in the python fixture -- mode bits would not fail the owner check
+    // and are inert as root and on Windows.
+  }, 20000)
 
   test("result with neither a job nor --path is a usage error (exit 2)", () => {
     const root = makeRoot()

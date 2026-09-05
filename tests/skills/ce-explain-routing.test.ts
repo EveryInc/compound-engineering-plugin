@@ -18,7 +18,7 @@ const HTML_REFERENCE_PATH = path.join(
 const HTML_REFERENCE_BODY = readFileSync(HTML_REFERENCE_PATH, "utf8")
 
 // The menu and its per-option routing live in references/destinations.md, which
-// SKILL.md names as a required read before Phase 6 renders anything. That is the
+// SKILL.md names as a required read before the destination phase renders anything. That is the
 // condition #714 turned on: routing may live in a reference the body names as a
 // required read at the step that needs it; it may not live in one the body
 // mentions once in passing. Measured before shipping the move — 4 destination
@@ -31,12 +31,18 @@ const HTML_REFERENCE_BODY = readFileSync(HTML_REFERENCE_PATH, "utf8")
 // action for every option. Symptom when this regresses: the agent renders the
 // destination menu, the user picks an option, and the agent stops in prose
 // without firing the action.
+//
+// Phase anchors for the body slices. The check-in's move into the artifact
+// (#1628) renumbered compose to Phase 3 and the destination ask to Phase 4.
+const DESTINATION_PHASE = "### Phase 4"
+const COMPOSE_PHASE = "### Phase 3"
+
 describe("ce-explain destination and handoff routing", () => {
-  test("SKILL.md demands the destinations read before Phase 6 renders anything", () => {
-    const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
-    expect(phase6).toMatch(/Required read before you render anything in this phase/i)
-    expect(phase6).toContain("`references/destinations.md`")
-    expect(phase6).toMatch(/do not render the menu and do not act on the user's selection without it/i)
+  test("SKILL.md demands the destinations read before the destination phase renders anything", () => {
+    const destination = sliceSection(SKILL_BODY, DESTINATION_PHASE)
+    expect(destination).toMatch(/Required read before you render anything in this phase/i)
+    expect(destination).toContain("`references/destinations.md`")
+    expect(destination).toMatch(/do not render the menu and do not act on the user's selection without it/i)
   })
 
   const phaseRegion = DESTINATIONS_BODY
@@ -64,7 +70,7 @@ describe("ce-explain destination and handoff routing", () => {
       )
       expect(
         inlineRoutingPattern.test(phaseRegion),
-        `ce-explain references/destinations.md is missing the per-option action for destination "${name}". Every menu option needs an action to fire, in the file SKILL.md names as the required Phase 6 read. See docs/solutions/skill-design/post-menu-routing-belongs-inline.md.`,
+        `ce-explain references/destinations.md is missing the per-option action for destination "${name}". Every menu option needs an action to fire, in the file SKILL.md names as the required destination-phase read. See docs/solutions/skill-design/post-menu-routing-belongs-inline.md.`,
       ).toBe(true)
     }
   })
@@ -116,41 +122,49 @@ describe("ce-explain destination and handoff routing", () => {
     ).toBe(false)
   })
 
-  test("predict-then-reveal ordering rule is inline in SKILL.md", () => {
-    // R13: the leak-proof ordering is load-bearing and must not live only in
-    // references/check-in.md, which an agent might not load before acting.
-    expect(
-      /end the turn/i.test(SKILL_BODY) &&
-        /before the user's prediction turn ends/i.test(SKILL_BODY),
-      "ce-explain SKILL.md must carry the predict-then-reveal ordering rule inline (show raw change only, take the prediction, end the turn).",
-    ).toBe(true)
+  test("the check-in is a static in-artifact section, never an offer or a chat quiz", () => {
+    // Issue #1628: on Codex the run sat blocked on the "Just the explainer /
+    // Quiz me" offer. The check-in now lives in the artifact as a `Check
+    // yourself` section (questions first, then answers) and the run asks no
+    // question about it. The section's shape is owned by check-in.md; these
+    // are the stable tokens a rendering must carry.
+    expect(CHECK_IN_BODY).toContain("Check yourself")
+    expect(CHECK_IN_BODY).toContain("`Answers`")
+    expect(CHECK_IN_BODY).toMatch(/two to four/i)
+    // Questions before answers is the whole mechanism the static section keeps
+    // from the old predict-then-reveal turn; an interleaved layout is a worked FAQ.
+    expect(CHECK_IN_BODY).toMatch(/attempt every question before any answer is in view/i)
+    // The request decides in both directions; the warrant test decides only
+    // when the request is silent.
+    expect(CHECK_IN_BODY).toMatch(/request wins in both directions/i)
+    expect(CHECK_IN_BODY).toMatch(/When the material and the request disagree, the request wins/i)
+    // The reader no longer changes the decision: the section exercises whoever
+    // reads the document, so the old another-reader skip is gone.
+    expect(CHECK_IN_BODY).not.toMatch(/rendered for another reader, skip/i)
+    // No interactive shape survives anywhere in the reference.
+    expect(CHECK_IN_BODY).not.toMatch(/blocking question/i)
+    expect(CHECK_IN_BODY).not.toMatch(/end the turn/i)
   })
 
-  test("check-in makes the explainer the recommended first choice", () => {
-    const explainerChoice = CHECK_IN_BODY.indexOf("Just the explainer (Recommended)")
-    const quizChoice = CHECK_IN_BODY.indexOf("Quiz me")
-    expect(explainerChoice).toBeGreaterThan(-1)
-    expect(quizChoice).toBeGreaterThan(explainerChoice)
-    expect(CHECK_IN_BODY).not.toMatch(/Quiz me \(Recommended\)/i)
-    expect(CHECK_IN_BODY).toMatch(/Just the explainer[^\n]+skip prediction and exercises/i)
-    expect(CHECK_IN_BODY).toMatch(/Predict-then-reveal[\s\S]+Run this section only when the user's exact choice was \*\*Quiz me\*\*/i)
-    expect(CHECK_IN_BODY).toMatch(/Exercises \(concepts, ideas, dense recaps\)[\s\S]+Run this section only when the user's exact choice was \*\*Quiz me\*\*/i)
-  })
-
-  test("only the exact Quiz me choice enables prediction and exercises", () => {
-    const phase3Start = SKILL_BODY.indexOf("### Phase 3")
-    const phase4Start = SKILL_BODY.indexOf("### Phase 4")
-    const phase5Start = SKILL_BODY.indexOf("### Phase 5")
-    const phase6Start = SKILL_BODY.indexOf("### Phase 6")
-    const phase3 = SKILL_BODY.slice(phase3Start, phase4Start)
-    const phase5 = SKILL_BODY.slice(phase5Start, phase6Start)
-
-    expect(phase3).toMatch(/Record the user's exact Phase 3 choice/i)
-    expect(phase3).toMatch(/Only \*\*Quiz me\*\* enables the prediction and exercise mechanics/i)
-    expect(phase3).toMatch(/\*\*Just the explainer\*\* skips both while still composing and presenting the report/i)
-    expect(phase3).toMatch(/Diff mode with Quiz me selected/i)
-    expect(phase5).toMatch(/only when the recorded exact Phase 3 choice was \*\*Quiz me\*\*/i)
-    expect(phase5).toMatch(/choice was \*\*Just the explainer\*\*, skip this phase/i)
+  test("the compose phase states the non-blocking invariant and keeps the chat summary", () => {
+    // The body must carry the one stop class that has to fire without a
+    // reference read — the run never blocks on the check-in — inside the
+    // compose phase, which sits before Codex's 8000-byte truncation point.
+    const compose = sliceSection(SKILL_BODY, COMPOSE_PHASE, DESTINATION_PHASE)
+    expect(compose).toContain("`references/check-in.md`")
+    expect(compose).toMatch(/never blocks on the check-in/i)
+    // Codex injects only the first 8000 bytes of an over-budget SKILL.md
+    // (MAX_SKILL_PROMPT_BYTES; tests/codex-skill-prompt-budget.test.ts), and
+    // #1628 came from Codex. ce-explain is still over budget, so this sentence
+    // is the only copy of the invariant that host reads; measured the same way
+    // that test measures (CRLF-adjusted), it must stay above the cut.
+    const lf = SKILL_BODY.replace(/\r\n/g, "\n")
+    const beforeInvariant = lf.slice(0, lf.indexOf("never blocks on the check-in"))
+    const crlfOffset = Buffer.byteLength(beforeInvariant, "utf8") + (beforeInvariant.match(/\n/g)?.length ?? 0)
+    expect(crlfOffset).toBeLessThan(8000)
+    // KTD3 (#1628 plan): diff mode gets no path-only chat rule; the summary is
+    // the only explainer content a Codex user sees without opening the file.
+    expect(compose).toMatch(/inline summary plus the file path/i)
   })
 
   test("recap evidence is dispatched directly without a main-agent pre-scan", () => {
@@ -180,16 +194,16 @@ describe("ce-explain destination and handoff routing", () => {
     // is not the confirmation, and the body must not read as a runnable publish
     // sequence — spelling one out there is the paraphrase that suppresses the
     // read this phase depends on.
-    const phase6Body = sliceSection(SKILL_BODY, "### Phase 6")
-    expect(phase6Body).toMatch(/never headless and never inferred/i)
-    expect(phase6Body).toMatch(/a choice of destination rather than that confirmation/i)
-    expect(phase6Body).toMatch(/do not run the sequence from this paragraph/i)
+    const destinationBody = sliceSection(SKILL_BODY, DESTINATION_PHASE)
+    expect(destinationBody).toMatch(/never headless and never inferred/i)
+    expect(destinationBody).toMatch(/a choice of destination rather than that confirmation/i)
+    expect(destinationBody).toMatch(/do not run the sequence from this paragraph/i)
     // A size pass shortened "offered, never auto-fired" to "never fired", which
     // forbade the acceptance path the reference requires. Pin the condition:
     // the offer precedes the fire, and acceptance fires it.
-    expect(phase6Body).toMatch(/offered before anything fires/i)
-    expect(phase6Body).toMatch(/once the user accepts one, invoke it through the skill primitive/i)
-    expect(phase6Body).toMatch(/do not publish; preserve the canonical HTML and report its local `\$RUN_DIR\/explainer\.html` path/i)
+    expect(destinationBody).toMatch(/offered before anything fires/i)
+    expect(destinationBody).toMatch(/once the user accepts one, invoke it through the skill primitive/i)
+    expect(destinationBody).toMatch(/do not publish; preserve the canonical HTML and report its local `\$RUN_DIR\/explainer\.html` path/i)
     expect(DESTINATIONS_BODY).toMatch(/ht-ml\.app or general HTML-publishing capability/i)
     expect(DESTINATIONS_BODY).toMatch(/skill-invocation primitive/i)
     expect(DESTINATIONS_BODY).toMatch(/tool, connector, or browser capability directly/i)
@@ -206,60 +220,10 @@ describe("ce-explain destination and handoff routing", () => {
     expect(HTML_REFERENCE_BODY).toMatch(/No companion `\.css`, `\.js`, or `\.svg` files/)
     expect(HTML_REFERENCE_BODY).toMatch(/No external requests of any kind/)
     expect(HTML_REFERENCE_BODY).toMatch(
-      /No forms, no click handlers, no embedded quizzes, no "submit" affordances, no scripts/,
+      /No forms, no click handlers, no interactive quizzes, no "submit" affordances, no scripts/,
     )
     expect(HTML_REFERENCE_BODY).toMatch(/Class names and element IDs are ASCII-only/)
   })
-})
-
-// Cross-file parity guard (issue #1057): SKILL.md Phase 3 and
-// references/check-in.md deliberately BOTH carry the predict-then-reveal
-// protocol — the inline copy is load-bearing (AGENTS.md: "Inline the Trigger,
-// Not the Content"; the routing test above guards its presence), and the
-// reference holds the on-demand detail. Two independently-editable copies of
-// a safety-critical protocol can drift silently, so each load-bearing
-// invariant must survive in both files. These are structural matches, not
-// verbatim prose locks — the two copies already word the protocol slightly
-// differently, and future wording improvements are fine as long as every
-// invariant stays present in both.
-describe("ce-explain predict-then-reveal parity between SKILL.md and references/check-in.md", () => {
-  const invariants: { name: string; pattern: RegExp }[] = [
-    {
-      name: "the prediction question (what the change does, and why it was made)",
-      pattern: /what do(?:es)?\s+(?:you think\s+)?this change do(?:es)?\b[\s\S]{0,40}?why (?:was it|it was) made/i,
-    },
-    {
-      name: "the turn-end rule (end the turn after the prediction prompt)",
-      pattern: /end the turn/i,
-    },
-    {
-      name: "the never-same-message rule (no explanation in the prediction-prompt message)",
-      pattern: /same message as the prediction prompt/i,
-    },
-    {
-      // A run composing the Phase 3 offer from SKILL.md alone drafted an offer
-      // that summarized the change, leaking the reveal before the prediction
-      // was taken. The rule previously lived only in check-in.md.
-      name: "the no-pre-leak rule for the diff-mode offer (do not describe the change when offering)",
-      pattern: /without describing the change's content or purpose/i,
-    },
-  ]
-
-  const copies: { label: string; body: string }[] = [
-    { label: "SKILL.md", body: SKILL_BODY },
-    { label: "references/check-in.md", body: CHECK_IN_BODY },
-  ]
-
-  for (const { name, pattern } of invariants) {
-    for (const { label, body } of copies) {
-      test(`${label} carries ${name}`, () => {
-        expect(
-          pattern.test(body),
-          `ce-explain ${label} no longer carries ${name}. The predict-then-reveal protocol is duplicated across SKILL.md and references/check-in.md by design; if the wording changed, keep the invariant present in BOTH copies (matching ${pattern}) so the copies cannot drift apart silently.`,
-        ).toBe(true)
-      })
-    }
-  }
 })
 
 // Audience-rendering guards. ce-explain renders personally by default and for
@@ -283,7 +247,7 @@ const RENDERING_REFERENCES = [
 
 // Mirrors the sliceSection helper in ce-work-outcome-spine.test.ts and
 // pipeline-review-contract.test.ts, with the end anchor optional so a region
-// running to end-of-file (Phase 6, the last phase) can share it. Asserting the
+// running to end-of-file (the destination phase, the last one) can share it. Asserting the
 // anchor rather than slicing from -1 means a renamed heading fails as itself
 // instead of silently shrinking the searched region to nothing.
 function sliceSection(content: string, startAnchor: string, endAnchor?: string): string {
@@ -298,10 +262,10 @@ function sliceSection(content: string, startAnchor: string, endAnchor?: string):
 describe("ce-explain audience rendering", () => {
   test("the compose-time reference owns the audience rendering, and the body points at it", () => {
     // The body's own copy of this contract was a paraphrase of what both
-    // rendering references already state in full; it is gone, and Phase 4 names
-    // the owner instead.
-    const phase4 = sliceSection(SKILL_BODY, "### Phase 4", "### Phase 5")
-    expect(phase4).toMatch(/personal by default, adapted for another reader on request, at unchanged depth/i)
+    // rendering references already state in full; it is gone, and the compose
+    // phase names the owner instead.
+    const compose = sliceSection(SKILL_BODY, COMPOSE_PHASE, DESTINATION_PHASE)
+    expect(compose).toMatch(/personal by default, adapted for another reader on request, at unchanged depth/i)
     for (const [label, body] of RENDERING_REFERENCES) {
       // Depth must not be traded away when the audience changes.
       expect(body, `${label} lost the unchanged-depth rule`).toMatch(/Same depth/i)
@@ -363,9 +327,18 @@ describe("ce-explain audience rendering", () => {
     expect(phase6).toMatch(/never re-render unasked, and never block the send on it/i)
   })
 
-  test("the check-in is skipped for an artifact written for someone else", () => {
-    expect(CHECK_IN_BODY).toMatch(/When the material and the request disagree, the request wins/i)
-    expect(CHECK_IN_BODY).toMatch(/rendered for another reader, skip the offer/i)
+  test("both rendering references own the static check-in section the same way", () => {
+    // "lives in the session" is the superseded wording the static section replaced.
+    for (const [label, body] of RENDERING_REFERENCES) {
+      expect(body, `${label} lost the check-in.md citation`).toContain("`references/check-in.md`")
+      expect(body, `${label} lost the Check yourself section`).toContain("Check yourself")
+      expect(body, `${label} lost the questions-first ordering`).toMatch(/questions first, then their answers/i)
+      expect(body, `${label} still says the check-in lives in the session`).not.toMatch(/lives in the session/i)
+      // KTD4 (#1628 plan): references name phases by role, not number, so a
+      // body renumbering cannot strand a load-time cue.
+      expect(body, `${label} names a phase number in its load-time cue`).not.toMatch(/compose time \(Phase \d\)/i)
+    }
+    expect(MARKDOWN_REFERENCE_BODY).not.toMatch(/No exercise or quiz content in the artifact/i)
   })
 })
 
@@ -386,7 +359,7 @@ describe("ce-explain gaps found by behavioral evals", () => {
     // Three runs independently reported that "dispatch a generic subagent"
     // carried no cross-reference to the Model Tiers degradation rule, which
     // lives in a separate section far above Phase 2.
-    const phase2 = sliceSection(SKILL_BODY, "### Phase 2", "### Phase 3")
+    const phase2 = sliceSection(SKILL_BODY, "### Phase 2", COMPOSE_PHASE)
     expect(phase2).toMatch(/harness exposes no subagent primitive/i)
     expect(phase2).toMatch(/run the scout inline/i)
     // The no-pre-scan protection must survive when the scout IS the main agent.
@@ -403,11 +376,11 @@ describe("ce-explain gaps found by behavioral evals", () => {
   })
 
   test("the destination ask and a publisher's consent gate are distinct asks", () => {
-    const phase6 = sliceSection(SKILL_BODY, "### Phase 6")
+    const destination = sliceSection(SKILL_BODY, DESTINATION_PHASE)
     const relocated = DESTINATIONS_BODY
     // "Ask once" previously read as forbidding the second confirmation the
     // bypass path requires.
-    expect(phase6).toMatch(/that governs the menu itself, not the consent a chosen destination then requires/i)
+    expect(destination).toMatch(/that governs the menu itself, not the consent a chosen destination then requires/i)
     // Naming a suppressed publisher takes the bypassed-menu path.
     expect(relocated).toMatch(/never as though the menu had warned them/i)
   })

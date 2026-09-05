@@ -7,8 +7,6 @@ problem_type: integration_issue
 component: tooling
 symptoms:
   - "Target platforms received raw Claude model aliases (e.g., 'sonnet') they could not resolve"
-  - "Qwen converter mapped model aliases to wrong canonical names (claude-sonnet instead of claude-sonnet-4-6)"
-  - "OpenClaw and Copilot passed through unnormalized model values in formats the target could not use"
   - "Duplicated CLAUDE_FAMILY_ALIASES and normalizeModel logic across converters with divergent alias values"
 root_cause: config_error
 resolution_type: code_fix
@@ -18,144 +16,39 @@ tags:
   - converters
   - cross-platform
   - opencode
-  - qwen
   - droid
   - copilot
-  - openclaw
   - codex
 ---
 
 # Cross-platform model field normalization for target converters
 
-## Problem
+Claude Code uses bare model aliases (`model: sonnet`) in agent and command frontmatter. A `model` field in a target's frontmatter does not mean the format is the same: each target wants something different, and the wrong guess is an invalid config rather than a visible error. `src/utils/model.ts` is the single alias map (`CLAUDE_FAMILY_ALIASES`) and normalization helpers; converters must use it rather than carrying a local copy (two divergent copies is how Qwen shipped `sonnet -> claude-sonnet` instead of the dated ID).
 
-Claude Code uses bare model aliases (`model: sonnet`, `model: haiku`, `model: opus`) in agent and command frontmatter. Each target platform expects a different format for the model field, but the converters handled this inconsistently — some passed through raw values, others had duplicated normalization logic with wrong alias mappings.
+## Per-target behavior and why
 
-## Symptoms
+| Target | Behavior | Why |
+|--------|----------|-----|
+| OpenCode | Resolve alias + add provider prefix (`anthropic/claude-sonnet-5`) | Multi-provider; routes on the `provider/model-id` prefix. Same rule for any future multi-provider target with that format (the removed Qwen and OpenClaw converters used it). |
+| Droid (Factory) | Pass through as-is (`sonnet`) | Factory resolves Claude's bare aliases natively and also accepts dated IDs and `custom:<model>`; normalizing to a form it also accepts adds nothing. |
+| Copilot | Drop | Copilot's `model` field takes Copilot display names ("Claude Opus 4.5"), not Claude model IDs or aliases, and has no documented resolution for them. Spec: "If unset, inherits the default model." |
+| Codex | Drop | Skill frontmatter supports only `name` and `description` (Rust `SkillFrontmatter` struct). Model selection is global via `config.toml` or `/model`. |
 
-- OpenClaw passed `model: sonnet` through raw — invalid on a platform expecting `anthropic/claude-sonnet-4-6`
-- Qwen mapped `sonnet` to `anthropic/claude-sonnet` instead of `anthropic/claude-sonnet-4-6` (wrong alias in its local copy of `CLAUDE_FAMILY_ALIASES`)
-- Copilot passed through raw Claude model IDs like `claude-sonnet-4-20250514` — Copilot uses display-name format ("Claude Opus 4.5"), not model IDs
-- Codex emitted no model field — correct behavior, but accidental (no deliberate handling)
-- Droid passed through as-is — correct behavior, but undocumented as intentional
-- Two copies of `CLAUDE_FAMILY_ALIASES` existed in OpenCode and Qwen converters with divergent values
+Copilot and Droid converters remain as cleanup remnants, not install targets; the installable Bun targets are `opencode`, `codex`, `pi`, and `antigravity`.
 
-## What Didn't Work
+## Rejected assumptions
 
-- **Passing model through as-is**: works for Droid (Factory natively resolves bare aliases), breaks OpenClaw/Qwen/OpenCode
-- **Mapping bare aliases to incomplete model names**: Qwen's `sonnet` -> `claude-sonnet` was wrong; correct is `claude-sonnet-4-6`
-- **Assuming all targets want the same model format**: each platform has fundamentally different expectations
-- **Assuming Codex skills support model overrides in frontmatter**: they don't — confirmed by the Rust source `SkillFrontmatter` struct which only has `name` and `description`
-- **Initial assumption that Qwen should drop model entirely**: wrong — Qwen is multi-provider and supports Anthropic models via `settings.json` with `anthropic` provider config
-- **Initial assumption that Copilot doesn't support models**: wrong — Copilot supports multi-model including Claude, but the exact format is uncertain (display names vs model IDs)
+- Pass everything through: right for Droid only.
+- Every target wants the same format: false, see table.
+- Codex skills accept a model override: they do not.
+- Qwen should drop model because it is single-provider: wrong, it was multi-provider via `settings.json`; the removal was for native-install reasons, not model handling.
+- Copilot has no model support: wrong; it has one, in a format we cannot produce from Claude values, which is a different reason to drop.
 
-## Solution
+## Rule
 
-Created `src/utils/model.ts` with shared normalization utilities:
+**When in doubt, drop.** If you cannot confidently produce the target's expected format, omit the field rather than emit a possibly invalid value; targets fall back to a default when `model` is unset. Research a new target's model format before assuming pass-through or copying another converter, and add new alias generations only in `src/utils/model.ts`.
 
-```typescript
-// Single source of truth for bare Claude family aliases
-// (illustrative current values; src/utils/model.ts holds the live map,
-//  bumped per generation — e.g. sonnet moved 4-6 -> 5, opus 4-6 -> 4-8)
-export const CLAUDE_FAMILY_ALIASES: Record<string, string> = {
-  haiku: "claude-haiku-4-5",
-  sonnet: "claude-sonnet-5",
-  opus: "claude-opus-4-8",
-}
+## Related
 
-// Resolve bare alias without provider prefix (used by Droid)
-export function resolveClaudeFamilyAlias(model: string): string
-
-// Add provider prefix based on naming conventions
-export function addProviderPrefix(model: string): string
-
-// Combined: resolve + prefix (used by OpenCode, Qwen, OpenClaw)
-export function normalizeModelWithProvider(model: string): string
-```
-
-Each converter uses the appropriate shared utility:
-
-| Target | Behavior | Output for `model: sonnet` |
-|--------|----------|----------------------------|
-| OpenCode | Resolve alias + add provider prefix | `anthropic/claude-sonnet-5` |
-| Droid | Pass through as-is | `sonnet` |
-| Copilot | Drop entirely | (omitted) |
-| Codex | Drop entirely | (omitted) |
-
-> **Note:** This doc was written when the converter set also included Qwen and OpenClaw, both of which used the "Resolve alias + add provider prefix" behavior. Both have since been removed in favor of native plugin install — see `docs/solutions/integrations/native-plugin-install-strategy.md`. The pattern still applies to any future multi-provider target with the `provider/model-id` format.
-
----
-
-## Why This Works
-
-Each platform has fundamentally different model handling requirements:
-
-**Platforms that normalize (OpenCode, Qwen, OpenClaw):** These are multi-provider platforms that support Anthropic, OpenAI, Google, and other model providers. They need provider-prefixed IDs like `anthropic/claude-sonnet-5` to route requests to the correct backend. The `normalizeModelWithProvider` function resolves bare aliases and adds the appropriate prefix.
-
-**Droid (Factory) — pass-through:** Factory is multi-provider but natively resolves Claude's bare aliases (`sonnet`, `opus`, `haiku`) internally. Pass-through is correct and simpler than normalizing to a format Factory would also accept but doesn't require. Factory also accepts full dated model IDs like `claude-sonnet-4-5-20250929` and non-Anthropic models prefixed with `custom:`.
-
-**Copilot — drop:** Copilot supports a `model` field in `.agent.md` frontmatter (documented in `docs/specs/copilot.md`), but the expected values are Copilot-specific display names like "Claude Opus 4.5" — not Claude model IDs like `claude-sonnet-4-20250514` or bare aliases like `sonnet`. Passing through Claude-specific values would emit a field Copilot can't use. Unlike Droid (which natively resolves `sonnet`), Copilot has no documented resolution for Claude model IDs. Dropping is safer: the spec says "If unset, inherits the default model."
-
-**Codex — drop:** Codex skill frontmatter (`SKILL.md`) only supports `name` and `description` fields. This was confirmed by examining the Rust source code (`SkillFrontmatter` struct in `codex-rs/core-skills/src/loader.rs`). Model selection in Codex is global via `config.toml` or runtime `/model` command, not per-skill.
-
----
-
-## Target platform model field reference
-
-This reference captures research findings as of 2026-03-29. Targets marked **(removed)** below no longer have custom Bun converters — they rely on native plugin install. The research is preserved as a future reference if those targets re-enter the converter set.
-
-### OpenCode
-- **Model format:** `provider/model-id` (e.g., `anthropic/claude-sonnet-5`)
-- **Provider prefixes:** `anthropic/`, `openai/`, `google/`
-- **Docs:** Agents defined in `.opencode/agents/*.md`
-
-### Qwen (removed)
-- **Model format:** `provider/model-id` (e.g., `anthropic/claude-sonnet-4-6`)
-- **Multi-provider:** Yes — supports Anthropic, OpenAI, Google GenAI via `settings.json`
-- **Configuration example:** `"anthropic": [{"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "envKey": "ANTHROPIC_API_KEY"}]`
-- **Common misconception:** Qwen is NOT limited to its own foundation model
-
-### Droid (Factory)
-- **Model format:** Bare names (`sonnet`, `claude-sonnet-4-5-20250929`) or `custom:<model>` for BYOK
-- **Native alias resolution:** Factory resolves `sonnet`, `opus`, `haiku` internally
-- **Multi-provider:** Yes — supports Anthropic, OpenAI, Google, and Factory's own `droid-core`
-- **Docs:** Custom droids defined in `.factory/droids/*.md`
-
-### Copilot
-- **Model format:** Display names (e.g., "Claude Opus 4.5", "GPT-5.2"), possibly array syntax `model: ['Claude Opus 4.5', 'GPT-5.2']`
-- **Multi-provider:** Yes — supports Claude and GPT models
-- **Current converter behavior:** Drop (Claude model IDs don't map to Copilot's expected format)
-- **Note:** Spec says "may be ignored on github.com" — model selection works in IDE but may not apply on the GitHub web platform
-- **Docs:** Agents defined in `.github/agents/*.agent.md`
-
-### OpenClaw (removed)
-- **Model format:** `provider/model-id` (same as OpenCode)
-- **Docs:** Skills defined in `skills/*/SKILL.md`
-
-### Codex
-- **Model field in skill frontmatter:** NOT SUPPORTED
-- **Supported frontmatter fields:** `name`, `description` only
-- **Model configuration:** Global `config.toml` (`model = "gpt-5.4"`) or runtime `/model` command
-- **Valid model IDs (as of 2026-03):** `gpt-5.4` (flagship), `gpt-5.4-mini` (fast), `gpt-5.3-codex` (coding-specialized)
-- **Deprecated:** `codex-mini-latest` (removed Feb 2026)
-- **Docs:** Skills defined in `.codex/skills/*/SKILL.md` or `.agents/skills/*/SKILL.md`
-
----
-
-## Prevention
-
-1. **Research before implementing:** When adding a new converter target, research its model field format with external documentation before assuming pass-through or copying from another converter. The format varies significantly between platforms.
-
-2. **Single source of truth:** The `CLAUDE_FAMILY_ALIASES` map in `src/utils/model.ts` is the canonical alias map. Update it there — not in individual converters — when new Claude model generations are released.
-
-3. **Test coverage:** Run `bun test` after model-related changes. The test suite covers model handling across all converters (`tests/model-utils.test.ts` plus each converter's test file).
-
-4. **Don't assume format from the field name:** A `model` field in frontmatter doesn't mean the format is the same across platforms. OpenCode wants `anthropic/claude-sonnet-5` (live alias map in `src/utils/model.ts`), Factory wants `sonnet`, Copilot wants "Claude Sonnet 4", and Codex doesn't support the field at all. Installable Bun targets are `opencode`, `codex`, `pi`, and `antigravity`; Copilot/Droid converters remain as cleanup remnants, not install targets.
-
-5. **When in doubt, drop:** If you can't confidently produce the target's expected format, omit the field rather than emitting a potentially invalid value. Most platforms fall back to a sensible default when model is unset.
-
-## Related Issues
-
-- `docs/solutions/integrations/opencode-temperature-rejected-by-sonnet5-opus48.md` — Companion gotcha: when the alias map here is bumped to a newer generation (per Prevention #2), the OpenCode converter must also stop emitting an inferred `temperature`, because Sonnet 5 / Opus 4.7+ reject non-default sampling params. Normalization gets the model ID right; that doc covers the sampling-param constraint the new generation introduced.
-- `docs/solutions/adding-converter-target-providers.md` — Converter architecture doc; should be updated to reference model normalization as part of the conversion pattern
-- `docs/solutions/integrations/colon-namespaced-names-break-windows-paths.md` — Structural analog: same pattern of per-target boundary normalization
+- `docs/solutions/adding-converter-target-providers.md`
+- `docs/solutions/integrations/native-plugin-install-strategy.md` for why Qwen and OpenClaw converters were removed

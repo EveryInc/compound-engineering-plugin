@@ -170,6 +170,7 @@ O_BINARY = getattr(os, "O_BINARY", 0)
 SWEEP_AGE_SECS = 24 * 3600
 CLAIM_ATTEMPTS = 16
 STATUS_READ_CAP = 256
+REASON_READ_CAP = 1024
 META_READ_CAP = 64 * 1024
 
 EXIT_CODES_DOC = """\
@@ -182,8 +183,10 @@ exit codes:
   2  usage error; for `result`: the job is still running
   3  for `result`: job settled but not done (failed / timeout /
      died-without-result / never-started), or the result file is missing
-  4  ownership check failed (job state or result not owned by the current
-     user) — content is never emitted
+  4  the read was refused, so content is never emitted: the ownership check
+     failed (job state or result not owned by the current user), or the path
+     is there but unreadable (a symlink rejected by O_NOFOLLOW, a non-regular
+     file, a byte-cap overrun). Only a genuinely absent file is 3.
 
 environment overrides: CE_PEER_JOBS_ROOT, CE_WORK_RUNS_ROOT, CE_PEER_IDLE_SECS,
 CE_PEER_HARD_SECS, CROSS_MODEL_HARD_SECS, CE_PEER_LOG_MAX_BYTES,
@@ -1017,6 +1020,16 @@ def job_state(job_dir: str) -> str:
     if os.path.lexists(os.path.join(job_dir, "pid")):
         return "running"
     return "never-started"
+
+
+def job_reason(job_dir: str) -> str:
+    """The terminal record's detail line, or "" when unavailable. Decorative
+    context for a message; never load-bearing, so every failure reads as ""."""
+    try:
+        raw = read_owned(os.path.join(job_dir, "reason"), REASON_READ_CAP)
+    except (Unreadable, OSError):
+        return ""
+    return raw.decode("utf-8", "replace").strip()
 
 
 # --- process-tree control -----------------------------------------------------
@@ -2129,6 +2142,42 @@ def _emit_bytes(data: bytes) -> None:
         sys.stdout.write(data.decode("utf-8", "replace"))
 
 
+def _report_absent_artifact(target: str, args) -> int:
+    """An absent --path artifact is an outcome, not a read error: a peer that
+    skipped its gate exits 0 and writes nothing, so the file is legitimately
+    missing on the most common fold-in path. Name that outcome, and when the
+    caller also passed the job id, name the job's state -- otherwise "still
+    running" and "ran, produced nothing" arrive as one errno the caller cannot
+    act on. Each outcome keeps the exit code the job-result contract already
+    assigns it, so a trust or lookup failure never reads as the routine skip:
+    2 running, 4 ownership, 1 unknown job, 3 settled with no artifact."""
+    sys.stderr.write(f"peer-job-runner: no artifact at {target}\n")
+    if not args.job:
+        return 3
+    try:
+        job_dir = resolve_job_dir(args.job, args.skill)
+    except RunnerError as exc:
+        sys.stderr.write(f"peer-job-runner: {exc}\n")
+        return 1
+    state = job_state(job_dir)
+    if state == "unreadable":
+        # Do not read `reason` here: job_dir already failed its owner check, and
+        # O_NOFOLLOW guards only the final component, so a swapped directory
+        # could redirect that read.
+        sys.stderr.write(
+            f"peer-job-runner: job state unreadable (ownership or corruption): {job_dir}\n"
+        )
+        return 4
+    if state == "running":
+        sys.stderr.write(f"peer-job-runner: job {args.job} is still running\n")
+        return 2
+    reason = job_reason(job_dir)
+    sys.stderr.write(
+        f"peer-job-runner: job {args.job}: {state}" + (f" ({reason})" if reason else "") + "\n"
+    )
+    return 3
+
+
 def cmd_result(args) -> int:
     if not getattr(args, "path", None) and not args.job:
         sys.stderr.write("peer-job-runner: result needs a job id or --path FILE\n")
@@ -2138,14 +2187,21 @@ def cmd_result(args) -> int:
         # bounded read as job results. Exists because fold-in filenames can embed
         # values unknown at start time (so no --result-path was declared), yet the
         # consumer must never read a predictable /tmp path unchecked.
+        target = os.path.abspath(args.path)
         try:
-            data = read_owned(os.path.abspath(args.path), cfg()["result_max"])
+            data = read_owned(target, cfg()["result_max"])
         except Unreadable as exc:
             sys.stderr.write(f"peer-job-runner: unreadable: {exc}\n")
             return 4
+        except FileNotFoundError:
+            return _report_absent_artifact(target, args)
         except OSError as exc:
-            sys.stderr.write(f"peer-job-runner: file missing or unreadable: {exc}\n")
-            return 3
+            # Only a genuine ENOENT is "the peer produced nothing". Every other
+            # read failure means the path is there but was refused -- a planted
+            # symlink rejected by O_NOFOLLOW is the case this guard exists for --
+            # so it takes the trust-failure code, never the routine one.
+            sys.stderr.write(f"peer-job-runner: refused to read {target}: {exc}\n")
+            return 4
         _emit_bytes(data)
         return 0
     job_dir = resolve_job_dir(args.job, args.skill)
@@ -2354,7 +2410,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_result.add_argument(
         "--path",
         default=None,
-        help="ownership-checked bounded read of this file instead of a job's declared result",
+        help=(
+            "ownership-checked bounded read of this file instead of a job's "
+            "declared result; pass the job id too so an absent file reports "
+            "that job's state"
+        ),
     )
 
     p_reap = sub.add_parser(

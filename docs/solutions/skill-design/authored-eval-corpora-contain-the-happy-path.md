@@ -58,6 +58,5 @@ while the *rate* results do not. Say which of the two you are relying on.
 
 ## Related
 
-- A frozen finding set cannot measure an emission-layer change: see [`frozen-finding-sets-cannot-see-emission-changes.md`](frozen-finding-sets-cannot-see-emission-changes.md).
-- Trial-count and variance discipline: `safe-auto-rubric-calibration.md`, `ce-doc-review-calibration-patterns.md`.
-- The evaluation this came from: `dedup-and-obligation-eval-results.md`.
+- A frozen finding set cannot measure an emission-layer change: see Leak C in [`paired-old-vs-new-injection-skill-evals.md`](paired-old-vs-new-injection-skill-evals.md).
+- Trial-count and variance discipline: `paired-old-vs-new-injection-skill-evals.md` (technique 8), `ce-doc-review-calibration-patterns.md`.

@@ -1701,4 +1701,64 @@ describe("ce-code-review dispatch templates", () => {
       expect(counts.get(name)).toBe(1)
     }
   })
+
+  test("compact-return contract uses exact schema keys in both output tiers", async () => {
+    const template = await readRepoFile(
+      "skills/ce-code-review/references/subagent-template.md",
+    )
+    const outputContract = template.match(/<output-contract>[\s\S]*?<\/output-contract>/)?.[0]
+    expect(outputContract).toBeDefined()
+
+    expect(outputContract).toMatch(/full analysis \(all schema fields, including why_it_matters, evidence/)
+    expect(outputContract).toMatch(/ONLY merge-tier fields per finding:/)
+    expect(outputContract).toContain(
+      "title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix, first_evidence.",
+    )
+    expect(outputContract).toMatch(/artifact conforms to the full schema below/)
+    expect(outputContract).toMatch(/compact finding uses only this merge-tier allowlist/)
+    expect(outputContract).toMatch(/`pre_existing` as a boolean/)
+    expect(outputContract).toMatch(/`notes` is not a field/)
+    expect(template).not.toMatch(/independence_verified/)
+  })
+})
+
+describe("cross-model fold-in read", () => {
+  // #1607: `result --path` on an absent artifact can only name the peer's state
+  // when the job id rides along. Without it the runner falls back to a bare
+  // "no artifact" line, and the caller cannot tell a still-running job from one
+  // that produced nothing -- the exact confusion this fold-in step must resolve.
+  test.each([
+    ["ce-code-review", "adversarial"],
+    ["ce-doc-review", "<reviewer-name>"],
+  ])("%s passes the job id to the fold-in read", async (skill, label) => {
+    const content = await readRepoFile(
+      `skills/${skill}/references/cross-model-review.md`,
+    )
+    const call = content
+      .split("\n")
+      .find((l) => l.includes("peer-job-runner.py") && l.includes("result") && l.includes("--path"))
+    expect(call).toBeDefined()
+    expect(call).toContain('result "<job-id>"')
+    expect(call).toContain(`${label}-<target>.json`)
+  })
+
+  // Exit 4 (artifact present, ownership/cap failure) and exit 1 (job id did not
+  // resolve) have no fold-in branch. Prose that folds every nonzero exit into
+  // "no artifact came back" silently drops a trust failure.
+  test.each(["ce-code-review", "ce-doc-review"])(
+    "%s does not treat every nonzero fold-in exit as an absent artifact",
+    async (skill) => {
+      const content = await readRepoFile(
+        `skills/${skill}/references/cross-model-review.md`,
+      )
+      // Exit 3 is the only "peer produced nothing" outcome; every other
+      // non-zero exit is the runner failing to read and has no fold-in branch.
+      expect(content).toMatch(/exit 3 is the only outcome that means the peer produced nothing/i)
+      expect(content).toMatch(/could not complete the read/i)
+      expect(content).toMatch(/degraded cross-model pass/i)
+      // Exit 4 must not be described as requiring the artifact to exist: an
+      // absent artifact plus an unreadable job dir also exits 4.
+      expect(content).not.toMatch(/artifact that does exist/i)
+    },
+  )
 })
