@@ -24,12 +24,21 @@ describe("ce-ideate ideation artifact lifecycle", () => {
     expect(SKILL_BODY).toMatch(/gitignored/)
   })
 
-  test("the Phase 4.1 write step gitignores the ideation directory in repo mode", () => {
+  test("the Phase 4.1 write step gitignores the ideation directory keyed on destination, not mode", () => {
     expect(POST_IDEATION_BODY).toMatch(/lifecycle/i)
     expect(POST_IDEATION_BODY).toMatch(/\.gitignore/)
     // Composed from the resolved root, never a literal docs/ path (docs-root-literals).
     expect(POST_IDEATION_BODY).toMatch(/`<root>\/ideation\/`/)
     expect(POST_IDEATION_BODY).not.toMatch(/docs\/ideation/)
+    // The condition is the destination being the repo's ideation dir, so an
+    // elsewhere-mode run that selects it gets the same lifecycle (#1631 review).
+    expect(POST_IDEATION_BODY).toMatch(/the condition is the destination, not the mode/)
+  })
+
+  test("an already-tracked legacy artifact fails safe: stated, never claimed untracked", () => {
+    expect(POST_IDEATION_BODY).toMatch(/ignore rule cannot untrack a file/)
+    expect(POST_IDEATION_BODY).toMatch(/already tracked/)
+    expect(POST_IDEATION_BODY).toMatch(/leave the untrack decision to the user/)
   })
 
   test("the gitignore edit is part of the write, not a silent side effect", () => {
