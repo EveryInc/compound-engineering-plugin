@@ -1986,13 +1986,13 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     expect(readFileSync(path.join(repoRoot, "docs/guides/configuration.md"), "utf8")).toContain(
       "codex `none`..`max`",
     )
-    const yamlNeedle = "codex none|minimal|low|\n# medium|high|xhigh|max"
-    expect(readFileSync(path.join(repoRoot, ".compound-engineering/config.example.yaml"), "utf8")).toContain(
-      yamlNeedle,
-    )
-    expect(
-      readFileSync(path.join(repoRoot, "skills/ce-setup/references/config-template.yaml"), "utf8"),
-    ).toContain(yamlNeedle)
+    // Pin the enum values, not the comment's line wrapping: strip comment
+    // prefixes and whitespace so a neutral reflow does not fail the guard.
+    const squash = (body: string) => body.replace(/^#\s*/gm, "").replace(/\s+/g, "")
+    const yamlNeedle = squash("codex none|minimal|low|medium|high|xhigh|max")
+    for (const yaml of [".compound-engineering/config.example.yaml", "skills/ce-setup/references/config-template.yaml"]) {
+      expect(squash(readFileSync(path.join(repoRoot, yaml), "utf8"))).toContain(yamlNeedle)
+    }
   })
 
   test("NEVER flags are absent from both skills' adapters", () => {
