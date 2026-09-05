@@ -364,8 +364,11 @@ def main(argv: list[str]) -> int:
                 f"working tree or {upstream}" if upstream else "working tree"
             )
             flags.append(
-                f"FLAG path `{token}`{loc} — not found in {where}. Fix the "
-                "citation, or annotate it as historical (e.g. removed by this fix)."
+                f"FLAG path `{token}`{loc} — not found in {where}, under "
+                f"{base}. This check only looks in this repository; check "
+                "other stores before treating the citation as wrong. "
+                "Otherwise, fix the citation, or annotate it as historical "
+                "(e.g. removed by this fix)."
             )
 
     # --- 2. Cited commit SHAs ----------------------------------------------
