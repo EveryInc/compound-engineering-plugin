@@ -181,7 +181,6 @@ function main() {
       }
       writeJSON(packPath, pack)
     }
-    ;(pack.scenarios as Record<string, unknown>)[scenario.id] = row
   }
 
   pack.finished_at = new Date().toISOString()

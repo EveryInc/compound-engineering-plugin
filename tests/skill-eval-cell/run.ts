@@ -269,9 +269,13 @@ async function main() {
   for (const host of hosts) {
     const hostDir = path.join(out, "hosts", host)
     const hostWorkspace = path.join(hostDir, "workspace")
+    const hostSkillDir = path.join(hostDir, "skill")
     fs.mkdirSync(hostDir, { recursive: true })
     copyFixture(workspace, hostWorkspace)
-    const hostPrompt = wrapPrompt({ skillDir, workspace: hostWorkspace, task: taskText })
+    // Script imports can create caches. Keep the input snapshot unchanged and
+    // give every host its own execution copy, included in the sealed evidence.
+    fs.cpSync(skillDir, hostSkillDir, { recursive: true })
+    const hostPrompt = wrapPrompt({ skillDir: hostSkillDir, workspace: hostWorkspace, task: taskText })
     const promptFile = path.join(hostDir, "prompt.md")
     fs.writeFileSync(promptFile, hostPrompt)
     const plan = planHost(host, {
@@ -341,7 +345,6 @@ async function main() {
   }
 
   const summaryPath = path.join(out, "summary.json")
-  writeJSON(summaryPath, summary)
   sealEvidence(out)
   console.log(summaryPath)
 }

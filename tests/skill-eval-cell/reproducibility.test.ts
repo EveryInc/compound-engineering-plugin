@@ -1,5 +1,4 @@
-import { test } from "bun:test"
-import assert from "node:assert/strict"
+import { expect, test } from "bun:test"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -58,107 +57,208 @@ function make(root: string) {
 
 test("regrade uses archived criteria without a live catalog entry and preserves the source", () => fixture(({ packPath }) => {
   const before = fs.readFileSync(packPath)
-  const result = regradePack(packPath)
-  assert.equal(result.ok, true)
-  assert.notEqual(result.reportPath, packPath)
-  assert.deepEqual(fs.readFileSync(packPath), before)
+  const result = regradePack(packPath, "original")
+  expect(result.ok).toBe(true)
+  expect(result.reportPath).not.toBe(packPath)
+  expect(fs.readFileSync(packPath)).toEqual(before)
   const report = JSON.parse(fs.readFileSync(result.reportPath, "utf8"))
-  assert.equal(report.assessment, "original-grader")
-  assert.equal(report.source_pack_sha256, sha256(before))
+  expect(report.mode).toBe("original")
+  expect(report.grader_changed).toBe(false)
+  expect(report.source_pack_sha256).toBe(sha256(before))
+}))
+
+test("default current mode does not fall back to archived criteria for an absent scenario", () => fixture(({ scenario, packPath }) => {
+  const before = fs.readFileSync(packPath)
+  const result = regradePack(packPath)
+  const report = JSON.parse(fs.readFileSync(result.reportPath, "utf8"))
+  expect(result.ok).toBe(false)
+  expect(report.mode).toBe("current")
+  expect(report.scenarios[scenario.id].used_grade).toBeNull()
+  expect(report.scenarios[scenario.id].used_grade_sha256).toBeNull()
+  expect(report.scenarios[scenario.id].arms.post).toMatchObject({
+    status: "not-assessable", reason: "scenario is absent from the current catalog", ok: false,
+  })
+  expect(fs.readFileSync(packPath)).toEqual(before)
+}))
+
+test("invalid modes are refused without writing an assessment", () => fixture(({ root, packPath }) => {
+  const before = fs.readFileSync(packPath)
+  // Exercise the runtime boundary used by untyped callers.
+  // @ts-expect-error invalid modes must also be rejected at runtime
+  expect(() => regradePack(packPath, "unknown")).toThrow(/mode must be current or original/)
+  expect(fs.readFileSync(packPath)).toEqual(before)
+  expect(fs.readdirSync(root).filter((name) => name.includes(".regrade-"))).toEqual([])
 }))
 
 test("successive regrades produce distinct files", () => fixture(({ packPath }) => {
-  assert.notEqual(regradePack(packPath).reportPath, regradePack(packPath).reportPath)
+  expect(regradePack(packPath, "original").reportPath).not.toBe(regradePack(packPath, "original").reportPath)
 }))
 
 test("changed frozen criteria are rejected", () => fixture(({ pack, scenario, save, packPath }) => {
   pack.scenarios[scenario.id].scenario_snapshot.grade.must_include = ["not present"]
   save()
-  assert.throws(() => regradePack(packPath), /scenario/)
+  expect(() => regradePack(packPath, "original")).toThrow(/scenario/)
 }))
 
-test("changed grader needs explicit consent and gets a distinct assessment", () => fixture(({ pack, save, packPath }) => {
+test("original grading refuses changed grader bytes", () => fixture(({ root, pack, save, packPath }) => {
   pack.grader.entries[0].sha256 = "a".repeat(64)
   pack.grader.sha256 = valueHash(pack.grader.entries)
   save()
-  assert.throws(() => regradePack(packPath), /grader changed/)
-  const result = regradePack(packPath, true)
-  assert.equal(JSON.parse(fs.readFileSync(result.reportPath, "utf8")).assessment, "changed-grader")
+  const before = fs.readFileSync(packPath)
+  expect(() => regradePack(packPath, "original")).toThrow(/grader changed/)
+  expect(fs.readFileSync(packPath)).toEqual(before)
+  expect(fs.readdirSync(root).filter((name) => name.includes(".regrade-"))).toEqual([])
 }))
 
 test("changed stdout is detected before grading", () => fixture(({ hostDir, packPath }) => {
   fs.writeFileSync(path.join(hostDir, "stdout.txt"), "changed")
-  assert.throws(() => regradePack(packPath), /evidence/)
+  expect(() => regradePack(packPath, "original")).toThrow(/evidence/)
 }))
 
 test("deleted exit evidence is not a vacuous pass", () => fixture(({ hostDir, packPath }) => {
   fs.unlinkSync(path.join(hostDir, "exit.json"))
-  assert.throws(() => regradePack(packPath))
+  expect(() => regradePack(packPath, "original")).toThrow()
 }))
 
 test("added workspace files invalidate the evidence", () => fixture(({ hostDir, packPath }) => {
   fs.writeFileSync(path.join(hostDir, "workspace", "unexpected.txt"), "extra")
-  assert.throws(() => regradePack(packPath), /evidence/)
+  expect(() => regradePack(packPath, "original")).toThrow(/evidence/)
 }))
 
 test("a relocated whole pack regrades without archived absolute paths", () => fixture(({ root }) => {
   const relocated = fs.mkdtempSync(path.join(os.tmpdir(), "ce-regrade-moved-"))
   try {
     fs.cpSync(root, relocated, { recursive: true })
-    assert.equal(regradePack(path.join(relocated, "pack.json")).ok, true)
+    expect(regradePack(path.join(relocated, "pack.json"), "original").ok).toBe(true)
   } finally { fs.rmSync(relocated, { recursive: true, force: true }) }
 }))
 
 test("a collection error remains ungraded rather than a pass", () => fixture(({ pack, scenario, save, packPath }) => {
   pack.scenarios[scenario.id].arms.post.status = "collection-error"
   save()
-  const result = regradePack(packPath)
-  assert.equal(result.ok, false)
-  assert.equal(JSON.parse(fs.readFileSync(result.reportPath, "utf8")).scenarios[scenario.id].arms.post.status, "not-regraded")
+  const result = regradePack(packPath, "original")
+  expect(result.ok).toBe(false)
+  expect(JSON.parse(fs.readFileSync(result.reportPath, "utf8")).scenarios[scenario.id].arms.post.status).toBe("not-regraded")
+}))
+
+test("an interrupted arm remains incomplete even without a cell directory", () => fixture(({ out, pack, scenario, save, packPath }) => {
+  pack.scenarios[scenario.id].arms.post.status = "collecting"
+  save()
+  const before = fs.readFileSync(packPath)
+  fs.rmSync(out, { recursive: true })
+  const result = regradePack(packPath, "original")
+  const report = JSON.parse(fs.readFileSync(result.reportPath, "utf8"))
+  expect(result.ok).toBe(false)
+  expect(report.scenarios[scenario.id].arms.post).toMatchObject({
+    status: "not-regraded", original_status: "collecting", ok: false,
+  })
+  expect(fs.readFileSync(packPath)).toEqual(before)
+}))
+
+test("an absent required workspace file fails grading and preserves the original verdict", () => fixture(({ pack, scenario, save, packPath }) => {
+  scenario.grade.workspace_contains = [{ path: "missing.txt", needle: "proof" }]
+  pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
+  save()
+  const before = fs.readFileSync(packPath)
+  const result = regradePack(packPath, "original")
+  const report = JSON.parse(fs.readFileSync(result.reportPath, "utf8"))
+  const arm = report.scenarios[scenario.id].arms.post
+  expect(result.ok).toBe(false)
+  expect(arm.status).toBe("regraded")
+  expect(arm.grades[0].reasons).toContain('missing.txt does not contain "proof"')
+  expect(arm.original_grade.ok).toBe(true)
+  expect(fs.readFileSync(packPath)).toEqual(before)
+}))
+
+test("original mode preserves the historical grader's pass on empty Git observations", () => fixture(({ pack, scenario, save, packPath }) => {
+  scenario.grade.git = "clean"
+  pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
+  save()
+  const before = fs.readFileSync(packPath)
+  const result = regradePack(packPath, "original")
+  const arm = JSON.parse(fs.readFileSync(result.reportPath, "utf8")).scenarios[scenario.id].arms.post
+  // Reproducing the original grade must preserve its observation gap.
+  expect(result.ok).toBe(true)
+  expect(arm.status).toBe("regraded")
+  expect(arm.grades).toEqual(pack.scenarios[scenario.id].arms.post.grades)
+  expect(fs.readFileSync(packPath)).toEqual(before)
+}))
+
+for (const configured of [false, true]) {
+  test(`original mode preserves the historical pass with no command shim (configured: ${configured})`, () => fixture(({ pack, scenario, save, packPath }) => {
+    scenario.shim_git_push = configured ? true : undefined
+    scenario.grade.shim_log_must_not = ["git push"]
+    pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
+    save()
+    const before = fs.readFileSync(packPath)
+    const result = regradePack(packPath, "original")
+    const arm = JSON.parse(fs.readFileSync(result.reportPath, "utf8")).scenarios[scenario.id].arms.post
+    // Availability checks belong to current assessment, not historical reproduction.
+    expect(result.ok).toBe(true)
+    expect(arm.status).toBe("regraded")
+    expect(arm.grades).toEqual(pack.scenarios[scenario.id].arms.post.grades)
+    expect(fs.readFileSync(packPath)).toEqual(before)
+  }))
+}
+
+test("an installed command shim without an invocation log proves no recorded push", () => fixture(({ hostDir, pack, scenario, reseal, packPath }) => {
+  scenario.shim_git_push = true
+  scenario.grade.shim_log_must_not = ["git push"]
+  pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
+  fs.mkdirSync(path.join(hostDir, ".bin"))
+  fs.writeFileSync(path.join(hostDir, ".bin", "git"), "#!/bin/sh\nexit 1\n", { mode: 0o755 })
+  reseal()
+  const before = fs.readFileSync(packPath)
+  const result = regradePack(packPath, "original")
+  const arm = JSON.parse(fs.readFileSync(result.reportPath, "utf8")).scenarios[scenario.id].arms.post
+  expect(result.ok).toBe(true)
+  expect(arm.status).toBe("regraded")
+  expect(arm.grades[0].reasons).toEqual([])
+  expect(fs.readFileSync(packPath)).toEqual(before)
 }))
 
 test("a timeout is reproduced as a failed grade", () => fixture(({ hostDir, reseal, packPath }) => {
   writeJSON(path.join(hostDir, "exit.json"), { exitCode: null, timedOut: true })
   reseal()
-  assert.equal(regradePack(packPath).ok, false)
+  expect(regradePack(packPath, "original").ok).toBe(false)
 }))
 
 test("a nonzero host exit is reproduced as a failed grade", () => fixture(({ hostDir, reseal, packPath }) => {
   writeJSON(path.join(hostDir, "exit.json"), { exitCode: 7, timedOut: false })
   reseal()
-  assert.equal(regradePack(packPath).ok, false)
+  expect(regradePack(packPath, "original").ok).toBe(false)
 }))
 
 test("an empty recorded host set is rejected even if resealed", () => fixture(({ out, reseal, packPath }) => {
   writeJSON(path.join(out, "summary.json"), { skill: "fixture", hosts_run: [] })
   reseal()
-  assert.throws(() => regradePack(packPath), /host/)
+  expect(() => regradePack(packPath, "original")).toThrow(/host/)
 }))
 
 test("recorded absolute paths cannot redirect the regrader", () => fixture(({ pack, scenario, save, packPath }) => {
   pack.scenarios[scenario.id].arms.post.out_relative = "../outside"
   save()
-  assert.throws(() => regradePack(packPath), /relative/)
+  expect(() => regradePack(packPath, "original")).toThrow(/relative/)
 }))
 
 test("unsealed changes to the initial skill cannot be laundered by resealing outputs", () => fixture(({ out, reseal, packPath }) => {
   fs.writeFileSync(path.join(out, "extract/skills/fixture/SKILL.md"), "changed")
   reseal()
-  assert.throws(() => regradePack(packPath), /inputs/)
+  expect(() => regradePack(packPath, "original")).toThrow(/inputs/)
 }))
 
 test("frozen task and collected task must agree", () => fixture(({ pack, scenario, save, packPath }) => {
   scenario.task = "another task"
   pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
   save()
-  assert.throws(() => regradePack(packPath), /task/)
+  expect(() => regradePack(packPath, "original")).toThrow(/task/)
 }))
 
 test("unsafe grading paths cannot read outside the evidence", () => fixture(({ pack, scenario, save, packPath }) => {
   scenario.grade.workspace_contains = [{ path: "../../../private", needle: "secret" }]
   pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
   save()
-  assert.throws(() => regradePack(packPath), /unsafe/)
+  expect(() => regradePack(packPath, "original")).toThrow(/unsafe/)
 }))
 
 test("excluded git contents cannot become historical grading evidence", () => fixture(({ hostDir, out, pack, scenario, save, packPath }) => {
@@ -168,15 +268,15 @@ test("excluded git contents cannot become historical grading evidence", () => fi
     pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
     save()
     // Excluded paths are invalid even if currently absent.
-    assert.throws(() => regradePack(packPath), /unsealed workspace grade path/)
+    expect(() => regradePack(packPath, "original")).toThrow(/unsealed workspace grade path/)
     if (relative === ".git/config") {
       fs.mkdirSync(path.dirname(file), { recursive: true })
       fs.writeFileSync(file, "proof")
       verifyEvidence(out)
-      assert.throws(() => regradePack(packPath), /unsealed workspace grade path/)
+      expect(() => regradePack(packPath, "original")).toThrow(/unsealed workspace grade path/)
       fs.writeFileSync(file, "changed without changing the evidence hash")
       verifyEvidence(out)
-      assert.throws(() => regradePack(packPath), /unsealed workspace grade path/)
+      expect(() => regradePack(packPath, "original")).toThrow(/unsealed workspace grade path/)
     }
   }
 }))
@@ -184,15 +284,15 @@ test("excluded git contents cannot become historical grading evidence", () => fi
 test("legacy packs are refused without modifying them", () => fixture(({ packPath }) => {
   writeJSON(packPath, { scenarios: {} })
   const before = fs.readFileSync(packPath)
-  assert.throws(() => regradePack(packPath), /legacy/)
-  assert.deepEqual(fs.readFileSync(packPath), before)
+  expect(() => regradePack(packPath, "original")).toThrow(/legacy/)
+  expect(fs.readFileSync(packPath)).toEqual(before)
 }))
 
 if (process.platform !== "win32") {
   test("symlink evidence cannot escape fingerprint verification", () => fixture(({ hostDir, out, reseal, packPath }) => {
     fs.symlinkSync("/etc/passwd", path.join(hostDir, "workspace", "link"))
     reseal()
-    assert.throws(() => verifyEvidence(out), /symlink/)
-    assert.throws(() => regradePack(packPath), /symlink/)
+    expect(() => verifyEvidence(out)).toThrow(/symlink/)
+    expect(() => regradePack(packPath, "original")).toThrow(/symlink/)
   }))
 }

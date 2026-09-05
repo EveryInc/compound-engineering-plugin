@@ -22,8 +22,9 @@ bun run test:skill-eval-cell -- \
 Prints a `summary.json` path. Each host gets its own workspace copy plus stdout/stderr, git status/log, and a file list. PATH shims live beside that workspace, never inside it, so the skill under test never sees harness files as its own dirty tree. Grade those; Grok narrates before the answer (grep `FILES_READ:`). Codex transcript is stderr, final message is stdout. `claude -p` is one-tick only.
 
 Each invocation requires a new or empty `--out` directory and records input and
-evidence fingerprints. Packs freeze their scenario criteria and grader hashes;
-historical regrading writes a separate report and preserves the original grades.
+evidence fingerprints. Packs freeze their scenario criteria and grader hashes.
+Regrading applies current criteria by default; `--mode original` reproduces the
+recorded assessment. Both write separate reports and preserve original grades.
 See [reproducible evaluation evidence](reproducibility.md) for regrading commands,
 partial collection outcomes, legacy-pack compatibility, and snapshot limits.
 
