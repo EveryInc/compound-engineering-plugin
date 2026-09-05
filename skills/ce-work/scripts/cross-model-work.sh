@@ -100,9 +100,11 @@ adapter_argv() {
     codex)
       # --ignore-user-config drops the user's model_reasoning_effort, so pin the
       # editorial tier explicitly, matching the claude/grok routes' --effort high.
+      # CROSS_MODEL_EFFORT_OVERRIDE retunes all three effort-taking routes, the
+      # same knob the ce-code-review / ce-doc-review peer paths honor.
       printf '%s\0' codex exec --ignore-user-config --ignore-rules --ephemeral \
         -s workspace-write -C "$WORKSPACE" --json -o "$RAW_RESULT" \
-        -c model_reasoning_effort=high
+        -c model_reasoning_effort="${CROSS_MODEL_EFFORT_OVERRIDE:-high}"
       [ "$(route_model codex)" = auto ] || printf '%s\0' -m "$(route_model codex)"
       printf '%s\0' -
       ;;
@@ -112,14 +114,14 @@ adapter_argv() {
       printf '%s\0' claude -p --safe-mode --no-session-persistence \
         --permission-mode bypassPermissions --tools Read,Write,Edit,Bash \
         --allowed-tools 'Bash(*)' \
-        --effort high --output-format stream-json --verbose
+        --effort "${CROSS_MODEL_EFFORT_OVERRIDE:-high}" --output-format stream-json --verbose
       [ "$claude_model" = auto ] || printf '%s\0' --model "$claude_model"
       ;;
     grok-cli)
       local grok_model
       grok_model="$(route_model grok-cli)"
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --cwd "$WORKSPACE" \
-        --effort high --permission-mode acceptEdits \
+        --effort "${CROSS_MODEL_EFFORT_OVERRIDE:-high}" --permission-mode acceptEdits \
         --tools Read,Write,Edit --disable-web-search --no-memory --no-subagents \
         --no-plan --max-turns 50 --output-format streaming-json --verbatim
       [ "$grok_model" = auto ] || printf '%s\0' --model "$grok_model"

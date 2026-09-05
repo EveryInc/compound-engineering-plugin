@@ -265,6 +265,24 @@ describe("ce-work fixed write routes", () => {
     expect(opencode).not.toContain("--model")
   })
 
+  test("CROSS_MODEL_EFFORT_OVERRIDE retunes the effort-taking routes and stays off by default", () => {
+    const withOverride = (route: string, value: string) =>
+      emit(route, { ...process.env, CROSS_MODEL_EFFORT_OVERRIDE: value }).stdout
+
+    expect(emit("codex").stdout).toContain("-c model_reasoning_effort=high")
+    expect(withOverride("codex", "max")).toContain("-c model_reasoning_effort=max")
+    expect(withOverride("codex", "minimal")).toContain("-c model_reasoning_effort=minimal")
+
+    expect(emit("claude").stdout).toContain("--effort high")
+    expect(withOverride("claude", "low")).toContain("--effort low")
+
+    expect(emit("grok-cli").stdout).toContain("--effort high")
+    expect(withOverride("grok-cli", "medium")).toContain("--effort medium")
+
+    expect(withOverride("cursor", "max")).not.toContain("--effort")
+    expect(withOverride("opencode", "max")).not.toContain("--effort")
+  })
+
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)
