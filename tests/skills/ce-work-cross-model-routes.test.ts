@@ -297,7 +297,14 @@ describe("ce-work fixed write routes", () => {
     rejected("cursor", "high")
     rejected("composer", "high")
     rejected("grok-cursor", "high")
-    rejected("opencode", "high")
+    // opencode is effort-bearing through --variant, but only for its own enum
+    rejected("opencode", "bogus")
+  })
+
+  test("opencode carries the override through --variant, matching the review adapters", () => {
+    const out = emit("opencode", { ...process.env, CROSS_MODEL_EFFORT_OVERRIDE: "max" }).stdout
+    expect(out).toContain("--variant max")
+    expect(emit("opencode").stdout).not.toContain("--variant")
   })
 
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {

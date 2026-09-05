@@ -99,13 +99,14 @@ validate_effort_override() {
   # Same per-route allowlists as the ce-code-review / ce-doc-review peer paths:
   # reject a tier the selected route cannot honor instead of forwarding it to a
   # CLI that will fail the attempt after controller authorization. Routes with
-  # no effort knob (cursor, composer, grok-cursor, opencode) reject any override.
+  # no effort knob (cursor, composer, grok-cursor) reject any override.
   local route="$1" effort="${CROSS_MODEL_EFFORT_OVERRIDE:-}"
   [ -n "$effort" ] || return 0
   case "$route:$effort" in
     claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
     codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
     grok-cli:low|grok-cli:medium|grok-cli:high) ;;
+    opencode:none|opencode:minimal|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max|opencode:default) ;;
     *) return 1 ;;
   esac
 }
@@ -160,6 +161,8 @@ adapter_argv() {
       printf '%s\0' opencode run --dir "$WORKSPACE" --format json --auto --file "$PROMPT_FILE"
       printf '%s\0' "Follow the attached unit packet. Return only the implementation result JSON."
       [ "$(route_model opencode)" = auto ] || printf '%s\0' --model "$(route_model opencode)"
+      # OpenCode carries effort through --variant, same as the review adapters.
+      [ -z "${CROSS_MODEL_EFFORT_OVERRIDE:-}" ] || printf '%s\0' --variant "$CROSS_MODEL_EFFORT_OVERRIDE"
       ;;
     *) return 1 ;;
   esac
