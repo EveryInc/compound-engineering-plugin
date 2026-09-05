@@ -28,7 +28,7 @@ The **focus hint** is any optional context this run was invoked with, from the u
 
 ## Artifact Root
 
-Artifacts go under `<root>/ideation/`, and learnings are read from `<root>/solutions/`. Resolve `<root>` only when you are about to compose one of those paths, and never before the mode is classified — an elsewhere or no-repo run writes to a temp directory and never needs it. Pass a subagent the resolved path, not the config.
+Artifacts go under `<root>/ideation/`, and learnings are read from `<root>/solutions/`. The two have different lifecycles: solutions are durable and committed, while an ideation deliverable is a read-once working artifact for the person who ran the skill — it is not meant to be committed, and the Phase 4.1 write step keeps the directory gitignored in repo mode. Resolve `<root>` only when you are about to compose one of those paths, and never before the mode is classified — an elsewhere or no-repo run writes to a temp directory and never needs it. Pass a subagent the resolved path, not the config.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
