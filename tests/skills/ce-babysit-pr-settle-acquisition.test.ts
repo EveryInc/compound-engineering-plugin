@@ -17,7 +17,9 @@ describe("ce-babysit-pr settle.md review-gate acquisition rules", () => {
   test("identity correlation: bot logins differ across REST and GraphQL and must be normalized", () => {
     expect(SETTLE_BODY).toMatch(/cursor\[bot\]/)
     expect(SETTLE_BODY).toMatch(/chatgpt-codex-connector\[bot\]/)
-    expect(SETTLE_BODY).toMatch(/strip a trailing `\[bot\]`/)
+    expect(SETTLE_BODY).toMatch(/strip a trailing `\[bot\]` and lowercase/)
+    expect(SETTLE_BODY).toMatch(/keep the actor kind attached/)
+    expect(SETTLE_BODY).toMatch(/cross-kind match is inconclusive/)
     expect(SETTLE_BODY).toMatch(/[Nn]ever correlate a reviewer across surfaces on the raw login/)
   })
 
