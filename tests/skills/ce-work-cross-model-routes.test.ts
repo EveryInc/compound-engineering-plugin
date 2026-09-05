@@ -267,20 +267,37 @@ describe("ce-work fixed write routes", () => {
 
   test("CROSS_MODEL_EFFORT_OVERRIDE retunes the effort-taking routes and stays off by default", () => {
     const withOverride = (route: string, value: string) =>
-      emit(route, { ...process.env, CROSS_MODEL_EFFORT_OVERRIDE: value }).stdout
+      emit(route, { ...process.env, CROSS_MODEL_EFFORT_OVERRIDE: value })
 
     expect(emit("codex").stdout).toContain("-c model_reasoning_effort=high")
-    expect(withOverride("codex", "max")).toContain("-c model_reasoning_effort=max")
-    expect(withOverride("codex", "minimal")).toContain("-c model_reasoning_effort=minimal")
+    expect(withOverride("codex", "xhigh").stdout).toContain("-c model_reasoning_effort=xhigh")
+    expect(withOverride("codex", "minimal").stdout).toContain("-c model_reasoning_effort=minimal")
 
     expect(emit("claude").stdout).toContain("--effort high")
-    expect(withOverride("claude", "low")).toContain("--effort low")
+    expect(withOverride("claude", "low").stdout).toContain("--effort low")
+    expect(withOverride("claude", "max").stdout).toContain("--effort max")
 
     expect(emit("grok-cli").stdout).toContain("--effort high")
-    expect(withOverride("grok-cli", "medium")).toContain("--effort medium")
+    expect(withOverride("grok-cli", "medium").stdout).toContain("--effort medium")
+  })
 
-    expect(withOverride("cursor", "max")).not.toContain("--effort")
-    expect(withOverride("opencode", "max")).not.toContain("--effort")
+  test("CROSS_MODEL_EFFORT_OVERRIDE rejects tiers the route cannot honor, failing closed before dispatch", () => {
+    const rejected = (route: string, value: string) => {
+      const proc = emit(route, { ...process.env, CROSS_MODEL_EFFORT_OVERRIDE: value })
+      expect(proc.status).toBe(2)
+      expect(proc.stderr).toContain(`effort override '${value}' not compatible with route '${route}'`)
+    }
+
+    rejected("codex", "max") // codex tops out at xhigh
+    rejected("codex", "none")
+    rejected("claude", "minimal")
+    rejected("grok-cli", "xhigh")
+    rejected("grok-cli", "max")
+    // routes with no effort knob reject any override rather than silently ignoring it
+    rejected("cursor", "high")
+    rejected("composer", "high")
+    rejected("grok-cursor", "high")
+    rejected("opencode", "high")
   })
 
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {

@@ -95,6 +95,21 @@ validate_model_override() {
   esac
 }
 
+validate_effort_override() {
+  # Same per-route allowlists as the ce-code-review / ce-doc-review peer paths:
+  # reject a tier the selected route cannot honor instead of forwarding it to a
+  # CLI that will fail the attempt after controller authorization. Routes with
+  # no effort knob (cursor, composer, grok-cursor, opencode) reject any override.
+  local route="$1" effort="${CROSS_MODEL_EFFORT_OVERRIDE:-}"
+  [ -n "$effort" ] || return 0
+  case "$route:$effort" in
+    claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
+    codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
+    grok-cli:low|grok-cli:medium|grok-cli:high) ;;
+    *) return 1 ;;
+  esac
+}
+
 adapter_argv() {
   case "$1" in
     codex)
@@ -157,6 +172,10 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   ROUTE="${2:-}"
   validate_model_override "$ROUTE" || {
     printf "model override '%s' not compatible with route '%s'\n" "${CE_WORK_MODEL_OVERRIDE:-}" "$ROUTE" >&2
+    exit 2
+  }
+  validate_effort_override "$ROUTE" || {
+    printf "effort override '%s' not compatible with route '%s'\n" "${CROSS_MODEL_EFFORT_OVERRIDE:-}" "$ROUTE" >&2
     exit 2
   }
   adapter_argv "$ROUTE" >/dev/null 2>&1 || { printf "unknown route '%s'\n" "$ROUTE" >&2; exit 2; }
@@ -693,6 +712,11 @@ if ! command -v "$BINARY" >/dev/null 2>&1; then
   publish_unavailable "fixed route executable '$BINARY' is unavailable" || exit 2
   exit 2
 fi
+
+validate_effort_override "$ROUTE" || {
+  publish_unavailable "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$ROUTE'" || exit 2
+  exit 2
+}
 
 ARGS=()
 while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(adapter_argv "$ROUTE")
