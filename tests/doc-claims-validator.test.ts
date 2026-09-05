@@ -140,14 +140,18 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).not.toContain("FLAG")
       })
 
-      test("flags a cited path that exists nowhere", () => {
+      test("flags a cited path that exists nowhere, naming the search base as repo-scoped", () => {
         const docPath = writeRepoDoc(
           "The handler is `src/does-not-exist.ts` in the tree.\n",
         )
         const result = runValidator(skillDir, docPath)
         expect(result.code).toBe(1)
         expect(result.stdout).toContain("FLAG path `src/does-not-exist.ts`")
-        expect(result.stdout).toContain("not found")
+        expect(result.stdout).toContain("not found under ")
+        expect(result.stdout).toContain(path.basename(repo))
+        expect(result.stdout).toContain(
+          "This check only looks in this repository",
+        )
       })
 
       test("checks an absolute citation that points inside the repo", () => {
