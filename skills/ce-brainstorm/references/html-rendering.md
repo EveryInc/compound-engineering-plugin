@@ -351,7 +351,7 @@ contracts — the agent picks shapes that fit the content.
   primary always-visible surface; subsection labels (`<summary>`) are
   clickable affordances for readers to expand on demand. A single unit
   with no secondary content can skip `<details>` entirely; the rule
-  fires when content exists to hide. The `<dl>` strip is for *descriptive*
+  applies when there is content to hide. The `<dl>` strip is for *descriptive*
   fields (Goal, Files, Dependencies). A *directive* field — `Execution
   note` is the canonical case, carrying a procedural instruction the
   implementer must act on (e.g. "start with a failing integration test") —
@@ -399,7 +399,7 @@ exclusion suppress a conceptual diagram the content warrants.
 
 **Diagrams complement prose; they never replace it.** A diagram is an
 accelerant placed next to the prose it illustrates, not a substitute. The
-IDed prose stays complete and standalone — a reader who ignores every
+ID-bearing prose stays complete and standalone — a reader who ignores every
 diagram still gets the full content in text, and a text-reading downstream
 agent (which does not parse SVG geometry) is never left with a relationship
 that exists only in the picture. This extends the prose-is-authoritative
@@ -583,8 +583,8 @@ looks identical. Compose so semantic understanding is reachable in source:
   even if the narrative version reads better. Section heading
   vocabulary is the contract downstream consumers grep for. (Editorial
   re-titles can appear as eyebrow labels, sub-headings, or visual
-  framing — but the load-bearing section heading matches the contract
-  name.)
+  framing — but the section heading itself, the one downstream agents
+  grep for, matches the contract name.)
 - **All semantic content lives in actual HTML text.** No CSS `::before
   { content: "..." }` carrying meaning, no background images as
   content, no semantic info that only renders. Whatever the agent sees
@@ -626,7 +626,7 @@ Before returning the artifact, scan it for common slips:
 - **Diagram labels** are legible — no arrow paths crossing text,
   halo width appropriate for font size.
 - **Diagrams complement prose, not replace it.** Every relationship a
-  diagram conveys is also present in the surrounding IDed prose; no
+  diagram conveys is also present in the surrounding ID-bearing prose; no
   content lives only in an SVG.
 - **No JS framework runtimes** included. Small inline `<script>` for
   active-section TOC tracking or anchor-permalink behavior is the only
