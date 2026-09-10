@@ -8,15 +8,15 @@ argument-hint: "[mode:non-interactive] [path/to/document.{md,html}]"
 
 Help the author finish a sound document they can use to carry out the agreed work. Find problems that would change that work's outcome or materially hinder execution, and resolve them within the authority already given. Judge the document by whether it guides correct work, not by how much detail it contains. Serious consequences warrant attention even when the defect is small. An adequate document needs no changes.
 
-Reviewer personas supply evidence; you own the judgment. Investigate their claims against the whole document, project facts, and settled decisions. Correct proven errors that prevent an existing decision from being carried out, within the edit authority and reviewer requirements in synthesis. Return only worthwhile improvements still needing permission, consequential choices or essential information only the user can supply, and useful observations.
+Reviewer personas supply evidence; the judgment is yours. Check their claims against the whole document, project facts, and settled decisions. Correct proven errors that prevent an existing decision from being carried out, within the edit authority and reviewer requirements the synthesis reference states. Return only worthwhile improvements still needing permission, consequential choices or essential information only the user can supply, and useful observations.
 
 **Done when:** every selected reviewer has returned or is named as failed in Coverage, retained findings have a verified consequence for the agreed work, and every authorized correction assigned to Apply has been made and checked. Report that final state through the interactive approval or decision process, or return it as structured text in non-interactive mode.
 
 ## Interactive mode rules
 
-**Read `references/modes.md` before anything else.** It owns mode detection, the non-interactive argument contract, and the question-tool rules: match the host's blocking question tool already in the current tool list (never call a user-facing question tool to discover it), pre-load it at the top of the interactive flow if it is listed but unloaded, and fall back to a numbered list only when the harness genuinely lacks one.
+**Read `references/modes.md` before anything else.** It defines how the mode is detected, the non-interactive argument contract, and the question-tool rules: match the host's blocking question tool already in the current tool list (never call a user-facing question tool to discover it), pre-load it at the top of the interactive flow if it is listed but unloaded, and fall back to a numbered list only when the harness genuinely lacks one.
 
-Either way, a question that calls for a user decision fires the tool or falls back loudly. Narrating it as text is a bug.
+Either way, a question that calls for a user decision fires the tool or falls back loudly. Narrating it as plain text is a bug.
 
 ## Artifact Root
 
@@ -32,9 +32,9 @@ Resolve `<root>` **only** in the no-path interactive branch, which discovers the
 
 ## Phase 1: Get and Analyze Document
 
-**Read `references/document-intake.md` now.** It covers how the document is obtained in each mode, the missing-document gate and its failure text, and the classification signals.
+**Read `references/document-intake.md` now.** It covers how the document is obtained in each mode, what to do and say when no document is found, and the classification signals.
 
-Two of its rules bound every later step.
+Two of its rules apply to every later step.
 
 **Verify before any dispatch.** Every resolved path must be readable on disk. If one is not, dispatch **no** personas: reviewers read from the filesystem, so they cannot reach a path that exists only on an unchecked-out branch (issue #925).
 
@@ -52,17 +52,17 @@ The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each ac
 
 Dispatch generic subagents with **bounded parallelism** through the platform's subagent primitive. Seed each one with the full content of its `references/personas/<reviewer-name>.md`. Never dispatch a standalone agent by type or name.
 
-A capacity rejection is backpressure, not reviewer failure. If capacity cannot recover and selected reviewers remain undispatched, finish any started cross-model jobs under `references/cross-model-review.md`'s terminal collection and cleanup contract, then stop as incomplete without synthesis, fixes, or a success handoff. Preserve collected outcomes and report which reviewers completed, failed, or could not run, and why.
+A capacity rejection is backpressure, not reviewer failure: wait and retry. If capacity cannot recover and selected reviewers remain undispatched, collect and clean up any started cross-model jobs as `references/cross-model-review.md` describes, then stop as incomplete without synthesis, fixes, or a success handoff. Preserve collected outcomes and report which reviewers completed, failed, or could not run, and why.
 
 ### Cross-Model Judgment Pass
 
-Run this pass if any of the **conditional judgment trio** was activated: `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer`. Follow `references/cross-model-review.md`, which owns the pass end to end: host attestation, the one target and route used for the whole document, the disclosure before any egress, and how peers are launched, reaped, and folded in.
+Run this pass if any of the **conditional judgment trio** was activated: `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer`. Follow `references/cross-model-review.md`, which defines the whole pass: confirming the host, the one target and route used for the whole document, the disclosure before anything leaves the machine, and how peers are launched, collected, and folded in.
 
-The pass is additive and non-blocking: a failure or timeout stops nothing and is named in Coverage. The checkout egress policy (`cross_model_review_mode`) is evaluated first and can skip the pass with a named reason. Filter recipients only when `CROSS_MODEL_PEERS` is set — unset means unfiltered, not unsanctioned. Never silently change an explicit model or recipient.
+The pass is additive and non-blocking: a failure or timeout stops nothing and is named in Coverage. The checkout's `cross_model_review_mode` setting is checked first and can skip the pass with a named reason. Filter recipients only when `CROSS_MODEL_PEERS` is set — unset means unfiltered, not unsanctioned. Never silently change an explicit model or recipient.
 
 ## Phases 3-5: Synthesis, Presentation, and Next Action
 
-Wait until every dispatched agent has returned, including any cross-model `<reviewer-name>-<provider>.json` returns. Then read `references/synthesis-and-presentation.md`. It owns the synthesis pipeline, the routing of each finding by confidence and fix class, fix application, the non-interactive envelope, and the handoff to the routing question. When promoting agreement, only an artifact with `independence_verified: true` counts as an independent reviewer.
+Wait until every dispatched agent has returned, including any cross-model `<reviewer-name>-<provider>.json` returns. Then read `references/synthesis-and-presentation.md`. It defines synthesis, how each finding is routed by confidence and fix class, fix application, the non-interactive result format, and the handoff to the routing question. When promoting agreement, only an artifact with `independence_verified: true` counts as an independent reviewer.
 
 **Interactive mode only.** Read `references/walkthrough.md` for the grouped confirmation, the routing question, and the per-finding walk-through. Read `references/bulk-preview.md` for the bulk-action preview behind best-judgment routing, Append-to-Open-Questions, and auto-resolve. Load neither before review evidence is complete, whether newly collected or validly reused, and a non-interactive run never loads them at all — it stops at the structured review result.
 

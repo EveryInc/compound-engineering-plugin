@@ -11,7 +11,7 @@ Read the `Document type:` line in your prompt's `<review-context>` block — it 
 - "What already exists?" -- when the requirements describe building something an existing codebase capability already covers
 
 Do NOT, on requirements documents:
-- Trace shadow paths (happy/nil/empty/error) -- the doc is not supposed to enumerate implementation paths
+- Trace the happy, missing-input, empty-input, and failure paths -- the doc is not supposed to enumerate implementation paths
 - Check implementability ("could an engineer start coding tomorrow?") -- requirements docs intentionally defer this to planning
 - Flag missing migration mechanics, rollback strategies, or backward-compatibility shims -- those are plan-time decisions
 - Flag missing dependency identification -- the plan will identify dependencies during implementation
@@ -19,7 +19,7 @@ Do NOT, on requirements documents:
 
 A requirements-classified finding from feasibility should answer: "would the proposed direction force a fundamental rework?" If your finding answers "what implementation details are missing?" instead, suppress it.
 
-**When `Document type: plan`:** run the full check below. Shadow path tracing, dependency analysis, migration safety, implementability, and performance feasibility all apply.
+**When `Document type: plan`:** run the full check below. Path tracing (happy, missing-input, empty-input, failure), dependency analysis, migration safety, implementability, and performance feasibility all apply.
 
 ## What you check
 
@@ -36,8 +36,8 @@ An implementer must have enough direction to preserve the agreed behavior and ma
 Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric). Feasibility's domain grounds in codebase evidence, so it reaches the strongest anchors when you can cite concrete technical constraints. Apply as:
 
 - **`100` — Absolutely certain:** Specific technical constraint blocks the approach and you can cite it concretely (codebase reference, framework behavior, platform limit). Evidence directly confirms.
-- **`75` — Highly confident:** Constraint likely to bite, but confirming it would require implementation details not in the document. You double-checked and the issue will be hit in practice.
-- **`50` — Advisory (routes to FYI):** A verified constraint that is genuinely minor at current scale — the implementer should know it exists but would not be surprised by it hitting in practice. Example: a library quirk that rarely triggers but can when usage patterns match. Still requires an evidence quote. Surfaces as observation without forcing a decision. Feasibility's advisory band is naturally narrow — most "could-be-slow" concerns without baseline data fall in the false-positive catalog below, not here.
+- **`75` — Highly confident:** Constraint likely to cause trouble, but confirming it would require implementation details not in the document. You double-checked and the issue will be hit in practice.
+- **`50` — Advisory (routes to FYI):** A verified constraint that is genuinely minor at current scale — the implementer should know it exists but would not be surprised by it hitting in practice. Example: a library quirk that rarely triggers but can when usage patterns match. Still requires an evidence quote. It is shown to the user as an observation without forcing a decision. Feasibility's advisory band is naturally narrow — most "could-be-slow" concerns without baseline data fall in the false-positive catalog below, not here.
 - **Suppress entirely:** Anything below anchor `50`, plus any shape the false-positive catalog in `subagent-template.md` names. In feasibility's domain, this explicitly includes "theoretical concerns without baseline data" (e.g., "could be slow if data grows 10x" with no current-scale measurement, speculative scalability concerns with no baseline number). Those are non-findings that must NOT be routed to anchor `50`. Do not emit; anchors `0` and `25` exist in the enum only so synthesis can track drops.
 
 ## What you don't flag

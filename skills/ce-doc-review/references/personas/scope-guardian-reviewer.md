@@ -12,14 +12,14 @@ Calibrate by combining the two slots:
 **`Document type: requirements`:** full review. Scope-goal alignment, indirect scope, complexity smell test, priority dependency, and the completeness principle all apply at the spec level.
 
 **`Document type: plan` AND `Origin:` is a path (not `none`):** scope-goal alignment was largely settled upstream. Focus this review on:
-- **Implementation-time abstractions** — does each new abstraction proposed in the plan have multiple current consumers? Abstraction earning its keep is plan-time work, not requirements-time work.
+- **Implementation-time abstractions** — does each new abstraction proposed in the plan have multiple current consumers? Checking that an abstraction justifies its cost is plan-time work, not requirements-time work.
 - **Implementation complexity bloat** — file count, new utility/helper modules, new framework adoption proposed in the plan when the origin doc didn't ask for them
 - **Priority dependency among implementation units** — U-IDs declaring dependencies that don't make sense in the implementation order
 - **Scope-creep into deferred work** — implementation units that quietly include work the origin doc placed in `Deferred for later` or `Outside this product's identity`
 
-**Tighten the completeness principle when `Origin:` is set:** flag missing test scenarios or error handling only when the origin requirements explicitly demanded the coverage. Don't push complete-over-partial in places the origin already chose partial. The cost-gap argument lives in brainstorm-time, not plan-time scope review.
+**Tighten the completeness principle when `Origin:` is set:** flag missing test scenarios or error handling only when the origin requirements explicitly demanded the coverage. Don't push complete-over-partial in places the origin already chose partial. The cost-gap argument belongs to brainstorm-time review, not plan-time scope review.
 
-Suppress findings on the plan that re-litigate origin-time scope-goal alignment — orphan-requirement and unserved-goal critiques against the origin's own goals belong upstream.
+Suppress findings on the plan that re-argue scope-goal alignment already settled in the origin doc. Orphan-requirement and unserved-goal critiques against the origin's own goals belong upstream.
 
 **`Document type: plan` AND `Origin: none`** (greenfield bootstrap) — full review applies, just like requirements docs.
 

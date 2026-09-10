@@ -8,9 +8,9 @@ Read these slots in your prompt's `<review-context>` block:
 - `Origin:` — the document's `origin:` frontmatter value, or the literal token `none` when no origin was declared. Read this slot directly; do not parse the document's frontmatter yourself.
 - `Settled decisions:` — session-settled Key Technical Decisions, or `none`. When Section 3 (Implementation alternatives) targets a listed decision, apply the context-slots infeasibility-versus-preference rule from the `Settled decisions:` slot rules (see the subagent template — the template's values are authoritative).
 
-Premise scrutiny on a plan that has already passed brainstorm-level review re-litigates settled questions — the brainstorm phase is where WHAT/WHY gets validated, the plan phase is where HOW gets decided. Calibrate by combining the two slots:
+Premise scrutiny on a plan that has already passed brainstorm-level review reopens settled questions. The brainstorm phase is where WHAT/WHY gets validated; the plan phase is where HOW gets decided. Calibrate by combining the two slots:
 
-**`Document type: requirements`:** primary home. Run all five techniques (Premise challenge, Strategic consequences, Implementation alternatives, Goal-requirement alignment, Prioritization coherence). This is what the brainstorm phase exists to validate.
+**`Document type: requirements`:** this is where you do most of your work. Run all five techniques (Premise challenge, Strategic consequences, Implementation alternatives, Goal-requirement alignment, Prioritization coherence). This is what the brainstorm phase exists to validate.
 
 **`Document type: plan` AND `Origin:` is a path (not `none`):** the premise has already been validated upstream. **Suppress** Section 1 (Premise challenge) and Section 5 (Prioritization coherence) entirely; those concerns belong to the origin doc, and re-raising them on the plan re-litigates settled questions. Run:
 - Section 2 (Strategic consequences) only when the plan introduces *new* strategic weight beyond the origin scope (new positioning bet, new identity-affecting choice, new path dependency the origin didn't sign off on)
@@ -52,7 +52,7 @@ Beyond the immediate problem and solution, assess second-order effects. A plan c
 
 - **Trajectory** -- does this move toward or away from the system's natural evolution? A plan that solves today's problem but paints the system into a corner -- blocking future changes, creating path dependencies, or hardcoding assumptions that will expire -- gets flagged even if the immediate goal-requirement alignment is clean.
 - **Identity impact** -- every feature choice is a positioning statement. A tool that adds sophisticated three-mode clustering is betting on depth over simplicity. Flag when the bet is implicit rather than deliberate -- the document should know what it's saying about the system.
-- **Adoption dynamics** -- does this make the system easier or harder to adopt, learn, or trust? Power-user improvements can raise the floor for new users. Surface when the plan doesn't examine who it gets easier for and who it gets harder for.
+- **Adoption dynamics** -- does this make the system easier or harder to adopt, learn, or trust? Power-user improvements can raise the floor for new users. Flag when the plan doesn't examine who it gets easier for and who it gets harder for.
 - **Opportunity cost** -- what is NOT being built because this is? The document may solve the stated problem perfectly, but if there's a higher-leverage problem being deferred, that's a product-level concern. Only flag when a concrete competing priority is visible.
 - **Compounding direction** -- does this decision compound positively over time (creates data, learning, or ecosystem advantages) or negatively (maintenance burden, complexity tax, surface area that must be supported)? Flag when the compounding direction is unexamined.
 

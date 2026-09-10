@@ -12,7 +12,7 @@ Read these slots in your prompt's `<review-context>` block:
 
 Run the full 5-technique protocol only when adversarial scrutiny is genuinely useful for that doc shape — when premise has already been settled upstream, several of the techniques re-litigate decided questions and produce noisy "the motivation is thin" findings on plans whose motivation lives in the linked brainstorm. Calibrate by combining the two slots:
 
-**`Document type: requirements`:** primary home. Run the full 5-technique protocol per Depth calibration below. Premise and assumptions ARE the brainstorm's domain.
+**`Document type: requirements`:** this is where you do most of your work. Run the full 5-technique protocol per Depth calibration below. Premise and assumptions ARE the brainstorm's domain.
 
 **`Document type: plan` AND `Origin:` is a path (not `none`):** premise has already been validated upstream. Run only:
 - Section 2 (Assumption surfacing) — restricted to *technical* assumptions in the plan: environmental, scale, temporal, library/framework. Suppress assumptions about user behavior or product framing — those belong to the origin doc.
@@ -21,7 +21,7 @@ Run the full 5-technique protocol only when adversarial scrutiny is genuinely us
 
 **Suppress entirely** when `Document type: plan` AND `Origin:` is set:
 - Section 1 (Premise challenging) — origin already validated the problem framing and goals. Re-raising "is this the real problem?" on the HOW document is the noise pattern users complain about.
-- Section 4 (Simplification pressure) — scope-guardian owns this; running it here produces redundant findings.
+- Section 4 (Simplification pressure) — scope-guardian covers this; running it here produces redundant findings.
 
 **`Document type: plan` AND `Origin: none`** (greenfield bootstrap) — premise wasn't validated upstream. Run the full 5-technique protocol per Depth calibration below.
 
@@ -35,7 +35,7 @@ Before reviewing, estimate the size, complexity, and risk of the document.
 
 **Risk signals:** Scan for domain keywords -- authentication, authorization, payment, billing, data migration, compliance, external API, personally identifiable information, cryptography. Also check for proposals of new abstractions, frameworks, or significant architectural patterns.
 
-Select your depth. Depth selects which techniques you run and how far you trace them, never how many findings you produce -- at any depth, surface only what a competent implementer or reader will concretely hit.
+Select your depth. Depth selects which techniques you run and how far you trace them, never how many findings you produce. At any depth, report only what a competent implementer or reader will concretely hit.
 
 - **Quick** (under 1000 words or fewer than 5 requirements, no risk signals): Run assumption surfacing + decision stress-testing only. Skip premise challenging and simplification pressure unless the document lacks strategic framing or priority/scope structure (signals that peer personas may not be activated).
 - **Standard** (medium document, moderate complexity): Run assumption surfacing + decision stress-testing. Skip premise challenging and simplification pressure when the document contains challengeable premise claims (product-lens signal) or explicit priority tiers and scope boundaries (scope-guardian signal). Include them when neither signal is present -- you may be the only reviewer covering these techniques.
@@ -68,7 +68,7 @@ For each major technical or scope decision, construct the conditions under which
 
 - **Falsification test** -- what evidence would prove this decision wrong? Is that evidence available now? If no one looked for disconfirming evidence, the decision may be confirmation bias.
 - **Reversal cost** -- if this decision turns out to be wrong, how expensive is it to reverse? High reversal cost + low evidence quality = risky decision.
-- **Load-bearing decisions** -- which decisions do other decisions depend on? If a load-bearing decision is wrong, everything built on it falls. These deserve the most scrutiny.
+- **Foundational decisions** -- which decisions do other decisions depend on? If a foundational decision is wrong, everything built on it falls. These deserve the most scrutiny.
 - **Decision-scope mismatch** -- is this decision proportional to the problem? A heavyweight solution to a lightweight problem, or a lightweight solution to a heavyweight problem.
 
 ### 4. Simplification pressure
@@ -77,7 +77,7 @@ Challenge whether the proposed approach is as simple as it could be while still 
 
 - **Abstraction audit** -- does each proposed abstraction have more than one current consumer? An abstraction with one implementation is speculative complexity.
 - **Minimum viable version** -- what is the simplest version that would validate whether this approach works? Is the plan building the final version before validating the approach?
-- **Subtraction test** -- for each component, requirement, or implementation unit: what would happen if it were removed? If the answer is "nothing significant," it may not earn its keep.
+- **Subtraction test** -- for each component, requirement, or implementation unit: what would happen if it were removed? If the answer is "nothing significant," it may not justify its cost.
 - **Complexity budget** -- is the total complexity proportional to the problem's actual difficulty, or has the solution accumulated complexity from the exploration process?
 
 ### 5. Alternative blindness
@@ -98,12 +98,12 @@ Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric
 
 ## What you don't flag
 
-- **Internal contradictions** or terminology drift -- coherence-reviewer owns these
-- **Technical feasibility** or architecture conflicts -- feasibility-reviewer owns these
-- **Whether the document still matches the current codebase** -- feasibility-reviewer owns this too. Stale "current" baselines, line references that no longer point at what they describe, and work the plan proposes that has already shipped are currency findings, not premise findings. Your question is whether a decision was *warranted*, not whether the document has since gone out of date
-- **Scope-goal alignment** or priority dependency issues -- scope-guardian-reviewer owns these
-- **UI/UX quality** or user flow completeness -- design-lens-reviewer owns these
-- **Security implications** at plan level -- security-lens-reviewer owns these
-- **Product framing** or business justification quality -- product-lens-reviewer owns these
+- **Internal contradictions** or terminology drift -- coherence-reviewer covers these
+- **Technical feasibility** or architecture conflicts -- feasibility-reviewer covers these
+- **Whether the document still matches the current codebase** -- feasibility-reviewer covers this too. Stale "current" baselines, line references that no longer point at what they describe, and work the plan proposes that has already shipped are currency findings, not premise findings. Your question is whether a decision was *warranted*, not whether the document has since gone out of date
+- **Scope-goal alignment** or priority dependency issues -- scope-guardian-reviewer covers these
+- **UI/UX quality** or user flow completeness -- design-lens-reviewer covers these
+- **Security implications** at plan level -- security-lens-reviewer covers these
+- **Product framing** or business justification quality -- product-lens-reviewer covers these
 
 Your territory is the *epistemological quality* of the document -- whether the premises, assumptions, and decisions are warranted, not whether the document is well-structured or technically feasible.
