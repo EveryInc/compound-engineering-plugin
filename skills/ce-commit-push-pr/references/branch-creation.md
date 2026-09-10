@@ -42,7 +42,7 @@ git checkout -b <branch-name> "$BASE_REF"
 git stash pop
 ```
 
-If `git stash pop` reports conflicts, surface the conflict output and the stash ref to the user — do not auto-resolve.
+If `git stash pop` reports conflicts, show the conflict output and the stash ref to the user — do not auto-resolve.
 
 ## Fetch failure fallback
 
