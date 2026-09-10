@@ -59,13 +59,14 @@ function lastTrailer(text: string, name: string): string {
  */
 function isFieldBoundary(line: string): boolean {
   const trimmed = line.trim()
+  // A boundary is a syntactic signal, never a lexical guess about a bare word: a
+  // Markdown heading, a line that is entirely bold (any words), or a `Label:` field
+  // line. A bare word on its own line is content (`## OUTCOME` followed by
+  // `unresolved` is a one-word value), and prose that merely starts with an acronym
+  // ("PR creation ...") is content too, so neither closes a field.
   if (/^#{1,6}\s+\S/.test(trimmed)) return true
-  const plain = trimmed.replaceAll("**", "").trim()
-  // A `Label:` field line, or a line that is nothing but a bare or bold label, in any
-  // case: the opener grammar, which also matches case-insensitively. Prose that merely
-  // starts with an acronym ("PR creation ...", "API behavior ...") is content, not a
-  // boundary, so a bare label must fill the line.
-  return /^[A-Za-z][A-Za-z0-9_-]{1,40}:(\s|$)/.test(plain) || /^[A-Za-z][A-Za-z0-9_-]{1,40}$/.test(plain)
+  if (/^\*\*[^*]+\*\*:?$/.test(trimmed)) return true
+  return /^[A-Za-z][A-Za-z0-9_-]{1,40}:(\s|$)/.test(trimmed)
 }
 
 function lastFieldBlock(text: string, name: string): string {

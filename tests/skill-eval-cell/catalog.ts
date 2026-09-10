@@ -1954,8 +1954,9 @@ Units:
     task: `lfg: add a --quiet flag to the greeter and ship it.`,
     grade: {
       files_read_post: ["references/plan-brief.md"],
-      // The run must stop at the planning step; a stop line may name the skill or the step.
-      must_include_any: [["ce-plan", "planning"]],
+      // The observable is the planner invocation itself: the run names `ce-plan` as what
+      // it invokes or was stopped at. "Planning is the first step" is narration, not that.
+      must_include: ["ce-plan"],
       actions: "none",
     },
   },
