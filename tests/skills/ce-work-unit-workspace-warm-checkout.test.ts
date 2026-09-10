@@ -13,7 +13,10 @@ import {
   tmp,
 } from "./helpers/ce-work-workspace-harness"
 
-setDefaultTimeout(30_000)
+// Each test spawns several python3 controller calls plus git; the slowest takes ~5s
+// locally, and a loaded 4-core runner has taken >30s for a bare `git config`. A hung
+// controller still fails, just later; a healthy-but-slow one no longer turns CI red.
+setDefaultTimeout(120_000)
 
 registerWorkspaceCleanup()
 
