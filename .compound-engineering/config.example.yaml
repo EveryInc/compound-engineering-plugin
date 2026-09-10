@@ -51,8 +51,8 @@
 # HTML styling. Precedence: a format request in your prompt for that run wins
 # (e.g. "output:html" or "make it HTML"); a preference you established earlier
 # (in-session, saved to memory, or in your agent instructions) overrides these
-# keys (this config is the persisted fallback); pipeline contexts (e.g., LFG,
-# disable-model-invocation) always force `md`.
+# keys (this config is the persisted fallback). A headless or pipeline run
+# resolves the format the same way; nothing forces `md`.
 
 # plan_output: html              # md | html (default: md)
 # brainstorm_output: html        # md | html (default: md)

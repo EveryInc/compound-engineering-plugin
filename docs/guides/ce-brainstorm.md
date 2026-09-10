@@ -214,7 +214,7 @@ There is no skip-to-`ce-work` from the Phase 4 menu; software next steps go thro
 | Existing requirements-only plan path, legacy `*-requirements.md` path, or matching topic | Resume offer |
 | Ideate survivor already in this conversation | Loads with that idea's tagged basis, rationale, and tradeoffs |
 | Verdict-shaped prompt (`should we adopt X`) | Offers `ce-pov`; decline and the brainstorm continues |
-| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive: the artifact is `.md` or `.html`, never both. Set `brainstorm_output: html` in CE config (`config.local.yaml` then `config.yaml`) to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown. See the [configuration reference](./configuration.md). |
+| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive: the artifact is `.md` or `.html`, never both. Set `brainstorm_output: html` in CE config (`config.local.yaml` then `config.yaml`) to make HTML the default. A headless or pipeline run resolves the format the same way; nothing forces markdown. See the [configuration reference](./configuration.md). |
 | `use fable` / `have opus generate these` | Elevate only approach generation to that model. Also settable as `brainstorm_model: <model>` in CE config. A prompt request overrides the config key. |
 
 ---

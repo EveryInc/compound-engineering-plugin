@@ -50,11 +50,20 @@ function lastTrailer(text: string, name: string): string {
 
 /**
  * Read a labeled block: the text after the last line that is the label itself
- * (`ROUTING`, `ROUTING:`, `## ROUTING`, `**ROUTING:**`), up to the trailers. When the
- * label line also carries a value, that value is included. Hosts render a requested
- * field as a heading or a bold label as often as `LABEL:`, and a field whose content is
- * a list never fits on the label line.
+ * (`ROUTING`, `ROUTING:`, `## ROUTING`, `**ROUTING:**`), up to the next Markdown
+ * heading, the next `LABEL:` field line, or the trailers, whichever comes first. A
+ * `LABEL: value` line keeps single-line semantics. Hosts render a requested field as a
+ * heading or a bold label as often as `LABEL:`, and a field whose content is a list
+ * never fits on the label line; ending at the next section keeps a decision stated in
+ * a later section from satisfying a needle scoped to this one.
  */
+function isFieldBoundary(line: string): boolean {
+  const trimmed = line.trim()
+  if (/^#{1,6}\s+\S/.test(trimmed)) return true
+  const plain = trimmed.replaceAll("**", "")
+  return /^[A-Z][A-Z0-9_-]{1,40}:(\s|$)/.test(plain)
+}
+
 function lastFieldBlock(text: string, name: string): string {
   const lines = text.split("\n")
   const upper = name.toUpperCase()
@@ -68,8 +77,9 @@ function lastFieldBlock(text: string, name: string): string {
       if (isPlaceholder(onLabelLine)) continue
       return onLabelLine
     }
-    const following = lines
-      .slice(i + 1)
+    const rest = lines.slice(i + 1)
+    const end = rest.findIndex((line) => isFieldBoundary(line))
+    const following = (end === -1 ? rest : rest.slice(0, end))
       .filter((line) => !/^(FILES_READ|ACTIONS|DELEGATES_DISPATCHED|TEAM):/i.test(line.trim()))
       .join("\n")
       .trim()

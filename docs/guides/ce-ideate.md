@@ -218,7 +218,7 @@ The file is written every run. Say `discard` to delete a file created this run. 
 | `go deep` | Maximum depth: every ideation agent on the top-tier model, doubled verification, a second critic |
 | `top issue themes in <area>` | Triggers issue-tracker intent |
 | `top 3` / `100 ideas` / `raise the bar` | Volume override: survivor count, raw total, or a higher bar |
-| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML). Also settable per-project via `ideate_output` in CE config (`config.local.yaml` then `config.yaml`); see the [configuration reference](./configuration.md). Pipeline and `disable-model-invocation` runs force markdown. |
+| `output:md` | Write the artifact as markdown instead of the default self-contained HTML (`output:html` forces HTML). Also settable per-project via `ideate_output` in CE config (`config.local.yaml` then `config.yaml`); see the [configuration reference](./configuration.md). A headless or pipeline run resolves the format the same way; nothing forces markdown. |
 
 Skip phrases supported anywhere in the prompt: `no external research`, `no slack`.
 

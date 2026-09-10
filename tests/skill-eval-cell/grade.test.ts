@@ -635,6 +635,15 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
     expect(missing.reasons).toContain("missing ROUTING field")
   })
 
+  test("a heading-style field ends at the next section, so a later section cannot satisfy it", () => {
+    const stdout = "## OPENING\n\nAdds the stamp.\n\n## DETAILS\n\nRevocation checks compare against it.\n\nFILES_READ: a\nACTIONS: none\n"
+    const fail = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "OPENING", must_include: ["stamp", "revo"] } })
+    expect(fail.reasons).toEqual(["missing required text: revo"])
+    const labeled = "OPENING\n\nAdds the stamp.\n\nNEXT: revocation follow-up\n\nFILES_READ: a\nACTIONS: none\n"
+    const fail2 = gradeHost({ ...base, hostDir: hostDir(labeled), grade: { must_include_field: "OPENING", must_include: ["revo"] } })
+    expect(fail2.reasons).toEqual(["missing required text: revo"])
+  })
+
   test("must_include_field still reads a single-line LABEL: value", () => {
     const stdout = "Decided.\n\n**MODE:** continuous\n\nFILES_READ: a\nACTIONS: none\n"
     const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "MODE", must_include: ["continuous"] } })
