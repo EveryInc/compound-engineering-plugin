@@ -73,8 +73,16 @@ function isFieldBoundary(line: string): boolean {
   // `Details and Rationale:`. `**Candidate A: discard.** It merely...` has a colon and a
   // period inside the bold, so it is a finding that opens in bold and stays content.
   const marked = /^[A-Za-z][A-Za-z0-9_-]*(\s+[A-Za-z0-9_-]+){0,4}:?$/
-  const bold = trimmed.match(/^\*\*([^*]+)\*\*/)
-  if (bold) return marked.test(bold[1].trim())
+  // Bold is structural only when the bold segment is the whole line or ends with a
+  // colon (`**Next steps**`, `**DETAILS:** explanation`). `**PR creation** preserves the
+  // stamp` is an emphasized lead-in on a prose line and stays content.
+  const bold = trimmed.match(/^\*\*([^*]+)\*\*(.*)$/)
+  if (bold) {
+    const inner = bold[1].trim()
+    const rest = bold[2].trim()
+    if (!marked.test(inner)) return false
+    return rest === "" || rest === ":" || inner.endsWith(":")
+  }
   if (marked.test(trimmed) && trimmed.endsWith(":")) return true
   // `Label: value` with content after the colon needs capitalized label words, so
   // "API behavior: revocation compares..." stays content while `DETAILS: ...` closes.
