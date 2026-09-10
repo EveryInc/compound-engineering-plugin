@@ -2,7 +2,7 @@
 
 Read this reference when Mode Detection (in SKILL.md) routes to **Full Mode** — no argument given, a PR number was provided, or a whole-PR URL (`.../pull/N` with no comment fragment) was provided. Full mode processes all unresolved threads on the PR. When the argument is a PR URL, parse the host, `OWNER/REPO`, and number from it — the host feeds the `GH_HOST` prefix below, and `OWNER/REPO` targets the correct repo for a fork→upstream PR.
 
-The shape: **fetch once, judge centrally, fan out only the fixes.** The orchestrator (you) holds every thread from a single fetch, so the legitimacy judgment happens in your context — where you can dedup reads, spot a systematically-wrong reviewer across threads, and weigh the author's design intent. Subagents are dispatched only to *implement* fixes you've already approved. Do not fan out the judgment: spinning a subagent per thread to decide validity re-pays per-agent overhead, re-reads the same files, and throws away the cross-thread view — and you'd pay it even for threads that turn out to be skips.
+The shape: **fetch once, judge centrally, dispatch subagents only for the fixes.** You, the orchestrator, hold every thread from a single fetch, so you judge validity in your own context, where you can read each file once, spot a reviewer who is wrong across several threads, and weigh the author's design intent. Subagents are dispatched only to *implement* fixes you have already approved. Do not delegate the judgment: a subagent per thread pays per-agent overhead, re-reads the same files, and loses the cross-thread view, and you would pay that even for threads that turn out to be skips.
 
 ## 1. Fetch Unresolved Threads
 
@@ -60,18 +60,18 @@ Before processing, reconcile the reply and resolution state of each piece of fee
 
 **PR comments and review bodies**: These have no resolve mechanism, so they reappear on every run. Apply two filters in order:
 
-1. **Actionability**: An item is actionable when it is someone's open request to this PR — something to fix, answer, or decide. This is also what keeps the run from looping on its own output: a reply posted by this run or an earlier one is a record of handling, not a request, so it drops here whether it reports a fix or carries a parked `needs-human` decision — that parked item is already tracked as itself, and re-reading its own write-up as fresh feedback is how the loop would never settle. Who posted an item never decides this, including the account that opened the PR. Examples: review wrapper text ("Here are some automated review suggestions..."), approvals ("this looks great!"), status badges ("Validated"), CI summaries with no follow-up asks. If there's nothing to fix, answer, or decide, it's not actionable -- drop it from the count entirely.
+1. **Actionability**: An item is actionable when it is someone's open request to this PR: something to fix, answer, or decide. This filter is also what keeps the run from looping on its own output. A reply posted by this run or an earlier one is a record of handling, not a request, so it drops here, whether it reports a fix or carries a parked `needs-human` decision. That parked item is already tracked as itself; re-reading its own write-up as fresh feedback is how the loop would never settle. Who posted an item never decides this, including the account that opened the PR. Examples: review wrapper text ("Here are some automated review suggestions..."), approvals ("this looks great!"), status badges ("Validated"), CI summaries with no follow-up asks. If there's nothing to fix, answer, or decide, it's not actionable -- drop it from the count entirely.
 2. **Already replied**: For actionable items, check the PR conversation for an existing reply that quotes and addresses the feedback. If a reply already exists, skip. If not, it's new.
 
 The distinction is about content, not who posted what. A deferral from a teammate, a previous skill run, or a manual reply all count. Similarly, actionability is about content -- bot feedback that requests a specific code change is actionable; a bot's boilerplate header wrapping those requests is not.
 
-**Silent drop.** Non-actionable items are dropped without narration. Do not announce, list, or count dropped items in conversation, the task list, or the step 9 summary. Review-bot wrappers from CodeRabbit, Codex, Gemini Code Assist, and Copilot (bodies like "Here are some automated review suggestions...") commonly appear here -- recognize them by their boilerplate content, drop silently. The fetch layer pre-filters only blank bodies. Every identity and surface — the PR author, CI/status bots such as Codecov, review bots — relies on this content-aware check, so identity reuse or format changes cannot silently hide actionable feedback.
+**Silent drop.** Non-actionable items are dropped without narration. Do not announce, list, or count dropped items in conversation, the task list, or the step 9 summary. Review-bot wrappers from CodeRabbit, Codex, Gemini Code Assist, and Copilot (bodies like "Here are some automated review suggestions...") commonly appear here -- recognize them by their boilerplate content, drop silently. The fetch script filters out only blank bodies. Every identity and surface — the PR author, CI/status bots such as Codecov, review bots — relies on this content-aware check, so identity reuse or format changes cannot silently hide actionable feedback.
 
 If there are no new or resolution-pending items across all feedback types, skip steps 3-8 and go straight to step 9. If only resolution-pending threads remain, skip steps 3-6 and go straight to step 7.
 
 ## 3. Consolidate & Decide (the legitimacy gate)
 
-This is the gate. Judge every **new** item here, in your own context, before any fix is dispatched. Apply the rubric in [references/evaluation-rubric.md](evaluation-rubric.md) (read it now) across the whole batch at once. When the invocation carries a `trajectory`, apply the non-convergence test in [references/pipeline-mode.md](pipeline-mode.md) before dispatching anything — a demonstrated shared root is answered once, at the root, instead of fixing each instance.
+This is where validity is decided. Judge every **new** item here, in your own context, before any fix is dispatched. Apply the rubric in [references/evaluation-rubric.md](evaluation-rubric.md) (read it now) across the whole batch at once. When the invocation carries a `trajectory`, apply the non-convergence test in [references/pipeline-mode.md](pipeline-mode.md) before dispatching anything — a demonstrated shared root is answered once, at the root, instead of fixing each instance.
 
 Working over the full set lets you do what a per-thread subagent can't:
 - **Dedup reads by file** — read a file once and judge all its threads together.
@@ -96,7 +96,7 @@ Dispatch fixers **only** for fix-list items. Reply-list and human-list items nev
 
 ### Dispatch
 
-Read [references/agents/pr-comment-resolver.md](agents/pr-comment-resolver.md) and spawn a generic subagent seeded with that fixer prompt for each fix-list item. Do not dispatch a standalone agent by type/name. The fixer is a pure executor: the validity judgment is already done, so it implements and returns — it does not re-judge worthwhileness.
+Read [references/agents/pr-comment-resolver.md](agents/pr-comment-resolver.md) and spawn a generic subagent seeded with that fixer prompt for each fix-list item. Do not dispatch a standalone agent by type/name. The fixer only implements: the validity judgment is already done, so it implements and returns; it does not re-judge whether the fix is worthwhile.
 
 Each fixer receives:
 - The feedback_id (thread ID or comment ID) and feedback type.
@@ -107,9 +107,9 @@ Each fixer receives:
 
 For `pr_comment` / `review_body` fix-list items (no file/line), the fixer identifies the relevant files from the comment text and the PR diff.
 
-**No subagent capability — apply the fixes yourself, sequentially.** When the harness exposes no way to dispatch (or a dispatch fails), work the fix-list in this context one item at a time, using the fixer prompt as your own instructions and producing the same per-item result. This is a supported path, not a degradation to disclose as lost coverage: the legitimacy judgment already happened centrally in step 3, and fixers only *implement* changes you approved, so running them here costs parallelism and context headroom — never correctness. Keep the dispatch path's discipline: one item at a time, re-read each file before editing it, and stop to re-evaluate if implementing surfaces a contradiction (the `blocked` handling applies unchanged).
+**No subagent capability — apply the fixes yourself, sequentially.** When the harness exposes no way to dispatch (or a dispatch fails), work the fix-list in this context one item at a time, using the fixer prompt as your own instructions and producing the same per-item result. This is a supported path, not a shortfall to report as lost coverage: the legitimacy judgment already happened centrally in step 3, and fixers only *implement* changes you approved, so running them here costs parallelism and context headroom — never correctness. Keep the dispatch path's discipline: one item at a time, re-read each file before editing it, and stop to re-evaluate if implementing reveals a contradiction (the `blocked` handling applies unchanged).
 
-This skill therefore does not depend on agent-tool authorization to complete a review. That is deliberate: it runs unattended under `ce-babysit-pr`, where a permission prompt would stall the whole loop, so its tool surface stays narrow and its fix path stays viable without dispatch.
+This skill therefore does not depend on agent-tool authorization to complete a review. That is deliberate: it runs unattended under `ce-babysit-pr`, where a permission prompt would stall the whole loop, so it needs few tools and can still fix without dispatch.
 
 ### Fixer return format
 
@@ -119,7 +119,7 @@ This skill therefore does not depend on agent-tool authorization to complete a r
 - **files_changed**: list of files modified (empty for `blocked`)
 - **reason**: what was done, or the concrete contradiction for `blocked`
 
-**Handling `blocked`.** A fixer returns `blocked` only when implementing surfaced a concrete contradiction its narrower view exposed (the change breaks a caller/test it can see, or the code isn't what the finding described). Re-evaluate it yourself with that evidence: either re-dispatch with a corrected instruction, or move it to the reply-list (`not-addressing`/`declined`) or human-list. Don't silently drop it.
+**Handling `blocked`.** A fixer returns `blocked` only when implementing revealed a concrete contradiction that the fixer could see and you could not (the change breaks a caller/test it can see, or the code isn't what the finding described). Re-evaluate it yourself with that evidence: either re-dispatch with a corrected instruction, or move it to the reply-list (`not-addressing`/`declined`) or human-list. Don't silently drop it.
 
 ### Batching and conflict avoidance
 
@@ -129,7 +129,7 @@ This skill therefore does not depend on agent-tool authorization to complete a r
 
 **Sequential fallback**: Platforms that do not support parallel dispatch run fixers sequentially.
 
-Fixes can occasionally expand beyond their referenced file (e.g., renaming a method updates callers elsewhere). This is rare but can cause parallel fixers to collide. Step 5 (combined validation) catches test breakage; step 8 (verify) catches unresolved threads. If either surfaces inconsistent changes, re-run the affected fixers sequentially.
+Fixes can occasionally expand beyond their referenced file (e.g., renaming a method updates callers elsewhere). This is rare but can cause parallel fixers to collide. Step 5 (combined validation) catches test breakage; step 8 (verify) catches unresolved threads. If either reveals inconsistent changes, re-run the affected fixers sequentially.
 
 ## 5. Validate Combined State
 
@@ -165,7 +165,7 @@ git push
 
 ## 7. Reply and Resolve
 
-After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the fixer's `reply_text`; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved re-actionizes in the next babysit loop. The mechanism depends on the feedback type.
+After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the fixer's `reply_text`; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved shows up as new work again in the next `ce-babysit-pr` loop. The mechanism depends on the feedback type.
 
 ### Reply format
 
@@ -185,7 +185,7 @@ GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-thread-for-comment" PR_NUMBE
 ```
 The returned `id` is the authoritative thread ID for resolution, and `root_comment_id` is the numeric ID of the thread's first comment for the REST reply. If the thread ID differs from what `get-pr-comments` returned, use the one from this script.
 
-1. **Reply directly to the root comment over REST** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread). If the bundled script is missing, use the same `POST repos/{owner}/{repo}/pulls/PR_NUMBER/comments/ROOT_COMMENT_ID/replies` endpoint. Do not substitute `addPullRequestReviewThreadReply`, `gh pr review`, or a `/reviews` POST: those operations participate in review-submission state, while a successful reply must be immediately submitted and visible.
+1. **Reply directly to the root comment over REST** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread). If the bundled script is missing, use the same `POST repos/{owner}/{repo}/pulls/PR_NUMBER/comments/ROOT_COMMENT_ID/replies` endpoint. Do not substitute `addPullRequestReviewThreadReply`, `gh pr review`, or a `/reviews` POST: those operations go through review-submission state, so the reply can sit unsubmitted, while a successful reply must be immediately submitted and visible.
 Feed the body through a quoted heredoc, never `echo "..."` or `printf`. A reply is multi-line Markdown (a quote line, a blank line, then the response), and `echo` neither interprets `\n` nor survives a body composed with escape sequences — the reviewer then sees a single run-on line containing literal `\n` characters. The quoted delimiter (`<<'EOF'`) also stops the shell from expanding backticks, `$`, and `!` inside quoted code:
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
@@ -261,13 +261,13 @@ The `review_threads` array should be empty (except `needs-human` items).
 
 - **First or second fix-verify cycle**: Repeat from step 2 for the remaining threads.
 
-- **After the second fix-verify cycle** (3rd pass would begin): Stop looping. Surface remaining issues to the user with context about the recurring pattern: "Multiple rounds of feedback on [area/theme] suggest a deeper issue. Here's what we've fixed so far and what keeps appearing." Use the same `needs-human` escalation pattern -- leave threads open and present the pattern for the user to decide.
+- **After the second fix-verify cycle** (3rd pass would begin): Stop looping. Show the remaining issues to the user with context about the recurring pattern: "Multiple rounds of feedback on [area/theme] suggest a deeper issue. Here's what we've fixed so far and what keeps appearing." Use the same `needs-human` escalation pattern -- leave threads open and present the pattern for the user to decide.
 
 PR comments and review bodies have no resolve mechanism, so they will still appear in the output. Verify they were replied to by checking the PR conversation.
 
 ## 9. Summary
 
-Present a concise summary of all work done. Group by verdict, one line per item describing *what was done* not just *where*. This is the primary output the user sees — and the place where the gate's decisions become visible: the user can see exactly what was fixed, what was skipped, and why.
+Present a concise summary of all work done. Group by verdict, one line per item describing *what was done* not just *where*. This is the primary output the user sees, and the place where your step 3 (Consolidate & Decide) judgments become visible: the user can see exactly what was fixed, what was skipped, and why.
 
 Format:
 
@@ -283,7 +283,7 @@ Declined (count): [what was declined and the harm cited]
 Validation: [one line -- e.g., "bun test passed (893/893)" or "bun test passed with pre-existing failure in X noted"; omit when no code changes were committed]
 ```
 
-If any item is `needs-human`, append a decisions section. These are rare but high-signal. Each carries the typed residual composed in step 3: quoted feedback, investigation, the reason autonomous action is unsafe or ambiguous, concrete options with tradeoffs, a recommendation if any, and links to every still-open thread it covers.
+If any item is `needs-human`, append a decisions section. These are rare but high-signal. Each carries the `needs-human` object composed in step 3: quoted feedback, investigation, the reason autonomous action is unsafe or ambiguous, concrete options with tradeoffs, a recommendation if any, and links to every still-open thread it covers.
 
 Present the `decision_context` directly -- it's already structured for the user to decide quickly:
 
@@ -300,7 +300,7 @@ Present the `decision_context` directly -- it's already structured for the user 
 
 The `needs-human` threads already have a natural-sounding acknowledgment reply posted and remain open on the PR.
 
-If there are **pending decisions from a previous run** (threads detected in step 2 as already responded to but still unresolved), surface them after the new work:
+If there are **pending decisions from a previous run** (threads detected in step 2 (Triage) as already responded to but still unresolved), list them after the new work:
 
 ```
 Still pending from a previous run (count):
@@ -312,6 +312,6 @@ Still pending from a previous run (count):
 
 If a blocking question tool is available, use it to ask about all pending decisions (both new `needs-human` and previous-run pending) together. If there are only pending decisions and no new work was done, the summary is just the pending items.
 
-Use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Use it to present the decisions and wait for the user's response. After they decide, process the remaining items: fix the code, compose the reply, post it, and resolve the thread.
+Use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery mechanism to load that capability — do not search for another host's tool name. Use it to present the decisions and wait for the user's response. After they decide, process the remaining items: fix the code, compose the reply, post it, and resolve the thread.
 
 Fall back to presenting the decisions in user-visible summary output and waiting in conversation only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip. If the user doesn't respond, the items remain open on the PR for later handling.
