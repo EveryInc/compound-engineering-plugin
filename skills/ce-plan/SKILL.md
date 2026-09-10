@@ -16,7 +16,7 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 
 ## Mandatory Completion Contract
 
-A run is complete when its output contract's done condition is met. Every normal interactive branch that produces a plan artifact or checkpoint is incomplete until the user has been asked what to do next: for a Durable software implementation-plan run that continues past the resume check (Phase 0.1b), the Phase 5.4 menu (the handoff menu) has been presented and the selected action has actually fired. For Direct, the change stated and the handoff offered; for a Chat brief, the brief and its one-line save-or-`ce-work` offer in chat. Neither presents the Phase 5.4 menu. Non-software plans and approach-level plans end with the handoff their reference workflow defines. A run that only answers a question may end after the answer unless its reference requires a save or share step.
+A run is complete when its output contract's done condition is met. Every normal interactive branch that produces a plan artifact or checkpoint is incomplete until the user has been asked what to do next. For a Durable software implementation-plan run that continues past the resume check (Phase 0.1b), that means the Phase 5.4 menu (the handoff menu) has been presented and the selected action has actually fired. For Direct, the change stated and the handoff offered; for a Chat brief, the brief and its one-line save-or-`ce-work` offer in chat. Neither presents the Phase 5.4 menu. Non-software plans and approach-level plans end with the handoff their reference workflow defines. A run that only answers a question may end after the answer unless its reference requires a save or share step.
 
 Writing the file, checking confidence, and running or explicitly skipping `ce-doc-review` are intermediate milestones. In pipeline mode, the run is complete only when the plan, the confidence check, and the non-interactive document-review state have been returned to the caller, which decides what happens next.
 
@@ -26,7 +26,7 @@ Ask one question at a time through the host's blocking question tool already in 
 
 ## Output Contract
 
-Decide the output size at the start of scoping (Phase 0.6), before choosing depth and before the scoping synthesis. It applies only when no resume route (Phase 0.1) fired and the source check (Phase 0.2) found no upstream artifact. Ground it with bounded inline reads of what the request names, without dispatching a subagent. Select one:
+Decide which output contract applies at the start of scoping (Phase 0.6), before choosing depth and before the scoping synthesis. It applies only when no resume route (Phase 0.1) fired and the source check (Phase 0.2) found no upstream artifact. Ground it with bounded inline reads of what the request names, without dispatching a subagent. Select one:
 
 - **Direct** — the work can be stated, done, and verified in one pass with no decision the user would weigh. State the change in a few sentences and offer the handoff to `ce-work` or the user; execution starts only with implementation authority, as `references/output-contracts.md` defines.
 - **Chat brief** — bounded work with at most one decision the user would weigh and no risk surface. Deliver it in chat and stop.
@@ -42,7 +42,7 @@ Phases run in order unless a reference routes out or short-circuits. Read a phas
 
 1. **Output first.** Read `references/output-mode.md` before interpreting any phase. It defines token parsing, output and confirmation precedence, renderer selection, artifact location, and when a repository may be resolved.
 2. **Resume, deepen, approach, and domain.** Read `references/resume.md` before acting. It defines resuming an existing plan, enriching a requirements-only plan, deepening, approach-level planning, and the software/non-software split. Follow any terminal route it selects; otherwise continue.
-3. **Source and scope.** Read `references/intake.md` before Phase 0.2 and follow it through Phase 0.7. It defines finding and preserving the upstream artifact, routing out to bootstrap work, blocking questions, depth, named resources, and the scoping synthesis; the Output Contract decision above happens inside it.
+3. **Source and scope.** Read `references/intake.md` before Phase 0.2 and follow it through Phase 0.7. It defines finding and preserving the upstream artifact, routing out to bootstrap work, blocking questions, depth, named resources, and the scoping synthesis; the Output Contract decision above happens inside it. Do not pass a decision point that has not resolved.
 
 ### Phases 1-4: Research and Compose
 

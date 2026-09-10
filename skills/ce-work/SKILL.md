@@ -15,22 +15,23 @@ argument-hint: "[Plan path, work description, or recovery request with run id; b
 
 ## Execution Workflow
 
-**Bundled references must be read, never approximated.** Resolve each reference or script path named below from this skill's loaded `SKILL.md` directory, using the full skill path the harness supplied, and never glob the target repository to find a bundled file. Read each reference when you enter the phase it governs; a read made before that phase does not satisfy it, and a reference this file says to read again is read again at its step even when already in context. If the harness does not expose the skill directory, or a required reference cannot be read, stop before the action that reference governs and report which file is missing. Do not reconstruct its rules from memory; report the missing reference instead of continuing natively.
+**Bundled references must be read, never approximated.** Resolve each reference or script path named below from this skill's loaded `SKILL.md` directory, using the full skill path the harness supplied, and never glob the target repository to find a bundled file. Read each reference when you enter the phase it governs; a read made before that phase does not satisfy it, and a reference this file says to read again is read again at its step even when already in context. If the harness does not expose the skill directory, or a required file cannot be read, stop before the action it governs and report which file is missing. Do not reconstruct its rules from memory; report the missing reference instead of continuing natively.
 
 ### Phase 0: Input Triage
 
 **Recovery activation comes first.** Before classifying the input as a plan, a path, a blank, or a bare prompt, recognize requests to resume, inspect, reap, or clean up an existing run. Recovery never dispatches a new worker, selects a new route, discovers another plan, reruns completed verification, or enters either shipping path. If the run id is missing, ask for it; never guess one.
 
-Before any other input decision, read `references/input-triage.md`. It decides source resolution, control tokens, recovery, read-only discovery, plan readiness, non-code routing, blank input, and bare-prompt sizing. Two rules from it hold here:
+Before any other input decision, read `references/input-triage.md`. It decides source resolution, control tokens, recovery, read-only discovery, plan readiness, non-code routing, blank input, and bare-prompt sizing. Three rules from it hold here:
 
-- A bare prompt that is Trivial — one or two files, no behavioral change — skips the task list but still resolves its execution engine before writing. A purely mechanical diff also ships without a post-PR watch. When Trivial is uncertain, take the fuller route.
+- A bare prompt that is Trivial — one or two files, no behavioral change — skips the task list but still resolves its execution engine before writing. A purely mechanical diff also ships without a post-PR watch. When either is uncertain, take the fuller route.
 - A bare prompt that `ce-plan` already sized in this session is executed, not planned again. A decision the user would weigh is asked as a question, never as a route back to `ce-plan` or `ce-brainstorm`.
+- If that reference cannot be read, stop; never treat control tokens or a non-executable artifact as code work.
 
 When triage selects Return-to-Caller Mode, read `references/return-to-caller.md` immediately and record that it governs how this run ends. If it cannot be read, stop before any mutation; do not fall back to standalone behavior.
 
 ### Phase 1: Quick Start
 
-1. **Establish the workspace.** Before moving branches, editing, dispatching, or committing, read `references/workspace-setup.md`. It decides the writable checkout, plan clarification, branch placement, the pre-work inventory, already-dirty files, and task setup. Never write without a writable canonical checkout, and never write on the real default branch unless the user directed that in this session.
+1. **Establish the workspace.** Before moving branches, editing, dispatching, or committing, read `references/workspace-setup.md`. It decides the writable checkout, plan clarification, branch placement, the pre-work inventory, already-dirty files, and task setup. Never write without a writable canonical checkout, and never write on the real default branch unless the user explicitly directed that in this session.
 
    **Do not commit or publish anything the user did not offer.** When a unit needs a file that was already dirty, standalone mode asks once whether to include or exclude that file. Return-to-Caller Mode neither asks nor edits it; it returns blocked, naming the collision and how to recover.
 
