@@ -68,13 +68,17 @@ function isFieldBoundary(line: string): boolean {
   // acronym or a lowercase-word phrase before a colon ("PR creation ...",
   // "API behavior: ...") is content too, so none of those close a field.
   if (/^#{1,6}\s+\S/.test(trimmed)) return true
-  const label = /^[A-Z][A-Za-z0-9_-]*(\s+(?:and|or|of|the|to|for|[A-Z][A-Za-z0-9_-]*)){0,4}/
-  // A bold lead-in counts only when the bold text is itself a label: `**DETAILS:**` and
-  // `**Details and Rationale**` are, `**Candidate A: discard.** It merely...` is a
-  // finding that happens to open in bold and stays content.
+  // A marked label (bold, or a line that is only `words:`) is one to five words with no
+  // sentence punctuation, in any case: `**Next steps**`, `Next steps:`, `**DETAILS:**`,
+  // `Details and Rationale:`. `**Candidate A: discard.** It merely...` has a colon and a
+  // period inside the bold, so it is a finding that opens in bold and stays content.
+  const marked = /^[A-Za-z][A-Za-z0-9_-]*(\s+[A-Za-z0-9_-]+){0,4}:?$/
   const bold = trimmed.match(/^\*\*([^*]+)\*\*/)
-  if (bold) return new RegExp(`^${label.source}:?$`).test(bold[1].trim())
-  return new RegExp(`^${label.source}:(\\s|$)`).test(trimmed)
+  if (bold) return marked.test(bold[1].trim())
+  if (marked.test(trimmed) && trimmed.endsWith(":")) return true
+  // `Label: value` with content after the colon needs capitalized label words, so
+  // "API behavior: revocation compares..." stays content while `DETAILS: ...` closes.
+  return /^[A-Z][A-Za-z0-9_-]*(\s+(?:and|or|of|the|to|for|[A-Z][A-Za-z0-9_-]*)){0,4}:\s/.test(trimmed)
 }
 
 function lastFieldBlock(text: string, name: string): string {
