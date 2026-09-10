@@ -2,7 +2,7 @@
 
 ## Artifact root
 
-Resolve `<root>` when you first compose a `<root>/` path, never before you need it. LFG composes one: the `<root>/plans/` location step 1's gate checks the plan was written to. A run that stops before that gate — a routing-carrier blocker, a non-software plan report — never composes a `<root>/` path and never resolves a root.
+Resolve `<root>` when you first compose a `<root>/` path, never before you need it. LFG composes only one such path: the `<root>/plans/` location where step 1's GATE checks that the plan was written. A run that stops before that check never composes a `<root>/` path and never resolves a root. Two examples: a routing-carrier blocker (a stage assignment LFG cannot pass on, as `references/stage-routing.md` defines), or a report that the task is non-software.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -14,18 +14,23 @@ Resolve `<root>` when you first compose a `<root>/` path, never before you need 
 
 ## Readiness check
 
-An explicit `status: blocked` return is terminal even when `artifact_path` names a readable plan. Preserve and report its `artifact_path` when present, `phase`, `blocker`, and `recovery_path`; do not use artifact presence to retry planning or advance to implementation.
+An explicit `status: blocked` return is terminal even when `artifact_path` names a readable plan. Report its `phase`, `blocker`, and `recovery_path`, and its `artifact_path` when present. A plan file existing on disk is not a reason to retry planning or to move on to implementation.
 
-The plan the gate checks is the path `ce-plan` reported writing this run. A file already under `<root>/plans/` that `ce-plan` did not report — however closely it matches the feature — is not a written plan: a return with neither a blocker nor a reported path takes the single retry, never a stale artifact.
+The plan the GATE checks is the path `ce-plan` reported writing this run. A file already under `<root>/plans/` that `ce-plan` did not report is not a written plan, however closely it matches the feature. When the return has neither a blocker nor a reported path, invoke `ce-plan` the single allowed second time; never accept a stale file instead.
 
-Read the plan metadata before continuing past step 1's gate. A plan carrying `artifact_contract: ce-unified-plan/v1` proceeds only when it is `artifact_readiness: implementation-ready` with `execution: code`. Every other value stops the pipeline: `artifact_readiness: requirements-only`, any unrecognized readiness value, an invalid progress-like readiness value, and `execution: knowledge-work`. An output that is not an implementation plan at all — an approach plan, an answer-seeking or universal output — stops it too, whether or not it carries the contract marker.
+Read the plan metadata before continuing past step 1's GATE. A plan carrying `artifact_contract: ce-unified-plan/v1` proceeds only when it is `artifact_readiness: implementation-ready` with `execution: code`. Every other value stops the pipeline: `artifact_readiness: requirements-only`, any unrecognized readiness value, an invalid progress-like readiness value, and `execution: knowledge-work`. An output that is not an implementation plan at all also stops the pipeline, whether or not it carries the contract marker: for example an approach plan, or an answer-seeking or universal output.
 
 ## Settled-decisions brief
 
 Compose this brief from the invoking conversation and pass it with the sanitized feature request when you invoke `ce-plan`.
 
-Contents: direction (1-2 lines); settled decisions, each with four required fields — the decision, its provenance class (`user-directed` or `user-approved`), the rejected alternative, and a one-line reason; open areas; and a standing report-conflicts line.
+The brief contains:
 
-An entry whose rejected alternative cannot be stated demotes to a directive or open area. Scope topically — only decisions about the feature being shipped; when in doubt, demote (re-litigation is the safe floor; importing stale settlements is not). If the conversation contains no settled decisions, skip composition entirely and invoke `ce-plan` exactly as it is written in the body — no empty-brief ceremony.
+- direction (1-2 lines);
+- settled decisions, each with four required fields: the decision, its provenance class (`user-directed` or `user-approved`), the rejected alternative, and a one-line reason;
+- open areas;
+- a standing line asking `ce-plan` to report any conflict it finds with these decisions.
 
-The brief is transient: once `ce-plan` writes the plan, the plan's labeled KTDs are canonical. A step-1 retry reuses the composed brief verbatim — never recompose it.
+If you cannot state an entry's rejected alternative, demote it to a directive or an open area. Include only decisions about the feature being shipped. When in doubt, demote: having `ce-plan` reconsider a decision is the safe direction; carrying in a stale decision as settled is not. If the conversation contains no settled decisions, skip composition entirely and invoke `ce-plan` exactly as it is written in the body, with no empty brief.
+
+The brief is temporary: once `ce-plan` writes the plan, the plan's labeled KTDs are the record. A step-1 retry reuses the composed brief verbatim; never recompose it.
