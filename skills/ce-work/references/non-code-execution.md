@@ -1,10 +1,10 @@
 # Non-Code Execution (Knowledge-Work Carve-Out)
 
-Loaded from Phase 0 Input Triage when the plan carries `execution: knowledge-work`. The plan is a **production plan** for a non-code deliverable (a synthesized document, a study artifact, a research write-up) — typically produced by `ce-plan`'s approach-altitude flow. Execute it to produce the deliverable. This is a minority-case branch; the normal code lifecycle does not apply and is not invoked here.
+Loaded from Phase 0 Input Triage when the plan carries `execution: knowledge-work`. The plan is a **production plan** for a non-code deliverable (a synthesized document, a study artifact, a research write-up) — typically produced by `ce-plan`'s approach-level flow. Execute it to produce the deliverable. This is an uncommon case: the normal code lifecycle does not apply and is not started here.
 
 ## What this skips
 
-Do **not** run any of the code-shipping machinery — it does not fit knowledge work:
+Do **not** run any of the code-shipping steps; they do not fit knowledge work:
 
 - No branch/worktree setup (Phase 1 Step 2).
 - No task-list-from-implementation-units, no execution-strategy/subagent dispatch keyed on `Files:`.
@@ -20,4 +20,4 @@ Do **not** run any of the code-shipping machinery — it does not fit knowledge 
 
 ## Stay scoped to non-code deliverables
 
-The carve-out is for knowledge-work output. If producing the deliverable legitimately requires emitting code (a script, a config file, a data-transform), route that specific sub-step back through the normal code path so its safeguards (Test Discovery, review, commit hygiene) still apply — do not silently produce code under the carve-out. The deliverable itself stays non-code.
+The carve-out is for knowledge-work output. If producing the deliverable legitimately requires emitting code (a script, a config file, a data-transform), send that specific sub-step back through the normal code path so its safeguards (Test Discovery, review, commit hygiene) still apply. Do not silently produce code under the carve-out. The deliverable itself stays non-code.

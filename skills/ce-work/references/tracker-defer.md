@@ -1,20 +1,20 @@
 # Tracker Detection and Defer Execution
 
-This reference covers how residual actionable findings are filed in the project's tracker. Loaded by caller workflows (for example `ce-work` Residual Work Gate, or `lfg` residual handling) — not by `ce-code-review`, which stops after the report.
+This reference covers how residual actionable findings are filed in the project's tracker. Loaded by caller workflows (for example `ce-work` Residual Work Gate, or `lfg` residual handling), not by `ce-code-review`, which stops after the report.
 
 ---
 
 ## Execution Modes
 
-Tracker-defer has two execution modes. The caller selects one; the detection, fallback chain, and ticket composition are shared.
+Tracker-defer has two execution modes. The caller selects one; the detection, fallback chain, and ticket composition are shared. A "sink" below is any place a finding can be durably filed.
 
 ### Interactive mode
 
-Used by `ce-work` Residual Work Gate and similar caller flows when the user chooses to file tickets. All user-facing prompts fire:
+Used by `ce-work` Residual Work Gate and similar caller flows when the user chooses to file tickets. All user-facing prompts are asked:
 
 - First Defer of the session with a generic (non-named) label confirms the effective tracker choice.
 - Execution failures prompt with Retry / Fall back to next sink / Convert to Skip.
-- Labels in the routing question reflect `named_sink_available` (name the tracker) vs fallback generics.
+- Labels in the routing question name the tracker when `named_sink_available` is true, and use generic wording when a fallback is in use.
 
 ### Non-interactive mode
 
@@ -22,10 +22,10 @@ Used by autonomous callers like `lfg` that must not prompt. All blocking questio
 
 - No confirmation on the first generic-label Defer; proceed directly.
 - On execution failure, automatically fall to the next tier without prompting. Record the failure.
-- On total chain exhaustion (every tier failed or no sink available), return findings in the `no_sink` bucket so the caller can route them to another surface (e.g., inline them in a PR description).
+- On total chain exhaustion (every tier failed or no sink available), return findings in the `no_sink` bucket so the caller can record them somewhere else (e.g., inline them in a PR description).
 - Return a structured result: `{ filed: [{ finding_id, tracker, url }], failed: [{ finding_id, tracker, reason }], no_sink: [{ finding_id, title, severity, file, line }] }`.
 
-The caller decides how to surface the result to the user. The non-interactive mode treats "no sink available" as a data-producing outcome, not a prompt trigger.
+The caller decides how to show the result to the user. The non-interactive mode treats "no sink available" as a data-producing outcome, not a prompt trigger.
 
 ---
 
@@ -33,7 +33,7 @@ The caller decides how to surface the result to the user. The non-interactive mo
 
 The agent determines the project's tracker from whatever documentation is obvious. Primary source: the project's active instructions and conventions already in its context — no need to open or name specific instruction files. Read a file directly only when the relevant instructions aren't already in context: a subdirectory-scoped instruction file governing the area you're working in, or when you're a fresh subagent that wasn't given the project's instructions. Supplementary signals (when primary documentation is ambiguous): `CONTRIBUTING.md`, `README.md`, PR templates under `.github/`, visible tracker URLs in the repo.
 
-A tracker can be surfaced via MCP tool (e.g., a Linear MCP server), CLI (e.g., `gh`), or direct API. All are acceptable. The detection output is a tuple with two availability flags — one for the named tracker specifically (drives label confidence in Interactive mode) and one for the full fallback chain (drives whether Defer is offered at all):
+A tracker can be reached through an MCP tool (e.g., a Linear MCP server), a CLI (e.g., `gh`), or a direct API. All are acceptable. The detection output is a tuple with two availability flags. One is for the named tracker specifically and drives label confidence in Interactive mode. The other is for the full fallback chain and drives whether Defer is offered at all:
 
 ```
 { tracker_name, confidence, named_sink_available, any_sink_available }
@@ -56,7 +56,7 @@ Availability probes run **at most once per session** and **only when Defer execu
 Typical probe sequence:
 
 1. Consult the project's instructions already in context for tracker references — don't open or name specific instruction files; read one directly only when the relevant instructions aren't in context (subdirectory scope, or a fresh subagent). If nothing found, set `tracker_name = null`, `confidence = low`.
-2. **Probe the named tracker when one was found.** For GitHub Issues, run `gh auth status` and `gh repo view --json hasIssuesEnabled`. For Linear or other connector/MCP-backed trackers, first discover available tools via the platform's tool-discovery primitive (e.g., `ToolSearch` in Claude Code) rather than assuming absence from an unloaded tool, then verify the discovered tool is responsive. For API-backed trackers, verify credentials wherever the platform exposes them (environment, connector auth, or a documented secrets location) — not only shell env vars. Set `named_sink_available` from the probe result.
+2. **Probe the named tracker when one was found.** For GitHub Issues, run `gh auth status` and `gh repo view --json hasIssuesEnabled`. For Linear or other connector/MCP-backed trackers, first discover available tools via the platform's tool-discovery primitive (e.g., `ToolSearch` in Claude Code) rather than assuming absence from an unloaded tool, then verify the discovered tool is responsive. For API-backed trackers, verify credentials wherever the platform exposes them (environment, connector auth, or a documented secrets location), not only shell env vars. Set `named_sink_available` from the probe result.
 3. **Probe the GitHub Issues fallback to compute `any_sink_available`.** Even when the named tracker was found and probed, `gh` matters for the `no_sink` bucket decision so that a run with no documented tracker but working `gh` still offers Defer.
    - If `named_sink_available = true`: `any_sink_available = true` (no further probes needed).
    - Otherwise, probe GitHub Issues via `gh auth status` + `gh repo view --json hasIssuesEnabled` (skip if already probed in step 2). If it works, `any_sink_available = true`.
@@ -72,7 +72,7 @@ When Interactive mode's routing question is skipped entirely (R2 zero-findings c
 - When `any_sink_available = true` but either `confidence = low` or `named_sink_available = false` (a fallback tier is working instead): the labels read generically — `File an issue per finding`, `Defer — file a ticket`. Before executing the first Defer of the session, the agent confirms the effective tracker choice with the user using the platform's blocking question tool.
 - When `any_sink_available = false`: option C is omitted from the routing question, option B (Defer) is omitted from the walk-through per-finding options, and the agent tells the user why in the routing question's stem.
 
-Non-interactive mode skips label decisions entirely — it acts silently on the detected sink.
+Non-interactive mode skips label decisions entirely; it acts silently on the detected sink.
 
 ---
 
@@ -81,8 +81,8 @@ Non-interactive mode skips label decisions entirely — it acts silently on the 
 When the named tracker is unavailable or no tracker is named, fall back in this order. Prefer the project's detected tracker; use `gh` only when no named tracker was found or the named one is unreachable.
 
 1. **Named tracker** (MCP tool, CLI, or API the agent can invoke directly, identified via Detection above)
-2. **GitHub Issues via `gh`** — when `gh auth status` succeeds and the current repo has issues enabled (`gh repo view --json hasIssuesEnabled` returns `true`)
-3. **No sink** — findings remain in the review report's residual-work section (Interactive mode) or are returned in the `no_sink` bucket for the caller to route (Non-interactive mode). The agent does not re-display them through a transient surface.
+2. **GitHub Issues via `gh`**: when `gh auth status` succeeds and the current repo has issues enabled (`gh repo view --json hasIssuesEnabled` returns `true`)
+3. **No sink** — findings remain in the review report's residual-work section (Interactive mode) or are returned in the `no_sink` bucket for the caller to route (Non-interactive mode). The agent does not re-display them somewhere that does not persist, such as chat.
 
 Previously this chain included a third in-session fallback tier. That tier was removed because in-session tasks do not survive past the session and therefore do not meet the "durable filing" intent of a Defer action. When no durable tracker exists, the correct behavior is to leave findings in the report (Interactive) or return them to the caller (Non-interactive).
 
@@ -110,7 +110,7 @@ The finding_id is a stable fingerprint composed as `normalize(file) + line_bucke
 
 When ticket creation fails at execution (API error, auth expiry mid-session, rate limit, malformed body rejected, 4xx/5xx response):
 
-**Interactive mode:** surface the failure inline and ask the user using the platform's blocking question tool.
+**Interactive mode:** report the failure inline and ask the user using the platform's blocking question tool.
 
 Stem:
 > Defer failed: <tracker name> returned <error summary>. How should the agent handle this finding?
@@ -122,15 +122,15 @@ Options:
 
 **Non-interactive mode:** do not prompt. Automatically fall through to the next tier. If every tier fails, record the finding in the `failed` bucket of the structured return and continue. If the chain exhausts with no sink ever available, the finding ends up in the `no_sink` bucket.
 
-When a high-confidence named tracker fails at execution, the cached `named_sink_available` is set to `false` for the rest of the session. Subsequent Defer actions fall straight through to the next tier without retrying a confirmed-broken sink. `any_sink_available` is only downgraded to `false` when every tier has been confirmed broken — a failed Linear call that succeeds via `gh` keeps `any_sink_available = true`.
+When a high-confidence named tracker fails at execution, the cached `named_sink_available` is set to `false` for the rest of the session. Subsequent Defer actions fall straight through to the next tier without retrying a confirmed-broken sink. `any_sink_available` is only downgraded to `false` when every tier has been confirmed broken; a failed Linear call that succeeds via `gh` keeps `any_sink_available = true`.
 
-Only when no such tool is in the list or a real question call errors — or on a platform with no blocking question tool — fall back to presenting numbered options on the host's user-visible chat surface and waiting for the user's reply (Interactive mode only).
+When no such tool is in the list, a real question call errors, or the platform has no blocking question tool, fall back to presenting numbered options in the host's chat and waiting for the user's reply (Interactive mode only).
 
 ---
 
 ## Per-tracker behavior
 
-Concrete behavior per tracker at execution time. The agent may invoke any of these through the appropriate interface (MCP, CLI, or API) — the choice depends on what is available in the current environment.
+Concrete behavior per tracker at execution time. The agent may invoke any of these through the appropriate interface (MCP, CLI, or API); the choice depends on what is available in the current environment.
 
 | Tracker | Interface | Invocation sketch | Body format | Labels |
 |---------|-----------|-------------------|-------------|--------|
@@ -145,6 +145,6 @@ When uncertain, prefer "drop with explicit user-facing notice" over "pass throug
 
 ## Cross-platform notes
 
-The question-tool name varies by platform. In Interactive mode, use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to numbered options on the host's user-visible chat surface only when no such tool is in the list, a real question call errors, or the runtime mode does not expose one. Never silently skip the question.
+The question-tool name varies by platform. In Interactive mode, use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to numbered options in the host's chat only when no such tool is in the list, a real question call errors, or the runtime mode does not expose one. Never silently skip the question.
 
 Non-interactive mode is platform-agnostic: it never prompts, so the platform's question tool is not relevant.

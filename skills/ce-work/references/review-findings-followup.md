@@ -2,24 +2,24 @@
 
 Load this reference when `ce-code-review` has finished and **ce-work** (or another caller) should apply fixes before the Residual Work Gate.
 
-`ce-code-review` is invoked here with `mode:agent`, so it is **review-only** in this context — it reports findings and writes artifacts and does not mutate the checkout, commit, push, or file tickets. **The caller owns apply/fix policy.** Standalone review is also report-only unless local apply was explicitly authorized.
+`ce-code-review` is invoked here with `mode:agent`, so it is **review-only** in this context — it reports findings and writes artifacts and does not mutate the checkout, commit, push, or file tickets. **The caller decides which fixes to apply and how.** Standalone review is also report-only unless local apply was explicitly authorized.
 
 ## Consume the completed review (do not re-run it)
 
-This reference loads **after** review has run. In the ce-work shipping flow, step 3a already invoked `ce-code-review`; this apply step **consumes that output** — do not start a second review, which would waste reviewer dispatches and risk overwriting the artifact the Residual Work Gate reconciles.
+This reference loads **after** review has run. In the ce-work shipping flow, step 3a already invoked `ce-code-review`; this apply step **consumes that output**. Do not start a second review, which would waste reviewer dispatches and risk overwriting the artifact the Residual Work Gate reconciles.
 
 Reuse the review output already in hand:
 
 - Parsed JSON (`status`, `actionable_findings`, `findings`, `artifact_path`, `run_id`) **or** the markdown Actionable Findings summary captured by the caller
 - Run artifact dir: `<artifact-path>/` (`review.json`, per-reviewer JSON for `why_it_matters`)
 
-If `status` is `failed`, stop shipping and surface `reason`. If `degraded`, note partial reviewer coverage before applying anything.
+If `status` is `failed`, stop shipping and report `reason`. If `degraded`, note partial reviewer coverage before applying anything.
 
 ### Fallback — invoke `ce-code-review` only for cold callers
 
 Only when the caller reached this file **without** already running review (no review output in hand): invoke `ce-code-review` once, then proceed to apply. Do not invoke when the caller already ran review (e.g., ce-work shipping step 3a).
 
-Invoke the skill explicitly — do not treat a casual "review my changes" prompt as a substitute unless the harness routed it to `ce-code-review`.
+Invoke the skill explicitly. Do not treat a casual "review my changes" prompt as a substitute unless the harness routed it to `ce-code-review`.
 
 ```
 ce-code-review mode:agent plan:<plan-path> base:<merge-base-or-ref>
@@ -36,7 +36,7 @@ For human-facing shipping, invoke `ce-code-review` without `mode:agent` if markd
 
 - `actionable_findings` from JSON, or the Actionable Findings section from markdown
 - Full finding detail when needed: `review.json` / artifact `findings`, or `{reviewer}.json` for `why_it_matters` and `evidence`
-- Stable finding `#` — reuse in commits, residual sinks, and subagent prompts
+- Stable finding `#`: reuse it in commits, in the record of unapplied findings (PR section or tracker ticket), and in subagent prompts
 
 ## Check findings before applying fixes
 
@@ -57,19 +57,19 @@ The lead agent decides which findings to act on, groups the work, reviews the di
 
 After review, **dispatch subagents for all remaining applicable findings** unless the optional inline shortcut below applies. Do not classify findings by complexity in the parent thread.
 
-**Batching (primary rule — group by file):**
+**Batching (primary rule: group by file):**
 
 1. Sort applicable findings by severity (P0 first).
 2. **Group by `file`.** All eligible findings on the same file → **one subagent** (it loads the file once and works through its `#` list in severity order).
-3. **Parallel waves:** batches with **disjoint file sets** may run in parallel (same worktree / shared-directory rules as Phase 1 Step 4 in `ce-work` SKILL.md).
+3. **Parallel waves:** batches with **disjoint file sets** may run in parallel (same worktree / shared-directory rules as `ce-work`'s execution strategy in `references/execution-strategy.md`).
 4. **Same file, many findings:** keep one subagent per file. If the prompt would exceed a comfortable size (~8 findings), split into **serial** subagent passes on that file (first batch highest severity, then next batch after merge or after the prior agent returns).
-5. **Cross-file coupling:** do not merge unrelated files into one subagent just to reduce agent count — file grouping is the default. Only co-batch multiple files when findings explicitly reference the same small edit surface (rare); when in doubt, separate by file.
+5. **Cross-file coupling:** do not merge unrelated files into one subagent just to reduce agent count; file grouping is the default. Only co-batch multiple files when findings explicitly reference the same small edit surface (rare); when in doubt, separate by file.
 
 **Subagent prompt (per batch):** the assigned findings only (`#`, severity, file, line, title, `suggested_fix`, `requires_verification`; add `why_it_matters` from `{reviewer}.json` in the run artifact when useful), plus:
 - Work through assigned `#` in severity order; at each `file:line`, skip with a one-line reason if evidence no longer matches
 - Follow the review and permission rules above; choose technical fixes from project evidence and return decisions that still need the user
 - Do not re-run `ce-code-review`
-- Shared-directory fallback: do not stage or commit — return which `#` were applied or skipped and which files changed
+- Shared-directory fallback: do not stage or commit; return which `#` were applied or skipped and which files changed
 
 **After each wave:** orchestrator reviews diffs (scope = assigned `#` only), runs tests (`requires_verification: true` on any applied finding → at least targeted tests; multi-file → broader suite), commits (`fix(review): apply findings #…`) unless worktree-isolated subagents merge per Phase 1. Repeat until all batches complete.
 
@@ -80,7 +80,7 @@ Use **only** when **all** of the following hold:
 - Exactly **one** applicable finding after review, **and**
 - The orchestrator **already** has that file's relevant region in context from Phase 2 work this session (no new Read/Grep expedition)
 
-Otherwise dispatch a subagent — even for a single finding. When unsure, dispatch.
+Otherwise dispatch a subagent, even for a single finding. When unsure, dispatch.
 
 ### Summary (required)
 
@@ -88,4 +88,4 @@ Report the batches dispatched, `#` applied vs skipped, artifact path, verificati
 
 ## Handoff to Residual Work Gate
 
-Any justified finding still unresolved after this pass is **residual work** — proceed to the Residual Work Gate with an updated count. Do not re-invoke `ce-code-review` solely to re-apply the same findings unless the diff changed materially after fixes.
+Any justified finding still unresolved after this pass is **residual work**. Proceed to the Residual Work Gate with an updated count. Do not re-invoke `ce-code-review` solely to re-apply the same findings unless the diff changed materially after fixes.

@@ -1,6 +1,6 @@
 # Execution Engines
 
-`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* owns the shipping tail (see "Tail ownership" below). Native inline/subagent execution is dormant-by-default compatibility: it remains selected unless applicable live intent, a caller binding, or an enabled standing preference selects the fourth engine.
+`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* runs the shipping tail, meaning the final simplify, review, commit, PR, and CI steps (see "Step 4: Resume the correct tail" below). Native inline/subagent execution is the default: it stays selected unless applicable live intent, a caller binding, or an enabled standing preference selects the fourth engine.
 
 Engine selection applies only to code execution. Knowledge-work keeps its carve-out. Legacy plans and bare code prompts may select cross-model execution, but otherwise retain the inline/subagent flow in `references/execution-strategy.md`; goal-mode and dynamic-workflow selection remains specific to implementation-ready unified plans.
 
@@ -12,12 +12,12 @@ Resolve one implementation binding from applicable authority and scope; do not r
 
 1. an explicit assignment or constraint in the current task;
 2. a still-active session preference or constraint;
-3. a typed caller binding at its recorded provenance (for example, an LFG current-task assignment retains current-task authority at the `ce-work` seam);
+3. a typed caller binding at its recorded provenance (for example, an LFG current-task assignment keeps current-task authority when it reaches `ce-work`);
 4. the project's active instructions and conventions already in context;
 5. enabled per-checkout configuration; then
 6. native execution.
 
-Lower sources may fill an unspecified detail but cannot contradict or broaden a higher source. Incidental mentions in feature prose, quoted material, examples, comparisons, filenames, or discussion do not activate routing. If two applicable instructions of equal authority genuinely conflict on recipient or egress, surface the conflict instead of guessing.
+Lower sources may fill an unspecified detail but cannot contradict or broaden a higher source. Incidental mentions in feature prose, quoted material, examples, comparisons, filenames, or discussion do not activate routing. If two applicable instructions of equal authority genuinely conflict on which external worker receives the work, or on whether work leaves the host at all, tell the user about the conflict instead of guessing.
 
 A live request such as "use Codex" is preference-strength by default. Interpret unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. The resolved mode is `prefer` or `require`. Requirement strength fixes the requested external identity while that route is viable; it never authorizes another external recipient and does not turn route unavailability into a blocker.
 
@@ -27,7 +27,7 @@ For example, current-task strict Composer resolves to Composer with `require` ev
 
 ### Typed caller binding
 
-Input triage passes only a fully validated and normalized typed caller binding. Treat it as one already-selected candidate; preserve its caller-visible provenance in the durable run receipt and never send its fields into planning or review input. Downstream consumers and workers may narrow its authority or restrictions but never broaden them.
+Input triage passes only a fully validated and normalized typed caller binding. Treat it as one already-selected candidate; preserve its caller-visible provenance in the durable run record and never send its fields into planning or review input. Downstream consumers and workers may narrow its authority or restrictions but never broaden them.
 
 A validated recovery run id selects durable state. It never authorizes a fresh dispatch or a different route.
 
@@ -68,7 +68,7 @@ Do not put CLI commands or flags in configuration. The list expresses implementa
 
 Normalize a qualified candidate to the controller's fixed route: Codex -> `codex`, Claude -> `claude`, native Grok -> `grok-cli`, Cursor with no model -> `cursor`, a Composer-family Cursor model -> `composer`, a Grok-family Cursor model -> `grok-cursor`, another explicit Cursor model -> `cursor` with that controller-authorized model selector, and OpenCode -> `opencode`. A model selector is data, never shell syntax; if it cannot be represented by the fixed adapter's safe model token, the candidate is unavailable.
 
-Traverse each ordered candidate during preflight. If a candidate is equivalent to the current host and its current/default model, continue to the next candidate rather than shelling out to self; an explicit different model in the same harness is still a distinct candidate. If a candidate is unavailable before egress, record why and continue to the next candidate. The first qualified candidate becomes the fixed recipient. After dispatch begins, the recipient is locked by the cross-model contract and list traversal stops.
+Traverse each ordered candidate during preflight. If a candidate is equivalent to the current host and its current/default model, continue to the next candidate rather than shelling out to self; an explicit different model in the same harness is still a distinct candidate. If a candidate is unavailable before any work is sent out, record why and continue to the next candidate. The first qualified candidate becomes the fixed recipient. After dispatch begins, the recipient is locked by the cross-model contract and list traversal stops.
 
 `off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding. An enabled mode without a valid candidate list is unavailable rather than guessed. When the list is exhausted, both `prefer` and `require` disclose every attempted route and reason once, then continue natively on the current harness and session model. A required route is never replaced by another unrequested external recipient. Standing configuration supplies defaults, not permission to change recipient or broaden authority.
 
@@ -85,7 +85,7 @@ An engine is usable only when the host exposes a callable primitive for it. Do n
 
 Rule of thumb: **probe for the callable tool, don't infer from the command's existence.** If the host exposes a callable goal tool (Codex `create_goal`), goal-mode is a real callable engine — use it. If it exposes only a user-typed `/goal` (Claude Code), goal-mode is prompt-emission only — emit a copyable prompt. The literal `/goal` slash command is not skill-invocable on any host; the *tool* path is what makes Codex callable.
 
-**Codex specifically.** Codex exposes goal **tools** to skills (gated by `features.goals`, so probe for their presence): `create_goal(objective)` sets **and activates** a persistent objective — the **current session** then works toward it automatically (it steers this agent; it is not a background worker and returns no awaitable envelope) — and `update_goal(status: complete|blocked)` reports terminal status when the objective is genuinely met (or repeatedly blocked). So a Codex skill can **start goal-mode directly, with no copy-paste**: call `create_goal` with the objective (same content as the copyable prompt below). That is the skill's whole job — `create_goal` activates the objective and the **current session works toward it automatically**, and the goal lifecycle marks it `complete` (via `update_goal`) when the Definition of Done is met. **The skill does NOT call `update_goal`** — the working session handles that on its own (it is terminal-status only, not a mid-stream edit). The literal `/goal` slash command remains user-typed-only; the tool path is the callable one. (Claude Code exposes no goal tools at all, so it stays copy-paste-only.)
+**Codex specifically.** Codex exposes goal **tools** to skills (gated by `features.goals`, so probe for their presence): `create_goal(objective)` sets **and activates** a persistent objective — the **current session** then works toward it automatically (it steers this agent; it is not a background worker and returns nothing to wait on) — and `update_goal(status: complete|blocked)` reports terminal status when the objective is genuinely met (or repeatedly blocked). So a Codex skill can **start goal-mode directly, with no copy-paste**: call `create_goal` with the objective (same content as the copyable prompt below). That is the skill's whole job — `create_goal` activates the objective and the **current session works toward it automatically**, and the goal lifecycle marks it `complete` (via `update_goal`) when the Definition of Done is met. **The skill does NOT call `update_goal`** — the working session handles that on its own (it is terminal-status only, not a mid-stream edit). The literal `/goal` slash command remains user-typed-only; the tool path is the callable one. (Claude Code exposes no goal tools at all, so it stays copy-paste-only.)
 
 ## Step 2: Pick the engine by plan shape
 
@@ -96,9 +96,9 @@ When more than one engine is callable, choose by the plan's decomposition shape:
 | Sequential or modest U-ID decomposition; units share files or depend on each other | **Inline / subagent** (default), or a **goal-mode** prompt for sustained focus when callable | The DoD already defines the end condition; ordinary persistence finishes it. |
 | Many independent U-IDs with disjoint file ownership; codebase-wide sweep; large migration; adversarial cross-checking | **Dynamic-workflow** when callable; otherwise parallel subagents | Workflow scripts hold branching, loops, and intermediate worker state outside the main context and coordinate many agents. Prefer this over goal-mode for large fan-out. |
 | Host exposes no callable goal/workflow primitive (e.g. Claude Code in-session) | **Inline / subagent** | Preserve the same heading-scan / DoD / U-ID discipline without relying on unavailable host features. |
-| Applicable live intent, a caller binding, or enabled config resolves a qualified fixed external route | **Cross-model execution** | Another harness/model authors bounded units while the host retains canonical integration, verification, commits, and tail ownership. |
+| Applicable live intent, a caller binding, or enabled config resolves a qualified fixed external route | **Cross-model execution** | Another harness/model authors bounded units while the host keeps canonical integration, verification, commits, and the shipping tail. |
 
-For a bare prompt, cross-model execution is eligible only after Phase 0 has established a concrete goal, bounded scope, and authoritative verification. The cross-model reference turns that discovery into a private prompt brief and conservative P-unit packet. An unclear bare prompt returns to clarification/planning before egress; it does not fall through to a smarter external worker and ask that worker to invent the scope.
+For a bare prompt, cross-model execution is eligible only after Phase 0 has established a concrete goal, bounded scope, and authoritative verification. The cross-model reference turns that discovery into a private prompt brief and conservative P-unit packet. An unclear bare prompt returns to clarification/planning before any work is sent to an external worker; it does not fall through to a smarter external worker and ask that worker to invent the scope.
 
 Recommend exactly one path. Present a non-default engine as an "advanced / large-scale option" only when the plan shape plausibly warrants it — never as an equal coin-flip.
 
@@ -106,22 +106,22 @@ Recommend exactly one path. Present a non-default engine as an "advanced / large
 
 ### Inline / subagent (default)
 
-Follow the dispatch strategy in `references/execution-strategy.md` (inline, serial subagents, or parallel subagents) and the Phase 2 execution loop. `ce-work` owns task creation, unit sequencing, dispatch, verification, and commits.
+Follow the dispatch strategy in `references/execution-strategy.md` (inline, serial subagents, or parallel subagents) and the Phase 2 execution loop. `ce-work` itself creates the tasks, orders the units, dispatches, verifies, and commits.
 
 ### Cross-model execution
 
-Read `references/cross-model-execution.md` only after routing selects this engine. Resolve and disclose its fixed recipient and restrictions before egress, then follow its serial external-unit transaction through the bundled controller, detached runner, and fixed adapter. If the route is unavailable at preflight, apply the preference/requirement behavior defined there; never let the detached worker select a fallback recipient.
+Read `references/cross-model-execution.md` only after routing selects this engine. Resolve and disclose its fixed recipient and restrictions before sending any work out, then follow its serial external-unit transaction through the bundled controller, detached runner, and fixed adapter. If the route is unavailable at preflight, apply the preference/requirement behavior defined there; never let the detached worker select a fallback recipient.
 
 ### Goal-mode and dynamic-workflow
 
-**With a callable goal tool (Codex `create_goal`):** call `create_goal` with the objective — the content of the copyable prompt below, minus the leading `/goal`. This activates the objective and the **current session** works toward it; there is no separate worker and no envelope to await, so the session continues to its tail (Step 4) and the goal lifecycle marks completion. **The skill does not call `update_goal`** — the working session does that itself. **Use `create_goal` only in standalone use, never in return-to-caller mode** — return-to-caller requires `ce-work` to return control to the caller, but `create_goal` would keep the session pursuing the objective instead of returning; run inline/subagents there.
+**With a callable goal tool (Codex `create_goal`):** call `create_goal` with the objective — the content of the copyable prompt below, minus the leading `/goal`. This activates the objective and the **current session** works toward it; there is no separate worker and nothing to wait on, so the session continues to Step 4 (Resume the correct tail) and the goal lifecycle marks completion. **The skill does not call `update_goal`** — the working session does that itself. **Use `create_goal` only in standalone use, never in return-to-caller mode** — return-to-caller requires `ce-work` to return control to the caller, but `create_goal` would keep the session pursuing the objective instead of returning; run inline/subagents there.
 
 **No callable goal tool, or dynamic-workflow (Claude Code today):** do **not** attempt to invoke them. Instead:
 
 - **Standalone interactive use:** print a copyable prompt block for the user to paste, then continue inline/subagents if the user does not paste it. Do not stall waiting for a paste.
 - **Return-to-caller use (e.g. under `lfg`):** do **not** emit a copyable prompt — a manual paste step strands the caller. Run inline/subagents instead, or return a blocker if the plan genuinely requires an unavailable engine.
 
-Whichever path, the goal/workflow must not open a PR, finalize the session, or bypass the owning workflow's gates.
+Whichever path, the goal/workflow must not open a PR, finalize the session, or skip the checks of whichever workflow runs the shipping tail.
 
 Copyable goal-mode prompt (standalone — emit verbatim, substituting only the literal plan path). **It must be plan-agnostic: it should read identically for any plan except the substituted path.** Deletion test before emitting — if your draft names a specific command, file path, U-ID dependency relationship, stop condition, or Definition-of-Done item, it copied from the plan; cut it (the goal reads those from the plan). For PR/shipping, don't hardcode an open-a-PR or do-not-open-a-PR directive; instead carry the precedence line below — the goal follows the plan's PR/landing strategy if it has one, with the repo's conventions and the user's preferences overriding it (both of which the executing agent already has).
 
@@ -147,15 +147,15 @@ Keep emitted prompts under 4,000 characters and always substitute the literal pl
 
 ## Step 4: Resume the correct tail
 
-After any engine finishes implementation, inspect the diff and continue at the tail that matches the caller. The engine never owns more than implementation + local verification on its own.
+After any engine finishes implementation, inspect the diff and continue at the tail that matches the caller. On its own, the engine does no more than implementation and local verification.
 
 | Mode | After implementation, `ce-work` ... |
 |---|---|
-| **Standalone** (user invoked `ce-work` directly, or `ce-plan` handed off interactively) | Resumes its normal post-implementation tail — Phase 3-4 quality gates, simplification, review, commit, and handoff in `references/shipping-workflow.md`. A goal-mode run does not skip these; verify they ran or were explicitly skipped with reason. |
-| **Return-to-caller** (`mode:return-to-caller`, e.g. under `lfg`) | Performs implementation and local verification only, then returns the structured summary in `references/return-to-caller.md` (`standalone_shipping_skipped: true`). Does not run simplify/review/PR/CI — the caller owns those. |
+| **Standalone** (user invoked `ce-work` directly, or `ce-plan` handed off interactively) | Resumes its normal post-implementation tail: the Phase 3-4 quality checks, simplification, review, commit, and handoff in `references/shipping-workflow.md`. A goal-mode run does not skip these; verify they ran or were explicitly skipped with reason. |
+| **Return-to-caller** (`mode:return-to-caller`, e.g. under `lfg`) | Performs implementation and local verification only, then returns the structured summary in `references/return-to-caller.md` (`standalone_shipping_skipped: true`). Does not run simplify/review/PR/CI; the caller runs those. |
 
-Using goal-mode or a dynamic workflow is a way to get better sustained implementation focus, not a way to skip the owning workflow's finish discipline.
+Using goal-mode or a dynamic workflow is a way to get better sustained implementation focus, not a way to skip the finishing steps of whichever workflow runs the shipping tail.
 
 ## Progress visibility (independent of tail ownership)
 
-Tail ownership decides who opens the **final** PR; it does not forbid progress signals during a long run. For multi-hour goals, meaningful commits as units complete and an optional scratch progress artifact (outside the plan body) are encouraged so a long trajectory stays observable. Only final PR creation is gated: a standalone top-level goal may open a **draft** PR only when it explicitly owns that channel; in return-to-caller mode `ce-work` must not open any PR, but may commit and return a progress report in its structured envelope. Never write progress or status into the plan body — git, commits, and the envelope carry it.
+Who runs the shipping tail decides who opens the **final** PR; it does not forbid progress signals during a long run. For multi-hour goals, meaningful commits as units complete and an optional scratch progress artifact (outside the plan body) are encouraged so a long trajectory stays observable. Only final PR creation is gated: a standalone top-level goal may open a **draft** PR only when it was explicitly given that job; in return-to-caller mode `ce-work` must not open any PR, but may commit and return a progress report in its structured summary. Never write progress or status into the plan body; git, commits, and the returned summary carry it.
