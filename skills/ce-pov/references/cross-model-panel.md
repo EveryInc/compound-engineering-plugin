@@ -57,8 +57,8 @@ Never infer serving family from the Cursor brand.
 
 Section 4 passes `XHOST_FAMILY` as the worker's first argument and
 `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; a provider name such as
-`anthropic`, `openai`, or `xai` in either slot fail-closes the job with no
-artifact.
+`anthropic`, `openai`, or `xai` in either slot makes the worker refuse the
+job and produce no artifact.
 
 `Cursor` and `Composer` are distinct targets:
 
@@ -87,11 +87,11 @@ when the request never says `oracle`. A request for ce-pov's take alone does not
   conventions, then the declared default order; announce the selection and run
   it. Invoking `oracle` authorizes this ordinary read-only consultation against
   the current project.
-- **Explicit unnamed cross-check:** bypass the correction-cost gate and use the
+- **Explicit unnamed cross-check:** skip the correction-cost check and use the
   count rule below; announce the selected peers and run them.
 - **No explicit cross-check:** after ce-pov independently forms its POV, offer
   only when meaningful downstream work will build on the take before an error
-  surfaces, or it feeds a shared, public, security, or data commitment.
+  would show up, or it feeds a shared, public, security, or data commitment.
   Adoption Tier 1 is ineligible; Tier 2/3 are eligible. Warm invocations never
   offer.
 
@@ -107,7 +107,7 @@ ce-pov's own prior POV or the user's stated view — that position is the subjec
 artifact and ships in the payload; peers answer the underlying question with
 their own verdict, and those `independent` voices enter convergence (unlike
 `skeptic` mode, where the critique does not). Any fresh host meta-judgment formed
-after the summons is withheld per Section 4's round-1 sequencing. A user-supplied
+after the panel request (the summons) is withheld per Section 4's round-1 sequencing. A user-supplied
 position is handled identically to a host-authored one — shipped as the subject,
 never capitulated to.
 
@@ -149,7 +149,8 @@ the ambient umask or a mode flag alone.
 ## 3. Resolve and announce one fixed route
 
 Routing is adaptable only inside hard boundaries. The requested target plus
-safety, authority, independence, read scope, and egress rules are durable;
+safety, authority, independence, read scope, and the rules on which external
+recipients may receive project content are durable;
 concrete model IDs, CLI flags, and availability are adapter defaults.
 
 For each peer:
@@ -162,11 +163,12 @@ For each peer:
    family, and reasoning tier. Record the observed local fact and substitute.
    An explicit user model request cannot become another model.
 4. Resolve one concrete target, model choice, harness route, provider, and every
-   intermediary. Confirm every actual recipient is in the egress allowlist.
+   intermediary. Confirm every actual recipient is on the allowlist of permitted
+   external recipients.
 5. Announce the selected target and route in ordinary language before dispatch.
 
-The fixed route passed to the worker accepts exactly these tokens — the worker
-fail-closes on anything else (including route-shaped guesses like `codex-cli`):
+The fixed route passed to the worker accepts exactly these tokens; the worker
+refuses anything else (including route-shaped guesses like `codex-cli`):
 
 | Target | Route token(s) |
 |--------|----------------|
@@ -229,10 +231,10 @@ decision. State in the payload that rejecting every supplied option, or the
 framing itself, is a valid position. When ce-pov authored the subject in-session,
 present the options symmetrically in the payload's own words even though the full
 subject document remains attached. When the subject is itself an already-formed
-position (Section 1), the strip list above applies only to fresh host framing
-generated in response to the summons: the position's own premises, labels, and
-advocacy ship intact as the subject artifact, and only host meta-judgment formed
-about it after the summons waits for reconcile — peers still return their own
+position (Section 1), the list of material to withhold above applies only to fresh
+host framing generated in response to the panel request: the position's own
+premises, labels, and advocacy ship intact as the subject artifact, and only host
+meta-judgment formed about it after the panel request waits for reconcile — peers still return their own
 independent verdict. For `skeptic` mode, include
 ce-pov's position because critiquing it is the task. Reconciliation payloads
 follow Section 5 and deliberately include already-formed positions.
@@ -251,8 +253,8 @@ for a selected panel, start one job per selected peer. Start all jobs before
 waiting.
 
 **At the defaults, the peer budget needs nothing from you.** This skill's worker
-self-bounds at 600s and the runner supervisor derives a floor of 1230s, so the
-runner window already sits outside the worker's cap and reaps nothing healthy.
+stops itself at 600s and the runner supervisor derives a floor of 1230s, so the
+runner window is already longer than the worker's cap and kills nothing healthy.
 
 **Raising `CROSS_MODEL_HARD_SECS` widens the runner window automatically.** The
 runner derives its supervisor hard cap from the ambient knob
@@ -289,7 +291,7 @@ the sandbox policy. A DNS or authentication failure alone is not proof of that
 condition. Use the narrowest host permission that restores the fixed route's
 provider connection. When Codex exposes only full command escalation, attach
 this request to the exact `peer-job-runner.py start ...` tool call after the
-existing egress disclosure:
+existing disclosure of which external provider receives the subject:
 
 ```json
 {
@@ -301,7 +303,7 @@ existing egress disclosure:
 Disclose that this is not launcher-only isolation: the detached worker inherits
 that launch context for its lifetime, so the adapter's declared read-only/tool
 restrictions — not the Codex command sandbox — bound the peer while the subject
-egresses. If the grant is denied or unavailable, do not execute `start`; create
+is sent to the provider. If the grant is denied or unavailable, do not execute `start`; create
 no peer job, drop that voice, and continue with the surviving panel. After
 `start` returns a job id, any network, authentication, or provider failure is a
 started-job outcome and follows the ordinary terminal/recovery rules; keep
@@ -346,7 +348,7 @@ Job ids or job-directory paths are positional. `--skill`, `--run-id`, and
 `--label` are start-only; never pass them to `wait`. Do not add a separate shell
 sleep: `wait` itself provides the bounded polling delay. Use one aggregate
 deadline of `CROSS_MODEL_HARD_SECS` + 10 seconds (610s by default, since this
-skill's workers self-bound at 600s); never begin a wait that can cross it. Read
+skill's workers stop themselves at 600s); never begin a wait that can cross it. Read
 the knob rather than hardcoding the result -- a hardcoded deadline silently reaps
 a healthy peer whenever a user raises the knob, wasting the peer's full spend.
 Repeat the bounded slices above until every job is terminal or that deadline is
@@ -462,7 +464,7 @@ note:
   position that survived the bounded retry).
 - **No survivor:** deliver the solo POV with "cross-model check unavailable or
   incomplete." When a summons was present but the panel branch never entered
-  (no reachable peers, or the branch never fired), still state that panel status —
+  (no reachable peers, or the branch was never entered), still state that panel status —
   which peers were attempted, or that none ran and the observed reason — rather
   than shipping a bare solo verdict.
 
@@ -493,14 +495,15 @@ payload; no surviving peer yields the solo POV plus the availability note.
 Distinguish a route-level failure from a dispatch-infrastructure failure. A
 route that runs and returns no usable artifact is dropped as above. But if the
 dispatch scripts themselves fail unexpectedly — a crash, a non-zero exit before
-any job starts, an unresolved script path — do not drop the leg on the first
+any job starts, an unresolved script path — do not drop that peer on the first
 error. Attempt the same resolved route by hand, holding the selected target and
 model, the normalized read scope, and the round's independence rules fixed.
 Keep attempting only while each failure is a new, plausibly recoverable one and
 the panel's aggregate deadline has not passed; stop and fall to the solo POV
 once a failure repeats or the deadline is spent. A hand recovery may not
 substitute a different target, widen read scope, or include a withheld
-position — those make the recovered leg untrustworthy, not merely unavailable.
+position — those make the recovered peer's result untrustworthy, not merely
+unavailable.
 
 ## 8. Cleanup
 
@@ -511,7 +514,7 @@ and project context must not outlive their use.
 
 ## Participation, announcement, and disclosure (relocated from the body)
 
-A summons is an **affirmative** request to consult or reconcile peers, detected by reasoning over the invocation context — the user's wording or a calling skill's args. Wording that declines consultation ("solo POV, do not cross-check") or merely recounts a past cross-check names the same terms without asking for one, and is not a summons: peers are not dispatched and no project context leaves the run. For an affirmative request, a caller's paraphrase in one channel never cancels a summons still present in another; only a summons erased from every readable channel upstream is unrecoverable here.
+A summons (a panel request) is an **affirmative** request to consult or reconcile peers, detected by reasoning over the invocation context — the user's wording or a calling skill's args. Wording that declines consultation ("solo POV, do not cross-check") or merely recounts a past cross-check names the same terms without asking for one, and is not a summons: peers are not dispatched and no project context leaves the run. For an affirmative request, a caller's paraphrase in one channel never cancels a summons still present in another; only a summons erased from every readable channel upstream is unrecoverable here.
 Invoking a named peer, an explicit cross-check, or `oracle` authorizes the panel protocol's normal read-only consultation against this project. Announce the selected peers before dispatch; ask only when a retry adds an unexpected recipient or intermediary, or an active instruction requires separate approval. Peers inspect the shared working tree directly and cannot edit it. The panel protocol preserves an unbiased initial round, bounds evidence-based reconciliation while honoring user-supplied pass limits, and attributes only receipt-supported independence.
 Any POV delivered after a summons states which peers ran, or that none did and the observed reason; if no panel runs after a summons, keep the verdict content unchanged but add that panel-status line rather than shipping a bare solo verdict. A POV with no summons keeps the solo result unchanged with no panel note.
 Keep the host's own frozen position out of an independent peer's initial context; expose it only when the requested task is to critique that position or when a later reconciliation round compares already-formed views.
