@@ -60,8 +60,9 @@ function lastTrailer(text: string, name: string): string {
 function isFieldBoundary(line: string): boolean {
   const trimmed = line.trim()
   if (/^#{1,6}\s+\S/.test(trimmed)) return true
-  const plain = trimmed.replaceAll("**", "")
-  return /^[A-Z][A-Z0-9_-]{1,40}:(\s|$)/.test(plain)
+  // Same grammar as the opener: a bare or bold all-caps label, with or without a colon.
+  const plain = trimmed.replaceAll("**", "").trim()
+  return /^[A-Z][A-Z0-9_-]{1,40}:?(\s|$)/.test(plain)
 }
 
 function lastFieldBlock(text: string, name: string): string {
