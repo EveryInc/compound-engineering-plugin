@@ -21,6 +21,11 @@ import { createHash } from "node:crypto"
 
 setDefaultTimeout(20_000)
 
+// cross-model-work.sh honors CROSS_MODEL_EFFORT_OVERRIDE; make a clean
+// environment the suite-wide default so an ambient export cannot leak into
+// baseline assertions. Tests that exercise the override set it explicitly.
+delete process.env.CROSS_MODEL_EFFORT_OVERRIDE
+
 const SCRIPT = path.join(process.cwd(), "skills/ce-work/scripts/cross-model-work.sh")
 const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspace.py")
 const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementation-result-schema.json")
@@ -221,18 +226,26 @@ function emit(route: string, env: NodeJS.ProcessEnv = process.env) {
   return spawnSync("bash", [SCRIPT, "--emit-adapter", route], { encoding: "utf8", env })
 }
 
+// The script honors CROSS_MODEL_EFFORT_OVERRIDE, so default-posture assertions
+// must not inherit an ambient override from the suite's own environment.
+function cleanEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  delete env.CROSS_MODEL_EFFORT_OVERRIDE
+  return env
+}
+
 describe("ce-work fixed write routes", () => {
   test("production argv uses the qualified noninteractive write posture", () => {
-    for (const route of ROUTES) expect(emit(route).status).toBe(0)
+    for (const route of ROUTES) expect(emit(route, cleanEnv()).status).toBe(0)
 
-    const codex = emit("codex").stdout
+    const codex = emit("codex", cleanEnv()).stdout
     expect(codex).toContain("exec")
     expect(codex).toContain("--ephemeral")
     expect(codex).toContain("-s workspace-write")
     expect(codex).toContain("-C <workspace>")
     expect(codex).toContain("-c model_reasoning_effort=high")
 
-    const claude = emit("claude").stdout
+    const claude = emit("claude", cleanEnv()).stdout
     expect(claude).toContain("--safe-mode")
     expect(claude).toContain("--permission-mode bypassPermissions")
     expect(claude).toContain("--tools Read,Write,Edit,Bash")
@@ -240,7 +253,7 @@ describe("ce-work fixed write routes", () => {
     expect(claude).toContain("--no-session-persistence")
     expect(claude).not.toContain("--model")
 
-    const grok = emit("grok-cli").stdout
+    const grok = emit("grok-cli", cleanEnv()).stdout
     expect(grok).toContain("--cwd <workspace>")
     expect(grok).toContain("--permission-mode acceptEdits")
     expect(grok).toContain("--no-memory")
@@ -248,21 +261,63 @@ describe("ce-work fixed write routes", () => {
     expect(grok).not.toContain("--model")
 
     for (const route of ["cursor", "composer", "grok-cursor"]) {
-      const command = emit(route).stdout
+      const command = emit(route, cleanEnv()).stdout
       expect(command).toContain("--sandbox enabled")
       expect(command).toContain("--workspace <workspace>")
       expect(command).toContain("--output-format stream-json")
     }
-    expect(emit("cursor").stdout).not.toContain("--model")
-    expect(emit("composer").stdout).toContain("--model composer-2.5-fast")
-    expect(emit("grok-cursor").stdout).toContain("--model cursor-grok-4.6-high")
-    const opencode = emit("opencode").stdout
+    expect(emit("cursor", cleanEnv()).stdout).not.toContain("--model")
+    expect(emit("composer", cleanEnv()).stdout).toContain("--model composer-2.5-fast")
+    expect(emit("grok-cursor", cleanEnv()).stdout).toContain("--model cursor-grok-4.6-high")
+    const opencode = emit("opencode", cleanEnv()).stdout
     expect(opencode).toContain("opencode run")
     expect(opencode).toContain("--dir <workspace>")
     expect(opencode).toContain("--format json")
     expect(opencode).toContain("--auto")
     expect(opencode).toContain("--file <prompt-file>")
     expect(opencode).not.toContain("--model")
+  })
+
+  test("CROSS_MODEL_EFFORT_OVERRIDE retunes the effort-taking routes and stays off by default", () => {
+    const withOverride = (route: string, value: string) =>
+      emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
+
+    expect(emit("codex", cleanEnv()).stdout).toContain("-c model_reasoning_effort=high")
+    expect(withOverride("codex", "xhigh").stdout).toContain("-c model_reasoning_effort=xhigh")
+    expect(withOverride("codex", "minimal").stdout).toContain("-c model_reasoning_effort=minimal")
+
+    expect(emit("claude", cleanEnv()).stdout).toContain("--effort high")
+    expect(withOverride("claude", "low").stdout).toContain("--effort low")
+    expect(withOverride("claude", "max").stdout).toContain("--effort max")
+
+    expect(emit("grok-cli", cleanEnv()).stdout).toContain("--effort high")
+    expect(withOverride("grok-cli", "medium").stdout).toContain("--effort medium")
+  })
+
+  test("CROSS_MODEL_EFFORT_OVERRIDE rejects tiers the route cannot honor, failing closed before dispatch", () => {
+    const rejected = (route: string, value: string) => {
+      const proc = emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
+      expect(proc.status).toBe(2)
+      expect(proc.stderr).toContain(`effort override '${value}' not compatible with route '${route}'`)
+    }
+
+    rejected("codex", "max") // codex tops out at xhigh
+    rejected("codex", "none")
+    rejected("claude", "minimal")
+    rejected("grok-cli", "xhigh")
+    rejected("grok-cli", "max")
+    // routes with no effort knob reject any override rather than silently ignoring it
+    rejected("cursor", "high")
+    rejected("composer", "high")
+    rejected("grok-cursor", "high")
+    // opencode is effort-bearing through --variant, but only for its own enum
+    rejected("opencode", "bogus")
+  })
+
+  test("opencode carries the override through --variant, matching the review adapters", () => {
+    const out = emit("opencode", { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: "max" }).stdout
+    expect(out).toContain("--variant max")
+    expect(emit("opencode", cleanEnv()).stdout).not.toContain("--variant")
   })
 
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {

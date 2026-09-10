@@ -240,9 +240,11 @@ export function compareObjective({
           : verdictFromSigned(delta, threshold) === "regressed"
             ? "regressed"
             : "inconclusive"
+    } else if (candSamples.length > baseSamples.length) {
+      verdict = "inconclusive"
     } else {
       const diffs = candSamples.map((value, index) =>
-        signedDelta(baseSamples[Math.min(index, baseSamples.length - 1)], value, direction),
+        signedDelta(baseSamples[index], value, direction),
       )
       const lo = Math.min(...diffs)
       const hi = Math.max(...diffs)
@@ -363,6 +365,7 @@ export function decide(input) {
   const improved = []
   const violated = []
   const missing = []
+  const incompleteBaselines = []
   const candidateBundles = {}
   const baselineBundles = {}
   const aggregation = spec.aggregation ?? "median"
@@ -375,6 +378,15 @@ export function decide(input) {
     if (!base || base.aggregate == null || !cand || cand.aggregate == null) {
       missing.push(objective.name)
       continue
+    }
+    if (comparison.method === "paired" && base.samples.length && cand.samples.length) {
+      const requiredSamples = Math.max(cand.samples.length, ladderEnabled ? confirmationRepeats : 1)
+      if (base.samples.length < requiredSamples) {
+        incompleteBaselines.push(
+          `${objective.name} (${base.samples.length} observed, ${requiredSamples} required)`,
+        )
+        continue
+      }
     }
     const result = compareObjective({
       baselineValue: base.aggregate,
@@ -396,6 +408,15 @@ export function decide(input) {
       decision: "error",
       comparisons,
       reason: `missing required metric: ${missing.join(", ")}`,
+    })
+  }
+
+  if (incompleteBaselines.length) {
+    // Ladder next steps collect candidate samples; they cannot repair the baseline.
+    return closedResult({
+      decision: "error",
+      comparisons,
+      reason: `insufficient paired baseline samples: ${incompleteBaselines.join(", ")}`,
     })
   }
 

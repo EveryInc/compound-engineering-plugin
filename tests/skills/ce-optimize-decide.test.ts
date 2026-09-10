@@ -699,6 +699,98 @@ describe("noise-aware comparison from the observed suite run", () => {
   })
 })
 
+describe("sampled paired baseline evidence", () => {
+  const spec = hardSpec({
+    comparison: { method: "paired", relative_threshold: 0.05 },
+    stability_mode: "ladder",
+    ladder: { confirmation_repeats: 5 },
+  })
+
+  test.each([8, 12])("does not reuse the last baseline sample to compare candidate %s", (value) => {
+    const result = compareObjective({
+      baselineValue: 10,
+      candidateValue: value,
+      baselineSamples: [10],
+      candidateSamples: Array(5).fill(value),
+      direction: "minimize",
+      type: "hard",
+      comparison: { method: "paired", relative_threshold: 0.05 },
+      maxRegression: null,
+    })
+    expect(result.verdict).toBe("inconclusive")
+    expect(result.violated).toBe(false)
+  })
+
+  test.each([1, 5])("rejects a short ladder baseline with %s candidate samples", (count) => {
+    const result = decide({
+      spec,
+      baseline: snapshot(10, { sample_count: 5 }),
+      candidate: snapshot(8, { metrics: { wall_seconds: { samples: Array(count).fill(8) } } }),
+    })
+    expect(result.decision).toBe("error")
+    expect(result.eligible).toBe(false)
+    expect(result.next_measurement).toBe("none")
+    expect(result.reason).toBe("insufficient paired baseline samples: wall_seconds (1 observed, 5 required)")
+  })
+
+  test("rejects unpaired candidate samples even without a ladder", () => {
+    const result = decide({
+      spec: { ...spec, stability_mode: "stable" },
+      baseline: snapshot(10),
+      candidate: snapshot(8, { metrics: { wall_seconds: { samples: [8, 8] } } }),
+    })
+    expect(result.decision).toBe("error")
+    expect(result.eligible).toBe(false)
+    expect(result.reason).toBe("insufficient paired baseline samples: wall_seconds (1 observed, 2 required)")
+  })
+
+  test.each(["hard", "judge"])("checks the sampled baseline of a required non-primary %s objective", (type) => {
+    const result = decide({
+      spec: {
+        ...spec,
+        objectives: [{ name: "quality", type, direction: "maximize", role: "required" }],
+      },
+      baseline: snapshot(10, {
+        metrics: { wall_seconds: { samples: Array(5).fill(10) }, quality: { samples: [4] } },
+      }),
+      candidate: snapshot(8, {
+        metrics: { wall_seconds: { samples: Array(5).fill(8) }, quality: { samples: Array(5).fill(4) } },
+      }),
+    })
+    expect(result.decision).toBe("error")
+    expect(result.eligible).toBe(false)
+    expect(result.reason).toBe("insufficient paired baseline samples: quality (1 observed, 5 required)")
+  })
+
+  test.each([
+    [1, "promising", "confirm"],
+    [5, "keep", "none"],
+  ])("a complete baseline supports %s candidate samples", (count, decision, next) => {
+    const result = decide({
+      spec,
+      baseline: snapshot(10, { metrics: { wall_seconds: { samples: Array(5).fill(10) } } }),
+      candidate: snapshot(8, { metrics: { wall_seconds: { samples: Array(count).fill(8) } } }),
+    })
+    expect(result.decision).toBe(decision)
+    expect(result.eligible).toBe(true)
+    expect(result.next_measurement).toBe(next)
+  })
+
+  test("preserves scalar judge confirmation from sample_count with paired comparison", () => {
+    const result = decide({
+      spec: {
+        ...spec,
+        primary: { name: "mean_score", direction: "maximize", type: "judge" },
+      },
+      baseline: { judge: { mean_score: 4 } },
+      candidate: { gates: { suite_passed: 1 }, judge: { mean_score: 4.5 }, sample_count: 5 },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.eligible).toBe(true)
+    expect(result.next_measurement).toBe("none")
+  })
+})
+
 describe("cost-aware measurement ladder", () => {
   const spec = hardSpec({
     stability_mode: "ladder",
