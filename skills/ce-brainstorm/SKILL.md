@@ -50,7 +50,7 @@ Phases run in this order. Each names the files it cannot run correctly without: 
 | before the first question, and for the whole run — non-software route included | Read `references/interaction-rules.md` | the Core Principles, and the Interaction Rules: one question per turn, ask only decisions the environment cannot settle, the blocking-question-tool default and the visual-probe gate that overrides it, when a question is genuinely open-ended, and the one `ce-prototype` routing test this skill states in full there |
 | before treating a decision the conversation carries as settled | Read `references/settled-decisions.md` | the settlement test; skipping it re-asks a decided question or promotes an unexamined assertion |
 | 0.0 output mode | `references/output-mode.md` | the `OUTPUT_FORMAT` precedence; the token-parsing convention |
-| 0.1–0.4 resume, classify, route, scope | `references/phase-0.md` | resume scan; the stop-and-route classification; scope tiers; the coherent-work gate (is this one piece of work?); both tripwires (a visual or spatial feature loads the visual-probe guidance; a user unfamiliar with the territory loads the blindspot guidance); the task list |
+| 0.1–0.4 resume, classify, route, scope | `references/phase-0.md` | resume scan; the stop-and-route classification; scope tiers; the coherent-work gate (is this one piece of work?); both tripwires (visual or spatial features; unfamiliar territory); the task list |
 | 1 understand the idea | `references/dialogue.md` | context scan and grounding scout; opt-in Slack researcher; pressure test; blindspot and visual-probe gates; the conflict gate against existing `CONCEPTS.md` and verified code; Phase 1.3 exit condition |
 | 2–2.6 approaches, synthesis, verification | `references/approaches.md`, plus `references/synthesis-summary.md` before composing the synthesis | approach generation; model elevation; the scoping synthesis; the claim verifier |
 | 3 write the plan | `references/plan-write.md`, then `references/brainstorm-sections.md` and the rendering reference for the format | whether a doc is warranted; the section contract; the Ready for Planning Check |
@@ -58,7 +58,7 @@ Phases run in this order. Each names the files it cannot run correctly without: 
 
 These rules hold without any read:
 
-**`OUTPUT_FORMAT` is exclusive** — markdown OR HTML, never both. Write markdown unless HTML was requested in this prompt, by the user earlier, or in config; a headless run follows the same rule.
+**`OUTPUT_FORMAT` is exclusive** — markdown OR HTML, never both. The format is the first that applies: a request in this prompt, a preference the user stated earlier, config, then markdown, in every run including headless ones.
 
 **When a file is written on the brainstorm path the artifact contract does not change**: write to `<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>`, with `HHMM` from local wall-clock time at write; frontmatter carries `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`; the body is a Goal Capsule plus the Product Contract. Do **not** emit a Goal Launch Block or Reader Index. The non-software route writes none of this.
 

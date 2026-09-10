@@ -647,7 +647,7 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
       const ok = gradeHost({ ...base, hostDir: hostDir(prose), grade: { must_include_field: "OPENING", must_include: ["stamp", "revo"] } })
       expect(ok.reasons).toEqual([])
     }
-    for (const terminator of ["**DETAILS**", "DETAILS"]) {
+    for (const terminator of ["**DETAILS**", "DETAILS", "**Details**", "Details:"]) {
       const bare = `OPENING\n\nAdds the stamp.\n\n${terminator}\n\nRevocation checks compare against it.\n\nFILES_READ: a\nACTIONS: none\n`
       const fail3 = gradeHost({ ...base, hostDir: hostDir(bare), grade: { must_include_field: "OPENING", must_include: ["revo"] } })
       expect(fail3.reasons).toEqual(["missing required text: revo"])

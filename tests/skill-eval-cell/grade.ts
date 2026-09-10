@@ -61,10 +61,11 @@ function isFieldBoundary(line: string): boolean {
   const trimmed = line.trim()
   if (/^#{1,6}\s+\S/.test(trimmed)) return true
   const plain = trimmed.replaceAll("**", "").trim()
-  // A `LABEL:` field line, or a line that is nothing but a bare or bold all-caps label:
-  // the opener grammar. Prose that merely starts with an acronym ("PR creation ...",
-  // "API behavior ...") is content, not a boundary, so a bare label must fill the line.
-  return /^[A-Z][A-Z0-9_-]{1,40}:(\s|$)/.test(plain) || /^[A-Z][A-Z0-9_-]{1,40}$/.test(plain)
+  // A `Label:` field line, or a line that is nothing but a bare or bold label, in any
+  // case: the opener grammar, which also matches case-insensitively. Prose that merely
+  // starts with an acronym ("PR creation ...", "API behavior ...") is content, not a
+  // boundary, so a bare label must fill the line.
+  return /^[A-Za-z][A-Za-z0-9_-]{1,40}:(\s|$)/.test(plain) || /^[A-Za-z][A-Za-z0-9_-]{1,40}$/.test(plain)
 }
 
 function lastFieldBlock(text: string, name: string): string {
