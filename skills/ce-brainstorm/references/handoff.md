@@ -2,7 +2,7 @@
 
 This content is loaded when Phase 4 begins — after the requirements-only
 unified plan is written, or after a Lightweight run's chat paragraph is
-delivered with no file earned. Options that need an artifact hide themselves
+delivered with no file warranted. Options that need an artifact hide themselves
 below; the handoff itself is presented on both paths.
 
 ---
@@ -53,7 +53,7 @@ Plan artifact: <absolute path to requirements-only unified plan>  # omit line if
 What would you like to do next? (Pick a number or describe what you want.)
 ```
 
-The override sentence is load-bearing, not padding: the planning options are hidden while `Resolve Before Planning` is non-empty, so without it the user is told planning is blocked and is never told the block is theirs to lift. `Resolve Before Planning` is your own judgment call — an over-cautious read of it must not silently strand the user with no visible way forward. Hiding the option withholds the *recommendation*; it never withholds the *choice*.
+The override sentence is required, not padding: the planning options are hidden while `Resolve Before Planning` is non-empty, so without it the user is told planning is blocked and is never told the block is theirs to lift. `Resolve Before Planning` is your own judgment call — an over-cautious read of it must not silently strand the user with no visible way forward. Hiding the option withholds the *recommendation*; it never withholds the *choice*.
 
 Present only the options that apply. Renumber so visible options stay contiguous starting at 1.
 
@@ -64,7 +64,7 @@ Present only the options that apply. Renumber so visible options stay contiguous
 4. **Open in browser** — open the HTML unified plan locally for review and sharing. Shown only when an HTML unified plan exists. **Render only when `OUTPUT_FORMAT=html`.**
 5. **More clarifying questions to sharpen the scope** - Keep refining scope, edge cases, constraints, and preferences through further dialogue. Always shown — so the label names the scope rather than the doc, which stays true on a run that correctly skipped doc creation.
 
-There is no "done" / "pause" option — the blocking question already waits, and the user ends by dismissing it (Esc) or saying they're finished. When a file was earned, the unified plan artifact is already saved; on the chat path there is no file and nothing to save.
+There is no "done" / "pause" option — the blocking question already waits, and the user ends by dismissing it (Esc) or saying they're finished. When a file was written, the unified plan artifact is already saved; on the chat path there is no file and nothing to save.
 
 **Post-review nudge (subsequent rounds only):** If the user has already run `ce-doc-review` this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "Document review flagged 2 P1 findings you may want to address — pick \"Pressure-test the requirements\" to run another pass."). Reference the option by label, not number: the menu renumbers when `Resolve Before Planning` hides `Create the implementation plan` and the lfg option, so a hardcoded option number can point users at the wrong action. Do not add a separate menu option; reuse the existing `Pressure-test the requirements` option. Suppress this nudge whenever that option is not on the rendered menu — when **Prototype a remaining feel-question** displaced it — so the nudge never points users at an action they cannot pick.
 
@@ -87,7 +87,7 @@ re-scanning the repo. Do not print the closing summary first.
 Load the `ce-doc-review` skill, passing the unified plan path as the argument.
 When ce-doc-review returns "Review complete", return to the Phase 4 options
 and re-render the menu (the requirements may have changed, so re-evaluate
-`Resolve Before Planning`, the lfg software gate, and residual findings). If
+`Resolve Before Planning`, the software-only condition on the lfg option, and residual findings). If
 residual P0/P1 findings remain unaddressed, include the post-review nudge
 above the menu. Do not show the closing summary yet.
 
@@ -96,12 +96,12 @@ above the menu. Do not show the closing summary yet.
 Immediately invoke the `lfg` skill in the current session via the platform's
 skill-invocation primitive, passing the unified plan artifact path as its
 argument so `lfg`'s `ce-plan` step enriches *this* requirements-only artifact in
-place rather than bootstrapping a new plan. `lfg` then owns the full pipeline
+place rather than bootstrapping a new plan. `lfg` then runs the full pipeline
 autonomously — plan, implement (`ce-work` in `return-to-caller` mode), simplify,
 independent code review and applied fixes, commit/push/open PR, and CI watch to
 green. Do not also start a `/goal` or load `ce-work` directly — `lfg`
 orchestrates them. Unlike a goal tool, `lfg` is host-agnostic: it works wherever
-skills run (plus `git`/`gh` for the PR/CI tail, which it guards when absent).
+skills run (plus `git`/`gh` for the PR and CI steps, which it guards when absent).
 
 Where the host exposes no skill-invocation primitive, print the `lfg <plan-path>`
 invocation for the user to run and note that it will plan, build, review, and
