@@ -41,7 +41,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 
 **Anchor 75** — a prior comment explicitly requested a specific code change and the relevant code is unchanged in the current diff.
 
-**Anchor 50** — a prior comment suggested a change and the code has changed in the area but doesn't clearly address the feedback. Surfaces only as P0 escape or soft buckets.
+**Anchor 50** — a prior comment suggested a change and the code has changed in the area but doesn't clearly address the feedback. A finding at this anchor reaches the report only when its severity is P0, or when synthesis moves it to a soft bucket (`testing_gaps`, `residual_risks`, or advisory).
 
 **Anchor 25 or below — suppress** — the prior comment was ambiguous about what change was needed, or the code has changed enough that you can't tell if the feedback was addressed.
 

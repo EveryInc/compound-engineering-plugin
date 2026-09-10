@@ -1,6 +1,6 @@
 # Arguments, modes, and the deliverable
 
-Read this at Stage 0, before scope resolution. It owns argument parsing, the conflicting-argument stop classes, the quick-review short-circuit, and what each mode returns.
+Read this at Stage 0, before scope is resolved. It defines how to parse the arguments, which argument combinations stop the review, the quick-review short-circuit, and what each mode returns.
 
 ## Argument Parsing
 
@@ -22,7 +22,7 @@ Parse the arguments you were invoked with for optional tokens. Strip each recogn
 
 **Grouping is presentation, not a mode.** The `grouping:` tokens change how the finding set is organized for triage — never reviewer selection, merge logic, scope rules, or the Stage 5c apply decision.
 
-**Mode alias:** `mode:headless` normalizes to `mode:agent`. `mode:agent` + `mode:headless` is not a conflict. `mode:non-interactive` is **not** an alias for `mode:agent` — that token means “suppress prompts” in other CE skills; if it appears here, treat it as an unrecognized/conflicting `mode:` token and stop (fail closed).
+**Mode alias:** `mode:headless` normalizes to `mode:agent`. `mode:agent` + `mode:headless` is not a conflict. `mode:non-interactive` is **not** an alias for `mode:agent` — that token means “suppress prompts” in other CE skills; if it appears here, treat it as an unrecognized, conflicting `mode:` token and stop rather than guessing what was meant.
 
 **Conflicting arguments:** Stop without dispatching reviewers when:
 - Multiple incompatible scope selectors appear together (e.g. `base:` **and** a PR number/branch target — `base:` means "review the current checkout against this base")
@@ -59,4 +59,4 @@ Sequence:
 
 **Deprecated:** `mode:autofix` is no longer supported. If passed, ignore it and proceed report-only; it does not grant local apply authority.
 
-The completion contract these modes feed — the actionable summary, the run artifacts, and where the run stops — executes after Stage 6 and is owned by `references/finish-review.md`.
+After Stage 6 (Synthesize and present), the review ends with the actionable summary, the run artifacts, and the point where the run stops. `references/finish-review.md` defines that ending for every mode.

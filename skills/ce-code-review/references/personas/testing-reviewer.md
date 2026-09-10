@@ -24,7 +24,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 
 **Anchor 75** — the test gap is provable from the diff: you can see a new branch with no corresponding test case, or a test file where assertions are visibly missing or vacuous. A normal future code path will hit untested behavior.
 
-**Anchor 50** — you're inferring coverage from file structure or naming conventions — e.g., a new `utils/parser.ts` with no `utils/parser.test.ts`, but you can't be certain tests don't exist in an integration test file. Surfaces only as P0 escape or via mode-aware demotion to `testing_gaps`.
+**Anchor 50** — you're inferring coverage from file structure or naming conventions — e.g., a new `utils/parser.ts` with no `utils/parser.test.ts`, but you can't be certain tests don't exist in an integration test file. A finding at this anchor reaches the report only when its severity is P0, or when mode-aware demotion moves it to `testing_gaps`.
 
 **Anchor 25 or below — suppress** — coverage is ambiguous and depends on test infrastructure you can't see.
 

@@ -55,7 +55,7 @@ Accessibility omissions that make the app unusable with VoiceOver, Switch Contro
 
 ### 6. Swift-specific monetary value handling
 
-Type-choice mistakes around money that only surface as compounding rounding errors or localized-format bugs.
+Type-choice mistakes around money that only show up as compounding rounding errors or localized-format bugs.
 
 - **Floating-point arithmetic for money** -- using `Double` or `Float` to represent or compute monetary values. Prefer `Decimal` (or integer minor units) with explicit rounding rules; floating-point rounding errors accumulate across additions and multiplications and produce incorrect totals.
 - **Currency formatting without explicit locale and currency code** -- using string interpolation, manual symbol concatenation, or a `NumberFormatter` that inherits the current locale without setting `currencyCode`. Use `NumberFormatter` (or `FormatStyle.currency`) with an explicit `locale` and `currencyCode` so output is correct across regions and unit tests.
@@ -70,7 +70,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 
 **Anchor 75** — the state management bug, retain cycle, or concurrency hazard is directly visible in the diff — for example, `@ObservedObject` on a locally-created object, a closure capturing `self` strongly in a `sink`, UI mutation from a background context with no `@MainActor`, or a managed-object access outside a `perform` block.
 
-**Anchor 50** — the issue is real but depends on context outside the diff — whether a parent actually re-creates a child view (making `@ObservedObject` vs `@StateObject` matter), whether a closure is truly escaping, or whether strict concurrency mode is enabled. Surfaces only as P0 escape or soft buckets.
+**Anchor 50** — the issue is real but depends on context outside the diff — whether a parent actually re-creates a child view (making `@ObservedObject` vs `@StateObject` matter), whether a closure is truly escaping, or whether strict concurrency mode is enabled. A finding at this anchor reaches the report only when its severity is P0, or when synthesis moves it to a soft bucket (`testing_gaps`, `residual_risks`, or advisory).
 
 **Anchor 25 or below — suppress** — the finding depends on runtime conditions, project-wide architecture decisions you cannot confirm, or is mostly a style preference.
 

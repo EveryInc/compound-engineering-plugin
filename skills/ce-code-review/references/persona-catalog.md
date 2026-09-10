@@ -1,10 +1,10 @@
 # Persona Catalog
 
-Reviewer personas organized into a small core plus generic, cross-cutting, and stack-specific conditionals. The orchestrator uses this catalog to select only reviewers whose domain is present in the diff.
+Reviewer personas are organized into a small core plus generic, cross-cutting, and stack-specific conditionals. You (the orchestrator) use this catalog to select only reviewers whose domain is present in the diff.
 
 ## Core and standards gate
 
-Correctness is spawned on every multi-agent review. Project-standards is spawned only when Stage 3b finds at least one applicable standards file, or when standards discovery fails and the review must fail closed.
+Correctness is spawned on every multi-agent review. Project-standards is spawned only when Stage 3b (Discover project standards paths) finds at least one applicable standards file, or when standards discovery fails and the review must run the persona rather than silently skip it.
 
 **Structured persona prompt assets:**
 
@@ -15,7 +15,7 @@ Correctness is spawned on every multi-agent review. Project-standards is spawned
 
 ## Generic conditional
 
-These lenses are broadly applicable but not automatically useful. Spawn only when their concrete surface is present.
+These reviewers are broadly applicable but not automatically useful. Spawn one only when the concrete surface it reviews is present in the diff.
 
 | Persona / asset | Prompt asset | Select when diff touches... |
 |---------|-------|-------|
@@ -26,7 +26,7 @@ These lenses are broadly applicable but not automatically useful. Spawn only whe
 
 ## Conditional (7 personas)
 
-Spawned when the orchestrator identifies relevant patterns in the diff. The orchestrator reads the full diff and reasons about selection -- this is agent judgment, not keyword matching.
+Spawn one of these when you identify relevant patterns in the diff. Read the full diff and reason about selection -- this is agent judgment, not keyword matching.
 
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
@@ -40,7 +40,7 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 
 ## Stack-Specific Conditional (2 personas)
 
-These reviewers cover specialized runtime behavior. Structural and maintainability concerns live in the conditional `maintainability` persona — do not spawn extra stack reviewers for philosophy or convention-only passes.
+These reviewers cover specialized runtime behavior. Structural and maintainability concerns belong to the conditional `maintainability` persona — do not spawn extra stack reviewers for philosophy or convention-only passes.
 
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
@@ -49,7 +49,7 @@ These reviewers cover specialized runtime behavior. Structural and maintainabili
 
 ## CE Conditional Local Prompt Assets (migration-specific)
 
-Use `deployment-verification-agent` when the migration-artifact gate applies **and** the change is risky (destructive DDL, backfills, NOT NULL without default, column renames/drops). Schema drift and migration safety live in the `data-migration` persona — not a separate typed agent.
+Use `deployment-verification-agent` when the migration-artifact condition (selection rule 5 below) applies **and** the change is risky (destructive DDL, backfills, NOT NULL without default, column renames/drops). Schema drift and migration safety belong to the `data-migration` persona — not a separate typed agent.
 
 | Prompt asset | Focus |
 |-------|-------|
@@ -57,10 +57,10 @@ Use `deployment-verification-agent` when the migration-artifact gate applies **a
 
 ## Selection rules
 
-1. **Always spawn correctness.** Spawn project-standards only for a non-empty applicable standards path list; skip it on a successful empty search and fail closed by spawning it when discovery is uncertain.
+1. **Always spawn correctness.** Spawn project-standards only for a non-empty applicable standards path list; skip it on a successful empty search, and spawn it when discovery is uncertain so an error never becomes a silent skip.
 2. **For each generic conditional**, require its explicit surface. For `testing`, that surface is changed tests/harnesses or concrete meaningful runtime behavior with no corresponding test work; production-file presence alone is insufficient. Absence means skip, not "run just in case."
 3. **For each cross-cutting conditional persona**, read the diff and decide whether its domain is relevant. This is a judgment call, not a keyword match.
 4. **For each stack-specific conditional persona**, use file types and changed patterns as a starting point, then decide whether the diff actually introduces meaningful work for that reviewer. Do not spawn language-specific reviewers just because one config or generated file happens to match the extension.
 5. **For `data-migration`**, spawn only when the diff includes migration or schema artifacts (`db/migrate/*`, `db/schema.rb`, `db/structure.sql`, Alembic/Flyway/Liquibase paths, or explicit backfill/data-transform scripts). Do **not** spawn for model-only or query-only changes without those files.
-6. **For CE conditional prompt assets**, use `deployment-verification-agent` when the migration-artifact gate applies and the change is risky (see above).
+6. **For CE conditional prompt assets**, use `deployment-verification-agent` when the migration-artifact condition applies and the change is risky (see above).
 7. **Announce the team** before spawning with a one-line justification per conditional reviewer selected.

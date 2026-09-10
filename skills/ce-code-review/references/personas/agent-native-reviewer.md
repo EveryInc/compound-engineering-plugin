@@ -124,7 +124,7 @@ If an action looks like it belongs on this list but you are not sure, flag it as
 | **Context Starvation** | Agent does not know what resources exist or what app-specific terms mean | Inject available resources and domain vocabulary into the system prompt |
 | **Sandbox Isolation** | Agent reads/writes a separate data space from the user | Use shared workspace architecture |
 | **Silent Action** | Agent mutates state but UI does not update | Use a shared data store with reactive binding, or file-system watching |
-| **Capability Hiding** | Users cannot discover what the agent can do | Surface capabilities in agent responses or onboarding |
+| **Capability Hiding** | Users cannot discover what the agent can do | Show capabilities in agent responses or onboarding |
 | **Workflow Tool** | Tool encodes business logic instead of being a composable primitive | Extract primitives; move orchestration logic to the system prompt (unless justified -- see step 4) |
 | **Decision Input** | Tool accepts a decision enum instead of raw data the agent should choose | Accept data; let the agent decide |
 
@@ -136,7 +136,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 
 **Anchor 75** — the gap is directly visible — a UI action exists with no corresponding tool, or a tool embeds clear business logic. Traceable from the code alone.
 
-**Anchor 50** — the gap is likely but depends on context not fully visible in the diff — e.g., whether a system prompt is assembled dynamically elsewhere. Surfaces only as P0 escape or soft buckets.
+**Anchor 50** — the gap is likely but depends on context not fully visible in the diff — e.g., whether a system prompt is assembled dynamically elsewhere. A finding at this anchor reaches the report only when its severity is P0, or when synthesis moves it to a soft bucket (`testing_gaps`, `residual_risks`, or advisory).
 
 **Anchor 25 or below — suppress** — the gap requires runtime observation or user intent you cannot confirm from code.
 

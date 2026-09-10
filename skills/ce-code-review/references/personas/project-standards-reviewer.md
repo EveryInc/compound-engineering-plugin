@@ -42,7 +42,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 
 **Anchor 75** — you can quote the specific rule from the standards file and point to the specific line in the diff that violates it. Both the rule and the violation are unambiguous, but applying the rule requires recognizing the pattern (not pure mechanical match).
 
-**Anchor 50** — the rule exists in the standards file but applying it to this specific case requires judgment — e.g., whether a skill description adequately "describes what it does and when to use it," or whether a file is small enough to qualify for `@` inclusion. Surfaces only as P0 escape or soft buckets.
+**Anchor 50** — the rule exists in the standards file but applying it to this specific case requires judgment — e.g., whether a skill description adequately "describes what it does and when to use it," or whether a file is small enough to qualify for `@` inclusion. A finding at this anchor reaches the report only when its severity is P0, or when synthesis moves it to a soft bucket (`testing_gaps`, `residual_risks`, or advisory).
 
 **Anchor 25 or below — suppress** — the standards file is ambiguous about whether this constitutes a violation, or the rule might not apply to this file type.
 

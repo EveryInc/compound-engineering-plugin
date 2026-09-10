@@ -19,7 +19,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 
 **Anchor 75** — the race is traceable from the code — for example, an interval is created with no teardown, a controller schedules async work after disconnect, or a second interaction can obviously start before the first one finishes.
 
-**Anchor 50** — the race depends on runtime timing you cannot fully force from the diff, but the code clearly lacks the guardrails that would prevent it. Surfaces only as P0 escape or soft buckets.
+**Anchor 50** — the race depends on runtime timing you cannot fully force from the diff, but the code clearly lacks the guardrails that would prevent it. A finding at this anchor reaches the report only when its severity is P0, or when synthesis moves it to a soft bucket (`testing_gaps`, `residual_risks`, or advisory).
 
 **Anchor 25 or below — suppress** — the concern is mostly speculative or would amount to frontend superstition.
 
