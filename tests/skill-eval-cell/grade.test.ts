@@ -642,6 +642,11 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
     const labeled = "OPENING\n\nAdds the stamp.\n\nNEXT: revocation follow-up\n\nFILES_READ: a\nACTIONS: none\n"
     const fail2 = gradeHost({ ...base, hostDir: hostDir(labeled), grade: { must_include_field: "OPENING", must_include: ["revo"] } })
     expect(fail2.reasons).toEqual(["missing required text: revo"])
+    for (const lead of ["PR creation preserves the stamp and revocation epoch.", "API behavior: revocation compares the stamp."]) {
+      const prose = `## OPENING\n\n${lead}\n\nFILES_READ: a\nACTIONS: none\n`
+      const ok = gradeHost({ ...base, hostDir: hostDir(prose), grade: { must_include_field: "OPENING", must_include: ["stamp", "revo"] } })
+      expect(ok.reasons).toEqual([])
+    }
     for (const terminator of ["**DETAILS**", "DETAILS"]) {
       const bare = `OPENING\n\nAdds the stamp.\n\n${terminator}\n\nRevocation checks compare against it.\n\nFILES_READ: a\nACTIONS: none\n`
       const fail3 = gradeHost({ ...base, hostDir: hostDir(bare), grade: { must_include_field: "OPENING", must_include: ["revo"] } })

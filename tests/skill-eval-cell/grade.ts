@@ -60,9 +60,11 @@ function lastTrailer(text: string, name: string): string {
 function isFieldBoundary(line: string): boolean {
   const trimmed = line.trim()
   if (/^#{1,6}\s+\S/.test(trimmed)) return true
-  // Same grammar as the opener: a bare or bold all-caps label, with or without a colon.
   const plain = trimmed.replaceAll("**", "").trim()
-  return /^[A-Z][A-Z0-9_-]{1,40}:?(\s|$)/.test(plain)
+  // A `LABEL:` field line, or a line that is nothing but a bare or bold all-caps label:
+  // the opener grammar. Prose that merely starts with an acronym ("PR creation ...",
+  // "API behavior ...") is content, not a boundary, so a bare label must fill the line.
+  return /^[A-Z][A-Z0-9_-]{1,40}:(\s|$)/.test(plain) || /^[A-Z][A-Z0-9_-]{1,40}$/.test(plain)
 }
 
 function lastFieldBlock(text: string, name: string): string {
