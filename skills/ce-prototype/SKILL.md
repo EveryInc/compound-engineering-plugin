@@ -21,23 +21,23 @@ If there is no person to experience the prototype — LFG, `mode:pipeline`, or a
 
 ## Scope the question
 
-Read `references/scoping.md` before you ask the user anything or touch the repo. That load is not optional. It owns how the question arrives and the scoped repo read of what the question touches — do not scan the tree. It also owns narrow vs wide, sizing, the go-ahead message, and how the remaining questions change after each decision. Do not build until the user proceeds.
+Read `references/scoping.md` before you ask the user anything or touch the repo. That read is not optional. It defines how the question arrives and the scoped repo read of what the question touches — do not scan the tree. It also defines narrow vs wide, sizing, the go-ahead message, and how the remaining questions change after each decision. Do not build until the user proceeds.
 
 ## Build it
 
-Read `references/build.md` and `references/preview.md` before writing anything. Once an isolated web preview is up, load `references/annotation-loop.md`. Overlay and yielded-medium runs stay on chat.
+Read `references/build.md` and `references/preview.md` before writing anything. Once an isolated web preview is up, load `references/annotation-loop.md`. Overlay runs and non-web runs stay on chat.
 
-After they proceed, speak only when they can act on something new, in one short line naming what happened: a screen is up, the helper URL is live, or a blocker only they can lift. The annotation loop owns the line after an applied revision and silence while a wait is parked.
+After they proceed, speak only when they can act on something new, in one short line naming what happened: a screen is up, the helper URL is live, or a blocker only they can lift. That annotation loop defines the line after an applied revision and silence while a wait is parked.
 
 A question is settled by seeing when the judgment lands on the rendered result: how a layout reads, what a palette does, how dense a screen feels. It is settled by driving when the judgment lands on what happens as the user moves through it: a flow, a state model, how a control answers. Load `references/craft-floor.md` for a seeing question. It carries the quality floor and the avenue-difference rule; neither lives here. A question settled by driving does not load it and gains no finish from it.
 
-Default substrate: the web, whatever the product is written in — a native app's navigation feel gets a web approximation, not SwiftUI. It yields in exactly two cases: the user names a technology, or the dimension cannot be rendered in a browser without faking it. In that second case, build in the medium the dimension requires, and name that choice before you build. If a named technology also cannot render the dimension, say so rather than yielding silently. `references/build.md` owns what the artifact may be on either path.
+Default substrate: the web, whatever the product is written in — a native app's navigation feel gets a web approximation, not SwiftUI. It yields in exactly two cases: the user names a technology, or the dimension cannot be rendered in a browser without faking it. In that second case, build in the medium the dimension requires, and name that choice before you build. If a named technology also cannot render the dimension, say so rather than yielding silently. `references/build.md` defines what the artifact may be on either path.
 
 Build under `.context/compound-engineering/ce-prototype/<date>-<slug>/`, so the prototype survives for the implementation that follows. Fall back to `/tmp/compound-engineering-<uid>/ce-prototype/<date>-<slug>/`, where survival is best-effort. `references/build.md` names every case that forces the fallback root.
 
-The `.context` path has to be gitignored first. Probe it from the repo root with `git -C <repo root> check-ignore -q .context/compound-engineering/`; the trailing slash is load-bearing. When it is not covered, the offer to add that line comes before the root is resolved, or accepting it cannot help this run.
+The `.context` path has to be gitignored first. Probe it from the repo root with `git -C <repo root> check-ignore -q .context/compound-engineering/`; the trailing slash is required. When it is not covered, the offer to add that line comes before the root is resolved, or accepting it cannot help this run.
 
-`references/preview.md` owns that offer and the resolution that follows it. Do not create the run directory yourself; a second claim splits the screens from the capsule.
+`references/preview.md` defines that offer and the resolution that follows it. Do not create the run directory yourself; a second claim splits the screens from the capsule.
 
 Scale into the existing app as a throwaway overlay when the user asks, or when the question is density or chrome on an existing page — an isolated page hides that. It is the one path that touches the product tree. Never commit it. When the try ends, restore only the files you changed. If you cannot undo them cleanly, name the files you left modified rather than handing off a dirty tree. Never delete a kept prototype: throwaway describes the code, not a request to remove it.
 
@@ -47,7 +47,7 @@ Keep a run capsule at `decisions.md` in this run's directory, so the next skill 
 
 Update the capsule when you are confident a choice has settled — the user judged the artifact and chose, including any adjustments they attached. If you are not confident, do not write. Do not pause to confirm every write. Keep the winner and those adjustments in the prototype.
 
-Read `decisions.md` before building for the next related question, and work out which questions are still worth building for. `references/scoping.md` owns how that list changes. If what they decided changed what they want to build rather than answering the question you asked, stop and hand back what you learned instead of building for a question they have moved past. Otherwise stay in this skill for it. Do not bounce to brainstorm or plan while a related question still needs an artifact, do not start an unrelated campaign, and do not keep prototyping once they apply.
+Read `decisions.md` before building for the next related question, and work out which questions are still worth building for. `references/scoping.md` defines how that list changes. If what they decided changed what they want to build rather than answering the question you asked, stop and hand back what you learned instead of building for a question they have moved past. Otherwise stay in this skill for it. Do not bounce to brainstorm or plan while a related question still needs an artifact, do not start an unrelated campaign, and do not keep prototyping once they apply.
 
 ## Apply or continue
 

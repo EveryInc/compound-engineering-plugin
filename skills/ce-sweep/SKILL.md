@@ -34,9 +34,9 @@ allowed-tools:
 
 ## Mode
 
-Parse a `mode:non-interactive` token or its deprecated alias `mode:headless` from anywhere in the arguments, strip both, and route the remaining tokens per Phase 0. Both tokens together is not a conflict.
+Parse a `mode:non-interactive` token or its deprecated alias `mode:headless` from anywhere in the arguments, strip both, and pass the remaining tokens to Phase 0 (Route by Config State). Both tokens together is not a conflict.
 
-**Non-interactive** (either token present) never prompts. Ambiguous product decisions and the 2c circuit breaker defer instead. Routing that lands on the interview reports `first run requires interactive setup` and stops.
+**Non-interactive** (either token present) never prompts. Ambiguous product decisions and the 2c circuit breaker defer instead. When routing lands on the first-run interview, report `first run requires interactive setup` and stop.
 
 **Fail safe.** With no usable blocking-question tool, behave as non-interactive even without the token. Never block on input that cannot arrive. Where such a tool exists, ask one question at a time (see "Interaction method" in `references/run.md`) and never skip a question you owe the user.
 
@@ -76,13 +76,13 @@ Read `references/interview.md` and follow it — it writes the config keys into 
 
 Within 2d, work one item at a time in cursor order, never batched across the read-back. For each item: ack at the source unless its own-identity `existing_ack` is already there -> read back and confirm -> `upsert-item` -> `cursor-advance` — never past an item not yet upserted.
 
-**Stop classes.** The run continues only while the lease is yours and state writes land.
+**When the run stops.** The run continues only while the lease is yours and state writes land.
 
 - `LOCKED` -> record `aborted-locked` and exit.
 - `LEASE-LOST` -> stop writing, record `partial`, exit.
-- An engine call that cannot write state at all -> stop before any further source-side write. An ack that state cannot record gets acked again next run.
+- A `sweep-state.py` call that cannot write state at all -> stop before any further source-side write. An ack that state cannot record gets acked again next run.
 
-Everything state *can* record continues. A failed ack marks the item `ack_deferred` and holds its cursor. A failed download, scratch setup, or analysis marks it and moves on.
+Whenever state *can* record the outcome, the run continues. A failed ack marks the item `ack_deferred` and holds its cursor. A failed download, scratch setup, or analysis marks it and moves on.
 
 #### 2i. Wrap-up
 

@@ -11,11 +11,11 @@ Turn a feature that just shipped into copy-pasteable, user-facing announcement c
 
 **Done when:** every drafted channel is presented as a labeled, copy-pasteable block and the user has been offered a revision. **This skill drafts only — it never posts, publishes, schedules, commits, or opens PRs.** Posting is a human action.
 
-It is **spiral-agnostic**: with nothing installed it drafts directly from the editorial and social fundamentals in Path B. When the Spiral CLI is present and authed, drafts come back voice-matched to the user's brand — an enhancement, never a requirement.
+It works **with or without Spiral**: with nothing installed it drafts directly from the editorial and social fundamentals in Path B (Direct drafting). When the Spiral CLI is present and authed, drafts come back voice-matched to the user's brand — an enhancement, never a requirement.
 
 ## Phase 1 — Figure out what shipped
 
-A free-form description in the arguments is the source of truth. Otherwise derive it from context, using what's available and blocking on no single source:
+A free-form description in the arguments is the source of truth. Otherwise derive it from context, using what is available and never waiting on any single source:
 
 - **Merged/active PR** — `gh pr view --json title,body,url` (the title and body usually state the user-facing value)
 - **The diff** — `git diff main...HEAD --stat`, skimming notable changes so the claim is grounded in what actually changed
@@ -42,11 +42,11 @@ spiral auth status --json 2>/dev/null
 - `"authenticated": false` -> **Unauthed**
 - Output isn't JSON (older CLI that ignores `--json`) -> ready iff it contains `spiral_sk_`, else unauthed
 
-**Ready** -> Path A. **Absent or Unauthed** -> Path 0, then Path A if setup completes, else Path B. Never let a Spiral failure, timeout, or odd output block or slow the skill — when in doubt, treat it as not-ready and continue.
+**Ready** -> Path A (Spiral ready). **Absent or Unauthed** -> Path 0 (Offer Spiral setup), then Path A if setup completes, else Path B (Direct drafting). Never let a Spiral failure, timeout, or odd output block or slow the skill — when in doubt, treat it as not-ready and continue.
 
 ### Path 0 — Offer Spiral setup (once, declinable)
 
-Go straight to Path B when running non-interactively — there is no human to answer. Otherwise offer setup **once**: read `references/spiral-cli.md` and follow its Path 0 section for the opt-out check, the blocking question, the agent-run `spiral login --json` flow (the API key never passes through the agent, and the user never pastes one into chat), the install path, and how the opt-out is recorded. Skip to Path B only when *that* check finds a recorded opt-out — it is the authority on what counts as recorded, and a naive config scan misreads `ce-setup`'s commented template example as one, silently suppressing the offer.
+Go straight to Path B when running non-interactively — there is no human to answer. Otherwise offer setup **once**: read `references/spiral-cli.md` and follow its Path 0 section for the opt-out check, the blocking question, the agent-run `spiral login --json` flow (the API key never passes through the agent, and the user never pastes one into chat), the install path, and how the opt-out is recorded. Skip to Path B only when *that* check finds a recorded opt-out. That section defines what counts as recorded; a naive config scan misreads `ce-setup`'s commented template example as one, silently suppressing the offer.
 
 Two properties that section depends on: **any dismissal records the opt-out**, so a single first-run decline stops the offer for good in this repo, and a decline always proceeds to Path B rather than blocking. If a human is present but no blocking-question tool is in the current tool list, fall back to a numbered list of the two options in chat and wait — do not skip the offer, and never call a user-facing question tool to discover whether one exists.
 
@@ -65,7 +65,7 @@ No Spiral needed. Draft every channel through the `ce-noslop` skill. (The Spiral
 - Lead with the user-facing outcome — what someone can now do, not how it was built.
 - One idea per piece.
 
-**Distributed channels:** the first line is the hook and has to earn the next line (feeds truncate) — no preamble. Match each channel's native shape and length; never reuse one draft verbatim across channels. One clear CTA where the channel supports it. Hashtags 0-2, and only where the channel expects them.
+**Distributed channels:** the first line is the hook and has to make the reader want the next line (feeds truncate). No preamble. Match each channel's native shape and length; never reuse one draft verbatim across channels. One clear CTA where the channel supports it. Hashtags 0-2, and only where the channel expects them.
 
 **Per channel:**
 
@@ -87,4 +87,4 @@ Show every draft as a clean, copy-pasteable block labeled by channel:
 <the copy>
 ```
 
-When Path A produced them, also surface the `session_id` and each draft's `url` so the user can open and tweak them in the Spiral web app. Offer to revise (tone, length, angle, more variations, another channel). **Do not post, publish, schedule, commit, or open a PR** — end by reminding the user the drafts are theirs to ship.
+When Path A produced them, also show the `session_id` and each draft's `url` so the user can open and tweak them in the Spiral web app. Offer to revise (tone, length, angle, more variations, another channel). **Do not post, publish, schedule, commit, or open a PR** — end by reminding the user the drafts are theirs to ship.

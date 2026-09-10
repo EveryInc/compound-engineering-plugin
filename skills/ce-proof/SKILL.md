@@ -16,7 +16,7 @@ Proof is a collaborative document editor for humans and agents. It is reached th
 
 **Done:** the operation is confirmed at its own level, and the user has the result plus a short summary. A create is confirmed by the `tokenUrl` it returned. A mutation is confirmed by `ok: true`; on a `202` or a `partial: true` response, confirm by re-reading `v3/document`. A pull is confirmed by the local file it wrote, and a read by the content it returned.
 
-**Read `references/api.md` before the first Proof read or mutation, HTTP or MCP.** It owns the endpoints — `share/markdown`, the v3 document and edit surfaces, presence, title, and `DELETE /api/documents/<slug>` — along with the operation tables, the error and retry classes, and the `curl` permission hint for Claude Code.
+**Read `references/api.md` before the first Proof read or mutation, HTTP or MCP.** It defines the endpoints: `share/markdown`, the v3 document and edit endpoints, presence, title, and `DELETE /api/documents/<slug>`. It also carries the operation tables, the error and retry classes, and the `curl` permission hint for Claude Code.
 
 **Read `references/workflows.md`** before reviewing a shared doc, before creating and sharing one, and before pulling a doc to a local file. Those flows have exact recipes there.
 
@@ -45,17 +45,17 @@ Two entry points share those mechanics. One is a bare user request naming a loca
 
 Only publish markdown. If the source is an HTML unified plan, return the local browser/open path instead of uploading it. When publishing a unified plan, label the title by readiness when it is known, e.g. `Plan: <title> (requirements-only)` or `Plan: <title> (implementation-ready)`.
 
-Publish the source file's bytes, never hand-written or placeholder content. `references/workflows.md` gives the `jq --rawfile` recipe that escapes newlines, quotes, and backticks correctly. After a publish handoff, surface the URL and return control.
+Publish the source file's bytes, never hand-written or placeholder content. `references/workflows.md` gives the `jq --rawfile` recipe that escapes newlines, quotes, and backticks correctly. After a publish handoff, show the user the URL and return control.
 
 ## Editing
 
-`GET /api/agent/<slug>/v3/document` and `POST /api/agent/<slug>/v3/edit` are the only agent read and mutation surfaces. Comments, replies, resolutions, suggestions, and content changes are all `operations` in the v3 edit body, so a path you did not read in `references/api.md` is one you invented.
+`GET /api/agent/<slug>/v3/document` and `POST /api/agent/<slug>/v3/edit` are the only endpoints an agent reads from and writes to. Comments, replies, resolutions, suggestions, and content changes are all `operations` in the v3 edit body, so a path you did not read in `references/api.md` is one you invented.
 
 Read `v3/document` as the source of truth before editing. Then choose the narrowest operation that expresses the change: a scoped `replace`, `insert`, or `delete` for prose; `suggest` when the change should be visible as tracked changes; `set_document` only when the user asks for a whole-doc replacement, or the change cannot be expressed narrowly. Targets are visible text in `markdown`, never raw markdown syntax or block refs.
 
 `comments[]` and `suggestions[]` from that read are the review state. Reply, resolve, unresolve, accept, or reject by id. v3 has no delete-comment op. A comment marked `orphaned: true` is still readable and replyable, but its old quote is no longer a live anchor.
 
-Stop classes, before retrying anything:
+Errors that mean stop and check, before retrying anything:
 
 - `TARGET_AMBIGUOUS` — the anchor matched more than once and nothing changed. Disambiguate with `occurrence` / `before` / `after` from `error.candidates`; never assume silent first-match, and never blind-retry a comment.
 - `retryable: false` — fix the request. `retryable: true` with `error.current` — re-resolve targets against `current`, then retry once.

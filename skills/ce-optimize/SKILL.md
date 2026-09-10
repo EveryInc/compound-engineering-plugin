@@ -6,13 +6,13 @@ argument-hint: "[path to optimization spec YAML, or describe the optimization go
 
 # Optimize a measurable target
 
-**Outcome:** confirmed improvements to the named target live on an `optimize/<spec-name>` branch, with a disk log. The next consumer is the user at wrap-up.
+**Outcome:** confirmed improvements to the named target live on an `optimize/<spec-name>` branch, with a disk log. The user takes over at wrap-up.
 
 **Intent:** the next action is the cheapest step that would change what gets implemented. Attribute the cost of a named workload before searching implementations. Search and keep a scored variant space without requiring a profile.
 
-**Done when:** a stopping criterion fired, every declared required target is met or another stop fired first, the final state is written and verified on disk, and the user has been given the post-completion options. If the run instead stopped at a gate it could not clear, say what blocked it.
+**Done when:** a stopping criterion was met, every declared required target is met or another stop was met first, the final state is written and verified on disk, and the user has been given the post-completion options. If the run instead stopped at a check it could not pass, say what blocked it.
 
-Invoking this skill authorizes reading the repo, building the harness, and (after the Phase 1 approval gate) isolated experiments and keep/revert commits on `optimize/<spec-name>`. Ask when spend is uncapped, when a new dependency appears, when wrap-up would push or open a PR, or when only the user can choose among the post-completion options. Do not ask again to run the next in-envelope experiment.
+Invoking this skill authorizes reading the repo, building the harness, and (after the Phase 1 approval gate) isolated experiments and keep/revert commits on `optimize/<spec-name>`. Ask when spend is uncapped, when a new dependency appears, when wrap-up would push or open a PR, or when only the user can choose among the post-completion options. Do not ask again to run the next experiment inside those limits.
 
 Independent calls and dispatches that do not depend on each other go in one response. Serialize only real dependencies.
 
@@ -46,13 +46,13 @@ The experiment log on disk is the source of truth. Write order is measure, write
 
 Four phases run in order. Each one names the reference it cannot start without. A fresh run skips none of them: a harder optimization spends longer in a phase, it does not run fewer phases.
 
-**A resume is not a fresh run.** On a resume, re-enter Phase 0 only far enough to detect the run and to recover any `result.yaml` markers the log is missing. Then continue from the phase the log records: skip the work the log proves finished, and re-enter any gate it does not. A checkpoint proves the work that produced it, never a user decision: the log holds no record of approval, so a resume that has not seen the user approve presents the Phase 1 gate again.
+**A resume is not a fresh run.** On a resume, re-enter Phase 0 only far enough to detect the run and to recover any `result.yaml` markers the log is missing. Then continue from the phase the log records: skip the work the log proves finished, and re-enter any approval check it does not. A checkpoint proves the work that produced it, never a user decision: the log holds no record of approval, so a resume that has not seen the user approve presents the Phase 1 gate again.
 
 **Phase 0: Setup.** The input is a goal, or a path to a spec YAML. It comes from the user or from a calling skill. If neither supplied one, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file." Load or build the spec and save it (CP-0): **read `references/spec.md`**. Then search prior learnings, detect run identity, and create the branch and scratch space. **Read `references/measurement.md`** for the rest of Phase 0 and Phase 1.
 
 **Phase 1: Measurement scaffolding.** Build or validate the harness, write the baseline (CP-1), probe parallelism, check the worktree budget. Two gates stop the run:
 
-- **Clean-tree gate.** Do not continue while any file in `scope.mutable` or `scope.immutable` has uncommitted changes. The reference owns the check and what to ask for.
+- **Clean-tree gate.** Do not continue while any file in `scope.mutable` or `scope.immutable` has uncommitted changes. The reference defines the check and what to ask for.
 - **User approval gate.** Present what Phase 1 assembled; the reference lists what to include. If the primary type is `judge` and `max_total_cost_usd` is unset, say plainly that spend is uncapped. Offer proceed, fix issues, and adjust spec. Adjusting the spec is only available while the log holds nothing derived from it (no hypothesis backlog and no experiments) and it sends the run back through Phase 1 so the baseline matches the new spec. Once anything derived from the spec is on file, the spec is fixed for the run. **Do not enter Phase 2 until the user explicitly approves.** Then re-read the spec and baseline from disk.
 
 **Phase 2: Hypothesis generation.** Analyze the current approach, rank the hypotheses, record the backlog (CP-2). Do not dispatch an implementation experiment while a cheaper locating measurement would change keep or skip. **Read `references/loop.md`** for this phase and Phase 3. One gate: **dependency pre-approval.** Collect every new dependency across all hypotheses and present the full list for bulk approval. A dependency the user does not approve stays in the backlog, is skipped in batch selection, and comes back at wrap-up.
