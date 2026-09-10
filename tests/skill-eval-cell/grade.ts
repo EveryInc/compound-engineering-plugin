@@ -59,14 +59,22 @@ function lastTrailer(text: string, name: string): string {
  */
 function isFieldBoundary(line: string): boolean {
   const trimmed = line.trim()
-  // A boundary is a syntactic signal, never a lexical guess about a bare word: a
-  // Markdown heading, a line that is entirely bold (any words), or a `Label:` field
-  // line. A bare word on its own line is content (`## OUTCOME` followed by
-  // `unresolved` is a one-word value), and prose that merely starts with an acronym
-  // ("PR creation ...") is content too, so neither closes a field.
+  // A boundary is a syntactic label signal, the same shapes the opener accepts: a
+  // Markdown heading; a line that opens with a bold segment (`**DETAILS**`,
+  // `**Details and Rationale**`, `**DETAILS:** explanation`); or a `Label:` line whose
+  // label is one to five capitalized words, connectors allowed (`DETAILS:`, `Details:`,
+  // `Details and Rationale:`). A bare unmarked word on its own line is content
+  // (`## OUTCOME` then `unresolved` is a one-word value), and prose that starts with an
+  // acronym or a lowercase-word phrase before a colon ("PR creation ...",
+  // "API behavior: ...") is content too, so none of those close a field.
   if (/^#{1,6}\s+\S/.test(trimmed)) return true
-  if (/^\*\*[^*]+\*\*:?$/.test(trimmed)) return true
-  return /^[A-Za-z][A-Za-z0-9_-]{1,40}:(\s|$)/.test(trimmed)
+  const label = /^[A-Z][A-Za-z0-9_-]*(\s+(?:and|or|of|the|to|for|[A-Z][A-Za-z0-9_-]*)){0,4}/
+  // A bold lead-in counts only when the bold text is itself a label: `**DETAILS:**` and
+  // `**Details and Rationale**` are, `**Candidate A: discard.** It merely...` is a
+  // finding that happens to open in bold and stays content.
+  const bold = trimmed.match(/^\*\*([^*]+)\*\*/)
+  if (bold) return new RegExp(`^${label.source}:?$`).test(bold[1].trim())
+  return new RegExp(`^${label.source}:(\\s|$)`).test(trimmed)
 }
 
 function lastFieldBlock(text: string, name: string): string {

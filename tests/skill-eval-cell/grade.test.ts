@@ -642,7 +642,7 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
     const labeled = "OPENING\n\nAdds the stamp.\n\nNEXT: revocation follow-up\n\nFILES_READ: a\nACTIONS: none\n"
     const fail2 = gradeHost({ ...base, hostDir: hostDir(labeled), grade: { must_include_field: "OPENING", must_include: ["revo"] } })
     expect(fail2.reasons).toEqual(["missing required text: revo"])
-    for (const lead of ["PR creation preserves the stamp and revocation epoch.", "API behavior: revocation compares the stamp."]) {
+    for (const lead of ["PR creation preserves the stamp and revocation epoch.", "API behavior: revocation compares the stamp.", "**Candidate A: discard.** It reopens the stamp and revocation choice."]) {
       const prose = `## OPENING\n\n${lead}\n\nFILES_READ: a\nACTIONS: none\n`
       const ok = gradeHost({ ...base, hostDir: hostDir(prose), grade: { must_include_field: "OPENING", must_include: ["stamp", "revo"] } })
       expect(ok.reasons).toEqual([])
@@ -650,7 +650,7 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
     const oneWord = "## OUTCOME\n\nunresolved\n\nFILES_READ: a\nACTIONS: none\n"
     const value = gradeHost({ ...base, hostDir: hostDir(oneWord), grade: { must_include_field: "OUTCOME", must_include: ["unresolved"] } })
     expect(value.reasons).toEqual([])
-    for (const terminator of ["**DETAILS**", "**Details**", "**Details and Rationale**", "Details:", "DETAILS:"]) {
+    for (const terminator of ["**DETAILS**", "**Details**", "**Details and Rationale**", "Details:", "DETAILS:", "Details and Rationale:", "**DETAILS:** explanation follows"]) {
       const bare = `OPENING\n\nAdds the stamp.\n\n${terminator}\n\nRevocation checks compare against it.\n\nFILES_READ: a\nACTIONS: none\n`
       const fail3 = gradeHost({ ...base, hostDir: hostDir(bare), grade: { must_include_field: "OPENING", must_include: ["revo"] } })
       expect(fail3.reasons).toEqual(["missing required text: revo"])
