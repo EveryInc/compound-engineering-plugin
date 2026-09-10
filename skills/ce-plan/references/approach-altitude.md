@@ -9,7 +9,7 @@ The whole point of the approach-plan is to be specific enough to judge. Generic 
 - **Bound the recon per input type** so the checkpoint stays cheap. Directional guidance, not a rule: for a PDF, section headers + first/last pages + a few sampled sections; for a long transcript, sampled spans plus topic shifts; for a codebase, entry points and the relevant module shape. Skim to locate what matters and how the pieces relate, then stop.
 - **Ground in specifics:** name the concrete bridges the approach will make ("the transcript spends ~40 minutes on pricing, which maps to the book's chapter-3 framework — I'll connect them there"), not a generic recipe.
 - **Degrade gracefully.** If the inputs are absent or arrive later, fall back to proposing from the request alone and flag the approach-plan as provisional/ungrounded — never block waiting for inputs, never emit generic methodology dressed as a plan.
-- **No process exhaust.** The approach-plan reads as value to the user, not as an audit log of recon steps ("I skimmed the PDF, then sampled the transcript, then…"). Surface what you concluded, not the plumbing. (See the Veil of value in `references/universal-planning.md`.)
+- **No process exhaust.** The approach-plan reads as value to the user, not as an audit log of recon steps ("I skimmed the PDF, then sampled the transcript, then…"). Say what you concluded, not the plumbing. (See the Veil of value in `references/universal-planning.md`.)
 
 ## Stage 2: Compose the approach-plan (chat-first)
 
@@ -38,17 +38,17 @@ Hold at the approach. Use the host's blocking question tool already in the curre
 
 **Execute now -- code deliverable.** The approach-plan's job is done; continue into the normal `ce-plan` flow (Phase 0.1b onward) to produce the implementation plan, then hand off to `ce-work` for the code. `ce-plan` never writes the code itself.
 
-**Execute now -- non-code deliverable.** This is the knowledge-work path with no `ce-work` equivalent, so it routes to `ce-work`'s carve-out:
+**Execute now -- non-code deliverable.** This is the knowledge-work path with no `ce-work` equivalent, so it goes to the knowledge-work carve-out inside `ce-work`:
 
 1. Write the marker `execution: knowledge-work` into the plan frontmatter.
-2. **Persist** the marked plan to `<root>/plans/` (the marker needs a file to live in so it can travel — R7's file-optional governs the user keeping a chat-only copy, but non-code *execution* forces a persist).
+2. **Persist** the marked plan to `<root>/plans/` (the marker needs a file to live in so it can travel — R7's file-optional rule covers the user keeping a chat-only copy, but non-code *execution* requires a saved file).
 3. Invoke the `ce-work` skill with the plan path using the host's normal skill-invocation mechanism. Do not substitute a generic Task, Agent, or subagent. If `ce-work` cannot be invoked, say execution did not start and print a copyable handoff prompt instructing the next agent to invoke `ce-work` with the plan path.
 
 `ce-plan` itself does not execute the deliverable in any path — it produces the approach-plan and hands off. The portable plan is also runnable by any other agent without `ce-work`.
 
 ## Boundaries: not the other approach surfaces
 
-Three in-chat "approach" mechanics already exist. Approach altitude is separate but coordinated — keep it disjoint by its distinguishing properties, not by vocabulary:
+Three in-chat "approach" mechanics already exist. Approach altitude is separate but coordinated — keep it separate by its distinguishing properties, not by vocabulary:
 
 - **Answer-seeking's plan-of-attack** (`references/universal-planning.md`): non-blocking (states the approach and proceeds immediately), discards its scaffold, produces a chat answer, and lives only in the non-software answer-seeking branch. Approach altitude is domain-general, **holds at a checkpoint** for a user decision, and produces a **persistable, deepenable** approach-plan. An investigative request with no approach-language is answer-seeking's, not this.
 - **Scoping synthesis** (Phase 0.7 / 5.1.5): a *scope* checkpoint for a deliverable already committed to — it confirms what the implementation plan will target. Approach altitude is an *altitude* checkpoint that decides whether to commit to the deliverable at all; it sits above the implementation plan, not inside producing one.

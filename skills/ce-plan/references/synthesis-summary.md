@@ -1,15 +1,15 @@
 # Scoping Synthesis
 
-**Scoping synthesis ≠ plan doc.** The scoping synthesis is the scope/decisions checkpoint that plan-write (Phase 5.2) consumes as input. It surfaces decisions the agent CAN make at synthesis time: scope-level (does this plan cover the full brainstorm or narrow to a subset?), posture (extend existing pattern vs. introduce new abstraction), test approach. It does NOT surface decisions plan-write produces: PR count, commit/branch sequencing, effort or time estimates, Implementation Unit lists, exact file paths, test command recipes. If the synthesis claims any of those, it has leaked plan-write thinking and must be re-cut to scope-decisions only. Even when the agent has formed plan-write opinions earlier in the session, the synthesis stays at scope altitude — the user is being asked to affirm scope, not to rubber-stamp implementation.
+**Scoping synthesis ≠ plan doc.** The scoping synthesis is the scope/decisions checkpoint that plan-write (Phase 5.2) consumes as input. It surfaces decisions the agent CAN make at synthesis time: scope-level (does this plan cover the full brainstorm or narrow to a subset?), approach (extend existing pattern vs. introduce new abstraction), test approach. It does NOT surface decisions plan-write produces: PR count, commit/branch sequencing, effort or time estimates, Implementation Unit lists, exact file paths, test command recipes. If the synthesis claims any of those, it has leaked plan-write thinking and must be re-cut to scope-decisions only. Even when the agent has formed plan-write opinions earlier in the session, the synthesis stays at scope level — the user is being asked to affirm scope, not to rubber-stamp implementation.
 
 **Two-stage shape: internal draft, then chat-time synthesis.** The synthesis is composed in two stages. Stage 1 is an internal three-bucket draft (Stated / Inferred / Out of scope) the agent uses to think comprehensively about scope. Stage 2 is the compressed chat-time output: a tier-shaped summary plus "Call outs" (zero or more, capped by plan depth — see the cap table under "How many call-outs are right?") — the specific forks where the user might redirect. The user only sees stage 2. The internal draft still informs the plan body via the doc-shape routing below; it just doesn't reach the user verbatim. This split exists because the comprehensive audit shape produced too much detail for the user to weigh in on, even when the granularity rules were followed.
 
 **Three-bucket structure is the internal draft, not the user-facing artifact.** It does its scope-thinking job during stage 1 and dissolves when Phase 5.2 writes the plan: Stated content informs the Product Contract's Requirements and Problem Frame, success signals inform its Success Criteria — from either bucket on a confirmed interactive run, Stated only on the unconfirmed paths, session-settled product decisions inform its Key Decisions, Inferred content informs Key Technical Decisions / Implementation Units (normal interactive mode) or the Planning Contract's `### Assumptions` (non-interactive mode, or an interactive `SKIP_SCOPING_CONFIRM` skip run), Out-of-scope content informs the Product Contract's Scope Boundaries. The plan has no parallel `## Synthesis` section — only the stage-2 summary embeds, under the Product Contract's `### Summary`. See "Doc shape after confirmation" below for the exact routing and section nesting.
 
-This content is loaded when a synthesis-summary phase fires in ce-plan. There are two variants — they share structure but differ in timing and content focus:
+This content is loaded when a synthesis-summary phase runs in ce-plan. There are two variants — they share structure but differ in timing and content focus:
 
-- **Solo variant** (Phase 0.7): fires after Phase 0.4 bootstrap and Phase 0.6 depth classification, before Phase 1 research begins. Catches scope misinterpretation before sub-agent dispatch is spent. Full breadth — problem frame, intended behavior, success criteria, in/out scope.
-- **Brainstorm-sourced variant** (Phase 5.1.5): fires after Phase 1 research, before Phase 5.2 plan-write. Focuses on plan-time decisions (which files/modules to touch, which patterns extended vs. introduced new, test scope, refactor scope). Brainstorm-validated WHAT is assumed and not re-stated.
+- **Solo variant** (Phase 0.7, Solo-Mode Scoping Synthesis): runs after Phase 0.4 bootstrap and Phase 0.6 depth classification, before Phase 1 research begins. Catches scope misinterpretation before sub-agent dispatch is spent. Full breadth — problem frame, intended behavior, success criteria, in/out scope.
+- **Brainstorm-sourced variant** (Phase 5.1.5, Brainstorm-Sourced Scoping Synthesis): runs after Phase 1 research, before Phase 5.2 plan-write. Focuses on plan-time decisions (which files/modules to touch, which patterns extended vs. introduced new, test scope, refactor scope). Brainstorm-validated WHAT is assumed and not re-stated.
 
 Both variants share the two-stage shape, the keep test for call-outs, soft-cut behavior, and the doc-shape routing. In non-interactive (headless) mode, both compose the internal draft and skip stage 2 — the user-facing compression is moot when there is no synchronous user. The internal draft dissolves into the plan body the same way, with Inferred bets routing to a `## Assumptions` section. See "Headless mode (shared)" below for the full routing.
 
@@ -127,7 +127,7 @@ The line-number, signature, and code-spec rules are not new — they have always
 
 ## When to skip the blocking confirmation
 
-The auto-proceed path (announce without waiting for user confirmation) fires only when **plan depth is Lightweight AND zero call-outs survive the keep test**. For Standard or Deep plans, always fire the confirmation gate even when zero call-outs survive — substance earns the checkpoint, not interaction history. A Deep plan with rich silent decisions and a 1-3 line summary is exactly the case where rubber-stamping is most likely; the explicit confirmation request gives the user a real chance to push back before research or plan-write proceeds.
+The auto-proceed path (announce without waiting for user confirmation) applies only when **plan depth is Lightweight AND zero call-outs survive the keep test**. For Standard or Deep plans, always ask for confirmation even when zero call-outs survive — the plan's substance is what calls for the checkpoint, not how much dialogue preceded it. A Deep plan with rich silent decisions and a 1-3 line summary is exactly the case where rubber-stamping is most likely; the explicit confirmation request gives the user a real chance to push back before research or plan-write proceeds.
 
 When auto-proceed applies (Lightweight + zero call-outs), emit a one-line announcement and continue:
 
@@ -139,11 +139,11 @@ No open decisions to weigh in on — proceeding to [research / plan-write]. Inte
 
 The announcement is mandatory when skipping — silent proceeding is not allowed. The "why" (no forks worth flagging) must be visible.
 
-For Standard/Deep with zero call-outs, the confirmation template still fires; the "Call outs:" header is simply omitted. The user gets the summary plus the explicit confirmation request.
+For Standard/Deep with zero call-outs, the confirmation template still applies; the "Call outs:" header is simply omitted. The user gets the summary plus the explicit confirmation request.
 
-There is a third skip condition: the **opt-in `SKIP_SCOPING_CONFIRM` setting** (Phase 0.0 — `confirm:auto` token or the `plan_skip_scoping_confirm` config key). When it resolves to skip, the gate auto-proceeds for *any* tier or call-out count — the user has pre-authorized it. The announcement is still mandatory (it names that confirmation is off and that inferred scope landed in `## Assumptions`), and the skip is scoped to this confirmation only: genuine blocking questions and the Phase 5.4 menu still fire. This differs from headless mode only in that announcement — headless has no synchronous user to announce to.
+There is a third skip condition: the **opt-in `SKIP_SCOPING_CONFIRM` setting** (Phase 0.0 — `confirm:auto` token or the `plan_skip_scoping_confirm` config key). When it resolves to skip, the confirmation auto-proceeds for *any* tier or call-out count — the user has pre-authorized it. The announcement is still mandatory (it names that confirmation is off and that inferred scope landed in `## Assumptions`), and the skip is scoped to this confirmation only: genuine blocking questions and the Phase 5.4 menu still run. This differs from headless mode only in that announcement — headless has no synchronous user to announce to.
 
-When the opt-in skip applies, emit this announcement — **not** the auto-proceed template above. The opt-in skip fires for *any* tier and call-out count, so claiming "No open decisions to weigh in on" would be false whenever call-outs survived; the announcement instead names that confirmation is off and that inferred scope is recorded under `## Assumptions`:
+When the opt-in skip applies, emit this announcement — **not** the auto-proceed template above. The opt-in skip applies to *any* tier and call-out count, so claiming "No open decisions to weigh in on" would be false whenever call-outs survived; the announcement instead names that confirmation is off and that inferred scope is recorded under `## Assumptions`:
 
 ```
 Planning: [1-3 line scope claim]
@@ -169,7 +169,7 @@ Both variants share these structural rules. They address failure modes where the
 2. User confirms → write the plan
 3. User revises → integrate, re-present revised stage 2, return to step 1
 
-Plan-write (Phase 5.2) fires only on explicit confirm or after the soft-cut blocking question's "proceed" option. Never write immediately after a revision, even when the revision is small enough that the agent feels it understood — the confirmation step is what makes the synthesis **confirmed** rather than "agent's last proposal."
+Plan-write (Phase 5.2) runs only after an explicit confirm or after the soft-cut blocking question's "proceed" option. Never write immediately after a revision, even when the revision is small enough that the agent feels it understood — the confirmation step is what makes the synthesis **confirmed** rather than "agent's last proposal."
 
 ---
 
@@ -181,7 +181,7 @@ Each call-out should be affirmable or rejectable by the user **without reading c
 - File / module names — "skip filter in the matcher" when "where to put it" is the choice
 - Pattern names — "extends the existing event-skip pattern" when "extend vs. introduce" is the choice
 - Column / table names — "user-TZ" or "destination-calendar TZ" when "which source" is the choice
-- Approach posture — "DB-side query with Google-side fallback" when "which strategy" is the choice
+- Approach choice — "DB-side query with Google-side fallback" when "which strategy" is the choice
 
 **Not allowed** (always plan-body, regardless of variant):
 - Line numbers (`route.ts:249-255`)
@@ -234,15 +234,15 @@ What survived: three real forks where another reasonable agent might choose diff
 
 ## Solo variant (Phase 0.7)
 
-Fires only when:
+Runs only when:
 - Phase 0.2 found no upstream brainstorm doc
 - AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning)
 - AND Phase 0.5 cleared (no unresolved blockers)
 - AND not on Phase 0.1 fast paths (resume normal, deepen-intent)
 
-Each guard is an explicit conditional in `references/intake.md`, not implicit. R2 solo does NOT fire on resume/deepen, route-out, or brainstorm-sourced paths.
+Each guard is an explicit conditional in `references/intake.md`, not implicit. The solo variant does NOT run on resume/deepen paths, on paths that hand the task to another skill, or on brainstorm-sourced paths.
 
-**Content focus**: full-breadth internal draft. Phase 0.4 bootstrap is brief by design ("ask one or two clarifying questions"), so the agent has made substantial inferences before Phase 0.7 fires. The Inferred bucket in the internal draft is especially load-bearing here — the agent's bets are widest. Stage 2 compression still applies: most of those inferences will not survive the keep test, and that is correct — the user should only see the forks they can meaningfully redirect.
+**Content focus**: full-breadth internal draft. Phase 0.4 bootstrap is brief by design ("ask one or two clarifying questions"), so the agent has made substantial inferences before Phase 0.7 fires. The Inferred bucket in the internal draft matters most here — the agent's bets are widest. Stage 2 compression still applies: most of those inferences will not survive the keep test, and that is correct — the user should only see the forks they can meaningfully redirect.
 
 **Counter-warning for rich-context invocations.** When the inference source is *not* just Phase 0.4 bootstrap — e.g., a prior in-conversation validation agent, completed sibling work units earlier in the same session, or a planning artifact already in the conversation — the temptation is to dump that material into call-outs verbatim. The granularity rules tighten in this case, not loosen: the agent has more material to compress, not more material to expose. A bet that's already been validated upstream is **Stated** (internal), not Inferred (internal); a bet whose specifics belong in plan-body is named at decision-level in the call-out regardless of how much detail upstream context provided. If recent turns produced detailed code, file paths, or research artifacts, expect the internal draft to over-share and compress proactively before stage 2. A session-settled decision is the strongest form of already-validated content — carry it forward as a `Carrying forward:` line, never re-ask it.
 
@@ -250,11 +250,11 @@ Each guard is an explicit conditional in `references/intake.md`, not implicit. R
 
 ### Stage 2 template (solo)
 
-**Summary discipline (required):** describe **what scope the plan will target**, forward-looking (what *will* be planned), not retrospective. The summary's job is to help the user pattern-match against intent before reading call-outs — solo invocation has minimal pre-write dialogue, so the summary is especially load-bearing here. Form (prose, bullets, mix) and length follow the tier budget in "Stage 2: chat-time scoping synthesis" above; detail test applies per bullet.
+**Summary discipline (required):** describe **what scope the plan will target**, forward-looking (what *will* be planned), not retrospective. The summary's job is to help the user pattern-match against intent before reading call-outs — solo invocation has minimal pre-write dialogue, so the summary carries most of the weight here. Form (prose, bullets, mix) and length follow the tier budget in "Stage 2: chat-time scoping synthesis" above; detail test applies per bullet.
 
 **Write it through the `ce-noslop` skill:** lead with the actual thing being planned. No re-stating the user's prompt. If the scope cannot be said within the tier budget without filler, the synthesis isn't ready yet.
 
-**Confirmation template (fires for Standard/Deep regardless of call-out count, or for any tier with one or more call-outs surviving):**
+**Confirmation template (used for Standard/Deep regardless of call-out count, or for any tier with one or more call-outs surviving):**
 
 The opener defaults to "Based on your request" — add "and our brief discussion" only when the Phase 0.4 bootstrap actually involved back-and-forth clarifying questions. Solo invocations often proceed with no dialogue, and claiming a discussion the user didn't have reads as off.
 
@@ -272,7 +272,7 @@ Based on your request, here's the scope I'm proposing to plan against:
 Confirm and I'll proceed to research, drawing on this scope. (You can also redirect to `ce-brainstorm` if this is bigger than you initially thought — I'll stop here and load it for you.)
 ```
 
-**Auto-proceed template (fires only for Lightweight with zero call-outs):**
+**Auto-proceed template (used only for Lightweight with zero call-outs):**
 
 ```
 Planning: [1-3 line scope claim]
@@ -286,20 +286,20 @@ Then continue to Phase 1 without waiting. Use prose for any user response that d
 
 ## Brainstorm-sourced variant (Phase 5.1.5)
 
-Fires only when:
+Runs only when:
 - Phase 0.2 found upstream brainstorm doc (brainstorm-sourced invocation)
 - AND not on Phase 0.1 fast paths
 
-**Content focus**: plan-time decisions only. The brainstorm + R1 synthesis already validated WHAT to build; the internal draft and stage 2 surface HOW the plan will execute that work — decisions the brainstorm did not make.
+**Content focus**: plan-time decisions only. The brainstorm + R1 synthesis already validated WHAT to build; the internal draft and stage 2 show HOW the plan will execute that work — decisions the brainstorm did not make.
 
-Items to surface in the internal draft:
+Items to include in the internal draft:
 - **Files/modules to touch (and not touch)** — what the implementation reaches into
 - **Patterns extended vs. introduced new** — architectural decisions the agent made within confirmed scope (R2's content focus, not bias toward either direction)
 - **Test scope** — which existing-but-untested code is in/out of test scope for this work
 - **Refactor scope** — adjacent cleanup, if any, going to deferred items vs. active diff
 - **Cross-cutting impact** — auth, migrations, shared types when they're touched
 
-Most of these will not survive the keep test as separate call-outs. Surface only the forks where another reasonable agent might choose differently and the user can correct cheaply now.
+Most of these will not survive the keep test as separate call-outs. Show only the forks where another reasonable agent might choose differently and the user can correct cheaply now.
 
 **Reads from the Product Contract, not a synthesis section**: the upstream artifact is a requirements-only unified plan (`product_contract_source: ce-brainstorm`), not a separate brainstorm doc, and it has no `## Synthesis` section (the synthesis is a chat-time artifact in ce-brainstorm; only the prose summary embeds, under the Product Contract). Phase 5.1.5 derives plan-time decisions from the Product Contract's sections — Summary, Problem Frame, Requirements, Key Flows, Scope Boundaries — plus Phase 1 research. Legacy standalone requirements docs (`origin: docs/brainstorms/...`) and older brainstorms that may carry a legacy `## Synthesis` section still work; that content is treated as supplementary, not authoritative, with the Product Contract / body sections taking precedence.
 
@@ -311,7 +311,7 @@ Most of these will not survive the keep test as separate call-outs. Surface only
 
 **Write it through the `ce-noslop` skill:** lead with the actual implementation shape. No re-stating the brainstorm's WHAT. If the summary just restates the brainstorm's Problem Frame, rewrite it to focus on plan-time decisions.
 
-**Confirmation template (fires for Standard/Deep regardless of call-out count, or for any tier with one or more call-outs surviving):**
+**Confirmation template (used for Standard/Deep regardless of call-out count, or for any tier with one or more call-outs surviving):**
 
 ```
 The brainstorm scopes [1-2 sentence restatement of the brainstorm's scope as orientation; in the brainstorm's own vocabulary; NOT an enumeration of Implementation Units, constraints, or acceptance examples].
@@ -327,7 +327,7 @@ This plan [plan-specific scoping: what's covered vs. deferred vs. expanded relat
 Confirm and I'll write the plan next, drawing on the brainstorm, research, and this synthesis.
 ```
 
-**Auto-proceed template (fires only for Lightweight with zero call-outs):**
+**Auto-proceed template (used only for Lightweight with zero call-outs):**
 
 ```
 Planning [brief brainstorm-scope restatement] — [plan-specific shape in one clause].
@@ -362,8 +362,8 @@ When the skill is invoked from an automated workflow such as LFG or any `disable
 
 **Per-variant behavior** (the timing matters for which phases follow):
 
-- **Solo variant (Phase 0.7)**: fires *before* research. Compose the internal draft and continue to Phase 1 research as normal. Inferred content is held until plan-write (Phase 5.2), where it routes to `## Assumptions`.
-- **Brainstorm-sourced variant (Phase 5.1.5)**: fires *after* research, before plan-write. Compose the internal draft and proceed to Phase 5.2 plan-write. Inferred content routes to `## Assumptions`.
+- **Solo variant (Phase 0.7)**: runs *before* research. Compose the internal draft and continue to Phase 1 research as normal. Inferred content is held until plan-write (Phase 5.2), where it routes to `## Assumptions`.
+- **Brainstorm-sourced variant (Phase 5.1.5)**: runs *after* research, before plan-write. Compose the internal draft and proceed to Phase 5.2 plan-write. Inferred content routes to `## Assumptions`.
 
 **Shared behavior across both variants:**
 
@@ -381,7 +381,7 @@ The `### Assumptions` section appears in non-interactive plans and in interactiv
 
 The exemption is scoped to that confirmed interactive path and does **not** apply on headless or `SKIP_SCOPING_CONFIRM` runs. Those proceed without confirming any Inferred bet, so the `### Assumptions` firewall governs every one of them — an un-validated guess must stay labeled there rather than appearing as an unlabeled product statement.
 
-This restores the audit visibility the original design intended (un-validated bets must not propagate as authoritative content), but surfaces them under their own label rather than hiding them. Downstream review (ce-doc-review, ce-work, human PR review) can scrutinize Assumptions specifically.
+This restores the audit visibility the original design intended (un-validated bets must not propagate as authoritative content), but shows them under their own label rather than hiding them. Downstream review (ce-doc-review, ce-work, human PR review) can scrutinize Assumptions specifically.
 
 ---
 

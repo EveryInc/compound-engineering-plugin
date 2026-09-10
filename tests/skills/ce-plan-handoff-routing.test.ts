@@ -311,10 +311,11 @@ describe("ce-plan post-generation menu routing", () => {
     ).toBeLessThan(interactionStart)
 
     const topContract = SKILL_BODY.slice(contractStart, interactionStart)
-    expect(/Every normal interactive branch[\s\S]{0,160}incomplete until its owning handoff question is presented/i.test(topContract)).toBe(true)
+    // Wording restated in plain language (2026-09); the pin guards the condition, not the old phrasing.
+    expect(/Every normal interactive branch[\s\S]{0,160}incomplete until the user has been asked what to do next/i.test(topContract)).toBe(true)
     expect(/software implementation-plan run[\s\S]{0,160}Phase 5\.4 menu[\s\S]{0,100}selected action has actually fired/i.test(topContract)).toBe(true)
-    expect(/Non-software and approach-altitude routes use their reference workflow's terminal handoff/i.test(topContract)).toBe(true)
-    expect(/Answer-seeking may end after the answer unless its owner requires save\/share/i.test(topContract)).toBe(true)
+    expect(/Non-software plans and approach-level plans end with the handoff their reference workflow defines/i.test(topContract)).toBe(true)
+    expect(/only answers a question may end after the answer unless its reference requires a save or share step/i.test(topContract)).toBe(true)
     expect(/intermediate milestones/i.test(topContract)).toBe(true)
     expect(SKILL_BODY).toMatch(/Read `references\/plan-handoff\.md` immediately before Phase 5\.3\.8 and 5\.4/i)
     expect(SKILL_BODY).toMatch(/reload `references\/plan-handoff\.md` before acting/i)

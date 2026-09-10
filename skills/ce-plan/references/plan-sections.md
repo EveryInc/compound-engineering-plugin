@@ -9,15 +9,15 @@ format-specific references (`markdown-rendering.md`, `html-rendering.md`).
 A great plan enables three audiences to act:
 
 - **The implementing agent** (`ce-work` or a human) starts from an informed
-  baseline — load-bearing decisions are named, research breadcrumbs orient
+  baseline — the decisions everything else rests on are named, research breadcrumbs orient
   their own investigation, unit boundaries are clear. The plan gives the
   implementer a starting point, not a substitute for their own investigation.
-- **The reviewer** identifies the load-bearing decisions and the boundaries
+- **The reviewer** identifies the decisions everything else rests on and the boundaries
   of what's being changed in one pass.
 - **The future reader** (anyone returning months later) traces why the work
   was done, what shaped it, and where the artifacts live.
 
-Sections earn their place by serving one of these audiences. Omit padding.
+A section belongs only when it serves one of these audiences. Omit padding.
 
 ## Unified plan artifact contract
 
@@ -112,7 +112,7 @@ unrelated units only when a section you are already reading cites them.
 
 ## Whether a plan file is warranted
 
-The kernel's Output Contract gate decides this at intake, before any research: Direct and Chat brief results stay in chat (`references/output-contracts.md`); a Durable run writes the file this reference describes.
+SKILL.md's Output Contract gate decides this at intake, before any research: Direct and Chat brief results stay in chat (`references/output-contracts.md`); a Durable run writes the file this reference describes.
 
 ## Implementation-ready hard floor
 
@@ -121,10 +121,10 @@ present. They carry the contracts downstream consumers depend on.
 
 - **Goal Capsule** — objective, means (only when an approach is fixed),
   authority hierarchy, stop conditions, execution profile, and tail
-  ownership. This is the fastest way for an executor to avoid drifting from
+  ownership (who finishes and ships the work). This is the fastest way for an executor to avoid drifting from
   the plan. A reader who has not read the rest of the plan must be able to
   hold the Objective as the goal. Remaining-true constraints live on their
-  owning R-IDs, not as extra Objective clauses — user-checkable is not a
+  owning R-IDs (the R-IDs that state them), not as extra Objective clauses — user-checkable is not a
   license to pack them onto the Objective. An Objective that is only
   understandable after later sections is not yet the Objective, even when a
   user could check the outcome and a different implementation would still
@@ -149,7 +149,7 @@ present. They carry the contracts downstream consumers depend on.
   Objective still be the goal, and could a reader who does not know the
   changed component's internals tell whether it was met? No to the first
   makes it a Means. No to the second means it is stated at the component's
-  altitude, and the Objective is whatever depended on that component. When a
+  level, and the Objective is whatever depended on that component. When a
   request supplies only its approach ("move X out of A into B"), that is the
   Means; the Objective is the outcome it serves, derived from the request's
   motivation, the project's stated problem, or asked for — never the approach
@@ -201,10 +201,10 @@ The first five entries below carry the Product Contract's product framing —
 what is being built and why. Later entries mix Product Contract subsections
 (Scope Boundaries, Open Questions, Acceptance Examples, Sources) with
 Planning Contract ones; the hard floor above remains authoritative for which
-section sits under which contract. Problem Frame is unconditional; the other four fire on their own tests. A plan
+section sits under which contract. Problem Frame is unconditional; each of the other four is included when its own test says so. A plan
 that skips all four conditional framing entries has usually inherited its
 framing from an upstream Product Contract — check before concluding none of
-them fire.
+them apply.
 
 - **Problem Frame** — the hard floor above contains it unconditionally, so
   this entry governs its depth, never whether to include it. Give it
@@ -268,7 +268,7 @@ them fire.
   "Open Questions: none" section signals false uncertainty.
 
 - **System-Wide Impact** — include when the change affects cross-cutting
-  concerns (data lifecycles, auth boundaries, performance posture, cardinal
+  concerns (data lifecycles, auth boundaries, performance characteristics, cardinal
   rules, shared infrastructure, agent/tool parity, prompt context, shared
   workspaces). Skip for changes localized to one component where the impact is
   self-evident.
@@ -288,14 +288,14 @@ them fire.
   work is purely internal and uses existing operational scaffolding without
   modification.
 
-- **Sources / Research** — surface the research that orients the implementer
+- **Sources / Research** — include the research that orients the implementer
   or justifies load-bearing choices. The test: *"if I were the implementer
   reading this cold, would this breadcrumb help me make better choices?"*
-  Yes → surface (code locations like `services/convex/reports.ts:174-176`,
+  Yes → include (code locations like `services/convex/reports.ts:174-176`,
   external docs, RFCs, constraints, prior plans — the category is inclusive,
   not enumerated). Process exhaust (reading the user's prompt, glancing at
-  obvious entry points, restating prose) → omit. Surface inline next to the
-  KTD or unit it justifies, or as a dedicated section — both shapes work.
+  obvious entry points, restating prose) → omit. Put it inline next to the
+  KTD or unit it justifies, or in a dedicated section — both shapes work.
   A constraint adopted from a Compound Pack file is cited inline as
   `(pack: <id>, <path within the pack>)` after the requirement, KTD, constraint,
   or risk it shaped. The path is relative to the pack's own directory, so it
@@ -344,8 +344,8 @@ Hold every kept section to these:
   stays proposal-only, Problem Frame stays motivation-only and never restates
   the remedy.
 - **A Summary is a handful of sentences**, not one sentence with five
-  semicolons and four parentheticals. A KTD's rationale is the load-bearing
-  reason, not every reason.
+  semicolons and four parentheticals. A KTD's rationale is the reason that
+  decided it, not every reason.
 - **A requirement or unit is one sentence of intent plus at most one
   qualifier.** When it would specify two outcomes ("either A or B, the
   implementer decides"), state the intent and send the fork to Open Questions —

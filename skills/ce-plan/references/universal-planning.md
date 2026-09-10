@@ -48,23 +48,23 @@ Carry out the approach. When the answer depends on facts the model can't reliabl
 
 Answer in chat. Do **not** write a plan file and do **not** run the Step 3 save/share menu by default. If the investigation produced something the user might want to keep (a comparison table, a sourced summary), offer to save it; otherwise just give the answer. In headless or non-interactive runs, skip the offer and deliver the answer.
 
-### Veil of value: what to surface, what to hide
+### Veil of value: what to show, what to hide
 
 The plan-of-attack and the answer are for the caller; the skill's internal machinery is not. Edit for relevance the way an expert consultant does — they tell you their thinking about your problem, not which template their back office applied.
 
-- **Surface** (question-domain — reads as value): the approach to the user's actual question, in the user's terms.
+- **Show** (question-domain — reads as value): the approach to the user's actual question, in the user's terms.
 - **Hide** (skill-domain — process exhaust): which skill, mode, or phase is running; whether a plan file was or wasn't written; the routing or disposition decision itself.
-- **Never hide** (audit content — affects trust in the answer): caveats, gaps, and uncertainty. "I could only pull his last ~100 stars, so this is partial" or "this is my read, not a hard signal" is not junk — it is what a good assistant surfaces. The veil hides plumbing, never the limits of the answer.
+- **Never hide** (audit content — affects trust in the answer): caveats, gaps, and uncertainty. "I could only pull his last ~100 stars, so this is partial" or "this is my read, not a hard signal" is not junk — it is what a good assistant says out loud. The veil hides plumbing, never the limits of the answer.
 
 Register example, for "how often does he star things — is this a big deal?":
 
 > Wrong: "Quick note first: `ce-plan` builds implementation plans, so I ignored the template and just answered the question. Here's what the data says..."
 
-Leaks the skill's name, narrates an internal routing decision, apologizes for deviating — the caller sees the seams of the tool.
+Leaks the skill's name, narrates an internal routing decision, apologizes for deviating — the caller sees the tool's machinery.
 
 > Right: "Let me size this up — I'll check how active a starrer he is overall, his recent cadence, and the kinds of repos he tends to star, then weigh where this one lands. [gathers data] Yes, this is a real signal: ..."
 
-Same underlying process; none of the machinery surfaces. The caller sees thinking about their question.
+Same underlying process; none of the machinery shows. The caller sees thinking about their question.
 
 ---
 

@@ -15,7 +15,7 @@ For each question, decide whether it should be:
 
 Ask the user only when the answer materially affects architecture, scope, sequencing, or risk and cannot be responsibly inferred. Use the platform's blocking question tool when available (see Interaction Method).
 
-**Never re-ask a session-settled decision.** A decision carrying the `session-settled:` label, or classified settled per `references/settled-decisions.md`, is answered input, not a planning question. An unexamined directive receives exactly one challenge here, backed by research evidence, and the outcome lands in the plan as a labeled or unlabeled Key Technical Decision — the plan is the challenge ledger; later pipeline stages do not re-challenge. An unanswered pipeline-surfaced challenge resurfaces only through the calling pipeline's residual channel.
+**Never re-ask a session-settled decision.** A decision carrying the `session-settled:` label, or classified settled per `references/settled-decisions.md`, is answered input, not a planning question. An unexamined directive receives exactly one challenge here, backed by research evidence, and the outcome lands in the plan as a labeled or unlabeled Key Technical Decision — the plan is the record of that challenge; later pipeline stages do not re-challenge. A challenge raised in pipeline mode that the user never answered comes back only through the calling pipeline's residual channel.
 
 **Scaffold questions on unfamiliar territory.** When the user has signaled they lack working knowledge of the area a question lives in — an explicit "I don't know X", or earlier answers showing they *cannot evaluate* options rather than merely haven't decided — do not ask the question naked. Present it as a taught decision: the realistic options, one clause each on the trade-off that matters for this plan, and a recommended default. If the user still cannot evaluate, record the default as an explicit assumption in the plan instead of extracting a guess. In pipeline mode (LFG, any `disable-model-invocation` context) this scaffolding never presents anything — resolve to the recommended default and record it as an explicit assumption in the plan.
 
@@ -44,7 +44,7 @@ For **Standard** or **Deep** plans, briefly consider who is affected by this cha
 Break the work into logical implementation units. Each unit should represent one meaningful change that an implementer could typically land as an atomic commit.
 
 Good units are:
-- Focused on one component, behavior, or integration seam
+- Focused on one component, behavior, or integration boundary
 - Usually touching a small cluster of related files
 - Ordered by dependency
 - Concrete enough for execution without pre-writing code
@@ -60,9 +60,9 @@ Each unit carries a stable plan-local **U-ID** assigned in Phase 3.5 (`U1`, `U2`
 
 When the plan's technical approach has shape that prose alone doesn't carry well — architecture across components, sequencing across processes, state machines, branching gates, lifecycles, quantitative comparisons — include a High-Level Technical Design section that conveys the shape. The exact form (component diagram, sequence, swim lane, flowchart, state machine, decision matrix, pseudo-code grammar, bar chart for sizing concerns) is the agent's call per artifact — pick what makes the content land fastest for the reader.
 
-See `references/plan-sections.md` for the section catalog including HTD's "include when material" criterion. See the format-rendering reference loaded at Phase 0.0 for how visualizations render in the target format (mermaid in markdown, inline SVG in HTML — with the layout-legibility principles around halo, contrast, and label placement when in HTML).
+See `references/plan-sections.md` for the section catalog including HTD's "include when material" criterion. See the format-rendering reference loaded at Phase 0.0 (Resolve Output Mode) for how visualizations render in the target format (mermaid in markdown, inline SVG in HTML — with the layout-legibility principles around halo, contrast, and label placement when in HTML).
 
-When the plan's approach is a one-paragraph pattern application that prose conveys directly, skip the section. The presence of HTD should earn its keep with content that genuinely benefits from visualization.
+When the plan's approach is a one-paragraph pattern application that prose conveys directly, skip the section. Include HTD only when its content genuinely benefits from visualization.
 
 Plan diagrams render authoritative content alongside the prose — they are not "directional sketches." Do not add hedging captions like *"directional guidance for review, not implementation specification"* to plan diagrams; the prose-is-authoritative rule already governs disagreement, and the hedging weakens the diagram unnecessarily.
 
@@ -84,7 +84,7 @@ The tree is a scope declaration showing the expected output shape. It is not a c
 
 Each unit is a level-3 heading carrying a stable U-ID prefix matching the format used for R/A/F/AE in requirements docs: `### U1. [Name]`. Number sequentially within the plan starting at U1. Do not render units as bulleted list items or prefix them with `- [ ]` / `- [x]` checkbox markers. List-based unit titles fragment in every standard renderer because the per-unit fields (`**Goal:**`, `**Files:**`, `**Approach:**`, etc.) are written flush-left, which terminates CommonMark list continuation and detaches the fields from the unit they describe. Headings render correctly everywhere, are the right semantic match for sections containing multi-block content, and give each unit an anchor link. The plan is a decision artifact; execution progress is derived from git by `ce-work` rather than stored in the plan body.
 
-**Stability rule.** Once assigned, a U-ID is never renumbered. Reordering units leaves their IDs in place (e.g., U1, U3, U5 in their new order is correct; renumbering to U1, U2, U3 is not). Splitting a unit keeps the original U-ID on the original concept and assigns the next unused number to the new unit. Deletion leaves a gap; gaps are fine. This rule matters most during deepening (Phase 5.3), which is the most likely accidental-renumber vector.
+**Stability rule.** Once assigned, a U-ID is never renumbered. Reordering units leaves their IDs in place (e.g., U1, U3, U5 in their new order is correct; renumbering to U1, U2, U3 is not). Splitting a unit keeps the original U-ID on the original concept and assigns the next unused number to the new unit. Deletion leaves a gap; gaps are fine. This rule matters most during deepening (Phase 5.3), where accidental renumbering is most likely.
 
 For each unit, include:
 - **Goal** - what this unit accomplishes
@@ -124,9 +124,9 @@ Examples:
 
 #### 3.7 Anti-Expansion: Tangential Cleanup and Scope Creep Go to Deferred
 
-Distinct from 3.6 (which is about *unknowns* at plan time): 3.7 is about *known but tangential* work that the agent notices while planning but that falls outside the user's confirmed scope. When research surfaces an adjacent refactor, a "while we're here" cleanup, or a scope-adjacent nice-to-have ("we could also add rate limiting"), route it to the existing `### Deferred to Follow-Up Work` subsection in Scope Boundaries (Phase 4.2 Core Plan Template), not into active Implementation Units.
+Distinct from 3.6 (which is about *unknowns* at plan time): 3.7 is about *known but tangential* work that the agent notices while planning but that falls outside the user's confirmed scope. When research surfaces an adjacent refactor, a "while we're here" cleanup, or a scope-adjacent nice-to-have ("we could also add rate limiting"), put it in the existing `### Deferred to Follow-Up Work` subsection in Scope Boundaries (Phase 4.2 Core Plan Template), not into active Implementation Units.
 
-This reinforces the synthesis discipline established at Phase 0.7 / Phase 5.1.5 — the user's confirmed scope is what the active plan executes; everything else is deferred. Does NOT impose architectural bias on extend-vs-invent decisions within confirmed scope — that judgment stays with the agent (and is surfaced via the Phase 5.1.5 synthesis when material). The user's explicit ask overrides this default — if the user explicitly requested a refactor, it's in-scope, not deferred.
+This reinforces the synthesis discipline established at Phase 0.7 / Phase 5.1.5 — the user's confirmed scope is what the active plan executes; everything else is deferred. Does NOT impose architectural bias on extend-vs-invent decisions within confirmed scope — that judgment stays with the agent (and is shown to the user in the Phase 5.1.5 synthesis when material). The user's explicit ask overrides this default — if the user explicitly requested a refactor, it's in-scope, not deferred.
 
 ### Phase 4: Write the Plan
 
@@ -166,14 +166,14 @@ For sufficiently large, risky, or cross-cutting work, add the sections that genu
 
 Do not add these as boilerplate. Include them only when they improve execution quality or stakeholder alignment.
 
-**Alternatives Considered — what to vary.** When this section is included, alternatives must differ on *how* the work is built: architecture, sequencing, boundaries, integration pattern, rollout strategy. Tiny implementation variants (which hash function, which serialization format) belong in Key Technical Decisions, not Alternatives. Product-shape alternatives (different actors, different core outcome, different positioning) belong in `ce-brainstorm`, not here — surface them back upstream rather than re-litigating product questions during planning.
+**Alternatives Considered — what to vary.** When this section is included, alternatives must differ on *how* the work is built: architecture, sequencing, boundaries, integration pattern, rollout strategy. Tiny implementation variants (which hash function, which serialization format) belong in Key Technical Decisions, not Alternatives. Product-shape alternatives (different actors, different core outcome, different positioning) belong in `ce-brainstorm`, not here — raise them upstream rather than re-litigating product questions during planning.
 
 #### 4.2 Section Contract and Rendering
 
 Compose the plan using two paired references:
 
-- `references/plan-sections.md` — the section contract. Describes what the plan contains: the outcome the plan must enable for downstream consumers, the hard floor (Summary, Problem Frame, Requirements, KTDs, Implementation Units), the include-when-material catalog (covering the Product Contract's product-framing sections and the implementation-facing ones; the reference enumerates them), the agency-driven escape hatch (introduce new sections when content warrants), and the ID/content rules.
-- The format-rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`) — how to present the sections in the resolved output format.
+- `references/plan-sections.md` — the section contract. Describes what the plan contains: the outcome the plan must enable for downstream consumers, the hard floor (Summary, Problem Frame, Requirements, KTDs, Implementation Units), the include-when-material catalog (covering the Product Contract's product-framing sections and the implementation-facing ones; the reference enumerates them), the freedom to introduce new sections when content warrants, and the ID/content rules.
+- The format-rendering reference loaded at Phase 0.0 (Resolve Output Mode) — `markdown-rendering.md` OR `html-rendering.md` — — how to present the sections in the resolved output format.
 
 The section catalog is the same regardless of format. Format-specific principles (table-vs-prose by content shape, ID prefix format, diagram rendering, etc.) live in the rendering reference.
 

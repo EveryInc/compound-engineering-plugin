@@ -349,7 +349,7 @@ describe("missing-owner blocked seam parity (ce-plan/ce-work -> lfg)", () => {
     ])
     const cePlanEnvelope = sliceSection(
       cePlan,
-      "In pipeline mode, every required-owner failure returns",
+      "In pipeline mode, every required-reference failure returns",
       "### Phase 0: Output, Resume, and Scope",
     )
     const lfgEnvelope = sliceSection(
@@ -366,7 +366,8 @@ describe("missing-owner blocked seam parity (ce-plan/ce-work -> lfg)", () => {
     // 2026-08-21 eval (P9): a host that reads every phase owner at kernel load never re-reads the terminal owner,
     // so the late-owner blocked path was unreachable on Claude; the kernel must say an early read does not count.
     expect(cePlan).toContain("a read made before that phase does not satisfy it")
-    expect(cePlan).toContain("a terminal owner is read again at its step even when already in context")
+    // Restated in plain language (2026-09); the pin guards the re-read condition, not the word "owner".
+    expect(cePlan).toContain("is read again at its step even when already in context")
     expect(lfg).toContain("Blocked status outranks an existing artifact")
     expect(lfg).toContain("Only absence of both a blocker and a plan file")
     // 2026-08-21 eval: a stale plan already under <root>/plans/ satisfied the gate once; the gate keys on the reported path.

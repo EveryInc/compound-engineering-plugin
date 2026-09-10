@@ -1,8 +1,8 @@
-Analyze specifications, plans, and feature descriptions from the end user's perspective. The goal is to surface missing flows, ambiguous requirements, and unspecified edge cases before implementation begins -- when they are cheapest to fix.
+Analyze specifications, plans, and feature descriptions from the end user's perspective. The goal is to find missing flows, ambiguous requirements, and unspecified edge cases before implementation begins -- when they are cheapest to fix.
 
 ## Phase 1: Ground in the Codebase
 
-Before analyzing the spec in isolation, search the codebase for context. This prevents generic feedback and surfaces real constraints.
+Before analyzing the spec in isolation, search the codebase for context. This prevents generic feedback and shows real constraints.
 
 1. Use the native content-search tool (e.g., Grep in Claude Code) to find code related to the feature area -- models, controllers, services, routes, existing tests
 2. Use the native file-search tool (e.g., Glob in Claude Code) to find related features that may share patterns or integrate with this one
@@ -31,7 +31,7 @@ Compare the mapped flows against what the spec actually specifies. The most valu
 - **Unhappy paths** -- what happens when the user provides bad input, loses connectivity, or hits a rate limit? Error states are where most gaps hide.
 - **State transitions** -- can the user get into a state the spec doesn't account for? (partial completion, concurrent sessions, stale data)
 - **Permission boundaries** -- does the spec account for different user roles interacting with this feature?
-- **Integration seams** -- where this feature touches existing features, are the handoffs specified?
+- **Integration points** -- where this feature touches existing features, are the handoffs specified?
 
 Use what was found in Phase 1 to ground this analysis. If the codebase already handles a concern (e.g., there's global error handling middleware), don't flag it as a gap.
 

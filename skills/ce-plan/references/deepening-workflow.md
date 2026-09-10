@@ -1,6 +1,6 @@
 # Deepening Workflow
 
-This file contains the confidence-check execution path (5.3.3-5.3.7). Load it only when the deepening gate at 5.3.2 determines that deepening is warranted.
+This file contains the confidence-check execution path (5.3.3-5.3.7). Load it only when step 5.3.2 (Gate: Decide Whether to Deepen) determines that deepening is warranted.
 
 ## 5.3.3 Score Confidence Gaps
 
@@ -41,7 +41,7 @@ If the plan already has a `deepened:` date:
 - Rationale does not explain tradeoffs or rejected alternatives
 - The decision does not connect back to scope, requirements, or origin context
 - An obvious design fork exists but the plan never addresses why one path won
-- Agent/tool/workflow features lack an explicit decision about action parity, context parity, shared workspace, tool granularity, or approval posture
+- Agent/tool/workflow features lack an explicit decision about action parity, context parity, shared workspace, tool granularity, or approval boundaries
 
 **Open Questions**
 - Product blockers are hidden as assumptions
@@ -152,7 +152,7 @@ For each selected section, pass:
 - The scope prefix from the mapping above when the agent supports scoped invocation
 - A short plan summary
 - The exact section text
-- Why the section was selected, including which checklist triggers fired
+- Why the section was selected, including which checklist problems applied
 - The plan depth and risk profile
 - A specific question to answer
 
@@ -235,11 +235,11 @@ Strengthen only the selected sections. Keep the plan coherent and preserve its o
 
 **In interactive mode:** Only integrate findings the user accepted in 5.3.6b. If some findings from different agents touch the same section, reconcile them coherently but do not reintroduce rejected findings.
 
-**Session-settled KTD stability.** Deepening may append rationale or a conflict call-out to a `session-settled:`-labeled Key Technical Decision, but never removes the annotation or inverts the decision. Contradiction evidence routes through the severity ladder: nothing found — proceed silently; suboptimal-but-workable — proceed as settled and attach a conflict call-out to the KTD; invalidating — stop as blocked per the SKILL.md Phase 5.2 pipeline contract.
+**Session-settled KTD stability.** Deepening may append rationale or a conflict call-out to a `session-settled:`-labeled Key Technical Decision, but never removes the annotation or inverts the decision. Handle contradicting evidence by its severity. Nothing found: proceed silently. Suboptimal but workable: proceed as settled and attach a conflict call-out to the KTD. Invalidating: stop as blocked per the SKILL.md Phase 5.2 pipeline contract.
 
 Deepening may tighten, not only grow. A section can be strengthened by cutting as well as adding — collapse multi-idea sentences, drop hedges, and delete superseded text outright rather than leaving it as strikethrough or stacking a separate "resolutions" layer on top of it. A shorter, contradiction-free section is a stronger one. This is distinct from "rewrite the entire plan from scratch" below, which stays forbidden.
 
-**Strengthen at the owning entry.** A rule owned by an R or KTD gains evidence, rationale, or precision at that entry; a sibling section that needs it cites the owning ID. Never restate an owned rule into a Key Decision, Scope bullet, or unit Approach — deleting an unlinked sibling restatement found in a strengthened section is itself a valid tightening move.
+**Strengthen at the owning entry.** The owning entry is the R or KTD that states a rule in full. That rule gains evidence, rationale, or precision at that entry; a sibling section that needs it cites the owning ID. Never restate an owned rule into a Key Decision, Scope bullet, or unit Approach — deleting an unlinked sibling restatement found in a strengthened section is itself a valid tightening move.
 
 Allowed changes:
 - Tighten prose in a strengthened section through the `ce-noslop` skill: remove superseded text in place (version control holds the history), and replace unlinked restatements with citations of the owning R/KTD
@@ -258,7 +258,7 @@ Do **not**:
 - Add git commands, commit choreography, or exact test command recipes
 - Add generic `Research Insights` subsections everywhere
 - Rewrite the entire plan from scratch
-- Invent new product requirements, scope changes, or success criteria without surfacing them explicitly
+- Invent new product requirements, scope changes, or success criteria without stating them explicitly
 - Renumber existing U-IDs as part of reordering, splitting, deletion, or "tidying" the unit list. Deepening is the most likely accidental-renumber vector — preserve U-IDs even when the new order would look cleaner with sequential numbering
 - Restate a rule a cited R or KTD already owns into a sibling section — synthesis folds section-isolated findings back per section, which is exactly where duplicate restatements creep in; cite the owning ID instead
 
