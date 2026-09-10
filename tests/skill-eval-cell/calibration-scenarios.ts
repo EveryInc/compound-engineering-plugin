@@ -37,7 +37,8 @@ Both findings match a prior skipped finding's normalized title and section, and 
     task: `Use ce-doc-review to finish only advisory admission and the interactive FYI presentation for completed review candidates. Read references/synthesis-and-presentation.md and references/review-output-template.md. Do not dispatch, edit documents, or run the full review. Return the FYI section and its retained count.
 
 All candidates have confidence 50. A coherence reviewer prefers renaming plan.md to match the command name, while confirming neither name misleads readers. A scope reviewer suggests monitoring thresholds for hypothetical future traffic, with no traffic measurements or deployment requirement supporting that concern. A feasibility reviewer verified recorded manual fixture setup takes 15 minutes per run; the existing seed script produces the same fixture in 2 minutes. Both setup methods already satisfy the plan, and this optional convenience is below the actionable bar.`,
-    grade: { must_include: ["15 minutes", "2 minutes"], actions: "none", delegates: "none" },
+    // The retained fact is the 15-versus-2-minute comparison, however phrased.
+    grade: { must_include_any: [["15 minutes", "15 min", "versus 15", "15 for"], ["2 minutes", "2 min"]], actions: "none", delegates: "none" },
   },
   {
     ...base,
