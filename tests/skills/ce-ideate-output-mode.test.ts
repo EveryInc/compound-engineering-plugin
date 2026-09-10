@@ -51,12 +51,13 @@ function phase00Region(): string {
 }
 
 describe("ce-ideate output mode (html default)", () => {
-  test("SKILL.md keeps exclusivity, precedence, and the pipeline override in the window", () => {
+  test("SKILL.md keeps exclusivity and precedence in the window, with no pipeline override", () => {
     // These decide the write before any reference is opened, so they stay in
     // the always-loaded body even though the procedure moved.
     expect(/exclusive/i.test(SKILL_BODY)).toBe(true)
     expect(/never both/i.test(SKILL_BODY)).toBe(true)
-    expect(/pipeline|disable-model-invocation/i.test(SKILL_BODY)).toBe(true)
+    // Decision 2026-09-10: no pipeline override. Format comes only from the prompt, a user preference, config, or the default; a headless run resolves it the same way. Pin the absence.
+    expect(/forces? `?md`?/i.test(SKILL_BODY)).toBe(false)
     expect(/references\/output-mode\.md/.test(SKILL_BODY)).toBe(true)
     expect(/ideate_output/.test(SKILL_BODY)).toBe(true)
   })
@@ -87,10 +88,7 @@ describe("ce-ideate output mode (html default)", () => {
       /ideate_output/.test(region),
       "Phase 0.0 must name the `ideate_output` config key (the ce-ideate parallel to plan_output / brainstorm_output).",
     ).toBe(true)
-    expect(
-      /pipeline|disable-model-invocation/i.test(region),
-      "Phase 0.0 must describe the pipeline-mode override that forces markdown.",
-    ).toBe(true)
+    expect(/\*\*Pipeline override\.\*\*|forces? `?(OUTPUT_FORMAT=)?md`? regardless/i.test(region)).toBe(false)
     expect(
       /literal[\s-]prefix|literal prefix/i.test(region),
       "Phase 0.0 must state the literal-prefix token-parsing convention.",

@@ -41,7 +41,7 @@ const HTML_OUTPUT_PATH = path.join(
 // a window-deciding one -- Phase 0.0 is the first thing a run does and the body
 // names the required read at that point -- so they are asserted against the file
 // that now owns them. The two rules that must fire without any read (the mode is
-// exclusive; pipeline forces md) stay pinned to the body further down.
+// exclusive; markdown unless HTML was requested) stay pinned to the body further down.
 describe("ce-brainstorm output:html mode", () => {
   test("argument-hint advertises output:html", () => {
     const frontmatterMatch = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
@@ -65,10 +65,8 @@ describe("ce-brainstorm output:html mode", () => {
       /brainstorm_output/.test(phaseRegion),
       "Phase 0.0 must name the `brainstorm_output` config key (the ce-brainstorm parallel to ce-plan's `plan_output`).",
     ).toBe(true)
-    expect(
-      /pipeline|disable-model-invocation/i.test(phaseRegion),
-      "Phase 0.0 must describe the pipeline-mode override that forces markdown.",
-    ).toBe(true)
+    // Decision 2026-09-10: no pipeline override. Format comes only from the prompt, a user preference, config, or the default; a headless run resolves it the same way. Pin the absence.
+    expect(/\*\*Pipeline override\.\*\*|forces? `?(OUTPUT_FORMAT=)?md`? regardless/i.test(phaseRegion)).toBe(false)
     expect(
       /literal[\s-]prefix|literal prefix/i.test(phaseRegion),
       "Phase 0.0 must state the literal-prefix token-parsing convention.",

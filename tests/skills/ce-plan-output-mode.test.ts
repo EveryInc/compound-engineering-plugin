@@ -44,7 +44,7 @@ const PLAN_SECTIONS_PATH = path.join(
 // HTML — never both. The skill body must carry the load-bearing surface:
 // the argument-hint advertises the flag, the kernel requires the output owner
 // before phase interpretation, and that owner preserves the precedence and
-// pipeline override that automated downstream consumers rely on.
+// four-step precedence; there is no pipeline override (decision 2026-09-10).
 describe("ce-plan output:html mode", () => {
   test("argument-hint advertises output:html", () => {
     // argument-hint is in the frontmatter. Extract and parse to confirm
@@ -81,10 +81,8 @@ describe("ce-plan output:html mode", () => {
       /plan_output/.test(phaseRegion),
       "Phase 0.0 must name the `plan_output` config key.",
     ).toBe(true)
-    expect(
-      /pipeline|disable-model-invocation/i.test(phaseRegion),
-      "Phase 0.0 must describe the pipeline-mode override that forces markdown.",
-    ).toBe(true)
+    // Decision 2026-09-10: no pipeline override. Format comes only from the prompt, a user preference, config, or the default; a headless run resolves it the same way. Pin the absence.
+    expect(/\*\*Pipeline override\.\*\*|forces? `?(OUTPUT_FORMAT=)?md`? regardless/i.test(phaseRegion)).toBe(false)
     expect(
       /literal[\s-]prefix|literal prefix/i.test(phaseRegion),
       "Phase 0.0 must state the literal-prefix token-parsing convention so `feat:`/`fix:`/`chore:` in feature descriptions pass through verbatim.",

@@ -747,10 +747,11 @@ describe("ce-ideate always-loaded body pins", () => {
     ).toBe(true)
   })
 
-  test("output-mode exclusivity and the pipeline override stay in the body", () => {
+  test("output-mode exclusivity stays in the body, with no pipeline override", () => {
     expect(/exclusive/i.test(SKILL_BODY)).toBe(true)
     expect(/never both/i.test(SKILL_BODY)).toBe(true)
-    expect(/pipeline|disable-model-invocation/i.test(SKILL_BODY)).toBe(true)
+    // Decision 2026-09-10: no pipeline override. Format comes only from the prompt, a user preference, config, or the default; a headless run resolves it the same way. Pin the absence.
+    expect(/forces? `?md`?/i.test(SKILL_BODY)).toBe(false)
   })
 
   test("the scratch root and its `.context/` prohibition stay in the body", () => {

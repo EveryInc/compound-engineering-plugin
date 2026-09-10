@@ -4,7 +4,7 @@ Required read at Phase 0.0, before anything writes or resumes an ideation artifa
 
 #### 0.0 Resolve Output Mode
 
-Determine `OUTPUT_FORMAT` for the ideation artifact this run might persist. Output mode is **exclusive** — the ideation doc is written as either HTML (`.html`) OR markdown (`.md`), never both. Precedence: in-prompt request > user-stated preference > config > default (`html`), with a hard pipeline-mode override.
+Determine `OUTPUT_FORMAT` for the ideation artifact this run might persist. Output mode is **exclusive** — the ideation doc is written as either HTML (`.html`) OR markdown (`.md`), never both. Precedence: in-prompt request > user-stated preference > config > default (`html`). There is no pipeline override: a headless or non-interactive run resolves the format by the same steps.
 
 Unlike `ce-plan` and `ce-brainstorm` (which default to `md`), ce-ideate defaults to **`html`** — ideation artifacts are read mainly by humans weighing candidate directions, and a rich self-contained HTML file makes the ideas easier to approach.
 
@@ -18,7 +18,6 @@ Resolution steps:
 2. **User-stated preference.** If this prompt holds no format request, honor an output-format preference (markdown vs HTML) the user established earlier — earlier in this session, in your memory, or written into their active instructions — that is already in your context (match `md`/`html` case-insensitively). A remembered preference is more current than the rarely-edited config, so it **overrides** the config in step 3. Do not open or search instruction files to find it — act only on a preference already present in your context; if none is, fall through to the config.
 3. **Config.** If steps 1-2 did not resolve, apply the ordinary-key rule: first **active (non-commented)** `ideate_output:` in `config.local.yaml` then `config.yaml` matching `md` or `html` (case-insensitive) wins. Missing, invalid, or commented values continue to the next layer, then step 4. Critical: lines starting with `#` are YAML comments and must be ignored — the shipped config template includes a commented example like `# ideate_output: md` to document the option, and matching that as an active setting would silently override the default on every run without the user having opted in.
 4. **Default.** Otherwise `OUTPUT_FORMAT=html`.
-5. **Pipeline override.** When invoked from any pipeline or `disable-model-invocation` context, force `OUTPUT_FORMAT=md` regardless of steps 1-4 — automated downstream consumers parse markdown reliably and HTML in pipeline runs is unnecessary friction.
 
 **Token-parsing convention:** only literal-prefix flag tokens (`output:`, `mode:` where applicable) are consumed and stripped. Other `<word>:<word>` tokens — including conventional commit prefixes like `feat:`, `fix:`, `chore:` that may appear inside a focus hint — pass through verbatim.
 
@@ -32,4 +31,4 @@ A prior doc is relevant when its topic, path, or subsystem overlaps the requeste
 
 If a relevant doc exists, ask whether to continue from it or start fresh. If continuing: read it, summarize what has already been explored, preserve the previous ideas and rejection summary, and update that file rather than creating a duplicate.
 
-**Write the update back in the existing file's format**, overriding the Phase 0.0 baseline. Resume precedence: explicit `output:` arg this run > resumed file's extension > config > default (`html`), with pipeline mode still forcing `md`. An explicit `output:` that differs from the existing file switches format — write the new-format file and leave the original in place.
+**Write the update back in the existing file's format**, overriding the Phase 0.0 baseline. Resume precedence: explicit `output:` arg this run > resumed file's extension > config > default (`html`). An explicit `output:` that differs from the existing file switches format — write the new-format file and leave the original in place.
