@@ -48,6 +48,38 @@ function lastTrailer(text: string, name: string): string {
   return ""
 }
 
+/**
+ * Read a labeled block: the text after the last line that is the label itself
+ * (`ROUTING`, `ROUTING:`, `## ROUTING`, `**ROUTING:**`), up to the trailers. When the
+ * label line also carries a value, that value is included. Hosts render a requested
+ * field as a heading or a bold label as often as `LABEL:`, and a field whose content is
+ * a list never fits on the label line.
+ */
+function lastFieldBlock(text: string, name: string): string {
+  const lines = text.split("\n")
+  const upper = name.toUpperCase()
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const plain = lines[i].trim().replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim()
+    const head = plain.toUpperCase()
+    if (head !== upper && head !== `${upper}:` && !head.startsWith(`${upper}:`)) continue
+    const onLabelLine = plain.slice(upper.length).replace(/^:/, "").trim()
+    if (onLabelLine) {
+      // `LABEL: value` keeps single-line semantics, placeholder check included.
+      if (isPlaceholder(onLabelLine)) continue
+      return onLabelLine
+    }
+    const following = lines
+      .slice(i + 1)
+      .filter((line) => !/^(FILES_READ|ACTIONS|DELEGATES_DISPATCHED|TEAM):/i.test(line.trim()))
+      .join("\n")
+      .trim()
+    const firstLine = following.split("\n").find((line) => line.trim()) ?? ""
+    if (!following || isPlaceholder(firstLine)) continue
+    return following
+  }
+  return ""
+}
+
 /** Read a standalone labeled field while ignoring Markdown heading/bold decoration. */
 // A marker opens the block only at the end of a line and closes it only at the start
 // of one: the summary after the block may mention RESULT-START and RESULT-END by name
@@ -200,11 +232,16 @@ export function gradeHost(opts: {
   // satisfied by a read path or a branch name instead of the text under test. A run
   // that emitted no such field fails rather than passing on the trailers.
   const scopeField = opts.grade.must_include_field
-  const scopedText = scopeField ? lastField(stdout, scopeField).toLowerCase() : ""
+  const scopedText = scopeField ? lastFieldBlock(stdout, scopeField).toLowerCase() : ""
   if (scopeField && !scopedText) reasons.push(`missing ${scopeField} field`)
   const textScope = scopeField ? scopedText : team || decision
   for (const needle of scopeField && !scopedText ? [] : opts.grade.must_include ?? []) {
     if (!textScope.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
+  }
+  for (const options of scopeField && !scopedText ? [] : opts.grade.must_include_any ?? []) {
+    if (!options.some((needle) => textScope.includes(needle.toLowerCase()))) {
+      reasons.push(`missing required text (any of): ${options.join(" | ")}`)
+    }
   }
   if (opts.grade.result_must_not_include?.length) {
     const block = resultBlock(stdout)
@@ -238,6 +275,15 @@ export function gradeHost(opts: {
   if (opts.grade.delegates === "some" && hasDelegates) {
     if (isNone(trailers?.delegates ?? "")) {
       reasons.push(`expected ${TRAILER_NAMES.delegates} to name a peer`)
+    }
+  }
+  if (opts.grade.delegates_must_not_include?.length) {
+    if (!hasDelegates) reasons.push(`missing ${TRAILER_NAMES.delegates} trailer`)
+    const declared = (trailers?.delegates ?? "").toLowerCase()
+    for (const needle of hasDelegates ? opts.grade.delegates_must_not_include : []) {
+      if (declared.includes(needle.toLowerCase())) {
+        reasons.push(`forbidden delegate in ${TRAILER_NAMES.delegates}: ${needle}`)
+      }
     }
   }
   if (opts.grade.delegates === "none" && hasDelegates) {

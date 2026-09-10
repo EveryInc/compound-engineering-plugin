@@ -136,7 +136,6 @@ describe("skill-eval-cell catalog", () => {
         "ce-babysit-pr/check-only-answer-reactivates-source:references/tick.md",
         "ce-babysit-pr/behind-reads-branch-currency:references/branch-currency.md",
         "ce-babysit-pr/pipeline-returns-canonical-human-decision:references/pipeline.md",
-        "ce-babysit-pr/pipeline-returns-canonical-human-decision:references/report.md",
         "ce-brainstorm/lightweight-ends-in-chat:references/phase-0.md",
         "ce-brainstorm/lookup-not-ask:references/interaction-rules.md",
         "ce-brainstorm/requested-bakeoff-confirmation:references/approaches.md",
@@ -257,6 +256,7 @@ describe("skill-eval-cell catalog", () => {
       if (!s.read_only || !s.grade.must_exclude?.length) return false
       return (
         !s.grade.must_include?.length &&
+        !s.grade.must_include_any?.length &&
         !s.grade.files_read_post?.length &&
         !s.grade.workspace_read?.length
       )

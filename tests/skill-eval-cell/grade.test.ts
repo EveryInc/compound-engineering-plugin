@@ -608,3 +608,44 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 })
+
+describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
+  const base = { host: "claude", arm: "post" as const }
+  function hostDir(stdout: string): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grade-any-"))
+    fs.mkdirSync(path.join(dir, "workspace"), { recursive: true })
+    fs.writeFileSync(path.join(dir, "stdout.txt"), stdout)
+    fs.writeFileSync(path.join(dir, "exit.json"), JSON.stringify({ exitCode: 0 }))
+    return dir
+  }
+
+  test("must_include_any passes on any listed phrasing and fails when none appears", () => {
+    const stdout = "There are no existing retries to reuse.\n\nFILES_READ: a\nACTIONS: none\nDELEGATES_DISPATCHED: none\n"
+    const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_any: [["does not retry", "no existing retries"]] } })
+    expect(pass.reasons).toEqual([])
+    const fail = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_any: [["does not retry", "never retries"]] } })
+    expect(fail.reasons).toEqual(["missing required text (any of): does not retry | never retries"])
+  })
+
+  test("must_include_field accepts a heading-style label whose content is the following block", () => {
+    const stdout = "Preamble mentioning discard.\n\nROUTING\n\n- Candidate A: discard.\n- Candidate B: actionable.\n\nFILES_READ: a\nACTIONS: none\nDELEGATES_DISPATCHED: none\n"
+    const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "ROUTING", must_include: ["discard", "actionable"] } })
+    expect(pass.reasons).toEqual([])
+    const missing = gradeHost({ ...base, hostDir: hostDir("Only discard and actionable in prose.\n\nFILES_READ: a\nACTIONS: none\n"), grade: { must_include_field: "ROUTING", must_include: ["discard"] } })
+    expect(missing.reasons).toContain("missing ROUTING field")
+  })
+
+  test("must_include_field still reads a single-line LABEL: value", () => {
+    const stdout = "Decided.\n\n**MODE:** continuous\n\nFILES_READ: a\nACTIONS: none\n"
+    const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "MODE", must_include: ["continuous"] } })
+    expect(pass.reasons).toEqual([])
+  })
+
+  test("delegates_must_not_include forbids one delegate while allowing others", () => {
+    const stdout = "done\n\nFILES_READ: a\nACTIONS: edited src/x.js\nDELEGATES_DISPATCHED: correctness-reviewer, testing-reviewer\n"
+    const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { delegates_must_not_include: ["ce-plan"] } })
+    expect(pass.reasons).toEqual([])
+    const fail = gradeHost({ ...base, hostDir: hostDir(stdout.replace("testing-reviewer", "ce-plan")), grade: { delegates_must_not_include: ["ce-plan"] } })
+    expect(fail.reasons).toEqual(["forbidden delegate in DELEGATES_DISPATCHED: ce-plan"])
+  })
+})
