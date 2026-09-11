@@ -40,7 +40,7 @@ import {
   worktreePaths,
 } from "./helpers/ce-work-workspace-harness"
 
-setDefaultTimeout(30_000)
+setDefaultTimeout(60_000)
 
 registerWorkspaceCleanup()
 

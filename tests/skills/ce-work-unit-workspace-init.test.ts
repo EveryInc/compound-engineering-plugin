@@ -72,6 +72,26 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     expect(existsSync(ambientIndex)).toBe(false)
   })
 
+  test("fixture git ignores a host global config that would block commit", () => {
+    const broken = path.join(tmp("ce-work-gitconfig-"), "config")
+    writeFileSync(
+      broken,
+      "[commit]\n\tgpgsign = true\n[core]\n\tfsmonitor = true\n[user]\n\tsigningkey = missing-key\n",
+    )
+    const previous = process.env.GIT_CONFIG_GLOBAL
+    process.env.GIT_CONFIG_GLOBAL = broken
+    try {
+      const f = makeRepo()
+      writeFileSync(path.join(f.repo, "extra.txt"), "x\n")
+      git(f.repo, "add", "extra.txt")
+      git(f.repo, "commit", "-m", "extra")
+      expect(git(f.repo, "rev-parse", "HEAD")).toMatch(/^[0-9a-f]{40,64}$/)
+    } finally {
+      if (previous === undefined) delete process.env.GIT_CONFIG_GLOBAL
+      else process.env.GIT_CONFIG_GLOBAL = previous
+    }
+  })
+
   test("unit and plan-wide verification ignore inherited Git local environment", () => {
     const f = makeRepo()
     const decoy = makeRepo()

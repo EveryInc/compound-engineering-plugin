@@ -27,6 +27,16 @@ export const ADAPTER = path.join(__dirname, "../../../skills/ce-work/scripts/cro
 const roots: string[] = []
 const templateRoots: string[] = []
 const seedTemplates = new Map<string, { repo: string; digest: string; base: string }>()
+const CTL_TIMEOUT_MS = 20_000
+// Host global git often enables Linux fsmonitor (git 2.55+) and commit signing.
+// Hundreds of throwaway repos then spawn daemons or block on pinentry; Bun
+// reports "killed 1 dangling process" and the rest of the file times out.
+const isolatedGitEnv = {
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_TERMINAL_PROMPT: "0",
+}
 
 afterAll(() => {
   for (const root of templateRoots.splice(0)) rmSync(root, { recursive: true, force: true })
@@ -39,7 +49,12 @@ export function tmp(prefix: string): string {
 }
 
 export function sh(cwd: string, argv: string[], check = true) {
-  const r = spawnSync(argv[0], argv.slice(1), { cwd, encoding: "utf8" })
+  const r = spawnSync(argv[0], argv.slice(1), {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, ...isolatedGitEnv },
+    timeout: CTL_TIMEOUT_MS,
+  })
   if (check && r.status !== 0) throw new Error(`${argv.join(" ")}\n${r.stderr}`)
   return r
 }
@@ -114,8 +129,10 @@ export function ctlWithScript(script: string, runsRoot: string, ...args: string[
 export function ctlWithScriptAndEnv(script: string, runsRoot: string, extraEnv: Record<string, string>, ...args: string[]) {
   const r = spawnSync("python3", [script, ...args], {
     encoding: "utf8",
+    timeout: CTL_TIMEOUT_MS,
     env: {
       ...process.env,
+      ...isolatedGitEnv,
       CE_WORK_RUNS_ROOT: runsRoot,
       CE_PEER_JOBS_ROOT: path.dirname(runsRoot),
       ...extraEnv,
@@ -138,8 +155,10 @@ export function ownerRootProbe(ownerRoot: string, runsRoot: string, foreignLike 
   ].filter(Boolean).join("; ")
   return spawnSync("python3", ["-c", source, ownerRoot], {
     encoding: "utf8",
+    timeout: CTL_TIMEOUT_MS,
     env: {
       ...process.env,
+      ...isolatedGitEnv,
       CE_WORK_RUNS_ROOT: runsRoot,
       CE_PEER_JOBS_ROOT: "",
     },
