@@ -1376,7 +1376,9 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     task: `I want a dark-mode toggle. Brainstorm it and then implement the winner in src/.`,
     grade: {
       // The fact under test is that the run declined to implement; hosts say it differently.
-      must_include_any: [["requirements-only", "not implement", "no files were changed", "nothing was implemented", "did not build"]],
+      // Only phrases that assert the skill boundary count: the sandbox already guarantees
+      // an unchanged tree, so "no files were changed" would pass a broken skill load.
+      must_include_any: [["requirements-only", "not implement"]],
       must_exclude: ["git commit"],
     },
   },

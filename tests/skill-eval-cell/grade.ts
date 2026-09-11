@@ -48,46 +48,28 @@ function lastTrailer(text: string, name: string): string {
   return ""
 }
 
-/**
- * Read a labeled block: the text after the last line that is the label itself
- * (`ROUTING`, `ROUTING:`, `## ROUTING`, `**ROUTING:**`), up to the next Markdown
- * heading, the next `LABEL:` field line, or the trailers, whichever comes first. A
- * `LABEL: value` line keeps single-line semantics. Hosts render a requested field as a
- * heading or a bold label as often as `LABEL:`, and a field whose content is a list
- * never fits on the label line; ending at the next section keeps a decision stated in
- * a later section from satisfying a needle scoped to this one.
- */
+// A block ends at the next field label. A label is any line the field opener itself
+// would accept for some field name, so evidence under a later label can never leak
+// into an earlier field: a Markdown heading; a line opening with a bold segment that
+// is the whole line or carries a colon (`**DETAILS**`, `**Next steps**`,
+// `**DETAILS:** text`, `**Details**: text`); or an undecorated `Label:` / `Label: value`
+// whose label is one to five words with no sentence punctuation, in any case after
+// the first capital (`DETAILS:`, `Details and rationale: ...`, `Next steps:`). A prose
+// line shaped like a label ("API behavior: revocation compares...") therefore also
+// closes the block. That can cut a block short and fail a needle, which is visible,
+// whereas the opposite mistake passes a needle on another field's evidence silently.
+// An emphasized lead-in on a prose line (`**Candidate A: discard.** It reopens...`,
+// `**PR creation** preserves...`) has neither shape and stays content.
 function isFieldBoundary(line: string): boolean {
   const trimmed = line.trim()
-  // A boundary is a syntactic label signal, the same shapes the opener accepts: a
-  // Markdown heading; a line that opens with a bold segment (`**DETAILS**`,
-  // `**Details and Rationale**`, `**DETAILS:** explanation`); or a `Label:` line whose
-  // label is one to five capitalized words, connectors allowed (`DETAILS:`, `Details:`,
-  // `Details and Rationale:`). A bare unmarked word on its own line is content
-  // (`## OUTCOME` then `unresolved` is a one-word value), and prose that starts with an
-  // acronym or a lowercase-word phrase before a colon ("PR creation ...",
-  // "API behavior: ...") is content too, so none of those close a field.
   if (/^#{1,6}\s+\S/.test(trimmed)) return true
-  // A marked label (bold, or a line that is only `words:`) is one to five words with no
-  // sentence punctuation, in any case: `**Next steps**`, `Next steps:`, `**DETAILS:**`,
-  // `Details and Rationale:`. `**Candidate A: discard.** It merely...` has a colon and a
-  // period inside the bold, so it is a finding that opens in bold and stays content.
-  const marked = /^[A-Za-z][A-Za-z0-9_-]*(\s+[A-Za-z0-9_-]+){0,4}:?$/
-  // Bold is structural by syntax alone, whatever the words inside: the bold segment is
-  // the whole line (`**Next steps**`, `**Risks & Trade-offs**`), or a colon follows it,
-  // inside or outside the markup (`**DETAILS:** explanation`, `**Details**: explanation`).
-  // `**PR creation** preserves the stamp` and `**Candidate A: discard.** It merely...`
-  // are emphasized lead-ins on prose lines and stay content.
   const bold = trimmed.match(/^\*\*([^*]+)\*\*(.*)$/)
   if (bold) {
     const inner = bold[1].trim()
     const rest = bold[2].trim()
     return rest === "" || rest.startsWith(":") || inner.endsWith(":")
   }
-  if (marked.test(trimmed) && trimmed.endsWith(":")) return true
-  // `Label: value` with content after the colon needs capitalized label words, so
-  // "API behavior: revocation compares..." stays content while `DETAILS: ...` closes.
-  return /^[A-Z][A-Za-z0-9_-]*(\s+(?:and|or|of|the|to|for|[A-Z][A-Za-z0-9_-]*)){0,4}:\s/.test(trimmed)
+  return /^[A-Z][A-Za-z0-9_&/-]*(\s+[A-Za-z0-9_&/-]+){0,4}:(\s|$)/.test(trimmed)
 }
 
 function lastFieldBlock(text: string, name: string): string {

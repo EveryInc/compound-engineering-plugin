@@ -54,7 +54,7 @@ If a relevant requirements-only unified plan exists:
    - Because enrichment edits the same file that holds the user's product decisions, record a one-line **Product Contract preservation** note in the enriched plan: "Product Contract unchanged", "restructured, no scope change: \<old-ID → new-IDs map\>", or "changed: \<R-IDs\> — \<why\>". This keeps the WHAT/HOW review boundary visible to reviewers (`ce-doc-review`, PR review) when there is no separate brainstorm file to diff against. For a *substantive* product-scope change (not a clarification or restructure), pause and confirm with the user before writing implementation units.
 4. Carry forward all applicable Product Contract sections listed below.
 5. Use the Product Contract as the primary input to planning and research.
-6. Do not create a duplicate plan unless an explicit `output:` conversion or pipeline override requires a new canonical path; when conversion happens, report old path and new canonical path.
+6. Do not create a duplicate plan unless an explicit `output:` conversion requires a new canonical path; when conversion happens, report old path and new canonical path.
 
 If a relevant legacy requirements document exists:
 1. Read it thoroughly
