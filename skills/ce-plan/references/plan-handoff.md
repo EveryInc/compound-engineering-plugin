@@ -18,9 +18,10 @@ This is a pre-entry state: say that `ce-doc-review` did not run. Report a review
 
 Non-interactive is the default at this phase because most users want to start work after planning, not adjudicate every reviewer concern up front. Non-interactive returns structured findings without blocking prompts. Its applied list includes corrections covered by the supplied edit authority; proposals still needing approval and unresolved user decisions remain separate. The post-generation menu (see 5.4) offers `Decide on the review's open items` as a first-class option so users can opt into the full interactive walkthrough when they want it.
 
-The confidence check and ce-doc-review are complementary:
-- The confidence check strengthens rationale, sequencing, risk treatment, and grounding
+The confidence check, ce-doc-review, and ce-plan-grounding-check are complementary:
+- The confidence check strengthens rationale, sequencing, risk treatment, and grounding in the document
 - Document-review checks coherence, feasibility, scope alignment, and surfaces role-specific issues
+- Grounding check (`ce-plan-grounding-check`) checks that named files, fixtures, pipelines, and house rules exist on disk as claimed. Completeness of planning sections is not `implementation-ready`.
 
 **Own the completed plan.** Before applying or presenting review results, save a resolved review alongside the original evidence. Each claim has a disposition and its reason. A retained claim needs project evidence of a practical consequence if the plan stays unchanged, plus an explanation of why the existing plan and settled decisions do not already address it. A reviewer label, recommendation, or request for more detail does not satisfy that condition. Dismiss claims that do not meet it, including advisory observations.
 
@@ -28,9 +29,23 @@ Your result is a plan the user can act on, with only worthwhile unresolved choic
 
 For a retained correction, invoke `ce-doc-review` with the resolved review, evidence, and existing edit grant. It owns application and reuse of completed review results. Do not apply returned proposals yourself or treat your agreement as permission to bypass its application restrictions.
 
-Save actual edits and the reviewed document's identity with the resolved review. Only its remaining findings supply the handoff and menu counts; original counts stay in the saved evidence. Dismissed and completed items must not reappear as FYIs or deferred questions. Proceed to Final Checks when the resolved review and any authorized corrections are complete.
+Save actual edits and the reviewed document's identity with the resolved review. Only its remaining findings supply the handoff and menu counts; original counts stay in the saved evidence. Dismissed and completed items must not reappear as FYIs or deferred questions. Proceed to Phase 5.3.85 when the resolved review and any authorized corrections are complete.
 
-**Pipeline mode:** Pipeline runs (LFG or any `disable-model-invocation` context) force `OUTPUT_FORMAT=md` at Phase 0.0. They invoke `ce-doc-review` with `mode:non-interactive` and the plan path — non-interactive mode is identical to the interactive default at this phase. No further routing is offered in pipeline mode; the caller decides what to do with the returned findings. Address any P0/P1 findings before returning control to the caller. If the review could not start and ce-plan recorded the `skill_unreachable` envelope, return that envelope explicitly so the caller does not treat review as complete.
+**Pipeline mode:** Pipeline runs (LFG or any `disable-model-invocation` context) force `OUTPUT_FORMAT=md` at Phase 0.0. They invoke `ce-doc-review` with `mode:non-interactive` and the plan path — non-interactive mode is identical to the interactive default at this phase. Address any P0/P1 findings, then continue to Phase 5.3.85. If the review could not start, record that ce-plan recorded the `skill_unreachable` envelope so the caller does not treat review as complete, then still run Phase 5.3.85. Do not return to the caller from this phase.
+
+## 5.3.85 Grounding Check
+
+After document-review mutations have settled, invoke the `ce-plan-grounding-check` skill with the plan path using the host's normal skill-invocation mechanism. Do not substitute a generic Task, Agent, or subagent; those are delegation mechanisms, not skill invocation. This phase is mandatory for a Durable software implementation plan (`execution: code`). Skip it for universal-planning, answer-seeking, and approach-plan outputs.
+
+The check is read-only against product code and plan text. It writes a readiness review under `<root>/plans/`. artifact_readiness: implementation-ready may only be set by a passing plan-grounding-check review.
+
+On a passing verdict: set `artifact_readiness: implementation-ready` on the plan — the only step in this workflow allowed to write that value — then proceed to Final Checks.
+
+On **amend then re-check**: do not set the flag. Leave `requirements-only` (or unset). Name the review path in the 5.4 summary. Hide Start `ce-work` and `/goal` until a later passing re-check. Do not treat planning-section completeness as readiness.
+
+If `ce-plan-grounding-check` cannot be invoked: fail closed. Do not set `implementation-ready`. Record `skipped_reason: skill_unreachable` and `skipped_detail` the same way 5.3.8 does for document review, and proceed to Final Checks without the flag. Unlike document review, an unreachable grounding check is not a synthetic pass.
+
+**Pipeline mode:** invoke the skill the same way. Return the review path and verdict to the caller. A fail or unreachable check is `status: blocked` with `phase: 5.3.85` — do not hand the caller an executable plan.
 
 ## 5.3.9 Final Checks and Cleanup
 
@@ -47,15 +62,15 @@ If artifact-backed mode was used:
 
 When `OUTPUT_FORMAT=md`, write the markdown directly per `references/markdown-rendering.md`. No HTML is composed.
 
-After all mutations in this run have settled (initial write, deepening synthesis, and `ce-doc-review` fixes in the artifact's native format), the artifact at its single path reflects the final state.
+After all mutations in this run have settled (initial write, deepening synthesis, `ce-doc-review` fixes in the artifact's native format, and the Phase 5.3.85 readiness stamp when the grounding check passed), the artifact at its single path reflects the final state.
 
 ## 5.4 Post-Generation Options
 
-**Pipeline mode:** Return control to the caller without an interactive menu. If document review started but did not complete, return the skill's `status: blocked` result with `phase`, `blocker`, `recovery_path`, and the preserved `artifact_path`. Otherwise return the resolved review envelope from completion or the pre-entry `skill_unreachable` fallback.
+**Pipeline mode:** Return control to the caller without an interactive menu. If document review started but did not complete, return the skill's `status: blocked` result with `phase`, `blocker`, `recovery_path`, and the preserved `artifact_path`. If Phase 5.3.85 failed or could not start, return `status: blocked` with `phase: 5.3.85` and the review path when one exists. Otherwise return the resolved review envelope from completion, the grounding verdict, and the pre-entry `skill_unreachable` fallback when either skill could not start.
 
 **Path format:** Use absolute paths for chat-output file references — relative paths are not auto-linked as clickable in most terminals.
 
-**Summary line above the menu (always):** Print a single concise line summarizing the resolved review state — e.g., `Doc review applied 3 fixes. 2 decisions, 1 proposed fix, 4 FYI observations remain (1 at P1).` When no fixes were applied and no findings remain, print `Doc review clean — no fixes needed.` When the envelope carries `skipped_reason: skill_unreachable`, print `Doc review skipped — ce-doc-review could not be invoked (<skipped_detail>); it did not run.` If a review that actually began failed, print `Doc review failed after starting — <actual error>; the plan was not fully reviewed.` This line establishes what the autofix pass did (or didn't) so the user has the context to choose between the menu options below. Never describe a pre-entry harness or delegation failure as a downstream skill timeout.
+**Summary line above the menu (always):** Print a single concise line summarizing the resolved review state — e.g., `Doc review applied 3 fixes. 2 decisions, 1 proposed fix, 4 FYI observations remain (1 at P1).` When no fixes were applied and no findings remain, print `Doc review clean — no fixes needed.` When the envelope carries `skipped_reason: skill_unreachable`, print `Doc review skipped — ce-doc-review could not be invoked (<skipped_detail>); it did not run.` If a review that actually began failed, print `Doc review failed after starting — <actual error>; the plan was not fully reviewed.` Follow it with the grounding result: `Grounding check passed — artifact_readiness: implementation-ready.` or `Grounding check: amend then re-check — see <review-path>.` or `Grounding check skipped — ce-plan-grounding-check could not be invoked (<skipped_detail>); implementation-ready was not set.` This line establishes what the autofix pass did (or didn't) so the user has the context to choose between the menu options below. Never describe a pre-entry harness or delegation failure as a downstream skill timeout.
 
 **Render only the findings that still need the reader.** Preserve the decision-first structure (Recommendation / Consequence if unchanged / Change / Basis) for retained actionable findings. Do not re-narrate them into dense paragraphs or unexplained identifiers. Explain any changed disposition in the saved review evidence; do not copy dismissed findings into the handoff. The summary reports changes actually made and items still unresolved after your judgment.
 
@@ -79,7 +94,7 @@ There is no "done" / "pause" option — the blocking question already waits, and
 
 **Show `Decide on the review's open items` (option 3) only when the resolved review state has `proposed_fixes_count + decisions_count > 0` and no `skipped_reason: skill_unreachable`.** FYIs alone do not offer a decision to make. Keep their retained count in the summary even when this option is hidden. Renumber the visible menu options after applying this condition. `ce-doc-review` owns how a selected review resumes and returns.
 
-**Cross-skill invocation rule:** Invoke `ce-work`, `ce-doc-review`, and `ce-prototype` using the host's normal skill-invocation mechanism. Do not substitute a generic Task, Agent, or subagent; the invoked skill may still dispatch its own subagents according to its protocol.
+**Cross-skill invocation rule:** Invoke `ce-work`, `ce-doc-review`, `ce-plan-grounding-check`, and `ce-prototype` using the host's normal skill-invocation mechanism. Do not substitute a generic Task, Agent, or subagent; the invoked skill may still dispatch its own subagents according to its protocol.
 
 Before acting on any selection received after a user turn, reload this file. Then act on the selection; rendering the menu or announcing the route is not the routed action:
 - **Start `ce-work`** -> Classify the artifact first. If it is not `artifact_readiness: implementation-ready` plus `execution: code`, do not execute it; route requirements-only artifacts back to `ce-plan` enrichment and non-code artifacts to their own workflow. If it is executable, invoke the `ce-work` skill under the cross-skill invocation rule, passing the plan path as the skill argument; `ce-work` then owns engine selection (inline/subagent vs goal-mode vs dynamic-workflow) and the implementation tail. If `ce-work` cannot be invoked, print the existing `ce-work` fallback prompt for the user to run; in that prompt, tell the executor to read Goal Capsule, Verification Contract, Definition of Done, and active U-IDs (scanning headings to find them) rather than the whole document first. Do not merely tell the user to type an invocation when the host can invoke it directly.

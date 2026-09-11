@@ -649,10 +649,14 @@ describe("ce-plan review contract", () => {
     expect(content).toContain("## 5.3.8 Document Review")
     expect(content).toContain("`ce-doc-review` skill")
 
-    // Document review must come before final checks so auto-applied edits are validated
+    // Document review must come before grounding and final checks so auto-applied
+    // edits are on disk before the claim ledger is built.
     const docReviewIdx = content.indexOf("5.3.8 Document Review")
+    const groundingIdx = content.indexOf("5.3.85 Grounding Check")
     const finalChecksIdx = content.indexOf("5.3.9 Final Checks")
-    expect(docReviewIdx).toBeLessThan(finalChecksIdx)
+    expect(docReviewIdx).toBeLessThan(groundingIdx)
+    expect(groundingIdx).toBeLessThan(finalChecksIdx)
+    expect(content).toContain("`ce-plan-grounding-check` skill")
   })
 
   test("SKILL.md stub points to plan-handoff reference", async () => {

@@ -27,6 +27,8 @@ Every plan should contain:
 
 A plan is ready when an implementer can start confidently without needing the plan to write the code for them.
 
+artifact_readiness: implementation-ready may only be set by a passing plan-grounding-check review (`ce-plan-grounding-check`). Completeness of planning sections is not that flag.
+
 #### 0.2 Find Upstream Product Contract
 
 Before asking planning questions, resolve the upstream product source in this order:
@@ -48,7 +50,7 @@ If multiple source documents match, ask which one to use using the platform's bl
 
 If a relevant requirements-only unified plan exists:
 1. Read metadata, Goal Capsule, Product Contract, Open Questions, and Sources (scan headings to locate them; don't read long appendices unless referenced).
-2. Announce that `ce-plan` will enrich that same file to `artifact_readiness: implementation-ready`.
+2. Announce that `ce-plan` will enrich that same file toward `artifact_readiness: implementation-ready` after a passing `ce-plan-grounding-check`.
 3. Preserve the Product Contract's **meaning and stable R/A/F/AE IDs** unless planning discovers a direct conflict. Conflicts become explicit assumptions or questions; do not silently rewrite product scope.
    - Preservation protects decisions, not bytes. **Meaning-preserving restructuring is sanctioned without a conflict:** splitting an overloaded requirement (the original R-ID keeps the original core intent; split-out parts take next unused numbers), moving a rule's full statement onto its owning R while slimming the Key Decision to label + annotation + `Governs R…` links, and deleting unlinked duplicate restatement. When an R is split or its ownership moves, re-point every affected `Governs R…`, `Covers R…`, and inline `per R…` citation to the resulting owning IDs; the preservation map records the change but does not replace those live links. Restructuring must not weaken a qualifier, drop an edge case, or reclassify a product constraint as an implementation preference — those are scope changes, not restructures.
    - Because enrichment edits the same file that holds the user's product decisions, record a one-line **Product Contract preservation** note in the enriched plan: "Product Contract unchanged", "restructured, no scope change: \<old-ID → new-IDs map\>", or "changed: \<R-IDs\> — \<why\>". This keeps the WHAT/HOW review boundary visible to reviewers (`ce-doc-review`, PR review) when there is no separate brainstorm file to diff against. For a *substantive* product-scope change (not a clarification or restructure), pause and confirm with the user before writing implementation units.

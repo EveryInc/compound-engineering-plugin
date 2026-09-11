@@ -215,7 +215,7 @@ describe("release metadata", () => {
 
     expect(counts).toEqual({
       agents: 0,
-      skills: 35,
+      skills: 36,
       mcpServers: 0,
     })
   })

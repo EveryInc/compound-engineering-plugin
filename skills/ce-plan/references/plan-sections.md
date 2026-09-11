@@ -35,13 +35,16 @@ When the artifact is meant to be consumed by implementation agents, use:
     complete and the artifact is not executable.
   - `implementation-ready` — Product Contract, Planning Contract,
     Implementation Units, Verification Contract, and Definition of Done are
-    complete enough for `ce-work`, `/goal`, or an equivalent executor, **and no
-    launch-blocking open question remains**. A plan that is otherwise complete
-    but still has a blocking product/architecture question stays
-    `requirements-only`, so the next step it routes to is blocker resolution /
-    planning, not implementation. Deferred (non-blocking) questions
-    do not hold readiness back — mark each open question as blocking or deferred
-    so this distinction is explicit.
+    complete enough for `ce-work`, `/goal`, or an equivalent executor, **no
+    launch-blocking open question remains**, **and a passing
+    `ce-plan-grounding-check` review has set this flag**. Completeness of
+    those sections alone does not authorize the flag.
+    artifact_readiness: implementation-ready may only be set by a passing plan-grounding-check review.
+    A plan that is otherwise complete but still has a blocking
+    product/architecture question stays `requirements-only`, so the next
+    step it routes to is blocker resolution / planning, not implementation.
+    Deferred (non-blocking) questions do not hold readiness back — mark each
+    open question as blocking or deferred so this distinction is explicit.
 - **`product_contract_source`** — where the Product Contract came from:
   `ce-brainstorm`, `ce-plan-bootstrap`, `legacy-requirements`, or another
   explicit source string when a repo has a specialized producer.

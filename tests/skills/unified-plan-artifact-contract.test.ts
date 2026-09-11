@@ -247,6 +247,17 @@ describe("unified plan artifact contract", () => {
     expect(planCorpus).toContain("create a new unified plan in `<root>/plans/`")
     expect(planCorpus).toContain("product_contract_source: ce-plan-bootstrap")
     expect(planFinalReview).toContain("artifact_readiness: implementation-ready")
+    expect(planIntake).toContain(
+      "artifact_readiness: implementation-ready may only be set by a passing plan-grounding-check review",
+    )
+    expect(planFinalReview).toContain(
+      "Do not set `artifact_readiness: implementation-ready` in this step",
+    )
+    expect(planHandoff).toContain("## 5.3.85 Grounding Check")
+    expect(planHandoff).toContain("`ce-plan-grounding-check` skill")
+    expect(planHandoff).toContain(
+      "artifact_readiness: implementation-ready may only be set by a passing plan-grounding-check review",
+    )
     expect(planCorpus).toContain("Definition of Done")
     // The launch prompt is generated at handoff, never written into the doc.
     expect(planCorpus).toContain("Do not write a launch prompt into the doc")
@@ -263,6 +274,8 @@ describe("unified plan artifact contract", () => {
     expect(ceWorkTriage).toContain("mode:return-to-caller <plan-path>")
     expect(ceWorkReturn).toContain("standalone_shipping_skipped: true")
     expect(ceWorkTriage).not.toContain("artifact_readiness: approach-plan")
+    expect(ceWorkLoop).toContain("ce-plan-grounding-check")
+    expect(ceWorkLoop).toContain("Before writing the first test")
   })
 
   test("lfg delegates implementation to ce-work return-to-caller mode", () => {

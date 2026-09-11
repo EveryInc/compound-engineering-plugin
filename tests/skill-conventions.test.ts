@@ -210,6 +210,7 @@ const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
   "ce-noslop",
   "ce-optimize",
   "ce-plan",
+  "ce-plan-grounding-check",
   "ce-proof",
   "ce-prototype",
   "ce-resolve-pr-feedback",

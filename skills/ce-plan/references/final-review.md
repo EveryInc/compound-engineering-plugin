@@ -25,6 +25,7 @@ Before finalizing, check:
 - If Scope Boundaries lists items that are planned work for a separate PR, issue, or repo, are they under `### Deferred to Follow-Up Work` rather than mixed with true non-goals?
 - U-IDs are unique within the plan and follow the stability rule — no two units share an ID; reordering or splitting did not renumber existing units; gaps from deletions are preserved
 - Would a visual aid (dependency graph, interaction diagram, comparison table) help a reader grasp the plan structure faster than scanning prose alone?
+- The plan has not been stamped `artifact_readiness: implementation-ready` yet. That flag is reserved for a passing `ce-plan-grounding-check` after write and document review. Completeness of this checklist is not that flag.
 
 If the plan originated from a requirements document, re-read that document and verify:
 - The chosen approach still matches the product intent
@@ -74,7 +75,8 @@ Write the unified plan artifact according to `references/plan-sections.md`.
 - If the source is a requirements-only unified plan, update that file in place unless `OUTPUT_FORMAT`, pipeline mode, or an explicit conversion requires a new canonical path. Preserve Product Contract meaning and stable IDs under Phase 0.3 step 3; sanctioned meaning-preserving restructuring remains allowed and carries its preservation-note and citation-repointing obligations. Add Planning Contract, Implementation Units, Verification Contract, and Definition of Done. When a new canonical path *is* required (format conversion), the original artifact is left in place but is **no longer canonical** — it keeps its `requirements-only` metadata, so discovery treats a requirements-only artifact that has an implementation-ready same-basename sibling as superseded (see Phase 0.2 step 2 and `ce-work`'s blank-invocation discovery) rather than re-enriching or stopping on it.
 - If the source is a legacy requirements doc, create a new unified plan in `<root>/plans/` and carry the legacy path in `origin:`.
 - If this is direct planning, create a complete unified plan in `<root>/plans/` with `product_contract_source: ce-plan-bootstrap`.
-- Set `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: implementation-ready`, and `execution: code` for software implementation plans.
+- Set `artifact_contract: ce-unified-plan/v1` and `execution: code` for software implementation plans.
+- Do not set `artifact_readiness: implementation-ready` in this step. Completeness of planning sections is not that flag. artifact_readiness: implementation-ready may only be set by a passing plan-grounding-check review (`ce-plan-grounding-check`, Phase 5.3.85). Until then, leave a requirements-only source as `requirements-only`; a bootstrap plan may omit the field or keep `requirements-only`.
 - Do not set `artifact_contract: ce-unified-plan/v1` on universal-planning outputs, answer-seeking outputs, or approach-plans unless they include the full software implementation contract.
 - Do not write a launch prompt into the doc. The launch prompt is generated at handoff (Phase 5.4 menu — `/goal` copy-paste on Claude Code, `create_goal` on Codex) from the plan's current content, so it never goes stale; it points to Goal Capsule, Verification Contract, Definition of Done, and U-IDs rather than duplicating them.
 

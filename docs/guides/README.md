@@ -72,6 +72,7 @@ Invoked when a specific need arises, not part of any chain.
 | [`/ce-debug`](./ce-debug.md) | Find the root cause of broken behavior: causal chain, predictions, then an optional fix and PR handoff |
 | [`/ce-code-review`](./ce-code-review.md) | Structured review of a diff or PR: skill-local personas, confidence-gated findings, and the rules you write in `CODING_STANDARDS.md` |
 | [`/ce-doc-review`](./ce-doc-review.md) | Structured review of a requirements or plan document: findings, not a holistic verdict |
+| [`/ce-plan-grounding-check`](./ce-plan-grounding-check.md) | Disk-vs-document review: named files, fixtures, and pipelines must exist as claimed before `implementation-ready` |
 | [`/ce-simplify-code`](./ce-simplify-code.md) | Refine recently changed code for reuse, quality, and efficiency, with behavior preserved |
 | [`/ce-optimize`](./ce-optimize.md) | Keep confirmed improvements to a measurable target: attribute cost or score variants |
 | [`/ce-retune`](./ce-retune.md) | Retune a skill corpus for a new model: baseline, noise floor, then measured cut passes |

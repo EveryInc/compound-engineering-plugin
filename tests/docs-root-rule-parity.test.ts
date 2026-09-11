@@ -50,6 +50,7 @@ const CONSUMER_SKILLS = [
   "ce-sweep",
   "ce-dogfood",
   "ce-product-pulse",
+  "ce-plan-grounding-check",
   "ce-commit-push-pr",
   "ce-code-review",
   "ce-doc-review",
