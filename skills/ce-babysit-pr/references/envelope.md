@@ -1,6 +1,6 @@
 # Boundaries, authority, and envelope (full text)
 
-The SKILL.md boundaries are the always-loaded summary; this file is the complete statement. Read it whenever you are unsure whether a mutation is authorized. "Envelope" here means the set of changes that being asked to babysit the PR authorizes you to make.
+The SKILL.md boundaries are the always-loaded summary; this file is the complete statement. Read it whenever you are unsure whether a mutation is authorized.
 
 ## Non-negotiable boundaries
 

@@ -4,7 +4,7 @@ Use this path when the input is a longer recording (over ~60 seconds), contains 
 
 ## Workflow
 
-1. Set `INPUT_PATH` to the supplied capture and use the invocation in `references/analyzer.md`. Set `OUTPUT_DIR` when the user supplied a destination; otherwise leave it empty so the analyzer owns its default. In a repo with `docs/brainstorms/`, that default goes under `docs/brainstorms/riffrec-feedback/` as an evidence/kickoff-artifact exception, not as the durable brainstorm output convention.
+1. Set `INPUT_PATH` to the supplied capture and use the invocation in `references/analyzer.md`. Set `OUTPUT_DIR` when the user supplied a destination; otherwise leave it empty so the analyzer owns its default. In a repo with `docs/brainstorms/`, that default goes under `docs/brainstorms/riffrec-feedback/` as an exception for evidence and kickoff artifacts, not as the place durable brainstorm output goes.
 
 2. Read the generated `analysis.md`, `problem-analysis.md`, `review-prompt.md`, and `requirements-kickoff.md`.
 

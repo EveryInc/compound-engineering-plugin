@@ -1,6 +1,6 @@
 # Sweep First-Run Interview
 
-Loaded by `SKILL.md` when `ce-sweep` runs with `feedback_sources` unset after the ordinary-key cascade. It captures the setup that will be merged into `<repo-root>/.compound-engineering/config.local.yaml`, the optional local override file that interviews write to. Later runs re-read those keys through the ordinary-key cascade (local file first, then `config.yaml`).
+Loaded by `SKILL.md` when `ce-sweep` runs with `feedback_sources` unset in both the local override file and `config.yaml`. It captures the setup that will be merged into `<repo-root>/.compound-engineering/config.local.yaml`, the optional local override file that interviews write to. Later runs re-read those keys from the local file first, then from `config.yaml`.
 
 This interview is **interactive only**. The caller refuses first-run setup in non-interactive mode. A scheduled or piped run with no config aborts and tells the user to run `ce-sweep` interactively once. Do not attempt to infer sources, actions, or approvals without asking.
 
@@ -125,7 +125,7 @@ Let the user override the path if they want a different location. If they pick m
 
 **Ask:** "Is this a multi-agent setup where several checkouts push the sweep state to a shared docs branch? Answer yes only if more than one machine or agent commits and pushes to the same branch. Default is no, meaning a single checkout committing locally."
 
-- **No** (default) -> `sweep_shared_branch: false`. The single-writer lease serializes overlapping sweeps within one checkout.
+- **No** (default) -> `sweep_shared_branch: false`. The lease that lets only one sweep write at a time makes overlapping sweeps within one checkout take turns.
 - **Yes** -> `sweep_shared_branch: true`. Explain that the lease becomes **push-gated**: before any source-side write, the sweep commits and pushes the lease acquisition on the shared branch and confirms its writer won. This makes the lease a repo-wide mutex across machines.
 
 **Capture:** `sweep_shared_branch` (`true` | `false`).

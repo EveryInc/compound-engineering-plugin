@@ -54,7 +54,7 @@ Read `references/output-mode.md` whenever a format is resolved. The read is requ
 - **Do not** use this rule for `docs_root` — that key is `config.yaml` only.
 <!-- ce-config-layers:end -->
 
-**Non-software routing.** A topic with no software surface runs elsewhere-mode grounding rather than the repo scan. It then follows `references/universal-ideation.md` in place of Phase 2's frames and the Phase 5 menu. The deliverable is still written automatically.
+**Non-software routing.** A topic that is not about software runs elsewhere-mode grounding rather than the repo scan. It then follows `references/universal-ideation.md` in place of Phase 2's frames and the Phase 5 menu. The deliverable is still written automatically.
 
 **The Phase 0 checks.** `references/scope-gates.md` defines every Phase 0 check, plus what changes in surprise-me and tactical runs. Ask when the subject is not identifiable. `go deep` beats a tactical signal.
 

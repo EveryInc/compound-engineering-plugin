@@ -11,9 +11,9 @@ Read the code within `scope.mutable` to understand:
 - Obvious improvement opportunities
 - Constraints and dependencies between components
 
-The next action is the cheapest executable step that would change what gets implemented. A locating measurement belongs in this phase when it is cheaper than an implementation experiment, would change keep or skip, and can be taken. Named-workload cost needs attributed shares before implementation when a Phase 1 baseline total cannot decide keep or skip; that total is the scoring reference, not those shares. A scored variant space does not require a performance profile.
+The next action is the cheapest executable step that would change what gets implemented. A locating measurement is one that finds where the cost actually sits (a profile, per-stage timing, a query count) rather than testing a change. It belongs in this phase when it is cheaper than an implementation experiment, would change whether a hypothesis is worth keeping or skipping, and can be taken. When the target is the cost of a named workload and the Phase 1 baseline total alone cannot say whether a hypothesis is worth keeping, measure how that cost divides among the parts before implementing; the total stays the scoring reference, not those shares. When the metric is a judged score over candidate variants rather than a cost, no performance profile is required.
 
-Do not treat the implementation backlog as empty, and do not proceed to wrap-up, while a cheaper locating measurement can still be taken and would change keep or skip. If locating would change keep or skip but cannot be obtained, wrap-up and say what blocked it. Do not implement without that measurement.
+Do not treat the implementation backlog as empty, and do not proceed to wrap-up, while a cheaper locating measurement can still be taken and would change whether a hypothesis is kept or skipped. If such a measurement would change that decision but cannot be obtained, wrap up and say what blocked it. Do not implement without that measurement.
 
 Optionally read `references/agents/repo-research-analyst.md` and dispatch a generic subagent seeded with that local prompt for deeper codebase analysis if the scope is large or unfamiliar. Do not dispatch a standalone agent by type/name. Pass the active project and optimization context, request only question-specific scopes such as `patterns`, and go directly to current owning code. If the optimization cannot be scoped, allow one targeted root or workspace probe.
 
@@ -30,7 +30,7 @@ Include user-provided hypotheses if any were given as input.
 
 Record an `opportunity` on every hypothesis using the log schema before implementation. Connect whatever observed cost or rubric evidence exists to the expected change in the target metric, with units, a comparison baseline, and the assumptions behind the estimate. Prefer a supported range or upper bound over a point estimate. If the benefit or the cost share cannot be estimated, record it as unknown and name the cheapest measurement that would resolve the uncertainty. A subjective priority score is not a measured benefit. The `priority` field does not rank the backlog.
 
-An unknown opportunity may sit on the backlog. It is not a runnable implementation experiment while a cheaper locating measurement would change keep or skip. A scored variant space may leave numerical benefit unknown and does not require a performance profile.
+An unknown opportunity may sit on the backlog. It is not a runnable implementation experiment while a cheaper locating measurement would change whether it is kept or skipped. When the metric is a judged score over candidate variants, the numerical benefit may stay unknown and no performance profile is required.
 
 The backlog contains the credible opportunities supported by current evidence, not a required number of ideas. Rank by expected target benefit, confidence, implementation and measurement cost, and behavioral risk. Persist and verify the ranked opportunities and estimates at CP-2. Follow the SKILL.md body's reporting rule when you tell the user the findings that explain the chosen direction. The full backlog remains available on disk.
 
@@ -79,14 +79,14 @@ This phase repeats in batches until a stopping criterion is met.
 
 Select hypotheses for this batch:
 - Build a runnable backlog by excluding hypotheses with `dep_status: needs_approval`
-- A hypothesis is not runnable while a cheaper locating measurement would still change keep or skip
+- A hypothesis is not runnable while a cheaper locating measurement would still change whether it is kept or skipped
 - If `execution.mode` is `serial`, or the current decision needs to attribute a cost change to one lever, force `batch_size = 1`
 - Otherwise, `batch_size = min(runnable_backlog_size, execution.max_concurrent)`
 - Select by the ranked expected benefit, confidence, cost, and risk above; the priority label does not decide order. Category diversity breaks remaining ties.
 
-When a cheaper locating measurement can be taken and would still change keep or skip, take that measurement and update the backlog before selecting a batch. Do not treat that state as an empty backlog.
+When a cheaper locating measurement can be taken and would still change whether a hypothesis is kept or skipped, take that measurement and update the backlog before selecting a batch. Do not treat that state as an empty backlog.
 
-When no executable next action remains, proceed to Phase 4 (wrap-up). An action is executable only if it can be taken now. Locating that would change keep or skip but cannot be obtained is a blocker, not a reason to keep the loop open. Wrap up and say what blocked it. Deferred dependencies are presented at wrap-up instead of the loop spinning forever.
+When no executable next action remains, proceed to Phase 4 (wrap-up). An action is executable only if it can be taken now. A locating measurement that would change a keep-or-skip decision but cannot be obtained is a blocker, not a reason to keep the loop open. Wrap up and say what blocked it. Deferred dependencies are presented at wrap-up instead of the loop spinning forever.
 
 ### 3.2 Dispatch Experiments
 
@@ -226,7 +226,7 @@ After all experiments in the batch have been measured:
    - Re-read the strategy digest from disk (not from memory)
    - Read the rolling window (last 10 experiments from the log on disk)
    - Do NOT read the full experiment log -- use the digest for broad context
-   - After a keep on a cost target, re-attribute before adding implementation hypotheses only when the keep leaves the current cost shares unable to decide keep or skip
+   - After a keep on a cost target, re-measure how the cost divides among the parts before adding implementation hypotheses only when the keep leaves the current shares unable to say whether the next hypothesis is worth keeping
    - Add new hypotheses to the backlog and write the updated backlog to disk
 
 6. **Write the updated hypothesis backlog to disk.** The backlog section of the experiment log must reflect newly added hypotheses and removed (tested) ones.

@@ -1604,13 +1604,17 @@ describe("schema and skill pins", () => {
     expect(SKILL_BODY).not.toContain("faster, cheaper, or leaner")
     expect(SKILL_BODY).not.toContain("clustering, ranking, search, or prompt quality")
     expect(LOOP).toContain("locating measurement")
-    expect(LOOP).toContain("attributed shares before implementation")
-    expect(LOOP).toContain("when a Phase 1 baseline total cannot decide keep or skip")
+    expect(LOOP).toMatch(
+      /measure how that cost divides among the parts before implementing|attributed shares before implementation/,
+    )
+    expect(LOOP).toMatch(
+      /Phase 1 baseline total[^.]+(?:cannot say whether a hypothesis is worth keeping|cannot decide keep or skip)/,
+    )
     expect(LOOP).not.toContain("implement only opportunities connected to an observed cost share")
     expect(LOOP).not.toContain("Missing profile data does not block")
-    expect(LOOP).toContain("does not require a performance profile")
+    expect(LOOP).toMatch(/does not require a performance profile|no performance profile is required/)
     expect(LOOP).toContain("attribute a cost change to one lever")
-    expect(LOOP).toContain("unable to decide keep or skip")
+    expect(LOOP).toMatch(/unable to (?:decide keep or skip|say whether the next hypothesis is worth keeping)/)
     expect(LOOP).toContain("no executable next action remains")
     expect(LOOP).toContain("cannot be obtained is a blocker")
     expect(LOOP).not.toContain("the backlog is empty and no new one can be generated")

@@ -6,7 +6,7 @@ The floor exists because a variant judged through a broken render is a false neg
 
 ## Apply only what the question puts in play
 
-Take the items the question's dimensions reach and leave the rest. A placement question does not acquire a motion moment or an empty state because they are listed here; a typographic direction does not need a loading state to be judged. Adding items the question does not turn on inflates the build past the dimension under test, which the fidelity rule already forbids.
+Take the items the question's dimensions reach and leave the rest. A placement question does not acquire a motion moment or an empty state because they are listed here; a typographic direction does not need a loading state to be judged. Adding items the question does not turn on inflates the build past the dimension under test, which the rule against faking or overbuilding the dimension being tested already forbids.
 
 ## The floor
 
@@ -38,6 +38,6 @@ The test: with the product's name and copy removed, could a reader tell which pr
 
 ## How avenues differ
 
-The wide-run rule in `references/scoping.md` already requires distinct mechanisms rather than tweaks of one idea. On a seeing question that means the avenues differ by organizing principle — what governs the arrangement, what the eye is meant to do first, what the surface is behaving like. A palette swap or a typeface swap over one arrangement is one avenue shown twice.
+The rule for a wide run in `references/scoping.md` (several candidate directions built at once) already requires distinct mechanisms rather than tweaks of one idea. On a seeing question that means the avenues differ by organizing principle — what governs the arrangement, what the eye is meant to do first, what the surface is behaving like. A palette swap or a typeface swap over one arrangement is one avenue shown twice.
 
 Say what each avenue's principle is before building it. If two of them resolve to the same sentence, one of them is not a separate avenue, and building both spends the run to give the user a choice they do not actually have.

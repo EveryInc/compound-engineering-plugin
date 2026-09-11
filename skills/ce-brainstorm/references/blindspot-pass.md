@@ -1,6 +1,6 @@
 # Blindspot Pass
 
-The interview machinery in this skill assumes the user can evaluate what it asks. On territory the user doesn't know, that assumption fails: questions extract guesses, not requirements. The blindspot pass converts the user's unknown unknowns into known unknowns — it maps the decision surface of the flagged territory so the user chooses among options they can now evaluate, instead of generating answers from nothing.
+The interview machinery in this skill assumes the user can evaluate what it asks. On territory the user doesn't know, that assumption fails: questions extract guesses, not requirements. The blindspot pass converts the user's unknown unknowns into known unknowns — it lays out the decisions the user will face in the flagged territory and the realistic options for each, so the user chooses among options they can now evaluate, instead of generating answers from nothing.
 
 A blindspot pass is a decision map, not a tutorial. Test for every item: it must end in something the user will decide, delegate, or explicitly defer during this brainstorm. An item that feeds no decision is domain trivia — cut it.
 
@@ -25,7 +25,7 @@ Never silently switch into teaching. The offer is a blocking question (Interacti
 
 Use this wording, substituting the territory:
 
-> Part of this sits in territory you've flagged as unfamiliar (<territory>). I can map the decision surface first — the decisions you'll face there, the realistic options for each, and what I'd default to — so you're choosing rather than guessing. Or we keep going with questions and I fill gaps with defaults recorded as assumptions. Which do you prefer?
+> Part of this sits in territory you've flagged as unfamiliar (<territory>). I can map out the decisions first — the ones you'll face there, the realistic options for each, and what I'd default to — so you're choosing rather than guessing. Or we keep going with questions and I fill gaps with defaults recorded as assumptions. Which do you prefer?
 
 Two options: **Map the territory first** / **Proceed with questions** (defaults become assumptions).
 

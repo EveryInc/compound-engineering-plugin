@@ -4,15 +4,15 @@ Read this before reasoning about the POV (SKILL.md Phase 2, Verify Grounding). I
 
 ## The four steps
 
-1. **Frame** (Phase 0, Frame and Classify) — the question, incumbent, horizon, and success criteria are settled, and an unbounded field has already been returned as a Hold under the selection escape hatch.
-2. **Precedent** (Phase 1, Ground) — the precedent-&-activity scout has reported whether a prior stance exists. Precedent informs the order but does not have to come first: a CVE's urgency can lead, but you still read the precedent before grading.
-3. **Verify** (Phase 2, Verify Grounding) — apply the grounding gate below to the grounded evidence (scout dossiers and bounded inline-read observations).
+1. **Frame** (Phase 0, Frame and Classify) — the question, incumbent, horizon, and success criteria are settled, and a question with no bounded set of candidates has already been returned as a Hold under Phase 0's rule for open fields.
+2. **Precedent** (Phase 1, Ground) — the scout that looks for prior stances and recent activity has reported whether a prior stance exists. Precedent informs the order but does not have to come first: a CVE's urgency can lead, but you still read the precedent before grading.
+3. **Verify** (Phase 2, Verify Grounding) — apply the evidence check below to the evidence gathered so far (the scouts' reports and what you read directly from the authoritative source within the allowed budget).
 4. **Point of view** (Phase 3, Point of View) — deliver the content the contract for the active subject shape below requires.
 
 ## Two cross-cutting properties (not phases)
 
-- **Skeptic stance.** At every step, seek disconfirming evidence and name the real alternatives — including "keep the incumbent" and "do nothing." "No", "Reject", and "Not-our-problem" are first-class outcomes, not failures to complete. Do not let the framing (or, in warm mode, the conversation's momentum) pull the grade upward.
-- **Reversibility-tiered effort.** Scale evidence gathering and verification with the cost of being wrong. The intake tier governs research depth; presentation follows the consumer's needs. Preserve material alternatives and the conditions that would change a consequential judgment.
+- **Skeptic stance.** At every step, seek disconfirming evidence and name the real alternatives — including "keep the incumbent" and "do nothing." "No", "Reject", and "Not-our-problem" are first-class outcomes, not failures to complete. Do not let the framing (or, in warm mode, where the question grew out of the ongoing conversation, that conversation's momentum) pull the grade upward.
+- **Reversibility-tiered effort.** Scale evidence gathering and verification with the cost of being wrong. The tier assigned at intake sets how deep research goes; presentation follows the consumer's needs. Preserve material alternatives and the conditions that would change a consequential judgment.
 
 ## The grounding gate
 
