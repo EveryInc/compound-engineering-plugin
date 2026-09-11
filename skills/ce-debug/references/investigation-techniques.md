@@ -345,7 +345,7 @@ Many bugs live at the boundary between an application and the system it runs on 
 **Database.**
 
 - Query plan: `EXPLAIN` / `EXPLAIN ANALYZE` on the suspect query — is it using the expected index, or scanning a large table?
-- Slow query log / recent queries: most databases surface the N slowest recent queries — failing queries often show up there
+- Slow query log / recent queries: most databases can show the N slowest recent queries, and failing queries often show up there
 - Locks and transactions: inspect the lock/transaction tables (`pg_locks`, `information_schema.innodb_trx`, `sys.dm_tran_locks`) — is the operation waiting on a long-held lock?
 - Connection pool: is the app exhausting its pool? Are connections leaking?
 - Replication lag (if read replicas are in the path): a read right after a write may hit a replica that hasn't caught up yet
@@ -355,7 +355,7 @@ Many bugs live at the boundary between an application and the system it runs on 
 - Existence and permissions: `ls -la <path>` — does the file exist, is it readable/writable by the running user?
 - Case sensitivity: bugs that only appear on Linux (not macOS) are often case mismatches
 - Open handles: `lsof <path>` or `lsof -p <pid>` — is something still holding the file, preventing write/unlink?
-- Disk space: `df -h` — out-of-space errors sometimes surface as cryptic write failures elsewhere
+- Disk space: `df -h`. Out-of-space errors sometimes appear as cryptic write failures elsewhere
 - File watching / inotify limits: EMFILE or "too many open files" often means an inotify/FD limit, not a leak in your code
 - Path separators and encoding: Windows-style paths in Unix code, or UTF-8 paths in a non-UTF-8 locale
 

@@ -6,7 +6,7 @@ Your output is themes, not tickets. 25 duplicate reports about the same failure 
 
 ## The goal for this lens
 
-Surface the **highest-leverage systemic classes** of issues in the tracker — the patterns where a focused investment resolves a whole category of bugs or pain at once — with enough texture to ideate on them. Leverage means prevalence + severity + recurrence-or-worsening + breadth, **not** sheer class size: a small class that keeps reopening and hurts badly outranks a large class of cosmetic duplicates.
+Identify the **highest-leverage systemic classes** of issues in the tracker — the patterns where a focused investment resolves a whole category of bugs or pain at once — with enough texture to ideate on them. Leverage means prevalence + severity + recurrence-or-worsening + breadth, **not** sheer class size: a small class that keeps reopening and hurts badly outranks a large class of cosmetic duplicates.
 
 This lens is deliberately **not exhaustive** over every eligible issue. It works over a slice **deliberately varied across the tracker's strata** (states, priorities, projects, recency) — not just the most recent or best-labeled corner. Judge how deep to go by two conditions, applied with your own judgment against the real data, not by a fixed count:
 
@@ -33,7 +33,7 @@ If no access method is reachable, stop and return a message whose **first line i
 
 Trackers expose two different axes; keep them distinct.
 
-- **Lifecycle (open vs closed)** is native on every tracker: GitHub `state` plus the completion reason (the `gh` CLI `--json` field is `stateReason`; the REST/GraphQL field is `state_reason` / `stateReason` — use the name your reachable surface actually exposes); Linear state `type` `completed`/`canceled`; Jira `statusCategory` `Done` + resolution.
+- **Lifecycle (open vs closed)** is native on every tracker: GitHub `state` plus the completion reason (the `gh` CLI `--json` field is `stateReason`; the REST/GraphQL field is `state_reason` / `stateReason` — use the name the interface you can reach actually exposes); Linear state `type` `completed`/`canceled`; Jira `statusCategory` `Done` + resolution.
 - **Workflow state within "open"** (triage / backlog / ready / in-progress) is **asymmetric**:
   - **Linear / Jira** carry it as a first-class typed field — Linear's every state has a canonical `type` ∈ {`backlog`, `unstarted`, `started`, `completed`, `canceled`}; Jira has `statusCategory` ∈ {To Do, In Progress, Done}. Names are workspace-custom, so **key on the canonical category, never the display name**.
   - **GitHub** has **no** native workflow-state field — it is label-inferred (`triage`, `status:in-progress`, per-repo, often absent) or, when a repo clearly uses one, a GitHub Projects v2 Status field. When GitHub carries no workflow signal, this axis contributes nothing and scoping falls back to priority + recency.
@@ -163,4 +163,4 @@ Order themes by leverage. Every theme has all its fields.
 
 ## Consumption contract
 
-This prompt is dispatched in SCAN or CLUSTER mode by a caller that detects issue-tracker intent. The output is self-contained and shaped around the caller's purpose (ideation, planning, prioritization, or standalone analysis). The caller — not you — owns any interactive scoping question with the user.
+This prompt is dispatched in SCAN or CLUSTER mode by a caller that detects issue-tracker intent. The output is self-contained and shaped around the caller's purpose (ideation, planning, prioritization, or standalone analysis). The caller, not you, asks any interactive scoping question of the user.

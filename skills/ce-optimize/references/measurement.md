@@ -1,6 +1,6 @@
 # Phase 0.3-1.7: prior learnings, identity, and measurement scaffolding
 
-Read this after the spec is saved and follow it through the approval gate. The body owns the two gates in here that stop the run (the clean-tree gate and the user approval gate) and this file carries the procedure around them: prior-learnings search, run identity and resume detection, the branch and scratch space, the measurement harness, the baseline, the parallelism probe, and the worktree budget.
+Read this after the spec is saved and follow it through the approval gate. A gate is a check that stops the run until its condition holds. The SKILL.md body states the two gates in here that stop the run (the clean-tree gate and the user approval gate). This file carries the procedure around them: prior-learnings search, run identity and resume detection, the branch and scratch space, the measurement harness, the baseline, the parallelism probe, and the worktree budget.
 
 ### 0.3 Search Prior Learnings
 
@@ -17,7 +17,7 @@ git rev-parse --verify "optimize/<spec-name>" 2>/dev/null
 **If branch exists**, check for an existing experiment log at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`.
 
 Present the user with a choice via the platform question tool:
-- **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Then apply the body's resume rule to decide what is skipped and which gates are re-entered.
+- **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Then apply the SKILL.md body's resume rule to decide what is skipped and which gates are re-entered.
 - **Fresh start**: archive the old branch to `optimize-archive/<spec-name>/archived-<timestamp>`, clear the experiment log, start from scratch
 
 ### 0.5 Create Optimization Branch and Scratch Space
@@ -35,9 +35,9 @@ mkdir -p .context/compound-engineering/ce-optimize/<spec-name>/
 
 ## Phase 1: Measurement Scaffolding
 
-**This phase is a HARD GATE. The user must approve baseline and parallel readiness before Phase 2.**
+**This phase is a hard gate. The user must approve the baseline and parallel readiness before Phase 2.**
 
-**Bundled scripts.** Phases 1 and 3 call helper scripts that ship in this skill's `scripts/` directory (`measure.sh`, `decide.mjs`, `parallel-probe.sh`, `experiment-worktree.sh`). The Bash tool's working directory is the user's project, not the skill directory, so a bare `scripts/<name>` path will not resolve: invoke each by the skill's own absolute path. Every runnable block below already sets `SKILL_DIR` inline (shell state does not persist between Bash tool calls, so each block must carry it); just replace the `<absolute path …>` placeholder with the directory you loaded this `ce-optimize` SKILL.md from before running. The shape:
+**Bundled scripts.** Phases 1 and 3 call helper scripts that ship in this skill's `scripts/` directory (`measure.sh`, `decide.mjs`, `parallel-probe.sh`, `experiment-worktree.sh`). The Bash tool's working directory is the user's project, not the skill directory, so a bare `scripts/<name>` path will not resolve. Invoke each by the skill's own absolute path. Every runnable block below already sets `SKILL_DIR` inline (shell state does not persist between Bash tool calls, so each block must carry it). Replace the `<absolute path …>` placeholder with the directory you loaded this `ce-optimize` SKILL.md from before running. The shape:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
@@ -46,7 +46,7 @@ bash "$SKILL_DIR/scripts/<name>"
 
 ### 1.1 Clean-Tree Gate
 
-The body owns this gate. Run `git status --porcelain`, filter the output against `scope.mutable` and `scope.immutable`, and apply the body's rule to the result: name the dirty in-scope files and ask the user to commit or stash them, and do not continue until they are clean.
+The SKILL.md body states this gate. Run `git status --porcelain`, filter the output against `scope.mutable` and `scope.immutable`, and apply the body's rule to the result. Name the dirty in-scope files, ask the user to commit or stash them, and do not continue until they are clean.
 
 ### 1.2 Build or Validate Measurement Harness
 
@@ -75,7 +75,7 @@ The body owns this gate. Run `git status --porcelain`, filter the output against
 Run the measurement harness on the current code. Baseline and final confirmation always use the full configured protocol (`repeat_count` samples when mode is `repeat` or `ladder`; one run when mode is `stable`). Exploratory experiments later may spend less; the baseline must not.
 
 **If stability mode is `repeat` or `ladder`:**
-Do not start this protocol until the counts that mode uses are coherent. Repeat needs a positive `repeat_count`. Ladder needs positive `exploratory_pairs` and `confirmation_repeats` (falling back to `repeat_count`) with confirmation at least the exploratory count: the same rule `scripts/decide.mjs` uses. A repeat-mode spec does not need ladder fields.
+Do not start this protocol until the counts that mode uses are coherent. Repeat needs a positive `repeat_count`. Ladder needs positive `exploratory_pairs` and `confirmation_repeats` (falling back to `repeat_count`) with confirmation at least the exploratory count. That is the same rule `scripts/decide.mjs` uses. A repeat-mode spec does not need ladder fields.
 1. Run the harness that many times (`repeat_count` in repeat mode; the coherent confirmation count in ladder mode)
 2. Aggregate results using the configured aggregation method (median, mean, min, max)
 3. Calculate variance across runs
@@ -110,7 +110,7 @@ SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 bash "$SKILL_DIR/scripts/parallel-probe.sh" "<project_directory>" "<measurement.command>" "<measurement.working_directory>" <shared_files...>
 ```
 
-Read the JSON output. Present any blockers to the user with suggested mitigations. Treat the probe as intentionally narrow: it should inspect the measurement command, the measurement working directory, and explicitly declared shared files, not the entire repository.
+Read the JSON output. Present any blockers to the user with suggested mitigations. Treat the probe as intentionally narrow. It should inspect the measurement command, the measurement working directory, and explicitly declared shared files, not the entire repository.
 
 ### 1.5 Worktree Budget Check
 
@@ -138,6 +138,6 @@ If count + `execution.max_concurrent` would exceed 12:
 
 ### 1.7 User Approval Gate
 
-The body owns this gate and its user-facing reporting rule: the options and condition on adjusting the spec, the uncapped-spend disclosure, and the requirement for explicit approval before Phase 2. A resume that cannot prove the user cleared this gate presents it again. Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, and estimated scoring cost against the configured cap. Link the experiment log and measurement script for inspection. Keep the full gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence; surface those details when they affect the user's decision.
+The SKILL.md body states this gate and its user-facing reporting rule. That rule covers the options, the condition on adjusting the spec, the uncapped-spend disclosure, and the requirement for explicit approval before Phase 2. A resume that cannot prove the user cleared this gate presents it again. Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, and estimated scoring cost against the configured cap. Link the experiment log and measurement script for inspection. Keep the full degenerate-gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence. Report those details to the user when they affect the user's decision.
 
 ---

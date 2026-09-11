@@ -4,19 +4,19 @@ Read this before Phase 0 and follow it for the whole run. The body states the in
 
 ### Core Rules
 
-1. **Write each experiment result to disk IMMEDIATELY after measurement**: not after the batch, not after evaluation, IMMEDIATELY. Append the experiment entry to the experiment log file the moment its metrics are known, before evaluating the next experiment. This is the #1 crash-safety rule.
+1. **Write each experiment result to disk IMMEDIATELY after measurement.** Not after the batch, not after evaluation, IMMEDIATELY. Append the experiment entry to the experiment log file the moment its metrics are known, before evaluating the next experiment. This is the #1 crash-safety rule.
 
-2. **VERIFY every critical write**: after writing the experiment log, read the file back and confirm the entry is present. This catches silent write failures. Do not proceed to the next experiment until verification passes.
+2. **VERIFY every critical write.** After writing the experiment log, read the file back and confirm the entry is present. This catches silent write failures. Do not proceed to the next experiment until verification passes.
 
-3. **Re-read from disk at every phase boundary and before every decision**: never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
+3. **Re-read from disk at every phase boundary and before every decision.** Never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
 
 4. **One experiment, one log entry.** Append a new experiment entry on its first measurement. Later ladder samples for that same experiment update that entry's metrics and outcome in place so a crash can resume the ladder without losing samples or duplicating the hypothesis. Distinct `comparisons` pairings accumulate on that same entry; in-place updates must not replace a previously persisted distinct pairing. Never rewrite a different experiment's samples or gate values. Outcome, `best`, and `hypothesis_backlog` are also updated in place at batch evaluation (CP-4). Do not rebuild the file from memory.
 
-5. **Per-experiment result markers for crash recovery**: each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
+5. **Per-experiment result markers for crash recovery.** Each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
 
-6. **Strategy digest is written after every batch, before generating new hypotheses**: the agent reads the digest (not its memory) when deciding what to try next.
+6. **Write the strategy digest after every batch, before generating new hypotheses.** The agent reads the digest (not its memory) when deciding what to try next.
 
-7. **Never present results to the user without writing them to disk first**: the pattern is: measure -> write to disk -> verify -> THEN show the user. Not the reverse.
+7. **Never present results to the user without writing them to disk first.** The order is: measure -> write to disk -> verify -> THEN show the user. Not the reverse.
 
 ### Mandatory Disk Checkpoints
 
@@ -39,7 +39,7 @@ These are non-negotiable write-then-verify steps. At each checkpoint, the agent 
 
 ### File Locations (all under `.context/compound-engineering/ce-optimize/<spec-name>/`)
 
-The scratch space under `.context/` is gitignored: it survives a local resume but does not travel with the branch, so anything needed durably must be exported to a tracked path.
+The scratch space under `.context/` is gitignored. It survives a local resume but does not travel with the branch, so anything needed durably must be exported to a tracked path.
 
 | File | Purpose | Written When |
 |------|---------|-------------|
@@ -51,9 +51,9 @@ The scratch space under `.context/` is gitignored: it survives a local resume bu
 ### On Resume
 
 When Phase 0.4 detects an existing run:
-1. Read the experiment log from disk: this is the ground truth
+1. Read the experiment log from disk. It is the ground truth
 2. Scan worktree directories for `result.yaml` markers not yet in the log
 3. Recover any measured-but-unlogged experiments. The recovered first CP-3 entry copies `opportunity` from the hypothesis backlog as of dispatch; `result.yaml` holds metrics only, so a missing forecast stays unrecorded rather than being reconstructed from the result
-4. Continue as the body's resume rule directs: skip the work the log proves finished, and re-enter any gate the log does not prove was cleared
+4. Continue as the SKILL.md body's resume rule directs. Skip the work the log proves finished, and re-enter any approval check the log does not prove was cleared
 
 ---

@@ -1,10 +1,10 @@
 # Depth and session-history: why neither is a question
 
-Both are decisions the agent is better positioned to make than the user. Depth depends on the context budget the agent can observe and the user cannot. Session-history value is unknowable a priori to *either* party — the payoff is an unrelated earlier session the current agent was never in — so a cheap probe resolves it instead of a prompt.
+Both are decisions the agent is better positioned to make than the user. Depth depends on the context budget the agent can observe and the user cannot. Neither party can know in advance whether session history will pay off, because the payoff is an unrelated earlier session the current agent was never in. So a cheap probe decides it instead of a question to the user.
 
-**Full is the right choice for essentially every documented learning.** Its token cost is small next to the engineering work that produced the learning, and it is dwarfed by the value of a doc that compounds. Lightweight buys back context at the cost of cross-referencing, overlap detection, and semantic grounding validation, so it is for real context pressure only. If Lightweight turns out to be the wrong call for the user's taste, re-running is a rare, cheap correction — cheaper than taxing every run with a prompt.
+**Full is the right choice for essentially every documented learning.** Its token cost is small next to the engineering work that produced the learning, and it is dwarfed by the value of a doc that compounds. Lightweight buys back context at the cost of cross-referencing, overlap detection, and semantic grounding validation, so it is for real context pressure only. If Lightweight turns out to be the wrong call for the user's taste, re-running is a rare, cheap correction. It is cheaper than taxing every run with a question.
 
-**The session-history probe is near-free on wall-clock** because it runs alongside the research subagents, and it escalates to the expensive extraction and synthesis only when genuinely relevant candidate sessions turn up (`references/session-history.md`). This support exists only inside the compounding workflow; there is no standalone session-history product surface.
+**The session-history probe is near-free on wall-clock** because it runs alongside the research subagents, and it escalates to the expensive extraction and synthesis only when genuinely relevant candidate sessions turn up (`references/session-history.md`). This support exists only inside the compounding workflow; there is no standalone session-history feature for users.
 
 ## Auto-Invoke
 

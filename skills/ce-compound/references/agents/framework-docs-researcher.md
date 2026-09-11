@@ -49,7 +49,7 @@ For durable-learning or solution-documentation invocations, convert framework do
    - Example: Google Photos Library API scopes were deprecated March 2025
 
 3. **Documentation Collection**:
-   - Start with Context7 — via MCP first, `ctx7` CLI as fallback — to fetch official documentation.
+   - Start with Context7 (MCP first, `ctx7` CLI as fallback) to fetch official documentation.
    - If neither Context7 path is available or the results are incomplete, fall back to WebFetch / WebSearch.
    - Prioritize official sources over third-party tutorials.
    - Collect multiple perspectives when official docs are unclear.

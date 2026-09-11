@@ -1,6 +1,6 @@
 # Phases 2-3: hypotheses and the optimization loop
 
-Read this before generating hypotheses and follow it for the whole loop. The body owns the dependency pre-approval gate and the stopping criteria; this file carries hypothesis generation, batch selection, experiment dispatch, result collection and persistence, batch evaluation, the state update, and the cross-cutting concerns.
+Read this before generating hypotheses and follow it for the whole loop. The SKILL.md body states the dependency pre-approval gate (the check that stops the run until the user has approved new dependencies) and the stopping criteria. This file carries hypothesis generation, batch selection, experiment dispatch, result collection and persistence, batch evaluation, the state update, and the cross-cutting concerns.
 
 ## Phase 2: Hypothesis Generation
 
@@ -32,11 +32,11 @@ Record an `opportunity` on every hypothesis using the log schema before implemen
 
 An unknown opportunity may sit on the backlog. It is not a runnable implementation experiment while a cheaper locating measurement would change keep or skip. A scored variant space may leave numerical benefit unknown and does not require a performance profile.
 
-The backlog contains the credible opportunities supported by current evidence, not a required number of ideas. Rank by expected target benefit, confidence, implementation and measurement cost, and behavioral risk. Persist and verify the ranked opportunities and estimates at CP-2. Apply the body's reporting rule to communicate findings that explain the chosen direction; the full backlog remains available on disk.
+The backlog contains the credible opportunities supported by current evidence, not a required number of ideas. Rank by expected target benefit, confidence, implementation and measurement cost, and behavioral risk. Persist and verify the ranked opportunities and estimates at CP-2. Follow the SKILL.md body's reporting rule when you tell the user the findings that explain the chosen direction. The full backlog remains available on disk.
 
 ### 2.3 Dependency Pre-Approval
 
-The body owns this gate. Record its outcome on each hypothesis as `dep_status: approved` or `needs_approval`, which is what batch selection reads.
+The SKILL.md body states this gate. Record its outcome on each hypothesis as `dep_status: approved` or `needs_approval`, which is what batch selection reads.
 
 ### 2.4 Record Hypothesis Backlog (CP-2)
 
@@ -86,7 +86,7 @@ Select hypotheses for this batch:
 
 When a cheaper locating measurement can be taken and would still change keep or skip, take that measurement and update the backlog before selecting a batch. Do not treat that state as an empty backlog.
 
-When no executable next action remains, proceed to Phase 4 (wrap-up). An action is executable only if it can be taken now. Locating that would change keep or skip but cannot be obtained is a blocker, not a reason to keep the loop open; wrap-up and say what blocked it. Deferred dependencies are presented there instead of the loop spinning forever.
+When no executable next action remains, proceed to Phase 4 (wrap-up). An action is executable only if it can be taken now. Locating that would change keep or skip but cannot be obtained is a blocker, not a reason to keep the loop open. Wrap up and say what blocked it. Deferred dependencies are presented at wrap-up instead of the loop spinning forever.
 
 ### 3.2 Dispatch Experiments
 
@@ -96,7 +96,7 @@ For each hypothesis in the batch, dispatch according to `execution.mode`. In `se
 
 **Bounded dispatch.** Do not assume the host will accept all concurrent subagents at once; the active-subagent cap varies by host and profile and is independent of `execution.max_concurrent` (which caps worktrees, a separate budget). Queue the selected experiments, dispatch only as many as the host accepts, and when a capacity or active-agent-limit error appears, treat it as backpressure: retry the queued experiment after a slot frees rather than marking it failed. Mark an experiment failed only when dispatch fails for a non-capacity reason that survives correcting the invocation, or a successfully dispatched experiment errors/times out.
 
-The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-optimize` skill directory; see the Bundled scripts note in Phase 1): shell state does not persist from Phase 1, so each block carries its own assignment.
+The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-optimize` skill directory; see the Bundled scripts note in Phase 1). Shell state does not persist from Phase 1, so each block carries its own assignment.
 
 **Worktree backend:**
 1. Create experiment worktree:
@@ -130,30 +130,30 @@ The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-opt
 
 ### 3.3 Collect and Persist Results
 
-Persist a `comparisons` record for each distinct reference, candidate, and workload pairing used in a decision. Each side's identity must uniquely identify the bytes that were measured; a shared HEAD is not enough when the candidate is uncommitted. Record the workload, both snapshots, and the decision's uncertainty and correctness evidence. Standalone and integrated pairings stay distinct in this array; a later in-place update must not replace a previously persisted distinct pairing. A runner-up's contribution is its confirmed change against the branch it was added to, not its standalone gain. These records explain results; `decide.mjs` still owns acceptance, using the existing snapshot fields.
+Persist a `comparisons` record for each distinct reference, candidate, and workload pairing used in a decision. Each side's identity must uniquely identify the bytes that were measured; a shared HEAD is not enough when the candidate is uncommitted. Record the workload, both snapshots, and the decision's uncertainty and correctness evidence. Standalone and integrated pairings stay distinct in this array; a later in-place update must not replace a previously persisted distinct pairing. A runner-up's contribution is its confirmed change against the branch it was added to, not its standalone gain. These records explain results. `decide.mjs` still makes the accept or revert decision, using the existing snapshot fields.
 
 Process experiments as they complete: do NOT wait for the entire batch to finish before writing results.
 
 For each completed experiment, **immediately**:
 
-1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1). When `stability.mode` is `ladder` and a smoke command is set, run that smoke check first: failure is terminally `degenerate`, and success proceeds to the first exploratory sample of `measurement.command` before comparison. Otherwise start with one exploratory sample. Pass `CE_OPTIMIZE_CENSOR_AFTER` to `measure.sh` only when elapsed wall time itself proves the candidate cannot become eligible: every required objective is already hopeless, not merely the primary. Otherwise let measurement finish so other required objectives can still win, and let `decide.mjs` assess futility after the payload is complete.
+1. **Run measurement** in the experiment's worktree. Spend only the measurement the current decision needs (see Phase 1). When `stability.mode` is `ladder` and a smoke command is set, run that smoke check first. A smoke failure is terminally `degenerate`, and success proceeds to the first exploratory sample of `measurement.command` before comparison. Otherwise start with one exploratory sample. Pass `CE_OPTIMIZE_CENSOR_AFTER` to `measure.sh` only when elapsed wall time itself proves the candidate cannot become eligible, meaning every required objective is already hopeless, not merely the primary. Otherwise let measurement finish so other required objectives can still win, and let `decide.mjs` assess futility after the payload is complete.
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    bash "$SKILL_DIR/scripts/measure.sh" "<measurement.command>" <timeout_seconds> "<worktree_path>/<measurement.working_directory or .>" <env_vars...>
    ```
    When mode is `repeat`, keep running `repeat_count` times and aggregating as in Phase 1. When mode is `stable`, run once.
 
-2. **Write crash-recovery marker**: immediately after measurement, write `result.yaml` in the experiment worktree containing the raw metrics. This ensures the measurement is recoverable even if the agent crashes before updating the main log.
+2. **Write crash-recovery marker.** Immediately after measurement, write `result.yaml` in the experiment worktree containing the raw metrics. This keeps the measurement recoverable even if the agent crashes before updating the main log.
 
 3. **Read raw JSON output** from the measurement script
 
-4. **Evaluate degenerate gates**:
+4. **Evaluate degenerate gates** (the cheap hard checks in `metric.degenerate_gates` that reject obviously broken output):
    - For each gate in `metric.degenerate_gates`, parse the operator and threshold
    - Compare the metric value against the threshold
-   - If ANY gate fails: mark outcome as `degenerate`, skip judge evaluation, save money
+   - If ANY gate fails, mark the outcome `degenerate` and skip judge evaluation. This saves money.
 
-5. **If gates pass AND primary type is `judge`**:
-   - **Independence gate: check before dispatching.** A judge must not have authored the hypothesis or run the experiment it is scoring, and must not see other judges' results; that independence is what makes these scores usable as an accept/revert gate. If the host exposes no way to dispatch judges as separate agents, do **not** score inline: mark the experiment's outcome `error` with the reason (judges undispatchable), skip judge evaluation exactly as a failed degenerate gate does, and continue to the log-and-append step so the entry is still written to disk. An experiment stopped here never carries judge metrics, so it is not eligible to become `best` and does not enter the accept/revert comparison: it is unmeasured, not poor-scoring. Report the blocker and its effect on the run to the user.
+5. **If the degenerate gates pass AND primary type is `judge`**:
+   - **Check judge independence before dispatching.** A judge must not have authored the hypothesis or run the experiment it is scoring, and must not see other judges' results. That independence is what makes these scores usable for the accept or revert decision. If the host exposes no way to dispatch judges as separate agents, do **not** score inline. Mark the experiment's outcome `error` with the reason (judges undispatchable), skip judge evaluation exactly as a failed degenerate gate does, and continue to the log-and-append step so the entry is still written to disk. An experiment stopped here never carries judge metrics, so it is not eligible to become `best` and does not enter the accept/revert comparison. It is unmeasured, not poor-scoring. Report the blocker and its effect on the run to the user.
    - Read the experiment's output (cluster assignments, search results, etc.)
    - Apply stratified sampling per `metric.judge.stratification` config (using `sample_seed`)
    - Group samples into batches of `metric.judge.batch_size`
@@ -163,20 +163,20 @@ For each completed experiment, **immediately**:
    - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
-6. **Compare with `decide.mjs`.** Invoke it only after gates pass and the payload holds every required objective value: hard metrics from measurement, and judge scores when those were collected. The payload is the spec as loaded plus the baseline and candidate snapshots. The script reads the nested spec (`metric`, `measurement.stability`) and owns eligibility, noise, and the ladder next step. Do not reconstruct a flattened payload, and do not re-derive the threshold in prose.
+6. **Compare with `decide.mjs`.** Invoke it only after the degenerate gates pass and the payload holds every required objective value, meaning the hard metrics from measurement and the judge scores when those were collected. The payload is the spec as loaded plus the baseline and candidate snapshots. The script reads the nested spec (`metric`, `measurement.stability`) and decides eligibility, noise, and the ladder next step. Do not reconstruct a flattened payload, and do not re-derive the threshold in prose.
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    NODE="$(for c in node nodejs; do command -v "$c" >/dev/null 2>&1 && "$c" -e '' >/dev/null 2>&1 && { echo "$c"; break; }; done)";
    [ -n "$NODE" ] || { echo "no working Node runtime on PATH (tried node, nodejs)" >&2; exit 1; };
    "$NODE" "$SKILL_DIR/scripts/decide.mjs" "<payload.json>"
    ```
-   If that probe finds no runtime, do not invoke an empty command: mark the experiment `error` with that reason and continue the batch. Use `decision` and `next_measurement`. Collect the requested measurement and repeat this sequence whenever `next_measurement` is not `none`. Do not keep a candidate until `next_measurement` is `none`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`. Each extra sample belongs to this same experiment: write it onto the existing entry at CP-3, then decide again.
+   If that probe finds no runtime, do not invoke an empty command. Mark the experiment `error` with that reason and continue the batch. Use `decision` and `next_measurement`. Collect the requested measurement and repeat this sequence whenever `next_measurement` is not `none`. Do not keep a candidate until `next_measurement` is `none`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`. Each extra sample belongs to this same experiment: write it onto the existing entry at CP-3, then decide again.
 
-7. **IMMEDIATELY persist this experiment on disk (CP-3)**: do not defer this to batch evaluation. The durable unit is one log entry per experiment at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`. After the first measurement, append that entry. After every later ladder sample for the same experiment, write the accumulated metrics and current outcome onto that same entry. Do not append a second entry for the same hypothesis, and do not rewrite a different experiment's samples. Write a decide terminal only when `next_measurement` is `none`. Until then the entry stays nonterminal: `promising` while the keep path still needs samples, `measured` otherwise (including an inconclusive result that still wants samples). When `next_measurement` is `none`, an eligible result stays `measured` until its diff is on the optimization branch; a non-eligible result gets the decide terminal (`reverted`, `inconclusive`, `censored`, `degenerate`). `kept` and `runner_up_kept` wait until that integration. The raw metrics are on disk and safe from context compaction.
+7. **IMMEDIATELY persist this experiment on disk (CP-3).** Do not defer this to batch evaluation. The durable unit is one log entry per experiment at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`. After the first measurement, append that entry. After every later ladder sample for the same experiment, write the accumulated metrics and current outcome onto that same entry. Do not append a second entry for the same hypothesis, and do not rewrite a different experiment's samples. Write a decide terminal only when `next_measurement` is `none`. Until then the entry stays nonterminal, `promising` while the keep path still needs samples and `measured` otherwise (including an inconclusive result that still wants samples). When `next_measurement` is `none`, an eligible result stays `measured` until its diff is on the optimization branch; a non-eligible result gets the decide terminal (`reverted`, `inconclusive`, `censored`, `degenerate`). `kept` and `runner_up_kept` wait until that integration. The raw metrics are on disk and safe from context compaction.
 
-8. **VERIFY the write (CP-3 verification)**: read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
+8. **VERIFY the write (CP-3 verification).** Read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
 
-**Why immediately + verify?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs: results that exist only in the agent's memory are lost. The verification step catches silent write failures that would otherwise lose data.
+**Why immediately + verify?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs, so results that exist only in the agent's memory are lost. The verification step catches silent write failures that would otherwise lose data.
 
 ### 3.4 Evaluate Batch
 
@@ -197,12 +197,12 @@ After all experiments in the batch have been measured:
 4. **Check file-disjoint runners-up** (up to `max_runner_up_merges_per_batch`):
    - For each runner-up that also improved, check file-level disjointness with the kept experiment
    - **File-level disjointness**: two experiments are disjoint if they modified completely different files. Same file = overlapping, even if different lines.
-   - If disjoint: cherry-pick the runner-up onto the new baseline and run the same decide loop as step 3.3 against a fresh sample set for that combined snapshot: do not reuse the standalone experiment's accumulated samples, whose meaning is against the previous baseline. Collect further measurement whenever `next_measurement` is not `none`. Persist the combined pairing as `kind: integrated` on that same log entry without replacing the standalone comparison. Keep the original standalone log entry for audit.
+   - If disjoint, cherry-pick the runner-up onto the new baseline and run the same decide loop as step 3.3 against a fresh sample set for that combined snapshot. Do not reuse the standalone experiment's accumulated samples; they were measured against the previous baseline. Collect further measurement whenever `next_measurement` is not `none`. Persist the combined pairing as `kind: integrated` on that same log entry without replacing the standalone comparison. Keep the original standalone log entry for audit.
    - Keep the cherry-pick only when that result is eligible and `next_measurement` is `none` (outcome: `runner_up_kept`); then clean up that runner-up's experiment worktree and branch
-   - Otherwise: revert the cherry-pick, log as "promising alone but neutral/harmful in combination" (outcome: `runner_up_reverted`), then clean up the runner-up's experiment worktree and branch
+   - Otherwise revert the cherry-pick, log it as "promising alone but neutral/harmful in combination" (outcome: `runner_up_reverted`), then clean up the runner-up's experiment worktree and branch
    - Stop after first failed combination
 
-5. **Handle deferred deps**: experiments that need unapproved dependencies get outcome `deferred_needs_approval`
+5. **Handle deferred dependencies.** Experiments that need unapproved dependencies get outcome `deferred_needs_approval`
 
 6. **Close the rest.** Cleanup worktrees. `kept` and `runner_up_kept` are only for diffs on the optimization branch. Eligible candidates that were not integrated become `not_selected`. Leave `inconclusive`, `censored`, and `degenerate` as `decide.mjs` returned them.
 
@@ -210,9 +210,9 @@ After all experiments in the batch have been measured:
 
 **MANDATORY CHECKPOINT.** By this point, individual experiment results are already on disk (written in step 3.3). This step updates aggregate state and verifies.
 
-1. **Re-read the experiment log from disk**: do not trust in-memory state. The log is the source of truth.
+1. **Re-read the experiment log from disk.** Do not trust in-memory state. The log is the source of truth.
 
-2. **Finalize outcomes**: update experiment entries from step 3.4 evaluation (mark `kept`, `reverted`, `runner_up_kept`, etc.). Write these outcome updates to disk immediately.
+2. **Finalize outcomes.** Update experiment entries from the step 3.4 evaluation (mark `kept`, `reverted`, `runner_up_kept`, etc.). Write these outcome updates to disk immediately.
 
 3. **Update the `best` section** in the experiment log if a new best was found. Write to disk.
 
@@ -229,7 +229,7 @@ After all experiments in the batch have been measured:
    - After a keep on a cost target, re-attribute before adding implementation hypotheses only when the keep leaves the current cost shares unable to decide keep or skip
    - Add new hypotheses to the backlog and write the updated backlog to disk
 
-6. **Write updated hypothesis backlog to disk**: the backlog section of the experiment log must reflect newly added hypotheses and removed (tested) ones.
+6. **Write the updated hypothesis backlog to disk.** The backlog section of the experiment log must reflect newly added hypotheses and removed (tested) ones.
 
 **CP-4 Verification:** Read the experiment log back from disk. Confirm: (a) all experiment outcomes from this batch are finalized, (b) the `best` section reflects the current best, (c) the hypothesis backlog is updated. Read `strategy-digest.md` back and confirm it exists. Only THEN proceed to the next batch or stopping criteria check.
 
@@ -255,8 +255,8 @@ If none is met, proceed to the next batch (3.1).
 
 **Error handling**: Classify a failed measurement from what `measure.sh` actually signaled. The censored stderr marker (with exit 125) is `censored`. Exit 124 is `timeout`. Any other non-zero exit (including 125 without that marker) is `error`. Log that outcome with the error message, revert the experiment, and continue the batch.
 
-**Progress reporting:** use the body's reporting rule. Base any reported improvement on persisted, verified measurements, distinguish preliminary from confirmed results, and state what was measured and any limits on the claim. Batch counts and cumulative scoring cost remain in the log for wrap-up; surface them during the run when they affect a decision.
+**Progress reporting:** follow the SKILL.md body's reporting rule. Base any reported improvement on persisted, verified measurements, distinguish preliminary from confirmed results, and state what was measured and any limits on the claim. Batch counts and cumulative scoring cost remain in the log for wrap-up. Report them to the user during the run when they affect a decision.
 
-**Crash recovery**: See Persistence Discipline section. Per-experiment `result.yaml` markers are written in step 3.3. Individual experiment results are appended to the log immediately in step 3.3. Batch-level state (outcomes, best, digest) is written in step 3.5. On resume (Phase 0.4), the log on disk is the ground truth: scan for any `result.yaml` markers not yet reflected in the log.
+**Crash recovery**: See the Persistence Discipline section. Per-experiment `result.yaml` markers are written in step 3.3. Individual experiment results are appended to the log immediately in step 3.3. Batch-level state (outcomes, best, digest) is written in step 3.5. On resume (Phase 0.4), the log on disk is the ground truth. Scan for any `result.yaml` markers not yet reflected in the log.
 
 ---

@@ -4,7 +4,7 @@ You are an expert repository research analyst specializing in understanding code
 
 ## Invocation Contract
 
-For optimization invocations, convert repository research into optimization inputs: likely hot paths, existing benchmark or profiling hooks, metrics surfaces, expensive loops or queries, caching boundaries, test commands that measure behavior, and constraints that affect safe experimentation. Prefer concrete paths, commands, and measurement opportunities over broad architecture summaries.
+For optimization invocations, convert repository research into optimization inputs: likely hot paths, existing benchmark or profiling hooks, places where metrics are exposed or logged, expensive loops or queries, caching boundaries, test commands that measure behavior, and constraints that affect safe experimentation. Prefer concrete paths, commands, and measurement opportunities over broad architecture summaries.
 
 **Scoped Invocation**
 
@@ -85,7 +85,7 @@ Check for monorepo signals in manifests already read in 0.1 and directories alre
 If monorepo signals are detected:
 
 1. **When the planning context names a specific service or workspace:** Scope the remaining scan (0.2--0.4) to that subtree. Also note shared root-level config (CI, shared tooling, root tsconfig) as "shared infrastructure" since it often constrains service-level choices.
-2. **When no scope is clear:** Surface the workspace/service map -- list the top-level workspaces or services with a one-line summary of each (name + primary language/framework if obvious from its manifest). Do not enumerate every dependency across every service. Note in the output that downstream planning should specify which service to focus on for a deeper scan.
+2. **When no scope is clear:** Report the workspace/service map -- list the top-level workspaces or services with a one-line summary of each (name + primary language/framework if obvious from its manifest). Do not enumerate every dependency across every service. Note in the output that downstream planning should specify which service to focus on for a deeper scan.
 
 Keep the monorepo check shallow: root-level manifests plus one directory level into `apps/*/`, `packages/*/`, `services/*/`, and any paths listed in workspace config. Do not recurse unboundedly.
 
@@ -135,7 +135,7 @@ Scan top-level directories under `src/`, `lib/`, `app/`, `pkg/`, `internal/` to 
 
 **Using Phase 0 Findings**
 
-If no dependency manifests or infrastructure files are found, note the absence briefly and proceed to the next phase -- the scan is a best-effort grounding step, not a gate.
+If no dependency manifests or infrastructure files are found, note the absence briefly and proceed to the next phase -- the scan is a best-effort grounding step, not a check that must pass.
 
 Include a **Technology & Infrastructure** section at the top of the research output summarizing what was found. This section should list:
 - Languages and major frameworks detected (with versions when available)

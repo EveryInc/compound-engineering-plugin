@@ -4,9 +4,9 @@ Phase 2 protocol. Measure what changing nothing produces, then write down the ba
 
 ## What the A/A run buys
 
-Two builds of the corpus at the same commit, run under one harness on one task, produce a distribution rather than a result. That distribution is the floor: any later claim smaller than it is unsupported no matter how confidently it was reported. In the engagement this was the single most valuable measurement of the session — 12 runs across two identical builds gave workflow adherence 7 of 12 and output tokens from 21,872 to 155,682, a 7.12x spread on identical code. It retired every small-sample claim in flight, including an outside analyst's "2 of 8 improved to 5 of 8", which sits entirely inside the envelope of doing nothing.
+Two builds of the corpus at the same commit, run under one harness on one task, produce a distribution rather than a result. That distribution is the floor. Any later claim smaller than it is unsupported no matter how confidently it was reported. In the engagement this was the single most valuable measurement of the session. 12 runs across two identical builds gave workflow adherence 7 of 12 and output tokens from 21,872 to 155,682, a 7.12x spread on identical code. It retired every small-sample claim in flight, including an outside analyst's "2 of 8 improved to 5 of 8", which sits entirely inside the range that doing nothing produces.
 
-The A/A also tests the instrument. Identical builds that differ significantly are not evidence about the corpus; they are a harness, provenance, or scoring bug. Chase that before continuing.
+The A/A also tests the instrument. Identical builds that differ significantly are not evidence about the corpus. They are a harness, provenance, or scoring bug. Chase that before continuing.
 
 ## Setup
 
@@ -15,14 +15,14 @@ Required capability: a harness that can point a run at a specific source checkou
 1. Materialize two checkouts of the corpus at the same commit. Record the commit for each arm.
 2. Hash both trees and assert equality before the first run (`find <dir> -type f | sort` then a checksum over the file list and contents). An accidental difference between arms gets read as noise and poisons the floor silently.
 3. Label the arms concretely by path, not by intent (`build-a`, `build-b`). Nothing downstream should be able to guess an arm from a filename that also encodes a hypothesis.
-4. **Prove the selector is honored, in one run, before planning any.** Point a single run at `build-a`, then open the finished artifact and confirm it names `build-a` in the durable field below. Two failures both look like a normal run: a harness that silently falls back to its installed copy of the corpus, and one that records the arm nowhere. Either makes all 12 runs unlabeled and unusable, and both are invisible until you try to score. If you want a positive control, put a harmless unique string in a **third**, throwaway checkout and confirm it reaches that run's trace — never in either arm, which step 2 requires to stay byte-identical, and re-assert the hashes before the counted runs begin.
+4. **Prove the selector is honored, in one run, before planning any.** Point a single run at `build-a`, then open the finished artifact and confirm it names `build-a` in the durable field below. Two failures both look like a normal run: a harness that silently falls back to its installed copy of the corpus, and one that records the arm nowhere. Either makes all 12 runs unlabeled and unusable, and both are invisible until you try to score. If you want a positive control, put a harmless unique string in a **third**, throwaway checkout and confirm it reaches that run's trace. Never put it in either arm, which step 2 requires to stay byte-identical, and re-assert the hashes before the counted runs begin.
 5. Plan 12 or more runs total, split evenly. Below about 10 the floor estimate is itself noise; the spread ratio in particular needs the tails.
 
 ## Interleave, never batch
 
-Alternate arms run by run — A, B, A, B — and alternate which arm goes first across pairs (A/B, then B/A). Never run all of arm A and then all of arm B.
+Alternate arms run by run (A, B, A, B) and alternate which arm goes first across pairs (A/B, then B/A). Never run all of arm A and then all of arm B.
 
-Batching confounds the comparison with API load, rate-limit backoff, transient service degradation, and time of day. Those effects are large and they are indistinguishable after the fact from a real difference between builds: there is no post-hoc correction, because the confound and the effect are the same column. Interleaving costs nothing — the same number of runs, reordered — and it makes each pair a matched observation you can analyze paired if you want the extra power.
+Batching confounds the comparison with API load, rate-limit backoff, transient service degradation, and time of day. Those effects are large and they are indistinguishable after the fact from a real difference between builds. There is no post-hoc correction, because the confound and the effect are the same column. Interleaving costs nothing. It is the same number of runs, reordered, and it makes each pair a matched observation you can analyze paired if you want the extra power.
 
 If a run dies for an infrastructure reason, re-run *that arm's* slot rather than dropping the pair, and mark the row so the archive's broken-run taxonomy (`references/baseline-mining.md`) still classifies it correctly.
 
@@ -30,7 +30,7 @@ If a run dies for an infrastructure reason, re-run *that arm's* slot rather than
 
 Every scored row must carry which build produced it, **read from the artifact the harness wrote**, never inferred from run order, timestamp, or the order you launched things.
 
-The engagement's first scorer read the field the harness exposes for the source-checkout override *while a run is in flight*. On completion the harness folds that value into the run's metadata and clears the live field, so every finished row had an empty build column and the arms were unverifiable from the scored data. The runs were fine; the measurement was worthless until re-scored.
+The engagement's first scorer read the field the harness exposes for the source-checkout override *while a run is in flight*. On completion the harness folds that value into the run's metadata and clears the live field, so every finished row had an empty build column and the arms were unverifiable from the scored data. The runs were fine. The measurement was worthless until re-scored.
 
 The rule that generalizes: **read the durable post-completion field first, fall back to the transient in-flight one.**
 
@@ -38,7 +38,7 @@ The rule that generalizes: **read the durable post-completion field first, fall 
 build = run.metadata.<override-field> or run.<live-override-field> or None
 ```
 
-Then gate on it. Assert every row has a non-empty build value before computing anything, and fail loud with the offending run ids rather than scoring a partially-labeled table. A row whose arm you cannot establish is not a data point.
+Then check it before scoring. Assert every row has a non-empty build value before computing anything, and fail loud with the offending run ids rather than scoring a partially-labeled table. A row whose arm you cannot establish is not a data point.
 
 Minimum row schema:
 
@@ -58,16 +58,16 @@ Adherence and outcome stay separate columns here for the same reason they do in 
 
 ## Statistics that survive small n
 
-Required capability: a scripting environment with an exact-test library, or the closed forms. Wilson and the risk difference are arithmetic on the counts; Fisher's exact is a sum of hypergeometric terms. If neither the library nor the patience is available, do not substitute a normal approximation — use the streak below, which needs only `p^N`.
+Required capability: a scripting environment with an exact-test library, or the closed forms. Wilson and the risk difference are arithmetic on the counts; Fisher's exact is a sum of hypergeometric terms. If neither the library nor the patience is available, do not substitute a normal approximation. Use the streak below, which needs only `p^N`.
 
-At n = 6 per arm the normal approximation to a proportion is wrong in ways that matter — it produces intervals that exclude values the data plainly permit, including 0 and 1. Use:
+At n = 6 per arm the normal approximation to a proportion is wrong in ways that matter. It produces intervals that exclude values the data plainly permit, including 0 and 1. Use:
 
 - **Wilson score intervals** for each arm's rate. Not Wald, not "plus or minus 1.96 times the standard error".
 - **Risk difference with a confidence interval** as the headline comparison. Report the interval, not the point estimate. An interval that spans zero *is* the finding.
 - **Fisher's exact test** for the 2x2, not chi-square, at these counts.
 - **A spread ratio** for continuous channels: max over min of output tokens, per arm and pooled. In this corpus the token spread moved earlier and further than the completion rate, and it is what makes a corpus unmeasurable.
 
-Report both channels. A build whose rate is unchanged but whose spread halved is a real result, and the reverse — a rate that improved while the spread widened — is a warning that you got lucky.
+Report both channels. A build whose rate is unchanged but whose spread halved is a real result. The reverse, a rate that improved while the spread widened, is a warning that you got lucky.
 
 ### Make "inconclusive" a printed outcome
 
@@ -83,7 +83,7 @@ Against the engagement's 58% baseline, detecting +30 points gives about 31 per a
 
 ## The cheap one-armed alternative
 
-Once the baseline rate `p` is independently established — from the A/A plus the archive mining — a control arm becomes optional. N consecutive clean runs has probability `p^N` under the null that nothing changed, and that is an exact test needing no second arm.
+Once the baseline rate `p` is independently established, from the A/A plus the archive mining, a control arm becomes optional. N consecutive clean runs has probability `p^N` under the null that nothing changed, and that is an exact test needing no second arm.
 
 At `p = 0.58`:
 
@@ -96,11 +96,11 @@ At `p = 0.58`:
 Eight runs bought p = 0.0128 where the two-armed design wanted roughly 39 per arm. Two conditions make it valid, and both are easy to lose:
 
 - **The baseline must be established independently, before the change.** If you estimate `p` from the same runs you are testing, the test is circular and means nothing.
-- **The runner must stop at the first failure.** A broken streak *is* the answer; continuing past it to collect "8 clean out of 11" converts an exact test into a rate comparison you are not powered for. Do not restart the streak after a failure without treating the failure as a finding and changing something.
+- **The runner must stop at the first failure.** A broken streak *is* the answer. Continuing past it to collect "8 clean out of 11" converts an exact test into a rate comparison you are not powered for. Do not restart the streak after a failure without treating the failure as a finding and changing something.
 
-The streak is a one-sided instrument: it can show a change is unlikely to be noise, and it cannot estimate effect size. Do not report a streak as a percentage improvement.
+The streak is a one-sided instrument. It can show a change is unlikely to be noise, and it cannot estimate effect size. Do not report a streak as a percentage improvement.
 
-**Separate diagnostic runs from streak runs, or the loop costs eight runs a pass.** After a cut pass, one or two runs are enough to answer Phase 5's only question — which phase it died in now. Those are diagnostic: they locate the next target and they do **not** count toward any streak. Attempt the streak only once a diagnostic run comes back clean, and only on a build you will not touch until it finishes. Any edit lands on a new build, so it restarts the count at zero — a streak assembled across edits is not a streak, and no honest bar is cleared by one.
+**Separate diagnostic runs from streak runs, or the loop costs eight runs a pass.** After a cut pass, one or two runs are enough to answer Phase 5's only question, which is which phase it died in now. Those are diagnostic. They locate the next target and they do **not** count toward any streak. Attempt the streak only once a diagnostic run comes back clean, and only on a build you will not touch until it finishes. Any edit lands on a new build, so it restarts the count at zero. A streak assembled across edits is not a streak, and no honest bar is cleared by one.
 
 ## Registering the bar
 
@@ -112,16 +112,16 @@ The registration is a written artifact at a path you can point a skeptic at, not
 - the stopping rule, including what counts as a broken run that does not consume the streak;
 - the phases the probe task traverses, from the validation below.
 
-**When the affordable n cannot detect the effect you care about, say so and change the design — not the interpretation.** Options, in preference order: pick a cheaper metric that moves more per run (token spread usually moves before completion rate), target a bigger effect, or use the streak. Running an underpowered two-armed test and reporting its point estimate is the failure mode this whole phase exists to prevent, and it is exactly what the outside analyst's 2-of-8 versus 5-of-8 was.
+**When the affordable n cannot detect the effect you care about, say so and change the design, not the interpretation.** Options, in preference order: pick a cheaper metric that moves more per run (token spread usually moves before completion rate), target a bigger effect, or use the streak. Running an underpowered two-armed test and reporting its point estimate is the failure mode this whole phase exists to prevent, and it is exactly what the outside analyst's 2-of-8 versus 5-of-8 was.
 
 ## Sizing the probe task
 
-A full realistic task costs too much to repeat 12 to 40 times. Build a probe whose **work** is small but whose **path** is complete: it must cross every phase boundary of the corpus, produce each phase's artifact, and require each handoff — with the substance of each step shrunk to near-nothing.
+A full realistic task costs too much to repeat 12 to 40 times. Build a probe whose **work** is small but whose **path** is complete. It must cross every phase boundary of the corpus, produce each phase's artifact, and require each handoff, with the substance of each step shrunk to near-nothing.
 
 Then validate that it does, before spending n on it:
 
 1. Run it once with tracing on.
-2. For each phase, check the trace for its boundary marker — the dispatch, the artifact write, the gate. Score against the phase-marker map Phase 1 already built (`references/baseline-mining.md`) rather than re-deriving markers here; a probe scored against a second, differently-derived map is not comparable to the archive baseline.
+2. For each phase, check the trace for its boundary marker: the dispatch, the artifact write, the check that decides the phase. Score against the phase-marker map Phase 1 already built (`references/baseline-mining.md`) rather than re-deriving markers here. A probe scored against a second, differently-derived map is not comparable to the archive baseline.
 3. List the phases the probe never entered.
 
 **A probe that structurally cannot enter a phase can never fail in it.** Its green result certifies only the phases it traversed, and the unentered ones stay unmeasured while the streak makes the corpus look verified. Two of the engagement's landed cut passes came out of auditing exactly those unreachable phases; none of them could have come from the runs. That is why Phase 5 requires reading the phases the instrument cannot reach, and why the unentered list belongs in the registration rather than in a footnote afterward.

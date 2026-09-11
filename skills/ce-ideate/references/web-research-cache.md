@@ -53,4 +53,4 @@ Normalize before hashing: lowercase, collapse whitespace. (The repo discriminato
 
 ## Degradation
 
-If the cache file is unreachable across invocations on the current platform (filesystem isolation, sandboxing, ephemeral working directory), degrade to "no reuse, dispatch every time." Surface the limitation in the consolidated grounding summary and proceed without reuse rather than inventing a capability the platform may not have.
+If the cache file is unreachable across invocations on the current platform (filesystem isolation, sandboxing, ephemeral working directory), degrade to "no reuse, dispatch every time." Note the limitation in the consolidated grounding summary and proceed without reuse rather than inventing a capability the platform may not have.

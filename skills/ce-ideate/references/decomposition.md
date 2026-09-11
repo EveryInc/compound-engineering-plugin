@@ -1,6 +1,6 @@
 # Phase 1.5 topic-surface decomposition
 
-Owns the axis criteria, the worked examples, the skip conditions, and the evidence-scout dispatch. SKILL.md owns when this file is read.
+This file defines the axis criteria, the worked examples, the skip conditions, and the evidence-scout dispatch. SKILL.md decides when this file is read.
 
 ### Phase 1.5: Topic-Surface Decomposition
 
@@ -24,7 +24,7 @@ The axis analysis is a single orchestrator-side pass against the grounding summa
 | Cache invalidation in the data layer | Trigger surfaces; coordination across replicas; staleness tolerance per data class; observability of invalidation events |
 | Social sharing of a published page | Send mechanics; discovery (receive side); arrival/dwell experience; compounding over time; actor types (first-party, expert, reader) |
 
-The third row is there to widen the range, not to be copied: axes do not have to be subsystems. "Actor types" and "compounding over time" cut the same topic along dimensions a component list would never surface. If your axes read like a directory listing of the code, decompose again.
+The third row is there to widen the range, not to be copied: axes do not have to be subsystems. "Actor types" and "compounding over time" cut the same topic along dimensions a component list would never reveal. If your axes read like a directory listing of the code, decompose again.
 
 **Skip condition.** Some subjects are atomic and resist meaningful decomposition — a single string output (a name, a tagline), a narrowly-scoped tactical fix ("the typo on line 47 of README"), or a topic where the candidate axes *are* the deliverable (e.g., "what surface should the API expose?"). When 3+ orthogonal axes that pass the criteria above cannot be generated, skip decomposition. Note `Decomposition skipped — atomic subject` in the grounding summary so the artifact records the choice.
 

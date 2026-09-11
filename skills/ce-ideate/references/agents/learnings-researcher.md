@@ -208,7 +208,7 @@ Structure findings as follows:
 ...
 
 ### Recommendations
-- [Specific actions or decisions to consider based on the surfaced learnings]
+- [Specific actions or decisions to consider based on the learnings found]
 - [Patterns to follow or mirror]
 - [Past mis-steps worth avoiding, where applicable]
 ```

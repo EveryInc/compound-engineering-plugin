@@ -17,7 +17,7 @@ For optimization invocations, search the full learning corpus described below, t
 
 ## Step 0: Ground in CONCEPTS.md (if present)
 
-Before searching `<root>/solutions/`, check whether `CONCEPTS.md` exists at the repo root. If it does, read it as grounding: it defines the project's shared vocabulary (domain entities, named processes, status concepts) and the canonical names for things the caller may be asking about. Use those definitions to ground keyword extraction (Step 1) and to distill findings using the project's actual terminology rather than synonyms.
+Before searching `<root>/solutions/`, check whether `CONCEPTS.md` exists at the repo root. If it does, read it as grounding. It defines the project's shared vocabulary (domain entities, named processes, status concepts) and the canonical names for things the caller may be asking about. Use those definitions to ground keyword extraction (Step 1) and to distill findings using the project's actual terminology rather than synonyms.
 
 If `CONCEPTS.md` does not exist, skip this step entirely and proceed to Step 1.
 
@@ -55,11 +55,11 @@ Keyword dimensions to extract (applies to either input shape):
 - **Approaches**: strategies or patterns: "test-first", "state machine", "shared template"
 - **Domains**: functional areas: "skill-design", "workflow", "code-implementation", "agent-architecture"
 
-The caller's context determines which dimensions carry weight. A code-bug query weights module + technical terms + problem indicators. A design-pattern query weights concepts + approaches + domains. A convention query weights decisions + domains. Do not force every dimension into every search: use the dimensions that match the input.
+The caller's context determines which dimensions carry weight. A code-bug query weights module + technical terms + problem indicators. A design-pattern query weights concepts + approaches + domains. A convention query weights decisions + domains. Do not force every dimension into every search. Use the dimensions that match the input.
 
 ### Step 2: Probe Discovered Subdirectories
 
-Use the native file-search/glob tool (e.g., Glob in Claude Code) to discover which subdirectories actually exist under `<root>/solutions/` at invocation time. Do not assume a fixed list: subdirectory names are per-repo convention and may include any of:
+Use the native file-search/glob tool (e.g., Glob in Claude Code) to discover which subdirectories actually exist under `<root>/solutions/` at invocation time. Do not assume a fixed list. Subdirectory names are per-repo convention and may include any of:
 
 - Bug-shaped: `build-errors/`, `test-failures/`, `runtime-errors/`, `performance-issues/`, `database-issues/`, `security-issues/`, `ui-bugs/`, `integration-issues/`, `logic-errors/`
 - Knowledge-shaped: `architecture-patterns/`, `design-patterns/`, `tooling-decisions/`, `conventions/`, `workflow/`, `workflow-issues/`, `developer-experience/`, `documentation-gaps/`, `best-practices/`, `skill-design/`, `integrations/`
@@ -83,7 +83,7 @@ content-search: pattern="problem_type:.*(architecture_pattern|design_pattern|too
 **Pattern construction tips:**
 
 - Use `|` for synonyms: `tags:.*(subagent|parallel|fan-out)` or `tags:.*(payment|billing|stripe|subscription)`
-- Include `title:`: often the most descriptive field
+- Include `title:`, often the most descriptive field
 - Search case-insensitively
 - Include related terms the user might not have mentioned
 - Match the fields to the input shape: bug-shaped queries search `symptoms:` and `root_cause:`; decision- and pattern-shaped queries search `tags:`, `title:`, and `problem_type:`
@@ -102,7 +102,7 @@ content-search: pattern="email" path=<root>/solutions/ files_only=true case_inse
 
 ### Step 3b: Conditionally Check Critical Patterns
 
-If `<root>/solutions/patterns/critical-patterns.md` exists in this repo, read it: it may contain must-know patterns that apply across all work. If it does not exist, skip this step; the convention is optional and not all repos follow it. Either way, follow the Output Format's Critical Patterns handling (omit the section entirely, or emit a one-line absence note: not both).
+If `<root>/solutions/patterns/critical-patterns.md` exists in this repo, read it. It may contain must-know patterns that apply across all work. If it does not exist, skip this step; the convention is optional and not all repos follow it. Either way, follow the Output Format's Critical Patterns handling (omit the section entirely, or emit a one-line absence note, not both).
 
 ### Step 4: Read Frontmatter of Candidates Only
 
@@ -123,7 +123,7 @@ Extract these fields from the YAML frontmatter:
 - **root_cause**: underlying cause (present on bug-track entries; optional on knowledge-track entries)
 - **severity**: critical, high, medium, low
 
-Some non-bug entries may have looser frontmatter shapes (they do not require `symptoms` or `root_cause`). Do not discard these entries for missing bug-shaped fields: use whatever fields are present for matching.
+Some non-bug entries may have looser frontmatter shapes (they do not require `symptoms` or `root_cause`). Do not discard these entries for missing bug-shaped fields. Use whatever fields are present for matching.
 
 ### Step 5: Score and Rank Relevance
 
@@ -174,7 +174,7 @@ The two `problem_type` tracks:
 - **Knowledge-track:** `architecture_pattern`, `design_pattern`, `tooling_decision`, `convention`, `workflow_issue`, `developer_experience`, `documentation_gap`, `best_practice` (fallback).
 - **Bug-track:** `build_error`, `test_failure`, `runtime_error`, `performance_issue`, `database_issue`, `security_issue`, `ui_bug`, `integration_issue`, `logic_error`.
 
-Other frontmatter fields (`component`, `root_cause`, etc.) are repo-specific and evolve over time. Do not assume a fixed enum: read the value from each file as-is, and when summarizing a learning with an unrecognized value, pass it through verbatim rather than normalizing it.
+Other frontmatter fields (`component`, `root_cause`, etc.) are repo-specific and evolve over time. Do not assume a fixed enum. Read the value from each file as-is, and when summarizing a learning with an unrecognized value, pass it through verbatim rather than normalizing it.
 
 Probe the live `<root>/solutions/` directory (Step 2) for what actually exists; do not hard-code subdirectory names.
 
@@ -208,12 +208,12 @@ Structure findings as follows:
 ...
 
 ### Recommendations
-- [Specific actions or decisions to consider based on the surfaced learnings]
+- [Specific actions or decisions to consider based on the learnings found]
 - [Patterns to follow or mirror]
 - [Past mis-steps worth avoiding, where applicable]
 ```
 
-When no relevant learnings are found, say so explicitly, include the search context so the caller can see what was looked for, and note that the caller's work may be worth capturing as a durable learning after it lands: the absence is itself useful signal.
+When no relevant learnings are found, say so explicitly, include the search context so the caller can see what was looked for, and note that the caller's work may be worth capturing as a durable learning after it lands. The absence is itself useful signal.
 
 ## Efficiency Guidelines
 
@@ -222,7 +222,7 @@ When no relevant learnings are found, say so explicitly, include the search cont
 - Use the native content-search tool to pre-filter files BEFORE reading any content (critical for 100+ files)
 - Run multiple content searches in PARALLEL across different keyword dimensions
 - Probe `<root>/solutions/` subdirectories dynamically rather than assuming a fixed list
-- Include `title:` in search patterns: often the most descriptive field
+- Include `title:` in search patterns, often the most descriptive field
 - Use OR patterns for synonyms and search case-insensitively
 - Narrow to discovered subdirectories when the caller's Domain hint makes one obvious
 - Broaden the content search as fallback if <3 candidates found; re-narrow if >25
@@ -233,14 +233,14 @@ When no relevant learnings are found, say so explicitly, include the search cont
 
 **DON'T:**
 
-- Skip the grep pre-filter and read frontmatter of every file in `<root>/solutions/`: pre-filter first, then read frontmatter of the shortlist
-- Read full content of every candidate: only the ones that pass relevance scoring
+- Skip the grep pre-filter and read frontmatter of every file in `<root>/solutions/`. Pre-filter first, then read frontmatter of the shortlist
+- Read full content of every candidate. Read only the ones that pass relevance scoring
 - Run searches sequentially when they can be parallel
 - Use only exact keyword matches (include synonyms); skip `title:` in patterns; proceed with >25 candidates without narrowing
 - Return raw document contents instead of distilling them
-- Include every tangentially related match: 1-2 adjacent entries with a caveat is fine; a long tail of weak matches is noise
-- Discard a candidate because it lacks bug-shaped fields like `symptoms` or `root_cause`: non-bug entries legitimately omit them
-- Assume `<root>/solutions/patterns/critical-patterns.md` exists: read it only when present
+- Include every tangentially related match. 1-2 adjacent entries with a caveat is fine; a long tail of weak matches is noise
+- Discard a candidate because it lacks bug-shaped fields like `symptoms` or `root_cause`. Non-bug entries legitimately omit them
+- Assume `<root>/solutions/patterns/critical-patterns.md` exists. Read it only when present
 
 ## Consumption Contract
 
