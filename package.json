@@ -22,7 +22,7 @@
     "cleanup": "bun run src/index.ts cleanup",
     "list": "bun run src/index.ts list",
     "cli:install": "bun run src/index.ts install",
-    "test": "bun test --parallel",
+    "test": "bun run scripts/run-tests.ts",
     "test:skill-eval-cell": "bun tests/skill-eval-cell/run.ts",
     "test:skill-eval-pack": "bun tests/skill-eval-cell/pack.ts",
     "plugin:validate": "claude plugin validate --strict .claude-plugin/marketplace.json && claude plugin validate --strict .claude-plugin/plugin.json",
