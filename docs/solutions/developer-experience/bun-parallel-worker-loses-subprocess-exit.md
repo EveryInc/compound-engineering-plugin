@@ -44,9 +44,9 @@ From 2026-09-09 the CI `test` job (`bun run test`, which was `bun test --paralle
 
 ## Solution
 
-`bun run test` now runs `scripts/run-tests.ts`: the same `bun test --parallel` pass with a junit report, and only if every failure in it is a per-test timeout (`<failure type="TimeoutError" />`), one serial re-run of the failed files in a fresh bun process. A wedged worker is process-local and only ever produces timeouts, so the re-run passes and the job is green. Any assertion failure or error in the report keeps the first result with no re-run, so a race or cross-file state dependency that fails only under parallel load still fails CI. The log says which files were re-run and, when they pass, that the first-pass failures were process-local.
+`bun run test` now runs `scripts/run-tests.ts`: the same `bun test --parallel` pass with a junit report, and only if every failed file shows the wedge shape, one serial re-run of those files in a fresh bun process. The wedge shape is `<failure type="TimeoutError" />` on every test from the file's first failure to its end: a worker that lost a subprocess event cannot complete any later spawn, so nothing after the first hang can pass. A wedge is process-local, so the re-run passes and the job is green. A test that passed after a timeout, or any assertion failure or error in the report, keeps the first result with no re-run, so a race or cross-file state dependency that fails only under parallel load still fails CI. bun 1.2 reported timeouts as `AssertionError`, so on that release the re-run never fires, which is the behavior before this change. The log says which files were re-run and, when they pass, that the first-pass failures were process-local.
 
-The junit parser (`junitFailures`, `rerunCandidates`) lives in the same script, covered by `tests/run-tests-script.test.ts`. It reads the file from each `<testcase>` and falls back to the enclosing suite name, because older bun releases put the path only on the case.
+The junit parser (`junitCases`, `rerunCandidates`) lives in the same script, covered by `tests/run-tests-script.test.ts`. It reads the file from each `<testcase>` and falls back to the enclosing suite name, because older bun releases put the path only on the case.
 
 ## Why This Works
 
