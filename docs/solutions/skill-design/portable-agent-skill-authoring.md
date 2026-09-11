@@ -18,7 +18,7 @@ tags:
   - protocol
   - judgment
   - skill-eval
-last_updated: 2026-09-02
+last_updated: 2026-09-11
 ---
 
 # Portable Agent Skill Authoring
@@ -68,6 +68,8 @@ For Compound Engineering's multi-model skills, portable means Sol-first and Fabl
 For portable Sol/Fable skills, control output length by naming what shortened output must preserve. Do not paste a Fable-only brevity block or ship a blanket "be concise" / "keep it short" slogan into a cross-model skill; GPT-5.6 Sol can undershoot when broad brevity instructions stack on top of its default concision.
 
 Write instructions in the language the agent should use with the reader. Name who acts, what they do, and why it matters when that information is needed. Replace invented labels and internal workflow jargon with the action or consequence they mean. Keep necessary technical terms and exact identifiers, explaining unfamiliar terms where the reader needs them. Clarity must preserve evidence, qualifications, and required detail; shorter text is not the goal.
+
+Gloss-and-keep is not compliance. Defining a plugin-internal noun once and then repeating it in later sentences still leaves the later sentences unreadable without the glossary. After that one definition, later sentences name the actor, the action, and the stop condition in ordinary words. Repeating the old word so the reader learns it is the failure the definition was meant to end. A leftover occurrence is a pinned token, status, invocation, field name, filename, test-pinned sentence, or true domain English.
 
 This is not a ban on targeted steering. A phrase that counters a documented runtime behavior can stay as a model-behavior adapter: name the condition it addresses and verify the effect rather than promoting it to a universal quality slogan.
 
