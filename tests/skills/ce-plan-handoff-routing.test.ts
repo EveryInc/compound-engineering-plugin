@@ -238,9 +238,11 @@ describe("ce-plan post-generation menu routing", () => {
     const pipelineStart = HANDOFF_BODY.indexOf("**Pipeline mode:**")
     const pipelineEnd = HANDOFF_BODY.indexOf("## 5.3.9 Final Checks and Cleanup")
     const reviewPipeline = HANDOFF_BODY.slice(pipelineStart, pipelineEnd)
+    // Pins the condition (ce-plan is the party that recorded the stand-in
+    // result), not the noun the prose uses for that result.
     expect(
-      /ce-plan recorded the `skill_unreachable` envelope/i.test(reviewPipeline),
-      "ce-plan must own the synthetic pre-entry envelope instead of attributing it to an invocation that never began.",
+      /ce-plan recorded the `skill_unreachable`/i.test(reviewPipeline),
+      "ce-plan must own the synthetic pre-entry result instead of attributing it to an invocation that never began.",
     ).toBe(true)
     expect(
       reviewPipeline.includes("invocation instead produced `skill_unreachable`"),
@@ -259,7 +261,7 @@ describe("ce-plan post-generation menu routing", () => {
       menuPipeline!.includes("ce-doc-review has already run"),
       "the pipeline handoff must not claim the review ran after a skill_unreachable pre-entry state.",
     ).toBe(false)
-    expect(/`?ce-plan`? (?:has )?recorded the (?:documented )?`skill_unreachable` envelope/.test(HANDOFF_BODY)).toBe(true)
+    expect(/`?ce-plan`? (?:has )?recorded the (?:documented )?`skill_unreachable`/.test(HANDOFF_BODY)).toBe(true)
     expect(
       /ce-doc-review` has run in (?:headless|non-interactive) mode or returned the documented `skill_unreachable` envelope/.test(
         SKILL_BODY,
@@ -487,7 +489,7 @@ describe("ce-plan output-contract gate", () => {
   })
 
   test("intake resolves the gate before the scoping synthesis and does not restate it", () => {
-    expect(INTAKE_BODY).toMatch(/First resolve the kernel's Output Contract gate/)
+    expect(INTAKE_BODY).toMatch(/First resolve the Output Contract gate that SKILL\.md states/)
     expect(INTAKE_BODY).toMatch(/Output Contract gate selected Durable/)
     expect(INTAKE_BODY).not.toMatch(/\*\*Direct\*\* —/)
   })

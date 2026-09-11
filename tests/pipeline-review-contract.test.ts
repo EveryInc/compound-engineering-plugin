@@ -674,8 +674,8 @@ describe("ce-plan review contract", () => {
       "Invoke the `ce-doc-review` skill with arguments `mode:non-interactive <plan-path>`",
     )
     expect(content).toContain("ce-doc-review` with `mode:non-interactive`")
-    expect(content).toContain(
-      "They invoke `ce-doc-review` with `mode:non-interactive` and the plan path",
+    expect(content).toMatch(
+      /invoke `ce-doc-review` with `mode:non-interactive` and the plan path/i,
     )
     expect(skillStub).toMatch(/the default is non-interactive \(`mode:non-interactive`\)/i)
     expect(content).not.toContain("skip document-review and return control")
@@ -882,7 +882,7 @@ describe("ce-doc-review contract", () => {
     // which is read before any question can fire.
     expect(content).toContain("## Interactive mode rules")
     expect(content).toContain("`references/modes.md`")
-    expect(content).toMatch(/fires the tool or falls back loudly/)
+    expect(content).toMatch(/calls the tool or falls back loudly/)
     expect(content).toContain("bounded parallelism")
     // The body keeps the condition that a capacity rejection is backpressure;
     // the queueing mechanics live in the dispatch reference read at that step.

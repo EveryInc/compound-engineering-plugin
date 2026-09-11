@@ -156,7 +156,9 @@ describe("ce-plan output:html mode", () => {
 
   test("the kernel is the sole model-elevation dispatcher", () => {
     expect(SKILL_BODY).toContain("Immediately before authoring, read `references/reasoning-elevation.md`")
-    expect(FINAL_REVIEW_BODY).toContain("Return to the kernel for its model-elevation boundary")
+    // Condition: final-review hands the elevation decision back to SKILL.md's
+    // Model elevation step rather than making it here.
+    expect(FINAL_REVIEW_BODY).toMatch(/Return to SKILL\.md for its Model elevation step/)
     expect(FINAL_REVIEW_BODY).toContain("does not dispatch the authoring route itself")
     expect(FINAL_REVIEW_BODY).not.toContain("load `references/reasoning-elevation.md`")
   })

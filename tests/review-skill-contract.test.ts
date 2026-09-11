@@ -422,7 +422,7 @@ describe("ce-code-review contract", () => {
     expect(template).toMatch(/personas never produce/i)
   })
 
-  test("subagent template and schema require load-bearing line provenance in evidence", async () => {
+  test("subagent template and schema require conditional line provenance in evidence", async () => {
     const template = await readRepoFile(
       "skills/ce-code-review/references/subagent-template.md",
     )
@@ -432,7 +432,7 @@ describe("ce-code-review contract", () => {
     const schema = JSON.parse(schemaRaw)
     const evidenceDescription = schema.properties.findings.items.properties.evidence.description as string
 
-    expect(template).toMatch(/Load-bearing line provenance/i)
+    expect(template).toMatch(/provenance[^\n]{0,80}only when the finding's claim depends on line history/i)
     expect(template).toMatch(/provenance: <shortsha>/i)
     expect(template).toMatch(/omit provenance when the finding is fully justified from the diff/i)
     expect(template).toMatch(/must not replace the quote-the-line/i)

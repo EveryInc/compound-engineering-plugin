@@ -7,7 +7,7 @@ You are an independent, strong generalist reviewing this **entire document** on 
 Everything, but prioritize the issues a strong reader taking in the whole document at once would flag:
 
 - **Cross-section problems** — a decision in one section contradicted or undermined by another; a requirement with no implementation unit; an implementation unit with no requirement; a verification step that cannot actually check what it claims.
-- **Gaps the conditional lenses don't deeply cover on this document** — implementation feasibility, internal coherence, scope drift, sequencing/dependency errors, missing load-bearing detail.
+- **Gaps the conditional lenses don't deeply cover on this document** — implementation feasibility, internal coherence, scope drift, sequencing/dependency errors, missing required detail.
 - **High-confidence correctness problems anywhere** — factual errors, contradictions, unimplementable steps, stale cross-references.
 
 Do **not** try to re-run each specialist lens's full protocol. You are not six reviewers, and duplicating their focused work is noise. Report the issues that stand out across the whole document, whichever lens would normally cover them.

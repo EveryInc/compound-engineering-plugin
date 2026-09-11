@@ -16,7 +16,7 @@ Reviewer personas supply evidence; the judgment is yours. Check their claims aga
 
 **Read `references/modes.md` before anything else.** It defines how the mode is detected, the non-interactive argument contract, and the question-tool rules: match the host's blocking question tool already in the current tool list (never call a user-facing question tool to discover it), pre-load it at the top of the interactive flow if it is listed but unloaded, and fall back to a numbered list only when the harness genuinely lacks one.
 
-Either way, a question that calls for a user decision fires the tool or falls back loudly. Narrating it as plain text is a bug.
+Either way, a question that calls for a user decision calls the tool or falls back loudly. Narrating it as plain text is a bug.
 
 ## Artifact Root
 

@@ -103,7 +103,7 @@ Add a standing instruction so agents capture qualifying learnings with ce-compou
 3. No thanks
 ```
 
-Insert the chosen variant verbatim from `assets/compounding-directive.md` in this skill's directory; the wording is load-bearing and pinned by a test, so do not paraphrase it. Place it beside the store mention when that landed in a conventions or working-agreement block, otherwise in the block where the file states how agents should work. Match the surrounding form (a bullet in a bullet list, a paragraph in prose). Preview the exact text and location, then append only on approval and leave the rest of the file untouched.
+Insert the chosen variant verbatim from `assets/compounding-directive.md` in this skill's directory; the wording is pinned by a test, so do not paraphrase it. Place it beside the store mention when that landed in a conventions or working-agreement block, otherwise in the block where the file states how agents should work. Match the surrounding form (a bullet in a bullet list, a paragraph in prose). Preview the exact text and location, then append only on approval and leave the rest of the file untouched.
 
 **Chat-register directive.** Offer it whenever this step runs. Skip the offer only when the file already carries an instruction that covers all three parts of the bundled one: the report boundary (a user-facing report, summary, or handoff about to be written), the invocation (use the `ce-noslop` skill for that writing), and the exclusions (code, config, verbatim quotes, text the user asked to post as written). A partial instruction, such as one naming only the boundary or a generic "write plainly", or an unrelated writing rule still gets the offer. Ask:
 

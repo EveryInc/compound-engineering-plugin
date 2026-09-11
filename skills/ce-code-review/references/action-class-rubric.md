@@ -40,7 +40,7 @@ All reviewers use P0-P3:
 
 ## Action Routing
 
-Severity answers **urgency**. `autofix_class` and `owner` are **information** describing the shape of follow-up work for callers; this metadata does not grant apply permission. Apply authority is separate, explicit, and checked before Stage 5c. The persona guidance for choosing a class is at the top of this reference.
+Severity answers **urgency**. `autofix_class` and `owner` are **information** describing the shape of follow-up work for callers; this metadata does not grant apply permission. Permission to apply fixes is a separate, explicit authorization that Stage 5c checks before touching any file. The persona guidance for choosing a class is at the top of this reference.
 
 | `autofix_class` | Default owner | Meaning |
 |-----------------|---------------|---------|
@@ -50,7 +50,7 @@ Severity answers **urgency**. `autofix_class` and `owner` are **information** de
 
 Routing rules:
 
-- **Synthesis (Stage 5, Merge findings) makes the final routing decision.** Persona-provided routing metadata is input, not the last word.
-- **Choose the more conservative route on disagreement.** A merged finding may move from `gated_auto` to `manual`, but never widen without stronger evidence.
+- **Synthesis (Stage 5, Merge findings) makes the final decision on `autofix_class` and `owner`.** The values a persona supplies are input, not the last word.
+- **When reviewers disagree, keep the more cautious class.** A merged finding may move from `gated_auto` to `manual`; moving the other way needs stronger evidence.
 - **Reject `safe_auto` and `review-fixer` if present** — drop the finding or remap to `gated_auto` / `downstream-resolver` during synthesis.
 - **`requires_verification: true` means any caller-applied fix needs targeted tests or follow-up validation.**

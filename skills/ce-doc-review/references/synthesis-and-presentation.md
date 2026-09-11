@@ -164,11 +164,12 @@ Run this pass on the merged set across all personas. Record the count suppressed
 
 **Rendering floor (applies to every finding, every mode — read before rendering anything).** Read
 `references/rendering-floor.md` now. It is the single source of truth for the decision-first field
-order (Recommendation → Consequence-if-unchanged → Change → Basis → Trace-on-request), the
-domain-agnostic opaque-token policy (navigation anchors, provenance anchors, mechanism symbols; at
-most two anchors per block), and the code-span budget. Every place findings are shown below — the non-interactive envelope,
-the interactive template, and the bulk preview — maps its own layout onto that floor. Do not restate
-a weaker rule for one of them; the floor is authoritative.
+order (Recommendation → Consequence-if-unchanged → Change → Basis → Trace-on-request), the rule for
+identifiers the reader cannot understand without opening the document, the tracker, or the code
+(document IDs, ticket and PR references, code symbols; at most two per block), and the code-span
+budget. Every place findings are shown below — the structured non-interactive result, the interactive
+template, and the bulk preview — maps its own layout onto that floor. Do not restate a weaker rule for
+one of them; the floor is authoritative.
 
 **User-facing vocabulary rule (applies to ALL user-visible output in Phase 4, not just the rendered template).** Internal enum values — `safe_auto`, `gated_auto`, `manual`, `FYI` — stay inside the schema and synthesis prose. Every word the user sees in Phase 4 output, including free-text narration between sections, transition preambles, status lines, and confirmation messages, MUST use user-facing vocabulary, named by where 3.7 routed the finding: "applied changes" or "fixes" (what 3.7 routed to Apply), "proposed fixes" (the grouped confirmation), "decisions" (the Decisions list), "FYI observations" (anchor `50`). The only exception is the `Tier` column in rendered tables, which is explicitly documented as showing the internal enum for transparency. Do NOT emit narration like "safe_auto fixes applied" or "N gated_auto findings" — write "fixes applied" or "N proposed fixes" instead.
 
@@ -198,24 +199,26 @@ After the applied changes land, the rest split by the route 3.7 assigned, not by
 
 **Self-contained rendered lines (both modes, including the Applied-fixes list).** Every rendered line —
 an applied fix, proposed fix, decision, FYI observation, residual concern, or deferred question —
-obeys the shared rendering floor's (`references/rendering-floor.md`) opaque-token policy across **all
-three** token classes, not document IDs alone. A requirement or unit ID (`R6`, `U3`) is a navigation
-anchor (keep the ID, gloss at first mention); a ticket or PR number (`ESP-3373`, `PR #1776`) is a
-provenance anchor (gloss only when the event changes the decision, else move to trace); a function,
-file, variable, or line reference the document names (`clearMuxStatus`, `codebookTranscriptMode.ts:46`)
-is a mechanism symbol (translate to its role; keep the exact symbol only when precise scope drives the
-decision). At most two anchors per finding — counted across all its rendered lines, matching the floor's
-per-block budget — each resolved at render time against the document in context so it stays accurate
-after an Apply renumbers the item. The floor's full decision-first field order
+follows the shared rendering floor (`references/rendering-floor.md`) for every identifier the reader
+cannot understand without opening the document, the tracker, or the code, not document IDs alone. A
+requirement or unit ID (`R6`, `U3`) keeps its ID and gets a short handle at first mention. A ticket or
+PR number (`ESP-3373`, `PR #1776`) is named only when that event changes the decision; otherwise it
+moves to the detail offered on request. A function, file, variable, or line reference the document
+names (`clearMuxStatus`, `codebookTranscriptMode.ts:46`) is described by the role it plays in the
+decision; keep the exact symbol only when precise scope drives the decision. At most two such
+identifiers per finding — counted across all its rendered lines, matching the floor's per-block limit —
+each resolved at render time against the document in context so it stays accurate after an Apply
+renumbers the item. The floor's full decision-first field order
 (Recommendation → Consequence → Change → Basis) applies to **actionable findings** — proposed fixes and
 decisions. FYI observations, residual concerns, deferred questions, and obligations carry no
-recommendation, so they render as a single line under the token policy, not the full field order — a
-consequence / concern / question, and for an obligation the consequence plus its change as intent. A line whose only description of a referenced item is a bare identifier — of any class — is
-not acceptable rendered output.
+recommendation, so each renders as a single line under the identifier rule, not the full field order: a
+consequence, concern, or question, and for an obligation the consequence plus its change as intent. A
+line whose only description of a referenced item is a bare identifier — of any kind — is not acceptable
+rendered output.
 
-**Non-interactive mode:** Do not use interactive question tools. Output all findings as the structured text block below, called the envelope, which the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope uses user-facing vocabulary ("fixes", "Proposed fixes", "Decisions", "FYI observations") so non-interactive output reads the same way interactive output does.
+**Non-interactive mode:** Do not use interactive question tools. Output all findings as the structured text block below, which the caller parses; that block is the non-interactive result. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the non-interactive result uses user-facing vocabulary ("fixes", "Proposed fixes", "Decisions", "FYI observations") so non-interactive output reads the same way interactive output does.
 
-Two things about the template that follows. First, **nothing left in the batch has been confirmed here.** These edits were not covered by existing authority and this mode asks no questions, so they are returned *awaiting* confirmation. Already-authorized corrections that landed belong only in Applied. Wording that reports them as already confirmed invites a caller, or a user reading over its shoulder, to treat unapplied and unapproved changes as accepted. Second, **the text inside the code fence is the whole output.** On a document with no implementation units, title the obligations section "Entailed corrections" and use the section name as each group heading. Do not emit that instruction, or any other bracketed note, into the envelope the caller parses.
+Two things about the template that follows. First, **nothing left in the batch has been confirmed here.** These edits were not covered by existing authority and this mode asks no questions, so they are returned *awaiting* confirmation. Already-authorized corrections that landed belong only in Applied. Wording that reports them as already confirmed invites a caller, or a user reading over its shoulder, to treat unapplied and unapproved changes as accepted. Second, **the text inside the code fence is the whole output.** On a document with no implementation units, title the obligations section "Entailed corrections" and use the section name as each group heading. Do not emit that instruction, or any other bracketed note, into the result the caller parses.
 
 ```
 Document review complete (non-interactive mode).
@@ -266,7 +269,7 @@ Restated: N (residual/deferred items suppressed as duplicates of actionable find
 Review complete
 ```
 
-Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned. "Applied N fixes" reports what already changed. The obligations block and "Proposed fixes" together render the grouped confirmation: obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule. The caller re-narrates this envelope to a reader who has seen none of it, so a flat list here becomes a flat list there. "Decisions" carries the decisions the user must still make, and "FYI observations" carries anchor `50`. End with "Review complete" as the final line so callers can detect completion.
+Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned. "Applied N fixes" reports what already changed. The obligations block and "Proposed fixes" together render the grouped confirmation: obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule. The caller re-narrates this result to a reader who has seen none of it, so a flat list here becomes a flat list there. "Decisions" carries the decisions the user must still make, and "FYI observations" carries anchor `50`. End with "Review complete" as the final line so callers can detect completion.
 
 **Count findings by their final route.** Obligations still awaiting grouped confirmation count as proposed fixes; grouping changes presentation, not the count. Obligations already applied count only as applied fixes. Do not export a separate obligation count: the caller uses the proposed-fixes count to detect pending approval, so it must include every pending edit and exclude edits that already landed.
 
@@ -274,7 +277,7 @@ Omit any section with zero items. The bucket names are the user-facing vocabular
 
 **Interactive mode:**
 
-Present findings using the review output template (read `references/review-output-template.md`). This presentation must appear as user-visible assistant text in the same turn immediately before the routing question in `references/walkthrough.md` is asked. A non-interactive envelope printed in an earlier turn, or a one-line count, does not satisfy that requirement. Within each severity level, separate findings by type:
+Present findings using the review output template (read `references/review-output-template.md`). This presentation must appear as user-visible assistant text in the same turn immediately before the routing question in `references/walkthrough.md` is asked. A non-interactive result printed in an earlier turn, or a one-line count, does not satisfy that requirement. Within each severity level, separate findings by type:
 
 - Errors (design tensions, contradictions, incorrect statements) first — these need resolution
 - Omissions (missing steps, absent details, forgotten entries) second — these need additions
@@ -319,7 +322,7 @@ During synthesis, discard any finding that recommends deleting or removing a CE 
 
 ## Phase 5: Return to the Caller
 
-Return "Review complete" with the completion report or non-interactive envelope. A finished review does not need a terminal question. When nested, return control to the caller; do not start a nested planning or execution workflow merely because the review is complete.
+Return "Review complete" with the completion report or the non-interactive result. A finished review does not need a terminal question. When nested, return control to the caller; do not start a nested planning or execution workflow merely because the review is complete.
 
 For standalone use, a useful next step may be named without a blocking menu. A requirements-only unified plan or legacy standalone requirements doc routes to `ce-plan`; an implementation-ready unified plan or legacy implementation plan routes to `ce-work`. Invoke that next skill only when the user's existing request authorizes it. Review completion alone does not authorize new work.
 

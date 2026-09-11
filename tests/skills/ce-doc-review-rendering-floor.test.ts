@@ -116,7 +116,11 @@ describe("ce-doc-review interaction-order decision context", () => {
     expect(walkthrough).toContain("Same-turn presentation before routing")
     expect(walkthrough).toMatch(/same turn/i)
     expect(walkthrough).toContain("one-line count")
-    expect(walkthrough).toMatch(/prior-turn non-interactive envelope/i)
+    // The condition: a structured non-interactive result from an earlier turn
+    // is listed among the things that do not satisfy same-turn presentation.
+    expect(walkthrough).toMatch(
+      /do \*\*not\*\* satisfy the requirement:\n\n- a structured non-interactive result printed in an earlier turn/i,
+    )
   })
 
   test("interactive template and synthesis restate same-turn presentation-before-routing", () => {

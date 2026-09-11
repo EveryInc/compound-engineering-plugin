@@ -1,6 +1,6 @@
 # Cross-Model Adversarial Pass — Skill-Creator Eval Spec
 
-This is the load-bearing behavioral eval for ce-code-review's cross-model
+This is the required behavioral eval for ce-code-review's cross-model
 adversarial pass. Deterministic route tests cover the worker; these cases cover
 the SKILL.md/reference orchestration that only a fresh agent can execute. Inject
 the current `SKILL.md`, `references/cross-model-review.md`, and the relevant
@@ -9,7 +9,7 @@ and Codex with fake peer CLIs first on PATH.
 
 ## Eval cases
 
-1. **Activation fires only on the existing gate.** A local-aligned or standalone
+1. **Activation runs only on the existing gate.** A local-aligned or standalone
    diff that selects `adversarial-reviewer` launches one detached cross-model
    adversarial job in the Stage 4 wave. A trivial diff that does not select the
    persona launches none. A `pr-remote` or `branch-remote` review launches none

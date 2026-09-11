@@ -105,8 +105,8 @@ Strong answers stay at 2-4 (not 8, not 1), connect clearly back to the approach,
 **Anti-patterns and pushback:**
 
 - **Feature list in disguise** ("track 1: Slack integration; track 2: mobile app; track 3: dark mode") -> "Those are features. What's the *investment area* each one lives inside? 'Integrations' might be one track, with Slack, Teams, and Discord as candidates inside it."
-- **Too many tracks** ("we have 7 tracks this quarter") -> "With 7 tracks, every track is starved for attention. Which 3 are load-bearing? The others either fold in or drop."
-- **Doesn't connect to approach** (approach: "win by being the easiest to onboard"; track: "enterprise SSO") -> "How does that track serve the approach? If it's a separate bet, name it as one. If it's load-bearing for onboarding, explain the link."
+- **Too many tracks** ("we have 7 tracks this quarter") -> "With 7 tracks, every track is starved for attention. Which 3 are essential? The others either fold in or drop."
+- **Doesn't connect to approach** (approach: "win by being the easiest to onboard"; track: "enterprise SSO") -> "How does that track serve the approach? If it's a separate bet, name it as one. If onboarding depends on it, explain the link."
 - **Too vague** ("improve the product") -> "Every track is 'improve the product.' What's the specific investment area that's different from the others?"
 - **One track only** -> "With one track, there's no real choice being made. What are the 2-3 things the product needs to be good at, and how are they different?"
 

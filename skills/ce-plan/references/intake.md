@@ -80,7 +80,7 @@ If no relevant Product Contract source exists, planning may proceed from the use
 If no relevant requirements document exists, or the input needs more structure:
 - Assess whether the request is already clear enough for direct technical planning — "clear enough" means the bootstrap exit condition below already holds, so confirm the problem frame, scope boundaries, and success signals are known or recorded as assumptions, then continue to Phase 0.5
 - If the ambiguity is mainly product framing, user behavior, or scope definition, recommend `ce-brainstorm` as a suggestion — but always offer to continue planning here as well
-- If the user signals they lack working knowledge of the problem domain itself, recommend `ce-brainstorm` — its blindspot pass maps the territory's decision surface before requirements are extracted — but honor their choice to continue here; Phase 2 (Resolve Planning Questions) then applies its unfamiliar-territory scaffolding
+- If the user signals they lack working knowledge of the problem domain itself, recommend `ce-brainstorm` — its blindspot pass maps the decisions the territory will force before requirements are extracted — but honor their choice to continue here; Phase 2 (Resolve Planning Questions) then applies its unfamiliar-territory scaffolding
 - If the user wants to continue here (or was already explicit about wanting a plan), run the planning bootstrap below
 
 The planning bootstrap should establish:
@@ -131,7 +131,7 @@ If true product blockers remain:
 
 #### 0.6 Assess Plan Depth
 
-First resolve the kernel's Output Contract gate (the gate SKILL.md states). A Direct or Chat brief selection exits intake to `references/output-contracts.md` without classifying depth; only Durable continues here.
+First resolve the Output Contract gate that SKILL.md states. A Direct or Chat brief selection exits intake to `references/output-contracts.md` without classifying depth; only Durable continues here.
 
 Classify the work into one of these plan depths:
 

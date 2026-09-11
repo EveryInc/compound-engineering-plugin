@@ -15,7 +15,7 @@ while (tasks remain):
   - Look for similar patterns in codebase
   - Find existing test files for implementation files being changed (Test Discovery — see below)
   - Choose the evidence strategy for this task before changing behavior: use an existing failing test, update or strengthen an existing test, add a new failing test, add characterization coverage, or record a deliberate no-test exception with replacement verification
-  - For behavior-bearing changes, default to test-first or characterization-first when the current code and test surface make that practical, even if the plan has no `Execution note`
+  - For behavior-bearing changes, default to test-first or characterization-first when the current code and its tests make that practical, even if the plan has no `Execution note`
   - When the evidence strategy calls for pre-implementation proof, create/update/strengthen the test or characterization coverage now and verify the expected failure or baseline capture before changing production code
   - Implement following existing conventions
   - Add, update, or remove any remaining tests needed to match implementation changes (see Test Discovery below)

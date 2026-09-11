@@ -1,6 +1,6 @@
 # Scope gates (Phase 0.2-0.6)
 
-Required read at the start of Phase 0, before any grounding dispatch. A gate here is a check the run must pass before anything is dispatched. This file defines the subject-identification gate and its scope question, mode classification, the elsewhere-mode substance gate, focus/volume interpretation with the tactical dials, and the cost-transparency line.
+Required read at the start of Phase 0, before any grounding dispatch. A gate here is a check the run must pass before anything is dispatched. This file defines the subject-identification check and its scope question, mode classification, the elsewhere-mode substance check, focus/volume interpretation with the tactical dials, and the cost-transparency line.
 
 ## Asking (applies to every gate below)
 
@@ -17,7 +17,7 @@ Before classifying mode or dispatching any grounding, check whether the subject 
 - Questions exist only to supply what sub-agents need to operate: an identifiable subject (this phase) and enough context to say something specific about it (0.4, elsewhere modes only). Nothing else.
 - Never ask about solution direction, constraints, audience, tone, or success criteria — those belong to `ce-brainstorm`.
 - Always keep "Surprise me" as a real option, not a fallback for a user who cannot name a subject. Ideation is allowed to be greenfield by design.
-- Stop as soon as the subject is identifiable or the user has delegated to "Surprise me." More than 3 questions total across 0.2, 0.3, 0.4, and the Phase 1 issue-scoping gate is a smell that ideation is not the right workflow — consider suggesting `ce-brainstorm`.
+- Stop as soon as the subject is identifiable or the user has delegated to "Surprise me." More than 3 questions total across 0.2, 0.3, 0.4, and the Phase 1 issue-scoping question is a smell that ideation is not the right workflow — consider suggesting `ce-brainstorm`.
 
 **Detection — issue-tracker intent (repo mode only; subject-identifying).** Requires an explicit reference to the tracker or to reports filed in it: `open issues`, `issue patterns`, `issue themes`, `what users are reporting`, `bug reports`, or a named tracker (`github issues`, `linear issues`, `jira tickets`). The subject is "issues in the tracker." It works against whichever tracker is reachable — GitHub, Linear, or Jira; do not require GitHub. Proceed to 0.3 with issue-tracker intent flagged.
 
@@ -33,7 +33,7 @@ The test: would a reader, seeing only this prompt, know what subject the agent s
 
 **The scope question.**
 
-Ask via the platform's blocking question tool per Interaction Method above — never silently skip.
+Ask via the platform's blocking question tool per the Asking section above — never silently skip.
 
 - **Stem:** "What should the agent ideate about?"
 - **Options:**
@@ -70,11 +70,11 @@ Classify the **subject of ideation** (settled in 0.2) into one of three modes fo
 
 For specified subjects, make two sequential binary decisions:
 
-**Decision 1 — repo-grounded vs elsewhere.** Weigh prompt content first, topic-repo coherence second, and CWD repo presence as supporting evidence only. **Repo-grounded** when the prompt references repo files, code, architecture, modules, tests, or workflows, or the topic is bounded by the current codebase; issue-tracker intent from 0.2 is always repo-grounded. **Elsewhere** when the prompt names things absent from the repo — pricing, naming, narrative, business model, personal decisions, brand, content, market positioning — or the topic is creative, business, or personal with no code surface.
+**Decision 1 — repo-grounded vs elsewhere.** Weigh prompt content first, topic-repo coherence second, and CWD repo presence as supporting evidence only. **Repo-grounded** when the prompt references repo files, code, architecture, modules, tests, or workflows, or the topic is bounded by the current codebase; issue-tracker intent from 0.2 is always repo-grounded. **Elsewhere** when the prompt names things absent from the repo — pricing, naming, narrative, business model, personal decisions, brand, content, market positioning — or the topic is creative, business, or personal and involves no code.
 
-**Decision 2 (applies only when Decision 1 = elsewhere) — software vs non-software.** Classify by whether the *subject* is a software artifact or system, not by where the ideas will land. A product, app, SaaS, web/mobile UI, feature, page, or service is **elsewhere-software** — even when the ideas themselves are about copy, UX, CRO, pricing, onboarding, visual design, or positioning *for that product*. **Elsewhere-non-software** is reserved for topics with no software surface at all: company or brand naming (independent of product), narrative and creative writing, personal decisions, non-digital business strategy, physical-product design.
+**Decision 2 (applies only when Decision 1 = elsewhere) — software vs non-software.** Classify by whether the *subject* is a software artifact or system, not by where the ideas will land. A product, app, SaaS, web/mobile UI, feature, page, or service is **elsewhere-software** — even when the ideas themselves are about copy, UX, CRO, pricing, onboarding, visual design, or positioning *for that product*. **Elsewhere-non-software** is reserved for topics that are not about any software artifact: company or brand naming (independent of product), narrative and creative writing, personal decisions, non-digital business strategy, physical-product design.
 
-Contrast pair: "Improve conversion on our sign-up page" → elsewhere-software (the subject is a page, even though the ideas may be copy or CRO); "Name my new coffee shop" → elsewhere-non-software (the subject is a brand with no software surface).
+Contrast pair: "Improve conversion on our sign-up page" → elsewhere-software (the subject is a page, even though the ideas may be copy or CRO); "Name my new coffee shop" → elsewhere-non-software (the subject is a brand, not a software artifact).
 
 State the inferred approach in one sentence, in plain language, adapting a domain word from the topic itself ("landing page", "onboarding flow", "naming", "career decision"). **Never print the internal taxonomy label** (`repo-grounded`, `elsewhere-software`, `elsewhere-non-software`) — those are for routing only.
 
@@ -125,13 +125,13 @@ Two symmetric depth overrides scale the run. Both are opt-in from the user's own
 - **Do not pack extra frames into one agent to save money.** The verification budget is **per agent, not per frame** (`references/divergent-ideation.md`), so an agent holding three frames verifies roughly a third as much per idea — and unverifiable `direct:` bases are the exact failure this skill exists to prevent. Cheapness must never come out of the basis check.
 - **Cap Phase 1.5 at 3 axes and evidence scouts at 3.** Keep the two caps *equal*: scouts dispatch one per axis, so any axis past the scout cap reaches generation with no evidence dossier and only the Phase 1 orientation gist to cite. Three is the floor for decomposition at all (fewer means atomic), so this is the smallest coupled pair — not a further cut on either side alone.
 - **Waive the meeting-test floor at both layers** — for the generators *and* in the Phase 3 basis verifier's dispatch prompt. The verifier runs on a fresh context with none of the generation history, so a waiver it is not told about does not reach it.
-- **Keep the basis verifier, and keep all six frames.** A cheap run still may not return ideas whose basis was never checked, and dropping lenses would remove exactly the non-obvious ideas a small surface still benefits from.
+- **Keep the basis verifier, and keep all six frames.** A cheap run still may not return ideas whose basis was never checked, and dropping lenses would remove exactly the non-obvious ideas a small subject still benefits from.
 
 Use reasonable interpretation rather than formal parsing.
 
 **Tactical's dials — the complete list.** 3-4 ideas per frame; 2-3 verification reads per agent; 3 axes; 3 scouts; meeting-test floor waived at both layers. **Tactical changes nothing else** — not the agent count, not the frame set, not the model tier. Everywhere below and in the references, "tactical's dials" means exactly this list; state it by that name rather than re-enumerating it, so the set cannot drift between sites.
 
-**Detecting a tactical signal is not the same as tactical scope being active.** Resolve overrides against each other first; everything downstream — the fleet, the dials, and every waiver — keys on what ends up **active**, never on what was merely spotted. `go deep` beats a tactical signal outright and suppresses it entirely. When a signal collides with a mode that decides the *surface* (issue-tracker themes, or the universal path's depth), that mode keeps the frames and the agent count while tactical still contributes its dials.
+**Detecting a tactical signal is not the same as tactical scope being active.** Resolve overrides against each other first; everything downstream — the fleet, the dials, and every waiver — keys on what ends up **active**, never on what was merely spotted. `go deep` beats a tactical signal outright and suppresses it entirely. When a signal collides with a mode that decides which frames run (issue-tracker themes, or the universal path's depth), that mode keeps its frames and its agent count while tactical still contributes its dials.
 
 #### 0.6 Cost Transparency Notice
 
@@ -141,7 +141,7 @@ Derive it from the dispatch decisions already made in this phase — do not carr
 
 Include the conditional legs when they apply: issue intelligence adds its scan call **plus a cluster call only if that scan returns usable signal**, opt-in Slack research adds one, one distiller per user-supplied research artifact **large enough to need distilling** (a small one folds into the grounding summary inline and costs no agent), and up to 2 axis-coverage recovery agents in Phase 2. Subtract the web researcher when the user issued a skip phrase — that much is readable from the prompt right now.
 
-**Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it.** The V15 cache check happens in Phase 1, after `<scratch-dir>` exists, so a reuse that skips the web dispatch is unknowable here. The same holds for the issue cluster call and the depth-dependent count in elsewhere-non-software.
+**Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it.** The web-research cache check (`references/web-research-cache.md`) happens in Phase 1, after `<scratch-dir>` exists, so a reuse that skips the web dispatch is unknowable here. The same holds for the issue cluster call and the depth-dependent count in elsewhere-non-software.
 
 **Where a number depends on a decision a later phase makes — a scan result, a depth choice, a dispatch spec not yet loaded — name the leg and say it is conditional rather than guessing.** Reaching for the ordinary five-agent figure to fill such a gap is the one answer certain to be wrong.
 

@@ -38,7 +38,7 @@ After applying the automatic corrections and handling approval for the proposed 
 
 These do **not** satisfy the requirement:
 
-- a prior-turn non-interactive envelope (including one shown beside a `ce-plan` handoff menu)
+- a structured non-interactive result printed in an earlier turn (including one shown beside a `ce-plan` handoff menu)
 - a one-line count such as "1 confirmation, 1 decision"
 - relying on handoff-menu context or earlier scrollback
 

@@ -4,7 +4,7 @@ This file defines the axis criteria, the worked examples, the skip conditions, a
 
 ### Phase 1.5: Topic-Surface Decomposition
 
-Before dispatching frame agents in Phase 2, decompose the topic into 3-5 orthogonal **axes** naming *what aspects of the subject to think about*. Frames determine *how* to think (the lens); axes determine *what* to think on (the surface). Without an explicit axis list, parallel frames converge on whichever interpretation is most salient at first read and the rest of the surface goes unexamined — lens diversity alone does not produce surface coverage.
+Before dispatching frame agents in Phase 2, decompose the topic into 3-5 orthogonal **axes** naming *what aspects of the subject to think about*. Frames determine *how* to think (the lens); axes determine *what* to think on (which parts of the subject). Without an explicit axis list, parallel frames converge on whichever interpretation is most salient at first read and the rest of the subject goes unexamined. Lens diversity alone does not cover the whole subject.
 
 The axis analysis is a single orchestrator-side pass against the grounding summary already in context: no additional grounding read, no user-facing question. The evidence scouts below are this phase's only dispatch.
 

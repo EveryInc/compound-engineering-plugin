@@ -592,7 +592,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(answerBlock).toContain('ce-babysit-pr/<host>-<owner>-<repo>-<N>')
     expect(answerBlock).toContain("for c in python3 python py")
     expect(answerBlock).toMatch(/read-only prohibits executing[^.]+not rendering/i)
-    expect(answerBlock).toMatch(/complete a read-only envelope[^.]+return the literal command[^.]+sole pending transition/i)
+    expect(answerBlock).toMatch(/read-only run[^.]+return the literal command[^.]+sole pending transition/i)
     expect(answerBlock).toMatch(/exact known values[^.]+explicit placeholders[^.]+invocation metadata[^.]+answer-file path/i)
     expect(answerBlock).toMatch(/literal `--answer-decision` and `--answer-file` flags/i)
     expect(answerBlock).toMatch(/prose paraphrase[^.]+in-memory state move[^.]+incomplete/i)
@@ -665,7 +665,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(debugPipeline).toContain('"kind": "check"')
     expect(debugPipeline).toContain('"kind": "thread"')
     expect(debugPipeline).toContain('"type": "needs-human"')
-    expect(debugPipeline).toMatch(/sources[^.]{0,240}every item[^.]{0,240}owns/i)
+    expect(debugPipeline).toMatch(/sources[^.]{0,240}every item this one decision covers/i)
     expect(debugPipeline).toMatch(/thread_urls[^.]{0,180}every owned open thread/i)
 
     expect(babysitPipeline).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)

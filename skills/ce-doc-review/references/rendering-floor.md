@@ -1,15 +1,16 @@
 # Shared Rendering Floor
 
-The single source of truth for how any finding is rendered for a human decision — across **every**
-presentation surface: the interactive walkthrough terminal block (`references/walkthrough.md`), the
+The single source of truth for how any finding is rendered for a human decision, in **every** place a
+finding is shown: the interactive walkthrough terminal block (`references/walkthrough.md`), the
 walkthrough blocking-question string (same file — compact What's wrong / Proposed fix / If left as-is
 duplicated into the question so modal dialogs are decidable), the batch report table
-(`references/review-output-template.md`), the non-interactive envelope
+(`references/review-output-template.md`), the structured non-interactive result
 (`references/synthesis-and-presentation.md` Phase 4), the bulk-action preview line
 (`references/bulk-preview.md`), and the Open Questions entry a Defer persists into the document
 (`references/open-questions-defer.md`). Each of these keeps its own layout and maps that layout onto the
-rules below; the rules themselves do not vary by surface. The token policy applies to every surface; the
-full decision-first field order applies to the surfaces that render an actionable finding. A persisted
+rules below; the rules themselves are the same in every place. The token policy applies wherever a
+finding is shown; the full decision-first field order applies wherever the reader is asked to act on a
+finding. A persisted
 Open Questions entry is a concern and an obligation block is an already-entailed correction; neither is
 an actionable finding, so both take the token policy and consequence-first phrasing only. The walkthrough question string is derived from the terminal block
 and inherits this floor's opaque-token policy and two-anchor budget; it must not invent a denser second
@@ -33,18 +34,18 @@ grouped confirmation. It does not apply to a reported change**, which carries no
 there is nothing to recommend; see "Reporting versus asking" below, which governs that case and wins
 where the two appear to conflict.
 
-Every finding the reader is asked about carries these fields, and each surface makes them decision-first
-in its own layout rather than reproducing the exact label sequence. Two things must always hold: the
-**consequence is legible up front with no opaque token**, and the **recommendation is unmistakably
-marked**. Concretely:
-the **non-interactive envelope** prints them as explicit labeled lines; the **walkthrough block** leads with a
+Every finding the reader is asked about carries these fields, and each place it is shown makes them
+decision-first in its own layout rather than reproducing the exact label sequence. Two things must
+always hold: the **consequence is legible up front with no opaque token**, and the **recommendation is
+unmistakably marked**. Concretely:
+the **non-interactive result** prints them as explicit labeled lines; the **walkthrough block** leads with a
 consequence-phrased title, then What's-wrong / Proposed-fix / If-left-as-is, and marks the recommendation
 on its question options; the **walkthrough question string** duplicates those three compact fields so a
 modal dialog is decidable without prior chat; the **batch table** leads its Issue cell with the
 consequence and carries the recommendation in its Tier/action column; the **bulk-preview line** leads
 with the consequence and takes its recommendation from the bucket it is grouped under (Applying /
-Appending / Skipping). A surface satisfies the floor when those two conditions hold, not when it emits
-the four field labels verbatim.
+Appending / Skipping). A rendering satisfies the floor when those two conditions hold, not when it
+emits the four field labels verbatim.
 
 1. **Recommendation** — the recommended action (`Apply` / `Defer` / `Skip`, from the finding's
    `recommended_action`), stated up front. This is what the user is being asked to accept or reject.
@@ -99,7 +100,7 @@ and has not read the document as closely as the reviewers did. Finding the two o
 batch of eleven is the work this step exists to do.
 
 The same shape applies wherever a set of findings is rendered together — the batch table, the
-non-interactive envelope's proposed-fixes section, the bulk preview. A flat list is the failure mode
+non-interactive result's proposed-fixes section, the bulk preview. A flat list is the failure mode
 each of those inherits by default.
 
 ## Obligation blocks

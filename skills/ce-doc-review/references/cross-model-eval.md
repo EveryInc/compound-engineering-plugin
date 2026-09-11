@@ -1,7 +1,7 @@
 # Cross-Model Judgment Pass — Skill-Creator Eval Spec
 
 This is the eval-case specification for the cross-model judgment pass. It is the
-**load-bearing behavioral gate**: `bun test` does
+**only check that proves the behavior**: `bun test` does
 not exercise SKILL.md/reference prose, and plugin skill definitions cache at
 session start, so behavioral wiring must be validated through the `skill-creator`
 skill's eval workflow — which injects the current on-disk skill/reference content
@@ -21,11 +21,12 @@ Each case injects the current `SKILL.md`, `references/cross-model-review.md`, an
 as specified.
 
 Cases 11-14 cover the detached launch->wait lifecycle and model-identity
-receipts. Case 15 covers U8's fixed-route and bounded-adaptability contract.
+receipts (the record of which model actually served a route). Case 15 covers
+U8's fixed-route and bounded-adaptability contract.
 Run them with the fake-CLI harness pattern — stub peer CLIs placed first on
 PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
 
-1. **Activation gate — fires (R1, R2).** A document that activates at least one
+1. **Activation — at least one trio lens activates (R1, R2).** A document that activates at least one
    trio lens (e.g. a greenfield plan with a high-stakes domain activating
    `security-lens`, or a requirements doc with challengeable claims activating
    `adversarial`) → the orchestrator launches one `cross-model-doc-review.sh`
@@ -33,7 +34,7 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
    reviewers. Assert: a call is launched for each activated trio lens and none
    for non-activated lenses.
 
-2. **Activation gate — does not fire (R2, R3).** A routine plan with validated
+2. **Activation — no trio lens activates (R2, R3).** A routine plan with validated
    upstream provenance (`product_contract_source: ce-brainstorm`), no high-stakes
    domain, and no new abstraction → no trio lens activates → **no** cross-model
    call is launched. Assert: zero peer calls; the review completes normally.
@@ -61,7 +62,7 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
    restate model IDs. `cursor` omits `--model` for Cursor default/Auto, while
    `composer` requests an explicit Composer-family model through Cursor.
 
-7. **Fold-in + receipt-gated agreement promotion (R8, R9, R18).** Given a
+7. **Fold-in + agreement promotion only with verified independence (R8, R9, R18).** Given a
    stubbed `<reviewer-name>-<provider>.json` return with
    `independence_verified: true` whose finding 3.3 merged with an
    in-process twin, assert synthesis promotes the merged finding by one anchor
@@ -82,8 +83,8 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
 
 8. **Announce by mode (R12).** Interactive host, default mode → before egress, a
    prominent line names the requested target, fixed route/intermediaries,
-   requested model and reasoning, receipt status, and document-content egress
-   scope. Call it independent only when serving families are attestably
+   requested model and reasoning, whether the serving model was verified, and
+   document-content egress scope. Call it independent only when serving families are attestably
    different. A failed route never changes recipients internally; any retry is
    a new host decision requiring a new disclosure and sanction.
    Non-interactive mode → no user-facing prose about the pass (the script still emits the
@@ -126,11 +127,11 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
     stub peer CLI that never finishes, assert the job is reaped at the
     deadline and **named** in Coverage with its lens and terminal state (e.g.
     "cross-model security-lens peer: timeout") — it never silently vanishes —
-    while a lens that was never started (gate not met / skip) remains silently
-    absent, as before.
+    while a lens that was never started (activation condition not met, or
+    skipped) remains silently absent, as before.
 
-14. **Unverified-identity announce (lifecycle R8).** On a route without a
-    served-model receipt, assert the announce/reconcile wording reads
+14. **Unverified-identity announce (lifecycle R8).** On a route that returns
+    no record of which model served, assert the announce/reconcile wording reads
     "requested <model>; serving model unverified on this route" rather than
     asserting the concrete model as serving.
 

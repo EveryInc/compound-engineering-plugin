@@ -4,7 +4,7 @@ This protocol obtains independent peer POVs, reconciles material disagreement,
 and returns one ce-pov decision. ce-pov remains the decision-maker: peers are
 cross-checks, never substitutes or votes. The panel is read-only and
 non-blocking; every branch ends in a panel POV, a solo POV with an availability
-note, or the ordinary POV contract's explicit grounding blocker.
+note, or the ordinary POV's explicit blocked-on-missing-context result.
 
 ## 1. Resolve the subject, host, and participants
 
@@ -19,7 +19,8 @@ Keep four identities separate for the host and every peer:
   `composer`);
 - **harness/intermediary route** — the CLI or intermediary that runs it;
 - **requested model** — an explicit model or the route's declared default; and
-- **served model** — receipt-verified when available, otherwise `unverified`.
+- **served model** — the model the worker's receipt (its record of the route
+  and model that actually answered) confirms, otherwise `unverified`.
 
 Attest the host from host-provided markers and serving evidence, never from
 another installed CLI or home directory. Set `independence_verified: true` only
@@ -92,8 +93,8 @@ when the request never says `oracle`. A request for ce-pov's take alone does not
 - **No explicit cross-check:** after ce-pov independently forms its POV, offer
   only when meaningful downstream work will build on the take before an error
   would show up, or it feeds a shared, public, security, or data commitment.
-  Adoption Tier 1 is ineligible; Tier 2/3 are eligible. Warm invocations never
-  offer.
+  Adoption Tier 1 is ineligible; Tier 2/3 are eligible. A warm invocation (a
+  mid-session second opinion) never offers.
 
 For the count rule: zero reachable means solo plus one availability line. One
 or more auto-selected peers means one concise progress line naming the selected

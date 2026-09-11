@@ -45,14 +45,14 @@ Only a `#discussion_r` fragment is **Targeted**: that mode resolves a thread via
 
 After determining mode, read the matching reference and follow it; each is self-contained for that mode:
 
-- **Full Mode** → `references/full-mode.md` — covers all three feedback surfaces (inline review threads, review submission bodies, top-level PR comments), which differ only in whether GitHub can resolve them, never in whether they are judged (9 steps: fetch, triage, consolidate & decide (the judgment step), parallel fix, validate, commit/push, reply/resolve, verify, summary)
+- **Full Mode** → `references/full-mode.md` — covers all three kinds of feedback (inline review threads, review submission bodies, top-level PR comments), which differ only in whether GitHub can resolve them, never in whether they are judged (9 steps: fetch, triage, consolidate & decide (the judgment step), parallel fix, validate, commit/push, reply/resolve, verify, summary)
 - **Targeted Mode** → `references/targeted-mode.md` (2 steps: extract thread context from URL, then judge/fix/reply/resolve via the same validate/commit/push/reply pipeline)
 - Evaluation rubric → `references/evaluation-rubric.md` (the orchestrator reads this to judge each item before any fix is dispatched)
 - Fixer prompt asset → `references/agents/pr-comment-resolver.md` (read before dispatching fixer subagents for approved fixes; do not dispatch a standalone agent by type/name)
 
 ## Success Criteria
 
-- Every unresolved item evaluated, across all three surfaces
+- Every unresolved item evaluated, across all three kinds of feedback
 - Valid fixes committed and pushed
 - Each thread replied to with quoted context
 - Threads resolved via GraphQL (except `needs-human`)

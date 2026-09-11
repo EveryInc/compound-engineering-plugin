@@ -1,6 +1,6 @@
 # Execution Engines
 
-`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* runs the shipping tail, meaning the final simplify, review, commit, PR, and CI steps (see "Step 4: Resume the correct tail" below). Native inline/subagent execution is the default: it stays selected unless applicable live intent, a caller binding, or an enabled standing preference selects the fourth engine.
+`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* runs the finishing steps (simplify, review, commit, PR, and CI; see "Step 4: Resume the correct tail" below). Native inline/subagent execution is the default: it stays selected unless applicable live intent, a caller binding, or an enabled standing preference selects the fourth engine.
 
 Engine selection applies only to code execution. Knowledge-work keeps its carve-out. Legacy plans and bare code prompts may select cross-model execution, but otherwise retain the inline/subagent flow in `references/execution-strategy.md`; goal-mode and dynamic-workflow selection remains specific to implementation-ready unified plans.
 
@@ -96,7 +96,7 @@ When more than one engine is callable, choose by the plan's decomposition shape:
 | Sequential or modest U-ID decomposition; units share files or depend on each other | **Inline / subagent** (default), or a **goal-mode** prompt for sustained focus when callable | The DoD already defines the end condition; ordinary persistence finishes it. |
 | Many independent U-IDs with disjoint file ownership; codebase-wide sweep; large migration; adversarial cross-checking | **Dynamic-workflow** when callable; otherwise parallel subagents | Workflow scripts hold branching, loops, and intermediate worker state outside the main context and coordinate many agents. Prefer this over goal-mode for large fan-out. |
 | Host exposes no callable goal/workflow primitive (e.g. Claude Code in-session) | **Inline / subagent** | Preserve the same heading-scan / DoD / U-ID discipline without relying on unavailable host features. |
-| Applicable live intent, a caller binding, or enabled config resolves a qualified fixed external route | **Cross-model execution** | Another harness/model authors bounded units while the host keeps canonical integration, verification, commits, and the shipping tail. |
+| Applicable live intent, a caller binding, or enabled config resolves a qualified fixed external route | **Cross-model execution** | Another harness/model authors bounded units while the host keeps canonical integration, verification, commits, and the finishing steps. |
 
 For a bare prompt, cross-model execution is eligible only after Phase 0 has established a concrete goal, bounded scope, and authoritative verification. The cross-model reference turns that discovery into a private prompt brief and conservative P-unit packet. An unclear bare prompt returns to clarification/planning before any work is sent to an external worker; it does not fall through to a smarter external worker and ask that worker to invent the scope.
 
@@ -121,7 +121,7 @@ Read `references/cross-model-execution.md` only after routing selects this engin
 - **Standalone interactive use:** print a copyable prompt block for the user to paste, then continue inline/subagents if the user does not paste it. Do not stall waiting for a paste.
 - **Return-to-caller use (e.g. under `lfg`):** do **not** emit a copyable prompt — a manual paste step strands the caller. Run inline/subagents instead, or return a blocker if the plan genuinely requires an unavailable engine.
 
-Whichever path, the goal/workflow must not open a PR, finalize the session, or skip the checks of whichever workflow runs the shipping tail.
+Whichever path, the goal/workflow must not open a PR, finalize the session, or skip the checks of whichever workflow runs the finishing steps.
 
 Copyable goal-mode prompt (standalone — emit verbatim, substituting only the literal plan path). **It must be plan-agnostic: it should read identically for any plan except the substituted path.** Deletion test before emitting — if your draft names a specific command, file path, U-ID dependency relationship, stop condition, or Definition-of-Done item, it copied from the plan; cut it (the goal reads those from the plan). For PR/shipping, don't hardcode an open-a-PR or do-not-open-a-PR directive; instead carry the precedence line below — the goal follows the plan's PR/landing strategy if it has one, with the repo's conventions and the user's preferences overriding it (both of which the executing agent already has).
 
@@ -147,15 +147,15 @@ Keep emitted prompts under 4,000 characters and always substitute the literal pl
 
 ## Step 4: Resume the correct tail
 
-After any engine finishes implementation, inspect the diff and continue at the tail that matches the caller. On its own, the engine does no more than implementation and local verification.
+After any engine finishes implementation, inspect the diff and continue with the finishing steps that belong to the caller. On its own, the engine does no more than implementation and local verification.
 
 | Mode | After implementation, `ce-work` ... |
 |---|---|
-| **Standalone** (user invoked `ce-work` directly, or `ce-plan` handed off interactively) | Resumes its normal post-implementation tail: the Phase 3-4 quality checks, simplification, review, commit, and handoff in `references/shipping-workflow.md`. A goal-mode run does not skip these; verify they ran or were explicitly skipped with reason. |
+| **Standalone** (user invoked `ce-work` directly, or `ce-plan` handed off interactively) | Resumes its normal Phase 3-4 finishing steps: quality checks, simplification, review, commit, and handoff in `references/shipping-workflow.md`. A goal-mode run does not skip these; verify they ran or were explicitly skipped with reason. |
 | **Return-to-caller** (`mode:return-to-caller`, e.g. under `lfg`) | Performs implementation and local verification only, then returns the structured summary in `references/return-to-caller.md` (`standalone_shipping_skipped: true`). Does not run simplify/review/PR/CI; the caller runs those. |
 
-Using goal-mode or a dynamic workflow is a way to get better sustained implementation focus, not a way to skip the finishing steps of whichever workflow runs the shipping tail.
+Using goal-mode or a dynamic workflow is a way to get better sustained implementation focus, not a way to skip the finishing steps of whichever workflow owns them.
 
 ## Progress visibility (independent of tail ownership)
 
-Who runs the shipping tail decides who opens the **final** PR; it does not forbid progress signals during a long run. For multi-hour goals, meaningful commits as units complete and an optional scratch progress artifact (outside the plan body) are encouraged so a long trajectory stays observable. Only final PR creation is gated: a standalone top-level goal may open a **draft** PR only when it was explicitly given that job; in return-to-caller mode `ce-work` must not open any PR, but may commit and return a progress report in its structured summary. Never write progress or status into the plan body; git, commits, and the returned summary carry it.
+Whoever runs the finishing steps opens the **final** PR; that does not forbid progress signals during a long run. For multi-hour goals, meaningful commits as units complete and an optional scratch progress artifact (outside the plan body) are encouraged so a long trajectory stays observable. Only final PR creation is gated: a standalone top-level goal may open a **draft** PR only when it was explicitly given that job; in return-to-caller mode `ce-work` must not open any PR, but may commit and return a progress report in its structured summary. Never write progress or status into the plan body; git, commits, and the returned summary carry it.

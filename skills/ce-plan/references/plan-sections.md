@@ -120,8 +120,8 @@ When an implementation-ready software plan is warranted, these sections are
 present. They carry the contracts downstream consumers depend on.
 
 - **Goal Capsule** — objective, means (only when an approach is fixed),
-  authority hierarchy, stop conditions, execution profile, and tail
-  ownership (who finishes and ships the work). This is the fastest way for an executor to avoid drifting from
+  authority hierarchy, stop conditions, execution profile, and who
+  finishes and ships the work. This is the fastest way for an executor to avoid drifting from
   the plan. A reader who has not read the rest of the plan must be able to
   hold the Objective as the goal. Remaining-true constraints live on their
   owning R-IDs (the R-IDs that state them), not as extra Objective clauses — user-checkable is not a
@@ -289,12 +289,12 @@ them apply.
   modification.
 
 - **Sources / Research** — include the research that orients the implementer
-  or justifies load-bearing choices. The test: *"if I were the implementer
+  or justifies the choices the plan rests on. The test: *"if I were the implementer
   reading this cold, would this breadcrumb help me make better choices?"*
   Yes → include (code locations like `services/convex/reports.ts:174-176`,
   external docs, RFCs, constraints, prior plans — the category is inclusive,
-  not enumerated). Process exhaust (reading the user's prompt, glancing at
-  obvious entry points, restating prose) → omit. Put it inline next to the
+  not enumerated). A record of the planning process itself (reading the
+  user's prompt, glancing at obvious entry points, restating prose) → omit. Put it inline next to the
   KTD or unit it justifies, or in a dedicated section — both shapes work.
   A constraint adopted from a Compound Pack file is cited inline as
   `(pack: <id>, <path within the pack>)` after the requirement, KTD, constraint,
@@ -368,7 +368,7 @@ owning entry: product behavior on its R-ID; an implementation choice on its
 KTD. Every other layer cites the owning ID and adds only what is local to
 it — a unit's Approach carries unit-local deltas (files, sequencing,
 patterns), never a re-derivation of the protocol its cited Rs and KTDs own.
-Linked projections are sanctioned (an AE restating behavior under
+Linked projections are allowed (an AE restating behavior under
 `Covers R…`, a Flow citing the Rs it sequences). **Unlinked sibling
 restatement** — the same rule written out again in a KTD, Scope bullet, or
 Approach with no ID link — is the defect: each copy drifts independently.
@@ -451,8 +451,8 @@ These apply regardless of rendering format.
 
 - **Stable IDs.** R-IDs (Requirements), U-IDs (Implementation Units),
   KTD-IDs (Key Technical Decisions, implementation-ready plans), A-IDs
-  (if Actors fire), F-IDs (if Flows fire), AE-IDs (if Acceptance Examples
-  fire). IDs are stable across plan revisions — never renumber to "clean
+  (if the plan has Actors), F-IDs (if it has Flows), AE-IDs (if it has
+  Acceptance Examples). IDs are stable across plan revisions — never renumber to "clean
   up gaps."
 - **Plain prefix.** `R1.`, `U1.`, `KTD1.` as bullet prefixes. Do not bold;
   the prefix is visually distinctive on its own.
@@ -463,7 +463,7 @@ These apply regardless of rendering format.
   in legacy plans stay as they are — readable by label, no mass renumbering.
 - **Repo-relative paths.** Always. Never absolute paths in plan content;
   they break portability across machines, worktrees, teammates.
-- **No process exhaust.** No "captured at Phase X" notes, no `## Next Steps`
+- **No record of the planning process.** No "captured at Phase X" notes, no `## Next Steps`
   pointing to the next skill, no italic provenance lines. Engineering process
   metadata belongs in commit messages and tool output, not the artifact.
 - **Session-settled annotations on KTDs.** A Key Technical Decision that
@@ -482,7 +482,7 @@ These apply regardless of rendering format.
   readable without the conversation — and lives inline on the entry: no
   sidecar files, no frontmatter registry, no numeric weights, no lifecycle
   field. Like a `(see origin: <path>)` citation, it is decision provenance,
-  not process exhaust — review passes must not strip it. A consumer that
+  not a record of the planning process — review passes must not strip it. A consumer that
   does not recognize the annotation treats the entry as a normal KTD.
 - **Group Requirements by concern when they span distinct logical areas.**
   The trigger is distinct concerns, not item count — even four requirements

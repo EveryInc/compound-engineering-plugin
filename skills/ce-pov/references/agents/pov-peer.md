@@ -8,7 +8,7 @@ document, and a preferred option or an honest "either is viable" tradeoff for
 an approach set.
 
 Run your own external check when the available web-only capability can verify a
-load-bearing claim. Use public subject-level terms only. Never place repository-derived
+required claim. Use public subject-level terms only. Never place repository-derived
 source fragments, private identifiers, file paths, credentials, or secrets in an
 external query. If external research is unavailable, continue from the supplied
 subject and shared working tree and set `external_check` to `unavailable`; do

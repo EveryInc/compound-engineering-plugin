@@ -376,7 +376,7 @@ describe("unified plan artifact contract", () => {
     expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> <plan-path-from-step-1>")
     expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> implementation_run:<safe-id> <plan-path-from-step-1>")
     expect(step2).toContain('implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}')
-    expect(step2).toContain("portable string envelope")
+    expect(step2).toContain("portable string any host can pass through")
     expect(step2).toContain("standing per-checkout configuration")
     expect(carrier).toContain("Do not construct a carrier from standing configuration")
     expect(lfgWorkReturn).toContain("same `implementation_engine:<compact-json>` carrier")
@@ -523,7 +523,7 @@ describe("unified plan artifact contract", () => {
     // Codex #972 P2: new ce-brainstorm -> ce-plan <unified-plan> enrichment
     // must still get the plan-time scoping-synthesis checkpoint.
     expect(planCorpus).toMatch(/whenever Phase 0\.2 resolved an upstream Product Contract source/i)
-    expect(planCorpus).toMatch(/enrichment flow is brainstorm-sourced and MUST fire this gate/i)
+    expect(planCorpus).toMatch(/enrichment flow is brainstorm-sourced and must run this check/i)
     expect(planCorpus).toMatch(/Skip Phase 0\.7 only in solo invocation|Skip Phase 5\.1\.5 only in solo invocation/i)
   })
 
