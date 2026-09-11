@@ -345,7 +345,7 @@ contracts — the agent picks shapes that fit the content.
   labels and values for Goal, Files, Dependencies), and secondary
   content (Approach, Test Scenarios, Verification, Patterns to Follow)
   inside `<details>` collapsibles, **default-closed**. At 3+ units the
-  default-closed rule is load-bearing — rendering all units fully
+  default-closed rule must hold — rendering all units fully
   expanded turns the doc into one continuous scroll where the reader
   can't see the unit list at a glance. The metadata strip is the
   primary always-visible surface; subsection labels (`<summary>`) are

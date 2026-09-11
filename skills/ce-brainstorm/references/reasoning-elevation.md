@@ -96,7 +96,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"
    ```
 
-4. **Read the result** — the worker writes a result envelope, a JSON object of the shape `{status, requested_model, served_model, receipt, output}`:
+4. **Read the result** — the worker writes a JSON object of the shape `{status, requested_model, served_model, receipt, output}`:
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
@@ -108,12 +108,12 @@ The worker streams `--output-format stream-json --verbose`, so progress events r
 
 ## Recovery (R13, R14, R21)
 
-Classify from **both** the runner's terminal state and the worker's result envelope. The worker exits 0 (runner state `done`) even when it self-reaped a stalled model and wrote `status: failed`, so the runner state alone is not enough:
+Classify from **both** the runner's terminal state and the worker's JSON result. The worker exits 0 (runner state `done`) even when it self-reaped a stalled model and wrote `status: failed`, so the runner state alone is not enough:
 
-- **Dispatch-infrastructure failure** — `never-started`, `unreadable`, or a byte-cap/supervisor kill of a job that had **not** yet produced an envelope. The route was not meaningfully exercised → make **one bounded recovery attempt** with the route and model **frozen**.
-- **Route-level failure** — the runner is `done`/`timeout` but the envelope is `status: failed` (the worker ran and its model stalled, errored, or returned nothing), or there is no envelope after a `timeout`. The route ran and produced nothing usable → **no retry**; degrade to the session model.
+- **Dispatch-infrastructure failure** — `never-started`, `unreadable`, or a byte-cap/supervisor kill of a job that had **not** yet produced that JSON object. The route was not meaningfully exercised → make **one bounded recovery attempt** with the route and model **frozen**.
+- **Route-level failure** — the runner is `done`/`timeout` but the JSON result is `status: failed` (the worker ran and its model stalled, errored, or returned nothing), or there is no JSON result after a `timeout`. The route ran and produced nothing usable → **no retry**; degrade to the session model.
 
-A successful run has envelope `status: ok`. Treat any envelope whose `receipt` is `mismatch` as if it were a failure even when `status` is `ok`: **discard the output and degrade to the session model** — a served model that does not match the requested family must never be passed off as the requested one. (On the native route a mismatch instead falls through to the next adapter, per R6; on the CLI route inline is the only thing left, so discard-and-degrade is the fall-through.)
+A successful run has JSON `status: ok`. Treat any result whose `receipt` is `mismatch` as if it were a failure even when `status` is `ok`: **discard the output and degrade to the session model** — a served model that does not match the requested family must never be passed off as the requested one. (On the native route a mismatch instead falls through to the next adapter, per R6; on the CLI route inline is the only thing left, so discard-and-degrade is the fall-through.)
 
 Recovery **never substitutes a different model** — a plan the user believes came from their chosen model must not silently come from another. If recovery also fails, run inline on the session model.
 

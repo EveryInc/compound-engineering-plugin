@@ -116,7 +116,7 @@ How section types commonly render in markdown. These are patterns, not
 contracts — the agent picks the shape that fits the content.
 
 - **Goal Capsule** — bullets or a small table for objective, means (only
-  when an approach is fixed), authority, execution profile, stop conditions, and tail ownership.
+  when an approach is fixed), authority, execution profile, stop conditions, and who finishes the remaining work.
 - **Product Contract** — H2 section containing Summary, Problem Frame,
   Requirements, and product-scope subsections. Put Requirements under
   `### Requirements` so review tools can distinguish Product Requirements
