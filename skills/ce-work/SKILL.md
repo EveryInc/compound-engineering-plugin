@@ -9,8 +9,8 @@ argument-hint: "[Plan path, work description, or recovery request with run id; b
 ## Outcome
 
 - **Result:** A fully implemented, locally verified change set from a plan, specification, or concrete work prompt.
-- **Next consumer:** In standalone use, the shipping workflow takes the verified change through review and delivery. In Return-to-Caller Mode, the invoking workflow receives the structured implementation and verification envelope and owns its remaining gates.
-- **Done:** Every in-scope task is complete, required verification evidence is recorded, relevant checks pass, and the run reaches either its owned shipping handoff (with a code-review receipt or explicit skip phrase — see Phase 3-4), a complete return envelope, or an explicit blocker.
+- **Next consumer:** In standalone use, the shipping workflow takes the verified change through review and delivery. In Return-to-Caller Mode, the invoking workflow receives the structured implementation and verification result and owns its remaining gates.
+- **Done:** Every in-scope task is complete, required verification evidence is recorded, relevant checks pass, and the run reaches either its owned shipping handoff (with a code-review receipt or explicit skip phrase — see Phase 3-4), a complete return result, or an explicit blocker.
 - **Intent:** Finish the requested feature without renegotiating the plan or transferring canonical integration authority. Workers receive bounded units; the host orchestrator inspects actual changes and owns authoritative verification and canonical commits.
 
 ## Execution Workflow
@@ -57,6 +57,6 @@ After the tasks and local verification are complete, standalone mode reads `refe
 
 Return-to-Caller Mode performs implementation and local verification only. It must not enter Phase 3-4 or run final simplification, code review, PR creation, CI watching, babysitting, or any other standalone shipping action; the caller owns those steps.
 
-Immediately before emitting the result, read `references/return-to-caller.md` again. It alone defines the full return envelope, the check that evidence is complete, the route and model records, recovery semantics, and `standalone_shipping_skipped: true`. Do not build a complete envelope from this file.
+Immediately before emitting the result, read `references/return-to-caller.md` again. It alone defines the full return result, the check that evidence is complete, the route and model records, recovery semantics, and `standalone_shipping_skipped: true`. Do not build a complete result from this file.
 
 If that required read fails after planning or implementation created state, preserve every changed file, commit, workspace, and controller record. Return the minimum blocked result from this file: `status: blocked`, `plan_path`, `run_id` when known, `changed_state`, `blockers` naming the missing reference, and `recovery_path`. Do not erase partial state, report success, or fall into the standalone shipping path.

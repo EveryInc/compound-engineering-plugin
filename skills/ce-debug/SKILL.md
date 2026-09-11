@@ -25,7 +25,7 @@ Wherever this skill asks the user something, use the host's blocking question to
 
 ## Secrets in evidence
 
-Debugging surfaces raw output constantly — command results, captured payloads, log excerpts — and the harness may render a command's output the moment it runs, so the gate fires when you construct the command, not afterward. Keep credentials in env vars rather than on the command line; when a command's output may carry a secret (verbose HTTP traces, dumped headers, config or environment prints), capture it to a file and surface only sanitized excerpts, writing `<REDACTED>` in place of each secret. No secret (credential, token, auth header, connection string) appears in anything shown, written, or committed. If sanitizing removes what the diagnosis needs, say so and ask the user rather than un-redacting.
+Debugging surfaces raw output constantly — command results, captured payloads, log excerpts — and the harness may render a command's output the moment it runs, so check secrets when you construct the command, not afterward. Keep credentials in env vars rather than on the command line; when a command's output may carry a secret (verbose HTTP traces, dumped headers, config or environment prints), capture it to a file and surface only sanitized excerpts, writing `<REDACTED>` in place of each secret. No secret (credential, token, auth header, connection string) appears in anything shown, written, or committed. If sanitizing removes what the diagnosis needs, say so and ask the user rather than un-redacting.
 
 ## Artifact Root
 
@@ -94,7 +94,7 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 
 **If Phase 3 was skipped**, stop after the summary — the user already said they were taking it from here. Do not prompt.
 
-**If Phase 3 ran, read `references/post-fix-handoff.md` now and follow it before routing below.** It defines the quality steps after a fix: the contextual-override checks, the skip rule for mechanical fixes, the scoping that keeps `ce-simplify-code` and `ce-code-review` off unrelated branch work, what to do with leftover findings, the `## Post-Fix Quality` block, and the criteria for offering to capture a learning. None of that appears in this body. The routing below names *which* action fires, never the scope rules that make it safe, so it cannot be improvised from. Skipping the read ships an unreviewed fix, lets review reach into unrelated branch work, and strands accepted findings in the session.
+**If Phase 3 ran, read `references/post-fix-handoff.md` now and follow it before routing below.** It defines the quality steps after a fix: the contextual-override checks, the skip rule for mechanical fixes, the scoping that keeps `ce-simplify-code` and `ce-code-review` off unrelated branch work, what to do with leftover findings, the `## Post-Fix Quality` block, and the criteria for offering to capture a learning. None of that appears in this body. The routing below names *which* action runs, never the scope rules that make it safe, so it cannot be improvised from. Skipping the read ships an unreviewed fix, lets review reach into unrelated branch work, and strands accepted findings in the session.
 
 #### Routing
 
