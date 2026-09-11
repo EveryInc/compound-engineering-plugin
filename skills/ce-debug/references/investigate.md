@@ -1,6 +1,6 @@
 # Investigate: triage, reproduce, trace, root cause
 
-Read this at the start of Phase 0 and follow it. It carries the procedure for Phases 0-2. SKILL.md keeps the checks those phases must not cross: the issue-of-record rule, the regression-test choice, the causal-chain gate (SKILL.md's rule that you do not proceed to Phase 3 until the causal chain has no gaps), and the requirement that findings appear on screen in the same turn they are found. This file assumes them.
+Read this at the start of Phase 0 and follow it. It carries the procedure for Phases 0-2. SKILL.md keeps the checks those phases must not cross: the issue-of-record rule, the regression-test choice, the causal-chain gate (SKILL.md's rule that you do not proceed to Phase 3 until the causal chain has no gaps), and the same-turn findings check (do not open the fix-choice question until the findings block has been written in full, in this turn or the immediately preceding assistant message). This file assumes them.
 
 ### Phase 0: Triage
 

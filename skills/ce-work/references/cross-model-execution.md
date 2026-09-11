@@ -2,11 +2,11 @@
 
 Read this reference only after the cross-model engine is selected, or after you are recovering an existing external run. It defines how the host picks one fixed route, what authority the external worker gets, when native fallback is allowed, how requested and actual identity are kept apart, what the run record must contain, and how one unit moves through the controller one transaction at a time. The host drives the bundled controller, detached runner, and adapter; no worker response or process exit can substitute for controller and Git evidence.
 
-Sending repository content, or the authority to change it, out of the host to an external process is the only thing this file means by leaving the host. A recorded fact the controller wrote is not something the worker or the host inferred.
+When this file records that the run leaves the host, that record is the egress: sending repository content, or the authority to change it, to an external process. When this file records a receipt, that is a fact the controller wrote, not something the worker or the host inferred.
 
 ## Resolve one requested route
 
-Use only these targets: `codex`, `claude`, `grok`, `cursor`, `composer`, and `opencode`. Keep five identity facts separate in every disclosure and recorded identity fact: target, harness/intermediary route, requested model, actual model, and receipt status.
+Use only these targets: `codex`, `claude`, `grok`, `cursor`, `composer`, and `opencode`. Keep five identity facts separate in every disclosure and receipt: target, harness/intermediary route, requested model, actual model, and receipt status.
 
 **Fixed controller route tokens:** record exactly `codex`, `claude`, `grok-cli`, `cursor`, `composer`, `grok-cursor`, or `opencode` in the egress record the controller stores. `grok-cli` maps target `grok` to its native harness; `grok-cursor` maps target `grok` through intermediary `cursor`. These controller tokens are exact values, not descriptive labels.
 
