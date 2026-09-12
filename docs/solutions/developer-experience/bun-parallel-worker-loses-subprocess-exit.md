@@ -29,7 +29,7 @@ From 2026-09-09 the CI `test` job (`bun run test`, which was `bun test --paralle
 
 ## Symptoms
 
-- In the failing file, every test after the first hung one also hangs, each for exactly the timeout. Tests before it pass at normal speed (300-600ms).
+- Hung tests fail at exactly the per-test timeout. Tests before the first hang pass at normal speed (300-600ms). Later tests in the same file often still pass: the lost child-exit is per spawn, not a permanently dead worker (PR 1680 CI: `ce-work-unit-workspace-fallback.test.ts` passed two tests between 30s timeouts; `ce-code-review-cross-model-routes.test.ts` timed out once and then passed the next test in 209ms).
 - The hung call is the harness `spawnSync` of `python3 skills/ce-work/scripts/unit-workspace.py`. It returns `status: null` with empty `stdout` and `stderr`. Later in the same file a bare `git add` from the harness fails the same way, so the hang is not in the controller script.
 - bun prints `killed 1 dangling process` when the first timeout fires: it killed the child it had stopped waiting for.
 - Occasionally a second file in the same run also times out (`tests/ce-babysit-pr-snapshot.test.ts` "watch: takeover interrupts and reaps an active fetch subprocess" at 5s).
@@ -44,7 +44,7 @@ From 2026-09-09 the CI `test` job (`bun run test`, which was `bun test --paralle
 
 ## Solution
 
-`bun run test` now runs `scripts/run-tests.ts`: the same `bun test --parallel` pass with a junit report, and only if every failed file shows the wedge shape, one serial re-run of those files in a fresh bun process. The wedge shape is `<failure type="TimeoutError" />` on every test from the file's first failure to its end: a worker that lost a subprocess event cannot complete any later spawn, so nothing after the first hang can pass. A wedge is process-local, so the re-run passes and the job is green. A test that passed after a timeout, or any assertion failure or error in the report, keeps the first result with no re-run, so a race or cross-file state dependency that fails only under parallel load still fails CI. bun 1.2 reported timeouts as `AssertionError`, so on that release the re-run never fires, which is the behavior before this change. The log says which files were re-run and, when they pass, that the first-pass failures were process-local.
+`bun run test` now runs `scripts/run-tests.ts`: the same `bun test --parallel` pass with a junit report, and only if every first-pass failure is a `TimeoutError`, one serial re-run of those files in a fresh bun process. Requiring a dead tail (every test from the first failure to the end timed out) never matched CI: PR 1680's red `test` job had passing tests after the first timeout in each affected file, so that check skipped the re-run and left the job red. TimeoutError-only is the shape the bun defect actually produces. A TimeoutError is process-local, so the re-run passes and the job is green. Any assertion failure or error in the report keeps the first result with no re-run, so a race or cross-file state dependency that fails only under parallel load still fails CI. bun 1.2 reported timeouts as `AssertionError`, so on that release the re-run never fires, which is the behavior before this change. The log says which files were re-run and, when they pass, that the first-pass failures were process-local.
 
 The junit parser (`junitCases`, `rerunCandidates`) lives in the same script, covered by `tests/run-tests-script.test.ts`. It reads the file from each `<testcase>` and falls back to the enclosing suite name, because older bun releases put the path only on the case.
 
@@ -56,7 +56,7 @@ Two consequences shape the fix. The wedge lives in the worker's event loop state
 
 ## Prevention
 
-- When a subprocess-heavy file shows consecutive failures at exactly the timeout with empty child output, read it as a wedged worker, not as a slow child. The tell is that the tests after the first hung one also hang.
+- When a subprocess-heavy file shows one or more failures at exactly the timeout with empty child output, read it as a lost child-exit notification, not as a slow child. Later tests in the same file may still pass.
 - Do not raise timeouts or add `retry` for this signature; both re-run inside the same wedged worker.
 - Keep the re-run inside the package `test` script so CI and local runs stay the same command, as `AGENTS.md` already requires for `--parallel`.
 - Check the bun issue before touching this: when it is fixed and CI runs a bun with the fix, the re-run pass becomes dead weight and can be removed.

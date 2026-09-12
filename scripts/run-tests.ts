@@ -2,14 +2,12 @@
 // files that failed, in a fresh bun process.
 //
 // Why: bun has an open defect where a test worker loses a child process's exit
-// or pipe notification (oven-sh/bun#34069, #41024). Once a worker is wedged,
-// every later spawnSync in it hangs until the per-test timeout, so one lost
-// event turns the rest of that file red at exactly the timeout. The wedge is
-// process-local: the same file passes in a fresh process. The re-run happens
-// only when every failed file shows the wedge shape, timeouts from its first
-// failure to its end; any other failure, or a test that passed after a
-// timeout, keeps the first result, so a defect that only shows under parallel
-// load is not retried away.
+// or pipe notification (oven-sh/bun#34069, #41024). The lost event is per
+// spawn, not a dead worker: later tests in the same file can still pass. The
+// first-pass tell is TimeoutError-only failures, often mixed with passes, at
+// exactly the per-test timeout. The same files pass in a fresh process. Any
+// assertion failure or error anywhere keeps the first result with no re-run,
+// so a defect that only shows under parallel load is not retried away.
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -45,19 +43,35 @@ export function junitCases(xml: string): JunitCase[] {
 }
 
 /**
- * Files that show the wedged-worker shape and nothing else: from the first
- * failure in the file onward, every test timed out. A worker that lost a
- * subprocess event cannot complete any later spawn, so the file's tail is
- * all timeouts. A file with a passing test after a timeout, or any failure
- * that is not a timeout, is failing for a reason the tests reproduce, so
- * nothing is re-run and the first result stands.
+ * Files to re-run after a first pass whose failures are all TimeoutError.
+ * A later passing test does not disqualify the file: the bun defect drops
+ * individual child-exit notifications, so the same worker can pass the next
+ * spawn. A non-timeout failure anywhere, including in another file, means
+ * the first result stands and nothing is re-run.
  */
 export function rerunCandidates(cases: JunitCase[]): string[] {
   const byFile = new Map<string, JunitCase[]>()
   for (const c of cases) byFile.set(c.file, [...(byFile.get(c.file) ?? []), c])
   const failed = [...byFile].filter(([, cs]) => cs.some((c) => c.failure))
-  const wedged = failed.every(([, cs]) => cs.slice(cs.findIndex((c) => c.failure)).every((c) => c.failure === "TimeoutError"))
-  return failed.length > 0 && wedged ? failed.map(([file]) => file).sort() : []
+  const timeoutOnly = failed.every(([, cs]) => cs.filter((c) => c.failure).every((c) => c.failure === "TimeoutError"))
+  return failed.length > 0 && timeoutOnly ? failed.map(([file]) => file).sort() : []
+}
+
+/** Caller argv minus test-file paths and reporter/parallel flags this wrapper owns. */
+export function passthroughArgs(argv: string[]): string[] {
+  const skipValue = new Set(["--reporter", "--reporter-outfile"])
+  const out: string[] = []
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]
+    if (arg === "--parallel" || arg.startsWith("--reporter-outfile=") || arg === "--reporter=junit") continue
+    if (skipValue.has(arg)) {
+      if (argv[i + 1] && !argv[i + 1].startsWith("-")) i++
+      continue
+    }
+    if (TEST_FILE.test(arg)) continue
+    out.push(arg)
+  }
+  return out
 }
 
 function run(args: string[]): number {
@@ -77,15 +91,15 @@ function main(argv: string[]): number {
     if (failed.length === 0) return first
 
     console.error(
-      `\nEvery failed file timed out from its first failure to its end, the wedged-worker shape.` +
+      `\nEvery first-pass failure was a TimeoutError, the bun lost-child-exit shape.` +
         ` Re-running ${failed.length} file(s) serially in a fresh process (oven-sh/bun#34069):` +
         `\n  ${failed.join("\n  ")}\n`,
     )
-    const second = run(failed)
+    const second = run([...passthroughArgs(argv), ...failed])
     if (second === 0) {
       console.error(
         "\nEvery re-run file passed in a fresh process, so the first-pass failures were" +
-          " process-local (a wedged worker), not a defect the tests reproduce.",
+          " process-local (a lost child-exit notification), not a defect the tests reproduce.",
       )
     }
     return second
