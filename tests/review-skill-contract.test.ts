@@ -621,15 +621,18 @@ describe("ce-code-review contract", () => {
     expect(skill).toMatch(/Emit the report leaf's return verbatim/)
     expect(skill).toMatch(/never merge or render in the dispatch context/)
     // The peer's reap moves with the fold-in; dispatch stops touching the peer once the file is written.
-    expect(dispatch).toMatch(/do not touch the peer again/)
-    expect(dispatch).toMatch(/the merge leaf performs the reference's single bounded status\/wait\/reap sequence/)
+    expect(dispatch).toMatch(/record the result as `peer\.outcome`, `peer\.artifact`, and `peer\.coverage` in `finish-input\.json`/)
+    // #1692 review round 3: every peer recovery branch needs a launch or a disclosure, so the peer is
+    // terminal and classified in the dispatch context before any leaf starts.
+    expect(dispatch).toMatch(/perform the reference's single bounded status\/wait\/reap sequence here, in the dispatch context/)
+    expect(dispatch).toMatch(/The merge leaf folds the recorded artifact and decides nothing about the peer/)
     // The finish reference reads the file first and resolves its earlier-stage references from it.
     expect(finish).toMatch(/^This reference runs across three contexts/m)
     expect(finish).toMatch(/A leaf launches no subagents/)
     expect(finish).toMatch(/Each leaf reads `<run-dir>\/finish-input\.json` first/)
     expect(finish).toMatch(/- `finish-input\.json`/)
     // The contract file names every field the finish context may need and the failure direction.
-    for (const field of ["run_id", "skill_dir", "docs_root", "apply_local", "raw-returns.json", "failed_reviewers", "job_id", "deadline_secs", "coverage_notes"]) {
+    for (const field of ["run_id", "skill_dir", "docs_root", "apply_local", "raw-returns.json", "failed_reviewers", "preference_source", "coverage_notes"]) {
       expect(handoff).toContain(field)
     }
     expect(handoff).toMatch(/emit the report leaf's return verbatim/i)
@@ -637,7 +640,9 @@ describe("ce-code-review contract", () => {
     expect(handoff).toMatch(/validator stays a parent launch on every host/)
     for (const f of ["synthesized-findings.json", "validator-input.json", "validator-verdicts.json"]) expect(handoff).toContain(f)
     // #1692 review: a recipient change needs the visible dispatch channel; the finish context never starts a peer route.
-    expect(handoff).toMatch(/never resolves, announces, or starts a peer route/)
+    expect(handoff).toMatch(/This leaf never reads job state, waits on a peer, or starts a route/)
+    for (const f of ["peer.outcome", "peer.artifact", "peer.coverage"]) expect(handoff).toContain(f)
+    expect(handoff).not.toContain("job_id")
     expect(handoff).toMatch(/Put the full contents of `finish-input\.json` inline in the leaf's prompt/)
     expect(handoff).toContain("preference_source")
     // Cursor security review on #1692: PR metadata inlined into a leaf must never read as apply authority.

@@ -1,6 +1,6 @@
 # Finish handoff: the run directory carries the round from dispatch to report
 
-A review round finishes outside the context that dispatched it. The **dispatch context** is the orchestrator that resolved scope, selected reviewers, started the peer, dispatched the local batch, and collected it (Stages 1 through 4). It stays the only context that launches subagents. After Stage 4 it writes `<run-dir>/finish-input.json` and dispatches, in sequence, two leaf subagents that launch nothing themselves:
+A review round finishes outside the context that dispatched it. The **dispatch context** is the orchestrator that resolved scope, selected reviewers, started the peer, dispatched the local batch, and collected it (Stages 1 through 4). It stays the only context that launches subagents, and the only one that decides anything about the cross-model peer. After Stage 4 it writes `<run-dir>/finish-input.json` and dispatches, in sequence, two leaf subagents that launch nothing themselves:
 
 1. the **merge leaf** runs Stage 5 and Stage 5b steps 1 through 3 from the run directory and writes `synthesized-findings.json` and `validator-input.json`;
 2. the dispatch context launches the validator batch from `validator-input.json` and collects `validator-verdicts.json` (Stage 5b step 4);
@@ -12,7 +12,7 @@ The split exists because a six-lens round routinely uses up the dispatch context
 
 ## The contract: `<run-dir>/finish-input.json`
 
-The dispatch context writes this file after every local reviewer is collected and before it launches the merge leaf. It is the only channel from dispatch to the leaves. A fact a leaf needs that is not in this file or in another run-dir artifact does not exist to it, so write every field below; write `null` for a field that does not apply rather than omitting it.
+The dispatch context writes this file after every local reviewer is collected, after the cross-model peer has reached its fold-in outcome, and before it launches the merge leaf. It is the only channel from dispatch to the leaves. A fact a leaf needs that is not in this file or in another run-dir artifact does not exist to it, so write every field below; write `null` for a field that does not apply rather than omitting it.
 
 ```json
 {
@@ -48,10 +48,11 @@ The dispatch context writes this file after every local reviewer is collected an
     "fast_pass": { "emitted_preliminary": false, "candidates": [] }
   },
   "peer": {
-    "selected": false, "job_id": null, "target": null, "route": null,
-    "start_epoch": null, "deadline_secs": null,
+    "selected": false, "target": null, "route": null,
     "preference_source": "user | config | instructions | default | null",
-    "skip_reason": null
+    "outcome": "folded | in-process-fallback | not-run | no-usable-output | failed | null",
+    "artifact": "<run-dir>/adversarial-<provider>.json or null",
+    "coverage": "<the Coverage sentence the fold-in rules require for this outcome, or null>"
   },
   "coverage_notes": []
 }
@@ -71,9 +72,9 @@ Where `finish-review.md` routes prose through another skill (`ce-noslop`) and a 
 
 Read `finish-input.json`, then `references/finish-review.md` from `skill_dir`, and run Stage 5 and Stage 5b steps 1 through 3. Wherever the reference refers to an earlier stage's result, the intent summary, the roster, the plan, the scope, or conversation context, that value is the matching field of the file, and `<root>` is `docs_root`.
 
-When `peer.job_id` is set, the single-reap finish belongs to this leaf: perform the status read and bounded `wait` slices `references/cross-model-review.md` defines against `peer.start_epoch` and `peer.deadline_secs`, fold the artifact into Stage 5 as reviewer `adversarial-<provider>`, and delete the job directory before returning. This leaf never resolves, announces, or starts a peer route. Changing the recipient needs the user-visible channel and the preference provenance that only the dispatch context has, so when the fold-in rules would call for a replacement recipient after a no-review outcome, record in `coverage_notes` (appended in `synthesized-findings.json`) that the in-process adversarial lens is required and that a replacement recipient was not tried because this context cannot disclose one. `peer.preference_source` lets that line say whether the recipient was the user's explicit choice. The dispatch context reads that note from the receipt and dispatches the in-process `adversarial-reviewer` itself before the validator, appending its return to `raw-returns.json` and re-running the merge leaf.
+Every decision about the cross-model peer is already made. The dispatch context performed the single-reap finish and the fold-in classification `references/cross-model-review.md` defines (including any replacement recipient, same-route recovery, or in-process `adversarial-reviewer` dispatch, all of which need a launch or a disclosure only it can make), deleted the job directory, and recorded the result in `peer.outcome`, `peer.artifact`, and `peer.coverage`. When `peer.artifact` is set, fold that file into Stage 5 as reviewer `adversarial-<provider>` under the reference's promotion rule; an in-process fallback's return is already in `raw-returns.json`. Copy `peer.coverage` into Coverage verbatim. This leaf never reads job state, waits on a peer, or starts a route.
 
-Write, in the run directory: `synthesized-findings.json` (the final primary, pre-existing, and soft-bucket sets after Stage 5 steps 1 through 7, the triage groups, the hydrated detail, the fold-in outcome and every Coverage sentence Stage 5 produced) and `validator-input.json` (the Stage 5b step 3 batch: the selected findings in order, the skip count and its evidence basis, and the scope context the validator template needs). Return only a receipt: the two paths, the counts of primary and selected findings, and any dispatch-context action the notes call for. Return nothing else; the dispatch context does not read findings.
+Write, in the run directory: `synthesized-findings.json` (the final primary, pre-existing, and soft-bucket sets after Stage 5 steps 1 through 7, the triage groups, the hydrated detail, the fold-in outcome and every Coverage sentence Stage 5 produced) and `validator-input.json` (the Stage 5b step 3 batch: the selected findings in order, the skip count and its evidence basis, and the scope context the validator template needs). Return only a receipt: the two paths and the counts of primary and selected findings. Return nothing else; the dispatch context does not read findings.
 
 ## The validator (dispatch context)
 
@@ -85,4 +86,4 @@ Read `finish-input.json`, `synthesized-findings.json`, `validator-verdicts.json`
 
 ## What the dispatch context does with the returns
 
-Emit the report leaf's return verbatim as this skill's final response. Do not summarize, reformat, or add to it; in `mode:agent` the response must begin with the JSON object. A leaf that fails to launch, returns a tool error, or returns something other than its contract (the merge receipt, or the report) is a failed finish: in `mode:agent` emit `{"status":"failed","reason":"<one sentence>"}`; otherwise say the round could not finish, name the run directory so a re-run can finish from it, and reap any peer job the merge leaf did not.
+Emit the report leaf's return verbatim as this skill's final response. Do not summarize, reformat, or add to it; in `mode:agent` the response must begin with the JSON object. A leaf that fails to launch, returns a tool error, or returns something other than its contract (the merge receipt, or the report) is a failed finish: in `mode:agent` emit `{"status":"failed","reason":"<one sentence>"}`; otherwise say the round could not finish, name the run directory so a re-run can finish from it, and no peer job is outstanding, because the dispatch context reaped it before launching the leaves.
