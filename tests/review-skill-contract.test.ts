@@ -635,7 +635,14 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Eight findings is the normal cap/i)
     expect(content).toMatch(/expand that same batch.*include every surviving P0\/P1/i)
     expect(content).toMatch(/never split the work into another batch/i)
-    expect(content).toMatch(/Run the validator batch foreground/i)
+    // #1679: a foreground-only collector has no end on hosts whose blocking call
+    // cannot be bounded, so the contract is a bounded wait on the verdicts file.
+    expect(content).not.toMatch(/Run the validator batch foreground/i)
+    expect(content).toMatch(/wait that has an end/i)
+    expect(content).toMatch(/validator-verdicts\.json/)
+    expect(content).toMatch(/no bounded wait exists.*do not launch the validator/i)
+    expect(content).toMatch(/bound passes.*validator infrastructure failure/i)
+    expect(content).toMatch(/uninspected.*validator infrastructure failure for that finding/i)
     expect(content).toMatch(/Cost, elapsed time, confidence.*never licenses an additional skip/i)
 
     // Foreground is a request, not proof that the host returned a verdict in-band.
@@ -659,6 +666,13 @@ describe("ce-code-review contract", () => {
     expect(validatorTemplate).toMatch(/surrounding code handles it/i)
     expect(validatorTemplate).toMatch(/one verdict for every input # exactly once/i)
     expect(validatorTemplate).toMatch(/Do not invent new findings/i)
+    // #1679: the validator states its own budget and writes verdicts to disk.
+    expect(validatorTemplate).toMatch(/\d+ minutes of wall clock/i)
+    expect(validatorTemplate).toMatch(/tool calls per finding/i)
+    expect(validatorTemplate).toMatch(/validator-verdicts\.json.*before you return/i)
+    expect(validatorTemplate).toContain('"validated": true | false | "uninspected"')
+    // The read-only rule must carve out the one write the bounded wait depends on.
+    expect(validatorTemplate).toMatch(/one permitted write/i)
   })
 
   test("Stage 5c requires explicit local-apply authority and mode:agent is always report-only", async () => {
