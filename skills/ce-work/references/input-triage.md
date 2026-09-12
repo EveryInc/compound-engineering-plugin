@@ -36,7 +36,7 @@ When a valid `implementation_engine:` binding is present without recovery, **pre
 
 Determine how to proceed based on what was provided in `<input_document>` after any mode token is stripped.
 
-**Plan document** (input is a file path to an existing plan or specification): resolve the canonical document before classification. Follow an explicit supersession notice to its canonical path. Then inspect its contents, using a section map for long documents. Metadata describes the artifact; an old readiness label is not execution authority.
+**Plan document** (input is a file path to an existing plan or specification): resolve the canonical document before classification. Follow an explicit supersession notice to its canonical path only when the linked document's contents establish that it represents the same requested work; otherwise stop for clarification. Then inspect its contents, using a section map for long documents. Metadata describes the artifact; an old readiness label is not execution authority.
 
 - A non-code deliverable, including `execution: knowledge-work`, follows `references/non-code-execution.md` instead of the code workflow.
 - A Product Contract without enough implementation direction needs `ce-plan` enrichment. An approach-only or answer-seeking document is not an implementation plan.

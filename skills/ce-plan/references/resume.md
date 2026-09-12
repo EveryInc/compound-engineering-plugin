@@ -7,7 +7,7 @@ Phase 0.1 and 0.1a of `ce-plan`. Read this when the run may target an existing p
 This resume check needs `<root>/plans/`, so it only applies to a repo-backed run. If there is no git repository, or resolving `<root>` fails (a bad `docs_root`), do **not** fail the run here — skip resume discovery and continue to Phase 0.1a/0.1b, which route non-software and answer-seeking work that never touches `<root>/plans/`. When a plan path was given explicitly, use it directly without resolving `<root>`.
 
 If the user references an existing plan file or there is an obvious recent matching plan in `<root>/plans/`:
-- Read it and follow any explicit supersession notice to the canonical path; if discovery finds same-basename format siblings without a clear canonical path, ask which to use
+- Read it. Follow an explicit supersession notice to its canonical path only when the linked document's contents establish that it represents the same requested work; otherwise stop for clarification. If discovery finds same-basename format siblings without a clear canonical path, ask which to use
 - Confirm whether to update it in place or create a new plan
 - If updating, revise only the still-relevant sections. Plans do not carry per-unit progress state — progress is derived from git by `ce-work`, so there is no progress to preserve across edits
 
