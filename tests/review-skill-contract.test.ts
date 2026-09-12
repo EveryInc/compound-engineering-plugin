@@ -638,7 +638,9 @@ describe("ce-code-review contract", () => {
     expect(handoff).toMatch(/emit the report leaf's return verbatim/i)
     expect(handoff).toMatch(/No leaf launches a subagent/)
     expect(handoff).toMatch(/validator stays a parent launch on every host/)
-    for (const f of ["synthesized-findings.json", "validator-input.json", "validator-verdicts.json"]) expect(handoff).toContain(f)
+    for (const f of ["synthesized-findings.json", "validator-input.json", "validator-verdicts.json", "validator-outcome.json"]) expect(handoff).toContain(f)
+    // #1692 review round 4: a validator that never produced verdicts still needs a record the report leaf can classify from.
+    expect(handoff).toMatch(/a missing record is a failed finish, never a silent pass/)
     // #1692 review: a recipient change needs the visible dispatch channel; the finish context never starts a peer route.
     expect(handoff).toMatch(/This leaf never reads job state, waits on a peer, or starts a route/)
     for (const f of ["peer.outcome", "peer.artifact", "peer.coverage"]) expect(handoff).toContain(f)

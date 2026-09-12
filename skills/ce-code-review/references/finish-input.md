@@ -3,7 +3,7 @@
 A review round finishes outside the context that dispatched it. The **dispatch context** is the orchestrator that resolved scope, selected reviewers, started the peer, dispatched the local batch, and collected it (Stages 1 through 4). It stays the only context that launches subagents, and the only one that decides anything about the cross-model peer. After Stage 4 it writes `<run-dir>/finish-input.json` and dispatches, in sequence, two leaf subagents that launch nothing themselves:
 
 1. the **merge leaf** runs Stage 5 and Stage 5b steps 1 through 3 from the run directory and writes `synthesized-findings.json` and `validator-input.json`;
-2. the dispatch context launches the validator batch from `validator-input.json` and collects `validator-verdicts.json` (Stage 5b step 4);
+2. the dispatch context launches the validator batch from `validator-input.json`, collects `validator-verdicts.json`, and records the terminal result in `validator-outcome.json` (Stage 5b step 4);
 3. the **report leaf** runs Stage 5b step 5, Stage 5c when authorized, and Stage 6 from those files, writes the final artifacts, and returns the report.
 
 The split exists because a six-lens round routinely uses up the dispatch context before Stage 5b, which is when subagent launches start failing (#1679, #1690). It is always on for the multi-agent path; the quick-review short-circuit never reaches it. No leaf launches a subagent: nested dispatch is unavailable on Gemini CLI, blocked one level down on Cursor, and configurable off on Claude Code and Codex, so the validator stays a parent launch on every host.
@@ -78,11 +78,11 @@ Write, in the run directory: `synthesized-findings.json` (the final primary, pre
 
 ## The validator (dispatch context)
 
-Run Stage 5b step 4 exactly as `finish-review.md` states it, building the batch prompt from `validator-input.json` with `references/validator-batch-template.md`. The verdicts land in `<run-dir>/validator-verdicts.json`. When the batch has zero findings, write an empty verdicts file and skip the launch.
+Run Stage 5b step 4 exactly as `finish-review.md` states it, building the batch prompt from `validator-input.json` with `references/validator-batch-template.md`. The verdicts land in `<run-dir>/validator-verdicts.json`. Whatever happens, write `<run-dir>/validator-outcome.json` before launching the report leaf: `{"outcome": "verdicts | infrastructure-failure | empty-batch", "reason": "<one sentence, or null>", "verdicts": "<run-dir>/validator-verdicts.json or null"}`. `verdicts` means a valid verdicts file landed inside the bound; `infrastructure-failure` covers a launch that could not happen, the bound passing with no file, a terminal tool error, and malformed output, with the reason named; `empty-batch` means nothing was selected and no launch was made. The report leaf classifies every affected finding from this record, so a missing record is a failed finish, never a silent pass.
 
 ## The report leaf
 
-Read `finish-input.json`, `synthesized-findings.json`, `validator-verdicts.json`, and `references/finish-review.md`, then run Stage 5b step 5, Stage 5c when `mode.apply_local` is true, and Stage 6. `mode.agent` decides JSON versus markdown. Write `report.md` or `review.json` and `metadata.json` under the run directory, and return the final report text exactly as the reference says to emit it: the markdown report in default mode, the one raw JSON object in `mode:agent`. Nothing else in the return.
+Read `finish-input.json`, `synthesized-findings.json`, `validator-outcome.json` (and the verdicts file it names, when it names one), and `references/finish-review.md`, then run Stage 5b step 5 from that outcome (an `infrastructure-failure` outcome applies step 5's drop and validation-degraded rules to every selected finding and puts the reason in Coverage), Stage 5c when `mode.apply_local` is true, and Stage 6. `mode.agent` decides JSON versus markdown. Write `report.md` or `review.json` and `metadata.json` under the run directory, and return the final report text exactly as the reference says to emit it: the markdown report in default mode, the one raw JSON object in `mode:agent`. Nothing else in the return.
 
 ## What the dispatch context does with the returns
 

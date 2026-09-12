@@ -1,4 +1,4 @@
-This reference runs across three contexts (`references/finish-input.md`): a merge leaf runs Stage 5 and Stage 5b steps 1 through 3 and writes `synthesized-findings.json` and `validator-input.json`; the dispatch context runs Stage 5b step 4 and writes `validator-verdicts.json`; a report leaf runs Stage 5b step 5, Stage 5c, and Stage 6. Each leaf reads `<run-dir>/finish-input.json` first. Wherever this reference refers to an earlier stage's result, the intent summary, the roster, the plan, the scope, or conversation context, that value is the matching field of that file, and `<root>` is its `docs_root`. The cross-model peer is already terminal and classified when the merge leaf starts: it folds `peer.artifact` when set and copies `peer.coverage`, and never reads job state or starts a route. A leaf launches no subagents; its return is exactly what `finish-input.md` names for it.
+This reference runs across three contexts (`references/finish-input.md`): a merge leaf runs Stage 5 and Stage 5b steps 1 through 3 and writes `synthesized-findings.json` and `validator-input.json`; the dispatch context runs Stage 5b step 4 and writes `validator-verdicts.json` plus `validator-outcome.json`; a report leaf runs Stage 5b step 5 from that outcome, Stage 5c, and Stage 6. Each leaf reads `<run-dir>/finish-input.json` first. Wherever this reference refers to an earlier stage's result, the intent summary, the roster, the plan, the scope, or conversation context, that value is the matching field of that file, and `<root>` is its `docs_root`. The cross-model peer is already terminal and classified when the merge leaf starts: it folds `peer.artifact` when set and copies `peer.coverage`, and never reads job state or starts a route. A leaf launches no subagents; its return is exactly what `finish-input.md` names for it.
 
 ### Stage 5: Merge findings
 
@@ -246,7 +246,7 @@ Do not offer push/PR/create-branch next steps from this skill.
 Always write run artifacts under the resolved `<run-dir>`:
 
 - `finish-input.json`: the dispatch context's handoff to the leaves (`references/finish-input.md`)
-- `synthesized-findings.json` and `validator-input.json`: the merge leaf's output; `validator-verdicts.json`: the validator's
+- `synthesized-findings.json` and `validator-input.json`: the merge leaf's output; `validator-verdicts.json` and `validator-outcome.json`: the validator's result and the dispatch context's record of it
 - synthesized findings
 - actionable findings list
 - advisory outputs
