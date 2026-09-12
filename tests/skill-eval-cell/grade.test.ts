@@ -682,10 +682,17 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
     }
   })
 
-  test("a heading-style field ends at any label line, bold item sentences included", () => {
+  test("a bold item sentence closes a field, so nothing after it can satisfy the field", () => {
     const stdout = "ROUTING\n**Candidate A: discard.**\nReason: prefers an alternative.\nNext Steps: actionable text.\n\nFILES_READ: a\nACTIONS: none\n"
     const fail = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "ROUTING", must_include: ["actionable"] } })
-    expect(fail.reasons).toEqual(["missing required text: actionable"])
+    expect(fail.reasons).toContain("missing ROUTING field")
+    expect(fail.reasons).not.toContain("actionable text")
+  })
+
+  test("a whole-line bold sentence closes a field like any other bold label", () => {
+    const stdout = "OPENING\nAdds the stamp.\n**Next steps: revocation checks.**\nRevocation checks compare against it.\n\nFILES_READ: a\nACTIONS: none\n"
+    const fail = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "OPENING", must_include: ["revo"] } })
+    expect(fail.reasons).toEqual(["missing required text: revo"])
   })
 
   test("a label directly after prose closes the field without a blank line", () => {

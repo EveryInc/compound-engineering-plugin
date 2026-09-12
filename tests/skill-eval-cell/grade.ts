@@ -82,9 +82,7 @@ function isFieldBoundary(line: string): boolean {
   if (bold) {
     const inner = bold[1].trim()
     const rest = bold[2].trim()
-    if (rest.startsWith(":") || inner.endsWith(":")) return true
-    // A whole-line bold sentence (`**Candidate A: discard.**`) is content, not a label.
-    return rest === "" && !/[.!?]$|:\s+\S/.test(inner)
+    return rest === "" || rest.startsWith(":") || inner.endsWith(":")
   }
   if (marked.test(trimmed) && trimmed.endsWith(":")) return true
   // `Label: value` with content after the colon needs capitalized label words, so
