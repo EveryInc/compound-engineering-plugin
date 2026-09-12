@@ -640,6 +640,8 @@ describe("ce-code-review contract", () => {
     expect(content).not.toMatch(/Run the validator batch foreground/i)
     expect(content).toMatch(/wait that has an end/i)
     expect(content).toMatch(/validator-verdicts\.json/)
+    // Codex's wait_agent caps a single wait at ~30s (PR #1688 review): the bound is aggregate, not per wait.
+    expect(content).toMatch(/repeated back to back.*aggregate wall-clock limit/i)
     expect(content).toMatch(/no bounded wait exists.*do not launch the validator/i)
     expect(content).toMatch(/bound passes.*validator infrastructure failure/i)
     expect(content).toMatch(/uninspected.*validator infrastructure failure for that finding/i)
