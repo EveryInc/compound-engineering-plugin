@@ -14,7 +14,7 @@ Where a branch below sends the run to a recap, that recap — the decisions, plu
 
 ## What to edit
 
-Preserve the artifact's identity and execution kind. Edit the Product Contract only — the `## Product Contract` heading in markdown; in HTML it spans the `product-contract` and `product-requirements` sections, and nothing outside them.
+Preserve the artifact's identity and execution kind while removing obsolete readiness metadata. Confine product edits to the Product Contract — the `## Product Contract` heading in markdown; in HTML it spans the `product-contract` and `product-requirements` sections.
 
 **HTML invariants.** Skill isolation means `ce-plan`'s rendering reference cannot be loaded here, so the rules these edits depend on are restated. Every ID-bearing item you add or change carries both the anchor and the ID as visible text — `id="r7"` on the element and `R7.` readable inside it — because downstream agents grep the HTML the way they grep markdown. A `session-settled:` annotation is visible text in the Key Decision card with its stem verbatim, never an attribute or hidden markup. Use the document's own HTML structure; never insert markdown heading syntax into it.
 
