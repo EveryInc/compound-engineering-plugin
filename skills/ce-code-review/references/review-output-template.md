@@ -151,7 +151,7 @@ This fails because of the **box-drawing `────` separators between items*
 - **Learnings & Past Solutions section** -- results from the `learnings-researcher` local prompt asset, with links to <root>/solutions/ files
 - **Agent-Native Gaps section** -- results from the `agent-native-reviewer` local prompt asset. Omit if no gaps found.
 - **Deployment Notes section** -- key checklist items from the `deployment-verification-agent` local prompt asset. Omit if the prompt did not run. Schema drift surfaces as `data-migration` findings — no separate section.
-- **Coverage section** -- suppressed count, removable surface (only when deletion-oriented maintainability findings exist; approximate net lines/files removable if applied -- a dead-weight signal, never a reduction target, omit otherwise), residual risks, testing gaps, failed reviewers
+- **Coverage section** -- suppressed count, validation outcome counts when Stage 5b ran (confirmed, rejected, unresolved, malformed, failed, shortcut-skipped) with the reason for each non-confirmed outcome, removable surface (only when deletion-oriented maintainability findings exist; approximate net lines/files removable if applied -- a dead-weight signal, never a reduction target, omit otherwise), residual risks, testing gaps, failed reviewers
 - **Summary uses blockquotes** for verdict, reasoning, and fix order
 - **Horizontal rule** (`---`) separates findings from verdict
 - **`###` headers** for each section -- never plain text headers

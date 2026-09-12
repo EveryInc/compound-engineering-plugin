@@ -723,6 +723,11 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/no bounded wait exists.*do not launch the validator/i)
     expect(content).toMatch(/bound passes.*validator infrastructure failure/i)
     expect(content).toMatch(/uninspected.*validator infrastructure failure for that finding/i)
+    // #1700: a conservative validator must not silently drop a protected-subject finding.
+    expect(content).toMatch(/classify every selected finding yourself/i)
+    expect(content).toMatch(/adds protection, never removes it/i)
+    expect(content).toMatch(/reroute it through the unresolved rule/i)
+    expect(content).toMatch(/`validation_status: "unresolved"`/)
     expect(content).toMatch(/Cost, elapsed time, confidence.*never licenses an additional skip/i)
 
     // Foreground is a request, not proof that the host returned a verdict in-band.
@@ -741,7 +746,7 @@ describe("ce-code-review contract", () => {
     expect(validatorTemplate).toMatch(/Eight findings is the normal cap/i)
     expect(validatorTemplate).toMatch(/expand that same batch.*every surviving P0\/P1/i)
     expect(validatorTemplate).toMatch(/read-only tools|Do not edit, commit, push, or mutate files/i)
-    expect(validatorTemplate).toContain('"validated": true | false')
+    expect(validatorTemplate).toContain('"status": "confirmed" | "rejected" | "unresolved"')
     expect(validatorTemplate).toMatch(/predates and is unaffected by this diff/i)
     expect(validatorTemplate).toMatch(/surrounding code handles it/i)
     expect(validatorTemplate).toMatch(/one verdict for every input # exactly once/i)
@@ -750,9 +755,36 @@ describe("ce-code-review contract", () => {
     expect(validatorTemplate).toMatch(/\d+ minutes of wall clock/i)
     expect(validatorTemplate).toMatch(/tool calls per finding/i)
     expect(validatorTemplate).toMatch(/validator-verdicts\.json.*before you return/i)
-    expect(validatorTemplate).toContain('"validated": true | false | "uninspected"')
+    expect(validatorTemplate).toContain('"protected_subject": "<one of the eight policy keys>" | null')
+    expect(validatorTemplate).toMatch(/budget exhausted, uninspected/i)
+    expect(validatorTemplate).not.toMatch(/"validated":/)
     // The read-only rule must carve out the one write the bounded wait depends on.
     expect(validatorTemplate).toMatch(/one permitted write/i)
+
+    // #1700: the validator's protected-subject policy must name all eight subjects and keep the
+    // veto rule, or the loophole reopens on the one validator path that runs.
+    const policyOpen = validatorTemplate.indexOf("<protected-subject-policy>")
+    const policyClose = validatorTemplate.indexOf("</protected-subject-policy>")
+    expect(policyOpen).toBeGreaterThan(-1)
+    expect(policyClose).toBeGreaterThan(policyOpen)
+    const batchPolicy = validatorTemplate.slice(
+      policyOpen,
+      policyClose + "</protected-subject-policy>".length,
+    )
+    for (const subject of [
+      "memory-safety",
+      "concurrency",
+      "data-loss",
+      "authorization-authentication",
+      "injection",
+      "public-contract",
+      "secrets-exposure",
+      "cryptography",
+    ]) {
+      expect(batchPolicy).toContain(`- ${subject}:`)
+    }
+    expect(batchPolicy).toMatch(/Without one of these evidence forms, return status "unresolved", not "rejected"/)
+    expect(batchPolicy).toMatch(/Never use lack of disproof as evidence of confirmation/i)
   })
 
   test("Stage 5c requires explicit local-apply authority and mode:agent is always report-only", async () => {

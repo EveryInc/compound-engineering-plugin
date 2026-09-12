@@ -65,6 +65,30 @@
             "type": "boolean",
             "description": "Whether any fix for this finding must be re-verified with targeted tests or a follow-up review pass"
           },
+          "protected_subject": {
+            "type": ["string", "null"],
+            "enum": [
+              "memory-safety",
+              "concurrency",
+              "data-loss",
+              "authorization-authentication",
+              "injection",
+              "public-contract",
+              "secrets-exposure",
+              "cryptography",
+              null
+            ],
+            "description": "Protected subject this finding's alleged failure falls under, or null when none applies. Optional: set by the Stage 5b validation pass, never by the reviewing sub-agent. Classify the actual claim, not a scary word in the title -- a naming preference about a token helper is not a token-handling defect. A protected finding may only be rejected on cited evidence that refutes it; without such evidence its validation_status is 'unresolved'."
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": ["confirmed", "rejected", "unresolved"],
+            "description": "Outcome of the Stage 5b validation pass for this finding. Optional: absent when no validator ran, so unvalidated findings stay schema-valid. 'unresolved' means the claim was neither confirmed nor disproven -- it is a verification gate, not a proven defect, and it is report-only."
+          },
+          "validation_reason": {
+            "type": "string",
+            "description": "One sentence citing the inspected evidence behind a confirmed or rejected outcome, or naming the missing evidence behind an unresolved one. Optional; present whenever validation_status is present."
+          },
           "suggested_fix": {
             "type": ["string", "null"],
             "description": "Concrete minimal fix the reviewer can defend from the diff and surrounding code. Propose one whenever any defensible code change is reachable from review context (parallel patterns, framework conventions, or the cited code itself). Imperfect information is not grounds for omission -- propose the most defensible default given what you can see, name any assumption you are making, and let the user override. 'I need <specific input> to commit' is a soft punt: the right question is 'what code change would I propose if I had to choose now?' and propose that, with the assumption named. Omit only when there is genuinely no code-level change to propose -- e.g., the finding is a question rather than a fix ('what is the intended SLA here?'), or the resolution is purely an organizational action with no code component (legal sign-off, business policy decision). These cases are rare in code review. A bad suggestion is still worse than none, but a soft punt is the failure mode this field is designed to prevent."
