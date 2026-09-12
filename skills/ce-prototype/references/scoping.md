@@ -29,7 +29,7 @@ Size the prototype to the uncertainty, not to "small." The ambitious bet, the co
 
 ## The go-ahead message
 
-Before starting a preview, get a go-ahead. The point of that message is so they can redirect an expensive build, not so they can read a briefing. Stay high-level: what you will try, why, and how it is split. Add detail only when the split or an inference would otherwise be surprising. If you inferred from messy history, say so. Leave a way to name a different question. Wait for proceed or correction. Do not build until they proceed.
+Before starting a preview, building must be authorized. A request that already is to prototype this named thing is that authorization after scoping. The go-ahead message is owed when the request is only whether to prototype, or when the split or an inferred question would surprise them. The point of that message is so they can redirect an expensive build, not so they can read a briefing. Stay high-level: what you will try, why, and how it is split. Add detail only when the split or an inference would otherwise be surprising. If you inferred from messy history, say so. Leave a way to name a different question. When the message is owed, wait for proceed or correction. Do not build until building is authorized.
 
 ## Between questions
 

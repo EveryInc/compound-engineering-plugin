@@ -21,7 +21,7 @@ If there is no person to experience the prototype — LFG, `mode:pipeline`, or a
 
 ## Scope the question
 
-Read `references/scoping.md` before you ask the user anything or touch the repo. That read is not optional. It defines how the question arrives and the scoped repo read of what the question touches — do not scan the tree. It also defines narrow vs wide, sizing, the go-ahead message, and how the remaining questions change after each decision. Do not build until the user proceeds.
+Read `references/scoping.md` before you ask the user anything or touch the repo. That read is not optional. It defines how the question arrives and the scoped repo read of what the question touches — do not scan the tree. It also defines narrow vs wide, sizing, the go-ahead message, and how the remaining questions change after each decision. Do not build until the scoped question is settled and building is authorized. A request that already is to prototype a named thing is that authorization after scoping.
 
 ## Build it
 
