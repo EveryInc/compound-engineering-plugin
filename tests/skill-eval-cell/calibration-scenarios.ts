@@ -54,8 +54,8 @@ The discovered plan explicitly states: K1 (session-settled: keep function-based 
 Candidate A: P2, confidence 50, settled_conflict K1. Suggest a provider class hierarchy instead of the chosen function-based injection. Both designs satisfy all requirements; the reviewer prefers classes for symmetry. The helper suppressed it by confidence.
 Candidate B: P1, confidence 100. The missing ownership check lets another account obtain a private export URL. Evidence: return { url: await sign(record.id) }. Fix by calling the existing assertOwner before sign; the function-based design remains intact.
 
-Return ROUTING with one entry per candidate: discard, advisory, actionable, or user-decision; explain the reason and whether local apply would be authorized by a review-only invocation. Stop there.`,
-    grade: { must_include_field: "ROUTING", must_include: ["discard", "actionable"], actions: "none", delegates: "none" },
+Declare each routing on its own line, exactly one line per candidate: \`CANDIDATE A: <discard|advisory|actionable|user-decision>\` and \`CANDIDATE B: <...>\`. Then explain the reason for each and whether local apply would be authorized by a review-only invocation. Stop there.`,
+    grade: { declared: { "CANDIDATE A": "discard", "CANDIDATE B": "actionable" }, actions: "none", delegates: "none" },
   },
   {
     ...base,

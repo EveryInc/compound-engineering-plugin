@@ -290,7 +290,7 @@ describe("skill-eval-cell catalog", () => {
     expect(accounting?.task.toLowerCase().includes("50 ms")).toBe(false)
     expect(accounting?.task.toLowerCase().includes("integrated")).toBe(false)
 
-    // The first NEXT line is graded exactly, so a run that declares the other option
+    // The single NEXT line is graded exactly, so a run that declares the other option
     // and later names the expected one as the rejected path cannot pass; the task
     // states both options and must not open with the answer.
     const attribution = SCENARIOS.find((s) => s.id === "ce-optimize/cost-attribution-before-search")

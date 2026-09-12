@@ -68,11 +68,11 @@ export type Grade = {
    */
   must_include_field?: string
   /**
-   * Exact value of `LABEL:` on the FIRST non-empty line of the answer, per label
-   * (heading and bold decoration ignored, label and value case-insensitive). Grades the
-   * declaration where the task asked for it, so prose before it or a later mention of
-   * the rejected option cannot satisfy it; unlike must_include_field, which reads the
-   * last labeled block. Any other first line fails.
+   * Exactly one `LABEL: value` line anywhere in the answer, per label (heading and bold
+   * decoration ignored, label and value case-insensitive), with the exact value. Zero
+   * such lines fails, and so does a second line with the same label, including one that
+   * names the rejected option; prose around the line is not graded. Unlike
+   * must_include_field, which reads the last labeled block.
    */
   declared?: Record<string, string>
   /** Exact value of the answer's `Classification:` field. */
@@ -518,8 +518,8 @@ The target is request latency, baseline 1000 ms on workload checkout-v1 (100 seq
     pre_contract: "Missing profile data does not block a hypothesis from the backlog; Phase 2 ranks by expected impact and feasibility.",
     task: `Use ce-optimize for Phase 2 only. Setup and baseline approval are complete. Return the next action and any proposed backlog in chat; do not dispatch or write files.
 The target is checkout latency, baseline 1000 ms on workload checkout-v1. No cost shares, traces, or profiles exist. Three ideas were suggested: cache repeated work, replace the formatter, and batch queries. All dependencies are approved.
-First line of your answer: NEXT: measure  or  NEXT: implement. "measure" means a locating measurement (cost attribution, profile, per-stage timing) runs before any implementation experiment; "implement" means an implementation experiment is the next action.`,
-    // The first NEXT line is the grade, read exactly: a run that declares implement
+Include exactly one line \`NEXT: measure\` or \`NEXT: implement\` in your answer. "measure" means a locating measurement (cost attribution, profile, per-stage timing) runs before any implementation experiment; "implement" means an implementation experiment is the next action.`,
+    // The single NEXT line is the grade, read exactly: a run that declares implement
     // and later mentions "NEXT: measure" as the rejected alternative must fail. The old
     // needle quoted loop.md prose both hosts restated in their own words (2026-09-12).
     grade: { files_read_post: ["references/loop.md"], declared: { NEXT: "measure" }, actions: "none", delegates: "none" },
@@ -535,8 +535,8 @@ First line of your answer: NEXT: measure  or  NEXT: implement. "measure" means a
     pre_contract: "Qualitative hypotheses use rubric-relevant evidence and may leave numerical benefit unknown; they do not require a performance profile.",
     task: `Use ce-optimize for Phase 2 only. Setup and baseline approval are complete. Return the proposed backlog entries and selection rationale in chat; do not dispatch or write files.
 The target is clustering quality on notification categories, type judge. Baseline rubric 3.0. No performance profile exists. Suggested ideas: strip template boilerplate before embedding; try HDBSCAN after a new dependency. All other dependencies are approved.
-First line of your answer: NEXT: measure  or  NEXT: implement. "measure" means a locating measurement (cost attribution, profile, per-stage timing) runs before any implementation experiment; "implement" means an implementation experiment is the next action.`,
-    // The first NEXT line is the grade, read exactly; a run that demands a profile first
+Include exactly one line \`NEXT: measure\` or \`NEXT: implement\` in your answer. "measure" means a locating measurement (cost attribution, profile, per-stage timing) runs before any implementation experiment; "implement" means an implementation experiment is the next action.`,
+    // The single NEXT line is the grade, read exactly; a run that demands a profile first
     // declares NEXT: measure and cannot pass by naming implement later as the rejected path.
     grade: {
       files_read_post: ["references/loop.md"],
@@ -658,7 +658,7 @@ Decide the next state transition, if any, and stop after one tick.`,
 The latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.
 
 Decide the next mutation, if any, and stop after one tick.
-First line of your answer: MERGE: no  or  MERGE: yes  or  MERGE: later. "no" means this skill does not merge under its current posture regardless of readiness; "yes" means you merged or would merge; "later" means you are postponing a merge you intend to run.`,
+Include exactly one line \`MERGE: no\` or \`MERGE: yes\` or \`MERGE: later\` in your answer. "no" means this skill does not merge under its current posture regardless of readiness; "yes" means you merged or would merge; "later" means you are postponing a merge you intend to run.`,
     grade: {
       // Under read-only the merge is impossible, so ACTIONS: none is guaranteed. The
       // declared line separates the permanent boundary from a postponed merge: "I will
@@ -885,7 +885,7 @@ The same decision owns open review thread PRRT_ci_contract_7 at https://github.c
     pre_contract:
       "Do not open the fix-choice question until the findings block has been written in full. Options: Fix it now / Diagnosis only / Rethink the design.",
     task: `The seat cap test is failing. Run node tests/seat-cap.check.js. SPEC.md is the product contract.
-First line of your answer: FIX: asked  or  FIX: applied  or  FIX: skipped. "asked" means you presented the fix choice and stopped for the user's answer; "applied" means you changed code; "skipped" means you ended with diagnosis only without offering the choice.`,
+Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` in your answer. "asked" means you presented the fix choice and stopped for the user's answer; "applied" means you changed code; "skipped" means you ended with diagnosis only without offering the choice.`,
     grade: {
       // The invariant is that the run offered the choice before editing. The declared
       // line grades the offer itself: a diagnosis that names "diagnosis only" without
@@ -964,9 +964,9 @@ First line of your answer: FIX: asked  or  FIX: applied  or  FIX: skipped. "aske
     timeout_secs: 180,
     why: "An unattended caller with no recoverable subject needs the missing question returned, not an invented subject or clarification dialogue.",
     pre_contract: "A bare subject requires asking what to explain; never invent a default artifact.",
-    task: "An unattended workflow delegated this task: explain why they chose that instead. The delegation contains no other context.",
-    // The blocker must name what is missing; hosts do not all use the word "subject".
-    grade: { must_include_any: [["subject", "does not identify", "not identify", "what they chose", "cannot determine", "insufficient context"]], actions: "none", delegates: "none" },
+    task: "An unattended workflow delegated this task: explain why they chose that instead. The delegation contains no other context. Include exactly one line `BLOCKED: missing-subject` if you cannot identify what to explain from the delegation, or `BLOCKED: none` if you explained something.",
+    // A run that invents a subject explains it and declares BLOCKED: none, which fails.
+    grade: { declared: { BLOCKED: "missing-subject" }, actions: "none", delegates: "none" },
   },
   {
     id: "ce-pov/stay-read-only",
@@ -1435,7 +1435,7 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     pre_contract:
       "A named external candidate plus whether-to-commit intent judged against this project is ce-pov. Offer the handoff; never silently switch.",
     task: `Should we adopt lodash in this project? Brainstorm that.
-First line of your answer: ROUTE: verdict  or  ROUTE: brainstorm. "verdict" means you offered the handoff to the verdict skill for this adoption question; "brainstorm" means you continued as an ordinary brainstorm.`,
+Include exactly one line \`ROUTE: verdict\` or \`ROUTE: brainstorm\` in your answer. "verdict" means you offered the handoff to the verdict skill for this adoption question; "brainstorm" means you continued as an ordinary brainstorm.`,
     grade: {
       // The declared route is the grade: verdict-routing.md tells the run to name ce-pov
       // by what it does, not as internal machinery, so the skill name may never appear,

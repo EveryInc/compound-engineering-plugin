@@ -83,29 +83,13 @@ function isFieldBoundary(line: string): boolean {
     const inner = bold[1].trim()
     const rest = bold[2].trim()
     if (rest.startsWith(":") || inner.endsWith(":")) return true
-    // A whole-line bold sentence (`**Candidate A: discard.**`) is an item, not a label.
+    // A whole-line bold sentence (`**Candidate A: discard.**`) is content, not a label.
     return rest === "" && !/[.!?]$|:\s+\S/.test(inner)
   }
   if (marked.test(trimmed) && trimmed.endsWith(":")) return true
   // `Label: value` with content after the colon needs capitalized label words, so
   // "API behavior: revocation compares..." stays content while `DETAILS: ...` closes.
   return /^[A-Z][A-Za-z0-9_-]*(\s+(?:and|or|of|the|to|for|[A-Z][A-Za-z0-9_-]*)){0,4}:\s/.test(trimmed)
-}
-
-// A whole-line bold sentence (`**Candidate A: discard.**`) opens an item whose detail
-// lines follow directly beneath it.
-function isItemLine(trimmed: string): boolean {
-  const bold = trimmed.match(/^\*\*([^*]+)\*\*$/)
-  return bold !== null && /[.!?]$|:\s+\S/.test(bold[1].trim())
-}
-
-// An item's detail is a `Label: value` line with the value on the same line and a label
-// that is not all-uppercase (`Reason: ...`). A bare label (`DETAILS:`), an all-uppercase
-// label (`DETAILS: more below`), a bold label, or a heading is a section boundary even
-// directly under an item.
-function isItemDetail(trimmed: string): boolean {
-  const m = trimmed.match(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Za-z0-9_-]+){0,4}):\s+\S/)
-  return m !== null && m[1] !== m[1].toUpperCase()
 }
 
 function lastFieldBlock(text: string, name: string): string {
@@ -122,22 +106,10 @@ function lastFieldBlock(text: string, name: string): string {
       return onLabelLine
     }
     const rest = lines.slice(i + 1)
-    // A label closes the block unless it is an item's detail: a title-case `Label: value`
-    // line in the run of lines directly under a whole-line bold item sentence
-    // (`**Candidate A: discard.**` then `Reason: ...`). A blank line ends the run; any
-    // other label shape closes the block even inside the run, so `DETAILS:` under an
-    // item cannot pull a later section into this field.
-    let inItemRun = false
-    const end = rest.findIndex((line) => {
-      const trimmed = line.trim()
-      if (trimmed === "") {
-        inItemRun = false
-        return false
-      }
-      if (isFieldBoundary(line)) return !(inItemRun && isItemDetail(trimmed))
-      inItemRun = inItemRun || isItemLine(trimmed)
-      return false
-    })
+    // The block ends at the next label line, as isFieldBoundary decides, and nowhere
+    // else. A field whose value must survive intervening labels is graded with
+    // `declared` (one line per value), not with a block.
+    const end = rest.findIndex(isFieldBoundary)
     const following = (end === -1 ? rest : rest.slice(0, end))
       .filter((line) => !/^(FILES_READ|ACTIONS|DELEGATES_DISPATCHED|TEAM):/i.test(line.trim()))
       .join("\n")
@@ -169,16 +141,18 @@ function resultBlock(text: string): string | null {
 }
 
 /**
- * The value of `LABEL:` on the first non-empty line of the answer, decoration ignored;
- * null when that line is anything else. The task asked for the declaration there, so
- * prose before it or a label further down is not the declaration.
+ * Every line of the answer that is `LABEL: value`, decoration ignored, wherever it sits.
+ * Position is not the signal: Grok narrates to stdout before the answer, so line one
+ * is often not the answer at all. The task asks for exactly one such line, so the
+ * caller fails on zero or several and grades the value of the single one.
  */
-function firstLineField(text: string, name: string): { value: string | null; line: string } {
-  const line = text.split("\n").map((l) => l.trim()).find(Boolean) ?? ""
-  const plain = line.replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim()
+function declaredLines(text: string, name: string): string[] {
   const prefix = `${name.toUpperCase()}:`
-  const value = plain.toUpperCase().startsWith(prefix) ? plain.slice(prefix.length).trim() : null
-  return { value, line: line.length > 80 ? `${line.slice(0, 80)}...` : line }
+  return text
+    .split("\n")
+    .map((line) => line.trim().replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim())
+    .filter((plain) => plain.toUpperCase().startsWith(prefix))
+    .map((plain) => plain.slice(prefix.length).trim())
 }
 
 function lastField(text: string, name: string): string {
@@ -339,9 +313,11 @@ export function gradeHost(opts: {
     if (team.includes(needle.toLowerCase())) reasons.push(`forbidden text in TEAM trailer: ${needle}`)
   }
   for (const [label, want] of Object.entries(opts.grade.declared ?? {})) {
-    const { value, line } = firstLineField(stdout, label)
-    if (value?.toLowerCase() !== want.toLowerCase()) {
-      reasons.push(`expected first line ${label}: ${want}, got ${line || "empty answer"}`)
+    const values = declaredLines(stdout, label)
+    if (values.length === 0) reasons.push(`expected one ${label} line: ${want}, got none`)
+    else if (values.length > 1) reasons.push(`expected one ${label} line, got ${values.length}`)
+    else if (values[0].toLowerCase() !== want.toLowerCase()) {
+      reasons.push(`expected ${label}: ${want}, got ${values[0]}`)
     }
   }
   if (opts.grade.classification) {

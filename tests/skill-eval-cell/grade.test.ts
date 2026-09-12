@@ -224,29 +224,29 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 
-  test("declared grades the first non-empty line exactly, not a label found later", () => {
+  test("declared grades exactly one labeled line anywhere in the answer", () => {
+    const grade = { declared: { NEXT: "measure" } }
     const wrong = hostDir({
-      "stdout.txt": "NEXT: implement\nWe rejected NEXT: measure.\n\nFILES_READ: a\nACTIONS: none\n",
+      "stdout.txt": "NEXT: implement\nWe rejected measure as premature.\n\nFILES_READ: a\nACTIONS: none\n",
     })
-    const failed = gradeHost({ host: "claude", hostDir: wrong, arm: "post", grade: { declared: { NEXT: "measure" } } })
-    expect(failed.ok).toBe(false)
-    expect(failed.reasons).toContain("expected first line NEXT: measure, got NEXT: implement")
+    const failed = gradeHost({ host: "claude", hostDir: wrong, arm: "post", grade })
+    expect(failed.reasons).toEqual(["expected NEXT: measure, got implement"])
 
     const right = hostDir({
-      "stdout.txt": "\n**NEXT:** Measure\nWe rejected NEXT: implement.\n\nFILES_READ: a\nACTIONS: none\n",
+      "stdout.txt": "\n**NEXT:** Measure\nWe rejected implementing first.\n\nFILES_READ: a\nACTIONS: none\n",
     })
-    const passed = gradeHost({ host: "claude", hostDir: right, arm: "post", grade: { declared: { NEXT: "measure" } } })
-    expect(passed.ok).toBe(true)
+    expect(gradeHost({ host: "claude", hostDir: right, arm: "post", grade }).ok).toBe(true)
 
-    const late = hostDir({ "stdout.txt": "I will implement first.\nNEXT: measure\n\nFILES_READ: a\nACTIONS: none\n" })
-    const prose = gradeHost({ host: "claude", hostDir: late, arm: "post", grade: { declared: { NEXT: "measure" } } })
-    expect(prose.reasons).toContain("expected first line NEXT: measure, got I will implement first.")
+    // Grok narrates progress to stdout before the answer; the declaration's position
+    // is not the grade.
+    const late = hostDir({ "stdout.txt": "I looked around.\nRead SKILL.md\nNEXT: measure\n\nFILES_READ: a\nACTIONS: none\n" })
+    expect(gradeHost({ host: "claude", hostDir: late, arm: "post", grade }).ok).toBe(true)
+
+    const twice = hostDir({ "stdout.txt": "NEXT: implement\nNEXT: measure\n\nFILES_READ: a\nACTIONS: none\n" })
+    expect(gradeHost({ host: "claude", hostDir: twice, arm: "post", grade }).reasons).toEqual(["expected one NEXT line, got 2"])
 
     const missing = hostDir({ "stdout.txt": "\n\nFILES_READ: a\nACTIONS: none\n" })
-    const none = gradeHost({ host: "claude", hostDir: missing, arm: "post", grade: { declared: { NEXT: "measure" } } })
-    expect(none.reasons).toContain("expected first line NEXT: measure, got FILES_READ: a")
-    const empty = gradeHost({ host: "claude", hostDir: hostDir({ "stdout.txt": "\n" }), arm: "post", grade: { declared: { NEXT: "measure" } } })
-    expect(empty.reasons).toContain("expected first line NEXT: measure, got empty answer")
+    expect(gradeHost({ host: "claude", hostDir: missing, arm: "post", grade }).reasons).toEqual(["expected one NEXT line: measure, got none"])
   })
 
   test("classification fails when a Replace value merely mentions Keep", () => {
@@ -682,16 +682,8 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
     }
   })
 
-  test("a heading-style field keeps bold item lines and their indented detail lines", () => {
-    // Claude renders routing candidates as whole-line bold sentences with a `Reason:`
-    // line directly under each; neither opens a new section (2026-09-12 pack run).
-    const stdout = "ROUTING\n\n**Candidate A: discard.**\nReason: prefers an alternative to a settled decision.\nLocal apply: not applicable.\n\n**Candidate B: actionable.**\nReason: missing ownership check.\n\nFILES_READ: a\nACTIONS: none\nDELEGATES_DISPATCHED: none\n"
-    const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "ROUTING", must_include: ["discard", "actionable"] } })
-    expect(pass.reasons).toEqual([])
-  })
-
-  test("a bare or uppercase label under a bold item still closes the field", () => {
-    const stdout = "ROUTING\n**Candidate A: discard.**\nReason: prefers an alternative.\nDETAILS:\nactionable text here.\n\nFILES_READ: a\nACTIONS: none\n"
+  test("a heading-style field ends at any label line, bold item sentences included", () => {
+    const stdout = "ROUTING\n**Candidate A: discard.**\nReason: prefers an alternative.\nNext Steps: actionable text.\n\nFILES_READ: a\nACTIONS: none\n"
     const fail = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "ROUTING", must_include: ["actionable"] } })
     expect(fail.reasons).toEqual(["missing required text: actionable"])
   })
