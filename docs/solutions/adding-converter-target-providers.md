@@ -14,7 +14,7 @@ root_cause: architectural_pattern
 
 # Converter Target Provider Pitfalls
 
-The step-by-step procedure for adding a target (types, converter, writer, CLI wiring, tests, docs) lives in `AGENTS.md` under "Adding a New Target Provider"; the reference implementations are `src/targets/opencode.ts` + `src/converters/claude-to-opencode.ts` (most complete) and the Codex, Pi, and Antigravity pairs beside them. Before adding a converter target at all, check `docs/solutions/integrations/native-plugin-install-strategy.md`: a harness with a native plugin manifest gets a manifest, not a converter.
+The step-by-step procedure for adding a target (types, converter, writer, CLI wiring, tests, docs) lives in `docs/solutions/developer-experience/always-on-agents-md.md` under "Adding a target provider"; the reference implementations are `src/targets/opencode.ts` + `src/converters/claude-to-opencode.ts` (most complete) and the Codex, Pi, and Antigravity pairs beside them. Before adding a converter target at all, check `docs/solutions/integrations/native-plugin-install-strategy.md`: a harness with a native plugin manifest gets a manifest, not a converter.
 
 What that procedure does not tell you is where every past target went wrong. Each row below was hit at least once.
 

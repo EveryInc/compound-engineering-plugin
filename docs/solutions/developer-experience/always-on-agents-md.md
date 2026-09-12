@@ -74,7 +74,7 @@ Only add a provider when the target format is stable, documented, and has a clea
 
 1. Add a handler in `src/targets/index.ts` with `implemented: false` until complete. Use a dedicated writer module.
 2. Add provider-specific types under `src/types/`. Implement conversion in `src/converters/`. Keep mappings explicit.
-3. Ensure `convert` and `install` support `--to <provider>` and `--also`.
+3. Ensure `convert` and `install` support `--to <provider>` and `--also`. Write to a clean provider root, consistent with OpenCode.
 4. Tests: extend `tests/fixtures/sample-plugin`, add mapping coverage in `tests/converter.test.ts`, a writer test, and a CLI test.
 5. Update README with the new `--to` option and output locations.
 

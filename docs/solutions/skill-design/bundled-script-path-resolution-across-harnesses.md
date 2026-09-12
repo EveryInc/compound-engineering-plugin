@@ -26,7 +26,7 @@ related_components:
 
 # Reference bundled skill files by tier: relative for reads, SKILL_DIR anchor for executed scripts
 
-The three tiers (read-time relative, prose pointer plus "from this skill's directory" cue, `SKILL_DIR` anchor for executed shell), the load-bearing trailing `;`, the `BASH_SOURCE` rule for a script that needs its own directory, and the `${CLAUDE_SKILL_DIR}` warning all live in `AGENTS.md` under "Platform-Specific Variables in Skills". This doc keeps the lesson behind them.
+The invariant and `SKILL_DIR` shape stay in `AGENTS.md` under "Platform-Specific Variables in Skills". The three tiers, flatten-safety, and the permission caveat live in `docs/solutions/developer-experience/always-on-agents-md.md`. This doc keeps the lesson behind them.
 
 ## Harness fact versus resolution mechanism
 
