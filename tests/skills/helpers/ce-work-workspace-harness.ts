@@ -35,7 +35,6 @@ const CTL_TIMEOUT_MS = 20_000
 // /dev/null.lock and hang. spawnSync must SIGKILL — git ignores SIGTERM while
 // waiting on a lock, so the default timeout never reaps and the test hits 60s.
 const isolatedGitConfigRoot = mkdtempSync(path.join(tmpdir(), "ce-work-isolated-gitconfig-"))
-templateRoots.push(isolatedGitConfigRoot)
 const isolatedGitConfig = path.join(isolatedGitConfigRoot, "config")
 writeFileSync(isolatedGitConfig, "[core]\n\tfsmonitor = false\n\tuntrackedCache = false\n")
 const isolatedGitEnv = {
