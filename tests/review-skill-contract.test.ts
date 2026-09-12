@@ -572,6 +572,7 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/\{run_dir\}\/\{reviewer_name\}\.json`, is the fact/i)
     expect(content).toMatch(/repeating the host's wait back to back.*aggregate wall-clock limit/i)
     expect(content).toMatch(/since that reviewer's own successful launch/i)
+    expect(content).toMatch(/artifact lands while the launch is still live, stop that launch/i)
     expect(content).toMatch(/neither a terminal outcome nor an artifact when the limit passes.*failed reviewer/i)
     expect(skill).toMatch(/within the bound that reference states/i)
     const subagentTemplate = await readRepoFile("skills/ce-code-review/references/subagent-template.md")
