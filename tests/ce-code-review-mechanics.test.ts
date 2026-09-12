@@ -573,20 +573,36 @@ describe("ce-code-review deterministic mechanics", () => {
       { fields: { evidence: [" ", quote] }, retained: 0, backfilled: 0, malformed: 0 },
       { fields: { first_evidence: false, evidence: [] }, retained: 0, backfilled: 0, malformed: 1 },
     ]
-    for (const entry of cases) {
-      const returns = [{ reviewer: "correctness", findings: [{ ...base, ...entry.fields }], residual_risks: [], testing_gaps: [] }]
-      const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
-      expect(result.status).toBe(0)
-      const merged = JSON.parse(result.stdout)
-      expect(merged.findings).toHaveLength(entry.retained)
-      expect(merged.first_evidence_backfilled).toBe(entry.backfilled)
-      expect(merged.malformed_findings).toBe(entry.malformed)
-      if (entry.retained) {
-        expect(merged.findings[0].first_evidence).toBe(quote)
-        expect(merged.findings[0].confidence).toBe(75)
-      } else if (!entry.malformed) {
-        expect(merged.suppressed_by_confidence).toEqual({ "50": 1 })
-      }
+    const returns = [{
+      reviewer: "correctness",
+      findings: cases.map((entry, index) => ({
+        ...base,
+        ...entry.fields,
+        title: `${base.title} ${index}`,
+        line: base.line + index,
+      })),
+      residual_risks: [],
+      testing_gaps: [],
+    }]
+    const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.findings).toHaveLength(cases.filter((entry) => entry.retained).length)
+    expect(merged.first_evidence_backfilled).toBe(cases.reduce((sum, entry) => sum + entry.backfilled, 0))
+    expect(merged.malformed_findings).toBe(cases.reduce((sum, entry) => sum + entry.malformed, 0))
+    expect(merged.suppressed_by_confidence).toEqual({
+      "50": cases.filter((entry) => !entry.retained && !entry.malformed).length,
+    })
+    expect(merged.findings.map((finding: { title: string }) => finding.title).sort()).toEqual(
+      cases.flatMap((entry, index) => entry.retained ? [`${base.title} ${index}`] : []).sort(),
+    )
+    expect(merged.suppressed_findings.map((finding: { title: string }) => finding.title).sort()).toEqual(
+      cases.flatMap((entry, index) => !entry.retained && !entry.malformed ? [`${base.title} ${index}`] : []).sort(),
+    )
+    for (const finding of merged.findings) {
+      expect(finding.first_evidence).toBe(quote)
+      expect(finding.confidence).toBe(75)
     }
   })
 
