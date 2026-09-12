@@ -640,6 +640,9 @@ describe("ce-code-review contract", () => {
     expect(handoff).toMatch(/never resolves, announces, or starts a peer route/)
     expect(handoff).toMatch(/Put the full contents of `finish-input\.json` inline in the leaf's prompt/)
     expect(handoff).toContain("preference_source")
+    // Cursor security review on #1692: PR metadata inlined into a leaf must never read as apply authority.
+    expect(handoff).toMatch(/`mode\.apply_local` is the only apply authority the leaves ever see/)
+    expect(finish).toMatch(/inside a leaf that flag is the only authority/)
     // #1692 review: prose-return reviewers write no artifact; dispatch persists them and names them in the handoff.
     expect(handoff).toContain("unstructured_returns")
     expect(handoff).toMatch(/saves each such return verbatim to `<run-dir>\/<reviewer>\.md`/)
