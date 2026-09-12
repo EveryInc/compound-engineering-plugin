@@ -224,6 +224,25 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 
+  test("declared grades the first labeled line exactly, not a later mention", () => {
+    const wrong = hostDir({
+      "stdout.txt": "NEXT: implement\nWe rejected NEXT: measure.\n\nFILES_READ: a\nACTIONS: none\n",
+    })
+    const failed = gradeHost({ host: "claude", hostDir: wrong, arm: "post", grade: { declared: { NEXT: "measure" } } })
+    expect(failed.ok).toBe(false)
+    expect(failed.reasons).toContain("expected first NEXT: measure, got implement")
+
+    const right = hostDir({
+      "stdout.txt": "**NEXT:** Measure\nWe rejected NEXT: implement.\n\nFILES_READ: a\nACTIONS: none\n",
+    })
+    const passed = gradeHost({ host: "claude", hostDir: right, arm: "post", grade: { declared: { NEXT: "measure" } } })
+    expect(passed.ok).toBe(true)
+
+    const missing = hostDir({ "stdout.txt": "We will measure first.\n\nFILES_READ: a\nACTIONS: none\n" })
+    const none = gradeHost({ host: "claude", hostDir: missing, arm: "post", grade: { declared: { NEXT: "measure" } } })
+    expect(none.reasons).toContain("expected first NEXT: measure, got no NEXT line")
+  })
+
   test("classification fails when a Replace value merely mentions Keep", () => {
     const dir = hostDir({
       "stdout.txt": "Classification: Replace — do not Keep\nPotential product regression affecting request_id.\n",
@@ -663,6 +682,12 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
     const stdout = "ROUTING\n\n**Candidate A: discard.**\nReason: prefers an alternative to a settled decision.\nLocal apply: not applicable.\n\n**Candidate B: actionable.**\nReason: missing ownership check.\n\nFILES_READ: a\nACTIONS: none\nDELEGATES_DISPATCHED: none\n"
     const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "ROUTING", must_include: ["discard", "actionable"] } })
     expect(pass.reasons).toEqual([])
+  })
+
+  test("a label directly after prose closes the field without a blank line", () => {
+    const stdout = "OPENING\nAdds stamp.\nDETAILS:\nRevocation checks compare against it.\n\nFILES_READ: a\nACTIONS: none\n"
+    const fail = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "OPENING", must_include: ["revo"] } })
+    expect(fail.reasons).toEqual(["missing required text: revo"])
   })
 
   test("must_include_field still reads a single-line LABEL: value", () => {

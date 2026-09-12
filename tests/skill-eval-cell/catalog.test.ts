@@ -289,16 +289,16 @@ describe("skill-eval-cell catalog", () => {
     expect(accounting?.task.toLowerCase().includes("50 ms")).toBe(false)
     expect(accounting?.task.toLowerCase().includes("integrated")).toBe(false)
 
+    // The first NEXT line is graded exactly, so a run that declares the other option
+    // and later names the expected one as the rejected path cannot pass; the task
+    // states both options and must not open with the answer.
     const attribution = SCENARIOS.find((s) => s.id === "ce-optimize/cost-attribution-before-search")
-    const skipLocating = "NEXT: implement\nNo locating measurement is necessary; proceed with batching."
-    for (const needle of attribution?.grade.must_include ?? []) {
-      expect(skipLocating.toLowerCase().includes(needle.toLowerCase())).toBe(false)
-    }
+    expect(attribution?.grade.declared).toEqual({ NEXT: "measure" })
+    expect(attribution?.task.startsWith("NEXT:")).toBe(false)
 
     const variants = SCENARIOS.find((s) => s.id === "ce-optimize/variant-search-without-profile")
-    const blocked = "NEXT: measure\nWithout a profile, HDBSCAN and boilerplate stripping are blocked"
-    expect(
-      variants?.grade.must_include?.some((needle) => !blocked.toLowerCase().includes(needle.toLowerCase())),
-    ).toBe(true)
+    expect(variants?.grade.declared).toEqual({ NEXT: "implement" })
+    expect(variants?.task.startsWith("NEXT:")).toBe(false)
+    expect(variants?.grade.must_include).toEqual(["HDBSCAN", "boilerplate"])
   })
 })

@@ -67,6 +67,14 @@ export type Grade = {
    * so declaring nothing cannot pass.
    */
   must_include_field?: string
+  /**
+   * Exact value of the FIRST `LABEL:` line in the answer, per label (heading and bold
+   * decoration ignored, label and value case-insensitive). Grades the declaration the
+   * task asked for at the location it asked for, so a later mention of the rejected
+   * option cannot satisfy it; unlike must_include_field, which reads the last labeled
+   * block. A missing line fails.
+   */
+  declared?: Record<string, string>
   /** Exact value of the answer's `Classification:` field. */
   classification?: "Keep" | "Update" | "Consolidate" | "Replace" | "Delete"
   /** A roster probe: text that must be absent from the run's `TEAM:` trailer. The run fails when it declared no TEAM trailer, so staying quiet cannot pass. must_include also reads that trailer when present. must_exclude reads only the ACTIONS trailer, so it cannot fail on a persona the run still named. */
@@ -511,9 +519,10 @@ The target is request latency, baseline 1000 ms on workload checkout-v1 (100 seq
     task: `Use ce-optimize for Phase 2 only. Setup and baseline approval are complete. Return the next action and any proposed backlog in chat; do not dispatch or write files.
 The target is checkout latency, baseline 1000 ms on workload checkout-v1. No cost shares, traces, or profiles exist. Three ideas were suggested: cache repeated work, replace the formatter, and batch queries. All dependencies are approved.
 First line of your answer: NEXT: measure  or  NEXT: implement. "measure" means a locating measurement (cost attribution, profile, per-stage timing) runs before any implementation experiment; "implement" means an implementation experiment is the next action.`,
-    // The decision line is the grade. The old needle quoted loop.md prose that both
-    // hosts stated in their own words while choosing correctly (2026-09-12 pack run).
-    grade: { files_read_post: ["references/loop.md"], must_include: ["NEXT: measure"], actions: "none", delegates: "none" },
+    // The first NEXT line is the grade, read exactly: a run that declares implement
+    // and later mentions "NEXT: measure" as the rejected alternative must fail. The old
+    // needle quoted loop.md prose both hosts restated in their own words (2026-09-12).
+    grade: { files_read_post: ["references/loop.md"], declared: { NEXT: "measure" }, actions: "none", delegates: "none" },
   },
   {
     id: "ce-optimize/variant-search-without-profile",
@@ -527,8 +536,15 @@ First line of your answer: NEXT: measure  or  NEXT: implement. "measure" means a
     task: `Use ce-optimize for Phase 2 only. Setup and baseline approval are complete. Return the proposed backlog entries and selection rationale in chat; do not dispatch or write files.
 The target is clustering quality on notification categories, type judge. Baseline rubric 3.0. No performance profile exists. Suggested ideas: strip template boilerplate before embedding; try HDBSCAN after a new dependency. All other dependencies are approved.
 First line of your answer: NEXT: measure  or  NEXT: implement. "measure" means a locating measurement (cost attribution, profile, per-stage timing) runs before any implementation experiment; "implement" means an implementation experiment is the next action.`,
-    // The decision line is the grade; a run that demands a profile first declares NEXT: measure.
-    grade: { files_read_post: ["references/loop.md"], must_include: ["NEXT: implement", "HDBSCAN", "boilerplate"], actions: "none", delegates: "none" },
+    // The first NEXT line is the grade, read exactly; a run that demands a profile first
+    // declares NEXT: measure and cannot pass by naming implement later as the rejected path.
+    grade: {
+      files_read_post: ["references/loop.md"],
+      declared: { NEXT: "implement" },
+      must_include: ["HDBSCAN", "boilerplate"],
+      actions: "none",
+      delegates: "none",
+    },
   },
   {
     id: "ce-optimize/result-accounting",
@@ -1416,13 +1432,15 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     why: "Whether-to-adopt a named external candidate is ce-pov, not a brainstorm. Post-shrink routing lives in phase-0.md.",
     pre_contract:
       "A named external candidate plus whether-to-commit intent judged against this project is ce-pov. Offer the handoff; never silently switch.",
-    task: `Should we adopt lodash in this project? Brainstorm that.`,
+    task: `Should we adopt lodash in this project? Brainstorm that.
+First line of your answer: ROUTE: verdict  or  ROUTE: brainstorm. "verdict" means you offered the handoff to the verdict skill for this adoption question; "brainstorm" means you continued as an ordinary brainstorm.`,
     grade: {
-      // verdict-routing.md tells the run to name ce-pov by what it does, not as internal
-      // machinery, so a run that followed it may never print the skill name. The read
-      // of verdict-routing.md is the routing evidence; the offer wording is the decision.
+      // The declared route is the grade: verdict-routing.md tells the run to name ce-pov
+      // by what it does, not as internal machinery, so the skill name may never appear,
+      // and the word "verdict" alone also fits "this is not a verdict request". Reading
+      // verdict-routing.md proves the instruction was opened, not that it was followed.
       files_read_post: ["references/phase-0.md", "references/verdict-routing.md"],
-      must_include_any: [["ce-pov", "verdict"]],
+      declared: { ROUTE: "verdict" },
     },
   },
   {
@@ -2303,6 +2321,7 @@ export function scenariosMatching(opts: {
 export function scenarioHasDecisionGrade(s: Scenario): boolean {
   const g = s.grade
   if (g.must_include?.length || g.must_include_any?.length || g.must_exclude?.length) return true
+  if (g.declared && Object.keys(g.declared).length) return true
   if (g.delegates_must_not_include?.length) return true
   if (g.classification || g.structured_status || g.delegates === "some") return true
   if (g.workspace_contains?.length || g.committed_must_not?.length) return true

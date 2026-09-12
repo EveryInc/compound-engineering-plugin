@@ -92,6 +92,13 @@ function isFieldBoundary(line: string): boolean {
   return /^[A-Z][A-Za-z0-9_-]*(\s+(?:and|or|of|the|to|for|[A-Z][A-Za-z0-9_-]*)){0,4}:\s/.test(trimmed)
 }
 
+// A whole-line bold sentence (`**Candidate A: discard.**`) opens an item whose detail
+// lines follow directly beneath it.
+function isItemLine(trimmed: string): boolean {
+  const bold = trimmed.match(/^\*\*([^*]+)\*\*$/)
+  return bold !== null && /[.!?]$|:\s+\S/.test(bold[1].trim())
+}
+
 function lastFieldBlock(text: string, name: string): string {
   const lines = text.split("\n")
   const upper = name.toUpperCase()
@@ -106,13 +113,22 @@ function lastFieldBlock(text: string, name: string): string {
       return onLabelLine
     }
     const rest = lines.slice(i + 1)
-    // A label closes the block only when it opens a new section: a heading, or a label
-    // after a blank line. `Reason:` directly under an item line is that item's detail.
-    const end = rest.findIndex(
-      (line, idx) =>
-        isFieldBoundary(line) &&
-        (/^#{1,6}\s+\S/.test(line.trim()) || idx === 0 || rest[idx - 1].trim() === ""),
-    )
+    // A label closes the block unless it is an item's detail: a `Label:` line in the
+    // run of lines directly under a whole-line bold item sentence (`**Candidate A:
+    // discard.**` then `Reason: ...`). A blank line ends the run; a heading always
+    // closes; a label after ordinary prose (`Adds stamp.` then `DETAILS:`) closes too.
+    let inItemRun = false
+    const end = rest.findIndex((line) => {
+      const trimmed = line.trim()
+      if (trimmed === "") {
+        inItemRun = false
+        return false
+      }
+      if (/^#{1,6}\s+\S/.test(trimmed)) return true
+      if (isFieldBoundary(line)) return !inItemRun
+      inItemRun = inItemRun || isItemLine(trimmed)
+      return false
+    })
     const following = (end === -1 ? rest : rest.slice(0, end))
       .filter((line) => !/^(FILES_READ|ACTIONS|DELEGATES_DISPATCHED|TEAM):/i.test(line.trim()))
       .join("\n")
@@ -141,6 +157,18 @@ function resultBlock(text: string): string | null {
     return lines.slice(i + 1, end).join("\n")
   }
   return null
+}
+
+/** The first `LABEL: value` line, decoration ignored; "" when none. Grades the declaration
+ * the task placed at the top of the answer, where a later mention cannot stand in. */
+function firstField(text: string, name: string): string {
+  const prefix = `${name.toUpperCase()}:`
+  for (const line of text.split("\n")) {
+    const plain = line.trim().replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim()
+    if (!plain.toUpperCase().startsWith(prefix)) continue
+    return plain.slice(prefix.length).trim()
+  }
+  return ""
 }
 
 function lastField(text: string, name: string): string {
@@ -299,6 +327,12 @@ export function gradeHost(opts: {
   if (opts.grade.must_not_include?.length && !team) reasons.push("missing TEAM trailer")
   for (const needle of team ? opts.grade.must_not_include ?? [] : []) {
     if (team.includes(needle.toLowerCase())) reasons.push(`forbidden text in TEAM trailer: ${needle}`)
+  }
+  for (const [label, want] of Object.entries(opts.grade.declared ?? {})) {
+    const actual = firstField(stdout, label)
+    if (actual.toLowerCase() !== want.toLowerCase()) {
+      reasons.push(`expected first ${label}: ${want}, got ${actual || `no ${label} line`}`)
+    }
   }
   if (opts.grade.classification) {
     const actual = lastField(stdout, "CLASSIFICATION")
