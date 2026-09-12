@@ -99,6 +99,15 @@ function isItemLine(trimmed: string): boolean {
   return bold !== null && /[.!?]$|:\s+\S/.test(bold[1].trim())
 }
 
+// An item's detail is a `Label: value` line with the value on the same line and a label
+// that is not all-uppercase (`Reason: ...`). A bare label (`DETAILS:`), an all-uppercase
+// label (`DETAILS: more below`), a bold label, or a heading is a section boundary even
+// directly under an item.
+function isItemDetail(trimmed: string): boolean {
+  const m = trimmed.match(/^([A-Z][A-Za-z0-9_-]*(?:\s+[A-Za-z0-9_-]+){0,4}):\s+\S/)
+  return m !== null && m[1] !== m[1].toUpperCase()
+}
+
 function lastFieldBlock(text: string, name: string): string {
   const lines = text.split("\n")
   const upper = name.toUpperCase()
@@ -113,10 +122,11 @@ function lastFieldBlock(text: string, name: string): string {
       return onLabelLine
     }
     const rest = lines.slice(i + 1)
-    // A label closes the block unless it is an item's detail: a `Label:` line in the
-    // run of lines directly under a whole-line bold item sentence (`**Candidate A:
-    // discard.**` then `Reason: ...`). A blank line ends the run; a heading always
-    // closes; a label after ordinary prose (`Adds stamp.` then `DETAILS:`) closes too.
+    // A label closes the block unless it is an item's detail: a title-case `Label: value`
+    // line in the run of lines directly under a whole-line bold item sentence
+    // (`**Candidate A: discard.**` then `Reason: ...`). A blank line ends the run; any
+    // other label shape closes the block even inside the run, so `DETAILS:` under an
+    // item cannot pull a later section into this field.
     let inItemRun = false
     const end = rest.findIndex((line) => {
       const trimmed = line.trim()
@@ -124,8 +134,7 @@ function lastFieldBlock(text: string, name: string): string {
         inItemRun = false
         return false
       }
-      if (/^#{1,6}\s+\S/.test(trimmed)) return true
-      if (isFieldBoundary(line)) return !inItemRun
+      if (isFieldBoundary(line)) return !(inItemRun && isItemDetail(trimmed))
       inItemRun = inItemRun || isItemLine(trimmed)
       return false
     })
@@ -159,16 +168,17 @@ function resultBlock(text: string): string | null {
   return null
 }
 
-/** The first `LABEL: value` line, decoration ignored; "" when none. Grades the declaration
- * the task placed at the top of the answer, where a later mention cannot stand in. */
-function firstField(text: string, name: string): string {
+/**
+ * The value of `LABEL:` on the first non-empty line of the answer, decoration ignored;
+ * null when that line is anything else. The task asked for the declaration there, so
+ * prose before it or a label further down is not the declaration.
+ */
+function firstLineField(text: string, name: string): { value: string | null; line: string } {
+  const line = text.split("\n").map((l) => l.trim()).find(Boolean) ?? ""
+  const plain = line.replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim()
   const prefix = `${name.toUpperCase()}:`
-  for (const line of text.split("\n")) {
-    const plain = line.trim().replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim()
-    if (!plain.toUpperCase().startsWith(prefix)) continue
-    return plain.slice(prefix.length).trim()
-  }
-  return ""
+  const value = plain.toUpperCase().startsWith(prefix) ? plain.slice(prefix.length).trim() : null
+  return { value, line: line.length > 80 ? `${line.slice(0, 80)}...` : line }
 }
 
 function lastField(text: string, name: string): string {
@@ -329,9 +339,9 @@ export function gradeHost(opts: {
     if (team.includes(needle.toLowerCase())) reasons.push(`forbidden text in TEAM trailer: ${needle}`)
   }
   for (const [label, want] of Object.entries(opts.grade.declared ?? {})) {
-    const actual = firstField(stdout, label)
-    if (actual.toLowerCase() !== want.toLowerCase()) {
-      reasons.push(`expected first ${label}: ${want}, got ${actual || `no ${label} line`}`)
+    const { value, line } = firstLineField(stdout, label)
+    if (value?.toLowerCase() !== want.toLowerCase()) {
+      reasons.push(`expected first line ${label}: ${want}, got ${line || "empty answer"}`)
     }
   }
   if (opts.grade.classification) {

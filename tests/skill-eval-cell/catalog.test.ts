@@ -258,6 +258,7 @@ describe("skill-eval-cell catalog", () => {
       return (
         !s.grade.must_include?.length &&
         !s.grade.must_include_any?.length &&
+        !Object.keys(s.grade.declared ?? {}).length &&
         !s.grade.files_read_post?.length &&
         !s.grade.workspace_read?.length
       )

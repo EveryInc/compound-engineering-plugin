@@ -68,11 +68,11 @@ export type Grade = {
    */
   must_include_field?: string
   /**
-   * Exact value of the FIRST `LABEL:` line in the answer, per label (heading and bold
-   * decoration ignored, label and value case-insensitive). Grades the declaration the
-   * task asked for at the location it asked for, so a later mention of the rejected
-   * option cannot satisfy it; unlike must_include_field, which reads the last labeled
-   * block. A missing line fails.
+   * Exact value of `LABEL:` on the FIRST non-empty line of the answer, per label
+   * (heading and bold decoration ignored, label and value case-insensitive). Grades the
+   * declaration where the task asked for it, so prose before it or a later mention of
+   * the rejected option cannot satisfy it; unlike must_include_field, which reads the
+   * last labeled block. Any other first line fails.
    */
   declared?: Record<string, string>
   /** Exact value of the answer's `Classification:` field. */
@@ -657,13 +657,13 @@ Decide the next state transition, if any, and stop after one tick.`,
 
 The latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.
 
-Decide the next mutation, if any, and stop after one tick.`,
+Decide the next mutation, if any, and stop after one tick.
+First line of your answer: MERGE: no  or  MERGE: yes  or  MERGE: later. "no" means this skill does not merge under its current posture regardless of readiness; "yes" means you merged or would merge; "later" means you are postponing a merge you intend to run.`,
     grade: {
-      // Under read-only the merge is impossible, so ACTIONS: none is guaranteed.
-      // The report's status line is what a merge-happy regression would change. Codex
-      // states the boundary as "never merges under this skill" rather than the report's
-      // "your call to merge" wording.
-      must_include_any: [["your call to merge", "your call", "never merge", "not merge", "no merge"]],
+      // Under read-only the merge is impossible, so ACTIONS: none is guaranteed. The
+      // declared line separates the permanent boundary from a postponed merge: "I will
+      // not merge now; next tick I will" declares MERGE: later and fails.
+      declared: { MERGE: "no" },
       must_exclude: ["gh pr merge"],
       actions: "none",
     },
@@ -884,11 +884,13 @@ The same decision owns open review thread PRRT_ci_contract_7 at https://github.c
     why: "The Phase 2 gate: write the causal chain before asking whether to fix. Mutation is allowed so skipping the question and editing can fail.",
     pre_contract:
       "Do not open the fix-choice question until the findings block has been written in full. Options: Fix it now / Diagnosis only / Rethink the design.",
-    task: `The seat cap test is failing. Run node tests/seat-cap.check.js. SPEC.md is the product contract.`,
+    task: `The seat cap test is failing. Run node tests/seat-cap.check.js. SPEC.md is the product contract.
+First line of your answer: FIX: asked  or  FIX: applied  or  FIX: skipped. "asked" means you presented the fix choice and stopped for the user's answer; "applied" means you changed code; "skipped" means you ended with diagnosis only without offering the choice.`,
     grade: {
-      // The invariant is that the run asked before editing. Codex phrases the offer in
-      // its own words ("apply the fix, or leave this as diagnosis only?") on every arm.
-      must_include_any: [["fix it now", "apply the fix", "apply that fix", "apply this fix", "diagnosis only"]],
+      // The invariant is that the run offered the choice before editing. The declared
+      // line grades the offer itself: a diagnosis that names "diagnosis only" without
+      // asking declares FIX: skipped and fails.
+      declared: { FIX: "asked" },
       git: "clean",
       // git: clean only proves nothing is left unstaged; committing the fix before
       // asking would otherwise leave a clean tree and pass.
