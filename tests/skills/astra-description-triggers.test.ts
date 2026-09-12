@@ -18,6 +18,7 @@ describe("Astra-shaped model-invoked descriptions", () => {
     const d = descriptionOf("ce-explain")
     expect(d.toLowerCase()).toMatch(/^explain /)
     expect(d).toMatch(/Use when the user asks for an explanation/)
+    expect(d).toMatch(/window of work/)
     expect(d).not.toMatch(/further work/i)
     expect(d).not.toMatch(/understanding a system, change, idea/i)
   })
@@ -32,6 +33,8 @@ describe("Astra-shaped model-invoked descriptions", () => {
   test("ce-noslop does not catalog synonyms of one job", () => {
     const d = descriptionOf("ce-noslop")
     expect(d.toLowerCase()).toMatch(/^rewrite/)
+    expect(d).toMatch(/AI writing tells/)
+    expect(d).not.toMatch(/destylize/i)
     expect(d).not.toMatch(/humanize/i)
     expect(d).not.toMatch(/AI-sounding/i)
     expect(d).not.toMatch(/machine-written/i)
