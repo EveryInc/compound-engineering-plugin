@@ -1,6 +1,6 @@
 ---
 name: ce-explain
-description: "Explain how something works and why it has its current shape, grounding behavior in evidence and separating documented rationale from inference. Use when understanding a system, change, idea, or recent work is needed for learning or further work, including deeper teaching explanations. Use ce-pov for a judgment or recommendation."
+description: "Explain how and why a named system or change has its current shape, grounded in evidence. Use when the user asks for an explanation. Use ce-pov for a judgment or recommendation."
 argument-hint: "[question, concept, change, or work window] [intended use or reader]"
 ---
 

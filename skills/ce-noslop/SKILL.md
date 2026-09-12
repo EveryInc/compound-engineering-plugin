@@ -1,6 +1,6 @@
 ---
 name: ce-noslop
-description: "Rewrite, check, or draft prose so it reads plainly on the first read and carries no AI writing patterns, keeping every fact the source states. Use when the user asks to make text plainer, humanize it, remove AI-sounding writing, or check whether it reads as machine-written; when a draft is wanted from supplied content; and when a skill about to compose a PR body, plan, finding, or reply names this skill. Use ce-promote for channel-specific marketing copy."
+description: "Rewrite, check, or draft prose so it reads plainly on the first read and keeps every source fact. Use when asked to destylize or check writing, when drafting from supplied content, or when a caller names this skill. Use ce-promote for channel-specific marketing copy."
 argument-hint: "[mode:author|edit|detect] [text, file path, or nothing]"
 ---
 
