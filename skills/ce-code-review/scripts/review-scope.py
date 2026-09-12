@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 CODE_EXTENSIONS = {
-    ".rb", ".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".rs",
+    ".rb", ".py", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".go", ".rs",
     ".java", ".swift", ".kt", ".c", ".cc", ".cpp", ".cs", ".php",
     ".ex", ".exs", ".scala",
 }

@@ -51,6 +51,21 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.lite_eligible).toBe(false)
   })
 
+  test("scope helper counts .mjs and .cjs files as executable code", () => {
+    const { dir, base } = fixtureRepo()
+    writeFileSync(path.join(dir, "esm.mjs"), "export const value = 1\n")
+    writeFileSync(path.join(dir, "common.cjs"), "module.exports = 1\n")
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_lines).toBe(2)
+    expect(scope.uncounted_files).toBe(0)
+    expect(scope.lite_eligible).toBe(true)
+  })
+
   test("scope helper emits UNKNOWN-equivalent state for an invalid endpoint", () => {
     const { dir } = fixtureRepo()
     const result = run("python3", [SCOPE_SCRIPT, "--base", "missing-ref"], dir)
