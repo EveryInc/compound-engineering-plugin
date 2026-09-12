@@ -668,8 +668,8 @@ describe("ce-code-review contract", () => {
     expect(handoff).toMatch(/\{"status":"failed","reason":"<one sentence>"\}/)
     // #1693: the report leaf owns Stage 5b step 5, so an infrastructure-failure
     // outcome must take the unresolved route rather than the old boolean drop.
-    expect(handoff).toMatch(/Classify every selected finding yourself from the failure it alleges/)
-    expect(handoff).toMatch(/unresolved report-only route/)
+    expect(handoff).toMatch(/step 5 decides which stay as unresolved gates/)
+    expect(handoff).toMatch(/still count toward the Stage 6 verdict/)
     expect(handoff).not.toMatch(/drop and validation-degraded rules/)
   })
 
