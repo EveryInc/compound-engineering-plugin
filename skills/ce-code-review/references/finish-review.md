@@ -1,3 +1,5 @@
+This reference runs in the finish context: one fresh subagent that holds this skill's directory and the run directory and nothing else (`references/finish-input.md`). Read `<run-dir>/finish-input.json` first. Wherever this reference refers to an earlier stage's result, the intent summary, the roster, the plan, the scope, or conversation context, that value is the matching field of that file, and `<root>` is its `docs_root`. When its `peer.job_id` is set, run the single-reap finish `references/cross-model-review.md` defines before Stage 5 and delete the job directory before returning. Your return is the report and nothing else.
+
 ### Stage 5: Merge findings
 
 Read `references/action-class-rubric.md` before routing any finding: it defines the severity scale and the action-routing rules synthesis applies, and it states that synthesis makes the final routing decision.
@@ -243,6 +245,7 @@ Do not offer push/PR/create-branch next steps from this skill.
 
 Always write run artifacts under the resolved `<run-dir>`:
 
+- `finish-input.json`: the dispatch context's handoff to the finish context (`references/finish-input.md`)
 - synthesized findings
 - actionable findings list
 - advisory outputs

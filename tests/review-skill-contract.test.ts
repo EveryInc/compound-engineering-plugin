@@ -608,6 +608,32 @@ describe("ce-code-review contract", () => {
     expect(solution).toMatch(/fail closed.*lifecycle obligations.*detached work.*already started/i)
   })
 
+  test("#1690: the round finishes from run-dir artifacts in a fresh context", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const dispatch = await readRepoFile("skills/ce-code-review/references/dispatch-reviewers.md")
+    const finish = await readRepoFile("skills/ce-code-review/references/finish-review.md")
+    const handoff = await readRepoFile("skills/ce-code-review/references/finish-input.md")
+
+    // The body decides the split from the window: always on, fresh subagent, verbatim return.
+    expect(skill).toMatch(/write the finish input `references\/finish-input\.md` defines/)
+    expect(skill).toMatch(/one fresh finish subagent/)
+    expect(skill).toMatch(/emit that return verbatim/)
+    expect(skill).toMatch(/never finish in the dispatch context/)
+    // The peer's reap moves with the fold-in; dispatch stops touching the peer once the file is written.
+    expect(dispatch).toMatch(/do not touch the peer again/)
+    expect(dispatch).toMatch(/the finish context performs the reference's single bounded status\/wait\/reap sequence/)
+    // The finish reference reads the file first and resolves its earlier-stage references from it.
+    expect(finish).toMatch(/^This reference runs in the finish context/m)
+    expect(finish).toMatch(/Read `<run-dir>\/finish-input\.json` first/)
+    expect(finish).toMatch(/- `finish-input\.json`/)
+    // The contract file names every field the finish context may need and the failure direction.
+    for (const field of ["run_id", "skill_dir", "docs_root", "apply_local", "raw-returns.json", "failed_reviewers", "job_id", "deadline_secs", "coverage_notes"]) {
+      expect(handoff).toContain(field)
+    }
+    expect(handoff).toMatch(/emit the finish context's return verbatim/i)
+    expect(handoff).toMatch(/\{"status":"failed","reason":"<one sentence>"\}/)
+  })
+
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
     const content = await readRepoFile(
       "skills/ce-code-review/references/finish-review.md",
