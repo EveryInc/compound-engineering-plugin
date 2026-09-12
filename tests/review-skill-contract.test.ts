@@ -633,6 +633,7 @@ describe("ce-code-review contract", () => {
     expect(handoff).toMatch(/emit the finish context's return verbatim/i)
     // #1692 review: a recipient change needs the visible dispatch channel; the finish context never starts a peer route.
     expect(handoff).toMatch(/never resolves, announces, or starts a peer route/)
+    expect(handoff).toMatch(/Put the full contents of `finish-input\.json` inline in the finish subagent's prompt/)
     expect(handoff).toContain("preference_source")
     expect(handoff).toMatch(/\{"status":"failed","reason":"<one sentence>"\}/)
   })

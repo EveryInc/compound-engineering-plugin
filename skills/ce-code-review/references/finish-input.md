@@ -1,6 +1,6 @@
 # Finish handoff: what dispatch writes, what finish reads
 
-A review round runs in two contexts. The **dispatch context** is the orchestrator that resolved scope, selected reviewers, started the peer, dispatched the local batch, and collected it (Stages 1 through 4). The **finish context** is one fresh subagent that holds nothing but this skill's directory and the run directory, and runs Stages 5, 5b, 5c, and 6 from what is on disk. The split exists because a six-lens round routinely uses up the dispatch context before Stage 5b, which is when validator launches start failing (#1679, #1690). It is always on for the multi-agent path; the quick-review short-circuit never reaches it.
+A review round runs in two contexts. The **dispatch context** is the orchestrator that resolved scope, selected reviewers, started the peer, dispatched the local batch, and collected it (Stages 1 through 4). The **finish context** is one fresh subagent whose only inputs are this skill's reference files, reached through the absolute skill-directory path in its prompt, and the run directory; it runs Stages 5, 5b, 5c, and 6 from what is on disk. The split exists because a six-lens round routinely uses up the dispatch context before Stage 5b, which is when validator launches start failing (#1679, #1690). It is always on for the multi-agent path; the quick-review short-circuit never reaches it.
 
 **Outcome:** the finish context produces the same report the dispatch context would have, from the run directory alone, and the dispatch context emits that report verbatim. **Done:** `report.md` (default mode) or `review.json` (`mode:agent`) and `metadata.json` are on disk, every persisted peer job directory is deleted, and the dispatch context has returned the finish context's output unchanged.
 
@@ -51,6 +51,10 @@ The dispatch context writes this file after every local reviewer is collected an
 ```
 
 `raw-returns.json` holds every compact reviewer return the dispatch context consumed, one array entry per reviewer, with the `fast-pass` pseudo-reviewer included when it found anything; the per-reviewer artifacts sit beside it. `coverage_notes` carries every sentence Coverage must contain that only the dispatch context knew: the lite-roster decision and its reason, the standards fallback, untracked files excluded, the cross-model skip reason, scope-mode notes.
+
+## How the dispatch context launches it
+
+Put the full contents of `finish-input.json` inline in the finish subagent's prompt, together with the absolute paths of the run directory, this reference, and `references/finish-review.md`, and tell it to read those two references first. Inline the file rather than only naming it: the facts it carries are small, and a subagent that has them in its prompt cannot skip the read. Everything larger (the diff, the per-reviewer artifacts, the compact returns) stays on disk and is read by path. No override on the model: the finish context inherits the session model.
 
 ## What the finish context does with it
 
