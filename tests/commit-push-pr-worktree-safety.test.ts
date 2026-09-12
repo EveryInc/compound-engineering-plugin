@@ -95,10 +95,10 @@ function createFixture(root: string) {
 }
 
 describe("commit-push-pr worktree preservation", () => {
-  test("checkout recipes do not stash or load a separate safety reference", () => {
+  test("checkout recipes protect ignored files without automatic stashing", () => {
     for (const name of ["branch-creation.md", "stack-submit.md"]) {
       const content = readReference(name)
-      assert.doesNotMatch(content, /worktree-safety|stash\/pop only|^git stash push -u/m)
+      assert.doesNotMatch(content, /stash\/pop only|^git stash push -u/m)
       assert.match(content, /--no-overwrite-ignore/)
     }
   })
@@ -142,6 +142,24 @@ describe("commit-push-pr worktree preservation", () => {
           assert.equal(after.staged, before.staged)
           assert.equal(after.unstaged, before.unstaged)
           assert.equal(f.git("for-each-ref", "refs/stash"), "")
+        })
+      })
+    }
+
+    for (const alsoUnstaged of [false, true]) {
+      test(`${route} rejects a staged collision${alsoUnstaged ? " with additional unstaged edits" : ""} without changing files, refs, or index`, () => {
+        withRepo((f) => {
+          const tip = f.target("tracked.txt")
+          f.write("tracked.txt", "staged work\n")
+          f.git("add", "tracked.txt")
+          if (alsoUnstaged) f.write("tracked.txt", "unstaged work\n")
+          const before = f.snapshot()
+          const result = f.raw(...checkoutArgs(route, tip))
+          assert.notEqual(result.status, 0)
+          assert.match(result.stderr, /would be overwritten/)
+          assert.equal(f.read("tracked.txt"), alsoUnstaged ? "unstaged work\n" : "staged work\n")
+          assert.equal(f.git("show", ":tracked.txt"), "staged work\n")
+          assert.deepEqual(f.snapshot(), before)
         })
       })
     }

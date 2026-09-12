@@ -143,6 +143,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-brainstorm/standard-scope-routes-to-file:references/phase-0.md",
         "ce-brainstorm/verdict-routes-to-pov:references/phase-0.md",
         "ce-brainstorm/write-plan-reads-plan-write:references/plan-write.md",
+        "ce-code-review/artifact-quote-before-filter:references/finish-review.md",
         "ce-commit-push-pr/description-only-no-commit:references/pr-description-writing.md",
         "ce-compound-refresh/confirmed-worth-lens-deletes-only-with-quoted-artifact:references/worth-audit.md",
         "ce-commit-push-pr/babysit-off-preserves-human-decision:references/apply-and-handoff.md",

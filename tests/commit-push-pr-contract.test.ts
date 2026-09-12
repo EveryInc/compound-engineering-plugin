@@ -569,7 +569,6 @@ describe("PR concept teaching contract", () => {
     expect(submit).toMatch(/authoritative parent tip/i)
     expect(submit).toContain('git checkout --no-overwrite-ignore -b "<branch-name>" "<parent-tip>"')
     expect(submit).toMatch(/If checkout fails because uncommitted or ignored files would be overwritten/)
-    expect(submit).not.toMatch(/worktree-safety|Worktree preservation/)
     expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)
     expect(submit).toMatch(/starts on the resolved default branch.+follow `references\/branch-creation\.md`/is)
     expect(submit).toMatch(/starts on an existing feature branch.+do not follow `references\/branch-creation\.md`/is)

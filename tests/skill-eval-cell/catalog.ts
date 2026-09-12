@@ -1587,6 +1587,25 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
     },
   },
   {
+    id: "ce-code-review/artifact-quote-before-filter",
+    baseline_ref: "5c32ef92339b95348d6a12000e814d4877902557",
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    fixture: `${FIX}/review-artifact-quote`,
+    timeout_secs: 180,
+    why: "A local reviewer supplies its quote only in the artifact; inspect actual helper input and output before suppression can lose it.",
+    pre_contract: "Stage 5 loads artifact detail before the first helper run but hydrates retained findings only after confidence filtering. High-confidence findings require a motivating quote.",
+    task: `Continue ce-code-review at Stage 5. All reviewers have finished. returns.json contains the collected compact returns; correctness.json is the corresponding full reviewer artifact. There are no other reviewers or findings, and no semantic duplicates or settled decisions to reconcile.
+
+Prepare the merge input and run the skill's findings helper. Use a local run/ directory for scratch artifacts. Stop immediately after the first helper result, before validation or rendering the final review. Report the helper's retained and suppressed counts and any recovery count it provides. Do not edit the supplied artifacts or the helper.`,
+    grade: {
+      files_read_post: ["references/finish-review.md"],
+      workspace_contains: [{ path: "run/mechanical-findings.json", needle: '"first_evidence_backfilled": 1' }],
+    },
+  },
+  {
     id: "ce-code-review/standards-designated-source",
     baseline_ref: STANDARDS_SOURCE_BASE_REF,
     skill: "ce-code-review",

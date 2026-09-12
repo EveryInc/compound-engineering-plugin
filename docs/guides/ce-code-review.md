@@ -160,6 +160,8 @@ When you ask for a "quick", "fast", or "light" review, the skill defers to the h
 
 After reviewers return, synthesis validates each finding, anchors it to the actual diff, deduplicates across personas, promotes confidence on agreement, resolves contradictions, and routes by autofix class. The output is one report with calibrated severity, evidence quotes, and explicit ownership.
 
+Before confidence filtering, synthesis supplies evidence from matching reviewer artifacts so a missing or blank `first_evidence` field does not discard an otherwise quoted finding at confidence 75 or 100. Coverage reports how many input findings recovered their quote this way, alongside quote-gate demotions. Findings with no usable quote still face the same gate.
+
 When findings span distinct concerns, related ones are grouped under a short theme (`grouping:auto`, the default). Groups are a triage lens, not a restructure: findings keep their stable `#`s, and groups reference them (`#2, #3`). Pass `grouping:off` for a flat report or `grouping:always` to group even small reviews.
 
 When the diff has an associated plan (`docs/plans/*.md` or `.html`), the skill discovers it (`plan:` argument, PR body link, or auto-discovery from branch name) and verifies the diff against Product Contract Requirements and Implementation Units on an implementation-ready artifact.

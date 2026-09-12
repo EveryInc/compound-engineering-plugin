@@ -553,6 +553,77 @@ describe("ce-code-review deterministic mechanics", () => {
     ])
   })
 
+  test("findings helper recovers artifact quotes before validation without weakening the evidence gate", () => {
+    const quote = "src/state.ts:8 -- return priorState"
+    const base = {
+      title: "Stale state returned", severity: "P1", file: "src/state.ts", line: 8,
+      confidence: 75, autofix_class: "manual", owner: "downstream-resolver",
+      requires_verification: true, pre_existing: false,
+    }
+    const cases = [
+      { fields: { evidence: [quote] }, retained: 1, backfilled: 1, malformed: 0 },
+      { fields: { first_evidence: " ", evidence: [quote] }, retained: 1, backfilled: 1, malformed: 0 },
+      { fields: { first_evidence: quote, evidence: ["other quote"] }, retained: 1, backfilled: 0, malformed: 0 },
+      { fields: { first_evidence: false, evidence: [quote] }, retained: 0, backfilled: 0, malformed: 1 },
+      { fields: { first_evidence: 42, evidence: [quote] }, retained: 0, backfilled: 0, malformed: 1 },
+      { fields: {}, retained: 0, backfilled: 0, malformed: 0 },
+      { fields: { evidence: [] }, retained: 0, backfilled: 0, malformed: 0 },
+      { fields: { evidence: "not an array" }, retained: 0, backfilled: 0, malformed: 0 },
+      { fields: { evidence: [42, quote] }, retained: 0, backfilled: 0, malformed: 0 },
+      { fields: { evidence: [" ", quote] }, retained: 0, backfilled: 0, malformed: 0 },
+      { fields: { first_evidence: false, evidence: [] }, retained: 0, backfilled: 0, malformed: 1 },
+    ]
+    const returns = [{
+      reviewer: "correctness",
+      findings: cases.map((entry, index) => ({
+        ...base,
+        ...entry.fields,
+        title: `${base.title} ${index}`,
+        line: base.line + index,
+      })),
+      residual_risks: [],
+      testing_gaps: [],
+    }]
+    const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.findings).toHaveLength(cases.filter((entry) => entry.retained).length)
+    expect(merged.first_evidence_backfilled).toBe(cases.reduce((sum, entry) => sum + entry.backfilled, 0))
+    expect(merged.malformed_findings).toBe(cases.reduce((sum, entry) => sum + entry.malformed, 0))
+    expect(merged.suppressed_by_confidence).toEqual({
+      "50": cases.filter((entry) => !entry.retained && !entry.malformed).length,
+    })
+    expect(merged.findings.map((finding: { title: string }) => finding.title).sort()).toEqual(
+      cases.flatMap((entry, index) => entry.retained ? [`${base.title} ${index}`] : []).sort(),
+    )
+    expect(merged.suppressed_findings.map((finding: { title: string }) => finding.title).sort()).toEqual(
+      cases.flatMap((entry, index) => !entry.retained && !entry.malformed ? [`${base.title} ${index}`] : []).sort(),
+    )
+    for (const finding of merged.findings) {
+      expect(finding.first_evidence).toBe(quote)
+      expect(finding.confidence).toBe(75)
+    }
+  })
+
+  test("artifact quotes do not promote two independent anchor-50 findings", () => {
+    const finding = {
+      title: "Possible stale state", severity: "P2", file: "src/state.ts", line: 8,
+      confidence: 50, autofix_class: "advisory", owner: "downstream-resolver",
+      requires_verification: true, pre_existing: false,
+      evidence: ["src/state.ts:8 -- return priorState"],
+    }
+    const returns = ["correctness", "reliability"].map((reviewer) => ({
+      reviewer, findings: [finding], residual_risks: [], testing_gaps: [],
+    }))
+    const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+    expect(merged.findings).toEqual([])
+    expect(merged.first_evidence_backfilled).toBe(0)
+    expect(merged.suppressed_by_confidence).toEqual({ "50": 1 })
+  })
+
   test("findings helper keeps settled decisions, caps fast-pass, and sorts by confidence", () => {
     const returns = [
       {
