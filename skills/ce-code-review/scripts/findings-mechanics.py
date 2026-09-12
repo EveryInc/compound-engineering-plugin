@@ -144,6 +144,7 @@ def main() -> int:
 
     malformed_returns = 0
     malformed_findings = 0
+    first_evidence_backfilled = 0
     grouped: dict[
         tuple[str, str, str], list[tuple[dict[str, Any], str, tuple[str, ...]]]
     ] = {}
@@ -158,10 +159,24 @@ def main() -> int:
         residual_risks.extend(source["residual_risks"])
         testing_gaps.extend(source["testing_gaps"])
         for finding in source["findings"]:
+            backfilled = False
+            if isinstance(finding, dict):
+                finding = dict(finding)
+                evidence = finding.get("evidence")
+                if (
+                    finding.get("confidence") in (75, 100)
+                    and ("first_evidence" not in finding or isinstance(finding["first_evidence"], str))
+                    and not nonempty_string(finding.get("first_evidence"))
+                    and isinstance(evidence, list)
+                    and evidence
+                    and nonempty_string(evidence[0])
+                ):
+                    finding["first_evidence"] = evidence[0]
+                    backfilled = True
             if not valid_finding(finding):
                 malformed_findings += 1
                 continue
-            finding = dict(finding)
+            first_evidence_backfilled += int(backfilled)
             if reviewer == "fast-pass":
                 finding["confidence"] = min(finding["confidence"], 50)
             independent_names: tuple[str, ...]
@@ -241,6 +256,7 @@ def main() -> int:
                 "suppressed_by_confidence": dict(sorted(suppressed.items())),
                 "malformed_returns": malformed_returns,
                 "malformed_findings": malformed_findings,
+                "first_evidence_backfilled": first_evidence_backfilled,
             },
             sort_keys=True,
         )
