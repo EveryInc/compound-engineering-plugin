@@ -27,7 +27,7 @@ It does not render verdicts. If you ask whether to adopt a named external candid
 |----------|--------|
 | What does it do? | Collaborative dialogue to clarify scope, pressure-test premises, explore approaches, and write a requirements-only unified plan |
 | When to use it | Vague feature ideas, multiple plausible directions, unclear scope, work in unfamiliar territory, non-software decisions |
-| What it produces | Software: a requirements-only unified plan in `docs/plans/` with `artifact_readiness: requirements-only` and R/A/F/AE IDs. Non-software: chat synthesis, optional save, optional Proof publish, optional handoff to `ce-plan`. Lightweight alignment can skip the doc. |
+| What it produces | Software: a requirements-only unified plan in `docs/plans/` with a Product Contract and R/A/F/AE IDs. Non-software: chat synthesis, optional save, optional Proof publish, optional handoff to `ce-plan`. Lightweight alignment can skip the doc. |
 | What's next | Software: `ce-plan` (recommended), ship autonomously with `lfg`, pressure-test or prototype, or keep asking. Non-software: create a plan, save the summary, publish to Proof, or stop. |
 
 ---

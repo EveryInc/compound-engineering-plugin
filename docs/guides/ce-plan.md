@@ -27,7 +27,7 @@ A prior brainstorm helps but is never required. You can invoke `ce-plan` directl
 |----------|--------|
 | What does it do? | Researches context, captures decisions and scope, breaks work into atomic units with stable IDs, enumerates test scenarios per unit, then auto-strengthens weak sections via a confidence check |
 | When to use it | Requirements are ready and execution guardrails are needed; solo planning when the task is already clear; non-software multi-step tasks; investigative questions that need a structured answer |
-| What it produces | Software: a unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed). Brainstorm-sourced plans move from `artifact_readiness: requirements-only` to `implementation-ready` in place. Non-software plan-seeking writes a domain plan (or publishes to Proof). Answer-seeking delivers the answer in chat with no plan file. |
+| What it produces | Software: a unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed). Brainstorm-sourced plans gain implementation planning in place. Non-software plan-seeking writes a domain plan (or publishes to Proof). Answer-seeking delivers the answer in chat with no plan file. |
 | What's next | Software: start `ce-work` (recommended), run it as a `/goal` when the host supports that, decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open an HTML plan in the browser. Non-software: save, publish to Proof, or both. Answer-seeking: the answer is the end. |
 
 ---
@@ -138,7 +138,7 @@ When a decision was examined and chosen in the invoking conversation, or arrives
 
 ## Quick Example
 
-You invoke `ce-plan` with a requirements-only unified plan from `ce-brainstorm`. The skill detects `artifact_readiness: requirements-only`, uses the Product Contract as primary input, and verifies no resolve-before-planning blockers remain.
+You invoke `ce-plan` with a requirements-only unified plan from `ce-brainstorm`. The skill reads the contents, uses the Product Contract as primary input, and verifies no resolve-before-planning blockers remain.
 
 It dispatches research in parallel (repo analyst, learnings researcher). Local patterns are strong and no external comparison was requested, so it skips external research. A spec-flow analyzer runs to surface edge cases. The scoping synthesis surfaces a tier-shaped summary plus any call-outs, the plan-time forks where another reasonable agent might choose differently. You confirm or redirect. Auto-proceed only fires for Lightweight plans with no forks worth flagging; Standard and Deep always get the explicit checkpoint.
 

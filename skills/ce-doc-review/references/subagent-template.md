@@ -168,7 +168,7 @@ Document content:
 </review-context>
 
 <context-slots-rules>
-- `Document type:` is the orchestrator's authoritative classification (`requirements`, `plan`, `unified-requirements`, or `unified-plan`). Trust it; do not re-classify by inspecting content shape. The orchestrator already used frontmatter, readiness metadata, and section structure to decide.
+- `Document type:` is the orchestrator's authoritative classification (`requirements`, `plan`, `unified-requirements`, or `unified-plan`). Trust it; do not re-classify by inspecting content shape. The orchestrator already inspected the document contents and section structure to decide.
 - **Where your persona below adapts on `Document type: requirements` vs `Document type: plan`, apply the `requirements` branch for `unified-requirements` and the `plan` branch for `unified-plan`.** The `unified-*` values carry the same review lens as their base type — they differ only in living in one readiness-staged artifact, which the slice rules above already account for. Without this, a persona keyed on the bare `requirements`/`plan` value would skip its adaptation entirely on a unified artifact.
 - For `unified-requirements`, review the Product Contract slice as product requirements. Do not flag missing Planning Contract, Implementation Units, Verification Contract, or Definition of Done; those are added by `ce-plan`.
 - For `unified-plan`, treat Product Contract as the what-to-build authority and Planning Contract / Implementation Units / Verification Contract / Definition of Done as the how-to-build and completion contract. Findings should name which contract is affected.

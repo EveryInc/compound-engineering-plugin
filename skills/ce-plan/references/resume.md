@@ -7,11 +7,11 @@ Phase 0.1 and 0.1a of `ce-plan`. Read this when the run may target an existing p
 This resume check needs `<root>/plans/`, so it only applies to a repo-backed run. If there is no git repository, or resolving `<root>` fails (a bad `docs_root`), do **not** fail the run here — skip resume discovery and continue to Phase 0.1a/0.1b, which route non-software and answer-seeking work that never touches `<root>/plans/`. When a plan path was given explicitly, use it directly without resolving `<root>`.
 
 If the user references an existing plan file or there is an obvious recent matching plan in `<root>/plans/`:
-- Read it
+- Read it and follow any explicit supersession notice to the canonical path; if discovery finds same-basename format siblings without a clear canonical path, ask which to use
 - Confirm whether to update it in place or create a new plan
 - If updating, revise only the still-relevant sections. Plans do not carry per-unit progress state — progress is derived from git by `ce-work`, so there is no progress to preserve across edits
 
-**A requirements-only unified plan is not a resume target.** A `<root>/plans/` file with `artifact_readiness: requirements-only` is an *enrichment input* — do not fire the update-or-create confirmation for it. Fall through to Phase 0.2, which enriches it in place. In pipeline mode the resume choice is made automatically (default to in-place update of the referenced plan) and is never prompted, because no user is present to answer.
+**A requirements-only unified plan is not a resume target.** A `<root>/plans/` file containing a Product Contract without implementation planning is an *enrichment input* — do not fire the update-or-create confirmation for it. Fall through to Phase 0.2, which enriches it in place. In pipeline mode the resume choice is made automatically (default to in-place update of the referenced plan) and is never prompted, because no user is present to answer.
 
 **Deepen intent:** The word "deepen" (or "deepening") in reference to a plan is the primary trigger for the deepening fast path. When the user says "deepen the plan", "deepen my plan", "run a deepening pass", or similar, the target document is a **plan** in `<root>/plans/`, not a requirements document. Use any path, keyword, or context the user provides to identify the right plan. If a path is provided, verify it is actually a plan document. If the match is not obvious, confirm with the user before proceeding.
 
@@ -29,7 +29,7 @@ Normal editing requests (e.g., "update the test scenarios", "add a new implement
 
 If the plan already has a `deepened: YYYY-MM-DD` frontmatter field and there is no explicit user request to re-deepen, the fast path still applies the same confidence-gap evaluation — it does not force deepening.
 
-**Resume preserves the existing artifact's format.** When resuming an existing plan, the resume run writes back in whatever format the existing artifact uses — markdown if the existing file is `.md`, HTML if it is `.html` — so a resume doesn't silently change the artifact shape. Explicit `output:` arguments on this run override (e.g., resuming an `.html` plan with `output:md` switches the artifact to markdown). A headless run resumes in the existing format like any other run. When the format switches, the resume writes the new-format file at the parallel path (`<plan-basename>.<ext>`) and the original is left in place untouched.
+**Resume preserves the existing artifact's format.** When resuming an existing plan, the resume run writes back in whatever format the existing artifact uses — markdown if the existing file is `.md`, HTML if it is `.html` — so a resume doesn't silently change the artifact shape. Explicit `output:` arguments on this run override (e.g., resuming an `.html` plan with `output:md` switches the artifact to markdown). A headless run resumes in the existing format like any other run. When the format switches, the resume writes the new-format file at the parallel path (`<plan-basename>.<ext>`) and the original is preserved with a visible supersession notice linking to the completed new-format file.
 
 For an explicit format conversion, preserve the existing artifact basename and change only the extension; do not generate a new timestamp, so same-basename sibling discovery can mark the old artifact stale.
 

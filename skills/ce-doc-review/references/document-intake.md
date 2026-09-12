@@ -19,11 +19,10 @@ On a valid resume, go directly to synthesis and presentation with the retained s
 
 Classify by **content shape and metadata, not file path**. Under the unified plan contract a requirements-only plan and an implementation-ready plan both live in `<root>/plans/`, so location no longer signals type. Reviewers work differently per classification, so a misclassification produces noisy or under-scrutinized findings.
 
-First check the unified artifact contract (`artifact_contract: ce-unified-plan/v1`):
+For a unified artifact (`artifact_contract: ce-unified-plan/v1`), classify by the content to review:
 
-- `artifact_readiness: requirements-only` -> **`unified-requirements`**. Review the Product Contract only; the absence of Planning Contract, Implementation Units, Verification Contract, or Definition of Done is expected and must not be flagged.
-- `artifact_readiness: implementation-ready` -> **`unified-plan`**. Review Product Contract and Planning Contract with different lenses, then Implementation Units/Verification/DoD for execution completeness.
-- Progress-like readiness values (`active`, `in_progress`, `completed`, `done`) are invalid. Report one as a document-contract finding; do not treat it as an execution state to honor.
+- Product Contract without implementation planning -> **`unified-requirements`**. Review the Product Contract; missing implementation sections are expected.
+- Any implementation planning -> **`unified-plan`**. Review the Product Contract and the implementation planning, including incomplete sections, for feasibility and execution completeness. A blocker or old readiness label must not hide those sections from review.
 - HTML unified artifacts (`.html`) use the same review and mutation routes. Apply changes in the document's native format and preserve its existing structure; never insert markdown syntax into HTML. For an ID-bearing HTML item, mirror the nearest sibling's structure and preserve both its anchor convention and visible ID text.
 
 Otherwise decide between the two legacy types on these signals:

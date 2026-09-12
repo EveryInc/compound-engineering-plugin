@@ -25,14 +25,14 @@ Every plan should contain:
 - Enumerated test scenarios for each feature-bearing unit, specific enough that an implementer knows exactly what to test without inventing coverage themselves
 - Clear dependencies and sequencing
 
-A plan is ready when an implementer can start confidently without needing the plan to write the code for them.
+A plan is ready when its contents give an implementer sufficient direction and no launch-blocking question remains. Verify material claims about existing code and fixtures against the repository; distinguish these prerequisites from additions the plan proposes to build. Record any unresolved prerequisite that prevents implementation as a blocker.
 
 #### 0.2 Find Upstream Product Contract
 
 Before asking planning questions, resolve the upstream product source in this order:
 
-1. **Explicit path from the user.** If it points to a unified plan with `artifact_contract: ce-unified-plan/v1` and `artifact_readiness: requirements-only`, this run enriches that same file in place. If it is already `artifact_readiness: implementation-ready`, treat it as a resume/deepening target. If it is a legacy `docs/brainstorms/*-requirements.{md,html}` file, use it as a legacy origin and write a new unified plan in `<root>/plans/`.
-2. **Recent requirements-only unified plans.** Search `<root>/plans/*.{md,html}` for visible/frontmatter metadata containing `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`. **Skip a superseded sibling:** if a requirements-only candidate has a same-basename file in the other format (`<basename>.md` / `<basename>.html`) that is already `implementation-ready`, a format conversion superseded it — the implementation-ready sibling is canonical; do not re-enrich the stale requirements-only copy.
+1. **Explicit path from the user.** Read its contents. If a unified plan has a Product Contract but needs implementation planning, this run enriches that same file in place. If it already contains implementation planning, treat it as a resume/deepening target and resolve any gaps there. If it is a legacy `docs/brainstorms/*-requirements.{md,html}` file, use it as a legacy origin and write a new unified plan in `<root>/plans/`.
+2. **Recent Product Contracts needing planning.** Search `<root>/plans/*.{md,html}` for unified plans from `product_contract_source: ce-brainstorm`, and inspect their contents. Follow an explicit supersession notice to the canonical path. If same-basename Markdown and HTML copies exist without a clear canonical path, ask which to use; neither format nor a readiness label establishes precedence.
 3. **Legacy requirements docs.** Search `docs/brainstorms/` for files matching `*-requirements.md` or `*-requirements.html`. These remain readable historical inputs; do not migrate or rewrite them.
 
 **Relevance criteria:** A Product Contract source is relevant if:
@@ -48,7 +48,7 @@ If multiple source documents match, ask which one to use using the platform's bl
 
 If a relevant requirements-only unified plan exists:
 1. Read metadata, Goal Capsule, Product Contract, Open Questions, and Sources (scan headings to locate them; don't read long appendices unless referenced).
-2. Announce that `ce-plan` will enrich that same file to `artifact_readiness: implementation-ready`.
+2. Announce that `ce-plan` will add the implementation planning to that same file.
 3. Preserve the Product Contract's **meaning and stable R/A/F/AE IDs** unless planning discovers a direct conflict. Conflicts become explicit assumptions or questions; do not silently rewrite product scope.
    - Preservation protects decisions, not bytes. **Meaning-preserving restructuring is sanctioned without a conflict:** splitting an overloaded requirement (the original R-ID keeps the original core intent; split-out parts take next unused numbers), moving a rule's full statement onto the R that governs it while slimming the Key Decision to label + annotation + `Governs R…` links, and deleting unlinked duplicate restatement. When an R is split, or a rule moves to a different R, re-point every affected `Governs R…`, `Covers R…`, and inline `per R…` citation to the IDs that now govern it; the preservation map records the change but does not replace those live links. Restructuring must not weaken a qualifier, drop an edge case, or reclassify a product constraint as an implementation preference — those are scope changes, not restructures.
    - Because enrichment edits the same file that holds the user's product decisions, record a one-line **Product Contract preservation** note in the enriched plan: "Product Contract unchanged", "restructured, no scope change: \<old-ID → new-IDs map\>", or "changed: \<R-IDs\> — \<why\>". This keeps the WHAT/HOW review boundary visible to reviewers (`ce-doc-review`, PR review) when there is no separate brainstorm file to diff against. For a *substantive* product-scope change (not a clarification or restructure), pause and confirm with the user before writing implementation units.

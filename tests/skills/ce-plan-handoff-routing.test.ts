@@ -495,7 +495,7 @@ describe("ce-plan output-contract gate", () => {
   })
 
   test("a saved Chat brief never claims the unified-plan contract", () => {
-    expect(OUTPUT_CONTRACTS_BODY).toMatch(/Do not set `artifact_contract` or `artifact_readiness`/)
+    expect(OUTPUT_CONTRACTS_BODY).toMatch(/Do not set `artifact_contract`/)
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/never implements/)
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/a planning invocation is not execution authority/)
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/Reserve the path with exclusive creation/)

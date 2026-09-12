@@ -98,7 +98,7 @@ The run also writes `decisions.md` there: the question, what was built, what won
 
 ### Write-back
 
-When a related brainstorm or plan exists, decisions land in that file's Product Contract (markdown or HTML). An implementation-ready plan is downgraded to `requirements-only` and its HOW sections are stripped, so `ce-work` cannot ship the old HOW; run `ce-plan` again to re-enrich. When no related file exists, the skill does not mint a plan. It recaps the decisions and recommends `ce-brainstorm` or `ce-plan` from the session.
+When a related brainstorm or plan exists, decisions land in that file's Product Contract (markdown or HTML). When the Product Contract changes, any HOW sections are removed and the document records that implementation planning must be regenerated. This prevents `ce-work` from shipping the old approach; run `ce-plan` again to re-enrich. When no related file exists, the skill does not mint a plan. It recaps the decisions and recommends `ce-brainstorm` or `ce-plan` from the session.
 
 ---
 
@@ -140,7 +140,7 @@ Standalone prompt-only runs stay file-free and continue into `ce-brainstorm` or 
 |----------|--------|
 | _(empty)_ | Uses this conversation. Asks only if it cannot tell what to try. |
 | `<prompt>` | Named question: a flow, a state model, a visual direction, whole-product feel, or a close comparison |
-| `<brainstorm or plan path>` | Grounds in that file and builds for the costliest unsettled feel-question. Applying writes the Product Contract in that file (and downgrades an implementation-ready plan to `requirements-only`). |
+| `<brainstorm or plan path>` | Grounds in that file and builds for the costliest unsettled feel-question. Applying writes the Product Contract in that file (and removes existing implementation planning when requirements change). |
 | Unattended / LFG / `mode:pipeline` | Stops. This skill needs a human. |
 
 ---

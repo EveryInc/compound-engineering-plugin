@@ -18,7 +18,7 @@ An explicit `status: blocked` return is terminal even when `artifact_path` names
 
 The plan the GATE checks is the path `ce-plan` reported writing this run. A file already under `<root>/plans/` that `ce-plan` did not report is not a written plan, however closely it matches the feature. When the return has neither a blocker nor a reported path, invoke `ce-plan` the single allowed second time; never accept a stale file instead.
 
-Read the plan metadata before continuing past step 1's GATE. A plan carrying `artifact_contract: ce-unified-plan/v1` proceeds only when it is `artifact_readiness: implementation-ready` with `execution: code`. Every other value stops the pipeline: `artifact_readiness: requirements-only`, any unrecognized readiness value, an invalid progress-like readiness value, and `execution: knowledge-work`. An output that is not an implementation plan at all also stops the pipeline, whether or not it carries the contract marker: for example an approach plan, or an answer-seeking or universal output.
+Inspect the returned plan before continuing past step 1's GATE. It must describe code implementation with sufficient scope, direction, and verification, and no launch-blocking question or finding. A Product Contract without implementation planning, an approach-only or answer-seeking output, or a non-code deliverable (`execution: knowledge-work`) stops the pipeline. An old readiness label cannot override the contents. `ce-work` owns verification of the active work's repository prerequisites; this gate does not duplicate that investigation.
 
 ## Settled-decisions brief
 

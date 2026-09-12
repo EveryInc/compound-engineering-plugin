@@ -355,7 +355,7 @@ describe("missing-owner blocked seam parity (ce-plan/ce-work -> lfg)", () => {
     const lfgEnvelope = sliceSection(
       planBrief,
       "An explicit `status: blocked` return is terminal",
-      "Read the plan metadata before continuing",
+      "Inspect the returned plan",
     )
     for (const field of ["`status: blocked`", "`phase`", "`blocker`", "`recovery_path`"]) {
       expect(cePlanEnvelope).toContain(field)

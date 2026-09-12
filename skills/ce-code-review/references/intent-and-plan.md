@@ -5,17 +5,7 @@ Read this at Stage 2. It defines the intent summary, plan discovery, what contex
 ## Plan Requirements Completeness
 
 When a plan is provided via `plan:<path>` or discovered from PR/branch context,
-classify readiness before checking completeness:
-
-- Unified artifact: metadata includes `artifact_contract: ce-unified-plan/v1`.
-  - `artifact_readiness: requirements-only` can inform product intent, but it
-    must not trigger implementation-unit completeness findings. Report that the
-    artifact was not implementation-ready if the diff appears to implement it.
-  - `artifact_readiness: implementation-ready` is eligible for full
-    requirements and U-ID completeness checks.
-  - Invalid progress-like readiness values (`active`, `in_progress`,
-    `completed`, `done`) are contract errors.
-- Legacy plan: use the existing completeness checks.
+inspect the contents before checking completeness. A Product Contract alone informs product intent and does not create implementation-unit obligations. When implementation units are present, check their coverage as well, including incomplete planning. Old readiness labels do not change the review scope. Legacy plans keep the existing completeness checks.
 
 Extract requirements from these shapes, in order:
 
@@ -23,7 +13,7 @@ Extract requirements from these shapes, in order:
 2. Legacy top-level `## Requirements`
 3. Legacy `## Requirements Trace`
 
-For unified implementation-ready plans, also extract U-IDs from
+For unified plans with implementation units, also extract U-IDs from
 `## Implementation Units` and compare against PR body/branch context when
 available. Do not require every Product Contract R-ID to map one-to-one to a
 single U-ID; verify that implemented U-IDs cite the relevant R/F/AE/KTD IDs and
@@ -68,7 +58,7 @@ Locate the plan document so Stage 6 can verify requirements completeness. Check 
 - Multiple/ambiguous PR body matches -> `plan_source: inferred` (lower confidence)
 - Auto-discover with single unambiguous match -> `plan_source: inferred` (lower confidence)
 
-If a plan is found, classify readiness before extraction (see "Plan Requirements Completeness" above): for a unified plan read the metadata/header first, and treat a requirements-only artifact as product intent only — it must not drive implementation-unit completeness findings. Then read its **Requirements** in this order — unified `Product Contract` -> `### Requirements`, then legacy top-level `## Requirements`, then legacy `## Requirements Trace` — and the R-IDs (R1, R2, etc.) listed there, plus **Implementation Units** (current numeric subsections such as `### U1.`, `### U2.`, or `### Unit 1:` under `## Implementation Units`; legacy bullet or checkbox unit entries under that section also count). For HTML unified plans the same section names and R-/U-IDs appear as visible headings/anchors — match on the section name, ignoring HTML wrapper tags. Store the extracted requirements list and `plan_source` for Stage 6. Do not block the review if no plan is found — requirements verification is additive, not required.
+If a plan is found, classify by contents before extraction (see "Plan Requirements Completeness" above): treat a Product Contract without implementation planning as product intent only — it must not drive implementation-unit completeness findings. Then read its **Requirements** in this order — unified `Product Contract` -> `### Requirements`, then legacy top-level `## Requirements`, then legacy `## Requirements Trace` — and the R-IDs (R1, R2, etc.) listed there, plus **Implementation Units** (current numeric subsections such as `### U1.`, `### U2.`, or `### Unit 1:` under `## Implementation Units`; legacy bullet or checkbox unit entries under that section also count). For HTML unified plans the same section names and R-/U-IDs appear as visible headings/anchors — match on the section name, ignoring HTML wrapper tags. Store the extracted requirements list and `plan_source` for Stage 6. Do not block the review if no plan is found — requirements verification is additive, not required.
 
 When the discovered plan's Key Technical Decisions carry `session-settled:` annotations (classes `user-directed` / `user-approved`), extract each labeled KTD — the decision, its class, and the rejected alternative — for your own use in Stage 5 triage (step 6c). Settlement annotations are **context for you (the orchestrator) only**: exclude them from the Stage 2 intent summary and from every reviewer's prompt, including the cross-model adversarial pass. The point is reviewer independence: each reviewer must stay free to re-derive the rejected alternative on the merits, and you triage any settlement conflicts afterwards in Stage 5.
 

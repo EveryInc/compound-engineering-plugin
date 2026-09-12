@@ -38,7 +38,7 @@ Two of its rules apply to every later step.
 
 **Verify before any dispatch.** Every resolved path must be readable on disk. If one is not, dispatch **no** personas: reviewers read from the filesystem, so they cannot reach a path that exists only on an unchecked-out branch (issue #925).
 
-**Classify by content shape and metadata, not by file path.** `artifact_readiness: requirements-only` is a **`unified-requirements`** review — Product Contract only. A missing Planning Contract, Implementation Unit, Verification Contract, or Definition of Done is expected there, never a finding. `artifact_readiness: implementation-ready` is a **`unified-plan`**. Anything else takes the legacy `requirements` / `plan` split.
+**Classify by content, not readiness labels or file path.** A unified artifact with only a Product Contract is **`unified-requirements`**; missing implementation sections are expected. Any implementation planning makes it **`unified-plan`**, including incomplete or blocked planning that needs review. Other artifacts use the legacy `requirements` / `plan` split.
 
 HTML unified artifacts take the same routes. Every fix lands in the document's native format; never insert markdown into HTML. That reference covers ID-bearing items. Pass the classification to each persona in the `{document_type}` slot.
 

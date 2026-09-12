@@ -116,7 +116,7 @@ Traditional development accumulates technical debt. Every feature adds complexit
 
 Compound engineering inverts this. 80% is in planning and review, 20% is in execution:
 
-- Plan thoroughly before writing code with `/ce-brainstorm` and `/ce-plan` using one readiness-based plan artifact
+- Plan thoroughly before writing code with `/ce-brainstorm` and `/ce-plan` using one plan artifact that grows from requirements into implementation planning
 - Review to catch issues and calibrate judgment with `/ce-code-review` and `/ce-doc-review`
 - Codify knowledge so it is reusable with `/ce-compound`
 - Keep quality high so future changes are easy

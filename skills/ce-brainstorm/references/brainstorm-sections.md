@@ -27,7 +27,6 @@ artifact contract:
 
 - **Path:** `<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>` (local wall-clock write time; no daily sequence number). Reserve the path atomically; on collision, retry with the smallest available numeric suffix before the extension rather than overwriting.
 - **`artifact_contract: ce-unified-plan/v1`**.
-- **`artifact_readiness: requirements-only`**.
 - **`product_contract_source: ce-brainstorm`**.
 - **`execution`** only when the brainstorm has enough signal to classify the
   eventual execution domain. For software features, use `execution: code`.
@@ -386,16 +385,12 @@ artifact.
   as the resume-detection key when `ce-brainstorm` scans for an existing
   artifact to continue.
 - **`artifact_contract`** — always `ce-unified-plan/v1` for new outputs.
-- **`artifact_readiness`** — always `requirements-only` for new
-  `ce-brainstorm` outputs. Do not use `active`, `in_progress`, `completed`,
-  or `done`.
 - **`product_contract_source`** — always `ce-brainstorm`.
 
 ### No status field
 
 Unified plan artifacts have no `status` field and no `active → completed`
-lifecycle. `artifact_readiness` is document completeness, not execution
-progress. No CE artifact carries mutable progress state; whether work shipped
+lifecycle or readiness flag. Readers assess the contents and unresolved questions. No CE artifact carries mutable progress state; whether work shipped
 is derived from git, not stored in the doc. Do not introduce one.
 
 ### Field-name stability

@@ -1,0 +1,21 @@
+<!doctype html><html><body><h1>Quiet greeting</h1><p>artifact_contract: ce-unified-plan/v1; execution: code</p><h2>Goal Capsule</h2><pre>
+Add an optional quiet greeting without changing the existing greet behavior.
+</pre><h2>Product Contract</h2><pre>
+### Requirements
+
+R1. greetQuiet(name) returns an empty string for empty input and otherwise returns greet(name).
+</pre><h2>Planning Contract</h2><pre>
+Add a separate export in src/quiet.js that imports greet from src/greet.js. Keep greet unchanged. No dependencies or architectural decisions are outstanding.
+</pre><h2>Implementation Units</h2><pre>
+### U1. Quiet greeting
+
+- Covers R1.
+- Files: create src/quiet.js and tests/quiet.test.js.
+- Approach: trim the supplied string to detect blank input; otherwise delegate to greet.
+- Test scenarios: empty string and spaces return empty; Alice returns the existing greeting.
+- Verification: node --test tests/quiet.test.js.
+</pre><h2>Verification Contract</h2><pre>
+Run node --test tests/quiet.test.js and check that greet('Alice') retains its existing output. Tests use Node's built-in test runner and assertions.
+</pre><h2>Definition of Done</h2><pre>
+R1 passes the named scenarios; existing greet behavior remains unchanged. No open product or architecture decisions.
+</pre></body></html>

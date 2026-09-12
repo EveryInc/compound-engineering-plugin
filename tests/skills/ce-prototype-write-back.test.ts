@@ -21,8 +21,9 @@ describe("ce-prototype write-back", () => {
     expect(WRITE_BACK).toMatch(/Do not edit Planning Contract/)
   })
 
-  test("implementation-ready markdown is downgraded and HOW is stripped", () => {
-    expect(WRITE_BACK).toContain("artifact_readiness: requirements-only")
+  test("Product Contract changes invalidate existing HOW, including incomplete planning", () => {
+    expect(WRITE_BACK).toContain("including incomplete planning")
+    expect(WRITE_BACK).toContain("implementation planning must be regenerated")
     expect(WRITE_BACK).toContain("Implementation Units")
     expect(WRITE_BACK).toContain("Verification Contract")
     expect(WRITE_BACK).toContain("Definition of Done")

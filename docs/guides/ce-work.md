@@ -28,7 +28,7 @@ It is the fourth step in the compound-engineering ideation chain:
 | Question | Answer |
 |----------|--------|
 | What does it do? | Reads an implementation-ready plan (or scopes a bare prompt), executes against the guardrails, runs tests continuously, ships a reviewed PR |
-| When to use it | Implementing a `ce-plan` plan with `artifact_readiness: implementation-ready`; small or medium bare-prompt work; resuming partly-shipped work |
+| When to use it | Implementing a plan with sufficient implementation direction and verification; small or medium bare-prompt work; resuming partly-shipped work |
 | What it produces | Commits and a PR (or just commits on the no-PR path). Knowledge-work plans produce a saved deliverable instead. |
 | Caller-owned mode | For outer orchestrators (for example `lfg`): `mode:return-to-caller <plan path>` implements and locally verifies, then returns a structured envelope and skips the standalone shipping tail (final simplify, review, PR, CI). Mid-implementation "Simplify as You Go" still runs. |
 | What's next | Review the PR; run `/ce-compound` to capture learnings |
@@ -103,7 +103,7 @@ Asking an agent "implement this plan" goes wrong in predictable ways:
 
 ### Plan-aware execution, then idempotent re-entry
 
-`ce-work` reads the plan as a decision artifact, not a script. For unified plans it checks metadata first and refuses `artifact_readiness: requirements-only` artifacts until `ce-plan` enriches them. Scope, decisions, U-IDs, files, test scenarios, and verification criteria are authoritative. The plan body stays read-only during execution; progress lives in git commits and the task tracker.
+`ce-work` reads the plan as a decision artifact, not a script. It reads the contents to establish whether implementation can start. A Product Contract without implementation planning goes back to `ce-plan`. Material existing prerequisites must match repository evidence; unresolved blockers stop execution. Planned new files need not exist yet, and old readiness labels do not override the contents. Scope, decisions, U-IDs, files, test scenarios, and verification criteria are authoritative. The plan body stays read-only during execution; progress lives in git commits and the task tracker.
 
 Before each task, it checks whether the unit's work already exists and matches the plan's intent. If verification is already satisfied, it marks the task complete and moves on. A unit whose deliverable is out-of-repo state (a console setting, a DNS record) has no git-derived completion signal, so its status is decided from the observed state of the deliverable, never re-applied off a clean tree. This matters most when resuming after context compaction, picking up someone else's branch, or returning to a partly-shipped plan weeks later.
 

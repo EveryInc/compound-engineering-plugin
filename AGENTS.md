@@ -263,7 +263,7 @@ Keep the `;`. Avoid `${CLAUDE_SKILL_DIR}` in this cross-host plugin. **Do not us
 ## Repository Docs Convention
 
 - **Guides** live in `docs/guides/` — the user-facing skill catalog and configuration reference. Keep them here, not under `skills/`, so they do not ship inside the plugin package.
-- **Plans** live in `docs/plans/` — unified plan artifacts. New `ce-brainstorm` outputs are requirements-only unified plans (`artifact_readiness: requirements-only`); `ce-plan` enriches them to implementation-ready plans (`artifact_readiness: implementation-ready`). Historical `docs/brainstorms/*-requirements.*` files remain readable legacy inputs and should not be migrated just because a new plan is created.
+- **Plans** live in `docs/plans/` — unified plan artifacts. New `ce-brainstorm` outputs are requirements-only unified plans; `ce-plan` adds implementation planning in place. Consumers assess contents and unresolved blockers rather than a readiness field. Historical `docs/brainstorms/*-requirements.*` files remain readable legacy inputs and should not be migrated just because a new plan is created.
 - **Brainstorm evidence / legacy requirements** may live in `docs/brainstorms/` — historical requirements docs and specialized analysis artifacts such as `docs/brainstorms/riffrec-feedback/`. Do not treat this as the canonical output path for new `ce-brainstorm` artifacts.
 - **Solutions** live in `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
 - **Specs** live in `docs/specs/` — target platform format specifications.

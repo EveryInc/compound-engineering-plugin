@@ -61,8 +61,8 @@ These hold regardless of which skill produced the artifact.
   `verification-contract`, `definition-of-done`, and `appendix` when those
   sections exist. Requirements-only artifacts omit links to absent
   implementation sections.
-- **Visible readiness metadata.** If the artifact has `artifact_contract`,
-  `artifact_readiness`, `product_contract_source`, or `execution`, render
+- **Visible artifact metadata.** If the artifact has `artifact_contract`,
+  `product_contract_source`, or `execution`, render
   those values in the visible header metadata. Do not hide a duplicate copy in
   JSON, `data-*`, or `<meta>` tags.
 

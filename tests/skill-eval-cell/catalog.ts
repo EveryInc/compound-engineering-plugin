@@ -28,6 +28,7 @@ export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e263
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 /** main before Goal Capsule required a holdable goal, not only a user-checkable outcome. */
 export const HOLDABLE_OBJECTIVE_BASE_REF = "0e758b60b35cec165470443fde5acf60db8bdae9"
+const PLAN_CONTENT_BASE_REF = "5c32ef92339b95348d6a12000e814d4877902557"
 export const CE_OPTIMIZE_BASE_REF = "b159e1fa4c70efa995742269d38269bcc7524dd2"
 export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68bf7"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
@@ -148,6 +149,161 @@ export const WAVE1 = [
 
 export const SCENARIOS: Scenario[] = [
   ...CALIBRATION_SCENARIOS,
+
+  {
+    id: "lfg/content-plan-gate",
+    baseline_ref: PLAN_CONTENT_BASE_REF,
+    skill: "lfg",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-content-complete`,
+    timeout_secs: 180,
+    why: "The pipeline must accept a sufficient plan without a readiness flag.",
+    pre_contract: "Step 1 requires a reported executable plan before implementation.",
+    task: "Use lfg for this checkpoint: ce-plan has just completed and reported writing docs/plans/widget-plan.md, with no blocked return. Resolve only step 1's plan gate. Report DECISION: proceed or DECISION: blocked and why, then stop. Do not invoke any skills, dispatch, edit, or run tests.",
+    grade: { must_include: ["DECISION: proceed"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-prototype/content-invalidation",
+    baseline_ref: PLAN_CONTENT_BASE_REF,
+    skill: "ce-prototype",
+    cohort: "resized",
+    key_behavior: "mutation",
+    read_only: false,
+    fixture: `${FIX}/plan-content-complete`,
+    timeout_secs: 180,
+    why: "Applying a product decision invalidates old implementation planning even without metadata.",
+    pre_contract: "Product Contract write-back removes obsolete HOW sections so execution cannot use old planning.",
+    task: "Use ce-prototype to apply the decision I've made for the prototype associated with docs/plans/widget-plan.md: blank input should return the literal string \"Silence\" instead of an empty string. That choice is approved. Update that plan now and stop; don't build another prototype, implement code, or invoke another skill.",
+    grade: { delegates: "none", workspace_contains: [{ path: "docs/plans/widget-plan.md", needle: "Silence" }, { path: "docs/plans/widget-plan.md", needle: "execution: code" }] },
+  },
+
+
+  {
+    id: "ce-work/content-new-files",
+    baseline_ref: PLAN_CONTENT_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-content-complete`,
+    timeout_secs: 180,
+    why: "Document contents must determine routing even when readiness metadata is absent or stale.",
+    pre_contract: "The pre-change unified artifact routes by artifact_readiness; preserve valid implementation, requirements-only restraint, and canonical target selection.",
+    task: "Use ce-work on docs/plans/widget-plan.md. Stop after deciding whether the plan supports implementation and naming any blocker. Report DECISION: proceed or DECISION: blocked with your reason. Do not implement, run tests, or dispatch.",
+    grade: {
+      must_include: [
+        "DECISION: proceed"
+      ],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-work/content-blocker",
+    baseline_ref: PLAN_CONTENT_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-content-blocked`,
+    timeout_secs: 180,
+    why: "Document contents must determine routing even when readiness metadata is absent or stale.",
+    pre_contract: "The pre-change unified artifact routes by artifact_readiness; preserve valid implementation, requirements-only restraint, and canonical target selection.",
+    task: "Use ce-work on docs/plans/widget-plan.md. Stop after deciding whether the plan supports implementation and naming any blocker. Report DECISION: proceed or DECISION: blocked with your reason. Do not implement, run tests, or dispatch.",
+    grade: {
+      must_include: [
+        "DECISION: blocked",
+        "greetings.json"
+      ],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-doc-review/content-partial-plan",
+    baseline_ref: PLAN_CONTENT_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-content-partial`,
+    timeout_secs: 180,
+    why: "Document contents must determine routing even when readiness metadata is absent or stale.",
+    pre_contract: "The pre-change unified artifact routes by artifact_readiness; preserve valid implementation, requirements-only restraint, and canonical target selection.",
+    task: "Use ce-doc-review on docs/plans/widget-plan.md. Stop after document classification and choosing review scope. Report CLASSIFICATION: unified-requirements or CLASSIFICATION: unified-plan and the sections to review. Do not run the review, edit, or dispatch.",
+    grade: {
+      must_include: [
+        "CLASSIFICATION: unified-plan",
+        "Implementation Units"
+      ],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-work/content-superseded",
+    baseline_ref: PLAN_CONTENT_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-content-superseded`,
+    timeout_secs: 180,
+    why: "Document contents must determine routing even when readiness metadata is absent or stale.",
+    pre_contract: "The pre-change unified artifact routes by artifact_readiness; preserve valid implementation, requirements-only restraint, and canonical target selection.",
+    task: "Use ce-work with no plan path. Stop after resolving which document to use and whether it supports implementation. Report the selected path and DECISION: proceed or DECISION: blocked. Do not implement, run tests, or dispatch.",
+    grade: {
+      must_include: [
+        "widget-plan.html",
+        "DECISION: proceed"
+      ],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-work/content-explicit-superseded",
+    baseline_ref: PLAN_CONTENT_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-content-explicit-superseded`,
+    timeout_secs: 180,
+    why: "Document contents must determine routing even when readiness metadata is absent or stale.",
+    pre_contract: "The pre-change unified artifact routes by artifact_readiness; preserve valid implementation, requirements-only restraint, and canonical target selection.",
+    task: "Use ce-work on docs/plans/widget-plan.md. Stop after resolving which document to use and whether it supports implementation. Report the selected path and DECISION: proceed or DECISION: blocked. Do not implement, run tests, or dispatch.",
+    grade: {
+      must_include: [
+        "widget-plan.html",
+        "DECISION: proceed"
+      ],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-work/content-ambiguous",
+    baseline_ref: PLAN_CONTENT_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/plan-content-ambiguous`,
+    timeout_secs: 180,
+    why: "Document contents must determine routing even when readiness metadata is absent or stale.",
+    pre_contract: "The pre-change unified artifact routes by artifact_readiness; preserve valid implementation, requirements-only restraint, and canonical target selection.",
+    task: "Use ce-work with no plan path. Stop after resolving which document to use. Report DECISION: proceed or DECISION: blocked with your reason. Do not implement, run tests, or dispatch.",
+    grade: {
+      must_include: [
+        "DECISION: blocked"
+      ],
+      actions: "none",
+      delegates: "none"
+    }
+  },
 
   ...[
     {
