@@ -902,6 +902,13 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/stand alone without scrolling/i)
     expect(content).toMatch(/Actionable list are present, last, and self-sufficient/i)
 
+    // #1694: an unresolved P0/P1 gate leaves the actionable queue but still blocks merge readiness.
+    expect(content).toMatch(/verdict reads severity across the whole primary finding set/i)
+    expect(content).toMatch(/an open P0 forbids "Ready to merge"/)
+    expect(content).toMatch(/an open P1 caps the verdict at "Ready with fixes"/)
+    expect(content).toMatch(/unresolved verification gate/i)
+    expect(content).toMatch(/withholds apply authority; it never clears the blocker/i)
+
     // Shape serves the finding type, but consistent within a section
     expect(content).toMatch(/consistent within (a |the )?section/i)
 
