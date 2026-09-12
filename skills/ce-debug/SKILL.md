@@ -59,9 +59,7 @@ Once the root cause is confirmed, write the findings as a user-visible block: th
 
 **Same-turn presentation before the gate:** do not open the fix-choice question until that findings block has been written in full — in this turn or the immediately preceding assistant message. The blocking question tool renders only its own stem on modal harnesses, so a question fired on "root cause confirmed" alone leaves the user choosing with none of the causal chain in front of them. Naming the options is not presenting the findings, and a promise to explain after the choice is too late.
 
-Ask only when the request has not already authorized the next action. An explicit fix request is Phase 3. An explicit diagnosis-only request skips to Phase 4. `mode:pipeline` never asks. The test recommendations are part of the diagnosis either way.
-
-Then ask (per **Blocking questions**) which path to take.
+When the request has not already authorized the next action, ask (per **Blocking questions**) which path to take, offering these three options. An explicit fix request is Phase 3. An explicit diagnosis-only request skips to Phase 4. `mode:pipeline` never asks. The test recommendations are part of the diagnosis either way.
 
 1. **Fix it now** — proceed to Phase 3
 2. **Diagnosis only — I'll take it from here** — skip the fix, write Phase 4's summary, end the skill

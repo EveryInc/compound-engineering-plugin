@@ -69,8 +69,7 @@ describe("Astra-shaped model-invoked descriptions", () => {
 describe("ask-first follows the authority envelope", () => {
   test("ce-debug asks for a fix path only when the request has not authorized it", () => {
     const body = skill("ce-debug")
-    expect(body).toMatch(/Ask only when the request has not already authorized the next action/)
-    expect(body).toContain("Then ask (per **Blocking questions**)")
+    expect(body).toMatch(/When the request has not already authorized the next action, ask \(per \*\*Blocking questions\*\*\)/)
     expect(body).not.toMatch(/Do not assume the user wants action now/)
   })
 

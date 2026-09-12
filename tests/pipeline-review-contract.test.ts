@@ -514,7 +514,7 @@ describe("ce-debug regression test selection", () => {
     )
     // The gate must be anchored at the question site, not stated only in an early section.
     const gateIdx = content.indexOf("Same-turn presentation before the gate")
-    const askIdx = content.indexOf("Then ask (per **Blocking questions**)")
+    const askIdx = content.indexOf("ask (per **Blocking questions**) which path to take")
     expect(gateIdx).toBeGreaterThan(-1)
     expect(askIdx).toBeGreaterThan(gateIdx)
   })
