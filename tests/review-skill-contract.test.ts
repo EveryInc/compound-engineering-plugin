@@ -484,12 +484,15 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("Agent")
     expect(content).toContain("spawn_agent")
     expect(content).toContain("subagent")
-    expect(content).toMatch(/Bounded foreground dispatch/)
+    // #1691 review: a foreground call that blocks until the child exits cannot be bounded, so the
+    // launch must produce a bounded collector; "foreground" is no longer the mandate.
+    expect(content).toMatch(/Bounded in-turn dispatch/)
     expect(content).toMatch(/active-agent\/thread\/concurrency-limit spawn errors as backpressure/)
-    expect(content).toMatch(/background execution off/)
+    expect(content).toMatch(/background execution off only where/)
+    expect(content).toMatch(/launch with background execution and collect with the host's bounded in-turn wait/)
     // Default is a concurrent foreground batch sized to the host cap, degrading to serial
     // where the harness does not run same-message calls concurrently — not strict serial.
-    expect(content).toMatch(/foreground concurrent batch/i)
+    expect(content).toMatch(/concurrent batch collected in this turn/i)
     expect(content).toMatch(/degrades to serial/i)
     expect(content).not.toMatch(/exactly one reviewer|one reviewer at a time|one at a time/i)
     // The anti-poll ban targets detached bash/CLI delegate polling, not subagent concurrency,
@@ -568,6 +571,7 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/with a wait that has an end/i)
     expect(content).toMatch(/\{run_dir\}\/\{reviewer_name\}\.json`, is the fact/i)
     expect(content).toMatch(/repeating the host's wait back to back.*aggregate wall-clock limit/i)
+    expect(content).toMatch(/since that reviewer's own successful launch/i)
     expect(content).toMatch(/neither a terminal outcome nor an artifact when the limit passes.*failed reviewer/i)
     expect(skill).toMatch(/within the bound that reference states/i)
     const subagentTemplate = await readRepoFile("skills/ce-code-review/references/subagent-template.md")
