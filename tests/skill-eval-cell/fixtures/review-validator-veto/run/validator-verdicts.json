@@ -1,8 +1,46 @@
-{"verdicts":[
-{"#":1,"status":"rejected","protected_subject":"injection","reason":"No supporting evidence was found that the name parameter reaches the query unsanitized; the finding is unproven."},
-{"#":2,"status":"rejected","protected_subject":"data-loss","reason":"src/migrate.js:3 `t.dropColumn(\"legacy_note\")` runs only after commit 9f3c2a1 (two weeks before this diff) already migrated every legacy_note value into orders.note and dropped all readers; this diff does not touch that path."},
-{"#":3,"status":"rejected","protected_subject":null,"reason":"Node runs a single-threaded event loop, so the framework guarantees handlers are serialized and no race is possible."},
-{"#":4,"status":"confirmed","protected_subject":"secrets-exposure","reason":"src/config.js:1 contains a literal live payment API secret committed to source."},
-{"#":5,"status":"rejected","protected_subject":null,"reason":"Naming preference only; the accessor returns the field unchanged and no defect is alleged."},
-{"#":6,"status":"unresolved","protected_subject":null,"reason":"budget exhausted, uninspected"}
-]}
+{
+"verdicts": [
+{
+"#": 1,
+"status": "rejected",
+"protected_subject": "injection",
+"reason": "No supporting evidence was found that the name parameter reaches the query unsanitized; the finding is unproven."
+},
+{
+"#": 2,
+"status": "rejected",
+"protected_subject": "data-loss",
+"reason": "src/migrate.js:2 `await knex(\"orders\").update({ note: knex.ref(\"legacy_note\") });` copies every legacy_note value into orders.note before the drop on line 4, so no stored data is lost."
+},
+{
+"#": 3,
+"status": "rejected",
+"protected_subject": null,
+"reason": "Node runs a single-threaded event loop, so the framework guarantees handlers are serialized and no race is possible."
+},
+{
+"#": 4,
+"status": "confirmed",
+"protected_subject": "secrets-exposure",
+"reason": "src/config.js:1 contains a literal live payment API secret committed to source."
+},
+{
+"#": 5,
+"status": "rejected",
+"protected_subject": null,
+"reason": "Naming preference only; the accessor returns the field unchanged and no defect is alleged."
+},
+{
+"#": 6,
+"status": "unresolved",
+"protected_subject": null,
+"reason": "budget exhausted, uninspected"
+},
+{
+"#": 7,
+"status": "rejected",
+"protected_subject": "authorization-authentication",
+"reason": "src/admin.js:1 `requireAdmin(req)` guards the handler before the delete runs."
+}
+]
+}
