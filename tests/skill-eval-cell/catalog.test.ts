@@ -219,6 +219,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-bakeoff/unavailable-independence",
       "ce-bakeoff/unverified-guarantee-blocks-selection",
       "ce-brainstorm/requested-bakeoff-confirmation",
+      "ce-code-review/validator-veto-routes-protected-rejections",
       "ce-commit-push-pr/babysit-off-preserves-human-decision",
       "ce-commit-push-pr/project-publishing-gate",
       "ce-compound-refresh/confirmed-worth-lens-deletes-only-with-quoted-artifact",

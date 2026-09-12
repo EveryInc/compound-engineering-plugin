@@ -1639,6 +1639,35 @@ Prepare the merge input and run the skill's findings helper. Use a local run/ di
     },
   },
   {
+    id: "ce-code-review/validator-veto-routes-protected-rejections",
+    baseline_ref: "7511114eecaa26c4cd93495f892d1d610d6596af",
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    fixture: `${FIX}/review-validator-veto`,
+    timeout_secs: 300,
+    why: "#1693: the validator could reject a protected-subject finding without evidence and the report leaf dropped it. Step 5 must keep an uncited or framework-assumption rejection as an unresolved gate, classify a null subject itself, drop a cited rejection and an unprotected naming preference, and send an unprotected budget-timeout P2 to Coverage.",
+    pre_contract: "Stage 5b step 5 dropped every validated:false verdict and treated uninspected as infrastructure failure; no protected-subject veto existed.",
+    task: `You are the report leaf of the ce-code-review skill. The run directory is ./run. Read run/finish-input.json, run/synthesized-findings.json, run/validator-outcome.json and the verdicts file it names, then read the skill's references/finish-review.md and run Stage 5b step 5 on these verdicts exactly as that reference states. Inspect source files under src/ read-only if you need to.
+
+Stop after step 5. Do not run Stage 5c or Stage 6 and do not write any files. Output only this block, one line per finding number 1 through 6, nothing else:
+
+DECISIONS:
+#<n>: <retained | dropped | unresolved-gate> | actionable=<yes|no> | <one sentence reason>`,
+    grade: {
+      must_include_any: [
+        ["#1: unresolved-gate"],
+        ["#2: dropped"],
+        ["#3: unresolved-gate"],
+        ["#4: retained | actionable=yes"],
+        ["#5: dropped"],
+        ["#6: dropped"],
+      ],
+    },
+  },
+  {
     id: "ce-code-review/standards-designated-source",
     baseline_ref: STANDARDS_SOURCE_BASE_REF,
     skill: "ce-code-review",

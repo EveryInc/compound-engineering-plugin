@@ -1,0 +1,1 @@
+{"mode":{"agent":true,"apply_local":false},"scope":{"mode":"local-aligned","tree_is_reviewed_head":true},"invocation":{"constraints":[]},"docs_root":"docs","intent":"Add user lookup, order migration, cache warmer, and config.","roster":["correctness","security","reliability","maintainability"],"plan":null}
