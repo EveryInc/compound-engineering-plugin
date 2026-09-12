@@ -6,6 +6,10 @@ const SKILL_DIR = path.join(process.cwd(), "skills/ce-handoff")
 const SKILL_PATH = path.join(SKILL_DIR, "SKILL.md")
 const REFERENCE_NAMES = ["create.md", "resume.md"]
 const INSTRUCTIONS_PATH = path.join(process.cwd(), "AGENTS.md")
+const SCRATCH_NOTES_PATH = path.join(
+  process.cwd(),
+  "docs/solutions/developer-experience/always-on-agents-md.md",
+)
 /**
  * `skill` is the always-loaded body: rules that must control behavior from the prompt window
  * without any reference read. `corpus` is body + references: invariants that were relocated to
@@ -17,7 +21,10 @@ const corpus = [
   skill,
   ...REFERENCE_NAMES.map((name) => readFileSync(path.join(SKILL_DIR, "references", name), "utf8")),
 ].join("\n")
-const instructions = readFileSync(INSTRUCTIONS_PATH, "utf8")
+const instructions = [
+  readFileSync(INSTRUCTIONS_PATH, "utf8"),
+  readFileSync(SCRATCH_NOTES_PATH, "utf8"),
+].join("\n")
 const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/)
 const managedFrontmatterExample = corpus.match(
   /For Markdown handoffs in the managed store[\s\S]*?```yaml\n([\s\S]*?)\n```/,
