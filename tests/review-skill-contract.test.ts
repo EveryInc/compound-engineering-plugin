@@ -564,6 +564,19 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/terminal.*tool error.*malformed.*failed reviewer/i)
     expect(content).toMatch(/no reliable blocking collection/i)
     expect(content).toMatch(/["`]status["`]\s*:\s*["`]failed["`]/i)
+    // #1689: the reviewer wait has an end, like the validator's since #1688.
+    expect(content).toMatch(/with a wait that has an end/i)
+    expect(content).toMatch(/\{run_dir\}\/\{reviewer_name\}\.json`, is the fact/i)
+    expect(content).toMatch(/repeating the host's wait back to back.*aggregate wall-clock limit/i)
+    expect(content).toMatch(/neither a terminal outcome nor an artifact when the limit passes.*failed reviewer/i)
+    expect(skill).toMatch(/within the bound that reference states/i)
+    const subagentTemplate = await readRepoFile("skills/ce-code-review/references/subagent-template.md")
+    expect(subagentTemplate).toMatch(/Budget: you have \d+ minutes of wall clock and about \d+ tool calls/i)
+    expect(subagentTemplate).toMatch(/write it before you return/i)
+    // The lifecycle rule moved out of the body (#1689 byte cap); it must fire where agents are launched and where the validator is collected.
+    expect(content).toMatch(/\*\*Agent lifecycle\.\*\* Collect each reviewer's final result/)
+    const finish = await readRepoFile("skills/ce-code-review/references/finish-review.md")
+    expect(finish).toMatch(/agent lifecycle rule from `references\/dispatch-reviewers\.md`/)
     // #1654: Codex delivers a subagent's final answer as a host message tagged with the
     // launch's task name, while wait_agent reports status. The collector rule must state the
     // condition (an attributable terminal result reached in-turn), accept that channel, and
@@ -841,7 +854,7 @@ describe("ce-code-review contract", () => {
       "skills/ce-code-review/references/diff-scope.md",
     )
     const validator = await readRepoFile(
-      "skills/ce-code-review/references/validator-template.md",
+      "skills/ce-code-review/references/validator-batch-template.md",
     )
 
     expect(skill).toContain("<pr-scope-mode>branch-remote</pr-scope-mode>")
