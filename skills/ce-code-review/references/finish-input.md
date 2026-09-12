@@ -43,6 +43,7 @@ The dispatch context writes this file after every local reviewer is collected an
   "peer": {
     "selected": false, "job_id": null, "target": null, "route": null,
     "start_epoch": null, "deadline_secs": null,
+    "preference_source": "user | config | instructions | default | null",
     "skip_reason": null
   },
   "coverage_notes": []
@@ -56,6 +57,8 @@ The dispatch context writes this file after every local reviewer is collected an
 Read `finish-input.json` first, then `references/finish-review.md` from `skill_dir`, and run it from the top. Where that reference says "from Stage 1", "from Stage 2b", "the roster", or "the intent summary", the value is the corresponding field here. Where it names conversation context, this file is the conversation. Resolve `<root>` to `docs_root`. `mode.agent` decides JSON versus markdown; `mode.apply_local` decides whether Stage 5c runs.
 
 When `peer.job_id` is set, the single-reap finish belongs to this context: perform the status read and bounded `wait` slices `references/cross-model-review.md` defines against `peer.start_epoch` and `peer.deadline_secs`, fold the artifact, and delete the job directory before returning. That obligation moved here with the fold-in; the dispatch context does not touch the peer after writing this file.
+
+The finish context never resolves, announces, or starts a peer route. Changing the recipient needs the user-visible channel and the preference provenance that only the dispatch context has, so when the fold-in rules would call for a replacement recipient after a no-review outcome, take their in-process `adversarial-reviewer` fallback instead and record in Coverage that a replacement recipient was not tried because this context cannot disclose one. `peer.preference_source` is recorded so that Coverage line can say whether the recipient was the user's explicit choice.
 
 Apply the agent lifecycle rule in `references/dispatch-reviewers.md` (Agent lifecycle) to the validator this context launches.
 
