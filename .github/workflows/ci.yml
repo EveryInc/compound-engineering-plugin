@@ -34,6 +34,11 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    # A wedged bun --parallel worker (oven-sh/bun#34069) can sit with no output
+    # forever; green runs take about 4 minutes and a timeout-stack run with the
+    # serial re-run about 15. Fail well before GitHub's 6-hour default so the
+    # babysit loop can see it and rerun.
+    timeout-minutes: 30
 
     env:
       # Single source of truth for the pinned `claude plugin validate` version:
