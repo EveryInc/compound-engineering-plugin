@@ -75,9 +75,13 @@ def fingerprint(finding: dict[str, Any]) -> tuple[str, str, str]:
 def independent_reviewer(name: str, source: dict[str, Any]) -> bool:
     if name == "fast-pass":
         return False
-    if name.startswith("adversarial-"):
+    if cross_model_peer(name):
         return source.get("independence_verified") is True
     return True
+
+
+def cross_model_peer(name: str) -> bool:
+    return name.startswith("adversarial-")
 
 
 def promote(confidence: int) -> int:
@@ -121,7 +125,9 @@ def merge_group(group: list[tuple[dict[str, Any], str, tuple[str, ...]]]) -> dic
     has_first_evidence = nonempty_string(merged.get("first_evidence"))
     if confidence >= 75 and not has_first_evidence:
         confidence = 50
-    if len(independent) >= 2 and has_first_evidence:
+    # In-process reviewers share one serving model, so their agreement is one
+    # reading repeated; only a verified cross-model peer corroborates.
+    if len(independent) >= 2 and has_first_evidence and any(cross_model_peer(n) for n in independent):
         confidence = promote(confidence)
     merged["confidence"] = confidence
     merged["reviewers"] = reviewer_names
