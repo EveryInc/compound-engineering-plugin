@@ -96,6 +96,8 @@ describe("always-on AGENTS.md load", () => {
   test("points task-loaded essays at the solutions note and authorizes the local suite", () => {
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
     expect(agents).toContain("docs/solutions/developer-experience/always-on-agents-md.md")
+    expect(agents).toContain("scripts/run-tests.ts")
+    expect(agents).toContain("TimeoutError")
     expect(agents).toMatch(
       /The suite uses disposable fixtures and has no production access[\s\S]*without asking for approval at each step/,
     )

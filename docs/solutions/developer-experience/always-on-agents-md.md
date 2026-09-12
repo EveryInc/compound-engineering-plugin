@@ -42,7 +42,7 @@ Default to OS temp. Use `.context/` only when the artifact is repo-bound and use
 
 Load when changing test-file layout, worker counts, or CI proxies.
 
-The `test` script is `bun test --parallel` (implies `--isolate`). Do not pin a worker count. `--parallel` with no value tracks the runner's core count.
+The `test` script is `scripts/run-tests.ts`: one `bun test --parallel` pass (implies `--isolate`), then a TimeoutError-only serial re-run in a fresh process. Do not pin a worker count. `--parallel` with no value tracks the runner's core count. The re-run contract: `docs/solutions/developer-experience/bun-parallel-worker-loses-subprocess-exit.md`.
 
 Raising it looks free — the suite is idle-bound — but it was measured on CI and it is not: at `--parallel=8` on a 4-core runner, wall time improved ~9% (102s -> 93s) while total test-CPU inflated from 223s to 343s, and five tests crossed the 5000ms default per-test timeout. A file that legitimately runs for seconds should call `setDefaultTimeout`.
 
