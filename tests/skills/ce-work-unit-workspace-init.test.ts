@@ -72,6 +72,13 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     expect(existsSync(ambientIndex)).toBe(false)
   })
 
+  test("workspace harness reaps stuck git with SIGKILL and a real isolated config", () => {
+    const source = readFileSync(path.join(__dirname, "helpers/ce-work-workspace-harness.ts"), "utf8")
+    expect(source).toContain('killSignal: "SIGKILL"')
+    expect(source).toContain('GIT_OPTIONAL_LOCKS: "0"')
+    expect(source).not.toMatch(/GIT_CONFIG_GLOBAL:\s*"\/dev\/null"/)
+  })
+
   test("fixture git ignores a host global config that would block commit", () => {
     const broken = path.join(tmp("ce-work-gitconfig-"), "config")
     writeFileSync(
