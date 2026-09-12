@@ -73,7 +73,7 @@ This stage is an optional second check on the findings. Independent verification
    - **Malformed output or validator infrastructure failure, protected subject or P0/P1:** retain the affected original finding on the unresolved report-only route above, including its validation metadata, and record the malformed output or infrastructure failure separately in Coverage and in `validation_reason`. Protection takes precedence over the blanket P2/P3 drop. Never turn a failure into a confirmation.
    - **Malformed output or validator infrastructure failure, unprotected P2/P3:** remove the affected finding from primary output and record the failure in Coverage. Do not label it disproven.
 
-   Never raise a severity or confidence to carry a finding through these outcomes, and never synthesize a new finding from malformed output. Prune triage groups after drops and record the batch, per-finding verdicts, failures, and degraded blockers in Coverage, together with every protected-subject reclassification you made.
+   Never raise a severity or confidence to carry a finding through these outcomes, and never synthesize a new finding from malformed output. Do not re-apply Stage 5's P0/P1 `downstream-resolver` normalization to a finding this step left unresolved: the merge leaf partitioned before any verdict existed, and this step is the one that owns the unresolved route. Prune triage groups after drops and record the batch, per-finding verdicts, failures, and degraded blockers in Coverage, together with every protected-subject reclassification you made.
 
 ### Stage 5c: Act on findings (explicit local apply only)
 

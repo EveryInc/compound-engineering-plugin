@@ -666,6 +666,11 @@ describe("ce-code-review contract", () => {
     expect(handoff).toMatch(/saves each such return verbatim to `<run-dir>\/<reviewer>\.md`/)
     expect(dispatch).toMatch(/save each such return verbatim to `\{run_dir\}\/\{reviewer_name\}\.md`/)
     expect(handoff).toMatch(/\{"status":"failed","reason":"<one sentence>"\}/)
+    // #1693: the report leaf owns Stage 5b step 5, so an infrastructure-failure
+    // outcome must take the unresolved route rather than the old boolean drop.
+    expect(handoff).toMatch(/Classify every selected finding yourself from the failure it alleges/)
+    expect(handoff).toMatch(/unresolved report-only route/)
+    expect(handoff).not.toMatch(/drop and validation-degraded rules/)
   })
 
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
@@ -723,11 +728,12 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/no bounded wait exists.*do not launch the validator/i)
     expect(content).toMatch(/bound passes.*validator infrastructure failure/i)
     expect(content).toMatch(/uninspected.*validator infrastructure failure for that finding/i)
-    // #1700: a conservative validator must not silently drop a protected-subject finding.
+    // #1693: a conservative validator must not silently drop a protected-subject finding.
     expect(content).toMatch(/classify every selected finding yourself/i)
     expect(content).toMatch(/adds protection, never removes it/i)
     expect(content).toMatch(/reroute it through the unresolved rule/i)
     expect(content).toMatch(/`validation_status: "unresolved"`/)
+    expect(content).toMatch(/Do not re-apply Stage 5's P0\/P1 `downstream-resolver` normalization/)
     expect(content).toMatch(/Cost, elapsed time, confidence.*never licenses an additional skip/i)
 
     // Foreground is a request, not proof that the host returned a verdict in-band.
@@ -761,7 +767,7 @@ describe("ce-code-review contract", () => {
     // The read-only rule must carve out the one write the bounded wait depends on.
     expect(validatorTemplate).toMatch(/one permitted write/i)
 
-    // #1700: the validator's protected-subject policy must name all eight subjects and keep the
+    // #1693: the validator's protected-subject policy must name all eight subjects and keep the
     // veto rule, or the loophole reopens on the one validator path that runs.
     const policyOpen = validatorTemplate.indexOf("<protected-subject-policy>")
     const policyClose = validatorTemplate.indexOf("</protected-subject-policy>")
