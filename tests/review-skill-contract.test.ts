@@ -616,25 +616,34 @@ describe("ce-code-review contract", () => {
 
     // The body decides the split from the window: always on, fresh subagent, verbatim return.
     expect(skill).toMatch(/write the finish input `references\/finish-input\.md` defines/)
-    expect(skill).toMatch(/one fresh finish subagent/)
-    expect(skill).toMatch(/emit that return verbatim/)
-    expect(skill).toMatch(/never finish in the dispatch context/)
+    expect(skill).toMatch(/two leaf subagents it names/)
+    expect(skill).toMatch(/Neither leaf launches a subagent; you launch every one/)
+    expect(skill).toMatch(/Emit the report leaf's return verbatim/)
+    expect(skill).toMatch(/never merge or render in the dispatch context/)
     // The peer's reap moves with the fold-in; dispatch stops touching the peer once the file is written.
     expect(dispatch).toMatch(/do not touch the peer again/)
-    expect(dispatch).toMatch(/the finish context performs the reference's single bounded status\/wait\/reap sequence/)
+    expect(dispatch).toMatch(/the merge leaf performs the reference's single bounded status\/wait\/reap sequence/)
     // The finish reference reads the file first and resolves its earlier-stage references from it.
-    expect(finish).toMatch(/^This reference runs in the finish context/m)
-    expect(finish).toMatch(/Read `<run-dir>\/finish-input\.json` first/)
+    expect(finish).toMatch(/^This reference runs across three contexts/m)
+    expect(finish).toMatch(/A leaf launches no subagents/)
+    expect(finish).toMatch(/Each leaf reads `<run-dir>\/finish-input\.json` first/)
     expect(finish).toMatch(/- `finish-input\.json`/)
     // The contract file names every field the finish context may need and the failure direction.
     for (const field of ["run_id", "skill_dir", "docs_root", "apply_local", "raw-returns.json", "failed_reviewers", "job_id", "deadline_secs", "coverage_notes"]) {
       expect(handoff).toContain(field)
     }
-    expect(handoff).toMatch(/emit the finish context's return verbatim/i)
+    expect(handoff).toMatch(/emit the report leaf's return verbatim/i)
+    expect(handoff).toMatch(/No leaf launches a subagent/)
+    expect(handoff).toMatch(/validator stays a parent launch on every host/)
+    for (const f of ["synthesized-findings.json", "validator-input.json", "validator-verdicts.json"]) expect(handoff).toContain(f)
     // #1692 review: a recipient change needs the visible dispatch channel; the finish context never starts a peer route.
     expect(handoff).toMatch(/never resolves, announces, or starts a peer route/)
-    expect(handoff).toMatch(/Put the full contents of `finish-input\.json` inline in the finish subagent's prompt/)
+    expect(handoff).toMatch(/Put the full contents of `finish-input\.json` inline in the leaf's prompt/)
     expect(handoff).toContain("preference_source")
+    // #1692 review: prose-return reviewers write no artifact; dispatch persists them and names them in the handoff.
+    expect(handoff).toContain("unstructured_returns")
+    expect(handoff).toMatch(/saves each such return verbatim to `<run-dir>\/<reviewer>\.md`/)
+    expect(dispatch).toMatch(/save each such return verbatim to `\{run_dir\}\/\{reviewer_name\}\.md`/)
     expect(handoff).toMatch(/\{"status":"failed","reason":"<one sentence>"\}/)
   })
 

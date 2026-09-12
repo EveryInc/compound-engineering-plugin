@@ -1,4 +1,4 @@
-This reference runs in the finish context: one fresh subagent that holds this skill's directory and the run directory and nothing else (`references/finish-input.md`). Read `<run-dir>/finish-input.json` first. Wherever this reference refers to an earlier stage's result, the intent summary, the roster, the plan, the scope, or conversation context, that value is the matching field of that file, and `<root>` is its `docs_root`. When its `peer.job_id` is set, run the single-reap finish `references/cross-model-review.md` defines before Stage 5 and delete the job directory before returning. Your return is the report and nothing else.
+This reference runs across three contexts (`references/finish-input.md`): a merge leaf runs Stage 5 and Stage 5b steps 1 through 3 and writes `synthesized-findings.json` and `validator-input.json`; the dispatch context runs Stage 5b step 4 and writes `validator-verdicts.json`; a report leaf runs Stage 5b step 5, Stage 5c, and Stage 6. Each leaf reads `<run-dir>/finish-input.json` first. Wherever this reference refers to an earlier stage's result, the intent summary, the roster, the plan, the scope, or conversation context, that value is the matching field of that file, and `<root>` is its `docs_root`. When `peer.job_id` is set, the merge leaf runs the single-reap finish `references/cross-model-review.md` defines before Stage 5 and deletes the job directory before returning. A leaf launches no subagents; its return is exactly what `finish-input.md` names for it.
 
 ### Stage 5: Merge findings
 
@@ -245,7 +245,8 @@ Do not offer push/PR/create-branch next steps from this skill.
 
 Always write run artifacts under the resolved `<run-dir>`:
 
-- `finish-input.json`: the dispatch context's handoff to the finish context (`references/finish-input.md`)
+- `finish-input.json`: the dispatch context's handoff to the leaves (`references/finish-input.md`)
+- `synthesized-findings.json` and `validator-input.json`: the merge leaf's output; `validator-verdicts.json`: the validator's
 - synthesized findings
 - actionable findings list
 - advisory outputs
