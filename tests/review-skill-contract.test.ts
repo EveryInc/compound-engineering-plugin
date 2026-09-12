@@ -646,6 +646,11 @@ describe("ce-code-review contract", () => {
     expect(handoff).toContain("tree_is_reviewed_head")
     expect(handoff).not.toMatch(/standalone \| base \|/)
     expect(handoff).toMatch(/Before any Stage 5c edit, read the project's instruction files/)
+    // #1692 review round 6: the handoff states the condition (verbatim field or named reference, no third source)
+    // instead of growing a field list; the three carriers below are the instances that round found.
+    expect(handoff).toMatch(/either a field here, carried verbatim rather than summarized, or a rule in a reference the leaf is named to read/)
+    for (const f of ["invocation.constraints", "plan.requirements", "plan.implementation_units"]) expect(handoff).toContain(f)
+    expect(handoff).toMatch(/every source probe in a leaf goes through `git show <scope\.diff_b>:<path>` or the captured `full\.diff`/)
     // #1692 review: a recipient change needs the visible dispatch channel; the finish context never starts a peer route.
     expect(handoff).toMatch(/This leaf never reads job state, waits on a peer, or starts a route/)
     for (const f of ["peer.outcome", "peer.artifact", "peer.coverage"]) expect(handoff).toContain(f)
