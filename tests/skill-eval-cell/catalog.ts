@@ -509,8 +509,11 @@ The target is request latency, baseline 1000 ms on workload checkout-v1 (100 seq
     why: "A cost target with only a baseline total must locate shares before dispatching implementation experiments.",
     pre_contract: "Missing profile data does not block a hypothesis from the backlog; Phase 2 ranks by expected impact and feasibility.",
     task: `Use ce-optimize for Phase 2 only. Setup and baseline approval are complete. Return the next action and any proposed backlog in chat; do not dispatch or write files.
-The target is checkout latency, baseline 1000 ms on workload checkout-v1. No cost shares, traces, or profiles exist. Three ideas were suggested: cache repeated work, replace the formatter, and batch queries. All dependencies are approved.`,
-    grade: { files_read_post: ["references/loop.md"], must_include: ["attributed shares"], actions: "none", delegates: "none" },
+The target is checkout latency, baseline 1000 ms on workload checkout-v1. No cost shares, traces, or profiles exist. Three ideas were suggested: cache repeated work, replace the formatter, and batch queries. All dependencies are approved.
+First line of your answer: NEXT: measure  or  NEXT: implement. "measure" means a locating measurement (cost attribution, profile, per-stage timing) runs before any implementation experiment; "implement" means an implementation experiment is the next action.`,
+    // The decision line is the grade. The old needle quoted loop.md prose that both
+    // hosts stated in their own words while choosing correctly (2026-09-12 pack run).
+    grade: { files_read_post: ["references/loop.md"], must_include: ["NEXT: measure"], actions: "none", delegates: "none" },
   },
   {
     id: "ce-optimize/variant-search-without-profile",
@@ -522,8 +525,10 @@ The target is checkout latency, baseline 1000 ms on workload checkout-v1. No cos
     why: "A scored variant space may search without a performance profile.",
     pre_contract: "Qualitative hypotheses use rubric-relevant evidence and may leave numerical benefit unknown; they do not require a performance profile.",
     task: `Use ce-optimize for Phase 2 only. Setup and baseline approval are complete. Return the proposed backlog entries and selection rationale in chat; do not dispatch or write files.
-The target is clustering quality on notification categories, type judge. Baseline rubric 3.0. No performance profile exists. Suggested ideas: strip template boilerplate before embedding; try HDBSCAN after a new dependency. All other dependencies are approved.`,
-    grade: { files_read_post: ["references/loop.md"], must_include: ["HDBSCAN", "boilerplate", "does not require a performance profile"], actions: "none", delegates: "none" },
+The target is clustering quality on notification categories, type judge. Baseline rubric 3.0. No performance profile exists. Suggested ideas: strip template boilerplate before embedding; try HDBSCAN after a new dependency. All other dependencies are approved.
+First line of your answer: NEXT: measure  or  NEXT: implement. "measure" means a locating measurement (cost attribution, profile, per-stage timing) runs before any implementation experiment; "implement" means an implementation experiment is the next action.`,
+    // The decision line is the grade; a run that demands a profile first declares NEXT: measure.
+    grade: { files_read_post: ["references/loop.md"], must_include: ["NEXT: implement", "HDBSCAN", "boilerplate"], actions: "none", delegates: "none" },
   },
   {
     id: "ce-optimize/result-accounting",
@@ -639,8 +644,10 @@ The latest pr-snapshot output is already on disk at snapshot.json. Treat that fi
 Decide the next mutation, if any, and stop after one tick.`,
     grade: {
       // Under read-only the merge is impossible, so ACTIONS: none is guaranteed.
-      // The report's fixed status line is what a merge-happy regression would change.
-      must_include: ["your call to merge"],
+      // The report's status line is what a merge-happy regression would change. Codex
+      // states the boundary as "never merges under this skill" rather than the report's
+      // "your call to merge" wording.
+      must_include_any: [["your call to merge", "your call", "never merge", "not merge", "no merge"]],
       must_exclude: ["gh pr merge"],
       actions: "none",
     },
@@ -863,7 +870,9 @@ The same decision owns open review thread PRRT_ci_contract_7 at https://github.c
       "Do not open the fix-choice question until the findings block has been written in full. Options: Fix it now / Diagnosis only / Rethink the design.",
     task: `The seat cap test is failing. Run node tests/seat-cap.check.js. SPEC.md is the product contract.`,
     grade: {
-      must_include: ["Fix it now"],
+      // The invariant is that the run asked before editing. Codex phrases the offer in
+      // its own words ("apply the fix, or leave this as diagnosis only?") on every arm.
+      must_include_any: [["fix it now", "apply the fix", "apply that fix", "apply this fix", "diagnosis only"]],
       git: "clean",
       // git: clean only proves nothing is left unstaged; committing the fix before
       // asking would otherwise leave a clean tree and pass.
@@ -938,7 +947,8 @@ The same decision owns open review thread PRRT_ci_contract_7 at https://github.c
     why: "An unattended caller with no recoverable subject needs the missing question returned, not an invented subject or clarification dialogue.",
     pre_contract: "A bare subject requires asking what to explain; never invent a default artifact.",
     task: "An unattended workflow delegated this task: explain why they chose that instead. The delegation contains no other context.",
-    grade: { must_include: ["subject"], actions: "none", delegates: "none" },
+    // The blocker must name what is missing; hosts do not all use the word "subject".
+    grade: { must_include_any: [["subject", "does not identify", "not identify", "what they chose", "cannot determine", "insufficient context"]], actions: "none", delegates: "none" },
   },
   {
     id: "ce-pov/stay-read-only",
@@ -1408,8 +1418,11 @@ The fetched feedback is already on disk at feedback.md. Treat it as authoritativ
       "A named external candidate plus whether-to-commit intent judged against this project is ce-pov. Offer the handoff; never silently switch.",
     task: `Should we adopt lodash in this project? Brainstorm that.`,
     grade: {
-      files_read_post: ["references/phase-0.md"],
-      must_include: ["ce-pov"],
+      // verdict-routing.md tells the run to name ce-pov by what it does, not as internal
+      // machinery, so a run that followed it may never print the skill name. The read
+      // of verdict-routing.md is the routing evidence; the offer wording is the decision.
+      files_read_post: ["references/phase-0.md", "references/verdict-routing.md"],
+      must_include_any: [["ce-pov", "verdict"]],
     },
   },
   {

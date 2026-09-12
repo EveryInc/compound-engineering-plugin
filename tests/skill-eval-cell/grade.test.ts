@@ -657,6 +657,14 @@ describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
     }
   })
 
+  test("a heading-style field keeps bold item lines and their indented detail lines", () => {
+    // Claude renders routing candidates as whole-line bold sentences with a `Reason:`
+    // line directly under each; neither opens a new section (2026-09-12 pack run).
+    const stdout = "ROUTING\n\n**Candidate A: discard.**\nReason: prefers an alternative to a settled decision.\nLocal apply: not applicable.\n\n**Candidate B: actionable.**\nReason: missing ownership check.\n\nFILES_READ: a\nACTIONS: none\nDELEGATES_DISPATCHED: none\n"
+    const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "ROUTING", must_include: ["discard", "actionable"] } })
+    expect(pass.reasons).toEqual([])
+  })
+
   test("must_include_field still reads a single-line LABEL: value", () => {
     const stdout = "Decided.\n\n**MODE:** continuous\n\nFILES_READ: a\nACTIONS: none\n"
     const pass = gradeHost({ ...base, hostDir: hostDir(stdout), grade: { must_include_field: "MODE", must_include: ["continuous"] } })

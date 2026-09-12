@@ -82,7 +82,9 @@ function isFieldBoundary(line: string): boolean {
   if (bold) {
     const inner = bold[1].trim()
     const rest = bold[2].trim()
-    return rest === "" || rest.startsWith(":") || inner.endsWith(":")
+    if (rest.startsWith(":") || inner.endsWith(":")) return true
+    // A whole-line bold sentence (`**Candidate A: discard.**`) is an item, not a label.
+    return rest === "" && !/[.!?]$|:\s+\S/.test(inner)
   }
   if (marked.test(trimmed) && trimmed.endsWith(":")) return true
   // `Label: value` with content after the colon needs capitalized label words, so
@@ -104,7 +106,13 @@ function lastFieldBlock(text: string, name: string): string {
       return onLabelLine
     }
     const rest = lines.slice(i + 1)
-    const end = rest.findIndex((line) => isFieldBoundary(line))
+    // A label closes the block only when it opens a new section: a heading, or a label
+    // after a blank line. `Reason:` directly under an item line is that item's detail.
+    const end = rest.findIndex(
+      (line, idx) =>
+        isFieldBoundary(line) &&
+        (/^#{1,6}\s+\S/.test(line.trim()) || idx === 0 || rest[idx - 1].trim() === ""),
+    )
     const following = (end === -1 ? rest : rest.slice(0, end))
       .filter((line) => !/^(FILES_READ|ACTIONS|DELEGATES_DISPATCHED|TEAM):/i.test(line.trim()))
       .join("\n")

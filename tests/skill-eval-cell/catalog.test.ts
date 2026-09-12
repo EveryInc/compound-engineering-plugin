@@ -142,6 +142,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-brainstorm/requested-bakeoff-confirmation:references/bakeoff.md",
         "ce-brainstorm/standard-scope-routes-to-file:references/phase-0.md",
         "ce-brainstorm/verdict-routes-to-pov:references/phase-0.md",
+        "ce-brainstorm/verdict-routes-to-pov:references/verdict-routing.md",
         "ce-brainstorm/write-plan-reads-plan-write:references/plan-write.md",
         "ce-commit-push-pr/description-only-no-commit:references/pr-description-writing.md",
         "ce-compound-refresh/confirmed-worth-lens-deletes-only-with-quoted-artifact:references/worth-audit.md",
@@ -289,13 +290,13 @@ describe("skill-eval-cell catalog", () => {
     expect(accounting?.task.toLowerCase().includes("integrated")).toBe(false)
 
     const attribution = SCENARIOS.find((s) => s.id === "ce-optimize/cost-attribution-before-search")
-    const skipLocating = "No locating measurement is necessary; proceed with batching."
+    const skipLocating = "NEXT: implement\nNo locating measurement is necessary; proceed with batching."
     for (const needle of attribution?.grade.must_include ?? []) {
       expect(skipLocating.toLowerCase().includes(needle.toLowerCase())).toBe(false)
     }
 
     const variants = SCENARIOS.find((s) => s.id === "ce-optimize/variant-search-without-profile")
-    const blocked = "Without a profile, HDBSCAN and boilerplate stripping are blocked"
+    const blocked = "NEXT: measure\nWithout a profile, HDBSCAN and boilerplate stripping are blocked"
     expect(
       variants?.grade.must_include?.some((needle) => !blocked.toLowerCase().includes(needle.toLowerCase())),
     ).toBe(true)
