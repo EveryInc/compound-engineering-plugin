@@ -14,6 +14,7 @@ const fixtureNames = [
   "invalid-command-path",
   "invalid-hooks-path",
   "invalid-mcp-path",
+  "default-dir-declared",
 ] as const
 const fixtures = fixtureNames.map((name) =>
   materializeClaudePluginFixture(path.join(import.meta.dir, "fixtures", name)),
@@ -25,6 +26,7 @@ const [
   invalidCommandPathRoot,
   invalidHooksPathRoot,
   invalidMcpPathRoot,
+  defaultDirDeclaredRoot,
 ] = fixtures.map((fixture) => fixture.root)
 const tempRoots: string[] = []
 
@@ -188,6 +190,11 @@ describe("loadClaudePlugin", () => {
     expect(plugin.skills.map((skill) => skill.name).sort()).toEqual(["custom-skill", "default-skill"])
     expect(plugin.hooks?.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe("echo default")
     expect(plugin.hooks?.hooks.PostToolUse?.[0]?.hooks[0]?.command).toBe("echo custom")
+  })
+
+  test("does not double-count skills when the manifest declares the default dir", async () => {
+    const plugin = await loadClaudePlugin(defaultDirDeclaredRoot)
+    expect(plugin.skills.map((skill) => skill.name).sort()).toEqual(["skill-a", "skill-b"])
   })
 
   test("rejects custom component paths that escape the plugin root", async () => {
