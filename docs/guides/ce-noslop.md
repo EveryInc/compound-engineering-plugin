@@ -48,10 +48,10 @@ A `mode:` token picks the mode. Without one: no draft means author; an imperativ
 | Mode | Chosen when | Returns |
 |------|-------------|---------|
 | **author** | No draft is supplied, or `mode:author` | Nothing. The tests load as constraints and the caller writes. When handed content and asked to write, the skill drafts it under the same tests |
-| **edit** | An imperative on a draft, or `mode:edit` | The rewritten text. A second pass on the returned text changes nothing. One line saying what changed is added only when the caller asks, and stays out of the text a user reads or an artifact holds |
+| **edit** | An imperative on a draft, or `mode:edit` | The rewritten text. A second pass on the returned text changes nothing. One line saying what changed is added only when the caller asks for it, and stays outside the rewritten text and out of any artifact |
 | **detect** | A question about a draft, or `mode:detect` | Each pattern found, the quoted line, and the fix in a few words. No rewrite |
 
-Edit and detect read a pattern catalog bundled with the skill. Author mode uses the tests alone, and opens the catalog only for a passage the tests do not settle. On text that is not English, edit and detect apply the tests only and tell the caller the catalog did not apply.
+Edit and detect read a pattern catalog bundled with the skill. Author mode uses the tests alone, and opens the catalog only for a passage the tests do not settle. On text that is not English, edit and detect apply the tests only. The note that the catalog did not apply goes inside detect findings or inside a change line the caller asked for, and nowhere else.
 
 ---
 

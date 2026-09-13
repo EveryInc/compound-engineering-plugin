@@ -42,7 +42,7 @@ Fix the callee, not the consumers. When an inline-invoked skill's contract carri
 1. When the channel is produced. Default to only when the caller asks.
 2. Where it may not land. Not in text that reaches a user, and not in an artifact.
 
-The fix in `skills/ce-noslop/SKILL.md` (shipped in the same change as this learning, 2026-09-13) applies this to the edit bullet under `## Mode`. At the current tree, `skills/ce-noslop/SKILL.md:20` reads: "Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks, and keep it separate from the text that reaches a user or an artifact." The non-English line at `skills/ce-noslop/SKILL.md:23` now reads "tell the caller the pattern catalog did not apply", which names the caller as the audience for that notice. `docs/guides/ce-noslop.md` was updated to match.
+The fix in `skills/ce-noslop/SKILL.md` (shipped in the same change as this learning, 2026-09-13) applies this to the edit bullet under `## Mode`. At the current tree, `skills/ce-noslop/SKILL.md:20` reads: "Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks for it, and keep that line outside the rewritten text and out of any artifact." The non-English notice at `skills/ce-noslop/SKILL.md:23` rides the same channel: it appears in detect findings, and in edit only inside a change line that was asked for. `docs/guides/ce-noslop.md` was updated to match.
 
 Detect mode is unchanged on purpose. `skills/ce-noslop/SKILL.md:21` still says to name each pattern found, quote the line, and give the fix. Naming patterns is the output of detect, not a side channel.
 
@@ -77,7 +77,7 @@ Before, the `ce-noslop` edit bullet:
 
 After (`skills/ce-noslop/SKILL.md:20`):
 
-> Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks, and keep it separate from the text that reaches a user or an artifact.
+> Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks for it, and keep that line outside the rewritten text and out of any artifact.
 
 The failure, as it reached the user from an `lfg` run through `ce-pov`:
 
