@@ -18,7 +18,7 @@ It is not `ce-promote` (channel-specific announcement copy; that skill writes it
 |----------|--------|
 | What does it do? | Rewrites, checks, or drafts prose under seven tests, without changing what the text says |
 | When to use it | You have text to fix or check, or content you want drafted plainly. Sibling skills call it on their own when they write |
-| What it produces | Edit: the rewritten text plus one line on what changed. Detect: each pattern found, with the quoted line and a short fix. Author: nothing returned; the tests hold while the caller writes |
+| What it produces | Edit: the rewritten text, with one line on what changed only when the caller asks for it. Detect: each pattern found, with the quoted line and a short fix. Author: nothing returned; the tests hold while the caller writes |
 | What's next | Nothing. It returns text or findings and stops |
 
 ---
@@ -48,10 +48,10 @@ A `mode:` token picks the mode. Without one: no draft means author; an imperativ
 | Mode | Chosen when | Returns |
 |------|-------------|---------|
 | **author** | No draft is supplied, or `mode:author` | Nothing. The tests load as constraints and the caller writes. When handed content and asked to write, the skill drafts it under the same tests |
-| **edit** | An imperative on a draft, or `mode:edit` | The rewritten text plus one line saying what changed. A second pass on the returned text changes nothing |
+| **edit** | An imperative on a draft, or `mode:edit` | The rewritten text. A second pass on the returned text changes nothing. One line saying what changed is added only when the caller asks, and stays out of the text a user reads or an artifact holds |
 | **detect** | A question about a draft, or `mode:detect` | Each pattern found, the quoted line, and the fix in a few words. No rewrite |
 
-Edit and detect read a pattern catalog bundled with the skill. Author mode uses the tests alone, and opens the catalog only for a passage the tests do not settle. On text that is not English, edit and detect apply the tests only and say the catalog did not apply.
+Edit and detect read a pattern catalog bundled with the skill. Author mode uses the tests alone, and opens the catalog only for a passage the tests do not settle. On text that is not English, edit and detect apply the tests only and tell the caller the catalog did not apply.
 
 ---
 

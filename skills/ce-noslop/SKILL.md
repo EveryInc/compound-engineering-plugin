@@ -17,10 +17,10 @@ Prose that carries no AI tells and that a reader understands on the first read, 
 Take a `mode:` token when one is given. Otherwise: no draft means **author**; an imperative on a draft means **edit**; a question about a draft means **detect**.
 
 - **author.** Hold the tests below while the caller writes; return nothing. When handed content and asked to write, draft it under the same tests.
-- **edit.** Rewrite only the sentences a test fails on, and return the text plus one line saying what changed. A sentence that passes stays as written, so a second pass on the returned text changes nothing.
+- **edit.** Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks, and keep it separate from the text that reaches a user or an artifact.
 - **detect.** Name each pattern found, quote the line, give the fix in a few words. Do not rewrite.
 
-For edit and detect, and for an author passage the tests alone do not settle, read `references/patterns.md`. On text that is not English, apply the tests only, and open the summary line by saying the pattern catalog did not apply.
+For edit and detect, and for an author passage the tests alone do not settle, read `references/patterns.md`. On text that is not English, apply the tests only and tell the caller the pattern catalog did not apply.
 
 ## Register
 
