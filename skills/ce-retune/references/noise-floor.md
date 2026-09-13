@@ -58,7 +58,7 @@ Adherence and outcome stay separate columns here for the same reason they do in 
 
 ## Statistics that survive small n
 
-Required capability: a scripting environment with an exact-test library, or the closed forms. Wilson and the risk difference are arithmetic on the counts; Fisher's exact is a sum of hypergeometric terms. If neither the library nor the patience is available, do not substitute a normal approximation. Use the streak below, which needs only `p^N`.
+Required capability: a scripting environment with an exact-test library, or the closed forms. Wilson and the risk difference are arithmetic on the counts; Fisher's exact is a sum of hypergeometric terms. If the required analysis is unavailable, do not substitute a normal approximation. The streak below can provide descriptive confirmation; its statistical interpretation requires the assumptions stated there.
 
 At n = 6 per arm the normal approximation to a proportion is wrong in ways that matter. It produces intervals that exclude values the data plainly permit, including 0 and 1. Use:
 
@@ -81,26 +81,25 @@ n_per_arm = 7.849 * (p1*(1-p1) + p2*(1-p2)) / (p2 - p1)^2
 
 Against the engagement's 58% baseline, detecting +30 points gives about 31 per arm from that formula, and the power tool used reported about 39 once it applied a continuity correction. **Take the larger.** Corrections differ by method and land roughly 20-40% above the plain figure at these rates, so with no tool to hand, plan on the plain figure inflated by a third rather than treating 31 as the budget. Print the number next to the non-result, in the same line, so the cost of the claim is visible where the claim is.
 
-## The cheap one-armed alternative
+## One-armed confirmation
 
-Once the baseline rate `p` is independently established, from the A/A plus the archive mining, a control arm becomes optional. N consecutive clean runs has probability `p^N` under the null that nothing changed, and that is an exact test needing no second arm.
+A pre-registered streak can serve as an operational confirmation bar on one frozen build under fixed measurement conditions. Under a null with a **known, fixed success probability `p` and independent runs**, one pre-specified attempt at N consecutive clean runs has all-success probability `p^N`. That calculation alone is not a significance level for an adaptive search.
 
-At `p = 0.58`:
+A baseline measured independently from A/A and archive runs is still an estimate. Account for its sample size and uncertainty in any statistical claim. When baseline uncertainty, changed conditions, or dependence between runs is unaccounted for, report the observed confirmation descriptively rather than as an exact test.
 
-| consecutive clean runs | probability under the null | odds |
+For one pre-specified attempt under the fixed `p = 0.58` null:
+
+| consecutive clean runs | probability of all successes | odds |
 |---|---|---|
 | 3 | 0.195 | 1 in 5 |
 | 5 | 0.066 | 1 in 15 |
 | 8 | 0.0128 | 1 in 78 |
 
-Eight runs bought p = 0.0128 where the two-armed design wanted roughly 39 per arm. Two conditions make it valid, and both are easy to lose:
+**Keep the search history when interpreting the result.** Across 20 independent attempts under that same null, the probability of at least one eight-run success is `1 - (1 - 0.58^8)^20`, about 0.2272, not 0.0128. This is an illustrative calculation, not a measured CE error rate; adaptive candidates need not be independent. A search-wide significance claim must account for candidate selection and the stopping rule. Changing a candidate resets its streak, not the search history.
 
-- **The baseline must be established independently, before the change.** If you estimate `p` from the same runs you are testing, the test is circular and means nothing.
-- **The runner must stop at the first failure.** A broken streak *is* the answer. Continuing past it to collect "8 clean out of 11" converts an exact test into a rate comparison you are not powered for. Do not restart the streak after a failure without treating the failure as a finding and changing something.
+**Stop an attempt at the first behavioral failure.** A failed streak is a finding to diagnose before changing the candidate, not permission to repeat it until it passes. Keep every attempt and classify infrastructure retries under the registered broken-run rule. Never pool successes across builds. A cleared operational bar without a supported statistical analysis remains descriptive confirmation. A streak probability is not an effect-size estimate or a percentage improvement.
 
-The streak is a one-sided instrument. It can show a change is unlikely to be noise, and it cannot estimate effect size. Do not report a streak as a percentage improvement.
-
-**Separate diagnostic runs from streak runs, or the loop costs eight runs a pass.** After a cut pass, one or two runs are enough to answer Phase 5's only question, which is which phase it died in now. Those are diagnostic. They locate the next target and they do **not** count toward any streak. Attempt the streak only once a diagnostic run comes back clean, and only on a build you will not touch until it finishes. Any edit lands on a new build, so it restarts the count at zero. A streak assembled across edits is not a streak, and no honest bar is cleared by one.
+**Separate diagnostic runs from final confirmation.** One or two diagnostic runs after a cut can locate the next failure; they do not count toward a streak. Begin final confirmation only after a clean diagnostic run, with the candidate and confirmation rule fixed. Use fresh runs whose results were not used to select it. If those results guide another edit or another confirmation attempt, they enter the selection history and cannot be ignored in a later significance claim.
 
 ## Registering the bar
 
@@ -108,11 +107,12 @@ The registration is a written artifact at a path you can point a skeptic at, not
 
 - the metric, in the exact form the summarizer computes it;
 - the effect size worth detecting, and why that size and not a smaller one;
-- the design (two-armed with n per arm, or streak with N) and the significance level it buys;
+- the design (two-armed with n per arm, or streak with N), and whether the result is descriptive confirmation or a statistical claim;
+- for a statistical claim, the baseline evidence and uncertainty, independence assumptions, and error control covering candidate selection and repeated attempts;
 - the stopping rule, including what counts as a broken run that does not consume the streak;
 - the phases the probe task traverses, from the validation below.
 
-**When the affordable n cannot detect the effect you care about, say so and change the design, not the interpretation.** Options, in preference order: pick a cheaper metric that moves more per run (token spread usually moves before completion rate), target a bigger effect, or use the streak. Running an underpowered two-armed test and reporting its point estimate is the failure mode this whole phase exists to prevent, and it is exactly what the outside analyst's 2-of-8 versus 5-of-8 was.
+**When the affordable n cannot detect the effect you care about, say so and change the design, not the interpretation.** Consider a cheaper metric that moves more per run (token spread usually moves before completion rate) or a bigger effect. A streak can instead support the limited confirmation described above; it is not a substitute for the two-armed design's power or effect-size estimate. Running an underpowered two-armed test and reporting its point estimate is the failure mode this whole phase exists to prevent, and it is exactly what the outside analyst's 2-of-8 versus 5-of-8 was.
 
 ## Sizing the probe task
 
