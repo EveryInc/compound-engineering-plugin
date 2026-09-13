@@ -713,7 +713,7 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/ordinary reviewer plus an `adversarial-<provider>` reviewer/i)
     expect(content).toMatch(/Same-model corroboration never licenses this shortcut/i)
     expect(content).toMatch(/in-process reviewers share one serving model, so their agreement is recorded in `reviewers` but never raises confidence/i)
-    expect(content).toMatch(/incidence was not measured/)
+    expect(content).toMatch(/incidence was not measured, the finding carries `validation_status: "confirmed"` and that reason as `validation_reason`/)
     expect(validatorTemplate).toMatch(/state in `reason` that incidence was not measured/)
 
     // Remaining findings use one bounded foreground batch.
