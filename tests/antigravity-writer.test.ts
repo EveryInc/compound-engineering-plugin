@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
+import { convertClaudeToAntigravity } from "../src/converters/claude-to-antigravity"
 import { writeAntigravityBundle } from "../src/targets/antigravity"
 import type { AntigravityBundle } from "../src/types/antigravity"
 
@@ -51,6 +52,40 @@ describe("writeAntigravityBundle", () => {
     expect(await exists(path.join(tempRoot, ".agy", "skills", "hello", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".agy", "agents", "reviewer.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".agy", "commands", "workflows", "plan.toml"))).toBe(true)
+  })
+
+  test.each(["", "workflows"])("preserves colliding command output in namespace %p", async (namespace) => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "agy-command-collision-"))
+    try {
+      const names = ["review.docs", "review-docs-2", "review-docs"]
+      const bundle = convertClaudeToAntigravity({
+        root: tempRoot,
+        manifest: { name: "fixture", version: "1.0.0" },
+        agents: [],
+        skills: [],
+        commands: names.map((name, index) => ({
+          name: namespace ? `${namespace}:${name}` : name,
+          description: `Command ${index}`,
+          body: `Prompt ${index}.`,
+          sourcePath: `${index}.md`,
+        })),
+      }, { agentMode: "subagent", inferTemperature: false, permissions: "none" })
+      const expected = ["review-docs", "review-docs-2", "review-docs-3"]
+      expect(bundle.commands.map((command) => command.name)).toEqual(
+        expected.map((name) => namespace ? `${namespace}/${name}` : name),
+      )
+
+      await writeAntigravityBundle(tempRoot, bundle)
+      const commandDir = path.join(tempRoot, ".agy", "commands", namespace)
+      expect((await fs.readdir(commandDir)).sort()).toEqual(expected.map((name) => `${name}.toml`).sort())
+      for (const [index, name] of expected.entries()) {
+        const content = await fs.readFile(path.join(commandDir, `${name}.toml`), "utf8")
+        expect(content).toContain(`description = "Command ${index}"`)
+        expect(content).toContain(`prompt = """\nPrompt ${index}.\n"""`)
+      }
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true })
+    }
   })
 
   test("writes mcp_config.json with serverUrl only when servers exist", async () => {
