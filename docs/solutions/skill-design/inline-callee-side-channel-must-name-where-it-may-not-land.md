@@ -40,7 +40,7 @@ Eleven sibling skills reference `ce-noslop` across sixteen files (grep `ce-noslo
 Fix the callee, not the consumers. When an inline-invoked skill's contract carries a caller-facing side channel (a change summary, a status note, a receipt, a "what I did" line), the callee must state two things:
 
 1. When the channel is produced. Default to only when the caller asks.
-2. Where it may not land. Not in text that reaches a user, and not in an artifact.
+2. Where it may land. Outside the primary output and out of any artifact. A requester who asked for it receives it, separately from the text.
 
 The fix in `skills/ce-noslop/SKILL.md` (shipped in the same change as this learning, 2026-09-13) applies this to the edit bullet under `## Mode`. At the current tree, `skills/ce-noslop/SKILL.md:20` reads: "Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks for it, and keep that line outside the rewritten text and out of any artifact." The non-English notice at `skills/ce-noslop/SKILL.md:23` rides the same channel: it appears in detect findings, and in edit only inside a change line that was asked for. `docs/guides/ce-noslop.md` was updated to match.
 
@@ -63,7 +63,7 @@ Apply when authoring or reviewing any skill that:
 - is invoked inline by other skills or by an orchestrator, and
 - returns something beyond its primary output: a summary of changes, a status line, a receipt, a note to the caller.
 
-For each such channel, state at the callee when it is produced and where it must not land. Do not add "strip the callee's note" instructions to consumers.
+For each such channel, state at the callee when it is produced and where it may land: outside the primary output, out of artifacts, and only with a requester who asked. Do not add "strip the callee's note" instructions to consumers.
 
 When a user-facing message from a pipeline opens with narration about the agent's own drafting or with internal vocabulary, look for a callee side channel first before patching the consumer that printed it.
 

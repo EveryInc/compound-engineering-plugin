@@ -153,6 +153,8 @@ The protocol kernel begins with outcome and completion behavior. Add other field
 - Coverage floors, when missing a category silently makes the result incomplete.
 - Failure branches, when a missing capability could otherwise cause a silent skip.
 
+**A skill another skill invokes runs in the caller's context on every host; there is no subagent boundary.** Anything it "returns" beyond its primary output is text the caller writes next, and that next write is often the user's message or an artifact such as a PR body. When the contract carries a caller-only channel (a change summary, a status note, a receipt), state at the callee when it is produced and where it may land: outside the primary output, out of any artifact, and only with a requester who asked. Fix this at the callee once; consumers cannot be taught to strip a channel they did not design. Worked case: `inline-callee-side-channel-must-name-where-it-may-not-land.md`.
+
 If many invariants share one outcome, authority domain, mutable state, and definition of done, keep one skill with an invariant index and conditional expansions. Split when outcomes, triggers, authority domains, audiences, or lifecycles are independently meaningful. Do not reduce visible line count by creating a hidden cross-skill state machine.
 
 ## Make activation portable
@@ -405,6 +407,7 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Vendor guidance conflicts resolve Sol-first for this org's multi-model skills; Fable-only deletions do not strip Sol-critical determinism.
 - [ ] Generic quality exhortations and motivational rationale are absent.
 - [ ] Long-running or orchestrating workflows state batching, narration, and finish-fully discipline; skills that run a few calls and return omit them.
+- [ ] A caller-only channel in an inline-invoked skill's contract (summary, status note, receipt) says when it is produced and where it may land, at the callee.
 
 ### Protocol and judgment
 
