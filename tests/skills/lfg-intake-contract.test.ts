@@ -146,15 +146,15 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
   })
 
   test("the defect route ships only what the user offered", () => {
-    // Codex review on #1702: the fix-owned list alone let lfg sweep unrelated dirty files
-    // and publish pre-existing unpushed commits; the return now carries the pre-fix scope.
+    // Codex rounds 1-3 on #1702 each found a new edge in a mechanism-shaped gate; the
+    // block is stated as its goal and safe direction, and ce-debug returns facts only.
+    expect(debugReturn).toMatch(/"pre_fix_scope"/)
     expect(debugReturn).toMatch(/"dirty_files"/)
-    expect(debugReturn).toMatch(/"prior_commits_ahead_of_base"/)
-    expect(debugReturnGate).toMatch(/pass `pre_fix_scope\.dirty_files` as `exclude:<paths>` to `ce-commit-push-pr`/)
-    // Second Codex round: backup-pushed commits have no unpushed count yet are not offered;
-    // offered means an open PR already contains them.
-    expect(debugReturnGate).toMatch(/an open pull request for the branch already contains/)
-    expect(debugReturnGate).toMatch(/No open PR means those commits were never offered: do not push and do not open one/)
+    expect(debugReturn).toMatch(/"commits_beyond_base"/)
+    expect(debugReturn).toMatch(/carries no verdict about what the user offered/)
+    expect(debugReturnGate).toMatch(/Before any step in this run pushes, a review-fix commit included, decide whether everything that push would publish is offered/)
+    expect(debugReturnGate).toMatch(/When it is not, or you cannot tell, hold/)
+    expect(reviewFollowup).toMatch(/when everything the push would publish is work the user offered/)
     expect(shippingTail).not.toContain("git add -A && git commit")
     expect(shippingTail).toMatch(/Never `git add -A`/)
   })
