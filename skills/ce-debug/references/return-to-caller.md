@@ -6,7 +6,7 @@ This is not `mode:pipeline`. Pipeline mode serves the babysitter on a PR branch 
 
 ## What stays the same
 
-Phases 0 through 3 run as the body defines them, with the investigation rigor unchanged: the causal-chain gate, reproduction, the escalation table, the test-first fix sequence in `references/fix.md`, and the issue-of-record rule. The **Branch** rule in Phase 3 applies in full: on the default branch, detached, or unsure, create a feature branch named from the bug before the first edit and say which branch you moved to. `/lfg fix this bug` invoked on `main` must not commit to `main`. The pre-fix scope record and the fix-owned file list are kept, because the return is built from them.
+Phases 0 through 3 run as the body defines them, with the investigation rigor unchanged: the causal-chain gate, reproduction, the escalation table, the test-first fix sequence in `references/fix.md`, and the issue-of-record rule. The **Branch** rule in Phase 3 applies in full: on the default branch, detached, or unsure, create a feature branch named from the bug before the first edit and say which branch you moved to. `/lfg fix this bug` invoked on `main` must not commit to `main`. The pre-fix scope record and the fix-owned file list are kept, because the return is built from them: the caller ships only what the user offered, and this return is the only place it can learn what was already in the tree or on the branch before the fix.
 
 ## What changes
 
@@ -27,6 +27,11 @@ The final output is machine-readable; the caller parses it and branches on the e
   "changed_files": ["<fix-owned files, tests included>"],
   "head_sha": "<sha of the fix commit, when fixed>",
   "branch": "<branch the fix was committed on, when fixed>",
+  "pre_fix_scope": {
+    "dirty_files": ["<files already modified or untracked before Phase 3 that are not fix-owned; left untouched>"],
+    "unpushed_commits": "<count of commits on the branch before the fix that no remote has, or 0>",
+    "started_on_default_branch": false
+  },
   "behavior_change": true,
   "verification_evidence": {
     "regression_test": "<file and case>",
@@ -48,4 +53,4 @@ The final output is machine-readable; the caller parses it and branches on the e
 - `needs-human`: the fix would be divergent, or the causal chain could not be closed without a decision only a person can make; nothing applied; `residuals` carries the `decision_context` in the same typed residual contract `references/pipeline-mode.md` defines.
 - `blocked`: a required read failed, a fix-owned file carried the user's edits, or the workspace could not be prepared; `blockers` names it and nothing was committed.
 
-`issue_of_record` is `null` when the input carried no ticket. `verification_evidence` is present on every `fixed` return; when `behavior_change` is `false` (a pure test or tooling fix), `exception_reason` says why no red-then-green was possible. `residuals` is an empty array when there are none.
+`pre_fix_scope` is present on every return. `dirty_files` lists what was already dirty before the fix and is not fix-owned; the fix never touched those files and the caller must not commit them. `unpushed_commits` counts commits the branch already carried that no remote has, so the caller can tell whether pushing would publish work the user never offered. `issue_of_record` is `null` when the input carried no ticket. `verification_evidence` is present on every `fixed` return; when `behavior_change` is `false` (a pure test or tooling fix), `exception_reason` says why no red-then-green was possible. `residuals` is an empty array when there are none.

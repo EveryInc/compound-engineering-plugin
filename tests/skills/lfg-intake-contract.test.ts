@@ -93,6 +93,7 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
     "changed_files",
     "head_sha",
     "branch",
+    "pre_fix_scope",
     "verification_evidence",
     "residuals",
     "issue_of_record",
@@ -137,6 +138,24 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
       expect(debugReturnGate).toContain(phrase)
     }
     expect(debugReturnGate).toMatch(/There is no recovery invocation on this route/)
+  })
+
+  test("the defect route ships only what the user offered", () => {
+    // Codex review on #1702: the fix-owned list alone let lfg sweep unrelated dirty files
+    // and publish pre-existing unpushed commits; the return now carries the pre-fix scope.
+    expect(debugReturn).toMatch(/"dirty_files"/)
+    expect(debugReturn).toMatch(/"unpushed_commits"/)
+    expect(debugReturnGate).toMatch(/pass `pre_fix_scope\.dirty_files` as `exclude:<paths>` to `ce-commit-push-pr`/)
+    expect(debugReturnGate).toMatch(/`pre_fix_scope\.unpushed_commits` is greater than zero[^.]*do not push and do not open a PR/)
+    expect(shippingTail).not.toContain("git add -A && git commit")
+    expect(shippingTail).toMatch(/Never `git add -A`/)
+  })
+
+  test("a prototype route requires a human present on both ends", () => {
+    expect(intake).toMatch(/runs only when a human is present \(the same condition route 4 uses\)/)
+    const prototype = readRepoFile("skills/ce-prototype/SKILL.md")
+    expect(prototype).not.toMatch(/no person to experience the prototype — LFG/)
+    expect(prototype).toMatch(/a calling skill that reports no human is present/)
   })
 
   test("the shipping steps name a substitute for every consumer of the plan path", () => {

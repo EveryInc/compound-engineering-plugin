@@ -15,7 +15,7 @@ Build a throwaway prototype at the fidelity that can answer this question, befor
 **Done:** the user settled the questions that needed an artifact, or they apply and continue into brainstorm or plan. Their choice is the settlement, not a direction you inferred.
 **Not:** a decision a cheap sketch settles, polish, or shipping the prototype as a final product.
 
-If there is no person to experience the prototype — LFG, `mode:pipeline`, or any unattended run — stop. Do not start a preview or invent how it should feel. Return that this skill needs a human.
+If there is no person to experience the prototype — `mode:pipeline`, a headless run, or a calling skill that reports no human is present — stop. Do not start a preview or invent how it should feel. Return that this skill needs a human. A calling skill that has a human present (an interactive `lfg` run, for example) is an ordinary attended run.
 
 **User-runnable invocation rendering.** The attended re-run in that refusal and the next-skill recommendation when the user applies print invocation syntax. Default to `/ce-prototype`, `/ce-brainstorm`, and `/ce-plan`; use `$ce-prototype`, `$ce-brainstorm`, and `$ce-plan` only on Codex or a host that documents dollar-prefixed skill invocation. Render only the invocation as inline code; output one form only.
 
