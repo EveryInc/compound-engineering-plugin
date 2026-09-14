@@ -64,6 +64,8 @@ describe("lfg work source and routes", () => {
     // A judgment-only request ends at the verdict; route 3 needs change intent (Codex round 2).
     expect(lfg).toMatch(/a judgment with nothing to build ends at the verdict/)
     expect(intake).toMatch(/Judgment on the way to a change\.\*\* The request asks for a change to the code/)
+    // Codex round 3: a plan path alone does not select the plan route.
+    expect(intake).toMatch(/Plan path\.\*\* The request asks for a plan to be carried out or continued/)
   })
 
   test("a non-code result ends the run at that skill, with no branch", () => {
