@@ -54,3 +54,14 @@ Routing rules:
 - **When reviewers disagree, keep the more cautious class.** A merged finding may move from `gated_auto` to `manual`; moving the other way needs stronger evidence.
 - **Reject `safe_auto` and `review-fixer` if present** — drop the finding or remap to `gated_auto` / `downstream-resolver` during synthesis.
 - **`requires_verification: true` means any caller-applied fix needs targeted tests or follow-up validation.**
+
+## Protected Artifacts
+
+Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. A protected artifact is any file **under** a `plans/`, `solutions/`, or legacy `brainstorms/` directory **whose immediate parent is the artifact root** — a directory named `docs` (the default, and where unmigrated legacy artifacts stay even after a project sets `docs_root`) or the configured `docs_root` when this run resolved it:
+
+- `plans/` under the artifact root -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
+- `solutions/` under the artifact root -- solution documents created during the pipeline (categories nest, e.g. `solutions/<category>/foo.md`)
+- the legacy `brainstorms/` -- requirements documents created by older ce-brainstorm versions
+
+Matching by the immediate parent covers nested category files while leaving a same-named directory elsewhere (a skill's own `references/personas/` prompt assets, parented by `references`) as ordinary code whose deletion finding stands. A run that never resolved a configured root still protects the `docs`-parented tree; a configured-root artifact seen by such a run is the one honest gap. A finding that recommends deleting, removing, or gitignoring such a file is never emitted, on any depth path; synthesis discards one that arrives anyway.
+

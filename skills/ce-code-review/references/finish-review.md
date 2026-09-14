@@ -164,18 +164,12 @@ Before delivering the review, verify:
 2. **No false positives from skimming.** For each finding, verify the surrounding code was actually read. Check that the "bug" isn't handled elsewhere in the same function, that the "unused import" isn't used in a type annotation, that the "missing null check" isn't guarded by the caller.
 3. **Severity is calibrated.** A style nit is never P0. A SQL injection is never P3. Re-check every severity assignment.
 4. **Line numbers are accurate.** Verify each cited line number against the file content. A finding pointing to the wrong line is worse than no finding.
-5. **Protected artifacts are respected.** Discard any finding that recommends deleting or gitignoring a CE pipeline artifact, per the Protected Artifacts rule at the end of this reference: any file under a `plans/`, `solutions/`, or legacy `brainstorms/` directory whose immediate parent is the artifact root (a directory named `docs`, or the configured `docs_root` when resolved). Categories nest (`solutions/<category>/`); a `references/personas/` skill asset, parented by `references`, is not a protected artifact.
+5. **Protected artifacts are respected.** Discard any finding that recommends deleting or gitignoring a CE pipeline artifact, per the Protected Artifacts rule in `references/action-class-rubric.md`: any file under a `plans/`, `solutions/`, or legacy `brainstorms/` directory whose immediate parent is the artifact root (a directory named `docs`, or the configured `docs_root` when resolved). Categories nest (`solutions/<category>/`); a `references/personas/` skill asset, parented by `references`, is not a protected artifact.
 6. **Findings don't duplicate linter output.** Don't flag things the project's linter/formatter would catch (missing semicolons, wrong indentation). Focus on semantic issues.
 
 ## Protected Artifacts
 
-Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. A protected artifact is any file **under** a `plans/`, `solutions/`, or legacy `brainstorms/` directory **whose immediate parent is the artifact root** — a directory named `docs` (the default, and where unmigrated legacy artifacts stay even after a project sets `docs_root`) or the configured `docs_root` when this run resolved it:
-
-- `plans/` under the artifact root -- unified plan artifacts created by ce-brainstorm or ce-plan (decision artifacts; execution progress is derived from git, not stored in plan bodies)
-- `solutions/` under the artifact root -- solution documents created during the pipeline (categories nest, e.g. `solutions/<category>/foo.md`)
-- the legacy `brainstorms/` -- requirements documents created by older ce-brainstorm versions
-
-Matching by the immediate parent covers nested category files while leaving a same-named directory elsewhere (a skill's own `references/personas/` prompt assets, parented by `references`) as ordinary code whose deletion finding stands. A run that never resolved a configured root still protects the `docs`-parented tree; a configured-root artifact seen by such a run is the one honest gap. Discard any such file's cleanup or removal finding during synthesis.
+The protected-artifact rule is part of the finding contract in `references/action-class-rubric.md` (## Protected Artifacts); it binds every depth path. Discard any protected file's cleanup or removal finding during synthesis.
 
 ## After Review
 
