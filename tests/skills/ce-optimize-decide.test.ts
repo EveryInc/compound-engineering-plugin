@@ -24,6 +24,8 @@ const EXAMPLE = readFileSync(
 const LOOP = readFileSync(path.join(SKILL_DIR, "references", "loop.md"), "utf8")
 const SPEC = readFileSync(path.join(SKILL_DIR, "references", "spec.md"), "utf8")
 const MEASUREMENT = readFileSync(path.join(SKILL_DIR, "references", "measurement.md"), "utf8")
+const PERSISTENCE = readFileSync(path.join(SKILL_DIR, "references", "persistence.md"), "utf8")
+const WRAP_UP = readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 
 const BASELINE_WALL = 372.869
@@ -1555,6 +1557,40 @@ describe("schema and skill pins", () => {
     expect(LOG_SCHEMA).toContain("- not_selected")
   })
 
+  test("long runs: two clocks, per-tick cap, approval and run_state records, capability conditions", () => {
+    expect(SCHEMA).toContain("max_wall_hours:")
+    expect(SCHEMA).toContain("max_experiments_per_tick:")
+    expect(SCHEMA).toContain("stopping.max_wall_hours must be a positive number and at least stopping.max_hours")
+    expect(SCHEMA).toContain("metric.judge.max_total_cost_usd must be set; unattended spend is never uncapped")
+    expect(LOG_SCHEMA).toContain("  approval:")
+    expect(LOG_SCHEMA).toContain("spec_sha256:")
+    expect(LOG_SCHEMA).toContain("  run_state:")
+    expect(LOG_SCHEMA).toContain("pending_waits:")
+    expect(LOG_SCHEMA).toContain("active_seconds:")
+    expect(LOG_SCHEMA).toContain("phase3_started_at:")
+    expect(LOG_SCHEMA).toContain("enum: [running, waiting, blocked, final]")
+    expect(SKILL_BODY).toContain("## Execution Surface")
+    expect(SKILL_BODY).toContain("**durable state root**")
+    expect(SKILL_BODY).toContain("**wake after turn end**")
+    expect(SKILL_BODY).toContain("a missing binary or environment variable proves nothing")
+    expect(SKILL_BODY).toContain("waits on an event a registered wake will deliver and the log records that wait")
+    expect(SKILL_BODY).toContain("bound to the spec digest and the caps it approved")
+    expect(SKILL_BODY).toContain("the wall-clock backstop")
+    expect(SKILL_BODY).not.toMatch(/Cursor Project|Agent Store|cursor-subscriptions/)
+    expect(LOOP).toContain("**Tick boundary.**")
+    expect(LOOP).toContain("`run_state.active_seconds` (not time since the invocation, not time spent waiting) >= `stopping.max_hours`")
+    expect(LOOP).toContain("since `run_state.phase3_started_at` >= `stopping.max_wall_hours`")
+    expect(LOOP).toContain("**Codex delegation condition.**")
+    expect(LOOP).not.toContain("**Codex backend:**")
+    expect(PERSISTENCE).toContain("### The State Root")
+    expect(PERSISTENCE).toContain("### The Approval Record")
+    expect(PERSISTENCE).toContain("never move a ledger mid-run")
+    expect(PERSISTENCE).toContain("Never fake a wait with a foreground sleep")
+    expect(MEASUREMENT).toContain("write the approval record")
+    expect(WRAP_UP).toContain("<root>/optimize/<spec-name>-report.md")
+    expect(SPEC).toContain("<state-root>/spec.yaml")
+  })
+
   test("the expensive-benchmark example declares three required hard targets and a ladder", () => {
     expect(EXAMPLE).toContain("name: reduce-test-suite-wall-time")
     expect(EXAMPLE).toContain("local_wall_seconds")
@@ -1621,9 +1657,7 @@ describe("schema and skill pins", () => {
     expect(LOG_SCHEMA).toContain("uniquely identifies the measured")
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
-    expect(readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")).toContain(
-      "Not selected: <count>",
-    )
+    expect(WRAP_UP).toContain("Not selected: <count>")
   })
 })
 

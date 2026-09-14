@@ -2,7 +2,10 @@
 # This is the canonical schema for the experiment log file that accumulates
 # across an optimization run.
 #
-# Location: .context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml
+# Location: <state-root>/experiment-log.yaml, where <state-root> is the durable
+# state root resolved in Phase 0 (references/persistence.md): the harness's
+# durable store when it names one, otherwise
+# .context/compound-engineering/ce-optimize/<spec-name>/
 #
 # PERSISTENCE MODEL:
 # The experiment log on disk is the SINGLE SOURCE OF TRUTH. The agent's
@@ -15,6 +18,9 @@
 # - Outcome fields may also be updated in-place after batch evaluation (step 3.5)
 # - The `best` section is updated after each batch if a new best is found
 # - The `hypothesis_backlog` is updated after each batch
+# - `approval` is written once, the moment the Phase 1 gate is cleared
+# - `run_state` is written at CP-4 and whenever a pending wait is registered
+#   or cleared
 # - The agent re-reads this file from disk at every phase boundary
 #
 # The orchestrator does NOT read the full log each iteration -- it uses a
@@ -96,6 +102,68 @@ structure:
       total_judge_cost_usd:
         type: number
         description: "Running total of all judge costs across all experiments"
+
+  approval:
+    type: object
+    required: false
+    description: >
+      The Phase 1 user approval, recorded so a resume (including an unattended
+      wake) does not re-ask it. Valid while spec_sha256 matches the SHA-256 of
+      the spec.yaml bytes on disk and every cap below matches the spec. Absent,
+      or no longer matching, means the gate is presented again. Missing in
+      legacy logs means the gate is presented again on resume, as before.
+    children:
+      approved_at:
+        type: string
+        format: "ISO 8601 timestamp"
+      spec_sha256:
+        type: string
+        description: "SHA-256 hex digest of the saved spec.yaml bytes at approval time"
+      caps:
+        type: object
+        description: "The limits the user approved: stopping.* as in force, metric.judge.max_total_cost_usd (null only with the explicit uncapped-spend yes), execution.max_concurrent"
+
+  run_state:
+    type: object
+    required: false
+    description: >
+      Tick-level loop state for resume across turns. Written at CP-4 and
+      whenever a pending wait is registered or cleared. Absent in a log that
+      has not reached Phase 3 or in a legacy log; treat absent clocks as zero
+      and absent pending_waits as none.
+    children:
+      status:
+        type: string
+        enum: [running, waiting, blocked, final]
+        description: "running inside a tick; waiting between ticks on recorded pending waits or on the user's wrap-up choice; blocked on something outside the loop (report it, do not spin); final after CP-5"
+      tick:
+        type: integer
+        description: "Completed ticks (batches) so far"
+      phase3_started_at:
+        type: string
+        format: "ISO 8601 timestamp"
+        description: "Wall-clock anchor for stopping.max_wall_hours"
+      active_seconds:
+        type: number
+        description: "Time spent inside ticks since Phase 3 started, summed across ticks; the clock stopping.max_hours reads"
+      pending_waits:
+        type: array
+        description: "Work outstanding across the turn boundary. Empty when nothing is outstanding. A turn may end with entries here only when each waits on an event a registered wake will deliver."
+        items:
+          type: object
+          children:
+            item:
+              type: string
+              description: "What is outstanding: an experiment iteration, a judge batch, a timer"
+            arrives_as:
+              type: string
+              description: "The observable the wake delivers: a store file, a pushed ref, a host message naming the launch, a timer fire"
+            wake:
+              type: string
+              description: "The registered wake that will deliver it (identifier or description)"
+            on_arrival:
+              type: string
+              description: "The action to take: collect through 3.3, evaluate, re-check stopping"
 
   hypothesis_backlog:
     type: array
@@ -336,7 +404,7 @@ experiment_entry:
 # ============================================================================
 #
 # Written after each batch to:
-#   .context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md
+#   <state-root>/strategy-digest.md
 #
 # Contains a compressed summary of:
 # - What hypothesis categories have been tried

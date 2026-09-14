@@ -4,7 +4,7 @@ Read this after the spec is saved and follow it through the approval gate. A gat
 
 ### 0.3 Search Prior Learnings
 
-Read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt to search for prior optimization work on similar topics. Do not dispatch a standalone agent by type/name. If relevant learnings exist, incorporate them into the approach.
+Resolve `<root>` first (the body's Artifact Root rule); this read of `<root>/solutions/` counts as composing a path under it. Read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt to search for prior optimization work on similar topics, passing it the resolved `<root>` path, not the config. Do not dispatch a standalone agent by type/name. If relevant learnings exist, incorporate them into the approach.
 
 ### 0.4 Run Identity Detection
 
@@ -14,21 +14,21 @@ Check if `optimize/<spec-name>` branch already exists:
 git rev-parse --verify "optimize/<spec-name>" 2>/dev/null
 ```
 
-**If branch exists**, check for an existing experiment log at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`.
+Resolve `<state-root>` by the rule in `references/persistence.md` (The State Root), then check for an existing experiment log at `<state-root>/experiment-log.yaml`. A log found under `.context/compound-engineering/ce-optimize/<spec-name>/` when a durable root is now available is still this run's root; do not move it. A run whose ledger still exists is an existing run even when the branch does not exist in this checkout, so check the log independently of the branch.
 
-Present the user with a choice via the platform question tool:
+When an existing run's `run_state.status` is `waiting` and this entry is a wake, a scheduler fire, or a resume invocation of that same run, it is a resume: do not ask. Otherwise present the user with a choice via the platform question tool:
 - **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Then apply the SKILL.md body's resume rule to decide what is skipped and which approval checks run again.
 - **Fresh start**: archive the old branch to `optimize-archive/<spec-name>/archived-<timestamp>`, clear the experiment log, start from scratch
 
-### 0.5 Create Optimization Branch and Scratch Space
+### 0.5 Create Optimization Branch and State Root
 
 ```bash
 git checkout -b "optimize/<spec-name>"  # or switch to existing if resuming
 ```
 
-Create scratch directory:
+Create `<state-root>` if it does not exist:
 ```bash
-mkdir -p .context/compound-engineering/ce-optimize/<spec-name>/
+mkdir -p "<state-root>"
 ```
 
 ---
@@ -129,7 +129,7 @@ If count + `execution.max_concurrent` would exceed 12:
 
 **MANDATORY CHECKPOINT.** Before presenting results to the user, write the initial experiment log with baseline metrics to disk:
 
-1. Create the experiment log file at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`
+1. Create the experiment log file at `<state-root>/experiment-log.yaml`
 2. Include all required top-level sections from `references/experiment-log-schema.yaml`: `spec`, `run_id`, `started_at`, `baseline`, `experiments`, and `best`
 3. Seed `experiments` as an empty array and seed `best` from the baseline snapshot (use `iteration: 0`, baseline metrics, and baseline judge scores if present) so later phases have a valid current-best state to compare against
 4. Optionally seed `hypothesis_backlog: []` here as well so the log shape is stable before Phase 2 populates it
@@ -138,6 +138,10 @@ If count + `execution.max_concurrent` would exceed 12:
 
 ### 1.7 User Approval Gate
 
-The SKILL.md body states this gate and its user-facing reporting rule. That rule covers the options, the condition on adjusting the spec, the uncapped-spend disclosure, and the requirement for explicit approval before Phase 2. A resume that cannot prove the user cleared this gate presents it again. Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, and estimated scoring cost against the configured cap. Link the experiment log and measurement script for inspection. Keep the full degenerate-gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence. Report those details to the user when they affect the user's decision.
+The SKILL.md body states this gate and its user-facing reporting rule. Present what Phase 1 assembled and offer three options: proceed, fix issues, and adjust spec. Adjusting the spec is available only until this gate is cleared; afterwards a spec change is a new approval. Disclose uncapped spend: when `metric.judge.max_total_cost_usd` is null, say so and get an explicit yes for it, and when a wake after turn end is in use, uncapped judge spend is not approvable at all, so set the cap before presenting the gate. **Do not enter Phase 2 until the user explicitly approves.**
+
+Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, the caps in force including `stopping.max_wall_hours`, and estimated scoring cost against the configured cap. Link the experiment log and measurement script for inspection. Keep the full degenerate-gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence. Report those details to the user when they affect the user's decision.
+
+The moment the user approves, write the approval record to the experiment log as `references/persistence.md` (The Approval Record) specifies, verify it, then re-read the spec and baseline from disk before Phase 2. A resume whose record is absent, or whose spec digest or caps no longer match the spec on disk, presents this gate again.
 
 ---
