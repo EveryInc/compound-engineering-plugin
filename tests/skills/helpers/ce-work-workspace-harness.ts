@@ -55,6 +55,17 @@ export function tmp(prefix: string): string {
   return root
 }
 
+/** bun#34069: spawnSync timeout after a lost child-exit. Must be TimeoutError so run-tests.ts can re-run. */
+export function isLostChildExit(result: { status: number | null; signal: NodeJS.Signals | null }): boolean {
+  return result.status == null && result.signal === "SIGKILL"
+}
+
+export function throwLostChildExit(argv: string[]): never {
+  const err = new Error(`${argv.join(" ")}: spawnSync timed out or lost child-exit`)
+  err.name = "TimeoutError"
+  throw err
+}
+
 export function sh(cwd: string, argv: string[], check = true) {
   const r = spawnSync(argv[0], argv.slice(1), {
     cwd,
@@ -63,6 +74,7 @@ export function sh(cwd: string, argv: string[], check = true) {
     timeout: CTL_TIMEOUT_MS,
     killSignal: "SIGKILL",
   })
+  if (isLostChildExit(r)) throwLostChildExit(argv)
   if (check && r.status !== 0) {
     const detail = r.signal ? `killed by ${r.signal}` : r.stderr
     throw new Error(`${argv.join(" ")}\n${detail}`)
@@ -164,6 +176,7 @@ export function ctlWithScriptAndEnv(script: string, runsRoot: string, extraEnv: 
       ...extraEnv,
     },
   })
+  if (isLostChildExit(r)) throwLostChildExit(["python3", script, ...args])
   const lines = r.stdout.trim().split("\n")
   let body: any = null
   if (lines.length > 1) body = JSON.parse(lines.slice(1).join("\n"))
@@ -179,7 +192,7 @@ export function ownerRootProbe(ownerRoot: string, runsRoot: string, foreignLike 
     foreignLike ? "state._EFFECTIVE_UID = os.geteuid() + 1" : "",
     "print(state.ensure_root())",
   ].filter(Boolean).join("; ")
-  return spawnSync("python3", ["-c", source, ownerRoot], {
+  const r = spawnSync("python3", ["-c", source, ownerRoot], {
     encoding: "utf8",
     timeout: CTL_TIMEOUT_MS,
     killSignal: "SIGKILL",
@@ -190,6 +203,8 @@ export function ownerRootProbe(ownerRoot: string, runsRoot: string, foreignLike 
       CE_PEER_JOBS_ROOT: "",
     },
   })
+  if (isLostChildExit(r)) throwLostChildExit(["python3", "-c", "ownerRootProbe", ownerRoot])
+  return r
 }
 
 export function init(runsRoot: string, runId: string, fixture: ReturnType<typeof makeRepo>) {

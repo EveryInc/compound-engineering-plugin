@@ -72,6 +72,23 @@ describe("run-tests: choosing files to re-run from a bun junit report", () => {
     expect(rerunCandidates(junitCases(timeoutThenPass))).toEqual(["tests/routes.test.ts"])
   })
 
+  test("re-runs a thrown TimeoutError from a lost child-exit, but not an empty-word assertion", () => {
+    const lost = suite(
+      "tests/skills/ce-work-unit-workspace-fallback.test.ts",
+      fail("tests/skills/ce-work-unit-workspace-fallback.test.ts", 67, "TimeoutError") +
+        ok("tests/skills/ce-work-unit-workspace-fallback.test.ts", 71),
+    )
+    expect(rerunCandidates(junitCases(junit(lost)))).toEqual([
+      "tests/skills/ce-work-unit-workspace-fallback.test.ts",
+    ])
+    const emptyWord = suite(
+      "tests/skills/ce-work-unit-workspace-fallback.test.ts",
+      fail("tests/skills/ce-work-unit-workspace-fallback.test.ts", 67, "AssertionError"),
+    )
+    expect(rerunCandidates(junitCases(junit(emptyWord)))).toEqual([])
+  })
+
+
   test("re-runs nothing for a clean, errored-only, or empty report", () => {
     expect(rerunCandidates(junitCases(junit(suite("tests/c.test.ts", ok("tests/c.test.ts", 1)))))).toEqual([])
     const errored = junit(`<testsuite name="tests/e.test.ts" file="tests/e.test.ts"><testcase name="boom" file="tests/e.test.ts" line="1"><error message="import failed" /></testcase></testsuite>`)
