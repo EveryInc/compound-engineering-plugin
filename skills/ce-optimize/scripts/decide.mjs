@@ -10,6 +10,12 @@
 // A spec with no `objectives` and no `ladder` reproduces the legacy
 // single-primary + absolute noise_threshold rule, except that a delta
 // inside the threshold is `inconclusive` rather than a silent revert.
+//
+// Input: { spec, baseline, candidate, holdout? }. `holdout` is a second
+// { baseline, candidate } snapshot pair from the held-out set. When the spec
+// configures a holdout and the pair is absent, a would-be keep returns
+// `next_measurement: "holdout"` instead of keeping. When either snapshot
+// carries a `cases` object, the output lists `regressions` (report only).
 
 export function median(values) {
   if (!values.length) return null
@@ -88,8 +94,32 @@ function closedResult(fields) {
     comparisons: {},
     primary_delta: null,
     rank_score: 0,
+    regressions: [],
+    holdout: null,
     ...fields,
   }
+}
+
+function casePassed(value) {
+  return value === true || value === 1 || value === "1" || value === "true" || value === "pass"
+}
+
+// Cases the reference passed and the candidate fails. Report only: this never
+// changes the decision, and a missing `cases` object on either side yields [].
+export function regressions(baseline, candidate) {
+  const before = baseline?.cases
+  const after = candidate?.cases
+  if (!before || typeof before !== "object" || !after || typeof after !== "object") return []
+  return Object.keys(before)
+    .filter((id) => casePassed(before[id]) && id in after && !casePassed(after[id]))
+    .sort()
+}
+
+function holdoutConfigured(spec) {
+  if (spec.measurement?.holdout?.command) return true
+  const seed = spec.judge?.confirmation_seed
+  if (seed == null) return false
+  return spec.primary?.type === "judge" && seed !== (spec.judge?.sample_seed ?? 42)
 }
 
 function configuredAggregation(value) {
@@ -326,6 +356,104 @@ function isFutile({
   return worse && (sampleCount ?? 1) <= (ladder.exploratory_pairs ?? 1)
 }
 
+function compareRequired({
+  required,
+  comparison,
+  aggregation,
+  baseline,
+  candidate,
+  ladderEnabled,
+  confirmationRepeats,
+}) {
+  const comparisons = {}
+  const improved = []
+  const violated = []
+  const missing = []
+  const incompleteBaselines = []
+  const candidateBundles = {}
+  const baselineBundles = {}
+
+  for (const objective of required) {
+    const base = metricBundle(baseline, objective.name, aggregation, objective.type)
+    const cand = metricBundle(candidate, objective.name, aggregation, objective.type)
+    baselineBundles[objective.name] = base
+    candidateBundles[objective.name] = cand
+    if (!base || base.aggregate == null || !cand || cand.aggregate == null) {
+      missing.push(objective.name)
+      continue
+    }
+    if (comparison.method === "paired" && base.samples.length && cand.samples.length) {
+      const requiredSamples = Math.max(cand.samples.length, ladderEnabled ? confirmationRepeats : 1)
+      if (base.samples.length < requiredSamples) {
+        incompleteBaselines.push(
+          `${objective.name} (${base.samples.length} observed, ${requiredSamples} required)`,
+        )
+        continue
+      }
+    }
+    const result = compareObjective({
+      baselineValue: base.aggregate,
+      candidateValue: cand.aggregate,
+      baselineSamples: base.samples,
+      candidateSamples: cand.samples,
+      direction: objective.direction,
+      type: objective.type,
+      comparison,
+      maxRegression: objective.max_regression,
+    })
+    comparisons[objective.name] = result
+    if (result.verdict === "improved") improved.push({ name: objective.name, ...result })
+    if (result.violated) violated.push(objective.name)
+  }
+
+  return { comparisons, improved, violated, missing, incompleteBaselines, candidateBundles, baselineBundles }
+}
+
+// The held-out pair is scored with the same objectives and thresholds as the
+// selection pair. It confirms a keep; it never selects. A holdout that is not
+// itself an eligible improvement withholds the keep.
+function confirmHoldout({ holdout, required, comparison, aggregation }) {
+  const compared = compareRequired({
+    required,
+    comparison,
+    aggregation,
+    baseline: holdout.baseline ?? {},
+    candidate: holdout.candidate ?? {},
+    ladderEnabled: false,
+    confirmationRepeats: 1,
+  })
+  const summary = {
+    comparisons: compared.comparisons,
+    improved_objectives: compared.improved.map((item) => item.name),
+    violated_objectives: compared.violated,
+  }
+  if (compared.missing.length) {
+    return {
+      ...summary,
+      agrees: false,
+      decision: "error",
+      reason: `holdout missing required metric: ${compared.missing.join(", ")}`,
+    }
+  }
+  if (compared.violated.length) {
+    return {
+      ...summary,
+      agrees: false,
+      decision: "revert",
+      reason: `holdout regressed ${compared.violated.join(", ")}`,
+    }
+  }
+  if (!compared.improved.length) {
+    return {
+      ...summary,
+      agrees: false,
+      decision: "inconclusive",
+      reason: "holdout did not confirm the selection gain",
+    }
+  }
+  return { ...summary, agrees: true, decision: "keep", reason: null }
+}
+
 function rankScore(primaryComparison, improved) {
   if (primaryComparison?.verdict === "improved") return primaryComparison.relative ?? 0
   if (!improved.length) return primaryComparison?.relative ?? 0
@@ -361,47 +489,18 @@ export function decide(input) {
     })
   }
 
-  const comparisons = {}
-  const improved = []
-  const violated = []
-  const missing = []
-  const incompleteBaselines = []
-  const candidateBundles = {}
-  const baselineBundles = {}
   const aggregation = spec.aggregation ?? "median"
-
-  for (const objective of required) {
-    const base = metricBundle(baseline, objective.name, aggregation, objective.type)
-    const cand = metricBundle(candidate, objective.name, aggregation, objective.type)
-    baselineBundles[objective.name] = base
-    candidateBundles[objective.name] = cand
-    if (!base || base.aggregate == null || !cand || cand.aggregate == null) {
-      missing.push(objective.name)
-      continue
-    }
-    if (comparison.method === "paired" && base.samples.length && cand.samples.length) {
-      const requiredSamples = Math.max(cand.samples.length, ladderEnabled ? confirmationRepeats : 1)
-      if (base.samples.length < requiredSamples) {
-        incompleteBaselines.push(
-          `${objective.name} (${base.samples.length} observed, ${requiredSamples} required)`,
-        )
-        continue
-      }
-    }
-    const result = compareObjective({
-      baselineValue: base.aggregate,
-      candidateValue: cand.aggregate,
-      baselineSamples: base.samples,
-      candidateSamples: cand.samples,
-      direction: objective.direction,
-      type: objective.type,
-      comparison,
-      maxRegression: objective.max_regression,
-    })
-    comparisons[objective.name] = result
-    if (result.verdict === "improved") improved.push({ name: objective.name, ...result })
-    if (result.violated) violated.push(objective.name)
-  }
+  const compared = compareRequired({
+    required,
+    comparison,
+    aggregation,
+    baseline,
+    candidate,
+    ladderEnabled,
+    confirmationRepeats,
+  })
+  const { comparisons, improved, violated, missing, incompleteBaselines, candidateBundles, baselineBundles } =
+    compared
 
   if (missing.length) {
     return closedResult({
@@ -499,9 +598,27 @@ export function decide(input) {
     reason = `violated ${violated.join(", ")}`
   }
 
+  // A holdout is scored only once the selection comparison would keep.
+  let holdout = null
+  let keepEligible = eligible
+  if (decision === "keep" && nextMeasurement === "none" && holdoutConfigured(spec)) {
+    if (input.holdout == null) {
+      decision = "promising"
+      nextMeasurement = "holdout"
+      reason = "selection comparison would keep; held-out confirmation still missing"
+    } else {
+      holdout = confirmHoldout({ holdout: input.holdout, required, comparison, aggregation })
+      if (!holdout.agrees) {
+        decision = holdout.decision
+        keepEligible = false
+        reason = holdout.reason
+      }
+    }
+  }
+
   return {
     decision,
-    eligible,
+    eligible: keepEligible,
     next_measurement: nextMeasurement,
     target_reached: targetReached,
     improved_objectives: improved.map((item) => item.name),
@@ -509,6 +626,8 @@ export function decide(input) {
     comparisons,
     primary_delta: primaryComparison?.delta ?? null,
     rank_score: rankScore(primaryComparison, improved),
+    regressions: regressions(baseline, candidate),
+    holdout,
     reason,
   }
 }
