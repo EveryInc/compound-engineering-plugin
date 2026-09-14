@@ -96,7 +96,7 @@ Selection is agent judgment, not keyword matching. Instruction-prose files (Mark
 
 When you pass a PR number or URL, trivial automated PRs (lockfile bumps, chore version increments) are skipped. Draft PRs are reviewed normally.
 
-`depth:auto` (the default) lets the skill self-size: a small diff with no high-consequence class takes a cheap lite path in the review context; everything else uses the full spine. `depth:full` disables that path. Neither token invents irrelevant domains. Callers do not need to classify.
+`depth:auto` (the default) lets the skill self-size: a small diff with no high-consequence class takes a cheap lite path in the review context; everything else uses the full spine. The lite path still checks the change against the repo-owned criteria files below, in context, without a reviewer agent; declared Compound Packs are applied only on the full spine. `depth:full` disables the lite path. Neither token invents irrelevant domains. Callers do not need to classify.
 
 ## Repo-owned review criteria
 

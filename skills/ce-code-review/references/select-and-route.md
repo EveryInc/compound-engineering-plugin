@@ -62,19 +62,11 @@ Stack-specific personas are additive when runtime behavior warrants them. A Hotw
 
 For `deployment-verification-agent`, use the same migration-artifact condition when the change is risky (destructive DDL, backfills, NOT NULL without default, column renames/drops).
 
-### Stage 3b: Discover project standards paths
+### Stage 3b: Decide the project-standards dispatch
 
-**Goal:** the mapping that pairs each criteria file governing this change with the changed files it governs, for the `project-standards` persona. Paths, not contents.
+Stage 1c already paired each criteria file governing this change with the changed files it governs. Decide from that mapping whether the `project-standards` persona runs. When the instruction-file fallback supplied the criteria for any changed file, name it as the fallback in Coverage. **When uncertain, run the persona rather than skip it** — an error is never an empty result:
 
-Enumerate the candidates from **the tree under review**, never from whichever tree happens to be checked out: the workspace only in `local-aligned` scope, and the reviewed head ref in `pr-remote` and `branch-remote` (Stage 1 resolved which). A criteria file that exists only in the reviewed tree must appear, and one deleted there must not, or the persona enforces criteria the change never had.
-
-Candidates are `CODING_STANDARDS.md`, `CLAUDE.md`, and `AGENTS.md` at any depth. Keep those whose directory is an ancestor of a changed file — a root-level file governs the whole checkout, `skills/AGENTS.md` only what is under `skills/`.
-
-`CODING_STANDARDS.md` is the designated criteria source, so an instruction file supplies criteria only for changed files that no `CODING_STANDARDS.md` governs, and no file is graded against both kinds. Every governing `CODING_STANDARDS.md` still applies together. Declared Compound Packs are not a criteria kind here: they select `learnings-researcher` in Stage 3 and are graded by it independently, so a line that violates a standards rule and a pack rule yields one finding per source. When the instruction-file fallback supplied the criteria for any changed file, name it as the fallback in Coverage.
-
-**Done** when no changed file could be graded against two kinds of criteria. A changed file that no criteria file governs is a complete result, not a gap. **When uncertain, run the persona rather than skip it** — an error is never an empty result:
-
-- One or more applicable paths: select `project-standards` and pass the mapping inside a `<standards-paths>` block in its Stage 4 context. The persona applies the precedence you resolved rather than re-deriving it, and reads the files itself, targeting only relevant sections.
+- One or more applicable paths: select `project-standards` and pass the mapping inside a `<standards-paths>` block in its Stage 4 context. The persona applies the precedence Stage 1c resolved rather than re-deriving it, and reads the files itself, targeting only relevant sections.
 - Empty successful search: do not dispatch `project-standards`; record `project standards: not run (no applicable standards files)` in Coverage.
 - Search failure or uncertain scope: dispatch `project-standards` with the uncertainty stated.
 

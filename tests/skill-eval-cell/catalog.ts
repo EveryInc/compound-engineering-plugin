@@ -1833,6 +1833,72 @@ where PLAN is unaddressed when the named plan has any requirement or implementat
     },
   },
   {
+    id: "ce-code-review/depth-gate-standards-violation",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/cart.ts"],
+    fixture: `${FIX}/standards-designated`,
+    post_only: true,
+    why: "A three-line src change with no high-consequence class takes lite. The repo's CODING_STANDARDS.md forbids console.log in src/; lite must still catch it in context, without a persona.",
+    pre_contract:
+      "The lite roster carried project-standards as a persona; the first cut of the depth gate dropped criteria from lite entirely.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and, if lite, the criteria check only. This is a read-only probe: do not create the run directory and do not dispatch reviewers.
+
+End with exactly two lines in this form and nothing else on those lines:
+
+DEPTH: lite
+STANDARDS: violation
+
+or
+
+DEPTH: lite
+STANDARDS: clean
+
+where STANDARDS is violation when a changed line contradicts a rule in a criteria file that governs it. Quote the rule in prose above the two lines, not on them.`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      declared: { DEPTH: "lite", STANDARDS: "violation" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-standards-clean",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/cart.ts", "src/log.ts"],
+    fixture: `${FIX}/standards-compliant`,
+    post_only: true,
+    why: "The compliant twin: same criteria file, a change that follows every rule. Lite must not invent a violation to look thorough.",
+    pre_contract:
+      "The lite roster carried project-standards as a persona; the first cut of the depth gate dropped criteria from lite entirely.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and, if lite, the criteria check only. This is a read-only probe: do not create the run directory and do not dispatch reviewers.
+
+End with exactly two lines in this form and nothing else on those lines:
+
+DEPTH: lite
+STANDARDS: violation
+
+or
+
+DEPTH: lite
+STANDARDS: clean
+
+where STANDARDS is violation when a changed line contradicts a rule in a criteria file that governs it. Quote the rule in prose above the two lines, not on them.`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      declared: { DEPTH: "lite", STANDARDS: "clean" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
     id: "ce-code-review/depth-gate-ci-full",
     skill: "ce-code-review",
     cohort: "resized",

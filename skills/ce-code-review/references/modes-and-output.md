@@ -65,7 +65,7 @@ Decide after Stage 1b, before reading any later reference. This skill owns the d
 
 The Stage 1b helper reports facts. It never awards lite. `hard_block_full` is a floor: do not take lite. `size_band` other than `small` is the same floor. `signals` are prompts to consider, not a block.
 
-If `depth:full` is set, the floor is set, or the invocation carries apply authority (`apply:local` or an explicit apply request, which needs Stage 5c's verified-apply mechanics), continue the execution spine from Stage 2.
+If `depth:full` is set, the floor is set, the Stage 1c criteria search failed or its scope is uncertain, or the invocation carries apply authority (`apply:local` or an explicit apply request, which needs Stage 5c's verified-apply mechanics), continue the execution spine from Stage 2.
 
 If the floor is clear, read the Stage 1 diff and answer one question: if this change is wrong, does it break a silent-pass guard, an auth / money / data boundary, or a public contract? Yes or unsure → continue from Stage 2. No → lite.
 
@@ -73,7 +73,7 @@ You may only upgrade to the full spine. You cannot talk a hard block down.
 
 ### Lite path
 
-Do not read later references, with one exception below. Do not dispatch reviewers or finish leaves. Review the diff in this context for correctness against this skill's done condition. When the invocation names a plan (`plan:`), read the Plan Requirements Completeness section of `references/intent-and-plan.md`, check the diff against that plan's requirements and implementation units, and fill `requirements_completeness`; an explicit plan with unaddressed requirements or units makes the verdict Not ready unless the omission is intentional. Write the receipt into the run directory Stage 1b created and emit it as the response. Coverage must say the lite path ran and that no reviewer agents were dispatched.
+Do not read later references, with one exception below. Do not dispatch reviewers or finish leaves. Review the diff in this context for correctness against this skill's done condition. Then check it against the Stage 1c criteria mapping: read each governing criteria file, judge every changed file only against the criteria paired with it, and report a changed line that contradicts a written rule as a finding that quotes the rule and names its file. Coverage names the criteria files checked, or that none govern the change, names the instruction-file fallback when it supplied criteria, and states that declared Compound Packs were not applied. When the invocation names a plan (`plan:`), read the Plan Requirements Completeness section of `references/intent-and-plan.md`, check the diff against that plan's requirements and implementation units, and fill `requirements_completeness`; an explicit plan with unaddressed requirements or units makes the verdict Not ready unless the omission is intentional. Write the receipt into the run directory Stage 1b created and emit it as the response. Coverage must say the lite path ran and that no reviewer agents were dispatched.
 
 In `mode:agent`, the receipt is the JSON object the output format below defines, written to `review.json`. In default mode, it is Actionable Findings, Coverage, and Verdict, written to `report.md`.
 
