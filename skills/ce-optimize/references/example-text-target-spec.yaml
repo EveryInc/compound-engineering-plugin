@@ -1,0 +1,80 @@
+# Instruction-text target: a SKILL.md scored on a fixed case set.
+# Start here when the mutable files are instructions a model runs under.
+# See references/text-targets.md for the eval-set coverage rule, model roles,
+# and the hypothesis moves this spec's categories name.
+
+name: tighten-triage-skill
+description: Raise the pass rate of the issue-triage skill on recorded failures without growing the prompt
+
+metric:
+  primary:
+    type: hard
+    name: pass_rate            # fraction of selection cases the task model passes
+    direction: maximize
+    target: 0.95               # a 1.0 here means the case set stopped separating candidates
+  objectives:
+    - name: prompt_tokens
+      direction: minimize
+      role: secondary          # logged on every experiment; make it required to forbid growth
+  degenerate_gates:
+    - name: cases_run
+      check: ">= 24"
+      description: Every selection case ran; a partial run is not a measurement
+    - name: skill_parses
+      check: "== 1"
+      description: Frontmatter and body still parse as a skill
+  diagnostics:
+    - name: mean_output_tokens
+    - name: cases_ambiguous
+
+measurement:
+  # Runs every case in eval/triage/selection.jsonl under the pinned task model
+  # and prints {"pass_rate", "prompt_tokens", "cases_run", "skill_parses",
+  # "mean_output_tokens", "cases_ambiguous", "cases": {"<id>": true|false}}.
+  command: "python eval/triage/run_cases.py --cases eval/triage/selection.jsonl --model task-model-pinned-in-script"
+  timeout_seconds: 900
+  working_directory: "."
+  per_case: true               # decide.mjs reports cases the baseline passed and a candidate fails
+  holdout:
+    # Same script, a case file the selection command never reads. Scored only
+    # before a keep and at final confirmation.
+    command: "python eval/triage/run_cases.py --cases eval/triage/holdout.jsonl --model task-model-pinned-in-script"
+  stability:
+    mode: repeat
+    repeat_count: 3            # the task model is not deterministic; aggregate
+    aggregation: median
+    comparison:
+      method: absolute
+    noise_threshold: 0.04      # one case in 25
+
+scope:
+  mutable:
+    - "skills/triage/SKILL.md"
+    - "skills/triage/references/"
+  immutable:
+    - "eval/triage/"           # cases, holdout, and the runner are the artifact the run keeps
+    - "tests/"
+
+execution:
+  mode: serial
+  backend: worktree
+  max_concurrent: 1
+
+dependencies:
+  approved: []
+
+constraints:
+  - "Keep the skill's name and description frontmatter fields unchanged"
+  - "Every rule kept in the body must have at least one case in eval/triage/ that fails without it"
+
+# Hypothesis categories for this target are the moves in text-targets.md:
+# add-examples, bootstrap-examples, rewrite-from-feedback, shorten,
+# restructure, decompose, vote, external-optimizer.
+
+stopping:
+  max_iterations: 8
+  max_hours: 2
+  plateau_iterations: 4
+  target_reached: true
+
+max_runner_up_merges_per_batch: 0

@@ -70,6 +70,10 @@ The SKILL.md body states this gate. Run `git status --porcelain`, filter the out
 4. Run it once and validate the output
 5. Include the measurement method and validated output in the Phase 1 approval presentation, with a link to the script for inspection.
 
+**The eval set the harness scores against.** The set is the artifact the run keeps; the optimizer is replaceable. Build it from observed failures, not from what would be convenient to score: categorize the failures the user has seen, then cover each category with several items, because a category that appears once can either select or confirm but not both. Ten to twenty items is enough to start; fifty to a hundred labeled items is the range where a judge becomes trustworthy; beyond that, quality of the items matters more than count. The set is fixed for the run and listed in `scope.immutable`. When a holdout is configured, split the set so the held-out part is not in the selection command's inputs. When the target is instruction text (a skill, an agent-instructions file, a persona, a tool description), read `references/text-targets.md` before building the set: it carries the coverage rule that decides whether a rule you want kept survives the run.
+
+**Validity gate (before the baseline).** The harness is accepted when it separates the known-good exemplars from the known-bad ones in the metric's direction, and does not reward a trivial shortcut: an empty, constant, or copied output must not score at or above the known-good exemplars. For `type: judge`, additionally when the judge's scores on the user's labeled sample agree with the labels at or above `metric.judge.calibration.min_agreement` (default 0.8), or the user explicitly waives calibration. A judge run with neither labels nor a waiver does not leave Phase 1. A harness that fails a probe stops the run before the baseline; report which probe failed and the values it produced. Record the outcome as `harness_validation` in the experiment log at CP-1, including the waiver text when calibration was waived.
+
 ### 1.3 Establish Baseline
 
 Run the measurement harness on the current code. Baseline and final confirmation always use the full configured protocol (`repeat_count` samples when mode is `repeat` or `ladder`; one run when mode is `stable`). Exploratory experiments later may spend less; the baseline must not.
@@ -130,7 +134,7 @@ If count + `execution.max_concurrent` would exceed 12:
 **MANDATORY CHECKPOINT.** Before presenting results to the user, write the initial experiment log with baseline metrics to disk:
 
 1. Create the experiment log file at `<state-root>/experiment-log.yaml`
-2. Include all required top-level sections from `references/experiment-log-schema.yaml`: `spec`, `run_id`, `started_at`, `baseline`, `experiments`, and `best`
+2. Include all required top-level sections from `references/experiment-log-schema.yaml`: `spec`, `run_id`, `started_at`, `baseline`, `experiments`, and `best`, plus the `harness_validation` record from the validity gate
 3. Seed `experiments` as an empty array and seed `best` from the baseline snapshot (use `iteration: 0`, baseline metrics, and baseline judge scores if present) so later phases have a valid current-best state to compare against
 4. Optionally seed `hypothesis_backlog: []` here as well so the log shape is stable before Phase 2 populates it
 5. **Verify**: read the file back and confirm the required sections are present and the baseline values match
@@ -143,5 +147,7 @@ The SKILL.md body states this gate and its user-facing reporting rule. Present w
 Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, the caps in force including `stopping.max_wall_hours`, and estimated scoring cost against the configured cap. Link the experiment log and measurement script for inspection. Keep the full degenerate-gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence. Report those details to the user when they affect the user's decision.
 
 The moment the user approves, write the approval record to the experiment log as `references/persistence.md` (The Approval Record) specifies, verify it, then re-read the spec and baseline from disk before Phase 2. A resume whose record is absent, or whose spec digest or caps no longer match the spec on disk, presents this gate again.
+
+**Evidence quality line.** State the validity-gate result: which probes passed, and for a judge primary the agreement fraction against the labels or the fact that calibration was waived. State whether a holdout is configured. When it is not, say plainly that selection and reporting will share one sample, so the reported gain may be partly fit to that sample; the user is approving that limitation. Where the schema requires a holdout (a judge primary, or a run that waits between ticks through a wake after turn end), its absence is a spec failure caught at load, not a question this gate can approve past.
 
 ---

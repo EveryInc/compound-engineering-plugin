@@ -61,6 +61,7 @@ Anything the branch's readers need durably must be exported to a tracked path; t
 | `spec.yaml` | Optimization spec (fixed once the Phase 1 approval gate is cleared) | Phase 0 (CP-0) |
 | `experiment-log.yaml` | Full history of all experiments, the approval record, and `run_state` | Initialized at CP-1, appended at first CP-3, updated on later samples and at CP-4 |
 | `strategy-digest.md` | Compressed learnings for hypothesis generation | Written at CP-4 after each batch |
+| `judge-cache.yaml` | Per-run judge results keyed by item content hash, so identical output is scored once (`references/experiment-log-schema.yaml`, JUDGE CACHE) | Phase 3.3, as each judge batch lands |
 | `<worktree>/result.yaml` | Per-experiment crash-recovery marker | Immediately after measurement, before CP-3 |
 
 ### The Approval Record
