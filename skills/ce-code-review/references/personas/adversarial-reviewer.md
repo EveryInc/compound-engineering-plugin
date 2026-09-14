@@ -40,7 +40,6 @@ Trace interactions across component boundaries where each component is correct i
 - **Contract mismatches** -- caller passes a value the callee doesn't expect, or interprets a return value differently than intended. Both sides are internally consistent but incompatible.
 - **Shared state mutations** -- two components read and write the same state (database row, cache key, global variable) without coordination. Each works correctly alone but they corrupt each other's work.
 - **Ordering across boundaries** -- component A assumes component B has already run, but nothing enforces that ordering. Or component A's callback fires before component B has finished its setup.
-- **Partial-write exposure** -- related writes run outside a transactional or batched structure that is already available, so an interruption between them leaves state half-applied. Construct the failure: which write lands, which does not, and what reads the inconsistent state afterwards. Also flag independent awaits serialized for no reason. Flag when the atomic or parallel structure is obvious; do not chase micro-optimizations.
 - **Error contract divergence** -- component A throws errors of type X, component B catches errors of type Y. The error propagates uncaught.
 
 ### 3. Cascade construction
