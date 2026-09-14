@@ -51,7 +51,7 @@ describe("ce-setup pack scaffold contract", () => {
     expect(reference).toMatch(/non-interactive[^.]*(wrote nothing|writes nothing)/)
     // The rule the scaffold exists to teach, stated for the author.
     expect(reference).toMatch(/top-level `\.md` with `title` and `applies_when`/)
-    expect(reference).toContain("docs/guides/packs.md")
+    expect(reference).toContain("https://everyinc.github.io/compound-engineering-plugin/guides/packs/")
   })
 
   test("the template exists, is a rule the resolver discovers, and shows two applies_when situations", () => {

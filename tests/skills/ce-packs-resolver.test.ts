@@ -397,6 +397,7 @@ describe("pack layout", () => {
     expect(out.warnings.length).toBe(2)
     expect(out.warnings[0]).toContain("publishes no packs")
     expect(out.warnings[1]).toContain("pack `house-rules` has 3 rule-shaped file(s) under `research/` that discovery never reads")
+    expect(out.warnings[1]).toContain("https://everyinc.github.io/compound-engineering-plugin/guides/packs/")
   })
 })
 
