@@ -11,7 +11,7 @@ argument-hint: "[feature, bug, issue reference, or plan path; optionally assign 
 **Route by what the request is.** Match the request to the skill whose job it is; the host's skill list is the catalog. Read `references/intake.md` before choosing; it alone defines the routes, their precedence, what each child skill is passed, and how each return is read. In short:
 
 - A plan path, or a plan `ce-plan` wrote this session, takes the plan route.
-- Failing or wrong behavior with a reproducible symptom goes to `ce-debug`.
+- A concrete report of failing or wrong behavior goes to `ce-debug`; reproducing it is that skill's job, not intake's.
 - A change that hangs on a judgment the user did not settle goes to `ce-pov` first, and only a verdict that supports the change continues; a judgment with nothing to build ends at the verdict.
 - Product shape with more than one plausible reading goes to `ce-brainstorm` when a human is present, and to `ce-plan` in pipeline mode when not.
 - A request whose result is not a code change goes to the skill that owns that result (`ce-explain`, `ce-prototype`, `ce-pov`, `ce-ideate`, and so on); that invocation is the whole run: return its result and end.
