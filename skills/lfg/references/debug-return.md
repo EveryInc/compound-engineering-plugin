@@ -19,7 +19,7 @@ The user asked for this fix. They did not offer whatever else the branch and the
 ## What later steps receive instead of a plan path
 
 - **Step 3, `ce-simplify-code`:** pass `changed_files` as the scope, never the branch diff, so the pass cannot reach work the user did not offer; pass `root_cause` as the structure the simplification must keep, so the fix is not simplified away.
-- **Step 4, `ce-code-review`:** no `plan:` argument. Its requirements check is additive by its own contract and it infers intent from the commits; pass the `root_cause` summary as review context, scoped to the fix when the tree carries work the user did not offer.
+- **Step 4, `ce-code-review`:** no `plan:` argument. Its requirements check is additive by its own contract and it infers intent from the commits; pass the `root_cause` summary as review context. The review has no fix-only scope and reads the working tree, so it may report on files the user did not offer; step 5 applies a finding only to `changed_files` and this run's own edits, and reports the rest as residuals.
 - **Step 6 and step 9:** the settled-decisions brief was never composed on this route, so no settled-decisions provenance line is rendered. Pass `root_cause` and `issue_of_record` to `ce-commit-push-pr` as PR-description context, so the PR body carries the diagnosis and links or closes the ticket, and name the files that must stay out of the commit.
 - **Step 7, `ce-compound`:** the same counterfactual applies; a debugged root cause is the most common shape of a durable learning.
 - **Step 11, close-out:** the next-work offer reads a plan and is not made.

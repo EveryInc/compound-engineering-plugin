@@ -60,7 +60,7 @@ describe("lfg work source and routes", () => {
       expect(intake).toContain(grade)
     }
     expect(intake).toMatch(/never as a settled decision/)
-    expect(lfg).toMatch(/only Adopt or Trial continues/)
+    expect(lfg).toMatch(/only a verdict that supports the change continues/)
     // A judgment-only request ends at the verdict; route 3 needs change intent (Codex round 2).
     expect(lfg).toMatch(/a judgment with nothing to build ends at the verdict/)
     expect(intake).toMatch(/Judgment on the way to a change\.\*\* The request asks for a change to the code/)

@@ -31,6 +31,6 @@ The brief contains:
 - open areas, including any `ce-pov` verdict the intake route consulted, cited as evidence with its grade and reason, never as a settled decision;
 - a standing line asking `ce-plan` to report any conflict it finds with these decisions.
 
-If you cannot state an entry's rejected alternative, demote it to a directive or an open area. Include only decisions about the feature being shipped. When in doubt, demote: having `ce-plan` reconsider a decision is the safe direction; carrying in a stale decision as settled is not. If the conversation contains no settled decisions, skip composition entirely and invoke `ce-plan` exactly as it is written in the body, with no empty brief.
+If you cannot state an entry's rejected alternative, demote it to a directive or an open area. Include only decisions about the feature being shipped. When in doubt, demote: having `ce-plan` reconsider a decision is the safe direction; carrying in a stale decision as settled is not. When there is nothing to carry, no settled decision and no `ce-pov` evidence, skip composition entirely and invoke `ce-plan` exactly as it is written in the body, with no empty brief.
 
 The brief is temporary: once `ce-plan` writes the plan, the plan's labeled KTDs are the record. A step-1 retry reuses the composed brief verbatim; never recompose it.

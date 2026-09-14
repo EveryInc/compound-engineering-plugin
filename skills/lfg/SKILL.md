@@ -12,7 +12,7 @@ argument-hint: "[feature, bug, issue reference, or plan path; optionally assign 
 
 - A plan path, or a plan `ce-plan` wrote this session, takes the plan route.
 - Failing or wrong behavior with a reproducible symptom goes to `ce-debug`.
-- A change that hangs on a judgment the user did not settle goes to `ce-pov` first, and only Adopt or Trial continues; a judgment with nothing to build ends at the verdict.
+- A change that hangs on a judgment the user did not settle goes to `ce-pov` first, and only a verdict that supports the change continues; a judgment with nothing to build ends at the verdict.
 - Product shape with more than one plausible reading goes to `ce-brainstorm` when a human is present, and to `ce-plan` in pipeline mode when not.
 - A request whose result is not a code change goes to the skill that owns that result (`ce-explain`, `ce-prototype`, `ce-pov`, `ce-ideate`, and so on); that invocation is the whole run: return its result and end.
 - Any other change to the code goes to `ce-plan`.
@@ -23,7 +23,7 @@ When unsure, take the route that asks more of the evidence.
 
 **Stop, and say why, when** any of these holds:
 
-- The work source cannot be produced: planning returned blocked, the diagnosis found no safe fix, the fix would be divergent, `ce-pov` graded anything but Adopt or Trial, or a stage assignment cannot be passed on.
+- The work source cannot be produced: planning returned blocked, the diagnosis found no safe fix, the fix would be divergent, `ce-pov` did not support the change, or a stage assignment cannot be passed on.
 - A child return is anything but complete and evidenced.
 - A settled decision is invalidated.
 - A project-defined shipping process falls short.
