@@ -866,22 +866,38 @@ describe("ce-code-review contract", () => {
     expect(content).not.toMatch(/While local reviewers run, do the inline fast pass/i)
   })
 
-  test("allows project standards inside the lite roster without disabling it", async () => {
-    const content = await readCodeReviewRuntimeContract()
+  test("the Review depth gate lives in the first required reference and does not re-open at Stage 3c", async () => {
+    const body = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const modes = await readRepoFile(
+      "skills/ce-code-review/references/modes-and-output.md",
+    )
+    const select = await readRepoFile(
+      "skills/ce-code-review/references/select-and-route.md",
+    )
+    const helper = await readRepoFile(
+      "skills/ce-code-review/scripts/review-scope.py",
+    )
 
-    expect(content).toMatch(
-      /Stage 3b standards discovery completed successfully \(with applicable paths or a confirmed empty result\)/i,
+    // #1703: sizing must fire before later spine refs, and the helper must not
+    // award lite. Stage 3c used to re-decide from lite_eligible.
+    expect(body).toMatch(/Review depth gate/)
+    expect(body).toMatch(/Lite ends the run without reading later references/)
+    expect(modes).toMatch(/## Review depth/)
+    expect(modes).toMatch(/It never awards lite/)
+    expect(modes).toMatch(/`hard_block_full` is a floor/)
+    expect(modes).toMatch(
+      /silent-pass guard, an auth \/ money \/ data boundary, or a public contract/,
     )
-    // #1159 pinned "no conditional other than project-standards"; the gate now
-    // states the condition that clause was a case of: only diff-content
-    // conditionals disqualify lite, while personas the repo's criteria sources
-    // select (standards paths, declared packs) ride it. Both must still be named.
-    expect(content).toMatch(
-      /No conditional persona was selected in Stage 3 from the diff's own content\.[^\n]*`project-standards` from Stage 3b paths/i,
+    expect(modes).toMatch(/You may only upgrade to the full spine/)
+    expect(modes).toMatch(/Do not dispatch reviewers or finish leaves/)
+    expect(modes).toMatch(
+      /`mode:agent` bypasses this short-circuit only/,
     )
-    expect(content).toMatch(
-      /Lite roster:[\s\S]{0,200}`project-standards-reviewer` only when Stage 3b found applicable paths/i,
-    )
+    expect(select).toMatch(/### Stage 3c: Depth already decided/)
+    expect(select).not.toMatch(/lite_eligible/)
+    expect(helper).not.toMatch(/lite_eligible/)
+    expect(helper).toMatch(/"hard_block_full"/)
+    expect(helper).toMatch(/never awards lite/)
   })
 
   test("findings presentation is action-shaped and enforces hard constraints, mirrors the template", async () => {

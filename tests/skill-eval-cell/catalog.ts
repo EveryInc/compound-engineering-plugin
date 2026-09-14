@@ -1771,6 +1771,63 @@ Also quote the specific rules you found in those files.`,
     },
   },
   {
+    id: "ce-code-review/depth-gate-yaml-lite",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: [".compound-engineering/config.yaml"],
+    fixture: `${FIX}/review-depth-yaml-lite`,
+    post_only: true,
+    why: "#1703: a one-property config add is structured text, not a silent-pass guard. Pre-change lite_eligible failed closed on YAML. The helper now reports a clear floor; the agent must declare lite.",
+    pre_contract:
+      "Uncounted YAML disqualifies lite. The helper awards lite_eligible: false and the full spine runs.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. Do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      declared: { DEPTH: "lite" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-ci-full",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: [".github/workflows/ci.yml"],
+    fixture: `${FIX}/review-depth-ci-full`,
+    post_only: true,
+    why: "A CI workflow is a silent-pass guard the helper can name from the path. The agent must not talk that hard block down to lite.",
+    pre_contract:
+      "CI and other uncounted files fail closed to the full roster.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. Do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      declared: { DEPTH: "full" },
+      actions: "none",
+    },
+  },
+  {
     id: "ce-code-review/report-only-default",
     skill: "ce-code-review",
     cohort: "resized",

@@ -38,11 +38,12 @@ describe("ce-work review contract", () => {
     expect(shipping).toContain("ce-simplify-code")
     expect(shipping).toContain("3. **Code Review**")
 
-    // Single portable path: ce-code-review self-sizes (lite vs full roster).
+    // Single portable path: ce-code-review self-sizes. Callers do not classify.
     // The former Tier 1 (harness-native /review) / Tier 2 (escalation) split is gone,
     // along with harness-specific review detection.
     expect(shipping).toContain("ce-code-review")
     expect(shipping).toContain("as the single path")
+    expect(shipping).toContain("Do not classify lite versus full")
     expect(shipping).not.toContain("**Tier 1 -- harness-native review")
     expect(shipping).not.toContain("(escalation only)")
     // Skip only for a purely mechanical diff; everything else is reviewed

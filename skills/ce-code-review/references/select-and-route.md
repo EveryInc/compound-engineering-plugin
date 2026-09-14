@@ -33,7 +33,7 @@ Reviewer personas are selected in layers. The persona catalog in `references/per
 
 ## Review Scope
 
-A full review always spawns correctness, adds project-standards when applicable files exist, then adds only the generic, cross-cutting, stack-specific, and CE conditionals justified by the diff. `depth:full` disables the small-diff lite path; it does not invent irrelevant domains. A Rails auth feature might add security, reliability, and adversarial while still skipping agent-native and learnings when those surfaces are absent.
+A full review always spawns correctness, adds project-standards when applicable files exist, then adds only the generic, cross-cutting, stack-specific, and CE conditionals justified by the diff. This file runs only on the full spine; it does not invent irrelevant domains. A Rails auth feature might add security, reliability, and adversarial while still skipping agent-native and learnings when those surfaces are absent.
 
 ## Language-Aware Conditionals
 
@@ -78,22 +78,9 @@ Candidates are `CODING_STANDARDS.md`, `CLAUDE.md`, and `AGENTS.md` at any depth.
 - Empty successful search: do not dispatch `project-standards`; record `project standards: not run (no applicable standards files)` in Coverage.
 - Search failure or uncertain scope: dispatch `project-standards` with the uncertainty stated.
 
-### Stage 3c: Small-diff fast path (reduce the roster for trivial, low-risk diffs)
+### Stage 3c: Depth already decided
 
-**`depth:full` turns this check off** — when that token was passed, skip Stage 3c entirely and run the full roster (the caller explicitly asked for a deep review; size no longer matters).
-
-**This check errs toward the full roster: it shrinks the roster only when the diff is a positive count of low-risk application code lines, and any uncertainty means the full roster runs.** Shrink to the lite roster (defined below) only when **all** of these hold:
-
-- Stage 1b returned `lite_eligible: true` (1-39 executable changed lines, zero uncounted files, and no path signals), AND
-- No content-based risk read from the diff in Stage 3 (auth, payments, data mutation, external API, secrets/permissions, deserialization, crypto, concurrency/background jobs, filesystem/process execution), AND
-- Stage 3b standards discovery completed successfully (with applicable paths or a confirmed empty result), AND
-- No conditional persona was selected in Stage 3 from the diff's own content. Personas the repo's criteria sources select regardless of diff size — `project-standards` from Stage 3b paths, `learnings-researcher` from declared Compound Packs — ride the lite roster rather than disqualifying it: a pack rule is enforced on a three-line diff exactly as on a large one.
-
-`exec_lines: null`, `uncounted_files > 0`, a non-empty `signals` array, or helper failure are hard disqualifiers. A pure code diff that also touches one `.md` runs the full roster; that conservatism is the point.
-
-**Lite roster:** the inline fast pass (Stage 4) plus `correctness-reviewer`, `project-standards-reviewer` only when Stage 3b found applicable paths, and `learnings-researcher` only when declared packs selected it. Announce the actual roster plainly and note it in Coverage.
-
-**Do not shrink the roster** when any condition above fails — the check keys on risk, not size alone (a 12-line auth change still needs the full roster). When in doubt, run the full roster.
+The Review depth gate in `references/modes-and-output.md` already chose lite or full, before this file was read. This stage does not size the run and does not shrink the roster. You are on the full spine. Continue to Stage 3d.
 
 ### Stage 3d: Bind the adversarial route and final roster
 

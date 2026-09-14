@@ -26,7 +26,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
 3. **Code Review**
 
-   Review the diff with **`ce-code-review`**, the plugin's portable review skill, as the single path. It sizes itself (a lite roster for small, low-risk, code-only diffs; the full roster otherwise), so there is no "escalate to a heavier reviewer" decision and **no harness-specific review detection**. It behaves identically on every harness. A host catalog entry named `review` is not this step.
+   Review the diff with **`ce-code-review`**, the plugin's portable review skill, as the single path. It sizes itself. Do not classify lite versus full; pass `depth:full` only when the plan, the task, or the user explicitly asked for a deep review. There is no harness-specific review detection. It behaves identically on every harness. A host catalog entry named `review` is not this step.
 
    **Completion gate (standalone shipping).** Shipping is **not done** until exactly one of: (1) a **completed review receipt** from an actual `ce-code-review` invocation — `mode:agent` JSON with **`status: complete`** plus `artifact_path` or `run_id`, or default-mode markdown containing Actionable Findings, Coverage, and Verdict — or (2) an **explicit skip phrase** in the shipping summary: `Code review: skipped (mechanical diff)`, `Code review: skipped (ce-code-review unavailable)`, or (interactive only) `Code review: harness-native fallback`, each with a one-line reason. Silent omit is invalid. Do **not** accept `status: failed`, `degraded`, or `skipped` as a completed receipt even when `artifact_path`/`run_id` is present; treat those as review unavailable and follow the unavailable path below. **Never substitute** mental self-review, "external / prior findings already applied," or ad-hoc skimming. A host review command alone is **not** a substitute when `ce-code-review` can load; it only counts after the unavailable path below, via the `harness-native fallback` phrase.
 
@@ -124,7 +124,7 @@ Before creating PR, verify:
 
 ## Code Review
 
-Single portable path: **`ce-code-review`** self-sizes (lite roster for small low-risk code-only diffs, full roster otherwise). No harness-native review detection, no escalation tiers; the judgment about diff size and sensitive code now lives inside `ce-code-review`.
+Single portable path: **`ce-code-review`** self-sizes. No harness-native review detection, no caller-owned depth classification; the judgment about size and consequence lives inside `ce-code-review`.
 
 **Completion gate:** shipping is not done without a **completed** review receipt (`status: complete`) or an exact skip / harness-native-fallback phrase. **Skip** only for a purely mechanical diff (formatting, dep-bumps, lint-only, generated, including multi-file mechanical-only); not for applying external findings or behavior-bearing work. Everything else is reviewed.
 

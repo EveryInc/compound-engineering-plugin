@@ -163,10 +163,11 @@ describe("review stage grounds in packs", () => {
     expect(learningsRow).toMatch(/declared_packs/)
     expect(CR_SELECT).toMatch(/`learnings-researcher` — [^\n]*declares Compound Packs[^\n]*declared_packs/)
     expect(section(CR_SELECT, "### Stage 3: Select reviewers", "### Stage 3b")).toMatch(/declared_packs/)
-    // The small-diff lite roster must carry the pack-selected persona, or a
-    // 3-line violation with no other risk signal silently escapes enforcement.
+    // Pack enforcement is a full-spine persona. The cheap lite path does not
+    // dispatch reviewers; declared_packs still has to be a helper fact the
+    // full-path selection condition can read.
     expect(section(CR_SELECT, "### Stage 3c", "### Stage 3d")).toMatch(
-      /\*\*Lite roster:\*\*[^\n]*`learnings-researcher`[^\n]*declared packs/,
+      /does not shrink the roster/,
     )
     expect(CR_SCOPE).toMatch(/`declared_packs`/)
     expect(CR_HELPER).toMatch(/"declared_packs"/)

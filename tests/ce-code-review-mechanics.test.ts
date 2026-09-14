@@ -34,7 +34,7 @@ function fixtureRepo() {
 }
 
 describe("ce-code-review deterministic mechanics", () => {
-  test("scope helper counts executable changes and fails closed on uncounted files", () => {
+  test("scope helper counts structured text toward changed_lines and does not hard-block on markdown", () => {
     const { dir, base } = fixtureRepo()
     mkdirSync(path.join(dir, "docs"))
     writeFileSync(path.join(dir, "service.ts"), "export const value = 2\n")
@@ -46,9 +46,12 @@ describe("ce-code-review deterministic mechanics", () => {
     const scope = JSON.parse(result.stdout)
 
     expect(scope.exec_lines).toBe(2)
-    expect(scope.uncounted_files).toBe(1)
+    expect(scope.changed_lines).toBeGreaterThanOrEqual(3)
+    expect(scope.uncounted_files).toBe(0)
     expect(scope.changed_files).toEqual(["docs/note.md", "service.ts"])
-    expect(scope.lite_eligible).toBe(false)
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_full).toBe(false)
+    expect(scope.lite_eligible).toBeUndefined()
   })
 
   test("scope helper counts .mjs and .cjs files as executable code", () => {
@@ -62,8 +65,79 @@ describe("ce-code-review deterministic mechanics", () => {
     const scope = JSON.parse(result.stdout)
 
     expect(scope.exec_lines).toBe(2)
+    expect(scope.changed_lines).toBe(2)
     expect(scope.uncounted_files).toBe(0)
-    expect(scope.lite_eligible).toBe(true)
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_full).toBe(false)
+  })
+
+  test("scope helper counts a small YAML-only edit without awarding lite", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, ".compound-engineering"))
+    writeFileSync(path.join(dir, ".compound-engineering", "config.yaml"), "docs_root: docs\ntimeout: 30\n")
+    git(dir, "add", ".")
+    git(dir, "commit", "-qm", "add config")
+    const configured = git(dir, "rev-parse", "HEAD")
+    writeFileSync(path.join(dir, ".compound-engineering", "config.yaml"), "docs_root: docs\n")
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", configured], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.status).toBe("complete")
+    expect(scope.changed_files).toEqual([".compound-engineering/config.yaml"])
+    expect(scope.changed_lines).toBe(1)
+    expect(scope.exec_lines).toBe(0)
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_full).toBe(false)
+    expect(scope.hard_block_classes).toEqual([])
+    expect(scope.lite_eligible).toBeUndefined()
+  })
+
+  test("scope helper hard-blocks a CI workflow path", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, ".github", "workflows"), { recursive: true })
+    writeFileSync(path.join(dir, ".github", "workflows", "ci.yml"), "on: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n")
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.hard_block_classes).toContain("ci")
+    expect(scope.hard_block_full).toBe(true)
+    expect(scope.size_band).toBe("small")
+  })
+
+  test("scope helper treats a frontend signal as a prompt, not a hard block", () => {
+    const { dir, base } = fixtureRepo()
+    writeFileSync(path.join(dir, "App.tsx"), "export const App = () => null\n")
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.signals).toContain("frontend")
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_full).toBe(false)
+  })
+
+  test("scope helper hard-blocks a large size band", () => {
+    const { dir, base } = fixtureRepo()
+    const lines = Array.from({ length: 40 }, (_, i) => `export const n${i} = ${i}`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "service.ts"), lines)
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.changed_lines).toBeGreaterThanOrEqual(40)
+    expect(scope.size_band).toBe("large")
+    expect(scope.hard_block_full).toBe(true)
+    expect(scope.hard_block_classes).toEqual([])
   })
 
   test("scope helper emits UNKNOWN-equivalent state for an invalid endpoint", () => {
@@ -73,8 +147,11 @@ describe("ce-code-review deterministic mechanics", () => {
     const scope = JSON.parse(result.stdout)
 
     expect(scope.exec_lines).toBeNull()
+    expect(scope.changed_lines).toBeNull()
     expect(scope.uncounted_files).toBeGreaterThan(0)
-    expect(scope.lite_eligible).toBe(false)
+    expect(scope.size_band).toBe("unknown")
+    expect(scope.hard_block_full).toBe(true)
+    expect(scope.hard_block_classes).toContain("unknown-scope")
   })
 
   test("scope helper resolves the learnings corpus under a configured docs_root", () => {
@@ -218,7 +295,8 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.reason).toBe("invalid head endpoint")
     expect(scope.exec_lines).toBeNull()
     expect(scope.changed_files).toEqual([])
-    expect(scope.lite_eligible).toBe(false)
+    expect(scope.hard_block_full).toBe(true)
+    expect(scope.size_band).toBe("unknown")
   })
 
   test("scope helper excludes base-only changes after the base advances", () => {

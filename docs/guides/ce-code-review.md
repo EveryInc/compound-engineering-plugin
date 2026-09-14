@@ -96,7 +96,7 @@ Selection is agent judgment, not keyword matching. Instruction-prose files (Mark
 
 When you pass a PR number or URL, trivial automated PRs (lockfile bumps, chore version increments) are skipped. Draft PRs are reviewed normally.
 
-`depth:auto` (the default) collapses a 1-39-line, low-risk, code-only diff to a lite roster. `depth:full` disables that path so the full always-on roster runs regardless of size. Neither token invents irrelevant domains.
+`depth:auto` (the default) lets the skill self-size: a small diff with no high-consequence class takes a cheap lite path in the review context; everything else uses the full spine. `depth:full` disables that path. Neither token invents irrelevant domains. Callers do not need to classify.
 
 ## Repo-owned review criteria
 
@@ -201,7 +201,7 @@ Use `ce-code-review` when:
 Skip it when:
 
 - You want a light review. Ask for "quick review" and the short-circuit defers to the harness-native `/review`
-- The change is a typo, formatting, or a small dependency bump. The lite roster is enough
+- The change is a typo, formatting, or a small dependency bump. The skill's lite path is enough
 - You want findings on a planning document → `/ce-doc-review`
 - You want a holistic take on a plan, not a diff review → `/ce-pov`
 - You want to investigate broken behavior → `/ce-debug`
@@ -212,7 +212,7 @@ Skip it when:
 
 `ce-code-review` is the portable review path other skills call:
 
-- **`/ce-work`** invokes `mode:agent` before shipping. It self-right-sizes (lite roster for small low-risk code-only diffs, full roster otherwise). Pass `depth:full` when the plan, the task, or the user asked for a thorough review. `ce-work` then applies findings and runs its Residual Work Gate
+- **`/ce-work`** invokes `mode:agent` before shipping. `ce-code-review` self-sizes. Pass `depth:full` when the plan, the task, or the user asked for a thorough review. `ce-work` then applies findings and runs its Residual Work Gate
 - **`/ce-optimize`** runs it against the cumulative optimization-branch diff before merging
 - **`/ce-debug`** runs it on a non-trivial fix, scoped so it does not wander into unrelated branch work
 
@@ -240,7 +240,7 @@ Bare and `mode:agent` reviews are report-only and safe alongside browser tests o
 | `plan:<path>` | Loads the plan for requirements verification |
 | `mode:agent` | JSON machine handoff. Report-only. `mode:headless` is a deprecated alias. `mode:non-interactive` is not valid here. `mode:report-only` is ignored |
 | `apply:local` | Authorize verified local fixes. Conflicts with `mode:agent` |
-| `depth:full` / `depth:auto` | `full` forces the full roster (skips the small-diff lite path). `auto` (default) self-right-sizes |
+| `depth:full` / `depth:auto` | `full` forces the full spine. `auto` (default) self-sizes; callers do not classify |
 | `grouping:auto` / `grouping:off` / `grouping:always` | Thematic triage grouping (default `auto`). Presentation only. Never changes reviewer selection, merge, or apply |
 
 Conflicting mode flags (or conflicting grouping flags) stop with an error. Combining `base:` with a PR or branch target also errors. Pass one or the other.

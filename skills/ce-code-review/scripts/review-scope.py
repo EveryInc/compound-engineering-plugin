@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Compute fail-closed, deterministic scope signals for ce-code-review."""
+"""Compute fail-closed, deterministic scope facts for ce-code-review.
+
+The helper never awards lite. It reports counts, path classes, and floors
+the skill's Review depth gate reads. `hard_block_full` forces the full
+spine; a clear floor still needs the agent to confirm no high-consequence
+class before lite.
+"""
 
 from __future__ import annotations
 
@@ -34,6 +40,19 @@ SIGNAL_PATTERNS = {
     ),
     "swift-ios": re.compile(r"\.(swift|kt|pbxproj|xcconfig|entitlements)$", re.I),
 }
+
+# Classes the script can name from paths alone. These force full; they do not
+# award lite. Silent-pass guards outside these paths are the agent's question.
+HARD_BLOCK_PATTERNS = {
+    "ci": re.compile(
+        r"(^|/)\.github/workflows/|(^|/)\.gitlab-ci\.yml$|(^|/)\.gitlab-ci/"
+        r"|(^|/)Jenkinsfile$|(^|/)\.circleci/|(^|/)\.buildkite/",
+        re.I,
+    ),
+    "migrations": SIGNAL_PATTERNS["migrations"],
+}
+
+SMALL_LINE_MAX = 39
 
 TEST_PATTERN = re.compile(
     r"(^|/)(tests?|spec|__tests__)/|(^|/)[^/]+[._-](test|spec)\.[^/]+$",
@@ -183,14 +202,35 @@ def fail_closed(reason: str, signals: dict[str, object]) -> dict[str, object]:
         "status": "unknown",
         "reason": reason,
         "exec_lines": None,
+        "changed_lines": None,
         "uncounted_files": 1,
         "changed_files": [],
         "signals": [],
+        "hard_block_classes": ["unknown-scope"],
+        "hard_block_full": True,
+        "size_band": "unknown",
         "test_files_changed": False,
         "agent_surface": False,
         **signals,
-        "lite_eligible": False,
     }
+
+
+def size_band_for(changed_lines: int | None) -> str:
+    if changed_lines is None:
+        return "unknown"
+    if 1 <= changed_lines <= SMALL_LINE_MAX:
+        return "small"
+    return "large"
+
+
+def matching_classes(
+    files: list[str], patterns: dict[str, re.Pattern[str]]
+) -> list[str]:
+    return [
+        name
+        for name, pattern in patterns.items()
+        if any(pattern.search(file) for file in files)
+    ]
 
 
 def main() -> int:
@@ -227,37 +267,43 @@ def main() -> int:
 
     files = sorted(line for line in names.stdout.splitlines() if line)
     executable_lines = 0
+    changed_lines = 0
+    uncounted = 0
     for line in numstat.stdout.splitlines():
         parts = line.split("\t")
-        if len(parts) < 3 or Path(parts[2]).suffix.lower() not in CODE_EXTENSIONS:
+        if len(parts) < 3:
+            continue
+        added, deleted, name = parts[0], parts[1], parts[2]
+        if added == "-" or deleted == "-":
+            uncounted += 1
             continue
         try:
-            executable_lines += int(parts[0]) + int(parts[1])
+            total = int(added) + int(deleted)
         except ValueError:
-            # Binary/unknown counts fail the lite gate through uncounted_files below.
-            pass
+            uncounted += 1
+            continue
+        changed_lines += total
+        if Path(name).suffix.lower() in CODE_EXTENSIONS:
+            executable_lines += total
 
-    uncounted = sum(
-        1 for file in files if Path(file).suffix.lower() not in CODE_EXTENSIONS
-    )
-    signals = [
-        name
-        for name, pattern in SIGNAL_PATTERNS.items()
-        if any(pattern.search(file) for file in files)
-    ]
-    lite = 1 <= executable_lines <= 39 and uncounted == 0 and not signals
+    signals = matching_classes(files, SIGNAL_PATTERNS)
+    hard_block_classes = matching_classes(files, HARD_BLOCK_PATTERNS)
+    band = size_band_for(changed_lines)
 
     result = {
         "status": "complete",
         "reason": None,
         "exec_lines": executable_lines,
+        "changed_lines": changed_lines,
         "uncounted_files": uncounted,
         "changed_files": files,
         "signals": signals,
+        "hard_block_classes": hard_block_classes,
+        "hard_block_full": bool(hard_block_classes) or band != "small",
+        "size_band": band,
         "test_files_changed": any(TEST_PATTERN.search(file) for file in files),
         "agent_surface": any(AGENT_SURFACE_PATTERN.search(file) for file in files),
         **repo,
-        "lite_eligible": lite,
     }
     print(json.dumps(result, sort_keys=True))
     return 0
