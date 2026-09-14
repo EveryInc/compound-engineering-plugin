@@ -19,7 +19,7 @@ Reviewer personas are selected in layers. The persona catalog in `references/per
 
 **Cross-cutting conditional (per diff):**
 
-- `security-reviewer` — auth, public endpoints, user input, permissions
+- `security-reviewer` — auth, public endpoints, user input, permissions (including feature-flag or entitlement gates controlling reachability)
 - `performance-reviewer` — DB queries, data transforms, caching, async
 - `api-contract-reviewer` — routes, serializers, type signatures, versioning
 - `data-migration-reviewer` — migration files / schema dumps / backfills (see the `data-migration` spawn gate in Stage 3)

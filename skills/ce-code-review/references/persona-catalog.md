@@ -30,7 +30,7 @@ Spawn one of these when you identify relevant patterns in the diff. Read the ful
 
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
-| `security` | `security-reviewer` | Auth middleware, public endpoints, user input handling, permission checks, secrets management |
+| `security` | `security-reviewer` | Auth middleware, public endpoints, user input handling, permission checks (including feature-flag or entitlement gates that control whether functionality is reachable), secrets management |
 | `performance` | `performance-reviewer` | Concrete performance-sensitive behavior: database/ORM query shape, algorithmic complexity, large loop-heavy transforms, batching/fan-out, or cache policy with material resource impact. Async/concurrent code or a cache data structure alone does not select it when correctness/reliability already own the changed semantics. |
 | `api-contract` | `api-contract-reviewer` | An externally consumed boundary changes: route/request/response definitions, serializers, published event schemas, API versioning, or a public package signature with evidenced downstream callers. A new or changed exported symbol inside one module is insufficient by itself. |
 | `data-migration` | `data-migration-reviewer` | Migration files, schema dumps (`db/schema.rb`, `structure.sql`), backfill scripts, data transformations — **not** model/query-only changes without migration artifacts |
