@@ -12,7 +12,7 @@ argument-hint: "[feature, bug, issue reference, or plan path; optionally assign 
 
 - A plan path, or a plan `ce-plan` wrote this session, takes the plan route.
 - Failing or wrong behavior with a reproducible symptom goes to `ce-debug`.
-- A judgment the user did not settle goes to `ce-pov` first, and only Adopt or Trial continues.
+- A change that hangs on a judgment the user did not settle goes to `ce-pov` first, and only Adopt or Trial continues; a judgment with nothing to build ends at the verdict.
 - Product shape with more than one plausible reading goes to `ce-brainstorm` when a human is present, and to `ce-plan` in pipeline mode when not.
 - A request whose result is not a code change goes to the skill that owns that result (`ce-explain`, `ce-prototype`, `ce-pov`, `ce-ideate`, and so on); that invocation is the whole run: return its result and end.
 - Any other change to the code goes to `ce-plan`.

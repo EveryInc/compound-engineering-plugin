@@ -61,6 +61,9 @@ describe("lfg work source and routes", () => {
     }
     expect(intake).toMatch(/never as a settled decision/)
     expect(lfg).toMatch(/only Adopt or Trial continues/)
+    // A judgment-only request ends at the verdict; route 3 needs change intent (Codex round 2).
+    expect(lfg).toMatch(/a judgment with nothing to build ends at the verdict/)
+    expect(intake).toMatch(/Judgment on the way to a change\.\*\* The request asks for a change to the code/)
   })
 
   test("a non-code result ends the run at that skill, with no branch", () => {
@@ -144,9 +147,12 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
     // Codex review on #1702: the fix-owned list alone let lfg sweep unrelated dirty files
     // and publish pre-existing unpushed commits; the return now carries the pre-fix scope.
     expect(debugReturn).toMatch(/"dirty_files"/)
-    expect(debugReturn).toMatch(/"unpushed_commits"/)
+    expect(debugReturn).toMatch(/"prior_commits_ahead_of_base"/)
     expect(debugReturnGate).toMatch(/pass `pre_fix_scope\.dirty_files` as `exclude:<paths>` to `ce-commit-push-pr`/)
-    expect(debugReturnGate).toMatch(/`pre_fix_scope\.unpushed_commits` is greater than zero[^.]*do not push and do not open a PR/)
+    // Second Codex round: backup-pushed commits have no unpushed count yet are not offered;
+    // offered means an open PR already contains them.
+    expect(debugReturnGate).toMatch(/an open pull request for the branch already contains/)
+    expect(debugReturnGate).toMatch(/No open PR means those commits were never offered: do not push and do not open one/)
     expect(shippingTail).not.toContain("git add -A && git commit")
     expect(shippingTail).toMatch(/Never `git add -A`/)
   })

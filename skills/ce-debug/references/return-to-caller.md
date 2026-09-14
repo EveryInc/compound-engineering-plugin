@@ -29,7 +29,7 @@ The final output is machine-readable; the caller parses it and branches on the e
   "branch": "<branch the fix was committed on, when fixed>",
   "pre_fix_scope": {
     "dirty_files": ["<files already modified or untracked before Phase 3 that are not fix-owned; left untouched>"],
-    "unpushed_commits": "<count of commits on the branch before the fix that no remote has, or 0>",
+    "prior_commits_ahead_of_base": "<count of commits the branch carried beyond the default branch before the fix, pushed or not; 0 on a fresh branch>",
     "started_on_default_branch": false
   },
   "behavior_change": true,
@@ -53,4 +53,4 @@ The final output is machine-readable; the caller parses it and branches on the e
 - `needs-human`: the fix would be divergent, or the causal chain could not be closed without a decision only a person can make; nothing applied; `residuals` carries the `decision_context` in the same typed residual contract `references/pipeline-mode.md` defines.
 - `blocked`: a required read failed, a fix-owned file carried the user's edits, or the workspace could not be prepared; `blockers` names it and nothing was committed.
 
-`pre_fix_scope` is present on every return. `dirty_files` lists what was already dirty before the fix and is not fix-owned; the fix never touched those files and the caller must not commit them. `unpushed_commits` counts commits the branch already carried that no remote has, so the caller can tell whether pushing would publish work the user never offered. `issue_of_record` is `null` when the input carried no ticket. `verification_evidence` is present on every `fixed` return; when `behavior_change` is `false` (a pure test or tooling fix), `exception_reason` says why no red-then-green was possible. `residuals` is an empty array when there are none.
+`pre_fix_scope` is present on every return. `dirty_files` lists what was already dirty before the fix and is not fix-owned; the fix never touched those files and the caller must not commit them. `prior_commits_ahead_of_base` counts commits the branch already carried beyond the default branch before the fix, pushed or not; whether a remote has them says nothing about whether the user offered them, so the caller decides that by whether an open PR already contains them. `issue_of_record` is `null` when the input carried no ticket. `verification_evidence` is present on every `fixed` return; when `behavior_change` is `false` (a pure test or tooling fix), `exception_reason` says why no red-then-green was possible. `residuals` is an empty array when there are none.
