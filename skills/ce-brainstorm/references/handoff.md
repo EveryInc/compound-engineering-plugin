@@ -7,6 +7,34 @@ below; the handoff itself is presented on both paths.
 
 ---
 
+#### 4.0 Return to the caller instead of presenting options
+
+When the invocation carried `mode:return-to-caller`, a calling skill is
+waiting for the result and owns what happens next, so none of 4.1 through 4.3
+runs: no menu, no closing summary, and never an invocation of `lfg` or
+`ce-plan` from here. The dialogue that produced the result is unchanged; the
+caller is present precisely because a human was there to answer. Emit this
+return as the final output, with these exact field names:
+
+- `status`: `complete`, or `blocked` when `Resolve Before Planning` still
+  holds items the user chose not to resolve.
+- `result_kind`: `artifact` when a requirements-only unified plan was written
+  and passed the Ready for Planning Check; `brief` when Lightweight work ended
+  in chat with no file.
+- `artifact_path`: the absolute path returned by the write step, including
+  any collision suffix, or `null` for a brief.
+- `brief`: the chat paragraph, or `null` for an artifact.
+- `resolve_before_planning`: the remaining items, or an empty list.
+- `key_decisions`: the decisions the dialogue settled, each with its
+  provenance class when it meets `references/settled-decisions.md`; a brief
+  carries none.
+
+A `brief` is a feature description for the caller's planner, not a plan and
+not a work source. When the grounding scout produced a dossier that still
+exists, include its path as `grounding_path` so planning can start from it.
+
+The rest of this file is the interactive path.
+
 #### 4.1 Present Next-Step Options
 
 The Phase 4 menu's visible option count varies by state: no unified plan

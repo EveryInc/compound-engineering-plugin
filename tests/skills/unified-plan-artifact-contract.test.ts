@@ -87,7 +87,7 @@ const lfgStageRouting = readRepoFile("skills/lfg/references/stage-routing.md")
 const lfgPlanBrief = readRepoFile("skills/lfg/references/plan-brief.md")
 const lfgWorkReturn = readRepoFile("skills/lfg/references/work-return.md")
 const lfgReviewFollowup = readRepoFile("skills/lfg/references/review-followup.md")
-const lfgCloseOut = readRepoFile("skills/lfg/references/shipping-tail.md")
+const lfgCloseOut = readRepoFile("skills/lfg/references/shipping.md")
 const docReview = readRepoFile("skills/ce-doc-review/SKILL.md")
 const docReviewTemplate = readRepoFile(
   "skills/ce-doc-review/references/subagent-template.md",
@@ -292,7 +292,7 @@ describe("unified plan artifact contract", () => {
   test("lfg offers an opt-in fresh-session handoff for separately planned future work", () => {
     // The closeout that gates the offer moved into the reference step 10 requires
     // before it prints anything.
-    expect(lfg).toContain("references/shipping-tail.md")
+    expect(lfg).toContain("references/shipping.md")
     expect(lfgCloseOut).toContain("semantic role `work-relationships`")
     expect(lfgCloseOut).toContain("cautious legacy semantic fallback")
     expect(lfgCloseOut).toContain("references/next-work-handoff.md")
@@ -332,9 +332,10 @@ describe("unified plan artifact contract", () => {
 
   test("lfg carries per-stage routing carriers at each stage seam", () => {
     const carrier = lfgStageRouting
-    expect(sliceSection(lfg, "## Per-stage routing carriers", "1. **Read `references/plan-brief.md` first**")).toContain(
-      "semantic intent",
-    )
+    // The body's routing block became the Interaction clause of the outcome spine
+    // (lfg front-half restatement, 2026-09); the body keeps the condition that
+    // triggers the required read, and the reference owns the semantic-intent test.
+    expect(lfg).toMatch(/assigns planning or implementation to a model or harness[^\n]*`references\/stage-routing\.md`|`references\/stage-routing\.md`[^\n]*assigns planning or implementation to a model or harness/)
     expect(carrier).toContain("semantic intent")
     expect(carrier).toContain("not keyword or prompt-token matching")
     expect(carrier).toContain("plain mention")
@@ -364,7 +365,7 @@ describe("unified plan artifact contract", () => {
 
     // Step 1 threads the plan_model carrier to ce-plan beside the sanitized request;
     // the body names the carrier at the seam and the reference owns its exact form.
-    expect(sliceSection(lfg, "1. **Read `references/plan-brief.md` first**", "2. **Read `references/work-return.md` first**")).toContain(
+    expect(sliceSection(lfg, "1. **Produce the work source**", "2. **Read `references/work-return.md` first**")).toContain(
       "`plan_model:<alias>` carrier",
     )
     const step1 = carrier
@@ -691,7 +692,7 @@ describe("session-settled decision contract", () => {
     // ce-plan; the blocked-token stop and the verbatim retry stay in the body.
     const bodyStep1 = sliceSection(
       lfg,
-      "1. **Read `references/plan-brief.md` first**",
+      "1. **Produce the work source**",
       "2. **Read `references/work-return.md` first**",
     )
     const step1 = lfgPlanBrief
@@ -721,7 +722,7 @@ describe("session-settled decision contract", () => {
     const step6 = sliceSection(
       lfg,
       "6. **Autonomous residual handoff**",
-      "7. Invoke the `ce-test-browser` skill",
+      "7. Invoke the `ce-compound` skill",
     )
     // The step-6 trigger set is back in the body: the skip must not fire on
     // "Actionable findings: none." while a divergent entry is still undurable.

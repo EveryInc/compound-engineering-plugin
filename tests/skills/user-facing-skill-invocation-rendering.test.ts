@@ -10,7 +10,7 @@ const modelVisibleRendererCases = [
   {
     // The pre-DONE handoff lines that print these invocations moved into lfg's
     // close-out reference.
-    file: "skills/lfg/references/shipping-tail.md",
+    file: "skills/lfg/references/shipping.md",
     defaults: ["/ce-explain <name>", "/ce-babysit-pr <pr-url>"],
     codex: ["$ce-explain <name>", "$ce-babysit-pr <pr-url>"],
     unnecessaryOmp: ["/skill:ce-explain <name>", "/skill:ce-babysit-pr <pr-url>"],

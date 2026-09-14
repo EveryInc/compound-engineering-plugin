@@ -1230,8 +1230,8 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     // Both ends name the same trailer format (ce-commit-push-pr prints it from the
     // apply reference its Step 5 mandates).
     expect(skill).toContain("New concepts:")
-    // The trailer is consumed in the shipping tail lfg's step 8 reads first.
-    expect(await readRepoFile("skills/lfg/references/shipping-tail.md")).toContain("New concepts:")
+    // The trailer is consumed in the shipping reference lfg's step 9 reads first.
+    expect(await readRepoFile("skills/lfg/references/shipping.md")).toContain("New concepts:")
 
     // The callsite passes the mode explicitly rather than relying on defaults
     expect(lfg).toContain("invoke the `ce-commit-push-pr` skill with `mode:pipeline branding:on`")
@@ -1240,7 +1240,7 @@ describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
     // for the active host rather than hardcoding one harness's syntax. That report
     // moved into the reference lfg's step 10 names as a required read before it
     // prints anything, so the rendering contract is asserted there.
-    const closeOut = await readRepoFile("skills/lfg/references/shipping-tail.md")
+    const closeOut = await readRepoFile("skills/lfg/references/shipping.md")
     expect(closeOut).toContain("New concept introduced:")
     expect(closeOut).toContain("run <rendered ce-explain invocation> to go deeper")
     expect(closeOut).toContain("run <rendered ce-babysit-pr invocation> to watch it through review to merge")

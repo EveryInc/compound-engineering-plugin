@@ -4,7 +4,7 @@ Before step 1, use the platform's task-tracking capability when available to pub
 
 ## Chat narration
 
-Narrate the run in chat as it moves. Narration is chat prose, never entries on the task surface above. One line entering each step names the step and what it should produce; one line when it returns names what it actually produced (plan path, return status, fixes applied, PR URL). Close with a recap that stands on its own: what was built, how it was verified, what shipped, and any leftover findings. Print it alongside the close-out lines `references/shipping-tail.md` defines, so a reader who sees only the final message has the full picture.
+Narrate the run in chat as it moves. Narration is chat prose, never entries on the task surface above. One line entering each step names the step and what it should produce; one line when it returns names what it actually produced (plan path, return status, fixes applied, PR URL). Close with a recap that stands on its own: what was built, how it was verified, what shipped, and any leftover findings. Print it alongside the close-out lines `references/shipping.md` defines, so a reader who sees only the final message has the full picture.
 
 ## Completion discipline
 

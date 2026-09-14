@@ -1222,7 +1222,7 @@ describe("ce-code-review contract", () => {
     // the body keeps each step's gate and the DONE-durability rule. Assertions on
     // relocated mechanics read the reference, not the body.
     const followupRef = await readRepoFile("skills/lfg/references/review-followup.md")
-    const shippingTail = await readRepoFile("skills/lfg/references/shipping-tail.md")
+    const shippingTail = await readRepoFile("skills/lfg/references/shipping.md")
     await expect(readRepoFile("skills/lfg/references/tracker-defer.md")).resolves.toContain(
       "Non-interactive mode",
     )
@@ -1264,7 +1264,8 @@ describe("ce-code-review contract", () => {
     // Step 9 delegates CI to ce-babysit-pr pipeline mode; the hand-rolled
     // CI-watch loop is retired.
     expect(lfg).toContain("ce-babysit-pr mode:pipeline")
-    expect(shippingTail).toMatch(/[Ss]tack handoff from step 8/)
+    // Compound moved into the pre-ship quality steps as step 7 (2026-09), so shipping is step 9.
+    expect(shippingTail).toMatch(/[Ss]tack handoff from step 9/)
     expect(shippingTail).toMatch(/never treat "started" as DONE/i)
     expect(shippingTail).toMatch(/bottom open non-draft[\s\S]{0,120}posture:stack-ready[\s\S]{0,80}posture:stack-land/i)
     expect(lfg).not.toContain("gh pr checks --watch")

@@ -37,7 +37,7 @@ const CONSOLIDATION_SET = [
 const PRESENTATION_CONTRACTS = [
   "skills/ce-doc-review/references/rendering-floor.md",
   "skills/ce-pov/references/method.md",
-  "skills/lfg/references/shipping-tail.md",
+  "skills/lfg/references/shipping.md",
   "skills/ce-babysit-pr/references/report.md",
 ]
 

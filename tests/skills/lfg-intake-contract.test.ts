@@ -1,0 +1,173 @@
+import { readFileSync } from "fs"
+import path from "path"
+import { describe, expect, test } from "bun:test"
+
+function readRepoFile(relativePath: string): string {
+  return readFileSync(path.join(process.cwd(), relativePath), "utf8")
+}
+
+// lfg's front half became an outcome spine with four routes to a work source
+// (2026-09). The body keeps the work-source invariant and the route summary;
+// references/intake.md owns the routes, and two new return-to-caller seams
+// (ce-debug, ce-brainstorm) feed it. These pins hold the seams together: each
+// side is edited independently, so a renamed token or status on one end must
+// fail here rather than in a live run.
+
+const lfg = readRepoFile("skills/lfg/SKILL.md")
+const intake = readRepoFile("skills/lfg/references/intake.md")
+const debugReturnGate = readRepoFile("skills/lfg/references/debug-return.md")
+const debugReturn = readRepoFile("skills/ce-debug/references/return-to-caller.md")
+const debugSkill = readRepoFile("skills/ce-debug/SKILL.md")
+const brainstormSkill = readRepoFile("skills/ce-brainstorm/SKILL.md")
+const brainstormHandoff = readRepoFile("skills/ce-brainstorm/references/handoff.md")
+const workTriage = readRepoFile("skills/ce-work/references/input-triage.md")
+const workReturnGate = readRepoFile("skills/lfg/references/work-return.md")
+const planBrief = readRepoFile("skills/lfg/references/plan-brief.md")
+const reviewFollowup = readRepoFile("skills/lfg/references/review-followup.md")
+const shippingTail = readRepoFile("skills/lfg/references/shipping.md")
+
+describe("lfg work source and routes", () => {
+  test("the body names the routes and the intake owner before any step", () => {
+    const routeClause = lfg.indexOf("**Route by what the request is.**")
+    const runHeading = lfg.indexOf("## The run")
+    expect(routeClause).toBeGreaterThan(-1)
+    expect(routeClause).toBeLessThan(runHeading)
+    expect(lfg).toContain("references/intake.md")
+    for (const child of ["`ce-debug`", "`ce-pov`", "`ce-brainstorm`", "`ce-plan`", "`ce-prototype`", "`ce-explain`", "`ce-ideate`"]) {
+      expect(lfg.slice(routeClause, runHeading)).toContain(child)
+    }
+  })
+
+  test("only a verified plan or a fixed debug return is a work source, and nothing is discovered on disk", () => {
+    expect(lfg).toMatch(/only two things qualify/)
+    expect(lfg).toMatch(/`fixed` return from `ce-debug`/)
+    expect(lfg).toMatch(/Never search the plans directory/)
+    // ce-work's blank-invocation discovery exists; lfg must never reach it.
+    expect(workTriage).toContain("**Blank invocation latest-plan discovery:**")
+    expect(intake).toMatch(/`lfg` never invokes `ce-work` blank/)
+  })
+
+  test("a same-session plan goes straight to ce-work; older or requirements-only plans go through ce-plan", () => {
+    expect(intake).toMatch(/wrote in this session[\s\S]{0,200}invokes `ce-work` on it directly/)
+    expect(intake).toMatch(/requirements-only artifact, or a path to a plan from an earlier session[\s\S]{0,120}invoke `ce-plan`/)
+    // The this-run gate stays on the plan route; plan-brief records the bypass.
+    expect(lfg).toContain("a plan file `ce-plan` reported writing this run")
+    expect(planBrief).toMatch(/bypasses `ce-plan` per `references\/intake\.md`/)
+  })
+
+  test("every ce-pov grade has a rule and the verdict never becomes a settled decision", () => {
+    for (const grade of ["Adopt", "Trial", "Reject", "Hold", "Not-our-problem", "Blocked"]) {
+      expect(intake).toContain(grade)
+    }
+    expect(intake).toMatch(/never as a settled decision/)
+    expect(lfg).toMatch(/only Adopt or Trial continues/)
+  })
+
+  test("a non-code result ends the run at that skill, with no branch", () => {
+    expect(intake).toMatch(/A result that is not a code change/)
+    expect(intake).toMatch(/with no branch, no work source/)
+    expect(lfg).toMatch(/that invocation is the whole run/)
+    expect(intake).toMatch(/The examples are not the list; the host's skill catalog is/)
+  })
+
+  test("interaction is limited to ce-brainstorm with a human present", () => {
+    expect(lfg).toMatch(/Ask the user only through `ce-brainstorm`, and only when a human is present/)
+    expect(intake).toMatch(/When no human is present, take route 6/)
+  })
+
+  test("compound runs before shipping so the learning is in the PR at open", () => {
+    const compound = lfg.indexOf("7. Invoke the `ce-compound` skill")
+    const ship = lfg.indexOf("invoke the `ce-commit-push-pr` skill")
+    expect(compound).toBeGreaterThan(-1)
+    expect(compound).toBeLessThan(ship)
+    expect(lfg).toContain("mode:non-interactive")
+    expect(reviewFollowup).toContain("## Step 7 — compound before shipping")
+  })
+})
+
+describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
+  const STATUSES = ["fixed", "diagnosed-no-fix", "needs-human", "blocked"]
+  const DEBUG_RETURN_FIELDS = [
+    "status",
+    "root_cause",
+    "changed_files",
+    "head_sha",
+    "branch",
+    "verification_evidence",
+    "residuals",
+    "issue_of_record",
+    "behavior_change",
+    "standalone_shipping_skipped",
+  ]
+
+  test("ce-debug documents the mode, its exact status vocabulary, and no push", () => {
+    expect(debugSkill).toContain("**`mode:return-to-caller`**")
+    expect(debugSkill).toContain("references/return-to-caller.md")
+    expect(debugSkill).toContain("`fixed | diagnosed-no-fix | needs-human | blocked`")
+    expect(debugReturn).toMatch(/never pushes and never asks/)
+    expect(debugReturn).toMatch(/Branch\*\* rule in Phase 3 applies in full/)
+    expect(debugReturn).toContain("mode:pipeline")
+  })
+
+  test("both ends name the same statuses and return fields", () => {
+    for (const status of STATUSES) {
+      expect(debugReturn, `ce-debug must define ${status}`).toContain(`\`${status}\``)
+    }
+    expect(debugReturnGate).toContain("Only `status: fixed` advances")
+    for (const status of ["diagnosed-no-fix", "needs-human", "blocked"]) {
+      expect(debugReturnGate, `lfg gate must stop on ${status}`).toContain(`\`${status}\``)
+    }
+    for (const field of DEBUG_RETURN_FIELDS) {
+      // ce-debug documents the field as a JSON key; lfg's gate names it in backticks.
+      expect(debugReturn, `ce-debug must return ${field}`).toMatch(new RegExp('"' + field + '":'))
+      expect(debugReturnGate, `lfg must require ${field}`).toMatch(new RegExp("`" + field + "(?:`|:)"))
+    }
+  })
+
+  test("the debug gate requires the same evidence facts the ce-work gate requires", () => {
+    for (const phrase of [
+      "existing tests inspected",
+      "tests added/changed",
+      "red failure or characterization",
+      "verification run",
+      "deliberate test exception",
+      "Do NOT decide the test strategy inside LFG",
+    ]) {
+      expect(workReturnGate).toContain(phrase)
+      expect(debugReturnGate).toContain(phrase)
+    }
+    expect(debugReturnGate).toMatch(/There is no recovery invocation on this route/)
+  })
+
+  test("the shipping steps name a substitute for every consumer of the plan path", () => {
+    for (const consumer of ["`ce-simplify-code`", "`ce-code-review`", "`ce-commit-push-pr`", "`ce-compound`"]) {
+      expect(debugReturnGate).toContain(consumer)
+    }
+    expect(reviewFollowup).toMatch(/On the defect route[^\n]*omit `plan:`/)
+    expect(shippingTail).toMatch(/On the defect route[^\n]*`root_cause` and `issue_of_record`/)
+    expect(shippingTail).toMatch(/On the defect route there is no plan: make no next-work offer/)
+  })
+})
+
+describe("ce-brainstorm return-to-caller seam (ce-brainstorm <-> lfg)", () => {
+  const BRAINSTORM_RETURN_FIELDS = ["status", "result_kind", "artifact_path", "brief", "resolve_before_planning"]
+
+  test("ce-brainstorm documents the mode in the body and the return in the handoff owner", () => {
+    expect(brainstormSkill).toContain("**`mode:return-to-caller`**")
+    expect(brainstormSkill).toMatch(/no menu, no `lfg` or `ce-plan` invocation/)
+    expect(brainstormHandoff).toContain("#### 4.0 Return to the caller instead of presenting options")
+    expect(brainstormHandoff).toMatch(/never an invocation of `lfg` or\s+`ce-plan` from here/)
+    for (const field of BRAINSTORM_RETURN_FIELDS) {
+      expect(brainstormHandoff).toContain(`\`${field}\``)
+      expect(intake).toContain(`\`${field}\``)
+    }
+  })
+
+  test("lfg treats an artifact as the plan route and a brief as a feature description, never a work source", () => {
+    expect(intake).toMatch(/An `artifact` result enters route 1/)
+    expect(intake).toMatch(/A `brief` result enters route 6/)
+    expect(brainstormHandoff).toMatch(/A `brief` is a feature description[^.]*not a plan and\s+not a work source/)
+    // The interactive menu's own lfg option still hands over the artifact path.
+    expect(brainstormHandoff).toContain("Ship it autonomously with `lfg`")
+  })
+})

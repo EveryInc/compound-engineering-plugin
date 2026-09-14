@@ -10,7 +10,7 @@ Find the root cause of a failure, then — when the user chooses to — fix it w
 
 **Done when:** the causal chain from trigger to symptom is stated with no gaps and file:line evidence, and either a verified fix has been handed off (PR, commit, or the user's chosen stop) or a diagnosis-only summary has been delivered. **Escalate rather than persist:** 2-3 hypotheses exhausted without confirmation, or 3 failed fix attempts, means diagnose *why* instead of trying again — that is the smart escalation `references/investigate.md` describes. One hypothesis, one change at a time; changing several to see what helps is shotgun debugging.
 
-`<bug_description>` is whatever this skill was invoked with — a failure description, a `mode:` token, or an issue reference (`#123`, `org/repo#123`, an issue URL) — from the user or from a calling skill (`ce-babysit-pr` / `lfg` in `mode:pipeline` pass the failing jobs and log tails). Blank if nothing was provided.
+`<bug_description>` is whatever this skill was invoked with — a failure description, a `mode:` token, or an issue reference (`#123`, `org/repo#123`, an issue URL) — from the user or from a calling skill (`ce-babysit-pr` / `lfg` in `mode:pipeline` pass the failing jobs and log tails; `lfg`'s defect route passes `mode:return-to-caller` and the user's own reference). Blank if nothing was provided.
 
 
 ## Mode
@@ -18,6 +18,8 @@ Find the root cause of a failure, then — when the user chooses to — fix it w
 Default is **interactive**: investigate, run the Phase 2 fix-choice gate, then the Phase 4 handoff.
 
 **`mode:pipeline`** (set by an orchestrator such as `ce-babysit-pr` or `lfg`): run fully non-interactively and never call the blocking-question tool. Strip the token from `<bug_description>`, then **read `references/pipeline-mode.md` and follow it** — it overrides every "ask the user" point with a conservative default, replaces the Phase 2 fix-gate with "fix convergent bugs, defer divergent ones", and replaces the Phase 4 handoff with a structured return whose `status` is exactly one of `fixed-and-pushed | fixed-not-pushed | diagnosed-no-fix | flaky-infra | needs-human`. The caller branches on those exact spellings, so never rename, abbreviate, or add to them.
+
+**`mode:return-to-caller`** (set by `lfg` on its defect route): run non-interactively, but the caller owns everything after the fix. Strip the token, then **read `references/return-to-caller.md` and follow it** — it keeps Phases 0-3 and the convergent-or-defer fix boundary, applies the Phase 3 branch rule so the fix lands on a feature branch, commits the fix-owned files without pushing, skips the post-fix polish and review steps, and returns a structured result whose `status` is exactly one of `fixed | diagnosed-no-fix | needs-human | blocked`. The same spelling rule applies.
 
 ## Blocking questions
 
@@ -59,13 +61,13 @@ Once the root cause is confirmed, write the findings as a user-visible block: th
 
 **Same-turn presentation before the gate:** do not open the fix-choice question until that findings block has been written in full — in this turn or the immediately preceding assistant message. The blocking question tool renders only its own stem on modal harnesses, so a question fired on "root cause confirmed" alone leaves the user choosing with none of the causal chain in front of them. Naming the options is not presenting the findings, and a promise to explain after the choice is too late.
 
-When the request has not already authorized the next action, ask (per **Blocking questions**) which path to take, offering these three options. An explicit fix request is Phase 3. An explicit diagnosis-only request skips to Phase 4. `mode:pipeline` never asks. The test recommendations are part of the diagnosis either way.
+When the request has not already authorized the next action, ask (per **Blocking questions**) which path to take, offering these three options. An explicit fix request is Phase 3. An explicit diagnosis-only request skips to Phase 4. `mode:pipeline` and `mode:return-to-caller` never ask. The test recommendations are part of the diagnosis either way.
 
 1. **Fix it now** — proceed to Phase 3
 2. **Diagnosis only — I'll take it from here** — skip the fix, write Phase 4's summary, end the skill
 3. **Rethink the design** (`ce-brainstorm`) — only when the bug cannot be fixed within the current design: the root cause is a wrong responsibility or interface rather than wrong logic, the requirements themselves are wrong, or every candidate fix is a workaround around an assumption that no longer holds. Size alone is not a design problem.
 
-**`mode:pipeline`:** do not ask. Proceed to Phase 3 and apply a **convergent** fix; a **divergent** fix — one that would reverse a deliberate contract/behavior/product decision, including a "failing" test that asserts intended behavior — is deferred, not applied, per `references/pipeline-mode.md`. Never route to `ce-brainstorm` here; a design problem becomes a `needs-human` residual.
+**`mode:pipeline` and `mode:return-to-caller`:** do not ask. Proceed to Phase 3 and apply a **convergent** fix; a **divergent** fix — one that would reverse a deliberate contract/behavior/product decision, including a "failing" test that asserts intended behavior — is deferred, not applied, per `references/pipeline-mode.md` or `references/return-to-caller.md`. Never route to `ce-brainstorm` here; a design problem becomes a `needs-human` residual.
 
 ### Phase 3: Fix
 
@@ -78,7 +80,7 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 
 ### Phase 4: Handoff
 
-**`mode:pipeline` — skip this entire interactive handoff.** No polish/review tail, no residual questions, no preview, no learning-capture offer. Commit and push the convergent fix per `references/pipeline-mode.md`, then emit that reference's **structured return** as the final output. Divergent / needs-human items are deferred there (open thread or the caller's run-report comment — never a PR-body section). The rest of this section is the interactive path only.
+**`mode:pipeline` — skip this entire interactive handoff.** No polish or review steps, no residual questions, no preview, no learning-capture offer. Commit and push the convergent fix per `references/pipeline-mode.md`, then emit that reference's **structured return** as the final output. Divergent / needs-human items are deferred there (open thread or the caller's run-report comment — never a PR-body section). **`mode:return-to-caller` — skip it too:** commit the fix-owned files on the feature branch, push nothing, and emit the structured return `references/return-to-caller.md` defines. The rest of this section is the interactive path only.
 
 **Structured summary** — always write this first:
 

@@ -16,7 +16,7 @@ Resolve `<root>` when you first compose a `<root>/` path, never before you need 
 
 An explicit `status: blocked` return is terminal even when `artifact_path` names a readable plan. Report its `phase`, `blocker`, and `recovery_path`, and its `artifact_path` when present. A plan file existing on disk is not a reason to retry planning or to move on to implementation.
 
-The plan the GATE checks is the path `ce-plan` reported writing this run. A file already under `<root>/plans/` that `ce-plan` did not report is not a written plan, however closely it matches the feature. When the return has neither a blocker nor a reported path, invoke `ce-plan` the single allowed second time; never accept a stale file instead.
+The plan the GATE checks is the path `ce-plan` reported writing this run. A file already under `<root>/plans/` that `ce-plan` did not report is not a written plan, however closely it matches the feature. This gate belongs to the plan route. An implementation-ready plan `ce-plan` wrote earlier in this session bypasses `ce-plan` per `references/intake.md`; `ce-work`'s intake verifies that plan by content, and its blocked return stops the run. When the return has neither a blocker nor a reported path, invoke `ce-plan` the single allowed second time; never accept a stale file instead.
 
 Inspect the returned plan before continuing past step 1's GATE. It must describe code implementation with sufficient scope, direction, and verification, and no launch-blocking question or finding. A Product Contract without implementation planning, an approach-only or answer-seeking output, or a non-code deliverable (`execution: knowledge-work`) stops the pipeline. An old readiness label cannot override the contents. `ce-work` owns verification of the active work's repository prerequisites; this gate does not duplicate that investigation.
 
@@ -28,7 +28,7 @@ The brief contains:
 
 - direction (1-2 lines);
 - settled decisions, each with four required fields: the decision, its provenance class (`user-directed` or `user-approved`), the rejected alternative, and a one-line reason;
-- open areas;
+- open areas, including any `ce-pov` verdict the intake route consulted, cited as evidence with its grade and reason, never as a settled decision;
 - a standing line asking `ce-plan` to report any conflict it finds with these decisions.
 
 If you cannot state an entry's rejected alternative, demote it to a directive or an open area. Include only decisions about the feature being shipped. When in doubt, demote: having `ce-plan` reconsider a decision is the safe direction; carrying in a stale decision as settled is not. If the conversation contains no settled decisions, skip composition entirely and invoke `ce-plan` exactly as it is written in the body, with no empty brief.

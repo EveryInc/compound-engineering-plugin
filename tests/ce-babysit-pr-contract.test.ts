@@ -57,7 +57,7 @@ const CERESOLVE_FULL_MODE = "skills/ce-resolve-pr-feedback/references/full-mode.
 const CERESOLVE_PIPELINE = "skills/ce-resolve-pr-feedback/references/pipeline-mode.md"
 const CERESOLVE_RUBRIC = "skills/ce-resolve-pr-feedback/references/evaluation-rubric.md"
 const COMMIT_PUSH_HANDOFF = "skills/ce-commit-push-pr/references/apply-and-handoff.md"
-const LFG_SHIPPING_TAIL = "skills/lfg/references/shipping-tail.md"
+const LFG_SHIPPING_TAIL = "skills/lfg/references/shipping.md"
 const PR_SNAPSHOT = "skills/ce-babysit-pr/scripts/pr-snapshot"
 
 const NEEDS_HUMAN_RESIDUAL_FIELDS = [
