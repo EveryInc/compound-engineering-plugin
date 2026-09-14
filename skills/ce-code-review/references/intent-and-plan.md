@@ -7,6 +7,8 @@ Read this at Stage 2. It defines the intent summary, plan discovery, what contex
 When a plan is provided via `plan:<path>` or discovered from PR/branch context,
 inspect the contents before checking completeness. A Product Contract alone informs product intent and does not create implementation-unit obligations. When implementation units are present, check their coverage as well, including incomplete planning. Old readiness labels do not change the review scope. Legacy plans keep the existing completeness checks.
 
+An unaddressed requirement or implementation unit is a finding on every depth path, routed by `plan_source`: `explicit` (a `plan:` argument or a PR-body link) yields a P1 finding with `autofix_class: manual` and `owner: downstream-resolver`, which enters the actionable queue; `inferred` (auto-discovered) yields a P3 finding with `autofix_class: advisory` and `owner: human`, which stays in the report only, because an inferred match is a hint, not a contract.
+
 Extract requirements from these shapes, in order:
 
 1. Unified `Product Contract` -> `### Requirements`

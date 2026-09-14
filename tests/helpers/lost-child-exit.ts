@@ -11,9 +11,13 @@ export function isLostChildExit(result: {
   if ((result.signal === "SIGKILL" || result.signal === "SIGTERM") && (result.status == null || result.status === -1)) {
     return true
   }
-  // CI bun 1.4.2 has returned this as the 5s babysit spawnSync timeout status.
-  if (result.status === 120) return true
+  // CI bun 1.4.2 returns status 120 for the 5s babysit spawnSync timeout, with
+  // empty stdout and either empty stderr or bun's own "killed N dangling
+  // process" line. A real exit 120 that printed its own output is a real failure.
   const empty = !result.stdout && !result.stderr
+  if (result.status === 120) {
+    return !result.stdout && (!result.stderr || /^killed \d+ dangling process(es)?\s*$/.test(result.stderr))
+  }
   return empty && (result.status == null || result.status === -1)
 }
 

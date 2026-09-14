@@ -3,7 +3,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { scenarioById } from "./catalog"
-import { gradeHost, parseTrailers } from "./grade"
+import { gradeHost, normalizeTrailerPath, parseTrailers } from "./grade"
 
 describe("skill-eval-cell trailer parse", () => {
   test("keeps the last FILES_READ line (Grok narrates first)", () => {
@@ -37,6 +37,16 @@ describe("skill-eval-cell trailer parse", () => {
 
   test("a placeholder-only trailer is not an answer", () => {
     expect(parseTrailers("ACTIONS: <comma-separated mutations you performed, or none>\n")).toBeNull()
+  })
+})
+
+describe("skill-eval-cell trailer path normalization", () => {
+  test("a trailing annotation does not hide a named read", () => {
+    expect(normalizeTrailerPath("skill/references/intent-and-plan.md (Plan Requirements Completeness section)")).toBe(
+      "skill/references/intent-and-plan.md",
+    )
+    expect(normalizeTrailerPath("../skill/references/modes-and-output.md")).toBe("../skill/references/modes-and-output.md")
+    expect(normalizeTrailerPath(".\\docs\\plan.md")).toBe("docs/plan.md")
   })
 })
 

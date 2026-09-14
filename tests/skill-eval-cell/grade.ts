@@ -207,8 +207,10 @@ function isNone(value: string): boolean {
   return v === "none" || v === "n/a"
 }
 
-function normalizeTrailerPath(p: string): string {
-  return p.trim().replaceAll("\\", "/").replace(/^\.\//, "")
+// A run may annotate an entry ("references/x.md (Plan section)"); the annotation
+// is not part of the path and must not hide a read the run actually named.
+export function normalizeTrailerPath(p: string): string {
+  return p.trim().replace(/\s*\([^)]*\)\s*$/, "").replaceAll("\\", "/").replace(/^\.\//, "")
 }
 
 function trailerNames(filesRead: string[], required: string): boolean {
