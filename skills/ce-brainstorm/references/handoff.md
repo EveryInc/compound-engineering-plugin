@@ -25,9 +25,9 @@ return as the final output, with these exact field names:
   any collision suffix, or `null` for a brief.
 - `brief`: the chat paragraph, or `null` for an artifact.
 - `resolve_before_planning`: the remaining items, or an empty list.
-- `key_decisions`: the decisions the dialogue settled, each with its
-  provenance class when it meets `references/settled-decisions.md`; a brief
-  carries none.
+- `key_decisions`: every decision the dialogue settled that meets
+  `references/settled-decisions.md`, each with its provenance class,
+  whether the result is an artifact or a brief.
 
 A `brief` is a feature description for the caller's planner, not a plan and
 not a work source. When the grounding scout produced a dossier that still
