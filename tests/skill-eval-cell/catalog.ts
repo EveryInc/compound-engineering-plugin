@@ -1842,7 +1842,7 @@ where PLAN is unaddressed when the named plan has any requirement or implementat
     git_staged: ["src/cart.ts"],
     fixture: `${FIX}/standards-designated`,
     post_only: true,
-    why: "A three-line src change with no high-consequence class takes lite. The repo's CODING_STANDARDS.md forbids console.log in src/; lite must still catch it in context, without a persona.",
+    why: "A four-line src addition with no high-consequence class takes lite. The repo's CODING_STANDARDS.md forbids console.log in src/; lite must still catch it in context, without a persona.",
     pre_contract:
       "The lite roster carried project-standards as a persona; the first cut of the depth gate dropped criteria from lite entirely.",
     task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and, if lite, the criteria check only. This is a read-only probe: do not create the run directory and do not dispatch reviewers.

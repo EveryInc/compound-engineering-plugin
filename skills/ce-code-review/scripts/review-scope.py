@@ -288,6 +288,8 @@ def main() -> int:
 
     signals = matching_classes(files, SIGNAL_PATTERNS)
     hard_block_classes = matching_classes(files, HARD_BLOCK_PATTERNS)
+    if uncounted:
+        hard_block_classes.append("uncounted")
     band = size_band_for(changed_lines)
 
     result = {

@@ -881,7 +881,7 @@ describe("ce-code-review contract", () => {
     // #1703: sizing must fire before later spine refs, and the helper must not
     // award lite. Stage 3c used to re-decide from lite_eligible.
     expect(body).toMatch(/Review depth gate/)
-    expect(body).toMatch(/Lite ends the run without reading later references/)
+    expect(body).toMatch(/Lite ends the run without the later spine references/)
     expect(modes).toMatch(/## Review depth/)
     expect(modes).toMatch(/It never awards lite/)
     expect(modes).toMatch(/`hard_block_full` is a floor/)

@@ -205,6 +205,11 @@ Because every non-empty body becomes a candidate, treating a candidate-only stat
 ### Reviewer persona
 A single-lens reviewer role that evaluates work from one specific perspective — security, correctness, scope, design, and so on. Review Skills dispatch a panel of personas as subagents and merge their findings.
 
+### Review depth
+The sizing decision a code review makes for itself once scope is resolved and before anything else loads: a small change with no high-consequence class takes the lite path, and everything else runs the full multi-agent spine. Callers never classify a review; they may only force the full spine.
+
+The lite path dispatches no Reviewer personas and reviews in the calling context, yet it still checks the change against the repo's own written criteria and still returns the same receipt shape the full spine does. It never applies a Compound Pack, and its receipt says so, because pack enforcement is open-ended matching that only a persona on the full spine performs.
+
 ### Detection condition
 The stated, observable circumstance under which a Reviewer persona check fires — what must be visible in the work under review, not a topic to opine on. When a check carries a canonical framework name from the design or security literature, the name supplies shared vocabulary for the finding while the detection condition alone decides whether the finding exists; a check may also attach an evidence guard, a requirement to quote the occurrences that satisfy the condition before claiming a high Confidence anchor.
 

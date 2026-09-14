@@ -18,7 +18,7 @@ Collected review agents and validators are released before the next batch or han
 
 ---
 
-If the repo declares [Compound Packs](./packs.md) in its `packs` config, the institutional-learnings pass also searches the resolved pack roots, and a diff that violates a matching pack rule is flagged with a `(pack: <id>, <path within the pack>)` citation.
+If the repo declares [Compound Packs](./packs.md) in its `packs` config, the institutional-learnings pass also searches the resolved pack roots, and a diff that violates a matching pack rule is flagged with a `(pack: <id>, <path within the pack>)` citation. That pass runs on the full spine; a small diff the depth gate sends down the lite path gets its repo-owned criteria checked in context, and its receipt says packs were not applied.
 
 ## TL;DR
 

@@ -95,6 +95,24 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.lite_eligible).toBeUndefined()
   })
 
+  test("scope helper hard-blocks a diff it cannot fully count", () => {
+    const { dir, base } = fixtureRepo()
+    writeFileSync(path.join(dir, "service.ts"), "export const value = 2\n")
+    writeFileSync(path.join(dir, "blob.bin"), Buffer.from([0, 1, 2, 3, 255, 0, 7]))
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    // A binary or otherwise uncountable file means the helper cannot measure the
+    // whole change, so the floor is set even though the counted part is small.
+    expect(scope.uncounted_files).toBeGreaterThan(0)
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_classes).toContain("uncounted")
+    expect(scope.hard_block_full).toBe(true)
+  })
+
   test("scope helper hard-blocks a CI workflow path", () => {
     const { dir, base } = fixtureRepo()
     mkdirSync(path.join(dir, ".github", "workflows"), { recursive: true })
