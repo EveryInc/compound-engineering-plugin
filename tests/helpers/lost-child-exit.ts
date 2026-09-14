@@ -8,8 +8,11 @@ export function isLostChildExit(result: {
 }): boolean {
   const timedOut = Boolean(result.error && "code" in result.error && result.error.code === "ETIMEDOUT")
   if (timedOut) return true
+  // spawnSync's own timeout kill leaves no status and no output. A signal with
+  // output attached (an OOM kill mid-run, a deliberate kill) is a real failure.
+  const noOutput = !result.stdout && !result.stderr
   if ((result.signal === "SIGKILL" || result.signal === "SIGTERM") && (result.status == null || result.status === -1)) {
-    return true
+    return noOutput
   }
   // CI bun 1.4.2 returns status 120 for the 5s babysit spawnSync timeout, with
   // empty stdout and either empty stderr or bun's own "killed N dangling

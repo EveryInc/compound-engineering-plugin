@@ -8,6 +8,8 @@ describe("lost child-exit detector", () => {
     expect(isLostChildExit({ status: null, signal: null, stdout: "", stderr: "" })).toBe(true)
     expect(isLostChildExit({ status: 120, signal: null, stdout: "", stderr: "killed 1 dangling process\n" })).toBe(true)
     expect(isLostChildExit({ status: 0, signal: null, stdout: "READY\n", stderr: "" })).toBe(false)
+    expect(isLostChildExit({ status: null, signal: "SIGTERM", stdout: "", stderr: "killed by test: intentional\n" })).toBe(false)
+    expect(isLostChildExit({ status: null, signal: "SIGKILL", stdout: "partial output\n", stderr: "" })).toBe(false)
     expect(isLostChildExit({ status: 1, signal: null, stdout: "BLOCKED\n", stderr: "detail\n" })).toBe(false)
     expect(isLostChildExit({ status: 1, signal: null, stdout: "", stderr: "traceback\n" })).toBe(false)
     try {
