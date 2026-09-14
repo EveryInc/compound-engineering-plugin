@@ -110,7 +110,7 @@ If this self-review changes files, rerun the affected tests or lint for those fo
 
 ### Stage 6: Synthesize and present
 
-Assemble the final report. **Default:** human-readable markdown. **`mode:agent`:** skip markdown and emit JSON (see ### JSON output format); the structured fields are how a downstream agent consumes the review. Put `---` before the verdict in markdown mode.
+Assemble the final report. **Default:** human-readable markdown. **`mode:agent`:** skip markdown and emit JSON (see ## JSON output format in `references/modes-and-output.md`); the structured fields are how a downstream agent consumes the review. Put `---` before the verdict in markdown mode.
 
 **Report completion check:** do not finish until stable `#` identifiers appear on every primary finding, the report contains `### Actionable Findings`, `### Coverage`, and `### Verdict` (or their exact JSON fields in `mode:agent`), and the run artifacts named at the end of this reference are on disk: `report.md` in default mode, `review.json` in `mode:agent`, and `metadata.json` in both. Coverage must name the cross-model outcome and validator shortcut/batch outcome. The Actionable section must include every `downstream-resolver` finding; never silently replace it with a count.
 
@@ -156,51 +156,7 @@ After the final artifact write returns, emit the final response immediately. The
 
 ### JSON output format (`mode:agent` only)
 
-Emit **one raw JSON object** as the primary response: a single bare JSON value, **no markdown code fence**. A leading ```` ```json ```` fence makes the response start with backticks and breaks naive `JSON.parse` consumers, so never wrap it. Also write `review.json` under the resolved `<run-dir>` with the same payload.
-
-`mode:agent` does not apply fixes (the caller does), so there is no `applied_fixes` field; the handoff is `actionable_findings`. Applied work appears only in explicitly authorized local-apply markdown runs (Stage 5c/6).
-
-Minimum shape:
-
-```json
-{
-  "status": "complete",
-  "verdict": "Ready to merge | Ready with fixes | Not ready",
-  "scope": {
-    "base": "<merge-base sha, pr:NNN marker, or base: ref>",
-    "branch": "<current branch name>",
-    "head_sha": "<git rev-parse HEAD>",
-    "pr_url": "<url or null>",
-    "files_changed": 0
-  },
-  "intent": "<2-3 line summary>",
-  "intent_confidence": "explicit | inferred | uncertain",
-  "reviewers": ["correctness", "security"],
-  "findings": [],
-  "actionable_findings": [],
-  "triage_groups": [],
-  "pre_existing_findings": [],
-  "requirements_completeness": null,
-  "learnings": [],
-  "agent_native_gaps": [],
-  "deployment_notes": [],
-  "residual_risks": [],
-  "testing_gaps": [],
-  "coverage": {},
-  "artifact_path": "<resolved-run-dir>",
-  "run_id": "<run-id>"
-}
-```
-
-Each object in `findings` uses the merged finding fields: `#`, `title`, `severity`, `file`, `line`, `confidence`, `autofix_class`, `owner`, `requires_verification`, `pre_existing`, `suggested_fix`, `first_evidence`, `why_it_matters`, `evidence`, `reviewers`, `independent_reviewers`. A finding Stage 5b left unresolved, or confirmed with an unmeasured-incidence reason, also carries `validation_status` and `validation_reason`, and carries `protected_subject` when one applies. Each object in `learnings` is a Known Pattern note: `type` (`known_pattern`), `title`, `citation` (a `<root>/solutions/` path or `(pack: <id>, <path within the pack>)`), and `note` (one line on how it bears on the change); contradicted pack rules are findings, never `learnings` entries. When Compound Packs were resolved for the learnings dispatch, `coverage.compound_packs` carries `roots` as the list of pack ids (strings — never the resolver's absolute `dir` paths) plus the resolver's `warnings` and `errors` arrays verbatim, so a consumer can tell a declared pack that loaded from one that was skipped. The helper derives `independent_reviewers`; synthesis may preserve or union that list but must not infer it from `reviewers`.
-
-An incoming finding may carry an optional `settled_conflict` field naming a `session-settled:` KTD. The marker supplies context for settlement reconciliation; it does not exempt the finding from admission or authorize a change.
-
-`actionable_findings` lists the `gated_auto` / `manual` + `downstream-resolver` subset with the same fields plus stable `#`. A finding with `validation_status: "unresolved"` never appears here; it stays in `findings` as a clearly labeled verification gate.
-
-Each object in `triage_groups` carries `{ "title", "findings": [<stable #s>], "context", "preferred_resolution", "why" }`: the finalized groups from Stage 5 step 6 after Stage 5b step 5 pruning. Every referenced `#` must exist in `findings` (the full set), **not** necessarily in `actionable_findings`. Groups are a triage **lens over all findings, not an apply queue**: a group (and its `preferred_resolution` ordering) can reference advisory or `human`/`release`-owned findings that the caller must not apply. So a caller batching related fixes by theme must first intersect each group's `findings` with `actionable_findings` and act only on that subset; the apply handoff stays `actionable_findings`, never `triage_groups`. Empty array when `grouping:off` is active or no groups were built.
-
-On failure before review completes, set `"status": "failed"` and `"reason": "<one sentence>"`. When all reviewers fail, use `"status": "degraded"` with a reason. When a PR skip rule applies (closed/merged/trivial), use `"status": "skipped"` with the skip reason. Do not emit markdown tables when `mode:agent` is active.
+The shape is defined once, in `references/modes-and-output.md` (## JSON output format). On the full path fill every field there from the merged findings and Coverage; `reviewers` lists the dispatched roster.
 
 ## Quality Gates
 

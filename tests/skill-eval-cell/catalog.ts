@@ -1783,7 +1783,7 @@ Also quote the specific rules you found in those files.`,
     why: "#1703: a one-property config add is structured text, not a silent-pass guard. Pre-change lite_eligible failed closed on YAML. The helper now reports a clear floor; the agent must declare lite.",
     pre_contract:
       "Uncounted YAML disqualifies lite. The helper awards lite_eligible: false and the full spine runs.",
-    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. Do not dispatch reviewers.
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. This is a read-only probe: do not create the run directory and do not dispatch reviewers.
 
 End with exactly one line in this form and nothing else on that line:
 
@@ -1795,6 +1795,39 @@ DEPTH: full`,
     grade: {
       files_read_post: ["references/modes-and-output.md"],
       declared: { DEPTH: "lite" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-plan-lite",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: [".compound-engineering/config.yaml"],
+    fixture: `${FIX}/review-depth-plan-lite`,
+    post_only: true,
+    why: "Shipping callers always pass plan:. Lite must stay cheap for a one-line config change and still verify the named plan: R2/U2 (README note) is unaddressed, so the receipt must not say complete-and-ready.",
+    pre_contract:
+      "Uncounted YAML failed closed to the full spine, where Stage 6 verified the plan.",
+    task: `Use the ce-code-review skill on this repo with mode:agent plan:docs/plans/2026-09-14-001-config-docs-root-plan.md. Resolve the Review depth gate and, if lite, the plan requirements check only. This is a read-only probe: do not create the run directory and do not dispatch reviewers.
+
+End with exactly two lines in this form and nothing else on those lines:
+
+DEPTH: lite
+PLAN: complete
+
+or
+
+DEPTH: lite
+PLAN: unaddressed
+
+where PLAN is unaddressed when the named plan has any requirement or implementation unit the diff does not address. Name those ids in prose above the two lines, not on them.`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md", "references/intent-and-plan.md"],
+      declared: { DEPTH: "lite", PLAN: "unaddressed" },
       actions: "none",
       delegates: "none",
     },
@@ -1812,7 +1845,7 @@ DEPTH: full`,
     why: "A CI workflow is a silent-pass guard the helper can name from the path. The agent must not talk that hard block down to lite.",
     pre_contract:
       "CI and other uncounted files fail closed to the full roster.",
-    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. Do not dispatch reviewers.
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. This is a read-only probe: do not create the run directory and do not dispatch reviewers.
 
 End with exactly one line in this form and nothing else on that line:
 

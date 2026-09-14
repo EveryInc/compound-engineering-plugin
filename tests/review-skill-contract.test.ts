@@ -1458,9 +1458,13 @@ describe("ce-code-review contract", () => {
     expect(groupIds.length).toBeGreaterThan(0)
     expect(groupIds.every((id) => primaryFindingIds.includes(id))).toBe(true)
 
-    // mode:agent carries groups in the JSON contract instead of a markdown section
-    expect(content).toContain('"triage_groups": []')
-    expect(content).toMatch(/Each object in `triage_groups` carries/)
+    // mode:agent carries groups in the JSON contract instead of a markdown section.
+    // That contract is defined once, in modes-and-output.md, for both depth paths.
+    const jsonContract = await readRepoFile(
+      "skills/ce-code-review/references/modes-and-output.md",
+    )
+    expect(jsonContract).toContain('"triage_groups": []')
+    expect(jsonContract).toMatch(/Each object in `triage_groups` carries/)
     expect(template).toMatch(/`triage_groups`.*batch related fixes by theme/)
   })
 })

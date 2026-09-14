@@ -86,20 +86,7 @@ The Review depth gate in `references/modes-and-output.md` already chose lite or 
 
 Complete this stage **before reading persona prompt assets, `references/dispatch-reviewers.md`, or entering Stage 4** (Dispatch reviewers). That reference's persona-file instructions are valid only once you have settled which single route covers the adversarial lens: the peer, or the in-process fallback. This stage makes that exclusive choice between a cross-model adversarial peer and the in-process `adversarial-reviewer`. Later stages use that choice and must not decide it again, except when the fold-in step finds the peer never ran, or restores the in-process reviewer after a retry on the same route fails on a rate limit.
 
-Generate the review run ID now so both routes share one artifact directory:
-
-```bash
-SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
-[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
-if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
-(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
-if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
-chmod 700 "$SCRATCH_ROOT" || exit 1;
-RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ');
-RUN_DIR="$SCRATCH_ROOT/ce-code-review/$RUN_ID";
-(umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
-echo "$RUN_DIR";
-```
+Both routes share the run directory Stage 1b created; do not create another.
 
 When adversarial was selected and scope is `local-aligned` or standalone, read `references/cross-model-review.md` from this skill's directory in full, verify the host as that reference requires, resolve one fixed route and approve it, and make the announcement that reference requires before anything is sent to the peer (its egress announcement, which tells the user what leaves the machine). Before start, write both inputs the reference defines; you, the orchestrator, write them, not the peer. They are the dedicated host-vetted constraints file, and the separate untrusted semantic brief containing intent plus material risk divisions inferred from the current file inventory and diff. Do not embed the diff, mechanically copy every path, or combine the two files. Then start the detached peer job using the reference's exact invocation and persist its job ID, target, requested model/reasoning, and start epoch in working state.
 
