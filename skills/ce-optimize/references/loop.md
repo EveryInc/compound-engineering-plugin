@@ -100,19 +100,20 @@ The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-opt
 
 **One dispatch recipe, per experiment.** The backend changes where the experiment runs and how its result comes back, not what the worker is told.
 
-1. **Isolate.** Create the experiment worktree on the optimization branch:
+1. **Isolate.** For `worktree` and `codex`, create the experiment worktree on the optimization branch:
    ```bash
    SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
    WORKTREE_PATH=$(bash "$SKILL_DIR/scripts/experiment-worktree.sh" create "<spec_name>" <exp_index> "optimize/<spec_name>" <shared_files...>)  # creates optimize-exp/<spec_name>/exp-<NNN>
    ```
-   Apply port parameterization if configured (set env vars for the measurement script).
-2. **Brief.** Fill the experiment prompt template (`references/experiment-prompt-template.md`): iteration number and spec name; hypothesis description and category; current best and baseline metrics; mutable and immutable scope; constraints and approved dependencies; the rolling window of the last 10 experiments as concise summaries.
+   Apply port parameterization if configured (set env vars for the measurement script). For `remote`, isolation is the worker's own checkout: record `base_sha` (`git rev-parse optimize/<spec_name>`) and make sure that commit is pushed to the remote the worker will fetch from.
+2. **Brief.** Fill the experiment prompt template (`references/experiment-prompt-template.md`): iteration number and spec name; hypothesis description and category; current best and baseline metrics; mutable and immutable scope; constraints and approved dependencies; the rolling window of the last 10 experiments as concise summaries. For `remote`, append the template's measure-and-report delta with `base_sha`, the result ref `optimize-exp/<spec_name>/exp-<NNN>`, the measurement command, and the paired sample count the current ladder step needs.
 3. **Dispatch** by `execution.backend`, then record the return shape.
 
 | Backend | Dispatch | What returns |
 |---|---|---|
 | `worktree` | A subagent with the filled prompt, working in the experiment worktree | The subagent's completion, with its edits in the worktree |
 | `codex` | Write the filled prompt to a temp file and run `cat /tmp/optimize-exp-XXXXX.txt \| codex exec --skip-git-repo-check - 2>&1`, with the security posture from `execution.codex_security` (ask once per session when unset) | The process exit, with its edits in the worktree |
+| `remote` | The detached-worker dispatch the body's Execution Surface names, with the filled prompt; when no such capability is in the tool list, use the `worktree` row for the whole run and log the fallback | A receipt naming the launch. The result is the pushed result ref (`result.yaml` at its root) or, when the host delivers results as a store file or terminal message, that file or message |
 
 **Codex delegation condition.** Delegate to `codex exec` only when this session is not itself running inside a Codex sandbox and `.git` is writable; otherwise use the `worktree` row for that experiment and log the fallback. A set sandbox marker in your environment is proof you are inside one; an unset marker proves nothing on its own, which is why the writable-`.git` check stays in the test:
 ```bash
@@ -127,6 +128,8 @@ test -n "${CODEX_SANDBOX:-}" || test -n "${CODEX_SESSION_ID:-}" || test ! -w .gi
 Persist a `comparisons` record for each distinct reference, candidate, and workload pairing used in a decision. Each side's identity must uniquely identify the bytes that were measured; a shared HEAD is not enough when the candidate is uncommitted. Record the workload, both snapshots, and the decision's uncertainty and correctness evidence. Standalone and integrated pairings stay distinct in this array; a later in-place update must not replace a previously persisted distinct pairing. A runner-up's contribution is its confirmed change against the branch it was added to, not its standalone gain. These records explain results. `decide.mjs` still makes the accept or revert decision, using the existing snapshot fields.
 
 Process experiments as they complete: do NOT wait for the entire batch to finish before writing results. An experiment dispatched as a receipt completes when its recorded observable arrives; collect it through the same steps, then clear its `pending_waits` entry in the CP-3 write.
+
+**Collecting a `remote` result.** Fetch the result ref and read `result.yaml` from it. Accept it only when `base_sha` equals the `base_sha` you dispatched, the commit range `base_sha..head_sha` touches only `scope.mutable` plus `result.yaml`, and both `baseline` and `candidate` snapshots are present with the required objectives. A result failing any of these is `error` with the reason, logged and closed like a failed measurement; never repair a worker's numbers. An accepted result replaces steps 1 and 2 below: the worker's paired snapshots are the measurement and its `result.yaml` is the marker (copy it into `<state-root>/exp-<NNN>-result.yaml` so recovery does not depend on the remote ref). Continue from step 3 with the worker's `baseline` as the reference snapshot for `decide.mjs`, and record `machine` and `measured_by: worker` on the `comparisons` entry. A worker's `result.yaml` carries only the selection pairing, so a configured holdout answers a would-be keep with `next_measurement: holdout` exactly as for any other backend; that holdout is collected by the independent confirmation in 3.4, on the confirming machine, never by the worker that wrote the candidate. When `decide.mjs` asks for more selection samples (`add_sample`, `confirm`), re-dispatch the same worker (or a new one from the same `head_sha`) for that count; the entry stays one experiment.
 
 For each completed experiment, **immediately**:
 
@@ -187,7 +190,8 @@ After all experiments in the batch have been measured:
 
 3. **If `decide.mjs` returns `keep` for that winner: KEEP**
    - A `keep` has already passed held-out confirmation when the spec configures one; an entry whose last decision is `promising` with `next_measurement: holdout` is not a keep until the holdout pair is collected and the script decides again
-   - Commit the experiment branch first so the winning diff exists as a real commit before any merge or cherry-pick
+   - For a `remote` winner, one independent measurement owns both the confirmation and the holdout: obtain a pairing the candidate's author did not produce by fetching `head_sha`, inspecting the diff against `base_sha`, and measuring it paired on this checkout or through a fresh confirmation worker that did not implement it, at the full configured protocol; when the last decision asked for `holdout`, that same measurement also runs the holdout on the reference and the candidate. Persist each pairing in `comparisons` (`kind: standalone` for the confirmation pair, `kind: holdout` for the holdout pair), every one with the `machine` and `measured_by` that produced it, and run `decide.mjs` on the payload built from those independent snapshots, never from the worker's. Keep only when it is eligible and `next_measurement` is `none`; otherwise the experiment takes that decide terminal and the worker's own claim is recorded as unconfirmed. The same independence that makes judge scores usable makes a self-measured keep usable.
+   - Commit the experiment branch first so the winning diff exists as a real commit before any merge or cherry-pick (a `remote` winner is already a commit at `head_sha`; strip `result.yaml` from what gets merged)
    - Include only mutable-scope changes in that commit; if no eligible diff remains, treat the experiment as non-improving and revert it
    - Merge the committed experiment branch into the optimization branch
    - Use the message `optimize(<spec-name>): <hypothesis description>` for the experiment commit
@@ -204,7 +208,7 @@ After all experiments in the batch have been measured:
 
 5. **Handle deferred dependencies.** Experiments that need unapproved dependencies get outcome `deferred_needs_approval`
 
-6. **Close the rest.** Cleanup worktrees. `kept` and `runner_up_kept` are only for diffs on the optimization branch. Eligible candidates that were not integrated become `not_selected`. Leave `inconclusive`, `censored`, and `degenerate` as `decide.mjs` returned them.
+6. **Close the rest.** Cleanup worktrees; a `remote` result ref may be deleted once its entry is verified in the log and its `result.yaml` copy is in `<state-root>`. `kept` and `runner_up_kept` are only for diffs on the optimization branch. Eligible candidates that were not integrated become `not_selected`. Leave `inconclusive`, `censored`, and `degenerate` as `decide.mjs` returned them.
 
 ### 3.5 Update State (CP-4)
 

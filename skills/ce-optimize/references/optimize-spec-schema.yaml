@@ -416,12 +416,14 @@ optional_fields:
         values:
           - worktree  # git worktrees for isolation (default)
           - codex     # Codex sandboxes for isolation
+          - remote    # detached workers with their own checkout; results arrive as a pushed ref or store file
         default: worktree
+        description: "Where experiments run. remote needs a detached-worker capability (SKILL.md Execution Surface); without one the run falls back to worktree. remote workers measure paired on their own machine, so it requires a relative or paired comparison."
       max_concurrent:
         type: integer
         default: 4
         minimum: 1
-        description: "Maximum experiments to run in parallel. Capped at 6 for worktree backend. 8+ only valid for Codex backend."
+        description: "Maximum experiments to run in parallel. Capped at 6 for worktree backend. 8+ only valid for Codex or remote backends. For remote this caps dispatched workers, not local worktrees."
       max_experiments_per_tick:
         type: integer
         default: null
@@ -537,6 +539,8 @@ validation_rules:
   - "Gate check operators must be one of: >=, <=, >, <, ==, !="
   - "execution.max_concurrent must be >= 1"
   - "execution.max_concurrent must not exceed 6 when execution.backend is 'worktree'"
+  - "execution.backend must be one of: worktree, codex, remote"
+  - "If execution.backend is 'remote', measurement.stability.comparison.method must be 'paired' or 'relative'; absolute numbers from different machines are not comparable"
   - "If parallel.exclusive_resources is non-empty, execution.mode should be 'serial'"
   - "If metric.judge.singleton_sample > 0, metric.judge.singleton_rubric must be present"
   - "If metric.primary.type is 'judge' and metric.judge.max_total_cost_usd is null, the user should explicitly approve uncapped spend"

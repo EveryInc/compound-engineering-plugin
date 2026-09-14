@@ -314,6 +314,13 @@ experiment_entry:
             description: "Identity that uniquely identifies the measured candidate bytes. A revision is enough when it names those bytes; a HEAD shared by different uncommitted trees is not."
           workload:
             type: string
+          machine:
+            type: string
+            description: "Stable identifier of the machine or worker that produced both sides of this pairing, on every kind including holdout. Present for remote-backend results; absent means this checkout. Pairings from different machines are never compared to each other's absolute numbers."
+          measured_by:
+            type: string
+            enum: [orchestrator, worker, confirmation_worker]
+            description: "Who produced this pairing, on every kind including holdout. A remote winner needs one worker pairing and one pairing not produced by the candidate's author before keep; a remote holdout pairing is always orchestrator or confirmation_worker, never worker."
           reference:
             type: object
             description: "Existing snapshot shape: metrics and judge, with aggregates and samples where available"
@@ -434,6 +441,41 @@ experiment_entry:
     merged_with:
       type: integer
       description: "Iteration number of the experiment this was merged with (only for 'runner_up_kept' and 'runner_up_reverted')"
+
+# ============================================================================
+# RESULT MARKER (result.yaml)
+# ============================================================================
+#
+# Written by the measuring party immediately after measurement, before CP-3.
+# Local backends write it at the experiment worktree root with metrics only.
+# A remote worker writes it at its checkout root, commits it on the result ref,
+# and the orchestrator copies it to <state-root>/exp-<NNN>-result.yaml.
+
+result_marker:
+  children:
+    experiment:
+      type: integer
+    base_sha:
+      type: string
+      description: "Commit the worker started from and measured as baseline; must equal the dispatched base_sha or the result is an error"
+    head_sha:
+      type: string
+      description: "Final commit on the result ref (remote only)"
+    machine:
+      type: string
+      description: "Stable identifier of the measuring machine or worker (remote only)"
+    measured_at:
+      type: string
+      format: "ISO 8601 timestamp"
+    baseline:
+      type: object
+      description: "Paired snapshot of base_sha on the same machine: gates, metrics { name: { aggregate, samples } }, diagnostics (remote only)"
+    candidate:
+      type: object
+      description: "Snapshot of head_sha; local backends write only this side's raw metrics"
+    correctness:
+      type: string
+      description: "Checks the measuring party ran and their results, or none"
 
 # ============================================================================
 # OUTCOME STATE TRANSITIONS
