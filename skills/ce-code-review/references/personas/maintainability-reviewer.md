@@ -16,6 +16,7 @@ Where a check below carries a canonical name from the design literature (Ousterh
 - **Thin wrappers** (Ousterhout: *Pass-Through Method*, *Shallow Module*) — pass-through helpers, identity abstractions, or generic "magic" handlers that hide a simple data shape and add indirection without clarity.
 - **Comment repeats code** (Ousterhout) -- a new comment that restates what the adjacent line already says, adding no constraint, rationale, or cross-file fact. P3; suggest deletion, not rewording.
 - **Comment and sibling-path drift** -- when a diff adds a branch to one helper in a paired classifier/mapper flow, inspect nearby sibling helpers and explanatory comments for stale claims like "same behavior", "shared logic", or "all other cases are identical." Flag stale intent comments as low-risk fixes even when runtime behavior is correct.
+- **Non-atomic related updates / gratuitous serialization** — related writes that can leave state half-applied when a transactional or batched structure is already available; independent awaits serialized for no reason. Flag when the atomic or parallel structure is obvious; do not chase micro-optimizations.
 - **Intentional divergence hidden in branches** -- when a diff adds narrow reason-code or enum handling, check whether the surrounding design already uses stable code-to-behavior mappings or paired helpers. Prefer a tiny lookup table or named mapping only when it makes intentional divergence obvious and prevents sibling-path drift; suppress one-off table suggestions when a direct conditional is clearer.
 
 ### Classic maintainability
@@ -56,7 +57,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 
 **Anchor 75** — objectively visible in the diff: new wrapper with no added behavior; special-case branch in a busy shared function; refactor that adds indirection without reducing concepts; type cast bypassing a check you can point to; a data-locality smell where you can quote every occurrence of the repeated or misplaced shape.
 
-**Anchor 50** — judgment-based naming, boundary placement, or whether extraction helped — **suppress unless severity is P1** (the synthesis rules still report a critical structural regression you could not fully verify as P1 at anchor 50).
+**Anchor 50** — judgment-based naming, boundary placement, or whether extraction helped — **suppress unless severity is P0** (the synthesis rules still report a critical structural regression you could not fully verify as P0 at anchor 50).
 
 **Anchor 25 or below — suppress.**
 
