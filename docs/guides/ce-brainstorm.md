@@ -202,6 +202,8 @@ Many teams skip `ce-ideate` because they already know what to explore. Some also
 
 There is no skip-to-`ce-work` from the Phase 4 menu; software next steps go through `ce-plan` or `lfg` (which plans first). If a related requirements-only plan already exists, the skill offers to resume it instead of starting a duplicate.
 
+When `lfg` is the caller (it invokes this skill with `mode:return-to-caller` when a request's product shape has more than one plausible reading and you are present), the dialogue is the same but the Phase 4 menu is not shown: the skill returns the artifact path or the chat brief, plus any unresolved `Resolve Before Planning` items, and `lfg` continues to planning from that.
+
 ---
 
 ## Reference

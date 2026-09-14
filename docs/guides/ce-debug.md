@@ -8,7 +8,7 @@ It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) ta
 
 It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), and not findings on a diff (`ce-code-review`). Use this when something is observably broken, including observably slow. A performance regression's reproduction is a numeric baseline measurement, and the fix is verified by re-measuring, not by reading code.
 
-`ce-plan` offers this skill when a planning prompt is bug-shaped. Orchestrators such as `ce-babysit-pr` and `lfg` invoke it with `mode:pipeline` to fix convergent CI failures without asking.
+`ce-plan` offers this skill when a planning prompt is bug-shaped. Orchestrators such as `ce-babysit-pr` and `lfg` invoke it with `mode:pipeline` to fix convergent CI failures without asking, and `lfg` invokes it with `mode:return-to-caller` when the request it was given is a bug, so the fix lands on a feature branch and `lfg` reviews and ships it.
 
 ---
 
@@ -25,7 +25,7 @@ It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), an
 
 ## Example invocations
 
-A failing test, a tracker issue, observed behavior, or a paste. Empty invoke waits for the error. `mode:pipeline` is for orchestrators.
+A failing test, a tracker issue, observed behavior, or a paste. Empty invoke waits for the error. `mode:pipeline` and `mode:return-to-caller` are for orchestrators.
 
 ```text
 # Start from a failing test. Reproduces that test, then traces from there.
@@ -71,7 +71,7 @@ Debugging fails in predictable ways:
 - One change at a time
 - Escalation when stuck. Diagnose why hypotheses are exhausted instead of trying variants
 - Test-first fix. Inspect existing tests first, use or strengthen the right test home, verify it fails for the right reason, then implement
-- Post-fix quality tail. For non-trivial fixes, simplify the relevant diff, run a scoped code review, and preserve residuals before shipping
+- Post-fix quality steps. For non-trivial fixes, simplify the relevant diff, run a scoped code review, and preserve residuals before shipping
 
 ---
 
@@ -112,11 +112,11 @@ Whatever you hand it becomes the issue of record. The skill links back to that o
 
 If you have uncommitted work when you invoke the skill, it treats that as a hypothesis rather than noise. The most common reason to be debugging at all is that your own in-progress edit caused the failure. When the changed files could plausibly reach the failing behavior, it stashes them (`-u`, so untracked files go too), reruns the reproduction, and pops immediately with `--index` so your staging survives. If the failure disappears, your edit is the cause and the investigation ends. If it persists, your edit is ruled out and the tree is clean to trace. It never auto-resolves a pop conflict in your work, and it never stashes just to simplify its own shipping route.
 
-### Test-first fix, then a scoped quality tail
+### Test-first fix, then scoped quality steps
 
 If you opt to fix, the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the test that owns the contract, or adds a focused regression test only when nothing fits. It verifies the failure, applies the smallest root-cause fix, reruns the focused test plus broader checks, then self-reviews the diff.
 
-After the fix is green, non-trivial diffs run the same quality tail as the shipping workflow: simplify first when the diff is large enough to benefit, then review the final fix. Tiny mechanical fixes skip this with a reason. Simplify always gets an explicit scope of the bug-fix files, never the branch diff, so it cannot reach unrelated work in progress. Review is scoped the same way unless the tree was clean enough to prove a diff base is the fix. Files with overlapping pre-existing edits skip file-level simplification. Accepted residual findings are written to a durable sink even when you choose commit-only or stop.
+After the fix is green, non-trivial diffs run the same quality steps as the shipping workflow: simplify first when the diff is large enough to benefit, then review the final fix. Tiny mechanical fixes skip this with a reason. Simplify always gets an explicit scope of the bug-fix files, never the branch diff, so it cannot reach unrelated work in progress. Review is scoped the same way unless the tree was clean enough to prove a diff base is the fix. Files with overlapping pre-existing edits skip file-level simplification. Accepted residual findings are written to a durable sink even when you choose commit-only or stop.
 
 ### Defense-in-depth, and brainstorm when it is not a bug
 
@@ -126,7 +126,11 @@ Concrete signals trigger a `/ce-brainstorm` recommendation rather than a fix: th
 
 ### Pipeline mode
 
-`mode:pipeline` (set by `ce-babysit-pr` or `lfg`) runs fully non-interactively. It fixes convergent bugs (the code is not meeting its planned or tested intent) and defers divergent ones (the "failure" would reverse a deliberate contract or product decision). It does not create branches, does not run the polish/review tail, and returns a structured JSON result: `fixed-and-pushed`, `fixed-not-pushed` when the fix is committed but could not be pushed, `diagnosed-no-fix`, `flaky-infra`, or `needs-human`. A design problem becomes a `needs-human` residual, never a brainstorm handoff.
+`mode:pipeline` (set by `ce-babysit-pr` or `lfg`) runs fully non-interactively. It fixes convergent bugs (the code is not meeting its planned or tested intent) and defers divergent ones (the "failure" would reverse a deliberate contract or product decision). It does not create branches, does not run the polish or review steps, and returns a structured JSON result: `fixed-and-pushed`, `fixed-not-pushed` when the fix is committed but could not be pushed, `diagnosed-no-fix`, `flaky-infra`, or `needs-human`. A design problem becomes a `needs-human` residual, never a brainstorm handoff.
+
+### Return-to-caller mode
+
+`mode:return-to-caller` (set by `lfg` on its defect route) is also non-interactive, but the caller owns everything after the fix. It keeps the full investigation and the convergent-or-defer boundary, creates a feature branch when it starts on the default branch, commits the fix-owned files without pushing, skips the post-fix polish and review steps, and returns a structured result: `fixed`, `diagnosed-no-fix`, `needs-human`, or `blocked`, with the root cause, changed files, verification evidence, residuals, and the issue of record. `lfg` then simplifies, reviews, and ships from that return.
 
 ---
 
@@ -200,7 +204,8 @@ When you only want the diagnosis, pick **Diagnosis only** at the fix-choice gate
 | `<test path>` | Reproduces the failing test, traces from there |
 | `<issue reference>` (`#123`, URL, Linear ID, Jira key, Sentry issue) | Fetches the full thread, including comments |
 | `<description>` | e.g. "why is the cart total wrong on checkout" |
-| `mode:pipeline` | Non-interactive. Used by orchestrators. Fixes convergent bugs, defers divergent ones, returns JSON |
+| `mode:pipeline` | Non-interactive. Used by orchestrators on a PR branch they own. Fixes convergent bugs, defers divergent ones, pushes, returns JSON |
+| `mode:return-to-caller` | Non-interactive. Used by `lfg` on a bug request. Fixes on a feature branch, commits without pushing, returns JSON for the caller's review and shipping steps |
 
 ---
 
@@ -223,7 +228,7 @@ Whenever the branch holds only the fix, which is the common case and the one the
 
 If the branch also carries unrelated work it does not push, because pushing would publish work you never offered up. It commits just the fix-owned files locally, tells you what it held back, and opens the PR if you ask. The one case where it stops and asks is entanglement: a file the fix had to touch already contained your own edits, so no commit can separate them and every option costs something.
 
-Diagnosis-only stops after the summary. With no remote configured it commits locally. `mode:pipeline` commits and pushes on the current branch and does not open a PR.
+Diagnosis-only stops after the summary. With no remote configured it commits locally. `mode:pipeline` commits and pushes on the current branch and does not open a PR. `mode:return-to-caller` commits on a feature branch, pushes nothing, and leaves the PR to `lfg`.
 
 **Does it work for non-software bugs?**
 Not really. The skill assumes code, tests, and a tracker. The investigation discipline (causal chain, predictions, assumption audit) generalizes, but the mechanics (test-first fix, defense-in-depth, PR handoff) are software-shaped.

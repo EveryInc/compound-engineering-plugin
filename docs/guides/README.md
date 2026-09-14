@@ -101,7 +101,7 @@ Invoked when a specific need arises, not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
-| [`/lfg`](./lfg.md) | Hands-off pipeline through an open PR (plan, implement, review, ship, bounded CI watch). Pushes without prompting when a remote exists; local commits only otherwise. Does not merge. |
+| [`/lfg`](./lfg.md) | Hands-off pipeline through an open PR. Routes the request to a verified work source (a plan, a `ce-debug` fix for a bug, or a brainstorm then plan when product shape is unsettled and you are present), then implements, reviews, captures learnings, ships, and watches CI. Pushes without prompting when a remote exists; local commits only otherwise. Merging stays with you unless granted. |
 
 ---
 
