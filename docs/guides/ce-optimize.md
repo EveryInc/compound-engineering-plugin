@@ -93,7 +93,13 @@ Judge runs bucket the output (large, mid, small, singletons, or the equivalent f
 
 The loop appends each result to the experiment log the moment it is measured, then reads it back. A `result.yaml` in the experiment worktree covers the gap if the orchestrator dies before the log update. On resume the log is the source of truth; leftover markers are recovered into it.
 
-The files under `.context/compound-engineering/ce-optimize/<spec-name>/` are local scratch. They are gitignored, so they survive a resume on this machine and do not travel with the branch.
+The spec, log, and digest live under the run's state root. When the harness names a durable store that outlives the session and the checkout, that is the root; otherwise it is `.context/compound-engineering/ce-optimize/<spec-name>/`, which is gitignored and survives a resume on this machine only. Neither root travels with the branch; the wrap-up report does.
+
+### Long runs: ticks, wakes, and two clocks
+
+Phase 3 runs in ticks. A tick is one batch: select, dispatch, collect, decide, checkpoint, check the stop rules. In an ordinary session the ticks follow one another and the run looks exactly as it always did. On a harness that can wake the agent after its turn ends (an event subscription, a durable timer), a tick whose experiments are still running may end the turn instead of blocking on them: the log records each pending wait and what to do when it lands, the wake fires, and the next turn resumes from the log without asking you again. Your Phase 1 approval is recorded in the log, bound to a digest of the spec and the caps you approved; the gate comes back only if the spec or a cap changed.
+
+Two clocks bound such a run. `stopping.max_hours` counts active time inside ticks. `stopping.max_wall_hours` (default 72) is a calendar backstop from the moment experiments begin; nothing extends it. A judge run that waits between ticks must carry a `max_total_cost_usd` cap, because nobody is watching the spend.
 
 ### Parallel isolation, then file-disjoint combines
 
@@ -165,7 +171,7 @@ Most runs start here, not from another skill.
 
 - Description: `/ce-optimize reduce build time by 30%`
 - Reviewed spec: `/ce-optimize path/to/spec.yaml`
-- Resume or fresh start: `/ce-optimize .context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
+- Resume or fresh start: `/ce-optimize <state-root>/spec.yaml` (the state root is `.context/compound-engineering/ce-optimize/<spec-name>/` unless the harness gave the run a durable store)
 
 Templates live next to the skill: `references/example-hard-spec.yaml` for a cheap single metric, `references/example-judge-spec.yaml` when quality needs a rubric, and `references/example-expensive-benchmark-spec.yaml` when each run costs minutes or several hard targets must all hold. The overview of hard vs judge, plus longer kickoff prompts, is `references/usage-guide.md`.
 
@@ -178,13 +184,13 @@ Templates live next to the skill: `references/example-hard-spec.yaml` for a chea
 | _(empty)_ | Asks "What would you like to optimize?" then writes the spec with you |
 | `<description>` | Same interview, seeded with that goal |
 | `<spec.yaml path>` | Loads and validates the spec, then starts setup |
-| Existing `.context/.../spec.yaml` | If `optimize/<spec-name>` already exists, offers Resume (continue from the log) or Fresh Start (archive the old branch) |
+| Existing `<state-root>/spec.yaml` | If the run's log already exists, offers Resume (continue from the log) or Fresh Start (archive the old branch). A run parked between ticks resumes without asking |
 
 In-scope files must be clean before measurement. Uncommitted changes in the spec's mutable or immutable paths have to be committed or stashed.
 
 `execution.backend: codex` (in the spec, not as a prompt flag) sends each experiment to `codex exec`. If you are already inside a Codex sandbox, or `.git` is not writable, it falls back to subagents. Three Codex failures in a row disable that backend for the rest of the run.
 
-First-run limits are ceilings, not estimates of how long the work will take. The one-hour limit starts when experiments begin, excluding setup and baseline measurement. Defaults worth keeping until the measurement method is trusted: `execution.mode: serial`, `max_concurrent: 1`, `max_iterations: 4`, `max_hours: 1`. For judge mode: `sample_size: 10`, `batch_size: 5`, `max_total_cost_usd: 5`.
+First-run limits are ceilings, not estimates of how long the work will take. The one-hour limit starts when experiments begin, excluding setup and baseline measurement, and counts only active time inside ticks. `stopping.max_wall_hours` (default 72) is the calendar backstop for runs that park between ticks; `execution.max_experiments_per_tick` optionally caps how much one tick dispatches. Defaults worth keeping until the measurement method is trusted: `execution.mode: serial`, `max_concurrent: 1`, `max_iterations: 4`, `max_hours: 1`. For judge mode: `sample_size: 10`, `batch_size: 5`, `max_total_cost_usd: 5`.
 
 Spec schema: `references/optimize-spec-schema.yaml`. Experiment log schema: `references/experiment-log-schema.yaml`.
 
@@ -205,7 +211,10 @@ Hypothesis generation collects unique new deps and asks for one bulk approval. U
 Yes, via `execution.backend: codex` in the spec. It falls back to subagents when Codex sandboxing is not usable from this context.
 
 **What is still there after the run?**
-The `optimize/<spec-name>` branch, with a commit per kept experiment. The spec and experiment log stay under `.context/compound-engineering/ce-optimize/<spec-name>/` on this machine. That directory is gitignored.
+The `optimize/<spec-name>` branch, with a commit per kept experiment and the wrap-up report at `<docs root>/optimize/<spec-name>-report.md`. The spec and experiment log stay under the run's state root: `.context/compound-engineering/ce-optimize/<spec-name>/` on this machine (gitignored), or the harness's durable store when it named one.
+
+**Can a run outlive my session?**
+Only on a harness that can wake the agent after its turn ends. There the loop parks between ticks with its pending waits in the log and resumes on the wake; your Phase 1 approval is not asked again unless the spec or a cap changed. Everywhere else the loop runs inside the session as before, and a wait it cannot hold ends the turn with a resume invocation you can run later or from a scheduler.
 
 **Can I optimize several hard targets at once?**
 Yes. Put them in `metric.objectives` as `role: required`. An experiment that improves one required target without regressing the others is eligible. The loop is not done until every declared required target is met. A spec that omits `objectives` still uses the single primary metric.
