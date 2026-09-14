@@ -3,6 +3,7 @@ import { spawn, spawnSync } from "node:child_process"
 import { chmodSync, existsSync, mkdtempSync, writeFileSync, readFileSync, renameSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { isLostChildExit, throwLostChildExit } from "./helpers/lost-child-exit"
 
 setDefaultTimeout(30_000)
 
@@ -169,6 +170,7 @@ function watch(stateDir: string, fetch: string, extra: string[] = []): any {
       "--interval", "0.1", ...invocationArgs, ...extra],
     { encoding: "utf8", timeout: 5000 },
   )
+  if (isLostChildExit(r)) throwLostChildExit(["python3", SCRIPT, "watch"])
   expect(r.status, r.stderr).toBe(0)
   return JSON.parse(r.stdout.trim().split("\n").pop()!) // the wake sentinel is the final line
 }
@@ -4051,6 +4053,7 @@ m.cmd_snapshot(args)
         "--invocation-budget-seconds", String(incumbent.invocation_budget_seconds)],
       { encoding: "utf8", timeout: 5000 },
     )
+    if (isLostChildExit(r)) throwLostChildExit(["python3", SCRIPT, "watch", "stopped-before-arm"])
 
     expect(r.status, r.stderr).toBe(0)
     expect(JSON.parse(r.stdout.trim())).toMatchObject({
@@ -4391,6 +4394,7 @@ except ProcessLookupError:
 print(f"{alive} {time.time() - started:.3f}")
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8", timeout: 5000 })
+    if (isLostChildExit(r)) throwLostChildExit(["python3", "-c", "cmd_watch takeover reap"])
     expect(r.status, r.stderr).toBe(0)
     const [alive, elapsed] = r.stdout.trim().split(" ")
     expect(alive).toBe("False")
@@ -4448,6 +4452,7 @@ m.cmd_watch(args)
 print(json.dumps({"ordinary_restored": signal.getsignal(signal.SIGTERM) is caller_handler}))
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8", timeout: 5000 })
+    if (isLostChildExit(r)) throwLostChildExit(["python3", "-c", "cmd_watch stale teardown"])
     expect(r.status, r.stderr).toBe(0)
     expect(JSON.parse(r.stdout)).toEqual({ ordinary_restored: true })
   })

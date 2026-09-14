@@ -20,6 +20,9 @@ import {
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { createHash } from "node:crypto"
+import { isLostChildExit, throwLostChildExit } from "../../helpers/lost-child-exit"
+
+export { isLostChildExit, throwLostChildExit }
 
 
 export const SCRIPT = path.join(__dirname, "../../../skills/ce-work/scripts/unit-workspace.py")
@@ -53,17 +56,6 @@ export function tmp(prefix: string): string {
   const root = mkdtempSync(path.join(tmpdir(), prefix))
   roots.push(root)
   return root
-}
-
-/** bun#34069: spawnSync timeout after a lost child-exit. Must be TimeoutError so run-tests.ts can re-run. */
-export function isLostChildExit(result: { status: number | null; signal: NodeJS.Signals | null }): boolean {
-  return result.status == null && result.signal === "SIGKILL"
-}
-
-export function throwLostChildExit(argv: string[]): never {
-  const err = new Error(`${argv.join(" ")}: spawnSync timed out or lost child-exit`)
-  err.name = "TimeoutError"
-  throw err
 }
 
 export function sh(cwd: string, argv: string[], check = true) {

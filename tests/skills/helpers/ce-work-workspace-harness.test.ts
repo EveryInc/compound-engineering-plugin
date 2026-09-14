@@ -4,9 +4,10 @@ import { isLostChildExit, throwLostChildExit } from "./ce-work-workspace-harness
 describe("ce-work workspace harness: lost child-exit", () => {
   test("detects the spawnSync timeout signature and throws TimeoutError", () => {
     expect(isLostChildExit({ status: null, signal: "SIGKILL" })).toBe(true)
-    expect(isLostChildExit({ status: 0, signal: null })).toBe(false)
-    expect(isLostChildExit({ status: 1, signal: null })).toBe(false)
-    expect(isLostChildExit({ status: null, signal: "SIGTERM" })).toBe(false)
+    expect(isLostChildExit({ status: null, signal: "SIGTERM", error: { code: "ETIMEDOUT" } })).toBe(true)
+    expect(isLostChildExit({ status: 120, signal: null, stdout: "", stderr: "" })).toBe(true)
+    expect(isLostChildExit({ status: 0, signal: null, stdout: "READY\n" })).toBe(false)
+    expect(isLostChildExit({ status: 1, signal: null, stderr: "traceback\n" })).toBe(false)
     try {
       throwLostChildExit(["python3", "unit-workspace.py", "resume"])
     } catch (error) {
