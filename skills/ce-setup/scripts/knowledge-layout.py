@@ -156,7 +156,14 @@ def _parse_block(rows, pos, indent):
             raise ValueError("unexpected indent: %r" % content)
         pos[0] += 1
         key, rest = _split_key(content)
-        if rest.strip() == "":
+        if rest.strip() in (">", ">-", "|", "|-", ">+", "|+"):
+            # Block scalar: every deeper-indented row is one line of text.
+            parts = []
+            while pos[0] < len(rows) and rows[pos[0]][0] > indent:
+                parts.append(rows[pos[0]][1])
+                pos[0] += 1
+            result[key] = (" " if rest.strip().startswith(">") else "\n").join(parts)
+        elif rest.strip() == "":
             if pos[0] < len(rows) and rows[pos[0]][0] > indent:
                 result[key] = _parse_block(rows, pos, rows[pos[0]][0])
             elif pos[0] < len(rows) and rows[pos[0]][0] == indent and rows[pos[0]][1].startswith("- "):

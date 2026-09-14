@@ -37,9 +37,7 @@ Every Compound Engineering skill that writes or reads an artifact directory (`so
 
 ### Step 1: Determine Plugin Version
 
-Detect the installed compound-engineering plugin version by reading the plugin metadata or manifest when the platform exposes it. If the version cannot be determined, skip this step.
-
-If a version is found, pass it to the check script via `--version`. Otherwise omit the flag.
+Detect the installed compound-engineering plugin version from the plugin metadata or manifest when the platform exposes it. If found, pass it to the check script via `--version`; otherwise omit the flag.
 
 ### Step 2: Run the Health Check
 
@@ -55,8 +53,6 @@ Run the bundled check script. Set `SKILL_DIR` to the absolute directory you load
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
 if [ -f "$SKILL_DIR/scripts/check-health" ]; then bash "$SKILL_DIR/scripts/check-health" --version VERSION; else echo "Bundled health script not found at $SKILL_DIR/scripts/check-health; run the inline checks from ce-setup instead."; fi
 ```
-
-Use the same command without `--version VERSION` if Step 1 could not determine a version.
 
 If the script is unavailable, run the inline equivalent listed in `references/repo-fixes.md`.
 
