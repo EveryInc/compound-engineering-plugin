@@ -119,7 +119,7 @@ Wrap-up reports every required objective from original baseline to confirmed fin
 
 Before the baseline, Phase 1 asks whether the harness can tell good from bad at all: it must score the exemplars you called good above the ones you called bad, and it must not reward a trivial shortcut such as an empty or constant output. A judge additionally has to agree with a small human-labeled sample (20-50 items with reasoning, 80% agreement by default) before the run leaves Phase 1, unless you explicitly waive that. The result is recorded in the log as `harness_validation`, and the approval message states it.
 
-A held-out set (`measurement.holdout.command`, or a second judge seed via `metric.judge.confirmation_seed`) is scored only before a keep and at final confirmation. The loop never selects from it or generates hypotheses from it, so a gain that only exists on the selection sample does not get kept. It is required for judge runs and for runs that continue unattended; elsewhere it is optional and the approval message says plainly when it is missing.
+A held-out set (`measurement.holdout.command`, or a second judge seed via `metric.judge.confirmation_seed`) is scored only before a keep and at final confirmation. The loop never selects from it or generates hypotheses from it, so a gain that only exists on the selection sample does not get kept. It is required for judge runs and for runs that wait between ticks on a wake after the turn ends; elsewhere it is optional and the approval message says plainly when it is missing.
 
 Judge output carries a `feedback` line per item saying what is wrong and what would fix it. The strategy digest groups that feedback into failure themes, and the next hypotheses come from the themes rather than from a rule per failing item. Identical outputs are judged once per run (a content-hash cache), and cost, tokens, and latency are logged per experiment when the harness reports them.
 
@@ -235,7 +235,7 @@ Yes. Put them in `metric.objectives` as `role: required`. An experiment that imp
 Use `stability.mode: ladder` and a relative or paired comparison. The five-run protocol is for baseline, a candidate you are about to keep, and final confirmation, not for every exploratory try. See `references/example-expensive-benchmark-spec.yaml`.
 
 **Why does it want a held-out set?**
-Every experiment is selected on the same sample, so over many experiments the kept changes drift toward whatever scores well on that sample. Scoring the winner once more on data the loop never saw before keeping it is what separates a real gain from a fit to the sample. Judge runs and unattended runs require one; other runs get a plain warning at approval when it is missing.
+Every experiment is selected on the same sample, so over many experiments the kept changes drift toward whatever scores well on that sample. Scoring the winner once more on data the loop never saw before keeping it is what separates a real gain from a fit to the sample. Judge runs, and runs that wait between ticks on a wake after the turn ends, require one; other runs get a plain warning at approval when it is missing.
 
 **Why calibrate the judge?**
 A rubric is a guess about what a person would score until it has been checked against people. Twenty to fifty items labeled by hand, with the reasoning, are enough to see whether the judge agrees often enough (80% by default) to be optimized against; without that check the loop will learn the judge's quirks as readily as real quality. You can waive the check explicitly, and the waiver is recorded in the log.
