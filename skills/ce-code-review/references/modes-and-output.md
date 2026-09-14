@@ -71,18 +71,34 @@ You may only upgrade to the full spine. A floor cannot be talked down.
 
 ### Lite path
 
-Lite is the same review with the same receipt, done in this context. Do not dispatch reviewers or finish leaves. Read no reference beyond the one named below. The skill's done condition applies unchanged: every retained finding is supported by the source, and the receipt states its coverage limits.
+Lite is the same review with the same receipt, done in this context. Do not dispatch reviewers or finish leaves. Read no reference beyond the two named below. The skill's done condition applies unchanged: every retained finding is supported by the source, and the receipt states its coverage limits.
 
 Produce, in this context:
 
-- Correctness findings on the diff.
+- Correctness findings on the diff. Every lite finding carries the merged finding fields the output format lists, with severity, `autofix_class`, and `owner` set by `references/action-class-rubric.md` (read it before writing a finding). A lite finding quotes its motivating line as `first_evidence` and carries confidence `100` when the defect is mechanical or `75` when it names a concrete consequence; a concern you cannot quote goes to `residual_risks`, not `findings`.
 - Criteria findings from the Stage 1c mapping: read each governing criteria file, judge every changed file only against the criteria paired with it, and report a changed line that contradicts a written rule as a finding that quotes the rule and names its file.
 - Requirements verification: read the Plan Requirements Completeness and Stage 2b sections of `references/intent-and-plan.md`, discover a plan by that contract (the `plan:` argument, the PR body, or the branch), and when one is found fill `requirements_completeness`. An explicit plan with unaddressed requirements or units makes the verdict Not ready unless the omission is intentional.
 - Test sufficiency: when the change alters runtime behavior without corresponding test work, record the gap in `testing_gaps`. Risks you can see but cannot settle go in `residual_risks`.
 
 Coverage states that the lite path ran and no reviewer agents were dispatched; names the criteria files checked, or that none govern the change, and the instruction-file fallback when it supplied criteria; states that declared Compound Packs were not applied; and names what lite did not assess (learnings, agent-native gaps, deployment notes).
 
-Write the receipt into the run directory Stage 1b created and emit it as the response. In `mode:agent`, the receipt is the JSON object the output format below defines, written to `review.json`. In default mode, it is Actionable Findings, Coverage, and Verdict, written to `report.md`.
+Write the receipt and `metadata.json` (## Run artifacts below) into the run directory Stage 1b created and emit the receipt as the response. In `mode:agent`, the receipt is the JSON object the output format below defines, written to `review.json`. In default mode, it is Actionable Findings, Coverage, and Verdict, written to `report.md`.
+
+## Run artifacts
+
+Every run, lite or full, leaves its receipt (`review.json` in `mode:agent`, `report.md` in default mode) and `metadata.json` in the run directory. `metadata.json` minimum fields:
+
+```json
+{
+  "run_id": "<run-id>",
+  "branch": "<git branch --show-current at dispatch time>",
+  "head_sha": "<git rev-parse HEAD at dispatch time>",
+  "verdict": "<Ready to merge | Ready with fixes | Not ready>",
+  "completed_at": "<ISO 8601 UTC timestamp>"
+}
+```
+
+The full path's finish leaf adds the artifacts `references/finish-review.md` lists.
 
 ## JSON output format (`mode:agent` only)
 

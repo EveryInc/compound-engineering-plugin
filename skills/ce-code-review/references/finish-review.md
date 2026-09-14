@@ -218,16 +218,4 @@ Always write run artifacts under the resolved `<run-dir>`:
 - `adversarial-review-brief.md` when the cross-model route starts: the orchestrator's compact semantic divisions, never a copied diff
 - `report.md`: the rendered markdown report exactly as presented to the user (default mode only), so format and numbering stay auditable after the run
 
-`metadata.json` minimum fields:
-
-```json
-{
-  "run_id": "<run-id>",
-  "branch": "<git branch --show-current at dispatch time>",
-  "head_sha": "<git rev-parse HEAD at dispatch time>",
-  "verdict": "<Ready to merge | Ready with fixes | Not ready>",
-  "completed_at": "<ISO 8601 UTC timestamp>"
-}
-```
-
-Capture `branch` and `head_sha` at dispatch time (no in-skill fixes will land afterward).
+`metadata.json` carries the minimum fields defined under ## Run artifacts in `references/modes-and-output.md`; capture `branch` and `head_sha` at dispatch time (no in-skill fixes will land afterward).
