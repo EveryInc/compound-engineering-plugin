@@ -115,6 +115,18 @@ Selection favors credible benefit relative to cost and risk. The priority label 
 
 Wrap-up reports every required objective from original baseline to confirmed final, each retained change's estimate versus measured contribution, uncertainty and correctness evidence, and remaining opportunities. Percentages are used only where meaningful, and successive gains are not added. Older logs still work: missing estimates and attribution evidence are reported as unrecorded.
 
+### The harness is checked before it is trusted
+
+Before the baseline, Phase 1 asks whether the harness can tell good from bad at all: it must score the exemplars you called good above the ones you called bad, and it must not reward a trivial shortcut such as an empty or constant output. A judge additionally has to agree with a small human-labeled sample (20-50 items with reasoning, 80% agreement by default) before the run leaves Phase 1, unless you explicitly waive that. The result is recorded in the log as `harness_validation`, and the approval message states it.
+
+A held-out set (`measurement.holdout.command`, or a second judge seed via `metric.judge.confirmation_seed`) is scored only before a keep and at final confirmation. The loop never selects from it or generates hypotheses from it, so a gain that only exists on the selection sample does not get kept. It is required for judge runs and for runs that continue unattended; elsewhere it is optional and the approval message says plainly when it is missing.
+
+Judge output carries a `feedback` line per item saying what is wrong and what would fix it. The strategy digest groups that feedback into failure themes, and the next hypotheses come from the themes rather than from a rule per failing item. Identical outputs are judged once per run (a content-hash cache), and cost, tokens, and latency are logged per experiment when the harness reports them.
+
+### Optimizing instruction text
+
+A skill, an agent-instructions file, a persona, or a tool description can be the mutable scope like any other file. What changes is the eval: `references/text-targets.md` covers building the case set from recorded failures (input, what you wanted, what went wrong, the output), the coverage rule that every rule you want kept needs a case that fails without it, and the hypothesis moves (add examples, bootstrap examples from passing runs, rewrite from feedback, shorten under a token objective, restructure, decompose, vote, or run an external optimizer as one experiment when the project has one). The task model the text will run under is pinned by the harness; the proposer may be stronger. A perfect score means the case set is too easy, and the run stops and says so rather than tightening the rubric. `references/example-text-target-spec.yaml` is a complete spec of this shape, with per-case regression reporting and a holdout case file.
+
 
 ---
 
@@ -173,7 +185,7 @@ Most runs start here, not from another skill.
 - Reviewed spec: `/ce-optimize path/to/spec.yaml`
 - Resume or fresh start: `/ce-optimize <state-root>/spec.yaml` (the state root is `.context/compound-engineering/ce-optimize/<spec-name>/` unless the harness gave the run a durable store)
 
-Templates live next to the skill: `references/example-hard-spec.yaml` for a cheap single metric, `references/example-judge-spec.yaml` when quality needs a rubric, and `references/example-expensive-benchmark-spec.yaml` when each run costs minutes or several hard targets must all hold. The overview of hard vs judge, plus longer kickoff prompts, is `references/usage-guide.md`.
+Templates live next to the skill: `references/example-hard-spec.yaml` for a cheap single metric, `references/example-judge-spec.yaml` when quality needs a rubric, `references/example-expensive-benchmark-spec.yaml` when each run costs minutes or several hard targets must all hold, and `references/example-text-target-spec.yaml` when the mutable files are instruction text. The overview of hard vs judge, plus longer kickoff prompts, is `references/usage-guide.md`.
 
 ---
 
@@ -221,6 +233,15 @@ Yes. Put them in `metric.objectives` as `role: required`. An experiment that imp
 
 **What if each measurement takes minutes?**
 Use `stability.mode: ladder` and a relative or paired comparison. The five-run protocol is for baseline, a candidate you are about to keep, and final confirmation, not for every exploratory try. See `references/example-expensive-benchmark-spec.yaml`.
+
+**Why does it want a held-out set?**
+Every experiment is selected on the same sample, so over many experiments the kept changes drift toward whatever scores well on that sample. Scoring the winner once more on data the loop never saw before keeping it is what separates a real gain from a fit to the sample. Judge runs and unattended runs require one; other runs get a plain warning at approval when it is missing.
+
+**Why calibrate the judge?**
+A rubric is a guess about what a person would score until it has been checked against people. Twenty to fifty items labeled by hand, with the reasoning, are enough to see whether the judge agrees often enough (80% by default) to be optimized against; without that check the loop will learn the judge's quirks as readily as real quality. You can waive the check explicitly, and the waiver is recorded in the log.
+
+**Which model does the judge use?**
+`metric.judge.model` is a capability tier, `cheap` or `strong`, and the harness you are running in picks the concrete model. Specs that still say `haiku` or `sonnet` are read as `cheap` and `strong`.
 
 **Does it debug?**
 No. It attributes a named-workload cost or searches a scored variant space. A failing test, a stack trace, or "why is this wrong" is `/ce-debug`.
