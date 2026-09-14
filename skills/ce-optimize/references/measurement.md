@@ -108,6 +108,8 @@ If primary type is `judge`, also run the judge evaluation on baseline output to 
 
 ### 1.4 Parallelism Readiness Probe
 
+1.4 and 1.5 apply when experiments share this machine (`execution.backend` is `worktree` or `codex`, or `remote` has fallen back to `worktree`). With `remote` workers each on their own checkout, skip both, record "not applicable: detached workers" in the approval evidence, and let `execution.max_concurrent` cap dispatched workers instead.
+
 Run the parallelism probe script:
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";

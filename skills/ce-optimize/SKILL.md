@@ -14,11 +14,11 @@ argument-hint: "[path to optimization spec YAML, or describe the optimization go
 
 Invoking this skill authorizes reading the repo, building the harness, and (after the Phase 1 approval gate) isolated experiments and keep/revert commits on `optimize/<spec-name>`. Ask when spend is uncapped, when a new dependency appears, when wrap-up would push or open a PR, or when only the user can choose among the post-completion options. Do not ask again to run the next experiment inside those limits.
 
-Independent calls and dispatches that do not depend on each other go in one response. Serialize only real dependencies.
+Independent calls and dispatches go in one response; serialize only real dependencies.
 
-Report findings, user decisions, blockers, and results. During longer work, give occasional updates on what was learned and what remains. Routine preparation and phase or batch transitions need no separate announcement. Keep accounting in the log and final recap unless it affects a current decision.
+Report findings, user decisions, blockers, and results. During longer work, give occasional updates on what was learned and what remains. Routine preparation and phase or batch transitions need no announcement. Keep accounting in the log and final recap unless it affects a current decision.
 
-Explain the target, evidence, and decision in ordinary task language. Workflow labels (such as 'harness' or 'parallel readiness') belong in artifacts unless the user asks about those mechanics. State unknown duration or cost as unknown; caps are limits, not forecasts.
+Explain the target, evidence, and decision in ordinary task language. Workflow labels (such as 'harness') belong in artifacts unless the user asks about those mechanics. State unknown duration or cost as unknown; caps are limits, not forecasts.
 
 A step is done only after it ran. Describing a measurement, dispatch, or checkpoint is not doing it. Do not end a turn while in-scope work remains merely described. Outstanding work may outlive the turn only when it waits on an event a registered wake will deliver and the log records that wait.
 
@@ -28,7 +28,7 @@ Use the host's blocking question tool already in the current tool list (match by
 
 ## Execution Surface
 
-Two capabilities decide where run state lives and how the loop waits. A **durable state root** is a writable location the harness names that persists across turns and context resets, outside the repo checkout; without one, state lives under `.context/compound-engineering/ce-optimize/<spec-name>/`. A **wake after turn end** is a way to be re-invoked by an external event or timer without holding a tool call open; without one, the loop runs inside this session, and a wait it cannot hold ends the turn as a checkpoint with a resume invocation. Presence in the current tool list, or in context the harness gave you, is proof; a missing binary or environment variable proves nothing. Take a fallback without asking.
+Three capabilities decide where run state lives, how the loop waits, and where experiments run. A **durable state root** is a writable location the harness names that persists across turns and context resets, outside the repo checkout; without one, state lives under `.context/compound-engineering/ce-optimize/<spec-name>/`. A **wake after turn end** is a way to be re-invoked by an external event or timer without holding a tool call open; without one, the loop runs inside this session, and a wait it cannot hold ends the turn as a checkpoint with a resume invocation. A **detached worker** is a dispatch whose result arrives as a pushed ref, a store file, or a host-delivered message, not as edits in the local tree; `execution.backend: remote` needs one; without one that spec runs on `worktree`. Presence in the current tool list, or in context the harness gave you, is proof; a missing binary or environment variable proves nothing. Take a fallback without asking.
 
 ## Artifact Root
 
@@ -42,20 +42,20 @@ Two capabilities decide where run state lives and how the loop waits. A **durabl
 
 ## Persistence Discipline
 
-The experiment log on disk is the source of truth. Write order is measure, write, verify, then show the user. **Read `references/persistence.md` now** for checkpoints CP-0 through CP-5, the file layout under the state root, and resume.
+The experiment log on disk is the source of truth. Write order is measure, write, verify, then show the user. **Read `references/persistence.md` now** for checkpoints CP-0 through CP-5, the state root layout, and resume.
 
 ## The phases
 
-Four phases run in order. Each one names the reference it cannot start without. A fresh run skips none of them: a harder optimization spends longer in a phase, it does not run fewer phases.
+Four phases run in order; each names the reference it cannot start without. A fresh run skips none: a harder optimization spends longer in a phase, not fewer phases.
 
-**A resume is not a fresh run.** On a resume, re-enter Phase 0 only far enough to detect the run and to recover any `result.yaml` markers the log is missing. Then continue from the phase the log records and skip the work it proves finished. A checkpoint proves the work that produced it; a user decision counts only while the log records it. The Phase 1 approval record is bound to the spec digest and the caps it approved, so present that gate again when the record is absent or no longer matches the spec in force.
+**A resume is not a fresh run.** On a resume, re-enter Phase 0 only far enough to detect the run and to recover any `result.yaml` markers the log is missing. Then continue from the phase the log records and skip the work it proves finished. A checkpoint proves the work that produced it; a user decision counts only while the log records it. The Phase 1 approval record is bound to the spec digest and the caps it approved; present that gate again when it is absent or no longer matches.
 
 **Phase 0: Setup.** The input is a goal or a spec YAML path, from the user or a calling skill. **Read `references/spec.md`**: it asks for the input when neither supplied one, then loads or builds the spec to save (CP-0). **Read `references/measurement.md`** for the rest of Phase 0 and Phase 1.
 
 **Phase 1: Measurement scaffolding.** Build or validate the harness, write the baseline (CP-1), probe parallelism, check the worktree budget. Two gates stop the run:
 
 - **Clean-tree gate.** Do not continue while any file in `scope.mutable` or `scope.immutable` has uncommitted changes. The reference defines the check and what to ask for.
-- **User approval gate.** Present what Phase 1 assembled and offer proceed, fix issues, and adjust spec; the reference lists what to include and when adjusting the spec is still available. **Do not enter Phase 2 until the user explicitly approves.** Then record the approval and re-read the spec and baseline from disk.
+- **User approval gate.** Present what Phase 1 assembled and offer proceed, fix issues, and adjust spec; the reference lists what to include. **Do not enter Phase 2 until the user explicitly approves.** Then record the approval and re-read the spec and baseline from disk.
 
 **Phase 2: Hypothesis generation.** Analyze the current approach, rank the hypotheses, record the backlog (CP-2). Do not dispatch an implementation experiment while a cheaper locating measurement would change keep or skip. **Read `references/loop.md`** for this phase and Phase 3. One gate: **dependency pre-approval** of every new dependency across all hypotheses, as one bulk list.
 
