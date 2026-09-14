@@ -1,0 +1,66 @@
+# Layout template: para -- Projects / Areas / Resources / Archives, with a
+# numbered inbox in front. Community layout; proves the schema is not
+# Every-specific.
+# Grammar: block mappings, scalars, and inline [a, b] lists only.
+name: para
+description: "PARA: an inbox, active Projects, ongoing Areas, reference Resources, and Archives."
+id_scheme: none
+roles:
+  inbox:
+    path: 0-Inbox/
+    filename: "{date}-{slug}.md"
+    types: [source, idea, note]
+  projects:
+    path: "1-Projects/{slug}/"
+    filename: README.md
+    types: [project]
+  notes:
+    path: "1-Projects/{slug}/notes/"
+    filename: "{date}-{slug}.md"
+    types: [note]
+  themes:
+    path: 2-Areas/
+    filename: "{slug}.md"
+    types: [area]
+  sources:
+    path: 3-Resources/sources/
+    filename: "{date}-{slug}.md"
+    types: [source]
+  ideas:
+    path: 3-Resources/ideas/
+    filename: "{date}-{slug}.md"
+    types: [idea]
+  learnings:
+    path: 3-Resources/learnings/
+    filename: "{date}-{slug}.md"
+    types: [learning]
+  memory:
+    path: 3-Resources/memory/
+    filename: "{date}.md"
+  templates:
+    path: 3-Resources/templates/
+    filename: "{slug}.md"
+    types: [template]
+  archive:
+    path: 4-Archives/
+    filename: "{date}-{slug}.md"
+  scratch:
+    path: scratch/
+    retention: discard
+    tracked: false
+frontmatter:
+  required: [title, type, date]
+  type_enum: [project, note, area, source, idea, learning, template]
+  provenance: [generated_with]
+  source_keys: [source_id, source, source_date, source_url, source_file, source_access]
+  source_access_enum: [public, link, private, mixed]
+promotion:
+  inbox: [sources, ideas, notes]
+  notes: [learnings]
+  learnings: [pack-rule]
+retention:
+  inbox_flag_after_days: 14
+git:
+  mode: none
+  allow: []
+index: none
