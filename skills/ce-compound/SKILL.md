@@ -6,7 +6,7 @@ argument-hint: "[optional: brief context] [mode:non-interactive] [depth:lightwei
 
 # /ce-compound
 
-**Outcome:** one qualifying solved problem is written as a durable learning under `<root>/solutions/`, grounded against the current tree, discoverable by the next agent.
+**Outcome:** one qualifying solved problem is written as a durable learning under `<root>/solutions/` (or a knowledge folder's `learnings` role, per assembly's destination step), grounded against the current tree, discoverable by the next agent.
 
 **Done:** a qualifying doc is written or updated, its frontmatter and claims validated, vocabulary capture recorded, and the mode's completion report emitted; when no learning qualifies, nothing is written and the report says why.
 
@@ -57,7 +57,7 @@ Resolve `<root>` when you first compose a `<root>/solutions/` path, and pass a s
 
 **Only the orchestrator writes product files.** Phase 1 subagents write to per-run scratch only, and never touch `<root>/`, project instruction files, or any other tracked path.
 
-The orchestrator writes the one learning under `<root>/solutions/`, plus two maintenance side effects that its own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. Creating `CONCEPTS.md` when it is absent is expected rather than a violation. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to `ce-compound-refresh`, which this skill recommends or invokes with a narrow scope but never stands in for.
+The orchestrator writes the one learning under `<root>/solutions/` (or the knowledge `learnings` role), plus two maintenance side effects that its own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. Creating `CONCEPTS.md` when it is absent is expected rather than a violation. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to `ce-compound-refresh`, which this skill recommends or invokes with a narrow scope but never stands in for.
 
 ## Choosing the path
 
