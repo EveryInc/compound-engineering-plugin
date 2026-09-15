@@ -8,13 +8,13 @@ Browsers grant microphone and screen capture only to secure contexts: `localhost
 
 - **Page on localhost:** nothing here applies; the default start is right.
 - **Page over plain HTTP on another host** (a bare LAN or tailnet IP): a session can run, but say when handing over the URL that microphone and screen capture will be refused until the URL is HTTPS, so voice is unavailable. Do not present that as a full live session.
-- **Page over HTTPS:** the endpoint origin must be HTTPS too. Refuse to hand over an HTTPS page URL paired with a plain-HTTP endpoint origin, and name the endpoint origin as the one that must become HTTPS. The endpoint's mint also refuses (`tls_required`) when a non-loopback request arrives without `X-Forwarded-Proto: https`; when the riffer reports that error, the tunnel in front of the endpoint is not terminating TLS.
+- **Page over HTTPS:** the endpoint origin must be HTTPS too. Refuse to hand over an HTTPS page URL paired with a plain-HTTP endpoint origin, and name the endpoint origin as the one that must become HTTPS. The endpoint's mint also refuses (`tls_required`) every non-loopback request unless it comes from an address named with `--trust-proxy` and carries `X-Forwarded-Proto: https`; the header alone proves nothing. A tunnel client on the same machine connects over loopback and needs no entry. A TLS-terminating proxy on another host does: start the endpoint with `--trust-proxy <its IP>`, and repeat that flag on every resume. When the riffer reports `tls_required`, either the proxy is not in that list or it is not terminating TLS.
 
 The helper has no TLS option of its own in this version; HTTPS comes from a tunnel or a TLS-terminating proxy in front of each origin. Two origins means two tunnels, and on providers that allow one tunnel per account that means two accounts or a paid plan; say so before the riffer sets one up.
 
 ## Binding
 
-Direct LAN or tailnet access (plain HTTP) needs both processes bound beyond loopback. Pass `--host 0.0.0.0` (or the specific interface address) to the endpoint's `start`, and bind the dev server with its recipe's flag: Vite `--host`, Next `-H 0.0.0.0`, Remix `--host 0.0.0.0`, Rails `-b 0.0.0.0` (in `bin/dev` or the Procfile `web:` line). Rewrite only the host in the URLs you hand over; ports stay as resolved.
+Direct LAN or tailnet access (plain HTTP) needs both processes bound beyond loopback. Pass `--host 0.0.0.0` (or the specific interface address) to the endpoint's `start`, and bind the dev server with its recipe's flag: Vite `--host`, Next `-H 0.0.0.0`, Remix `--host 0.0.0.0`, Rails `-b 0.0.0.0` (in `bin/dev` or the Procfile `web:` line). Rewrite only the host in the URLs you hand over; ports stay as resolved. A resume does not remember the interface: every later `start` on the same root must repeat the same `--host` (and `--trust-proxy`), or the endpoint comes back on loopback and the remote page cannot reach it.
 
 Through tunnels, both processes stay on loopback; the tunnel connects locally and publishes an HTTPS origin. Do not add `--host` in that case.
 
