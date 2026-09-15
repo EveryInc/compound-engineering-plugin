@@ -202,6 +202,8 @@ In-scope files must be clean before measurement. Uncommitted changes in the spec
 
 `execution.backend: codex` (in the spec, not as a prompt flag) sends each experiment to `codex exec`. If you are already inside a Codex sandbox, or `.git` is not writable, it falls back to subagents. Three Codex failures in a row disable that backend for the rest of the run.
 
+`execution.backend: remote` sends each experiment to a detached worker with its own checkout, on a harness that offers one (a cloud-agent launch whose work lands as a pushed branch or a store file). The worker implements the hypothesis, measures baseline and candidate paired on its own machine, and pushes `optimize-exp/<spec-name>/exp-NNN` with a `result.yaml`. The orchestrator collects that, runs `decide.mjs` on the pair, and before any keep re-measures the candidate itself or through a worker that did not write it. The spec must use a `relative` or `paired` comparison, because absolute numbers from different machines are not comparable. `max_concurrent` caps dispatched workers, and the parallelism probe and worktree budget do not apply. Without a detached-worker capability the run uses `worktree`.
+
 First-run limits are ceilings, not estimates of how long the work will take. The one-hour limit starts when experiments begin, excluding setup and baseline measurement, and counts only active time inside ticks. `stopping.max_wall_hours` (default 72) is the calendar backstop for runs that park between ticks; `execution.max_experiments_per_tick` optionally caps how much one tick dispatches. Defaults worth keeping until the measurement method is trusted: `execution.mode: serial`, `max_concurrent: 1`, `max_iterations: 4`, `max_hours: 1`. For judge mode: `sample_size: 10`, `batch_size: 5`, `max_total_cost_usd: 5`.
 
 Spec schema: `references/optimize-spec-schema.yaml`. Experiment log schema: `references/experiment-log-schema.yaml`.
@@ -242,6 +244,9 @@ A rubric is a guess about what a person would score until it has been checked ag
 
 **Which model does the judge use?**
 `metric.judge.model` is a capability tier, `cheap` or `strong`, and the harness you are running in picks the concrete model. Specs that still say `haiku` or `sonnet` are read as `cheap` and `strong`.
+
+**Are numbers from remote workers comparable?**
+Only within one machine. Each remote worker measures the baseline commit and its candidate on the same machine, so its pair is a valid comparison; two workers' absolute numbers are not compared to each other or to yours. That is why `remote` requires a `relative` or `paired` comparison, and why a keep needs a second pairing the candidate's author did not produce; when a held-out set is configured, that same independent measurement is where the holdout runs.
 
 **Does it debug?**
 No. It attributes a named-workload cost or searches a scored variant space. A failing test, a stack trace, or "why is this wrong" is `/ce-debug`.

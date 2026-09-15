@@ -26,6 +26,10 @@ const LOOP = readFileSync(path.join(SKILL_DIR, "references", "loop.md"), "utf8")
 const SPEC = readFileSync(path.join(SKILL_DIR, "references", "spec.md"), "utf8")
 const MEASUREMENT = readFileSync(path.join(SKILL_DIR, "references", "measurement.md"), "utf8")
 const PERSISTENCE = readFileSync(path.join(SKILL_DIR, "references", "persistence.md"), "utf8")
+const TEMPLATE = readFileSync(
+  path.join(SKILL_DIR, "references", "experiment-prompt-template.md"),
+  "utf8",
+)
 const WRAP_UP = readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 
@@ -1724,6 +1728,35 @@ describe("schema and skill pins", () => {
     expect(MEASUREMENT).toContain("write the approval record")
     expect(WRAP_UP).toContain("<root>/optimize/<spec-name>-report.md")
     expect(SPEC).toContain("<state-root>/spec.yaml")
+  })
+
+  test("remote backend: enum, paired-or-relative rule, template delta, independent confirmation", () => {
+    expect(SCHEMA).toContain("          - remote    #")
+    expect(SCHEMA).toContain("execution.backend must be one of: worktree, codex, remote")
+    expect(SCHEMA).toContain(
+      "If execution.backend is 'remote', measurement.stability.comparison.method must be 'paired' or 'relative'",
+    )
+    expect(SKILL_BODY).toContain("**detached worker**")
+    expect(SKILL_BODY).toContain("`execution.backend: remote` needs one")
+    expect(TEMPLATE).toContain("## Delta for `execution.backend: remote`: measure and report")
+    expect(TEMPLATE).toContain("<remote-worker>")
+    expect(TEMPLATE).toContain("verify your HEAD is exactly {base_sha}")
+    expect(TEMPLATE).toContain("measure PAIRED on this machine")
+    expect(TEMPLATE).toContain("{result_ref}")
+    expect(TEMPLATE).toContain("Do NOT run the measurement harness (the orchestrator handles this)")
+    expect(LOOP).toContain("**Collecting a `remote` result.**")
+    expect(LOOP).toContain("`base_sha` equals the `base_sha` you dispatched")
+    expect(LOOP).toContain("never repair a worker's numbers")
+    expect(LOOP).toContain("one independent measurement owns both the confirmation and the holdout")
+    expect(LOOP).toContain("a pairing the candidate's author did not produce")
+    expect(LOOP).toContain("that holdout is collected by the independent confirmation in 3.4")
+    expect(LOG_SCHEMA).toContain("on every kind including holdout")
+    expect(TEMPLATE).toContain("only when the harness emits them")
+    expect(LOG_SCHEMA).toContain("          machine:")
+    expect(LOG_SCHEMA).toContain("enum: [orchestrator, worker, confirmation_worker]")
+    expect(LOG_SCHEMA).toContain("result_marker:")
+    expect(MEASUREMENT).toContain("1.4 and 1.5 apply when experiments share this machine")
+    expect(PERSISTENCE).toContain("| Detached worker |")
   })
 
   test("the expensive-benchmark example declares three required hard targets and a ladder", () => {
