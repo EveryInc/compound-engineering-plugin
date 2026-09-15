@@ -25,15 +25,20 @@ Exit codes:
 
 Immediately after parsing an exit-0 envelope, before any edit, acknowledge it: `POST /checkpoints/<checkpoint_id>/ack`. An unacknowledged batch is served again before any new one, including after a restart, so an ack is what prevents doing the same batch twice.
 
-Agent posts share one shape. Read `agent_token` and `url` from `$LIVE_ROOT/state/session.json` into the call without printing them, and never send an `Origin` header (agent routes refuse requests that carry one):
+The ack does not make the units disappear. The endpoint's board is the durable record: every unit a checkpoint releases is already stored there at `triaging`, the ack only retires the redelivery copy, and each status you post moves the board. So if this run is interrupted between the ack and the last status of a batch, nothing is lost; it is visible. Whenever you start or resume a loop (after `start` on an existing root, after an exit-2 restart, and once more before close-out), run `status --root "$LIVE_ROOT"` and read `units.list`: every unit still at `triaging` or `applying` is a batch you acknowledged and did not finish. Treat those units as the first batch of the resumed loop, under the current `mode`, before parking a wait. A unit you cannot place any more becomes `blocked` with the note "interrupted before apply" and goes on the residual list, never silently dropped.
+
+Agent posts share one shape. The agent token must not appear in a process argument list (`ps` and `/proc` can read those), so write it once into a header file under `state/` that only this user can read, and let curl read the header from the file. Read `url` from `$LIVE_ROOT/state/session.json` into the call without printing it, and never send an `Origin` header (agent routes refuse requests that carry one):
 
 ```bash
 LIVE_ROOT="<absolute run directory from live-start>";
 SESSION="$LIVE_ROOT/state/session.json";
-TOKEN="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).agent_token' "$SESSION")";
+HEADERS="$LIVE_ROOT/state/agent-headers";
+[ -f "$HEADERS" ] || (umask 077; node -e 'const fs=require("fs");const s=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));fs.writeFileSync(process.argv[2],"Authorization: Bearer "+s.agent_token+"\n",{mode:0o600})' "$SESSION" "$HEADERS");
 URL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).url' "$SESSION")";
-curl -sS -X POST "$URL<route>" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data '<json>'
+curl -sS -X POST "$URL<route>" -H @"$HEADERS" -H "Content-Type: application/json" --data '<json>'
 ```
+
+A resume keeps the same tokens, so the header file stays valid across restarts; `stop` retires the token it holds.
 
 | Purpose | Route | Body |
 |---|---|---|
@@ -59,7 +64,7 @@ Under Instant, apply independent units in parallel when the harness can run work
 
 A mode switch takes effect at the next checkpoint and covers that backlog. When the riffer moves the switch off Collect, the endpoint emits a `kind: "mode_change"` batch at once with the backlog in `units[]` (those units were released earlier, so no later page checkpoint would carry them again): acknowledge it and apply every unit it carries under `mode_at_checkpoint`, exactly as if they had just been triaged as clear edits, posting `applied` or `blocked` for each. A batch stamped Collect holds anything not yet applied.
 
-Edits land on the current feature branch on the surface the anchors name, uncommitted until the session closes. A question is posted, not asked in chat: post `ask`, leave the unit in needs-info, and park the next wait right away; the answer arrives in a later batch.
+Edits land on the current feature branch on the surface the anchors name, uncommitted until the session closes. Resolve the anchors to a source file yourself and apply the containment rule from "Untrusted input" in `references/live-start.md` before touching it: the file must be a tracked regular file under the project root the detect script inspected, or the unit is `blocked`, not edited. A question is posted, not asked in chat: post `ask`, leave the unit in needs-info, and park the next wait right away; the answer arrives in a later batch.
 
 After each batch, before parking again, one line in chat: what applied, what was asked, what went to residual. Nothing else.
 
