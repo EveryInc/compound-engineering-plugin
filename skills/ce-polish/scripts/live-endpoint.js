@@ -31,8 +31,6 @@ const DISK_CAP_BYTES = Number(process.env.CE_LIVE_DISK_CAP_BYTES) || 500 * 1024 
 const BRIEF_MAX_CHARS = 3000
 // Envelopes held ahead of a sequence gap before early arrivals are dropped for replay.
 const OUT_OF_ORDER_CAP = 512
-// Replay batches stay under the target's 64 KB cap with headroom for the array framing.
-const REPLAY_BATCH_LIMIT = BODY_LIMIT - 1024
 const MINTS_PER_MINUTE = 5
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "")
 const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime"
@@ -46,12 +44,73 @@ const PAGE_EVENT_TYPES = new Set([
 ])
 // Page-emitted checkpoint triggers (KTD9). `silence`/`page_change`/`send`
 // wake the agent only when they release something; `final` always wakes.
-const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "answer", "final"])
+const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "final"])
 const ALWAYS_WAKE_KINDS = new Set(["answer", "mode_change", "final"])
 const EXECUTION_MODES = new Set(["instant", "smart", "collect"])
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 // Agent-postable unit statuses: riffrec's UnitStatus set minus `initial`.
 const AGENT_UNIT_STATUSES = new Set(["triaging", "accepted", "needs_info", "applied", "blocked", "withdrawn"])
+const UNIT_STATUSES = new Set(["initial", ...AGENT_UNIT_STATUSES])
+
+// Payload shapes, ported from riffrec's `isPayloadFor` (src/live/contract.ts)
+// so a malformed event is refused before it is acknowledged.
+const isRecord = (v) => typeof v === "object" && v !== null && !Array.isArray(v)
+const isString = (v) => typeof v === "string"
+const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v)
+const isBoolean = (v) => typeof v === "boolean"
+const optionalString = (v) => v === undefined || isString(v)
+const isStringArray = (v) => Array.isArray(v) && v.every(isString)
+const isRect = (v) => isRecord(v) && isFiniteNumber(v.x) && isFiniteNumber(v.y) && isFiniteNumber(v.width) && isFiniteNumber(v.height)
+const isAnchor = (v) => isRecord(v) && isString(v.route) && isString(v.selector) && (v.component === undefined || v.component === null || isString(v.component)) && isRect(v.rect) && isFiniteNumber(v.t)
+const isAnchorArray = (v) => Array.isArray(v) && v.every(isAnchor)
+const isConfirmation = (v) => isRecord(v) && isBoolean(v.element) && isBoolean(v.change)
+const isSpan = (v) => isRecord(v) && isFiniteNumber(v.t_start) && isFiniteNumber(v.t_end)
+const isEvidence = (v) => isRecord(v) && isStringArray(v.frame_ids) && isStringArray(v.annotation_ids) && isSpan(v.transcript_span)
+  && optionalString(v.audio_clip_id) && (v.telemetry_window === undefined || (isSpan(v.telemetry_window) && Array.isArray(v.telemetry_window.events)))
+const isPointArray = (v) => Array.isArray(v) && v.every((p) => isRecord(p) && isFiniteNumber(p.x) && isFiniteNumber(p.y) && (p.pressure === undefined || isFiniteNumber(p.pressure)))
+
+function validPayload(type, payload) {
+  if (!isRecord(payload)) return false
+  switch (type) {
+    case "click":
+      return payload.type === type && isFiniteNumber(payload.t) && isRecord(payload.element) && isString(payload.element.selector)
+    case "network_request":
+      return payload.type === type && isFiniteNumber(payload.t) && isString(payload.url) && isString(payload.method) && isFiniteNumber(payload.status)
+    case "console_error":
+      return payload.type === type && isFiniteNumber(payload.t) && isString(payload.message)
+    case "navigation":
+      return payload.type === type && isFiniteNumber(payload.t) && isString(payload.from) && isString(payload.to)
+    case "transcript":
+      return isString(payload.id) && (payload.role === "riffer" || payload.role === "interviewer") && isString(payload.text)
+        && isFiniteNumber(payload.t_start) && isFiniteNumber(payload.t_end) && isBoolean(payload.final)
+    case "unit":
+      return isString(payload.id) && isString(payload.statement) && isString(payload.transcript_excerpt) && isAnchorArray(payload.anchors)
+        && isEvidence(payload.evidence) && UNIT_STATUSES.has(payload.status) && (payload.confirmed === undefined || isConfirmation(payload.confirmed))
+    case "unit_update":
+      return isString(payload.unit_id) && optionalString(payload.statement) && (payload.anchors_add === undefined || isAnchorArray(payload.anchors_add))
+        && (payload.confirmed === undefined || isConfirmation(payload.confirmed))
+    case "unit_withdraw":
+      return isString(payload.unit_id) && optionalString(payload.reason)
+    case "annotation":
+      return isString(payload.id) && (payload.kind === "stroke" || payload.kind === "pin") && isPointArray(payload.points) && isRect(payload.bbox)
+        && isAnchor(payload.anchor) && optionalString(payload.text) && optionalString(payload.unit_id) && optionalString(payload.composite_frame_id)
+    case "checkpoint":
+      return isString(payload.id) && PAGE_CHECKPOINT_KINDS.has(payload.trigger) && EXECUTION_MODES.has(payload.mode)
+    case "answer":
+      return isString(payload.unit_id) && isString(payload.text)
+    case "frame":
+      return isString(payload.id) && isFiniteNumber(payload.t) && isString(payload.route)
+        && ["gesture", "periodic", "composite"].includes(payload.kind) && isString(payload.jpeg_base64)
+    case "mic":
+      return ["granted", "denied", "muted", "unmuted"].includes(payload.state)
+    case "mode":
+      return EXECUTION_MODES.has(payload.mode)
+    case "stream_state":
+      return ["streaming", "buffering", "unloading"].includes(payload.state)
+    default:
+      return false
+  }
+}
 const EVIDENCE_PROFILES = {
   anchors_transcript_only: { frames: "none", annotations: false, clips: false, telemetry: false },
   strokes_composite: { frames: "composite", annotations: true, clips: false, telemetry: false },
@@ -200,7 +259,7 @@ function parseArgs(argv) {
   for (let i = 3; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === "--root") options.root = argv[++i]
-    else if (arg === "--host") options.host = argv[++i]
+    else if (arg === "--host") { options.host = argv[++i]; options.hostExplicit = true }
     else if (arg === "--port") options.port = Number(argv[++i])
     else if (arg === "--foreground") options.foreground = true
     else if (arg === "--owner-pid") options.ownerPid = Number(argv[++i])
@@ -609,8 +668,7 @@ async function start(options) {
     options.root,
     "--app-origin",
     options.appOrigin,
-    "--host",
-    options.host,
+    ...(options.hostExplicit ? ["--host", options.host] : []),
     ...(options.port !== undefined ? ["--port", String(options.port)] : []),
     ...(options.ownerPid ? ["--owner-pid", String(options.ownerPid)] : []),
     ...(options.trustProxy.length > 0 ? ["--trust-proxy", options.trustProxy.join(",")] : []),
@@ -767,7 +825,10 @@ async function replay(options) {
   const eventsFile = path.join(options.logDir, "events.ndjson")
   if (!fs.existsSync(eventsFile)) throw new Error(`No session log at ${eventsFile}`)
   const lines = fs.readFileSync(eventsFile, "utf8").split("\n").filter(Boolean)
-  const sessionId = `replay-${randomUUID()}`
+  // No longer than the recorded id: the rewrite must not push an envelope the
+  // source accepted at the 64 KB cap over it at the target.
+  const recorded = readJsonOrNull(options.boardFile)?.session_id ?? ""
+  const sessionId = `r${randomBytes(16).toString("hex")}`.slice(0, Math.max(8, String(recorded).length))
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${options.token}`,
@@ -780,7 +841,8 @@ async function replay(options) {
   let batchBytes = 0
 
   async function post(envelopes) {
-    const response = await fetch(`${options.to}/events`, { method: "POST", headers, body: JSON.stringify(envelopes) })
+    const body = JSON.stringify(envelopes.length === 1 ? envelopes[0] : envelopes)
+    const response = await fetch(`${options.to}/events`, { method: "POST", headers, body })
     if (!response.ok) {
       const text = await response.text().catch(() => "")
       throw new Error(`replay: ${options.to}/events answered ${response.status} ${text.trim()}`)
@@ -794,6 +856,12 @@ async function replay(options) {
     batch = []
     batchBytes = 0
     await post(pending)
+  }
+
+  // Encoded size of the request body the batch would produce: a lone
+  // envelope is posted bare, so it fits whenever the target accepted it.
+  function bodyBytes(count, payloadBytes) {
+    return count <= 1 ? payloadBytes : payloadBytes + 2 + (count - 1)
   }
 
   for (const line of lines) {
@@ -823,9 +891,12 @@ async function replay(options) {
     // The target's 64 KB cap is in encoded bytes; measure the same way and
     // flush before the envelope that would cross it.
     const encoded = Buffer.byteLength(JSON.stringify(envelope))
-    if (batch.length > 0 && batchBytes + encoded + 2 > REPLAY_BATCH_LIMIT) await flush()
+    if (envelope.type !== "frame" && encoded > BODY_LIMIT) {
+      throw new Error(`replay: envelope ${stored.seq ?? "?"} (${envelope.type}) is ${encoded} bytes, over the ${BODY_LIMIT}-byte cap even posted alone`)
+    }
+    if (batch.length > 0 && bodyBytes(batch.length + 1, batchBytes + encoded) > BODY_LIMIT) await flush()
     batch.push(envelope)
-    batchBytes += encoded + 1
+    batchBytes += encoded
     if (envelope.type === "checkpoint") await flush()
   }
   await flush()
@@ -843,6 +914,9 @@ async function serve(options) {
   // fresh pair of credentials and start a new board.
   const previous = readSession(options)
   const resuming = Boolean(previous && !previous.ended && previous.page_token && previous.agent_token)
+  // A resume keeps the previous bind host unless the caller names a new one;
+  // the documented recovery is a bare `start --root <dir>` again.
+  if (resuming && !options.hostExplicit && typeof previous.host === "string" && previous.host) options.host = previous.host
   const pageToken = resuming ? previous.page_token : newToken()
   const agentToken = resuming ? previous.agent_token : newToken()
   if (!resuming) {
@@ -874,6 +948,12 @@ async function serve(options) {
   let waiter = null
   const streamClients = new Set()
   const outOfOrder = new Map()
+  // Ids are validated but may still name inherited Object properties.
+  const unitById = (id) => (Object.hasOwn(board.units, id) ? board.units[id] : undefined)
+  const annotationById = (id) => (Object.hasOwn(board.annotations, id) ? board.annotations[id] : undefined)
+  // Bytes of frames waiting in the gap buffer, counted against the disk cap
+  // before they land so a burst of early frames cannot overshoot it.
+  let reservedBytes = 0
   let pageLostTimer = null
   let mintInFlight = false
   const mintTimes = []
@@ -922,13 +1002,13 @@ async function serve(options) {
 
   function heldUnits() {
     return board.unit_order
-      .map((id) => board.units[id])
+      .map((id) => unitById(id))
       .filter((unit) => unit && !unit.released && unit.status !== "withdrawn")
   }
 
   function heldAnnotations() {
     return board.annotation_order
-      .map((id) => board.annotations[id])
+      .map((id) => annotationById(id))
       .filter((annotation) => annotation && !annotation.released)
   }
 
@@ -960,7 +1040,7 @@ async function serve(options) {
   // `final` and `mode_change` carry them so a Collect backlog is applied.
   function backlogUnits() {
     return board.unit_order
-      .map((id) => board.units[id])
+      .map((id) => unitById(id))
       .filter((unit) => unit && unit.released && unit.status === "accepted")
   }
 
@@ -971,7 +1051,7 @@ async function serve(options) {
   function releaseCheckpoint(checkpointId, kind, mode) {
     const units = heldUnits()
     const annotations = heldAnnotations()
-    const withdrawn = board.pending_withdrawn.map((id) => board.units[id]).filter(Boolean)
+    const withdrawn = board.pending_withdrawn.map((id) => unitById(id)).filter(Boolean)
     const backlog = kind === "final" ? backlogUnits() : []
     const releases = units.length + annotations.length + withdrawn.length + backlog.length > 0
     if (!releases && !ALWAYS_WAKE_KINDS.has(kind)) return null
@@ -1200,7 +1280,7 @@ async function serve(options) {
     if (!Number.isInteger(value.seq) || value.seq < 1) return "invalid_seq"
     if (typeof value.t !== "number" || !Number.isFinite(value.t)) return "invalid_t"
     if (typeof value.type !== "string" || !PAGE_EVENT_TYPES.has(value.type)) return "unknown_type"
-    if (value.payload === undefined || value.payload === null || typeof value.payload !== "object" || Array.isArray(value.payload)) return "invalid_payload"
+    if (!validPayload(value.type, value.payload)) return "invalid_payload"
     // Ids become object keys and batch file names.
     for (const field of ["id", "unit_id"]) {
       const id = value.payload[field]
@@ -1215,7 +1295,7 @@ async function serve(options) {
       board.transcript_count += 1
     } else if (type === "unit") {
       if (typeof payload.id !== "string" || !payload.id) return
-      const existing = board.units[payload.id]
+      const existing = unitById(payload.id)
       board.units[payload.id] = {
         ...(existing ?? {}),
         ...payload,
@@ -1224,13 +1304,13 @@ async function serve(options) {
       }
       if (!existing) board.unit_order.push(payload.id)
     } else if (type === "unit_update") {
-      const unit = board.units[payload.unit_id]
+      const unit = unitById(payload.unit_id)
       if (!unit) return
       if (typeof payload.statement === "string") unit.statement = payload.statement
       if (Array.isArray(payload.anchors_add)) unit.anchors = [...(unit.anchors ?? []), ...payload.anchors_add]
       if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
     } else if (type === "unit_withdraw") {
-      const unit = board.units[payload.unit_id]
+      const unit = unitById(payload.unit_id)
       if (!unit || unit.status === "withdrawn") return
       unit.status = "withdrawn"
       unit.withdraw_reason = payload.reason ?? null
@@ -1238,7 +1318,7 @@ async function serve(options) {
       broadcast("unit_status", { unit_id: unit.id, status: "withdrawn" })
     } else if (type === "annotation") {
       if (typeof payload.id !== "string" || !payload.id) return
-      const existing = board.annotations[payload.id]
+      const existing = annotationById(payload.id)
       board.annotations[payload.id] = { ...(existing ?? {}), ...payload, released: Boolean(existing?.released) }
       if (!existing) board.annotation_order.push(payload.id)
     } else if (type === "checkpoint") {
@@ -1288,19 +1368,24 @@ async function serve(options) {
   // so a restart loses nothing the page will not replay. The buffer is
   // bounded: past the cap an early envelope is dropped unacknowledged and
   // the page replays it after the gap closes.
-  function admitEnvelope(envelope) {
+  function admitEnvelope(envelope, bodySize) {
     const { seq } = envelope
     if (seq <= board.acked_seq || outOfOrder.has(seq)) return
     if (seq !== board.acked_seq + 1) {
-      if (outOfOrder.size < OUT_OF_ORDER_CAP) outOfOrder.set(seq, envelope)
+      if (outOfOrder.size < OUT_OF_ORDER_CAP) {
+        const reserved = envelope.type === "frame" ? bodySize : 0
+        outOfOrder.set(seq, { envelope, reserved })
+        reservedBytes += reserved
+      }
       return
     }
-    let next = envelope
+    let next = { envelope, reserved: 0 }
     while (next) {
-      board.acked_seq = next.seq
-      outOfOrder.delete(next.seq)
-      storeEnvelope(next)
-      applyEnvelope(next)
+      board.acked_seq = next.envelope.seq
+      outOfOrder.delete(next.envelope.seq)
+      reservedBytes -= next.reserved
+      storeEnvelope(next.envelope)
+      applyEnvelope(next.envelope)
       next = outOfOrder.get(board.acked_seq + 1)
     }
   }
@@ -1337,12 +1422,12 @@ async function serve(options) {
         return
       }
     }
-    if (loneFrame && logBytes + body.size > DISK_CAP_BYTES) {
+    if (loneFrame && logBytes + reservedBytes + body.size > DISK_CAP_BYTES) {
       sendJson(res, 507, { reason: "disk_cap", stream_state: "buffering", max_bytes: DISK_CAP_BYTES, acked_seq: board.acked_seq }, corsHeaders())
       return
     }
     touch()
-    for (const envelope of envelopes) admitEnvelope(envelope)
+    for (const envelope of envelopes) admitEnvelope(envelope, body.size)
     saveBoard()
     broadcast("ack", { acked_seq: board.acked_seq })
     sendJson(res, 200, { acked_seq: board.acked_seq }, corsHeaders())
@@ -1359,7 +1444,7 @@ async function serve(options) {
     res.write(`event: ack\ndata: ${JSON.stringify({ acked_seq: board.acked_seq })}\n\n`)
     // A page that just reloaded reconciles its board from these.
     for (const id of board.unit_order) {
-      const unit = board.units[id]
+      const unit = unitById(id)
       if (unit.released || unit.status === "withdrawn") {
         res.write(`event: unit_status\ndata: ${JSON.stringify({ unit_id: id, status: unit.status })}\n\n`)
       }
@@ -1578,9 +1663,14 @@ async function serve(options) {
       sendJson(res, 400, { error: `status must be one of ${[...AGENT_UNIT_STATUSES].join(", ")}` })
       return
     }
-    const unit = board.units[unitId]
+    const unit = unitById(unitId)
     if (!unit) {
       sendJson(res, 404, { error: "unknown unit" })
+      return
+    }
+    // A page withdrawal is terminal; a late agent status must not revive it.
+    if (unit.status === "withdrawn") {
+      sendJson(res, 409, { error: "unit withdrawn", unit_id: unitId, status: "withdrawn" })
       return
     }
     unit.status = parsed.status
@@ -1607,9 +1697,13 @@ async function serve(options) {
       sendJson(res, 400, { error: "question is required" })
       return
     }
-    const unit = board.units[unitId]
+    const unit = unitById(unitId)
     if (!unit) {
       sendJson(res, 404, { error: "unknown unit" })
+      return
+    }
+    if (unit.status === "withdrawn") {
+      sendJson(res, 409, { error: "unit withdrawn", unit_id: unitId, status: "withdrawn" })
       return
     }
     unit.status = "needs_info"
@@ -1738,6 +1832,9 @@ async function serve(options) {
       started_at: new Date().toISOString(),
     }
   if (board.page.stream === "connected") board.page.stream = "disconnected"
+  // A shutdown inside the grace window dropped the timer; the promise of a
+  // page_lost wake survives in the board, so pick it up again.
+  if (board.watch_for_loss && !board.ended) armPageLost()
   writePrivate(options.pidFile, `${process.pid}\n`)
   saveBoard()
   writePrivateJson(options.sessionFile, session)

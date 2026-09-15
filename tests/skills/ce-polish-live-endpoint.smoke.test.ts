@@ -100,7 +100,7 @@ describe("ce-polish live endpoint smoke", () => {
     const page = { Authorization: `Bearer ${pageToken}`, "X-Riffrec-Session": sessionId, "Content-Type": "application/json" }
     const agent = { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json" }
     const unit = (id: string, seq: number) =>
-      envelope(sessionId, seq, "unit", { id, statement: `change ${id}`, transcript_excerpt: id, anchors: [], evidence: { frame_ids: [], annotation_ids: [] }, status: "initial" })
+      envelope(sessionId, seq, "unit", { id, statement: `change ${id}`, transcript_excerpt: id, anchors: [], evidence: { frame_ids: [], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } }, status: "initial" })
 
     const posted = await fetch(`${url}/events`, { method: "POST", headers: page, body: JSON.stringify([unit("u1", 1), unit("u2", 2)]) })
     expect(await posted.json()).toEqual({ acked_seq: 2 })
