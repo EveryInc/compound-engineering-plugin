@@ -19,6 +19,11 @@ setDefaultTimeout(30_000)
 const agents: FakeLiveAgent[] = []
 const pages: FakeLivePage[] = []
 
+// A rejected request fails with the helper's reason in the message, not a bare status.
+function expectOk(result: { status: number; body: Record<string, unknown> }): void {
+  expect(result.status, JSON.stringify(result.body)).toBe(200)
+}
+
 async function startAgent(options: Parameters<typeof FakeLiveAgent.start>[0] = {}): Promise<FakeLiveAgent> {
   const agent = await FakeLiveAgent.start(options)
   agents.push(agent)
@@ -44,19 +49,19 @@ describe("ce-polish live loop smoke", () => {
     await page.waitForEvent((event) => event.event === "ack")
 
     // The riffer talks: three units, one of them taken back, and a stroke with no words.
-    expect((await page.sendUnit("u-red", "make the header red", { anchors: [{ route: "/", selector: "header", rect: { x: 0, y: 0, width: 100, height: 40 }, t: 1 }] })).status).toBe(200)
-    expect((await page.sendUnit("u-toggle", "move the sidebar toggle right")).status).toBe(200)
-    expect((await page.sendUnit("u-onboarding", "rethink the onboarding flow")).status).toBe(200)
-    expect((await page.send("unit_withdraw", { unit_id: "u-toggle", reason: "no, forget that" })).status).toBe(200)
+    expectOk(await page.sendUnit("u-red", "make the header red", { anchors: [{ route: "/", selector: "header", rect: { x: 0, y: 0, width: 100, height: 40 }, t: 1 }] }))
+    expectOk(await page.sendUnit("u-toggle", "move the sidebar toggle right"))
+    expectOk(await page.sendUnit("u-onboarding", "rethink the onboarding flow"))
+    expectOk(await page.send("unit_withdraw", { unit_id: "u-toggle", reason: "no, forget that" }))
     const stroke = await readFixture("annotation")
     const drawingOnly = page.envelope("annotation", { ...stroke.payload, id: "ann-box", unit_id: "u-drawing", text: undefined })
-    expect((await page.post(drawingOnly)).status).toBe(200)
-    expect((await page.sendUnit("u-drawing", "(drawing)", { evidence: { frame_ids: [], annotation_ids: ["ann-box"], transcript_span: null } })).status).toBe(200)
+    expectOk(await page.post(drawingOnly))
+    expectOk(await page.sendUnit("u-drawing", "(drawing)", { evidence: { frame_ids: [], annotation_ids: ["ann-box"], transcript_span: null } }))
     await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u-toggle" && event.data.status === "withdrawn")
 
     // Nothing wakes the agent before a checkpoint (R36).
     expect((await agent.waitHttp()).status).toBe(204)
-    expect((await page.sendCheckpoint("ck-nav", "page_change", "smart")).status).toBe(200)
+    expectOk(await page.sendCheckpoint("ck-nav", "page_change", "smart"))
 
     // Exactly one wake, through the CLI the skill prose runs.
     const first = await agent.waitCli()
@@ -83,17 +88,17 @@ describe("ce-polish live loop smoke", () => {
     }
 
     // Acknowledge first; the batch is not re-served afterwards.
-    expect((await agent.ack(wake.checkpoint_id)).status).toBe(200)
+    expectOk(await agent.ack(wake.checkpoint_id))
     expect((await agent.ack(wake.checkpoint_id)).status).toBe(404)
 
     // Smart triage: the clear edit is applied, the redesign is blocked, the drawing needs a question.
-    expect((await agent.postStatus("u-red", "applied", { note: "header color -> red" })).status).toBe(200)
+    expectOk(await agent.postStatus("u-red", "applied", { note: "header color -> red" }))
     const applied = await page.waitForEvent((event) => event.event === "applied" && (event.data.unit_ids as string[])?.includes("u-red"))
     expect(applied.data.checkpoint_id).toBe(wake.checkpoint_id)
     await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u-red" && event.data.status === "applied")
-    expect((await agent.postStatus("u-onboarding", "blocked", { note: "beyond polish: a redesign" })).status).toBe(200)
+    expectOk(await agent.postStatus("u-onboarding", "blocked", { note: "beyond polish: a redesign" }))
     await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u-onboarding" && event.data.status === "blocked")
-    expect((await agent.ask("u-drawing", "You boxed the sidebar toggle: hide it, or move it?")).status).toBe(200)
+    expectOk(await agent.ask("u-drawing", "You boxed the sidebar toggle: hide it, or move it?"))
     const asked = await page.waitForEvent((event) => event.event === "ask" && event.data.unit_id === "u-drawing")
     expect(asked.data.question).toContain("hide it, or move it")
     await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u-drawing" && event.data.status === "needs_info")
@@ -101,16 +106,16 @@ describe("ce-polish live loop smoke", () => {
     // The agent parks; the riffer answers through the interviewer; the answer wakes the agent with answers only.
     const parked = agent.waitHttp()
     await Bun.sleep(100)
-    expect((await page.send("answer", { unit_id: "u-drawing", text: "Move it, next to the avatar." })).status).toBe(200)
+    expectOk(await page.send("answer", { unit_id: "u-drawing", text: "Move it, next to the avatar." }))
     const answerWake = await parked
     expect(answerWake.status).toBe(200)
     expect(answerWake.envelope!.kind).toBe("answer")
     expect(answerWake.envelope!.units).toEqual([])
     expect(answerWake.envelope!.annotations).toEqual([])
     expect(answerWake.envelope!.answers).toEqual([{ unit_id: "u-drawing", text: "Move it, next to the avatar." }])
-    expect((await agent.ack(answerWake.envelope!.checkpoint_id)).status).toBe(200)
+    expectOk(await agent.ack(answerWake.envelope!.checkpoint_id))
 
-    expect((await agent.postStatus("u-drawing", "applied", { note: "moved next to the avatar" })).status).toBe(200)
+    expectOk(await agent.postStatus("u-drawing", "applied", { note: "moved next to the avatar" }))
     await page.waitForEvent((event) => event.event === "applied" && (event.data.unit_ids as string[])?.includes("u-drawing"))
 
     // The board agrees with what the stream showed, from both readers.
@@ -138,10 +143,10 @@ describe("ce-polish live loop smoke", () => {
     await page.sendCheckpoint("ck1", "silence", "instant")
     const wake = await agent.waitHttp()
     expect(wake.status).toBe(200)
-    expect((await agent.ack("ck1")).status).toBe(200)
+    expectOk(await agent.ack("ck1"))
 
     // An ordinary reload inside the grace window is not a loss.
-    expect((await agent.postStatus("u1", "applied")).status).toBe(200)
+    expectOk(await agent.postStatus("u1", "applied"))
     await page.waitForEvent((event) => event.event === "applied")
     await page.closeStream()
     await Bun.sleep(100)
@@ -153,9 +158,9 @@ describe("ce-polish live loop smoke", () => {
     // Instant mode applies again and this time the page crashes and never comes back.
     await page.sendUnit("u2", "invert the layout")
     await page.sendCheckpoint("ck2", "silence", "instant")
-    expect((await agent.waitHttp()).status).toBe(200)
-    expect((await agent.ack("ck2")).status).toBe(200)
-    expect((await agent.postStatus("u2", "applied")).status).toBe(200)
+    expectOk(await agent.waitHttp())
+    expectOk(await agent.ack("ck2"))
+    expectOk(await agent.postStatus("u2", "applied"))
     await page.waitForEvent((event) => event.event === "applied" && (event.data.unit_ids as string[])?.includes("u2"))
     await page.closeStream()
 
@@ -175,7 +180,7 @@ describe("ce-polish live loop smoke", () => {
     expect(((await agent.statusHttp()).body.page as { lost_episodes: number; stream: string })).toMatchObject({ lost_episodes: 1, stream: "lost" })
 
     // The agent reverts, the page comes back, and the loop continues.
-    expect((await agent.postStatus("u2", "blocked", { note: "reverted: broke the page" })).status).toBe(200)
+    expectOk(await agent.postStatus("u2", "blocked", { note: "reverted: broke the page" }))
     await page.openStream()
     await waitUntil(async () => ((await agent.statusHttp()).body.page as { stream: string }).stream === "connected")
     await page.sendUnit("u3", "try a softer layout")
@@ -236,13 +241,13 @@ describe("ce-polish live loop smoke", () => {
     expect(reserved.status).toBe(200)
     expect(reserved.envelope!.checkpoint_id).toBe("ck1")
     expect(reserved.envelope!.units.map((unit) => unit.id)).toEqual(["u1"])
-    expect((await agent.ack("ck1")).status).toBe(200)
+    expectOk(await agent.ack("ck1"))
     const fresh = await agent.waitCli()
     expect(fresh.exitCode, fresh.stderr).toBe(0)
     const envelope = fresh.envelope as { checkpoint_id: string; units: Array<{ id: string }> }
     expect(envelope.checkpoint_id).toBe("ck2")
     expect(envelope.units.map((unit) => unit.id).sort()).toEqual(["u2", "u3"])
-    expect((await agent.ack("ck2")).status).toBe(200)
+    expectOk(await agent.ack("ck2"))
     // One continuous session log across the restart.
     const log = await fs.readFile(path.join(agent.stateDir, "log", "events.ndjson"), "utf8")
     expect(log.split("\n").filter(Boolean).map((line) => JSON.parse(line).seq)).toEqual([1, 2, 3, 4, 5])

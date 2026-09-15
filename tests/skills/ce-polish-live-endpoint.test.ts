@@ -16,6 +16,11 @@ setDefaultTimeout(30_000)
 const agents: FakeLiveAgent[] = []
 const stubs: FakeOpenAI[] = []
 
+// A rejected request fails with the helper's reason in the message, not a bare status.
+function expectOk(result: { status: number; body: Record<string, unknown> }): void {
+  expect(result.status, JSON.stringify(result.body)).toBe(200)
+}
+
 async function startAgent(options: Parameters<typeof FakeLiveAgent.start>[0] = {}): Promise<FakeLiveAgent> {
   const agent = await FakeLiveAgent.start(options)
   agents.push(agent)
@@ -88,8 +93,8 @@ describe("live endpoint: stream contract intake", () => {
     const page = new FakeLivePage(agent.url, agent.pageToken)
     const unit = await readFixture("unit")
     const annotation = await readFixture("annotation")
-    expect((await page.post([page.fromFixture(unit), page.fromFixture(annotation)])).status).toBe(200)
-    expect((await page.sendCheckpoint("cp_0001", "silence", "smart")).status).toBe(200)
+    expectOk(await page.post([page.fromFixture(unit), page.fromFixture(annotation)]))
+    expectOk(await page.sendCheckpoint("cp_0001", "silence", "smart"))
 
     const wake = await agent.waitHttp()
     expect(wake.status).toBe(200)
@@ -112,7 +117,7 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     await page.sendUnit("u1", "make the header red")
     await page.sendUnit("u2", "move the toggle right")
     await page.sendUnit("u3", "bigger avatar")
-    expect((await page.sendCheckpoint("ck-nav", "page_change", "smart")).status).toBe(200)
+    expectOk(await page.sendCheckpoint("ck-nav", "page_change", "smart"))
 
     const first = await agent.waitCli()
     expect(first.exitCode, first.stderr).toBe(0)
@@ -121,9 +126,9 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     expect(wake.kind).toBe("page_change")
     expect(wake.units.map((unit) => unit.id)).toEqual(["u1", "u2", "u3"])
     expect(wake.units.every((unit) => unit.status === "triaging")).toBe(true)
-    expect((await agent.ack("ck-nav")).status).toBe(200)
+    expectOk(await agent.ack("ck-nav"))
 
-    expect((await page.sendCheckpoint("ck-silence", "silence", "smart")).status).toBe(200)
+    expectOk(await page.sendCheckpoint("ck-silence", "silence", "smart"))
     // Nothing held: the wake parks and times out instead of returning an empty batch.
     const second = await agent.waitHttp()
     expect(second.status).toBe(204)
@@ -143,17 +148,17 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     const first = await agent.waitHttp()
     expect(first.status).toBe(200)
     expect(first.envelope!.mode_at_checkpoint).toBe("collect")
-    expect((await agent.ack("ck1")).status).toBe(200)
-    for (const id of ["u1", "u2", "u3"]) expect((await agent.postStatus(id, "accepted")).status).toBe(200)
+    expectOk(await agent.ack("ck1"))
+    for (const id of ["u1", "u2", "u3"]) expectOk(await agent.postStatus(id, "accepted"))
 
-    expect((await page.sendCheckpoint("ck-final", "final", "collect")).status).toBe(200)
+    expectOk(await page.sendCheckpoint("ck-final", "final", "collect"))
     const final = await agent.waitHttp()
     expect(final.status).toBe(200)
     expect(final.envelope!.kind).toBe("final")
     expect(final.envelope!.mode_at_checkpoint).toBe("collect")
     expect(final.envelope!.units.map((unit) => unit.id).sort()).toEqual(["u1", "u2", "u3"])
     expect(final.envelope!.units.every((unit) => unit.status === "accepted")).toBe(true)
-    expect((await agent.ack("ck-final")).status).toBe(200)
+    expectOk(await agent.ack("ck-final"))
     // A unit the agent applied or blocked has left the backlog and is not carried again.
   })
 
@@ -167,13 +172,13 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     await page.sendUnit("u2", "move the toggle right")
     await page.sendUnit("u3", "bigger avatar")
     await page.sendCheckpoint("ck1", "silence", "collect")
-    expect((await agent.waitHttp()).status).toBe(200)
-    expect((await agent.ack("ck1")).status).toBe(200)
-    for (const id of ["u1", "u2", "u3"]) expect((await agent.postStatus(id, "accepted")).status).toBe(200)
+    expectOk(await agent.waitHttp())
+    expectOk(await agent.ack("ck1"))
+    for (const id of ["u1", "u2", "u3"]) expectOk(await agent.postStatus(id, "accepted"))
     // Nothing wakes while Collect holds the backlog.
     expect((await agent.waitHttp()).status).toBe(204)
 
-    expect((await page.send("mode", { mode: "smart" })).status).toBe(200)
+    expectOk(await page.send("mode", { mode: "smart" }))
     const wake = await agent.waitHttp()
     expect(wake.status).toBe(200)
     expect(wake.envelope!.kind).toBe("mode_change")
@@ -181,14 +186,14 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     expect(wake.envelope!.units.map((unit) => unit.id).sort()).toEqual(["u1", "u2", "u3"])
     expect(wake.envelope!.annotations).toEqual([])
     expect(wake.envelope!.answers).toEqual([])
-    expect((await agent.ack(wake.envelope!.checkpoint_id)).status).toBe(200)
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
 
     // Smart applies two, blocks one; switching back to Collect and out again carries nothing.
-    expect((await agent.postStatus("u1", "applied")).status).toBe(200)
-    expect((await agent.postStatus("u2", "blocked", { note: "beyond polish" })).status).toBe(200)
-    expect((await page.send("mode", { mode: "collect" })).status).toBe(200)
+    expectOk(await agent.postStatus("u1", "applied"))
+    expectOk(await agent.postStatus("u2", "blocked", { note: "beyond polish" }))
+    expectOk(await page.send("mode", { mode: "collect" }))
     expect((await agent.waitHttp()).status).toBe(204)
-    expect((await page.send("mode", { mode: "instant" })).status).toBe(200)
+    expectOk(await page.send("mode", { mode: "instant" }))
     const again = await agent.waitHttp()
     expect(again.status).toBe(200)
     expect(again.envelope!.kind).toBe("mode_change")
@@ -209,7 +214,7 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     const first = await agent.waitHttp()
     expect(first.status).toBe(200)
     expect(first.envelope!.units.map((unit) => unit.id)).toEqual(["u2"])
-    expect((await agent.ack("ck1")).status).toBe(200)
+    expectOk(await agent.ack("ck1"))
     await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u2" && event.data.status === "triaging")
 
     // u2 was released; the riffer withdraws it after the fact.
@@ -219,7 +224,7 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     const second = await agent.waitHttp()
     expect(second.status).toBe(200)
     expect(second.envelope!.units.map((unit) => `${unit.id}:${unit.status}`).sort()).toEqual(["u2:withdrawn", "u3:triaging"])
-    expect((await agent.ack("ck2")).status).toBe(200)
+    expectOk(await agent.ack("ck2"))
 
     // A withdrawal that arrives after release without any new unit still wakes on its own.
     await page.send("unit_withdraw", { unit_id: "u3" })
@@ -477,7 +482,7 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     expect(envelope.kind).toBe("final")
     expect(envelope.units.map((unit) => unit.id)).toEqual(["u1"])
     expect(envelope.units[0].confirmed).toEqual({ element: true, change: true })
-    expect((await agent.ack(envelope.checkpoint_id)).status).toBe(200)
+    expectOk(await agent.ack(envelope.checkpoint_id))
 
     const stopped = await agent.stopCli()
     expect(stopped.exitCode).toBe(0)
@@ -500,12 +505,12 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     const agent = await startAgent()
     const page = new FakeLivePage(agent.url, agent.pageToken)
     await page.sendUnit("u1", "make the header red")
-    expect((await page.endSession("{}", "application/json")).status).toBe(200)
+    expectOk(await page.endSession("{}", "application/json"))
     const final = await agent.waitHttp()
     expect(final.status).toBe(200)
-    expect((await agent.ack(final.envelope!.checkpoint_id)).status).toBe(200)
-    expect((await agent.postStatus("u1", "applied", { note: "done in the final pass" })).status).toBe(200)
-    expect((await agent.statusHttp()).status).toBe(200)
+    expectOk(await agent.ack(final.envelope!.checkpoint_id))
+    expectOk(await agent.postStatus("u1", "applied", { note: "done in the final pass" }))
+    expectOk(await agent.statusHttp())
     expect((await agent.session()).agent_token).toBe(agent.agentToken)
   })
 
@@ -513,7 +518,7 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     const source = await startAgent()
     const page = new FakeLivePage(source.url, source.pageToken)
     const fixtures = await Promise.all(["transcript", "unit", "annotation", "frame"].map(readFixture))
-    for (const fixture of fixtures) expect((await page.post(page.fromFixture(fixture))).status).toBe(200)
+    for (const fixture of fixtures) expectOk(await page.post(page.fromFixture(fixture)))
     await page.sendUnit("u2", "second unit", { evidence: { frame_ids: ["frame_0007"], annotation_ids: ["ann_0001"], transcript_span: { t_start: 0, t_end: 1 }, audio_clip_id: "clip_0002" } })
     await page.sendCheckpoint("ck1", "silence", "smart")
     expect((await source.statusHttp()).body.frame_count).toBe(1)
