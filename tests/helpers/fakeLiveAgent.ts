@@ -40,6 +40,8 @@ export type SessionFile = {
 export type StartOptions = {
   host?: string
   env?: Record<string, string | undefined>
+  /** Extra `start` flags, e.g. `["--trust-proxy", "10.0.0.5"]`. */
+  startArgs?: string[]
   /** Start against an existing root (a resume) instead of a fresh mktemp. */
   root?: string
 }
@@ -138,11 +140,13 @@ export class FakeLiveAgent {
   startEnvelope: Record<string, unknown> = {}
   private env: Record<string, string | undefined>
   private host: string | undefined
+  private startArgs: string[]
 
   private constructor(root: string, options: StartOptions) {
     this.root = root
     this.env = options.env ?? {}
     this.host = options.host
+    this.startArgs = options.startArgs ?? []
   }
 
   /** Runs `start` and reads the agent token from state/session.json the way the skill prose does. */
@@ -157,6 +161,7 @@ export class FakeLiveAgent {
     // No --port: a fresh start binds a free port and a resume reuses the stored one (I4).
     const args = ["start", "--root", this.root, "--app-origin", APP_ORIGIN]
     if (this.host) args.push("--host", this.host)
+    args.push(...this.startArgs)
     const result = await runHelper(args, this.env)
     if (result.exitCode !== 0) throw new Error(`start failed (${result.exitCode}): ${result.stderr}`)
     this.startEnvelope = parseJsonLine(result.stdout)

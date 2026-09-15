@@ -88,8 +88,9 @@ describe("ce-polish live loop smoke", () => {
 
     // Smart triage: the clear edit is applied, the redesign is blocked, the drawing needs a question.
     expect((await agent.postStatus("u-red", "applied", { note: "header color -> red" })).status).toBe(200)
-    const applied = await page.waitForEvent((event) => event.event === "applied" && event.data.unit_id === "u-red")
-    expect(applied.data.status).toBe("applied")
+    const applied = await page.waitForEvent((event) => event.event === "applied" && (event.data.unit_ids as string[])?.includes("u-red"))
+    expect(applied.data.checkpoint_id).toBe(wake.checkpoint_id)
+    await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u-red" && event.data.status === "applied")
     expect((await agent.postStatus("u-onboarding", "blocked", { note: "beyond polish: a redesign" })).status).toBe(200)
     await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u-onboarding" && event.data.status === "blocked")
     expect((await agent.ask("u-drawing", "You boxed the sidebar toggle: hide it, or move it?")).status).toBe(200)
@@ -110,7 +111,7 @@ describe("ce-polish live loop smoke", () => {
     expect((await agent.ack(answerWake.envelope!.checkpoint_id)).status).toBe(200)
 
     expect((await agent.postStatus("u-drawing", "applied", { note: "moved next to the avatar" })).status).toBe(200)
-    await page.waitForEvent((event) => event.event === "applied" && event.data.unit_id === "u-drawing")
+    await page.waitForEvent((event) => event.event === "applied" && (event.data.unit_ids as string[])?.includes("u-drawing"))
 
     // The board agrees with what the stream showed, from both readers.
     const summary = (await agent.statusHttp()).body as { units: { by_status: Record<string, number>; list: Array<{ id: string; status: string }> }; answers: number; checkpoints: number }
@@ -155,7 +156,7 @@ describe("ce-polish live loop smoke", () => {
     expect((await agent.waitHttp()).status).toBe(200)
     expect((await agent.ack("ck2")).status).toBe(200)
     expect((await agent.postStatus("u2", "applied")).status).toBe(200)
-    await page.waitForEvent((event) => event.event === "applied" && event.data.unit_id === "u2")
+    await page.waitForEvent((event) => event.event === "applied" && (event.data.unit_ids as string[])?.includes("u2"))
     await page.closeStream()
 
     const lost = await agent.waitCli()

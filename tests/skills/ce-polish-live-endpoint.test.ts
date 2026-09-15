@@ -132,10 +132,7 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     expect(board.body.checkpoints).toBe(1)
   })
 
-  // U8 finding: the helper has no accepted-but-unapplied backlog (KTD12). `accepted` is not in
-  // its AGENT_UNIT_STATUSES, a `final` checkpoint with nothing held returns no batch (KTD9 says
-  // final always wakes), and a `mode` event leaving Collect emits no `mode_change` checkpoint.
-  test.todo("AE2: in Collect, an empty final checkpoint wakes with the three accepted units (U8: no KTD12 backlog, `accepted` rejected, empty final suppressed)", async () => {
+  test("AE2: in Collect, after three released units were accepted, an empty final checkpoint still wakes the agent and carries those three (KTD12)", async () => {
     const agent = await startAgent()
     const page = new FakeLivePage(agent.url, agent.pageToken)
     await page.send("mode", { mode: "collect" })
@@ -153,12 +150,18 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     const final = await agent.waitHttp()
     expect(final.status).toBe(200)
     expect(final.envelope!.kind).toBe("final")
+    expect(final.envelope!.mode_at_checkpoint).toBe("collect")
     expect(final.envelope!.units.map((unit) => unit.id).sort()).toEqual(["u1", "u2", "u3"])
+    expect(final.envelope!.units.every((unit) => unit.status === "accepted")).toBe(true)
+    expect((await agent.ack("ck-final")).status).toBe(200)
+    // A unit the agent applied or blocked has left the backlog and is not carried again.
   })
 
-  test.todo("AE2: in Collect, a mode event switching to Smart produces a mode_change wake carrying the three accepted units (U8: no KTD12 backlog / mode_change emission)", async () => {
+  test("AE2: in Collect, a mode event switching to Smart produces a mode_change wake carrying the accepted units; applied and blocked ones drop out of the backlog (KTD12)", async () => {
     const agent = await startAgent()
     const page = new FakeLivePage(agent.url, agent.pageToken)
+    // The page keeps its stream open, so an `applied` notice below is not a page-lost episode.
+    await page.openStream()
     await page.send("mode", { mode: "collect" })
     await page.sendUnit("u1", "make the header red")
     await page.sendUnit("u2", "move the toggle right")
@@ -167,6 +170,8 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     expect((await agent.waitHttp()).status).toBe(200)
     expect((await agent.ack("ck1")).status).toBe(200)
     for (const id of ["u1", "u2", "u3"]) expect((await agent.postStatus(id, "accepted")).status).toBe(200)
+    // Nothing wakes while Collect holds the backlog.
+    expect((await agent.waitHttp()).status).toBe(204)
 
     expect((await page.send("mode", { mode: "smart" })).status).toBe(200)
     const wake = await agent.waitHttp()
@@ -174,6 +179,22 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
     expect(wake.envelope!.kind).toBe("mode_change")
     expect(wake.envelope!.mode_at_checkpoint).toBe("smart")
     expect(wake.envelope!.units.map((unit) => unit.id).sort()).toEqual(["u1", "u2", "u3"])
+    expect(wake.envelope!.annotations).toEqual([])
+    expect(wake.envelope!.answers).toEqual([])
+    expect((await agent.ack(wake.envelope!.checkpoint_id)).status).toBe(200)
+
+    // Smart applies two, blocks one; switching back to Collect and out again carries nothing.
+    expect((await agent.postStatus("u1", "applied")).status).toBe(200)
+    expect((await agent.postStatus("u2", "blocked", { note: "beyond polish" })).status).toBe(200)
+    expect((await page.send("mode", { mode: "collect" })).status).toBe(200)
+    expect((await agent.waitHttp()).status).toBe(204)
+    expect((await page.send("mode", { mode: "instant" })).status).toBe(200)
+    const again = await agent.waitHttp()
+    expect(again.status).toBe(200)
+    expect(again.envelope!.kind).toBe("mode_change")
+    expect(again.envelope!.mode_at_checkpoint).toBe("instant")
+    expect(again.envelope!.units.map((unit) => unit.id)).toEqual(["u3"])
+    await page.closeStream()
   })
 
   test("AE12: a unit_withdraw before the checkpoint excludes the unit; one after release appears in the next batch as withdrawn", async () => {
@@ -287,10 +308,18 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
     const plain = await page.mint()
     expect(plain.status).toBe(403)
     expect(plain.body).toEqual({ reason: "tls_required" })
-    const forwarded = await page.mint({ session_id: page.sessionId }, page.headers({ "X-Forwarded-Proto": "https" }))
+    // The header alone proves nothing: only a proxy named with --trust-proxy may assert it.
+    const untrusted = await page.mint({ session_id: page.sessionId }, page.headers({ "X-Forwarded-Proto": "https" }))
+    expect(untrusted.status).toBe(403)
+    expect(untrusted.body).toEqual({ reason: "tls_required" })
+
+    const trusted = await startAgent({ host: "0.0.0.0", env: { OPENAI_API_KEY: undefined }, startArgs: ["--trust-proxy", lanAddress] })
+    const proxied = new FakeLivePage(`http://${lanAddress}:${trusted.port}`, trusted.pageToken)
+    const forwarded = await proxied.mint({ session_id: proxied.sessionId }, proxied.headers({ "X-Forwarded-Proto": "https" }))
     // Past the TLS gate the request reaches the key check.
     expect(forwarded.status).toBe(503)
     expect(forwarded.body).toEqual({ reason: "no_key" })
+    expect((await proxied.mint()).status).toBe(403)
   })
 })
 
@@ -460,9 +489,11 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     expect(afterStop.envelope).toEqual({ status: "session-ended" })
   })
 
-  // U8 finding: finishEndedSession() nulls the agent token as soon as the final batch is acked,
-  // so the status posts live-loop.md makes after the ack get 410. KTD18/I4: `stop` invalidates it.
-  test.todo("after the final batch is acknowledged, the agent token still accepts status posts until stop (U8: agent token invalidated at final ack, not at stop)", async () => {
+  // U8/U9 finding: the helper retires the agent token the moment the final batch is acked with
+  // nothing else held (finishEndedSession), and live-loop.md now tells the agent to ack the final
+  // batch last. Plan KTD18/I4 says the final batch is "served, acknowledged, and status-posted"
+  // and that `stop` is what invalidates the agent token. Coordinator decision: plan or code.
+  test.todo("after the final batch is acknowledged, the agent token still accepts status posts until stop (U8+U9: token retired at final ack; plan KTD18/I4 says at stop)", async () => {
     const agent = await startAgent()
     const page = new FakeLivePage(agent.url, agent.pageToken)
     await page.sendUnit("u1", "make the header red")

@@ -149,10 +149,10 @@ describe("ce-polish live-mode prose", () => {
     const tools = ["record_unit", "update_unit", "withdraw_unit", "relay_answer"]
     for (const tool of tools) {
       expect(contract).toContain(`\`${tool}\``)
-      expect(helper).toContain(`name: "${tool}"`)
+      expect(helper).toMatch(new RegExp(`"?name"?: "${tool}"`))
     }
-    expect(helper.match(/name: "(record_unit|update_unit|withdraw_unit|relay_answer)"/g)).toHaveLength(4)
-    expect(helper).not.toMatch(/name: "(emit_checkpoint|report_state|capture_frame)"/)
+    expect(helper.match(/"?name"?: "(record_unit|update_unit|withdraw_unit|relay_answer)"/g)).toHaveLength(4)
+    expect(helper).not.toMatch(/"?name"?: "(emit_checkpoint|report_state|capture_frame)"/)
     expect(contract).toContain("live/1")
     expect(helper).toContain('const SCHEMA_VERSION = "live/1"')
     // Abandoned credential paths stay gone (Definition of Done).
