@@ -7,9 +7,9 @@ Load this once the riffer has accepted the consent screen. The loop is: park a w
 One helper invocation per wait; never poll the endpoint yourself.
 
 ```bash
-SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+LIVE_HELPER="<absolute path of live-endpoint.js in this skill's scripts directory>";
 LIVE_ROOT="<absolute run directory from live-start>";
-node "$SKILL_DIR/scripts/live-endpoint.js" wait --root "$LIVE_ROOT"
+node "$LIVE_HELPER" wait --root "$LIVE_ROOT"
 ```
 
 A wait is outstanding until the helper exits. A call the host backgrounds or yields is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked and the session has not ended. Say nothing while a wait is parked; the riffer is in the browser, and the interviewer speaks for you there. Chat is valid only between waits.
@@ -37,7 +37,7 @@ curl -sS -X POST "$URL<route>" -H "Authorization: Bearer $TOKEN" -H "Content-Typ
 
 | Purpose | Route | Body |
 |---|---|---|
-| Acknowledge a batch | `/checkpoints/<checkpoint_id>/ack` | none |
+| Acknowledge a batch | `/checkpoints/<checkpoint_id>/ack` | none (omit `--data`) |
 | Set a unit's status | `/units/<unit_id>/status` | `{ "status": "accepted" \| "applied" \| "blocked", "note"?: "...", "guess"?: "..." }` |
 | Ask the riffer about a unit | `/units/<unit_id>/ask` | `{ "question": "..." }` |
 
