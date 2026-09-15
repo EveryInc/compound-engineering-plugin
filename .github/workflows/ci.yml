@@ -118,6 +118,13 @@ jobs:
   # patching reaches them from Linux or Mac.
   windows-native:
     runs-on: windows-latest
+    # Green runs finish in about 90 seconds. The Windows smoke step below buffers
+    # its output to a file and can hang with nothing printed when a detached
+    # supervisor never exits (2026-09-14, PR #1711 run 34909130752: 25+ minutes
+    # stuck, unresponsive to cancel and force-cancel). Fail well before GitHub's
+    # 6-hour default so the babysit loop can see it and rerun; 10 minutes still
+    # covers the smoke step's three-attempt ctypes retry.
+    timeout-minutes: 10
 
     steps:
       # Keep LF in the working tree so newline-anchored parity regexes match.
