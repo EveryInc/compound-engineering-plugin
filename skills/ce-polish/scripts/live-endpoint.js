@@ -40,6 +40,7 @@ const PAGE_EVENT_TYPES = new Set([
   "checkpoint", "answer", "frame", "mic", "mode", "stream_state",
 ])
 const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "final"])
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 const AGENT_UNIT_STATUSES = new Set([
   "triaging", "applying", "applied", "needs_info", "blocked", "residual", "withdrawn", "skipped",
 ])
@@ -1115,6 +1116,11 @@ async function serve(options) {
     if (!Number.isInteger(value.seq) || value.seq < 1) return "seq must be a positive integer"
     if (typeof value.type !== "string" || !PAGE_EVENT_TYPES.has(value.type)) return `unknown type ${String(value.type)}`
     if (value.payload === undefined || value.payload === null || typeof value.payload !== "object") return "payload must be an object"
+    // Ids become object keys and batch file names.
+    for (const field of ["id", "unit_id"]) {
+      const id = value.payload[field]
+      if (id !== undefined && !SAFE_ID.test(String(id))) return `${field} must match ${SAFE_ID}`
+    }
     return null
   }
 
