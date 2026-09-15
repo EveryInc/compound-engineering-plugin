@@ -258,6 +258,40 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.hard_block_full).toBe(true)
   })
 
+  test("scope helper keeps the migration floor and executable count through a directory-collapsing rename", () => {
+    const { dir } = fixtureRepo()
+    mkdirSync(path.join(dir, "db", "legacy", "migrate"), { recursive: true })
+    mkdirSync(path.join(dir, "bin", "sub"), { recursive: true })
+    writeFileSync(path.join(dir, "db", "legacy", "migrate", "001_init.rb"), "class Init < ActiveRecord::Migration[7.0]\nend\n")
+    const toolPath = path.join(dir, "bin", "sub", "tool")
+    writeFileSync(toolPath, Array.from({ length: 30 }, (_, i) => `echo "line ${i}"`).join("\n") + "\n")
+    chmodSync(toolPath, 0o755)
+    git(dir, "add", ".")
+    git(dir, "commit", "-qm", "add nested files")
+    const renameBase = git(dir, "rev-parse", "HEAD")
+
+    mkdirSync(path.join(dir, "db", "migrate"))
+    git(dir, "mv", "db/legacy/migrate/001_init.rb", "db/migrate/001_init.rb")
+    git(dir, "mv", "bin/sub/tool", "bin/tool")
+    writeFileSync(path.join(dir, "db", "migrate", "001_init.rb"), "class Init < ActiveRecord::Migration[7.0]\n  def change; end\nend\n")
+    const toolLines = Array.from({ length: 30 }, (_, i) => `echo "line ${i}"`)
+    toolLines[0] = 'echo "changed 0"'
+    writeFileSync(path.join(dir, "bin", "tool"), toolLines.join("\n") + "\n")
+    git(dir, "add", "-A")
+
+    const numstat = run("git", ["diff", "--numstat", renameBase], dir)
+    expect(numstat.stdout).toMatch(/bin\/\{sub => \}\/tool/)
+    expect(numstat.stdout).toMatch(/db\/\{legacy => \}\/migrate/)
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", renameBase], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+    expect(scope.changed_files).toEqual(["bin/tool", "db/migrate/001_init.rb"])
+    expect(scope.hard_block_classes).toContain("migrations")
+    expect(scope.exec_nontest_lines).toBeGreaterThanOrEqual(2)
+    expect(scope.unclassified_lines).toEqual({})
+  })
+
   test("scope helper does not count test files toward the full floor", () => {
     const { dir, base } = fixtureRepo()
     mkdirSync(path.join(dir, "tests"))

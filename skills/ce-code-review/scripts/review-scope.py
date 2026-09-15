@@ -269,7 +269,9 @@ def numstat_path(name: str) -> str:
         prefix, rest = name.split("{", 1)
         old_new, suffix = rest.split("}", 1)
         _, new = old_new.split(" => ", 1)
-        return f"{prefix}{new}{suffix}"
+        # A collapsed segment (`a/{b => }/c`) leaves an empty side, so the
+        # rebuilt path would carry `//` and miss every path-class pattern.
+        return re.sub(r"/{2,}", "/", f"{prefix}{new}{suffix}")
     _, new = name.split(" => ", 1)
     return new
 
@@ -300,10 +302,9 @@ def main() -> int:
             return 0
         diff_args = [merge_base, args.head]
 
-    names = git("diff", "--name-only", *diff_args)
     numstat = git("diff", "--numstat", *diff_args)
     raw = git("diff", "--raw", *diff_args)
-    if names.returncode != 0 or numstat.returncode != 0 or raw.returncode != 0:
+    if numstat.returncode != 0 or raw.returncode != 0:
         print(json.dumps(fail_closed("git diff failed", repo), sort_keys=True))
         return 0
 
@@ -322,7 +323,7 @@ def main() -> int:
         for path in path_field.split("\t"):
             executable_mode_paths.add(path)
 
-    files = sorted(line for line in names.stdout.splitlines() if line)
+    files: list[str] = []
     executable_lines = 0
     executable_nontest_lines = 0
     unclassified_lines: dict[str, int] = {}
@@ -333,6 +334,8 @@ def main() -> int:
         if len(parts) < 3:
             continue
         added, deleted, name = parts[0], parts[1], parts[2]
+        resolved_name = numstat_path(name)
+        files.append(resolved_name)
         if added == "-" or deleted == "-":
             uncounted += 1
             continue
@@ -342,7 +345,6 @@ def main() -> int:
             uncounted += 1
             continue
         changed_lines += total
-        resolved_name = numstat_path(name)
         if (
             Path(resolved_name).suffix.lower() in CODE_EXTENSIONS
             or resolved_name in executable_mode_paths
@@ -354,6 +356,7 @@ def main() -> int:
             ext = Path(resolved_name).suffix.lower()
             unclassified_lines[ext] = unclassified_lines.get(ext, 0) + total
 
+    files.sort()
     signals = matching_classes(files, SIGNAL_PATTERNS)
     hard_block_classes = matching_classes(files, HARD_BLOCK_PATTERNS)
     silent_pass_classes = matching_classes(files, SILENT_PASS_PATTERNS)

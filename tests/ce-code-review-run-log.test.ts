@@ -112,6 +112,15 @@ describe("ce-code-review run-log", () => {
     expect(cost.stages.find((s: { stage: string }) => s.stage === "report").tokens).toBeUndefined()
   })
 
+  test("an explicit zero token count stays in the totals", () => {
+    const dir = freshRunDir()
+    runLog(dir, "event", "--start", "peer")
+    runLog(dir, "event", "--end", "peer", "--start", "receipt", "--tokens", "0")
+    runLog(dir, "event", "--end", "receipt")
+    runLog(dir, "summarize")
+    expect(metadata(dir).cost.totals.tokens).toBe(0)
+  })
+
   test("artifact bytes sum the run directory and exclude the jobs directory", () => {
     const dir = freshRunDir()
     writeFileSync(path.join(dir, "full.diff"), "x".repeat(100))

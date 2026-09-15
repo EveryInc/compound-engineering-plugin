@@ -199,10 +199,10 @@ def build_cost(run_dir: Path) -> dict[str, object]:
         "elapsed_seconds": round(sum(float(s.get("elapsed_seconds", 0) or 0) for s in stages), 3),
         "reviewers": sum(int(s.get("reviewers", 0) or 0) for s in stages),
         "candidates": sum(int(s.get("candidates", 0) or 0) for s in stages if s["stage"] in PRODUCING_STAGES),
-        "tokens": sum(int(s.get("tokens", 0) or 0) for s in stages if "tokens" in s) or None,
+        "tokens": sum(int(s.get("tokens", 0) or 0) for s in stages if "tokens" in s),
         "artifact_bytes": artifact_bytes(run_dir),
     }
-    if totals["tokens"] is None:
+    if not any("tokens" in s for s in stages):
         del totals["tokens"]
     cost: dict[str, object] = {
         "status": status,
