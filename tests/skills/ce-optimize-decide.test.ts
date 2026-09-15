@@ -8,6 +8,7 @@ import {
   decide,
   gatePasses,
   median,
+  regressions,
 } from "../../skills/ce-optimize/scripts/decide.mjs"
 
 setDefaultTimeout(20_000)
@@ -1476,6 +1477,140 @@ describe("judge minimum as a comparison floor", () => {
   })
 })
 
+describe("held-out confirmation", () => {
+  const judgeSpec = {
+    metric: {
+      primary: { name: "mean_score", direction: "maximize", type: "judge" },
+      judge: { scoring: { primary: "mean_score" }, sample_seed: 42, confirmation_seed: 7 },
+      degenerate_gates: [{ name: "result_count", check: ">= 5" }],
+    },
+  }
+  const baseline = { gates: { result_count: 10 }, judge: { mean_score: 4.0 } }
+  const candidate = { gates: { result_count: 10 }, judge: { mean_score: 4.6 } }
+
+  test("a would-be keep asks for the holdout pair instead of keeping", () => {
+    const result = decide({ spec: judgeSpec, baseline, candidate })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).toBe("holdout")
+    expect(result.eligible).toBe(true)
+    expect(result.holdout).toBeNull()
+  })
+
+  test("a holdout that confirms the gain keeps", () => {
+    const result = decide({
+      spec: judgeSpec,
+      baseline,
+      candidate,
+      holdout: { baseline, candidate: { gates: { result_count: 10 }, judge: { mean_score: 4.5 } } },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+    expect(result.holdout?.agrees).toBe(true)
+  })
+
+  test("a holdout inside the threshold withholds the keep as inconclusive", () => {
+    const result = decide({
+      spec: judgeSpec,
+      baseline,
+      candidate,
+      holdout: { baseline, candidate: { gates: { result_count: 10 }, judge: { mean_score: 4.1 } } },
+    })
+    expect(result.decision).toBe("inconclusive")
+    expect(result.eligible).toBe(false)
+    expect(result.holdout?.agrees).toBe(false)
+    expect(result.reason).toContain("holdout")
+  })
+
+  test("a holdout regression reverts a selection-sample win", () => {
+    const result = decide({
+      spec: judgeSpec,
+      baseline,
+      candidate,
+      holdout: { baseline, candidate: { gates: { result_count: 10 }, judge: { mean_score: 3.2 } } },
+    })
+    expect(result.decision).toBe("revert")
+    expect(result.eligible).toBe(false)
+    expect(result.holdout?.violated_objectives).toEqual(["mean_score"])
+  })
+
+  test("a confirmation_seed equal to sample_seed is not a holdout", () => {
+    const spec = {
+      metric: {
+        ...judgeSpec.metric,
+        judge: { scoring: { primary: "mean_score" }, sample_seed: 42, confirmation_seed: 42 },
+      },
+    }
+    const result = decide({ spec, baseline, candidate })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+  })
+
+  test("a measurement.holdout.command configures a holdout for a hard primary", () => {
+    const spec = {
+      metric: {
+        primary: { name: "wall_seconds", direction: "minimize", type: "hard" },
+        degenerate_gates: [{ name: "suite_passed", check: "== 1" }],
+      },
+      measurement: {
+        holdout: { command: "python evaluate.py --holdout" },
+        stability: { mode: "stable", noise_threshold: 0.02 },
+      },
+    }
+    const asked = decide({ spec, baseline: snapshot(10), candidate: snapshot(9) })
+    expect(asked.next_measurement).toBe("holdout")
+
+    const confirmed = decide({
+      spec,
+      baseline: snapshot(10),
+      candidate: snapshot(9),
+      holdout: { baseline: snapshot(20), candidate: snapshot(18) },
+    })
+    expect(confirmed.decision).toBe("keep")
+    expect(confirmed.next_measurement).toBe("none")
+  })
+
+  test("a spec without a holdout keeps exactly as before", () => {
+    const result = decide({ spec: hardSpec(), baseline: snapshot(10), candidate: snapshot(9.97) })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+    expect(result.holdout).toBeNull()
+  })
+
+  test("the holdout is scored only after the ladder would keep", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: { exploratory_pairs: 1, confirmation_repeats: 5 },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+      measurement: { holdout: { command: "python evaluate.py --holdout" } },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: { ...snapshot(300), smoke_passed: true, sample_count: 1 },
+    })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).toBe("confirm")
+  })
+})
+
+describe("per-case regressions", () => {
+  test("lists cases the reference passed and the candidate fails, without changing the decision", () => {
+    const result = decide({
+      spec: hardSpec(),
+      baseline: snapshot(10, { cases: { a: true, b: true, c: false, d: 1 } }),
+      candidate: snapshot(9.9, { cases: { a: true, b: false, c: true, d: 0 } }),
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.regressions).toEqual(["b", "d"])
+  })
+
+  test("is empty when either side has no cases", () => {
+    expect(regressions({ cases: { a: true } }, {})).toEqual([])
+    expect(regressions({}, { cases: { a: false } })).toEqual([])
+    expect(decide({ spec: hardSpec(), baseline: snapshot(10), candidate: snapshot(9.9) }).regressions).toEqual([])
+  })
+})
+
 describe("decide.mjs CLI", () => {
   test("prints a JSON decision for a file path", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "ce-optimize-decide-"))
@@ -1658,6 +1793,92 @@ describe("schema and skill pins", () => {
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
     expect(WRAP_UP).toContain("Not selected: <count>")
+  })
+})
+
+describe("eval discipline pins", () => {
+  const JUDGE_TEMPLATE = readFileSync(
+    path.join(SKILL_DIR, "references", "judge-prompt-template.md"),
+    "utf8",
+  )
+  const TEXT_TARGETS = readFileSync(path.join(SKILL_DIR, "references", "text-targets.md"), "utf8")
+  const TEXT_EXAMPLE = readFileSync(
+    path.join(SKILL_DIR, "references", "example-text-target-spec.yaml"),
+    "utf8",
+  )
+  const JUDGE_EXAMPLE = readFileSync(
+    path.join(SKILL_DIR, "references", "example-judge-spec.yaml"),
+    "utf8",
+  )
+  const WRAP_UP = readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")
+
+  test("the spec schema carries the holdout, calibration, and per-case keys and their rules", () => {
+    expect(SCHEMA).toContain("holdout:")
+    expect(SCHEMA).toContain("confirmation_seed:")
+    expect(SCHEMA).toContain("calibration:")
+    expect(SCHEMA).toContain("min_agreement:")
+    expect(SCHEMA).toContain("per_case:")
+    expect(SCHEMA).toContain("If metric.primary.type is 'judge', a holdout must be configured")
+    expect(SCHEMA).toContain("waits between ticks through a wake after turn end, a holdout must be configured")
+    expect(SCHEMA).toContain("the holdout is never used to select or generate hypotheses")
+    expect(SCHEMA).toContain("calibration.waived is true with the user's explicit waiver")
+  })
+
+  test("the judge model is a capability tier, not a vendor model name", () => {
+    expect(SCHEMA).toContain("- cheap")
+    expect(SCHEMA).toContain("- strong")
+    expect(SCHEMA).not.toMatch(/^\s+- haiku\s*$/m)
+    expect(SCHEMA).not.toMatch(/^\s+- sonnet\s*$/m)
+    expect(JUDGE_EXAMPLE).toContain("model: cheap")
+    expect(JUDGE_EXAMPLE).toContain("confirmation_seed:")
+    expect(JUDGE_TEMPLATE).not.toContain("Designed for Haiku")
+  })
+
+  test("the judge template requires per-item feedback and repeatable scores", () => {
+    expect(JUDGE_TEMPLATE).toContain('"feedback"')
+    expect(JUDGE_TEMPLATE).toContain("the same item must receive the same score")
+  })
+
+  test("the log schema records harness validation, judge feedback, cost, regressions, and the holdout step", () => {
+    expect(LOG_SCHEMA).toContain("harness_validation:")
+    expect(LOG_SCHEMA).toContain("feedback:")
+    expect(LOG_SCHEMA).toContain("content_hash:")
+    expect(LOG_SCHEMA).toContain("regressions:")
+    expect(LOG_SCHEMA).toContain("latency_seconds:")
+    expect(LOG_SCHEMA).toContain("enum: [standalone, integrated, holdout]")
+    expect(LOG_SCHEMA).toContain("enum: [none, smoke, exploratory, add_sample, confirm, holdout]")
+    expect(LOG_SCHEMA).toContain("judge-cache.yaml")
+    expect(PERSISTENCE).toContain("| `judge-cache.yaml` |")
+  })
+
+  test("Phase 1 gates on harness validity and states the holdout limitation at approval", () => {
+    expect(MEASUREMENT).toContain("Validity gate (before the baseline)")
+    expect(MEASUREMENT).toContain("does not reward a trivial shortcut")
+    expect(MEASUREMENT).toContain("A judge run with neither labels nor a waiver does not leave Phase 1")
+    expect(MEASUREMENT).toContain("selection and reporting will share one sample")
+    expect(SPEC).toContain("Exemplars for the validity gate")
+    expect(SPEC).toContain("references/text-targets.md")
+    expect(MEASUREMENT).toContain("references/text-targets.md")
+  })
+
+  test("the loop caches judge scores, confirms on the holdout before keep, and builds hypotheses from failure themes", () => {
+    expect(LOOP).toContain("judge-cache.yaml")
+    expect(LOOP).toContain("`next_measurement: holdout`")
+    expect(LOOP).toContain("it does not enter the digest")
+    expect(LOOP).toContain("**Failure themes:**")
+    expect(LOOP).toContain("A rule per failing item is not a hypothesis")
+    expect(WRAP_UP).toContain("**Held-out result and regressions:**")
+  })
+
+  test("text-targets.md names the coverage rule and the model roles", () => {
+    expect(TEXT_TARGETS).toContain("every rule you want preserved needs a case that fails without it")
+    expect(TEXT_TARGETS).toContain("A ceiling is a smell, not a finish")
+    expect(TEXT_TARGETS).toContain("task model")
+    expect(TEXT_TARGETS).toContain("`external-optimizer`")
+    expect(TEXT_TARGETS).not.toMatch(/\b(?:DSPy|GEPA|MIPRO|COPRO|SIMBA)\b/)
+    expect(TEXT_EXAMPLE).toContain("per_case: true")
+    expect(TEXT_EXAMPLE).toContain("holdout:")
+    expect(TEXT_EXAMPLE).toContain("name: prompt_tokens")
   })
 })
 

@@ -151,9 +151,10 @@ For each completed experiment, **immediately**:
    - Read the experiment's output (cluster assignments, search results, etc.)
    - Apply stratified sampling per `metric.judge.stratification` config (using `sample_seed`)
    - Group samples into batches of `metric.judge.batch_size`
+   - **Judge cache.** Before filling a batch, hash each sampled item's bytes and look the hash up in `judge-cache.yaml` beside the experiment log. An item already scored in this run under this rubric reuses its cached result (scores, `feedback`, `ambiguous`); only uncached items are dispatched, and their results are written to the cache as they land. Identical output is scored once per run.
    - Fill the judge prompt template (`references/judge-prompt-template.md`) for each batch
    - Dispatch the `ceil(sample_size / batch_size)` judge sub-agents using the same bounded dispatch as Phase 3.2: queue them, dispatch to whatever concurrency the host accepts, and treat a capacity error as backpressure (retry the queued batch after a slot frees) rather than a scoring failure. These judge sub-agents are a separate budget from the experiment worktrees.
-   - Each sub-agent returns structured JSON scores
+   - Each sub-agent returns structured JSON scores with a `feedback` string per item. A batch that comes back without `feedback` is re-dispatched once; persist what the second call returns. Store every item under the entry's `judge.items[]` with its `content_hash`; the digest reads that feedback in step 3.5.
    - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
@@ -165,6 +166,10 @@ For each completed experiment, **immediately**:
    "$NODE" "$SKILL_DIR/scripts/decide.mjs" "<payload.json>"
    ```
    If that probe finds no runtime, do not invoke an empty command. Mark the experiment `error` with that reason and continue the batch. Use `decision` and `next_measurement`. Collect the requested measurement and repeat this sequence whenever `next_measurement` is not `none`. Do not keep a candidate until `next_measurement` is `none`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`. Each extra sample belongs to this same experiment: write it onto the existing entry at CP-3, then decide again.
+
+   **Held-out confirmation.** When the spec configures a holdout, `decide.mjs` answers a would-be keep with `next_measurement: holdout` until the payload carries a `holdout` snapshot pair. Collect it then: run `measurement.holdout.command` (or, for a judge primary, the judge sample under `metric.judge.confirmation_seed`) on the reference and on the candidate, persist the pairing as `kind: holdout` in `comparisons`, and decide again. The holdout result decides keep or not; it does not enter the digest, the rolling window summaries, or hypothesis generation. A holdout that disagrees returns `revert` or `inconclusive`; record that outcome as the script returned it.
+
+   **Per-experiment diagnostics.** When the harness or the judge dispatch reports cost, tokens, or latency, record them under the entry's `cost`. When `measurement.per_case` is true, record the script's `regressions` on the entry. Neither changes the decision.
 
 7. **IMMEDIATELY persist this experiment on disk (CP-3).** Do not defer this to batch evaluation. The durable unit is one log entry per experiment at `<state-root>/experiment-log.yaml`. After the first measurement, append that entry. After every later ladder sample for the same experiment, write the accumulated metrics and current outcome onto that same entry. Do not append a second entry for the same hypothesis, and do not rewrite a different experiment's samples. Write a decide terminal only when `next_measurement` is `none`. Until then the entry stays nonterminal, `promising` while the keep path still needs samples and `measured` otherwise (including an inconclusive result that still wants samples). When `next_measurement` is `none`, an eligible result stays `measured` until its diff is on the optimization branch; a non-eligible result gets the decide terminal (`reverted`, `inconclusive`, `censored`, `degenerate`). `kept` and `runner_up_kept` wait until that integration. The raw metrics are on disk and safe from context compaction.
 
@@ -181,6 +186,7 @@ After all experiments in the batch have been measured:
 2. **Rank** the eligible experiments in the batch by the script's `rank_score` (primary relative gain when the primary moved; otherwise the strongest required-objective relative gain). Identify that winner as the experiment to keep. An eligible experiment may be kept even if the ranking primary did not move.
 
 3. **If `decide.mjs` returns `keep` for that winner: KEEP**
+   - A `keep` has already passed held-out confirmation when the spec configures one; an entry whose last decision is `promising` with `next_measurement: holdout` is not a keep until the holdout pair is collected and the script decides again
    - Commit the experiment branch first so the winning diff exists as a real commit before any merge or cherry-pick
    - Include only mutable-scope changes in that commit; if no eligible diff remains, treat the experiment as non-improving and revert it
    - Merge the committed experiment branch into the optimization branch
@@ -215,11 +221,13 @@ After all experiments in the batch have been measured:
    - Key learnings from this batch and overall
    - Remaining opportunities, their supporting evidence, and whether current measurements still support their estimates; mark stale estimates for reassessment before selecting them
    - Current best metrics and improvement from baseline
+   - **Failure themes:** the recurring `feedback` strings from the current best's `judge.items[]` (or its failing `cases` when `measurement.per_case` is set), grouped by what is wrong, each with a count and one representative item. Selection-sample items only; holdout items never enter the digest
 
 5. **Generate new hypotheses** based on learnings:
    - Re-read the strategy digest from disk (not from memory)
    - Read the rolling window (last 10 experiments from the log on disk)
    - Do NOT read the full experiment log -- use the digest for broad context
+   - Start from the failure themes: a theme with a count worth acting on becomes at most one hypothesis that addresses the theme, with the representative item as its evidence. A rule per failing item is not a hypothesis; it is the pattern that overfits the selection sample
    - After a keep on a cost target, re-measure how the cost divides among the parts before adding implementation hypotheses only when the keep leaves the current shares unable to say whether the next hypothesis is worth keeping
    - Add new hypotheses to the backlog and write the updated backlog to disk
 
