@@ -260,6 +260,38 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.hard_block_full).toBe(false)
   })
 
+  test("scope helper recognizes a test_*.py module outside a tests/ directory", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "pkg"))
+    const lines = Array.from({ length: 250 }, (_, i) => `def test_n${i}(): pass`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "pkg", "test_service.py"), lines)
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.test_files_changed).toBe(true)
+    expect(scope.exec_nontest_lines).toBe(0)
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_full).toBe(false)
+  })
+
+  test("scope helper does not treat a production file whose name ends in test as a test file", () => {
+    const { dir, base } = fixtureRepo()
+    const lines = Array.from({ length: 250 }, (_, i) => `export const n${i} = ${i}`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "latest.ts"), lines)
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.test_files_changed).toBe(false)
+    expect(scope.exec_nontest_lines).toBeGreaterThanOrEqual(250)
+    expect(scope.size_band).toBe("large")
+  })
+
   test("scope helper emits UNKNOWN-equivalent state for an invalid endpoint", () => {
     const { dir } = fixtureRepo()
     const result = run("python3", [SCOPE_SCRIPT, "--base", "missing-ref"], dir)

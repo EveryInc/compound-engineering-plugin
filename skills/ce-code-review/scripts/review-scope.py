@@ -60,8 +60,14 @@ HARD_BLOCK_PATTERNS = {
 # matches the maintainability reviewer's trigger. Below it, consequence decides.
 FULL_EXEC_LINE_MIN = 200
 
+# Conventions recognized: tests?/spec/__tests__ directories; a .test./.spec.
+# suffix; a test_*.py / conftest.py Python prefix; and a Test/Tests/Spec
+# class-file suffix (Java/C#/Scala/Swift/Kotlin).
 TEST_PATTERN = re.compile(
-    r"(^|/)(tests?|spec|__tests__)/|(^|/)[^/]+[._-](test|spec)\.[^/]+$",
+    r"(^|/)(tests?|spec|__tests__)/"
+    r"|(^|/)[^/]+[._-](test|spec)\.[^/]+$"
+    r"|(^|/)(test_[^/]+|conftest)\.[^/]+$"
+    r"|(^|/)[^/]+(test|tests|spec)\.(java|kt|scala|swift|cs)$",
     re.I,
 )
 AGENT_SURFACE_PATTERN = re.compile(
