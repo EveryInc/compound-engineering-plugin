@@ -1,6 +1,6 @@
 # Persistence: the rules, the checkpoints, and resume
 
-Read this before Phase 0 and follow it for the whole run. The body states the invariant and names the six checkpoints; this file carries the rules that implement them, the checkpoint table, the file layout, and the resume procedure.
+Read this before Phase 0 and follow it for the whole run. The body states the invariant and names the six checkpoints; this file carries the rules that implement them, the state root, the checkpoint table, the file layout, the wait record, and the resume procedure.
 
 ### Core Rules
 
@@ -18,6 +18,20 @@ Read this before Phase 0 and follow it for the whole run. The body states the in
 
 7. **Never present results to the user without writing them to disk first.** The order is: measure -> write to disk -> verify -> THEN show the user. Not the reverse.
 
+### The State Root
+
+`<state-root>` is the directory that holds the run's ledger. Resolve it once, in Phase 0, by the body's Execution Surface rule: when the harness names a durable state root, `<state-root>` is `<that location>/ce-optimize/<spec-name>/`, placed where that location's own conventions keep working state rather than user-facing documents; otherwise it is `.context/compound-engineering/ce-optimize/<spec-name>/` in the repo checkout, which is gitignored and survives a local resume only on this machine. A run's root is wherever its log already is: never move a ledger mid-run, and a resume that finds the log at one root uses that root even when the other is now available. Give every subagent and worker the resolved path, not the rule.
+
+Examples of what the two capabilities look like on some harnesses. This table is not a tool list; the body's rule decides.
+
+| Harness | Durable state root | Wake after turn end |
+|---|---|---|
+| A coordinator harness with a persistent agent store (for example Cursor Projects' Agent Store) | The store path named in your context | Event subscriptions or a timer subscription that re-invokes the agent |
+| Grok (CLI/TUI) | None named; `.context/` | `scheduler_create --durable` |
+| Claude Code, Codex, Cursor CLI sessions | None named; `.context/` | None (session-bound); cron running the resume invocation is the user's escalation |
+
+When the harness shows the user a status surface for this run, write a one-line run status there at CP-4 and at each stop, in addition to the log.
+
 ### Mandatory Disk Checkpoints
 
 These are non-negotiable write-then-verify steps. At each checkpoint, the agent MUST write the specified file and then read it back to confirm the write succeeded.
@@ -26,9 +40,10 @@ These are non-negotiable write-then-verify steps. At each checkpoint, the agent 
 |---|---|---|
 | CP-0: Spec saved | `spec.yaml` | Phase 0, after user approval |
 | CP-1: Baseline recorded | `experiment-log.yaml` (initial with baseline) | Phase 1, after baseline measurement |
+| Approval recorded | `experiment-log.yaml` (`approval` section) | Phase 1.7, the moment the user approves |
 | CP-2: Hypothesis backlog saved | `experiment-log.yaml` (hypothesis_backlog section) | Phase 2, after hypothesis generation |
 | CP-3: Each experiment result | `experiment-log.yaml` (append on first measurement; update that entry on later samples) | Phase 3.3, immediately after each measurement |
-| CP-4: Batch summary | `experiment-log.yaml` (outcomes + best) + `strategy-digest.md` | Phase 3.5, after batch evaluation |
+| CP-4: Batch summary | `experiment-log.yaml` (outcomes + best + `run_state`) + `strategy-digest.md` | Phase 3.5, after batch evaluation |
 | CP-5: Final summary | `experiment-log.yaml` (final state) | Phase 4, at wrap-up |
 
 **Format of a verification step:**
@@ -37,23 +52,41 @@ These are non-negotiable write-then-verify steps. At each checkpoint, the agent 
 3. Confirm the expected content is present
 4. If verification fails, retry the write. If it fails twice, alert the user.
 
-### File Locations (all under `.context/compound-engineering/ce-optimize/<spec-name>/`)
+### File Locations (all under `<state-root>`)
 
-The scratch space under `.context/` is gitignored. It survives a local resume but does not travel with the branch, so anything needed durably must be exported to a tracked path.
+Anything the branch's readers need durably must be exported to a tracked path; the ledger does not travel with the branch from either root.
 
 | File | Purpose | Written When |
 |------|---------|-------------|
 | `spec.yaml` | Optimization spec (fixed once the Phase 1 approval gate is cleared) | Phase 0 (CP-0) |
-| `experiment-log.yaml` | Full history of all experiments | Initialized at CP-1, appended at first CP-3, updated on later samples and at CP-4 |
+| `experiment-log.yaml` | Full history of all experiments, the approval record, and `run_state` | Initialized at CP-1, appended at first CP-3, updated on later samples and at CP-4 |
 | `strategy-digest.md` | Compressed learnings for hypothesis generation | Written at CP-4 after each batch |
 | `<worktree>/result.yaml` | Per-experiment crash-recovery marker | Immediately after measurement, before CP-3 |
 
+### The Approval Record
+
+The Phase 1 approval is a user decision the log records so that a resume, including an unattended wake, does not re-ask it. Write `approval` the moment the user approves, before Phase 2 starts, with the fields the log schema names: the time, the SHA-256 of the saved `spec.yaml` bytes, and the caps in force (`stopping.*`, `metric.judge.max_total_cost_usd`, `execution.max_concurrent`). The record is valid while the spec digest and every recorded cap match the spec on disk. A record that is absent or no longer matches means the Phase 1 gate is presented again; the answer is a new record. Adjusting the spec after approval is a new approval.
+
+### The Wait Record and Ticks
+
+Phase 3 runs as ticks (`references/loop.md`). Between ticks the run may be waiting on work that will finish later: a dispatched experiment or judge batch that returned a receipt instead of a result, or a timer. The body allows a turn to end with such work outstanding only under two conditions, and `run_state` is where the second one is met:
+
+- every outstanding item waits on an event a registered wake will deliver, and
+- `run_state.pending_waits` records each item: what is outstanding, how its result will arrive (the observable the wake delivers: a store file, a pushed ref, a host message naming the launch, a timer), the registered wake, and the action to take when it arrives.
+
+Write `run_state` at CP-4 and again whenever a wait is registered or cleared, then verify. `run_state` also carries the two clocks the stopping rules read: `active_seconds` (time spent inside ticks since Phase 3 started, summed across ticks) and `phase3_started_at` (the wall-clock anchor for the backstop), plus the completed `tick` count and `status` (`running`, `waiting`, `blocked`, `final`). `blocked` is for a run that cannot make progress until something outside the loop changes (a dependency approval, a capability that disappeared, an unavailable worker pool): record what it waits for, report it, and stop; never spin on it.
+
+Without a wake capability, a wait that this session cannot hold ends the turn as a checkpoint instead: the ledger is verified on disk, `run_state.status` is `waiting` with the pending waits recorded, you tell the user monitoring is paused, and you print the resume invocation. Never fake a wait with a foreground sleep or an unmanaged detached process.
+
+**User-runnable resume syntax.** When this reference tells you to print or copy a resume invocation, default to `/ce-optimize <state-root>/spec.yaml`. Use `$ce-optimize <state-root>/spec.yaml` only when the active harness is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+
 ### On Resume
 
-When Phase 0.4 detects an existing run:
-1. Read the experiment log from disk. It is the ground truth
+A wake, a scheduler fire, or a manual re-run re-enters here. When Phase 0.4 detects an existing run:
+1. Read the experiment log from `<state-root>`. It is the ground truth
 2. Scan worktree directories for `result.yaml` markers not yet in the log
 3. Recover any measured-but-unlogged experiments. The recovered first CP-3 entry copies `opportunity` from the hypothesis backlog as of dispatch; `result.yaml` holds metrics only, so a missing forecast stays unrecorded rather than being reconstructed from the result
-4. Continue as the SKILL.md body's resume rule directs. Skip the work the log proves finished, and re-enter any approval check the log does not prove was cleared
+4. Collect every `run_state.pending_waits` item whose result has arrived, by the shape recorded for it, and persist each at CP-3. An item whose result has not arrived stays pending; an item whose wake is gone (unregistered, expired, or no longer in the tool list) is re-registered or, when it cannot be, becomes a `blocked` state you report
+5. Continue as the SKILL.md body's resume rule directs. Skip the work the log proves finished, and re-enter any gate whose record is absent or no longer matches
 
 ---
