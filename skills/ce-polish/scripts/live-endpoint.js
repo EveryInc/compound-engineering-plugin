@@ -284,6 +284,12 @@ function parseArgs(argv) {
   options.trustProxy = options.trustProxy ?? []
   if (command === "start" || command === "serve") {
     if (options.trustProxy.some((ip) => !net.isIP(ip))) throw new Error("--trust-proxy takes IP addresses (comma-separated or repeated)")
+    if (!options.appOrigin) {
+      // The documented recovery is a bare `start --root <dir>`: a session
+      // that has not ended lends its origin.
+      const resumable = readJsonOrNull(path.join(path.resolve(options.root), "state", "session.json"))
+      if (resumable && resumable.ended === false && typeof resumable.app_origin === "string") options.appOrigin = resumable.app_origin
+    }
     if (!options.appOrigin) throw new Error("--app-origin is required (the browser-facing origin of the app under polish)")
     options.appOrigin = normalizeOrigin(options.appOrigin)
     if (!options.appOrigin) throw new Error("--app-origin must be an origin such as http://localhost:3000")
@@ -1122,10 +1128,11 @@ async function serve(options) {
       return
     }
     if (board.page_lost_pending) {
+      // Left by a helper from before page-lost wakes were queued as batches.
       const envelope = board.page_lost_pending
       board.page_lost_pending = null
       saveBoard()
-      sendJson(takeWaiter(), 200, envelope)
+      enqueueBatch(envelope)
       return
     }
     if (board.ended) {
@@ -1145,12 +1152,12 @@ async function serve(options) {
       board.page.lost_episodes += 1
       board.page.stream = "lost"
       board.watch_for_loss = false
-      board.page_lost_pending = makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
+      saveBoard()
+      // Queued like any batch: persisted and re-served until acknowledged.
+      enqueueBatch(makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
         session_status: "page_lost",
         lost_after_checkpoint_id: last?.id ?? null,
-      })
-      saveBoard()
-      fulfillWaiter()
+      }))
     }, PAGE_LOST_GRACE_MS)
     pageLostTimer.unref()
   }
@@ -1355,12 +1362,13 @@ async function serve(options) {
   function storeEnvelope(envelope) {
     if (envelope.type === "frame") {
       const id = typeof envelope.payload.id === "string" && envelope.payload.id ? envelope.payload.id : randomUUID()
-      const safeId = encodeURIComponent(id)
-      const frameFile = path.join("frames", `${safeId}.jpg`)
+      // Keyed by seq too: a reused frame id must not overwrite earlier evidence.
+      const fileName = `${envelope.seq}-${encodeURIComponent(id)}.jpg`
+      const frameFile = path.join("frames", fileName)
       const { jpeg_base64: jpeg, ...rest } = envelope.payload
       if (typeof jpeg === "string") {
         const bytes = Buffer.from(jpeg, "base64")
-        fs.writeFileSync(path.join(framesDir, `${safeId}.jpg`), bytes, { mode: 0o600 })
+        fs.writeFileSync(path.join(framesDir, fileName), bytes, { mode: 0o600 })
         logBytes += bytes.length
       }
       logEvent({ seq: envelope.seq, t: envelope.t, type: "frame", payload: rest, frame_file: frameFile })
@@ -1598,11 +1606,23 @@ async function serve(options) {
         out.once("drain", () => req.resume())
       }
     })
+    let failed = false
+    out.on("error", (error) => {
+      // ENOSPC or a permission error must not take the endpoint down; the
+      // session stays live and resumable and the page may retry.
+      if (failed || tooLarge) return
+      failed = true
+      req.pause()
+      fs.rmSync(tmpPath, { force: true })
+      logAgent({ kind: "archive_failed", error: error.code ?? error.message })
+      sendJson(res, 500, { error: "archive_write_failed", code: error.code ?? null }, corsHeaders())
+    })
     req.on("error", () => {
       out.destroy()
       fs.rmSync(tmpPath, { force: true })
     })
     req.on("end", () => {
+      if (failed) return
       if (tooLarge) {
         fs.rmSync(tmpPath, { force: true })
         sendJson(res, 413, { max_bytes: remaining }, corsHeaders())
