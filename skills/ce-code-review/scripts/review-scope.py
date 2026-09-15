@@ -59,15 +59,19 @@ HARD_BLOCK_PATTERNS = {
 # Executable non-test changed lines at or above this run the full spine; it
 # matches the maintainability reviewer's trigger. Below it, consequence decides.
 FULL_EXEC_LINE_MIN = 200
+# Total changed lines at or above this run the full spine whatever the file
+# types: a backstop for executable sources the extension list does not name.
+FULL_TOTAL_LINE_MIN = 400
 
 # Conventions recognized: tests?/spec/__tests__ directories; a .test./.spec.
-# suffix; a test_*.py / conftest.py Python prefix; and a Test/Tests/Spec
-# class-file suffix (Java/C#/Scala/Swift/Kotlin).
+# suffix; a test_*.py / conftest.py Python prefix; and a case-sensitive
+# Test/Tests/Spec class-file suffix (Java/C#/Scala/Swift/Kotlin), so that
+# Contest.java or Manifest.cs stays production code.
 TEST_PATTERN = re.compile(
     r"(^|/)(tests?|spec|__tests__)/"
     r"|(^|/)[^/]+[._-](test|spec)\.[^/]+$"
     r"|(^|/)(test_[^/]+|conftest)\.[^/]+$"
-    r"|(^|/)[^/]+(test|tests|spec)\.(java|kt|scala|swift|cs)$",
+    r"|(?-i:(^|/)[^/]+(Test|Tests|Spec)\.(java|kt|scala|swift|cs)$)",
     re.I,
 )
 AGENT_SURFACE_PATTERN = re.compile(
@@ -228,11 +232,16 @@ def fail_closed(reason: str, signals: dict[str, object]) -> dict[str, object]:
     }
 
 
-def size_band_for(exec_nontest_lines: int | None) -> str:
-    """Band the executable non-test lines: `large` is a full-spine floor."""
-    if exec_nontest_lines is None:
+def size_band_for(exec_nontest_lines: int | None, changed_lines: int | None) -> str:
+    """Band the change: `large` is a full-spine floor.
+
+    Executable non-test lines at `FULL_EXEC_LINE_MIN` decide it; total changed
+    lines at `FULL_TOTAL_LINE_MIN` back it up for sources the extension list
+    cannot name.
+    """
+    if exec_nontest_lines is None or changed_lines is None:
         return "unknown"
-    if exec_nontest_lines >= FULL_EXEC_LINE_MIN:
+    if exec_nontest_lines >= FULL_EXEC_LINE_MIN or changed_lines >= FULL_TOTAL_LINE_MIN:
         return "large"
     return "small"
 
@@ -340,7 +349,7 @@ def main() -> int:
     hard_block_classes = matching_classes(files, HARD_BLOCK_PATTERNS)
     if uncounted:
         hard_block_classes.append("uncounted")
-    band = size_band_for(executable_nontest_lines)
+    band = size_band_for(executable_nontest_lines, changed_lines)
 
     result = {
         "status": "complete",

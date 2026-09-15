@@ -292,6 +292,40 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.size_band).toBe("large")
   })
 
+  test("scope helper keeps a case-sensitive class-suffix test match so Contest.java is code", () => {
+    const { dir, base } = fixtureRepo()
+    const lines = Array.from({ length: 250 }, (_, i) => `class Contest${i} {}`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "Contest.java"), lines)
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.test_files_changed).toBe(false)
+    expect(scope.exec_nontest_lines).toBeGreaterThanOrEqual(250)
+    expect(scope.size_band).toBe("large")
+  })
+
+  test("scope helper backstops an unlisted executable language by total changed lines", () => {
+    const { dir, base } = fixtureRepo()
+    const small = Array.from({ length: 250 }, (_, i) => `x${i} <- ${i}`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "model.R"), small)
+    git(dir, "add", ".")
+    let scope = JSON.parse(run("python3", [SCOPE_SCRIPT, "--base", base], dir).stdout)
+    expect(scope.exec_nontest_lines).toBe(0)
+    expect(scope.size_band).toBe("small")
+
+    const big = Array.from({ length: 400 }, (_, i) => `x${i} <- ${i}`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "model.R"), big)
+    git(dir, "add", ".")
+    scope = JSON.parse(run("python3", [SCOPE_SCRIPT, "--base", base], dir).stdout)
+    expect(scope.exec_nontest_lines).toBe(0)
+    expect(scope.changed_lines).toBeGreaterThanOrEqual(400)
+    expect(scope.size_band).toBe("large")
+    expect(scope.hard_block_full).toBe(true)
+  })
+
   test("scope helper emits UNKNOWN-equivalent state for an invalid endpoint", () => {
     const { dir } = fixtureRepo()
     const result = run("python3", [SCOPE_SCRIPT, "--base", "missing-ref"], dir)
