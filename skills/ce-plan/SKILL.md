@@ -46,7 +46,7 @@ Phases run in order unless a reference routes out or short-circuits. Read a phas
 
 ### Phases 1-4: Research and Compose
 
-4. Read `references/research.md` before gathering context. It defines local and external research, consolidation, depth reclassification, flow analysis, and requested Bake-offs.
+4. Read `references/research.md` before gathering context. It defines local and external research, consolidation, depth reclassification, flow analysis, and the Bake-off gate.
 5. Read `references/structure.md` before resolving questions or structuring the plan. It defines settled-decision handling, stable U-IDs, technical design, depth, and planning boundaries.
 6. Compose from `references/plan-sections.md` plus the format-rendering reference selected by `output-mode.md`.
 

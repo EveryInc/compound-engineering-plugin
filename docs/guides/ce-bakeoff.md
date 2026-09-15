@@ -48,4 +48,4 @@ A fresh subagent running `ce-pov` as a guest is required before selection. A dif
 - **In brainstorming:** explicitly requested, after goals are clear, replacing Phase 2 generation for the selected product mechanism. Options precede the recommendation and user confirmation remains authoritative.
 - **Direct use:** a standalone solution and decision record without implementation.
 
-Ordinary caller behavior remains unchanged without a request.
+Outside planning, ordinary caller behavior remains unchanged without a request.

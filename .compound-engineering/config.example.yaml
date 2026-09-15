@@ -71,8 +71,8 @@
 # on your session model and the run says so. Invalid/commented/missing -> no
 # elevation.
 
-# plan_model: fable              # model alias for plan authoring; candidate preference for requested Bake-offs (no default)
-# brainstorm_model: fable        # model alias for approach generation; candidate preference for requested Bake-offs (no default)
+# plan_model: fable              # model alias for plan authoring; candidate preference when a Bake-off runs (no default)
+# brainstorm_model: fable        # model alias for approach generation; candidate preference when a Bake-off runs (no default)
 
 # --- PR concept teaching (ce-commit-push-pr) ---
 # When a PR introduces a concept new to the codebase, the generated PR
