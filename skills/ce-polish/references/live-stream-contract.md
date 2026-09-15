@@ -13,7 +13,7 @@ Every page -> endpoint message is one envelope:
 - `seq` is a per-session monotonic integer starting at 1. The endpoint deduplicates on `(session_id, seq)`, applies envelopes strictly in `seq` order (one that arrives ahead of a gap waits, unacknowledged, until the gap closes), and acknowledges the highest contiguous `seq`; after an outage the page replays from the last acknowledged `seq`.
 - `type` is one of the four riffrec capture events (`click`, `navigation`, `network_request`, `console_error`) or `transcript`, `unit`, `unit_update`, `unit_withdraw`, `annotation`, `checkpoint`, `answer`, `frame`, `mic`, `mode`, `stream_state`.
 - `frame` envelopes are posted alone, never in a batch with other events.
-- An unsupported `schema_version` is answered `409 { "expected_schema_version": "live/1" }`; any other invalid envelope is `400 { "reason": <not_object | missing_session_id | session_mismatch | missing_seq | invalid_seq | invalid_t | unknown_type | invalid_payload>, "seq" }`.
+- An unsupported `schema_version` is answered `409 { "expected_schema_version": "live/1" }`; any other invalid envelope is `400 { "reason": <not_object | missing_session_id | session_mismatch | missing_seq | invalid_seq | invalid_t | unknown_type | invalid_payload>, "seq" }`. Payloads are checked against the shapes above (the same rules as riffrec's `validateEnvelope`) before anything in the body is acknowledged; a rejected body acknowledges nothing.
 
 ## Payload shapes
 
@@ -104,7 +104,7 @@ After the endpoint relays an `applied` notice, a page stream that closes and doe
 | `status --root <dir>` | Prints `{ status, url?, port?, session_ended, board }` from `state/` without contacting the server. | 0 |
 | `stop --root <dir>` | Stops the server, invalidates both tokens, deletes `state/batches/`, keeps `state/log/`. | 0 |
 | `wait --root <dir>` | Reads the agent token from `state/session.json`, long-polls `/wait` with it as a bearer header, prints one envelope. | 0 batch; 1 session ended with nothing held (`{ "status": "session-ended" }`); 2 error; 3 another process holds the wake (`{ "status": "wait-taken" }`, do not stop the endpoint) |
-| `replay --root <dir> --profile <name> --to <endpoint> --token <page token>` | Re-emits `state/log/` to another endpoint under an evidence profile, as a fresh session over the page routes. | 0 |
+| `replay --root <dir> --profile <name> --to <endpoint> --token <page token>` | Re-emits `state/log/` to another endpoint under an evidence profile, as a fresh session over the page routes. Batches are sized in encoded bytes against the 64 KB cap; a lone envelope is posted bare so anything the source accepted fits the target. | 0 |
 
 `--trust-proxy` names the TLS-terminating proxy or tunnel addresses whose `X-Forwarded-Proto` the mint route may believe; a tunnel client on the same host connects over loopback and needs no entry.
 
