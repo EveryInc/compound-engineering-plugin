@@ -96,8 +96,6 @@ Do the lite path's four pieces of work above, in this context, and additionally 
 
 Coverage states that the focused path ran, which independent read covered the adversarial lens (the peer with its receipt fields named as that reference's Step 5 lists them, or the local fallback and why), that no other reviewer agents were dispatched and no validator ran, and everything the lite path's Coverage states. `reviewers` is `["correctness", "adversarial-<provider>"]` for a peer or `["correctness", "adversarial"]` for the local fallback; `coverage.depth` is `"focused"`. Write the receipt and `metadata.json` as lite does, and delete the consumed peer job directory before returning.
 
-## Run artifacts below) into the run directory Stage 1b created and emit the receipt as the response. In `mode:agent`, the receipt is the JSON object the output format below defines, written to `review.json`. In default mode, it is every retained finding (stable `#`, severity, `file:line`, route), then Actionable Findings, Coverage, and Verdict, written to `report.md`; a retained finding that is not actionable still appears in the findings list.
-
 ## Run artifacts
 
 Every run, lite, focused, or full, leaves its receipt (`review.json` in `mode:agent`, `report.md` in default mode) and `metadata.json` in the run directory. `metadata.json` minimum fields:

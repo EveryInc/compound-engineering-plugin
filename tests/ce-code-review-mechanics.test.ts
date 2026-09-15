@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "fs"
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from "fs"
 import { tmpdir } from "os"
 import path from "path"
 import { spawnSync } from "node:child_process"
@@ -175,6 +175,39 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.size_band).toBe("large")
     expect(scope.hard_block_full).toBe(true)
     expect(scope.hard_block_classes).toEqual([])
+  })
+
+  test("scope helper hard-blocks a large shell script at the full floor", () => {
+    const { dir, base } = fixtureRepo()
+    const lines = Array.from({ length: 250 }, (_, i) => `echo "line ${i}"`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "run.sh"), lines)
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_nontest_lines).toBeGreaterThanOrEqual(250)
+    expect(scope.size_band).toBe("large")
+    expect(scope.hard_block_full).toBe(true)
+  })
+
+  test("scope helper hard-blocks a large extensionless executable at the full floor", () => {
+    const { dir, base } = fixtureRepo()
+    const lines = Array.from({ length: 250 }, (_, i) => `echo "line ${i}"`).join("\n") + "\n"
+    mkdirSync(path.join(dir, "bin"))
+    const scriptPath = path.join(dir, "bin", "deploy")
+    writeFileSync(scriptPath, lines)
+    chmodSync(scriptPath, 0o755)
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_nontest_lines).toBeGreaterThanOrEqual(250)
+    expect(scope.size_band).toBe("large")
+    expect(scope.hard_block_full).toBe(true)
   })
 
   test("scope helper does not count test files toward the full floor", () => {

@@ -25,6 +25,8 @@ CODE_EXTENSIONS = {
     ".rb", ".py", ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".go", ".rs",
     ".java", ".swift", ".kt", ".c", ".cc", ".cpp", ".cs", ".php",
     ".ex", ".exs", ".scala",
+    ".sh", ".bash", ".zsh", ".fish", ".ps1", ".pl", ".pm", ".lua", ".dart",
+    ".vue", ".svelte",
 }
 
 SIGNAL_PATTERNS = {
@@ -267,9 +269,23 @@ def main() -> int:
 
     names = git("diff", "--name-only", *diff_args)
     numstat = git("diff", "--numstat", *diff_args)
-    if names.returncode != 0 or numstat.returncode != 0:
+    raw = git("diff", "--raw", *diff_args)
+    if names.returncode != 0 or numstat.returncode != 0 or raw.returncode != 0:
         print(json.dumps(fail_closed("git diff failed", repo), sort_keys=True))
         return 0
+
+    executable_mode_paths: set[str] = set()
+    for line in raw.stdout.splitlines():
+        if "\t" not in line:
+            continue
+        meta, path = line.split("\t", 1)
+        fields = meta.lstrip(":").split(" ")
+        if len(fields) < 2:
+            continue
+        old_mode, new_mode = fields[0], fields[1]
+        mode = old_mode if new_mode == "000000" else new_mode
+        if mode.endswith("755"):
+            executable_mode_paths.add(path)
 
     files = sorted(line for line in names.stdout.splitlines() if line)
     executable_lines = 0
@@ -290,7 +306,7 @@ def main() -> int:
             uncounted += 1
             continue
         changed_lines += total
-        if Path(name).suffix.lower() in CODE_EXTENSIONS:
+        if Path(name).suffix.lower() in CODE_EXTENSIONS or name in executable_mode_paths:
             executable_lines += total
             if not TEST_PATTERN.search(name):
                 executable_nontest_lines += total
