@@ -64,6 +64,39 @@ Focus on implementing the hypothesis well. The orchestrator will measure and eva
 </instructions>
 ```
 
+## Delta for `execution.backend: remote`: measure and report
+
+A remote worker has its own checkout on its own machine, so the orchestrator cannot measure its tree. Append this block to the template above (inside the same prompt) and replace the template's instruction 4 ("Do NOT run the measurement harness") with it. Nothing else in the template changes: scope, constraints, and dependency rules are identical.
+
+```
+<remote-worker>
+You are running detached, on your own checkout. The orchestrator will not see your tree; it sees only the branch you push and the result you report.
+
+Base: commit {base_sha} on branch {optimization_branch}. Before changing anything, verify your HEAD is exactly {base_sha}. If it is not, check it out; if you cannot, stop and report that.
+
+After implementing the hypothesis, measure PAIRED on this machine, using the immutable harness as-is:
+1. Baseline: check out {base_sha} (stash or branch your change), run `{measurement_command}` {sample_count} time(s), record every sample.
+2. Candidate: restore your change, run the same command the same number of times, record every sample.
+Alternate baseline and candidate runs when {sample_count} > 1. Never edit the measurement command, its working directory, or any file in the immutable scope; a changed harness makes your result unusable.
+
+Write `result.yaml` at the repo root of your checkout with exactly this shape:
+  experiment: {iteration}
+  base_sha: {base_sha}
+  head_sha: <your final commit>
+  machine: <a stable identifier for this machine or worker>
+  measured_at: <ISO 8601>
+  baseline:  { gates: {...}, metrics: { <name>: { aggregate: <n>, samples: [...] } }, diagnostics: {...} }
+  candidate: { gates: {...}, metrics: { <name>: { aggregate: <n>, samples: [...] } }, diagnostics: {...} }
+  correctness: <checks you ran and their results, or "none">
+Include the harness's per-case `cases` object and any cost, tokens, or latency fields in each snapshot only when the harness emits them; do not compute them yourself.
+Commit your mutable-scope changes plus `result.yaml` with the message `optimize({spec_name}): exp-{iteration} <hypothesis, short>`, and push to `{result_ref}`. Do not push to {optimization_branch} or any other branch.
+
+Your final message is the structured result: the pushed ref, head_sha, machine, and the two aggregates. Report an unapproved dependency, a base mismatch, or a harness you could not run as a blocker instead of a result.
+</remote-worker>
+```
+
+The worker's numbers are its own claim. The orchestrator runs `decide.mjs` on the paired snapshots and, before any keep, obtains a confirmation measurement the worker did not produce (`references/loop.md` 3.4).
+
 ## Variable Reference
 
 | Variable | Source | Description |
@@ -79,10 +112,15 @@ Focus on implementing the hypothesis well. The orchestrator will measure and eva
 | `{constraints}` | Spec `constraints` | Free-text constraints to follow |
 | `{approved_dependencies}` | Spec `dependencies.approved` | Dependencies approved for use |
 | `{recent_experiment_summaries}` | Rolling window (last 10) from experiment log | Compact summaries: hypothesis, outcome, learnings |
+| `{base_sha}` (remote only) | `git rev-parse optimize/<spec-name>` at dispatch | The commit the worker must start from and measure as baseline |
+| `{optimization_branch}` (remote only) | `optimize/<spec-name>` | Named so the worker knows what not to push to |
+| `{result_ref}` (remote only) | `optimize-exp/<spec-name>/exp-<NNN>` | The branch the worker pushes; the orchestrator fetches it to collect |
+| `{measurement_command}` (remote only) | Spec `measurement.command` (+ `working_directory`) | Run verbatim; the harness is immutable |
+| `{sample_count}` (remote only) | `1` for the exploratory pair in `ladder` mode; `repeat_count` for `repeat`; `1` for `stable` | Paired samples per side; `decide.mjs` may ask for more via a follow-up dispatch |
 
 ## Notes
 
-- This template works for both subagent and Codex dispatch. No platform-specific assumptions.
+- This template works for subagent, Codex, and remote dispatch. No platform-specific assumptions. Only `remote` appends the measure-and-report delta.
 - For Codex dispatch: write the filled template to a temp file and pipe via stdin (`cat /tmp/optimize-exp-XXXXX.txt | codex exec --skip-git-repo-check - 2>&1`).
 - For subagent dispatch: pass the filled template as the subagent prompt.
 - Keep `{recent_experiment_summaries}` concise -- 2-3 lines per experiment, last 10 only. Do not include the full experiment log.

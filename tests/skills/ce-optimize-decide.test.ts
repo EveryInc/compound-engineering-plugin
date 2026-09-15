@@ -8,6 +8,7 @@ import {
   decide,
   gatePasses,
   median,
+  regressions,
 } from "../../skills/ce-optimize/scripts/decide.mjs"
 
 setDefaultTimeout(20_000)
@@ -24,6 +25,12 @@ const EXAMPLE = readFileSync(
 const LOOP = readFileSync(path.join(SKILL_DIR, "references", "loop.md"), "utf8")
 const SPEC = readFileSync(path.join(SKILL_DIR, "references", "spec.md"), "utf8")
 const MEASUREMENT = readFileSync(path.join(SKILL_DIR, "references", "measurement.md"), "utf8")
+const PERSISTENCE = readFileSync(path.join(SKILL_DIR, "references", "persistence.md"), "utf8")
+const TEMPLATE = readFileSync(
+  path.join(SKILL_DIR, "references", "experiment-prompt-template.md"),
+  "utf8",
+)
+const WRAP_UP = readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 
 const BASELINE_WALL = 372.869
@@ -1474,6 +1481,140 @@ describe("judge minimum as a comparison floor", () => {
   })
 })
 
+describe("held-out confirmation", () => {
+  const judgeSpec = {
+    metric: {
+      primary: { name: "mean_score", direction: "maximize", type: "judge" },
+      judge: { scoring: { primary: "mean_score" }, sample_seed: 42, confirmation_seed: 7 },
+      degenerate_gates: [{ name: "result_count", check: ">= 5" }],
+    },
+  }
+  const baseline = { gates: { result_count: 10 }, judge: { mean_score: 4.0 } }
+  const candidate = { gates: { result_count: 10 }, judge: { mean_score: 4.6 } }
+
+  test("a would-be keep asks for the holdout pair instead of keeping", () => {
+    const result = decide({ spec: judgeSpec, baseline, candidate })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).toBe("holdout")
+    expect(result.eligible).toBe(true)
+    expect(result.holdout).toBeNull()
+  })
+
+  test("a holdout that confirms the gain keeps", () => {
+    const result = decide({
+      spec: judgeSpec,
+      baseline,
+      candidate,
+      holdout: { baseline, candidate: { gates: { result_count: 10 }, judge: { mean_score: 4.5 } } },
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+    expect(result.holdout?.agrees).toBe(true)
+  })
+
+  test("a holdout inside the threshold withholds the keep as inconclusive", () => {
+    const result = decide({
+      spec: judgeSpec,
+      baseline,
+      candidate,
+      holdout: { baseline, candidate: { gates: { result_count: 10 }, judge: { mean_score: 4.1 } } },
+    })
+    expect(result.decision).toBe("inconclusive")
+    expect(result.eligible).toBe(false)
+    expect(result.holdout?.agrees).toBe(false)
+    expect(result.reason).toContain("holdout")
+  })
+
+  test("a holdout regression reverts a selection-sample win", () => {
+    const result = decide({
+      spec: judgeSpec,
+      baseline,
+      candidate,
+      holdout: { baseline, candidate: { gates: { result_count: 10 }, judge: { mean_score: 3.2 } } },
+    })
+    expect(result.decision).toBe("revert")
+    expect(result.eligible).toBe(false)
+    expect(result.holdout?.violated_objectives).toEqual(["mean_score"])
+  })
+
+  test("a confirmation_seed equal to sample_seed is not a holdout", () => {
+    const spec = {
+      metric: {
+        ...judgeSpec.metric,
+        judge: { scoring: { primary: "mean_score" }, sample_seed: 42, confirmation_seed: 42 },
+      },
+    }
+    const result = decide({ spec, baseline, candidate })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+  })
+
+  test("a measurement.holdout.command configures a holdout for a hard primary", () => {
+    const spec = {
+      metric: {
+        primary: { name: "wall_seconds", direction: "minimize", type: "hard" },
+        degenerate_gates: [{ name: "suite_passed", check: "== 1" }],
+      },
+      measurement: {
+        holdout: { command: "python evaluate.py --holdout" },
+        stability: { mode: "stable", noise_threshold: 0.02 },
+      },
+    }
+    const asked = decide({ spec, baseline: snapshot(10), candidate: snapshot(9) })
+    expect(asked.next_measurement).toBe("holdout")
+
+    const confirmed = decide({
+      spec,
+      baseline: snapshot(10),
+      candidate: snapshot(9),
+      holdout: { baseline: snapshot(20), candidate: snapshot(18) },
+    })
+    expect(confirmed.decision).toBe("keep")
+    expect(confirmed.next_measurement).toBe("none")
+  })
+
+  test("a spec without a holdout keeps exactly as before", () => {
+    const result = decide({ spec: hardSpec(), baseline: snapshot(10), candidate: snapshot(9.97) })
+    expect(result.decision).toBe("keep")
+    expect(result.next_measurement).toBe("none")
+    expect(result.holdout).toBeNull()
+  })
+
+  test("the holdout is scored only after the ladder would keep", () => {
+    const spec = hardSpec({
+      stability_mode: "ladder",
+      ladder: { exploratory_pairs: 1, confirmation_repeats: 5 },
+      comparison: { method: "relative", relative_threshold: 0.05, noise_threshold: 10 },
+      measurement: { holdout: { command: "python evaluate.py --holdout" } },
+    })
+    const result = decide({
+      spec,
+      baseline: snapshot(BASELINE_WALL),
+      candidate: { ...snapshot(300), smoke_passed: true, sample_count: 1 },
+    })
+    expect(result.decision).toBe("promising")
+    expect(result.next_measurement).toBe("confirm")
+  })
+})
+
+describe("per-case regressions", () => {
+  test("lists cases the reference passed and the candidate fails, without changing the decision", () => {
+    const result = decide({
+      spec: hardSpec(),
+      baseline: snapshot(10, { cases: { a: true, b: true, c: false, d: 1 } }),
+      candidate: snapshot(9.9, { cases: { a: true, b: false, c: true, d: 0 } }),
+    })
+    expect(result.decision).toBe("keep")
+    expect(result.regressions).toEqual(["b", "d"])
+  })
+
+  test("is empty when either side has no cases", () => {
+    expect(regressions({ cases: { a: true } }, {})).toEqual([])
+    expect(regressions({}, { cases: { a: false } })).toEqual([])
+    expect(decide({ spec: hardSpec(), baseline: snapshot(10), candidate: snapshot(9.9) }).regressions).toEqual([])
+  })
+})
+
 describe("decide.mjs CLI", () => {
   test("prints a JSON decision for a file path", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "ce-optimize-decide-"))
@@ -1555,6 +1696,69 @@ describe("schema and skill pins", () => {
     expect(LOG_SCHEMA).toContain("- not_selected")
   })
 
+  test("long runs: two clocks, per-tick cap, approval and run_state records, capability conditions", () => {
+    expect(SCHEMA).toContain("max_wall_hours:")
+    expect(SCHEMA).toContain("max_experiments_per_tick:")
+    expect(SCHEMA).toContain("stopping.max_wall_hours must be a positive number and at least stopping.max_hours")
+    expect(SCHEMA).toContain("metric.judge.max_total_cost_usd must be set; unattended spend is never uncapped")
+    expect(LOG_SCHEMA).toContain("  approval:")
+    expect(LOG_SCHEMA).toContain("spec_sha256:")
+    expect(LOG_SCHEMA).toContain("  run_state:")
+    expect(LOG_SCHEMA).toContain("pending_waits:")
+    expect(LOG_SCHEMA).toContain("active_seconds:")
+    expect(LOG_SCHEMA).toContain("phase3_started_at:")
+    expect(LOG_SCHEMA).toContain("enum: [running, waiting, blocked, final]")
+    expect(SKILL_BODY).toContain("## Execution Surface")
+    expect(SKILL_BODY).toContain("**durable state root**")
+    expect(SKILL_BODY).toContain("**wake after turn end**")
+    expect(SKILL_BODY).toContain("a missing binary or environment variable proves nothing")
+    expect(SKILL_BODY).toContain("waits on an event a registered wake will deliver and the log records that wait")
+    expect(SKILL_BODY).toContain("bound to the spec digest and the caps it approved")
+    expect(SKILL_BODY).toContain("the wall-clock backstop")
+    expect(SKILL_BODY).not.toMatch(/Cursor Project|Agent Store|cursor-subscriptions/)
+    expect(LOOP).toContain("**Tick boundary.**")
+    expect(LOOP).toContain("`run_state.active_seconds` (not time since the invocation, not time spent waiting) >= `stopping.max_hours`")
+    expect(LOOP).toContain("since `run_state.phase3_started_at` >= `stopping.max_wall_hours`")
+    expect(LOOP).toContain("**Codex delegation condition.**")
+    expect(LOOP).not.toContain("**Codex backend:**")
+    expect(PERSISTENCE).toContain("### The State Root")
+    expect(PERSISTENCE).toContain("### The Approval Record")
+    expect(PERSISTENCE).toContain("never move a ledger mid-run")
+    expect(PERSISTENCE).toContain("Never fake a wait with a foreground sleep")
+    expect(MEASUREMENT).toContain("write the approval record")
+    expect(WRAP_UP).toContain("<root>/optimize/<spec-name>-report.md")
+    expect(SPEC).toContain("<state-root>/spec.yaml")
+  })
+
+  test("remote backend: enum, paired-or-relative rule, template delta, independent confirmation", () => {
+    expect(SCHEMA).toContain("          - remote    #")
+    expect(SCHEMA).toContain("execution.backend must be one of: worktree, codex, remote")
+    expect(SCHEMA).toContain(
+      "If execution.backend is 'remote', measurement.stability.comparison.method must be 'paired' or 'relative'",
+    )
+    expect(SKILL_BODY).toContain("**detached worker**")
+    expect(SKILL_BODY).toContain("`execution.backend: remote` needs one")
+    expect(TEMPLATE).toContain("## Delta for `execution.backend: remote`: measure and report")
+    expect(TEMPLATE).toContain("<remote-worker>")
+    expect(TEMPLATE).toContain("verify your HEAD is exactly {base_sha}")
+    expect(TEMPLATE).toContain("measure PAIRED on this machine")
+    expect(TEMPLATE).toContain("{result_ref}")
+    expect(TEMPLATE).toContain("Do NOT run the measurement harness (the orchestrator handles this)")
+    expect(LOOP).toContain("**Collecting a `remote` result.**")
+    expect(LOOP).toContain("`base_sha` equals the `base_sha` you dispatched")
+    expect(LOOP).toContain("never repair a worker's numbers")
+    expect(LOOP).toContain("one independent measurement owns both the confirmation and the holdout")
+    expect(LOOP).toContain("a pairing the candidate's author did not produce")
+    expect(LOOP).toContain("that holdout is collected by the independent confirmation in 3.4")
+    expect(LOG_SCHEMA).toContain("on every kind including holdout")
+    expect(TEMPLATE).toContain("only when the harness emits them")
+    expect(LOG_SCHEMA).toContain("          machine:")
+    expect(LOG_SCHEMA).toContain("enum: [orchestrator, worker, confirmation_worker]")
+    expect(LOG_SCHEMA).toContain("result_marker:")
+    expect(MEASUREMENT).toContain("1.4 and 1.5 apply when experiments share this machine")
+    expect(PERSISTENCE).toContain("| Detached worker |")
+  })
+
   test("the expensive-benchmark example declares three required hard targets and a ladder", () => {
     expect(EXAMPLE).toContain("name: reduce-test-suite-wall-time")
     expect(EXAMPLE).toContain("local_wall_seconds")
@@ -1621,9 +1825,93 @@ describe("schema and skill pins", () => {
     expect(LOG_SCHEMA).toContain("uniquely identifies the measured")
     expect(LOOP).not.toContain("confirm` or `add_sample")
     expect(MEASUREMENT).toContain("Spend only the measurement the current decision needs")
-    expect(readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")).toContain(
-      "Not selected: <count>",
-    )
+    expect(WRAP_UP).toContain("Not selected: <count>")
+  })
+})
+
+describe("eval discipline pins", () => {
+  const JUDGE_TEMPLATE = readFileSync(
+    path.join(SKILL_DIR, "references", "judge-prompt-template.md"),
+    "utf8",
+  )
+  const TEXT_TARGETS = readFileSync(path.join(SKILL_DIR, "references", "text-targets.md"), "utf8")
+  const TEXT_EXAMPLE = readFileSync(
+    path.join(SKILL_DIR, "references", "example-text-target-spec.yaml"),
+    "utf8",
+  )
+  const JUDGE_EXAMPLE = readFileSync(
+    path.join(SKILL_DIR, "references", "example-judge-spec.yaml"),
+    "utf8",
+  )
+  const WRAP_UP = readFileSync(path.join(SKILL_DIR, "references", "wrap-up.md"), "utf8")
+
+  test("the spec schema carries the holdout, calibration, and per-case keys and their rules", () => {
+    expect(SCHEMA).toContain("holdout:")
+    expect(SCHEMA).toContain("confirmation_seed:")
+    expect(SCHEMA).toContain("calibration:")
+    expect(SCHEMA).toContain("min_agreement:")
+    expect(SCHEMA).toContain("per_case:")
+    expect(SCHEMA).toContain("If metric.primary.type is 'judge', a holdout must be configured")
+    expect(SCHEMA).toContain("waits between ticks through a wake after turn end, a holdout must be configured")
+    expect(SCHEMA).toContain("the holdout is never used to select or generate hypotheses")
+    expect(SCHEMA).toContain("calibration.waived is true with the user's explicit waiver")
+  })
+
+  test("the judge model is a capability tier, not a vendor model name", () => {
+    expect(SCHEMA).toContain("- cheap")
+    expect(SCHEMA).toContain("- strong")
+    expect(SCHEMA).not.toMatch(/^\s+- haiku\s*$/m)
+    expect(SCHEMA).not.toMatch(/^\s+- sonnet\s*$/m)
+    expect(JUDGE_EXAMPLE).toContain("model: cheap")
+    expect(JUDGE_EXAMPLE).toContain("confirmation_seed:")
+    expect(JUDGE_TEMPLATE).not.toContain("Designed for Haiku")
+  })
+
+  test("the judge template requires per-item feedback and repeatable scores", () => {
+    expect(JUDGE_TEMPLATE).toContain('"feedback"')
+    expect(JUDGE_TEMPLATE).toContain("the same item must receive the same score")
+  })
+
+  test("the log schema records harness validation, judge feedback, cost, regressions, and the holdout step", () => {
+    expect(LOG_SCHEMA).toContain("harness_validation:")
+    expect(LOG_SCHEMA).toContain("feedback:")
+    expect(LOG_SCHEMA).toContain("content_hash:")
+    expect(LOG_SCHEMA).toContain("regressions:")
+    expect(LOG_SCHEMA).toContain("latency_seconds:")
+    expect(LOG_SCHEMA).toContain("enum: [standalone, integrated, holdout]")
+    expect(LOG_SCHEMA).toContain("enum: [none, smoke, exploratory, add_sample, confirm, holdout]")
+    expect(LOG_SCHEMA).toContain("judge-cache.yaml")
+    expect(PERSISTENCE).toContain("| `judge-cache.yaml` |")
+  })
+
+  test("Phase 1 gates on harness validity and states the holdout limitation at approval", () => {
+    expect(MEASUREMENT).toContain("Validity gate (before the baseline)")
+    expect(MEASUREMENT).toContain("does not reward a trivial shortcut")
+    expect(MEASUREMENT).toContain("A judge run with neither labels nor a waiver does not leave Phase 1")
+    expect(MEASUREMENT).toContain("selection and reporting will share one sample")
+    expect(SPEC).toContain("Exemplars for the validity gate")
+    expect(SPEC).toContain("references/text-targets.md")
+    expect(MEASUREMENT).toContain("references/text-targets.md")
+  })
+
+  test("the loop caches judge scores, confirms on the holdout before keep, and builds hypotheses from failure themes", () => {
+    expect(LOOP).toContain("judge-cache.yaml")
+    expect(LOOP).toContain("`next_measurement: holdout`")
+    expect(LOOP).toContain("it does not enter the digest")
+    expect(LOOP).toContain("**Failure themes:**")
+    expect(LOOP).toContain("A rule per failing item is not a hypothesis")
+    expect(WRAP_UP).toContain("**Held-out result and regressions:**")
+  })
+
+  test("text-targets.md names the coverage rule and the model roles", () => {
+    expect(TEXT_TARGETS).toContain("every rule you want preserved needs a case that fails without it")
+    expect(TEXT_TARGETS).toContain("A ceiling is a smell, not a finish")
+    expect(TEXT_TARGETS).toContain("task model")
+    expect(TEXT_TARGETS).toContain("`external-optimizer`")
+    expect(TEXT_TARGETS).not.toMatch(/\b(?:DSPy|GEPA|MIPRO|COPRO|SIMBA)\b/)
+    expect(TEXT_EXAMPLE).toContain("per_case: true")
+    expect(TEXT_EXAMPLE).toContain("holdout:")
+    expect(TEXT_EXAMPLE).toContain("name: prompt_tokens")
   })
 })
 

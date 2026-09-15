@@ -4,7 +4,7 @@ Read this after the spec is saved and follow it through the approval gate. A gat
 
 ### 0.3 Search Prior Learnings
 
-Read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt to search for prior optimization work on similar topics. Do not dispatch a standalone agent by type/name. If relevant learnings exist, incorporate them into the approach.
+Resolve `<root>` first (the body's Artifact Root rule); this read of `<root>/solutions/` counts as composing a path under it. Read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt to search for prior optimization work on similar topics, passing it the resolved `<root>` path, not the config. Do not dispatch a standalone agent by type/name. If relevant learnings exist, incorporate them into the approach.
 
 ### 0.4 Run Identity Detection
 
@@ -14,21 +14,21 @@ Check if `optimize/<spec-name>` branch already exists:
 git rev-parse --verify "optimize/<spec-name>" 2>/dev/null
 ```
 
-**If branch exists**, check for an existing experiment log at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`.
+Resolve `<state-root>` by the rule in `references/persistence.md` (The State Root), then check for an existing experiment log at `<state-root>/experiment-log.yaml`. A log found under `.context/compound-engineering/ce-optimize/<spec-name>/` when a durable root is now available is still this run's root; do not move it. A run whose ledger still exists is an existing run even when the branch does not exist in this checkout, so check the log independently of the branch.
 
-Present the user with a choice via the platform question tool:
+When an existing run's `run_state.status` is `waiting` and this entry is a wake, a scheduler fire, or a resume invocation of that same run, it is a resume: do not ask. Otherwise present the user with a choice via the platform question tool:
 - **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Then apply the SKILL.md body's resume rule to decide what is skipped and which approval checks run again.
 - **Fresh start**: archive the old branch to `optimize-archive/<spec-name>/archived-<timestamp>`, clear the experiment log, start from scratch
 
-### 0.5 Create Optimization Branch and Scratch Space
+### 0.5 Create Optimization Branch and State Root
 
 ```bash
 git checkout -b "optimize/<spec-name>"  # or switch to existing if resuming
 ```
 
-Create scratch directory:
+Create `<state-root>` if it does not exist:
 ```bash
-mkdir -p .context/compound-engineering/ce-optimize/<spec-name>/
+mkdir -p "<state-root>"
 ```
 
 ---
@@ -70,6 +70,10 @@ The SKILL.md body states this gate. Run `git status --porcelain`, filter the out
 4. Run it once and validate the output
 5. Include the measurement method and validated output in the Phase 1 approval presentation, with a link to the script for inspection.
 
+**The eval set the harness scores against.** The set is the artifact the run keeps; the optimizer is replaceable. Build it from observed failures, not from what would be convenient to score: categorize the failures the user has seen, then cover each category with several items, because a category that appears once can either select or confirm but not both. Ten to twenty items is enough to start; fifty to a hundred labeled items is the range where a judge becomes trustworthy; beyond that, quality of the items matters more than count. The set is fixed for the run and listed in `scope.immutable`. When a holdout is configured, split the set so the held-out part is not in the selection command's inputs. When the target is instruction text (a skill, an agent-instructions file, a persona, a tool description), read `references/text-targets.md` before building the set: it carries the coverage rule that decides whether a rule you want kept survives the run.
+
+**Validity gate (before the baseline).** The harness is accepted when it separates the known-good exemplars from the known-bad ones in the metric's direction, and does not reward a trivial shortcut: an empty, constant, or copied output must not score at or above the known-good exemplars. For `type: judge`, additionally when the judge's scores on the user's labeled sample agree with the labels at or above `metric.judge.calibration.min_agreement` (default 0.8), or the user explicitly waives calibration. A judge run with neither labels nor a waiver does not leave Phase 1. A harness that fails a probe stops the run before the baseline; report which probe failed and the values it produced. Record the outcome as `harness_validation` in the experiment log at CP-1, including the waiver text when calibration was waived.
+
 ### 1.3 Establish Baseline
 
 Run the measurement harness on the current code. Baseline and final confirmation always use the full configured protocol (`repeat_count` samples when mode is `repeat` or `ladder`; one run when mode is `stable`). Exploratory experiments later may spend less; the baseline must not.
@@ -104,6 +108,8 @@ If primary type is `judge`, also run the judge evaluation on baseline output to 
 
 ### 1.4 Parallelism Readiness Probe
 
+1.4 and 1.5 apply when experiments share this machine (`execution.backend` is `worktree` or `codex`, or `remote` has fallen back to `worktree`). With `remote` workers each on their own checkout, skip both, record "not applicable: detached workers" in the approval evidence, and let `execution.max_concurrent` cap dispatched workers instead.
+
 Run the parallelism probe script:
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>";
@@ -129,8 +135,8 @@ If count + `execution.max_concurrent` would exceed 12:
 
 **MANDATORY CHECKPOINT.** Before presenting results to the user, write the initial experiment log with baseline metrics to disk:
 
-1. Create the experiment log file at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`
-2. Include all required top-level sections from `references/experiment-log-schema.yaml`: `spec`, `run_id`, `started_at`, `baseline`, `experiments`, and `best`
+1. Create the experiment log file at `<state-root>/experiment-log.yaml`
+2. Include all required top-level sections from `references/experiment-log-schema.yaml`: `spec`, `run_id`, `started_at`, `baseline`, `experiments`, and `best`, plus the `harness_validation` record from the validity gate
 3. Seed `experiments` as an empty array and seed `best` from the baseline snapshot (use `iteration: 0`, baseline metrics, and baseline judge scores if present) so later phases have a valid current-best state to compare against
 4. Optionally seed `hypothesis_backlog: []` here as well so the log shape is stable before Phase 2 populates it
 5. **Verify**: read the file back and confirm the required sections are present and the baseline values match
@@ -138,6 +144,12 @@ If count + `execution.max_concurrent` would exceed 12:
 
 ### 1.7 User Approval Gate
 
-The SKILL.md body states this gate and its user-facing reporting rule. That rule covers the options, the condition on adjusting the spec, the uncapped-spend disclosure, and the requirement for explicit approval before Phase 2. A resume that cannot prove the user cleared this gate presents it again. Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, and estimated scoring cost against the configured cap. Link the experiment log and measurement script for inspection. Keep the full degenerate-gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence. Report those details to the user when they affect the user's decision.
+The SKILL.md body states this gate and its user-facing reporting rule. Present what Phase 1 assembled and offer three options: proceed, fix issues, and adjust spec. Adjusting the spec is available only until this gate is cleared; afterwards a spec change is a new approval. Disclose uncapped spend: when `metric.judge.max_total_cost_usd` is null, say so and get an explicit yes for it, and when a wake after turn end is in use, uncapped judge spend is not approvable at all, so set the cap before presenting the gate. **Do not enter Phase 2 until the user explicitly approves.**
+
+Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, the caps in force including `stopping.max_wall_hours`, and estimated scoring cost against the configured cap. Link the experiment log and measurement script for inspection. Keep the full degenerate-gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence. Report those details to the user when they affect the user's decision.
+
+The moment the user approves, write the approval record to the experiment log as `references/persistence.md` (The Approval Record) specifies, verify it, then re-read the spec and baseline from disk before Phase 2. A resume whose record is absent, or whose spec digest or caps no longer match the spec on disk, presents this gate again.
+
+**Evidence quality line.** State the validity-gate result: which probes passed, and for a judge primary the agreement fraction against the labels or the fact that calibration was waived. State whether a holdout is configured. When it is not, say plainly that selection and reporting will share one sample, so the reported gain may be partly fit to that sample; the user is approving that limitation. Where the schema requires a holdout (a judge primary, or a run that waits between ticks through a wake after turn end), its absence is a spec failure caught at load, not a question this gate can approve past.
 
 ---

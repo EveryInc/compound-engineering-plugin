@@ -43,6 +43,8 @@ Check whether the input is:
 
    If the user insists on `type: hard` for a qualitative target, proceed but warn that the results may optimize a misleading proxy.
 
+   **Exemplars for the validity gate.** Whatever the type, ask for three to five outputs the user would score at the top of the scale, three to five they would score at the bottom, and, when one exists, an output that looks correct but takes a shortcut (a constant answer, a copied input, an empty result). Phase 1 accepts the harness only when it orders these correctly; collecting them here is what makes that check possible. When the target is instruction text (a skill, an agent-instructions file, a persona, a tool description), read `references/text-targets.md` before going further: the eval set and the hypothesis moves differ from a code target.
+
 3. **Design the sampling strategy** (for `type: judge`):
 
    Guide the user through defining stratified sampling. The key question is: "What parts of the output space do you need to check quality on?"
@@ -76,6 +78,7 @@ Check whether the input is:
    - Includes supplementary fields that help diagnose issues (e.g., `distinct_topics`, `outlier_count`)
    - Is specific enough that two judges would give similar scores
    - Does NOT assume bigger/more is better. "3 items per cluster average" is not inherently good or bad
+   - Asks for a per-item `feedback` string (what is wrong, what would fix it); the judge template requires it and Phase 3 generates hypotheses from it
 
    Example for clustering:
    ```yaml
@@ -97,5 +100,8 @@ Check whether the input is:
    - If this is the first run: recommend `execution.mode: serial`, `execution.max_concurrent: 1`, `stopping.max_iterations: 4`, and `stopping.max_hours: 1`
    - If the user named multiple required hard targets or an expensive harness: recommend `metric.objectives` plus `stability.mode: ladder` as above, and show `references/example-expensive-benchmark-spec.yaml`
    - If `type: judge`: recommend `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5` until the rubric and harness are trusted
-6. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
+   - Holdout: a held-out set the loop confirms against but never selects from. `measurement.holdout.command` (same JSON shape as the measurement command), or for a judge primary `metric.judge.confirmation_seed` distinct from `sample_seed`. Required for `type: judge` and when the run waits between ticks through a wake after turn end (`references/persistence.md`, The Wait Record and Ticks); otherwise recommended, and its absence is stated at the approval gate
+   - If `type: judge`: calibration. Ask for a human-labeled sample of 20-50 items with a score and the reasoning for each, stored in the repo and named in `metric.judge.calibration.labels`; a user who declines sets `calibration.waived: true` and the waiver is recorded in the log
+   - Per-case results: when the harness can emit a `cases` map (case id to pass/fail), set `measurement.per_case: true` so keeps and the wrap-up report which cases the baseline passed and the candidate fails
+6. Write the spec to `<state-root>/spec.yaml`, with `<state-root>` resolved by `references/persistence.md` (The State Root)
 7. Present the proposed scope, behavior constraints, measurement approach, and limits for approval before proceeding, with a link to the saved spec. Apply the SKILL.md body's user-facing reporting rule.

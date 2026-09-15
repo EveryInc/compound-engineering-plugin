@@ -20,15 +20,18 @@ The summary must contain:
 - **Overall result:** original baseline -> final for every required objective (the primary when no objectives are declared), with units, absolute change, target status, and percentage change where meaningful. A zero baseline has no defined percentage change; an ordinal judge score is reported in score points, not as a percentage improvement.
 - **Opportunity -> result:** each retained change's original expected benefit beside its measured before/after result, the comparison identity and workload, and whether the evidence supports the estimate. Identify standalone versus integrated results. If the forecast and result use different baselines or workloads, label them non-comparable instead of declaring that the forecast was met or missed.
 - **Evidence quality:** measurement uncertainty and confirmation status, correctness checks and their results, and any unverified constraints. Report measured incremental contributions only when the corresponding reference measurements exist. Do not add percentages from successive changes or count a standalone runner-up gain as its integrated contribution; the overall gain comes from original-to-final measurement.
+- **Held-out result and regressions:** the final state's holdout comparison against the original baseline (or that no holdout was configured, so the reported gain was selected and reported on the same sample), and when `measurement.per_case` is set the list of cases the baseline passed and the final state fails. An empty regression list is reported as empty; an absent one as unrecorded.
 - **Remaining opportunity:** what still costs time or resources, with current evidence and whether further work appears worthwhile. Without fresh evidence, label remaining estimates stale or unknown; do not claim a new bottleneck from the old profile alone.
 - **Run accounting:** stopping reason, duration, outcome counts, judge cost when applicable, and the log path. Preserve the existing outcome distinctions, including `Not selected: <count>`, inconclusive, censored, deferred, errors, and timeouts. Short reports may omit individual rejected experiments, but retain required-objective results and evidence limitations.
 
 ### 4.3 Preserve and Offer Next Steps
 
 The optimization branch (`optimize/<spec-name>`) is preserved with all commits from kept experiments.
-The experiment log and strategy digest remain in local `.context/...` scratch space for resume and audit on this machine only; they do not travel with the branch because `.context/` is gitignored.
+The experiment log and strategy digest remain under `<state-root>` for resume and audit; they do not travel with the branch from either root (`.context/` is gitignored, and a durable store is outside the checkout).
 
-Present these options after the summary:
+**Export the report.** Write the 4.2 summary to `<root>/optimize/<spec-name>-report.md` (`<root>` from the body's Artifact Root rule) and commit it on the optimization branch, so a PR from the branch carries its evidence and the summary outlives the ledger. Report the path to the user together with the summary; the user may name a different tracked path instead.
+
+Present these options after the summary. When the stop was reached on an unattended wake, presenting them is the point where this turn ends: `run_state.status` stays `waiting` on the user's choice, and CP-5 is written only after that choice, as the body states.
 
 1. **Run `ce-code-review`** on the cumulative diff (baseline to final), on the optimization branch. Do not commit or push from this step.
 2. **Run `ce-compound`** to document the winning strategy as an institutional learning.
@@ -45,10 +48,10 @@ Option 4 (continue) re-enters Phase 3 with the current state, state re-read from
 
 Clean up scratch space:
 ```bash
-# Keep the experiment log for local resume/audit on this machine
+# Keep the experiment log for resume/audit
 # Remove temporary batch artifacts
-rm -f .context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md
+rm -f "<state-root>/strategy-digest.md"
 ```
 
-Do NOT delete the experiment log if the user may resume locally or wants a local audit trail. If they need a durable shared artifact, summarize or export the results into a tracked path before cleanup.
+Do NOT delete the experiment log if the user may resume or wants an audit trail. The exported report in 4.3 is the durable shared artifact; the ledger is not. Unregister any wake still registered for this run.
 Do NOT delete experiment worktrees that are still being referenced.
