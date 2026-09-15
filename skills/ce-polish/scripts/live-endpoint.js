@@ -44,7 +44,7 @@ const PAGE_EVENT_TYPES = new Set([
 ])
 // Page-emitted checkpoint triggers (KTD9). `silence`/`page_change`/`send`
 // wake the agent only when they release something; `final` always wakes.
-const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "answer", "final"])
+const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "final"])
 const ALWAYS_WAKE_KINDS = new Set(["answer", "mode_change", "final"])
 const EXECUTION_MODES = new Set(["instant", "smart", "collect"])
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
@@ -259,7 +259,7 @@ function parseArgs(argv) {
   for (let i = 3; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === "--root") options.root = argv[++i]
-    else if (arg === "--host") options.host = argv[++i]
+    else if (arg === "--host") { options.host = argv[++i]; options.hostExplicit = true }
     else if (arg === "--port") options.port = Number(argv[++i])
     else if (arg === "--foreground") options.foreground = true
     else if (arg === "--owner-pid") options.ownerPid = Number(argv[++i])
@@ -668,8 +668,7 @@ async function start(options) {
     options.root,
     "--app-origin",
     options.appOrigin,
-    "--host",
-    options.host,
+    ...(options.hostExplicit ? ["--host", options.host] : []),
     ...(options.port !== undefined ? ["--port", String(options.port)] : []),
     ...(options.ownerPid ? ["--owner-pid", String(options.ownerPid)] : []),
     ...(options.trustProxy.length > 0 ? ["--trust-proxy", options.trustProxy.join(",")] : []),
@@ -915,6 +914,9 @@ async function serve(options) {
   // fresh pair of credentials and start a new board.
   const previous = readSession(options)
   const resuming = Boolean(previous && !previous.ended && previous.page_token && previous.agent_token)
+  // A resume keeps the previous bind host unless the caller names a new one;
+  // the documented recovery is a bare `start --root <dir>` again.
+  if (resuming && !options.hostExplicit && typeof previous.host === "string" && previous.host) options.host = previous.host
   const pageToken = resuming ? previous.page_token : newToken()
   const agentToken = resuming ? previous.agent_token : newToken()
   if (!resuming) {
@@ -946,6 +948,9 @@ async function serve(options) {
   let waiter = null
   const streamClients = new Set()
   const outOfOrder = new Map()
+  // Ids are validated but may still name inherited Object properties.
+  const unitById = (id) => (Object.hasOwn(board.units, id) ? board.units[id] : undefined)
+  const annotationById = (id) => (Object.hasOwn(board.annotations, id) ? board.annotations[id] : undefined)
   // Bytes of frames waiting in the gap buffer, counted against the disk cap
   // before they land so a burst of early frames cannot overshoot it.
   let reservedBytes = 0
@@ -997,13 +1002,13 @@ async function serve(options) {
 
   function heldUnits() {
     return board.unit_order
-      .map((id) => board.units[id])
+      .map((id) => unitById(id))
       .filter((unit) => unit && !unit.released && unit.status !== "withdrawn")
   }
 
   function heldAnnotations() {
     return board.annotation_order
-      .map((id) => board.annotations[id])
+      .map((id) => annotationById(id))
       .filter((annotation) => annotation && !annotation.released)
   }
 
@@ -1035,7 +1040,7 @@ async function serve(options) {
   // `final` and `mode_change` carry them so a Collect backlog is applied.
   function backlogUnits() {
     return board.unit_order
-      .map((id) => board.units[id])
+      .map((id) => unitById(id))
       .filter((unit) => unit && unit.released && unit.status === "accepted")
   }
 
@@ -1046,7 +1051,7 @@ async function serve(options) {
   function releaseCheckpoint(checkpointId, kind, mode) {
     const units = heldUnits()
     const annotations = heldAnnotations()
-    const withdrawn = board.pending_withdrawn.map((id) => board.units[id]).filter(Boolean)
+    const withdrawn = board.pending_withdrawn.map((id) => unitById(id)).filter(Boolean)
     const backlog = kind === "final" ? backlogUnits() : []
     const releases = units.length + annotations.length + withdrawn.length + backlog.length > 0
     if (!releases && !ALWAYS_WAKE_KINDS.has(kind)) return null
@@ -1290,7 +1295,7 @@ async function serve(options) {
       board.transcript_count += 1
     } else if (type === "unit") {
       if (typeof payload.id !== "string" || !payload.id) return
-      const existing = board.units[payload.id]
+      const existing = unitById(payload.id)
       board.units[payload.id] = {
         ...(existing ?? {}),
         ...payload,
@@ -1299,13 +1304,13 @@ async function serve(options) {
       }
       if (!existing) board.unit_order.push(payload.id)
     } else if (type === "unit_update") {
-      const unit = board.units[payload.unit_id]
+      const unit = unitById(payload.unit_id)
       if (!unit) return
       if (typeof payload.statement === "string") unit.statement = payload.statement
       if (Array.isArray(payload.anchors_add)) unit.anchors = [...(unit.anchors ?? []), ...payload.anchors_add]
       if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
     } else if (type === "unit_withdraw") {
-      const unit = board.units[payload.unit_id]
+      const unit = unitById(payload.unit_id)
       if (!unit || unit.status === "withdrawn") return
       unit.status = "withdrawn"
       unit.withdraw_reason = payload.reason ?? null
@@ -1313,7 +1318,7 @@ async function serve(options) {
       broadcast("unit_status", { unit_id: unit.id, status: "withdrawn" })
     } else if (type === "annotation") {
       if (typeof payload.id !== "string" || !payload.id) return
-      const existing = board.annotations[payload.id]
+      const existing = annotationById(payload.id)
       board.annotations[payload.id] = { ...(existing ?? {}), ...payload, released: Boolean(existing?.released) }
       if (!existing) board.annotation_order.push(payload.id)
     } else if (type === "checkpoint") {
@@ -1439,7 +1444,7 @@ async function serve(options) {
     res.write(`event: ack\ndata: ${JSON.stringify({ acked_seq: board.acked_seq })}\n\n`)
     // A page that just reloaded reconciles its board from these.
     for (const id of board.unit_order) {
-      const unit = board.units[id]
+      const unit = unitById(id)
       if (unit.released || unit.status === "withdrawn") {
         res.write(`event: unit_status\ndata: ${JSON.stringify({ unit_id: id, status: unit.status })}\n\n`)
       }
@@ -1658,9 +1663,14 @@ async function serve(options) {
       sendJson(res, 400, { error: `status must be one of ${[...AGENT_UNIT_STATUSES].join(", ")}` })
       return
     }
-    const unit = board.units[unitId]
+    const unit = unitById(unitId)
     if (!unit) {
       sendJson(res, 404, { error: "unknown unit" })
+      return
+    }
+    // A page withdrawal is terminal; a late agent status must not revive it.
+    if (unit.status === "withdrawn") {
+      sendJson(res, 409, { error: "unit withdrawn", unit_id: unitId, status: "withdrawn" })
       return
     }
     unit.status = parsed.status
@@ -1687,9 +1697,13 @@ async function serve(options) {
       sendJson(res, 400, { error: "question is required" })
       return
     }
-    const unit = board.units[unitId]
+    const unit = unitById(unitId)
     if (!unit) {
       sendJson(res, 404, { error: "unknown unit" })
+      return
+    }
+    if (unit.status === "withdrawn") {
+      sendJson(res, 409, { error: "unit withdrawn", unit_id: unitId, status: "withdrawn" })
       return
     }
     unit.status = "needs_info"

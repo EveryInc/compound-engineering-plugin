@@ -62,8 +62,8 @@ Page routes answer `OPTIONS` with `Access-Control-Allow-Origin: <exact --app-ori
 |---|---|---|
 | `GET /wait` | none | Long-poll. `200 <wake envelope>`; `204` after the poll window (the CLI loops); `409 { "status": "wait-taken" }` when another wait is parked; `410 { "status": "session-ended" }` when the session ended and nothing is held. |
 | `POST /checkpoints/:id/ack` | `{}` | `200 { "ok", "checkpoint_id" }`; `404` for an unknown or already-acknowledged checkpoint. |
-| `POST /units/:id/status` | `{ "status", "note"?, "guess"? }` with status in `triaging`, `accepted`, `needs_info`, `applied`, `blocked`, `withdrawn` | `200`; relays `unit_status` (and `applied`) on the stream. `accepted` puts the unit in the backlog below; `applied` or `blocked` takes it out. |
-| `POST /units/:id/ask` | `{ "question" }` | `200`; moves the unit to `needs_info` and relays `ask` on the stream. |
+| `POST /units/:id/status` | `{ "status", "note"?, "guess"? }` with status in `triaging`, `accepted`, `needs_info`, `applied`, `blocked`, `withdrawn` | `200`; relays `unit_status` (and `applied`) on the stream. `accepted` puts the unit in the backlog below; `applied` or `blocked` takes it out. `409` once the page has withdrawn the unit: a withdrawal is terminal. |
+| `POST /units/:id/ask` | `{ "question" }` | `200`; moves the unit to `needs_info` and relays `ask` on the stream. `409` for a withdrawn unit. |
 | `GET /status` | none | The board summary, the same document the `status` CLI prints. |
 
 Nothing else is served: there is no file route, and every unknown path is 404.
@@ -100,7 +100,7 @@ After the endpoint relays an `applied` notice, a page stream that closes and doe
 
 | Command | Behavior | Exit |
 |---|---|---|
-| `start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--trust-proxy <ip>[,<ip>]] [--foreground]` | Prints `{ url, port, page_token, status }` once; writes `state/session.json`. When `state/session.json` has `ended: false`, this is a resume: the same `page_token` and `agent_token` are reused, the `session_id` binding, board, acknowledged `seq`, and un-acknowledged batches are reloaded, the previous port is preferred, and only `pid`, `owner_pid`, and `url` are rewritten (`status: "resumed"`). Fresh tokens are minted only when there is no state file or the session ended. | 0 |
+| `start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--trust-proxy <ip>[,<ip>]] [--foreground]` | Prints `{ url, port, page_token, status }` once; writes `state/session.json`. When `state/session.json` has `ended: false`, this is a resume: the same `page_token` and `agent_token` are reused, the `session_id` binding, board, acknowledged `seq`, and un-acknowledged batches are reloaded, the previous port is preferred, and only `pid`, `owner_pid`, and `url` are rewritten (`status: "resumed"`); the previous bind host is kept unless `--host` is given again. Fresh tokens are minted only when there is no state file or the session ended. | 0 |
 | `status --root <dir>` | Prints `{ status, url?, port?, session_ended, board }` from `state/` without contacting the server. | 0 |
 | `stop --root <dir>` | Stops the server, invalidates both tokens, deletes `state/batches/`, keeps `state/log/`. | 0 |
 | `wait --root <dir>` | Reads the agent token from `state/session.json`, long-polls `/wait` with it as a bearer header, prints one envelope. | 0 batch; 1 session ended with nothing held (`{ "status": "session-ended" }`); 2 error; 3 another process holds the wake (`{ "status": "wait-taken" }`, do not stop the endpoint) |
