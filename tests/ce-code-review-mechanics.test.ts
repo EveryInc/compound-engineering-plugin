@@ -210,6 +210,38 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.hard_block_full).toBe(true)
   })
 
+  test("scope helper hard-blocks a renamed large extensionless executable at the full floor", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "bin"))
+    const oldPath = path.join(dir, "bin", "old")
+    const baseLines = Array.from({ length: 500 }, (_, i) => `echo "line ${i}"`)
+    writeFileSync(oldPath, baseLines.join("\n") + "\n")
+    chmodSync(oldPath, 0o755)
+    git(dir, "add", ".")
+    git(dir, "commit", "-qm", "add executable")
+    const renameBase = git(dir, "rev-parse", "HEAD")
+
+    git(dir, "mv", "bin/old", "bin/new")
+    const newPath = path.join(dir, "bin", "new")
+    const changedLines = baseLines.slice()
+    for (let i = 0; i < 210; i++) {
+      changedLines[i] = `echo "changed ${i}"`
+    }
+    writeFileSync(newPath, changedLines.join("\n") + "\n")
+    git(dir, "add", "-A", "bin")
+
+    const rawResult = run("git", ["diff", "--raw", renameBase], dir)
+    expect(rawResult.stdout).toMatch(/R\d+\tbin\/old\tbin\/new/)
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", renameBase], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_nontest_lines).toBeGreaterThanOrEqual(210)
+    expect(scope.size_band).toBe("large")
+    expect(scope.hard_block_full).toBe(true)
+  })
+
   test("scope helper does not count test files toward the full floor", () => {
     const { dir, base } = fixtureRepo()
     mkdirSync(path.join(dir, "tests"))

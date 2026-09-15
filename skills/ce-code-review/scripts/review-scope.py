@@ -241,6 +241,19 @@ def matching_classes(
     ]
 
 
+def numstat_path(name: str) -> str:
+    """Return the destination path from a `git diff --numstat` rename display name."""
+    if " => " not in name:
+        return name
+    if "{" in name and "}" in name:
+        prefix, rest = name.split("{", 1)
+        old_new, suffix = rest.split("}", 1)
+        _, new = old_new.split(" => ", 1)
+        return f"{prefix}{new}{suffix}"
+    _, new = name.split(" => ", 1)
+    return new
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", required=True)
@@ -278,13 +291,15 @@ def main() -> int:
     for line in raw.stdout.splitlines():
         if "\t" not in line:
             continue
-        meta, path = line.split("\t", 1)
+        meta, path_field = line.split("\t", 1)
         fields = meta.lstrip(":").split(" ")
         if len(fields) < 2:
             continue
         old_mode, new_mode = fields[0], fields[1]
         mode = old_mode if new_mode == "000000" else new_mode
-        if mode.endswith("755"):
+        if not mode.endswith("755"):
+            continue
+        for path in path_field.split("\t"):
             executable_mode_paths.add(path)
 
     files = sorted(line for line in names.stdout.splitlines() if line)
@@ -306,9 +321,13 @@ def main() -> int:
             uncounted += 1
             continue
         changed_lines += total
-        if Path(name).suffix.lower() in CODE_EXTENSIONS or name in executable_mode_paths:
+        resolved_name = numstat_path(name)
+        if (
+            Path(resolved_name).suffix.lower() in CODE_EXTENSIONS
+            or resolved_name in executable_mode_paths
+        ):
             executable_lines += total
-            if not TEST_PATTERN.search(name):
+            if not TEST_PATTERN.search(resolved_name):
                 executable_nontest_lines += total
 
     signals = matching_classes(files, SIGNAL_PATTERNS)
