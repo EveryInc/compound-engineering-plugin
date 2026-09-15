@@ -46,14 +46,21 @@ SIGNAL_PATTERNS = {
 }
 
 # Classes the script can name from paths alone. These force full; they do not
-# award lite. Silent-pass guards outside these paths are the agent's question.
+# award lite.
 HARD_BLOCK_PATTERNS = {
+    "migrations": SIGNAL_PATTERNS["migrations"],
+}
+
+# Silent-pass guards the script can name from paths alone. These forbid lite
+# (the change needs the adversarial read the focused path carries) but do not
+# force full; consequence still decides focused versus full. Silent-pass guards
+# outside these paths are the agent's question.
+SILENT_PASS_PATTERNS = {
     "ci": re.compile(
         r"(^|/)\.github/workflows/|(^|/)\.gitlab-ci\.yml$|(^|/)\.gitlab-ci/"
         r"|(^|/)Jenkinsfile$|(^|/)\.circleci/|(^|/)\.buildkite/",
         re.I,
     ),
-    "migrations": SIGNAL_PATTERNS["migrations"],
 }
 
 # Executable non-test changed lines at or above this run the full spine; it
@@ -225,6 +232,7 @@ def fail_closed(reason: str, signals: dict[str, object]) -> dict[str, object]:
         "signals": [],
         "hard_block_classes": ["unknown-scope"],
         "hard_block_full": True,
+        "silent_pass_classes": [],
         "size_band": "unknown",
         "test_files_changed": False,
         "agent_surface": False,
@@ -347,6 +355,7 @@ def main() -> int:
 
     signals = matching_classes(files, SIGNAL_PATTERNS)
     hard_block_classes = matching_classes(files, HARD_BLOCK_PATTERNS)
+    silent_pass_classes = matching_classes(files, SILENT_PASS_PATTERNS)
     if uncounted:
         hard_block_classes.append("uncounted")
     band = size_band_for(executable_nontest_lines, changed_lines)
@@ -362,6 +371,7 @@ def main() -> int:
         "signals": signals,
         "hard_block_classes": hard_block_classes,
         "hard_block_full": bool(hard_block_classes) or band != "small",
+        "silent_pass_classes": silent_pass_classes,
         "size_band": band,
         "test_files_changed": any(TEST_PATTERN.search(file) for file in files),
         "agent_surface": any(AGENT_SURFACE_PATTERN.search(file) for file in files),

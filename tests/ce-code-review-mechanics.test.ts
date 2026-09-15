@@ -113,7 +113,7 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.hard_block_full).toBe(true)
   })
 
-  test("scope helper hard-blocks a CI workflow path", () => {
+  test("scope helper names a CI workflow path as a silent-pass class, not a full floor", () => {
     const { dir, base } = fixtureRepo()
     mkdirSync(path.join(dir, ".github", "workflows"), { recursive: true })
     writeFileSync(path.join(dir, ".github", "workflows", "ci.yml"), "on: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n")
@@ -123,9 +123,25 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(result.status).toBe(0)
     const scope = JSON.parse(result.stdout)
 
-    expect(scope.hard_block_classes).toContain("ci")
-    expect(scope.hard_block_full).toBe(true)
+    expect(scope.silent_pass_classes).toContain("ci")
+    expect(scope.hard_block_classes).toEqual([])
+    expect(scope.hard_block_full).toBe(false)
     expect(scope.size_band).toBe("small")
+  })
+
+  test("scope helper still hard-blocks a migration path", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "db", "migrate"), { recursive: true })
+    writeFileSync(path.join(dir, "db", "migrate", "001_add_users.rb"), "class AddUsers < ActiveRecord::Migration; end\n")
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.hard_block_classes).toContain("migrations")
+    expect(scope.hard_block_full).toBe(true)
+    expect(scope.silent_pass_classes).toEqual([])
   })
 
   test("scope helper treats a frontend signal as a prompt, not a hard block", () => {
@@ -338,6 +354,7 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.size_band).toBe("unknown")
     expect(scope.hard_block_full).toBe(true)
     expect(scope.hard_block_classes).toContain("unknown-scope")
+    expect(scope.silent_pass_classes).toEqual([])
   })
 
   test("scope helper resolves the learnings corpus under a configured docs_root", () => {

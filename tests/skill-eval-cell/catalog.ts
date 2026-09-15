@@ -1987,7 +1987,7 @@ where STANDARDS is violation when a changed line contradicts a rule in a criteri
     },
   },
   {
-    id: "ce-code-review/depth-gate-ci-full",
+    id: "ce-code-review/depth-gate-ci-focused",
     skill: "ce-code-review",
     cohort: "resized",
     key_behavior: "judgment",
@@ -1996,9 +1996,9 @@ where STANDARDS is violation when a changed line contradicts a rule in a criteri
     git_staged: [".github/workflows/ci.yml"],
     fixture: `${FIX}/review-depth-ci-full`,
     post_only: true,
-    why: "A CI workflow is a silent-pass guard the helper can name from the path. The agent must not talk that hard block down to lite.",
+    why: "A CI workflow is a silent-pass guard the helper names from the path. It can never take lite, and the read it needs is the adversarial one the focused path carries, so a workflow change with no auth, money, or public-contract consequence declares focused rather than full.",
     pre_contract:
-      "CI and other uncounted files fail closed to the full roster.",
+      "The ci hard-block class forces the full spine.",
     task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. This is a read-only probe: do not create the run directory and do not dispatch reviewers.
 
 End with exactly one line in this form and nothing else on that line:
@@ -2014,7 +2014,7 @@ or
 DEPTH: full`,
     grade: {
       files_read_post: ["references/modes-and-output.md"],
-      declared: { DEPTH: "full" },
+      declared: { DEPTH: "focused" },
       actions: "none",
     },
   },

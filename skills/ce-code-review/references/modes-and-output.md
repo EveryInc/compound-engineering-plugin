@@ -67,7 +67,9 @@ Floors that run the full spine from Stage 2, whatever the diff looks like: `dept
 
 With no floor set, read the Stage 1 diff and decide whether a wrong version of this change would fail loudly where it is made, or silently somewhere else. It fails silently when it would break a silent-pass guard, an auth / money / data boundary, or a public contract, or would let a system degrade under load, failure, or contention with no error at the change site (retry, timeout, ordering, locking, background work). Loud and local → lite. Silent, or unsure → focused, unless the silent failure sits on an auth, money, or public-contract boundary, where the specialist lenses only the full spine carries are the point: then continue from Stage 2.
 
-A floor cannot be talked down, and a path may only move toward full: lite never becomes the answer once the diff reads silent, and focused never replaces a floor.
+A helper-named silent-pass class (`silent_pass_classes`, today the CI workflow paths) is a floor on the lens, not on depth: the change can never take lite, because the guard needs the adversarial read the focused path carries, and consequence still decides focused versus full as above. On the focused path that guard gets correctness and the one independent adversarial read and no standards, testing, or security persona; a workflow change that handles credentials, tokens, or permissions is an auth boundary and goes to full by the sentence above.
+
+A floor cannot be talked down, and a path may only move toward full: lite never becomes the answer once the diff reads silent or the helper named a silent-pass class, and focused never replaces a floor.
 
 ### Lite path
 
