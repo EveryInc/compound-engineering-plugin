@@ -142,6 +142,8 @@ async function readCodeReviewRuntimeContract(): Promise<string> {
     // Stage 5b step 4 and the run-artifact list moved here (plan 2026-09-15-1322, U3)
     // so the orchestrator never opens finish-review.md.
     readRepoFile("skills/ce-code-review/references/finish-input.md"),
+    // The lite and focused procedures moved here (plan 2026-09-15-1322, U5).
+    readRepoFile("skills/ce-code-review/references/depth-paths.md"),
   ])
   return parts.join("\n")
 }
@@ -886,6 +888,11 @@ describe("ce-code-review contract", () => {
     const helper = await readRepoFile(
       "skills/ce-code-review/scripts/review-scope.py",
     )
+    // The lite and focused procedures live in depth-paths.md, read only when the
+    // gate selects one of them (plan 2026-09-15-1322, U5); the gate stays in modes.
+    const paths = await readRepoFile(
+      "skills/ce-code-review/references/depth-paths.md",
+    )
 
     // #1703: sizing must fire before later spine refs, and the helper must not
     // award lite. Stage 3c used to re-decide from lite_eligible.
@@ -898,13 +905,15 @@ describe("ce-code-review contract", () => {
       /silent-pass guard, an auth \/ money \/ data boundary, or a public contract/,
     )
     expect(modes).toMatch(/a path may only move toward full/)
-    expect(modes).toMatch(/Do not dispatch reviewers or finish leaves/)
+    expect(paths).toMatch(/Do not dispatch reviewers or finish leaves/)
     // Size below the full floor is a fact, never a decision: the floor is
     // executable non-test lines at FULL_EXEC_LINE_MIN, and a total-line band is gone.
-    expect(modes).toMatch(/### Focused path/)
+    expect(paths).toMatch(/### Focused path/)
     expect(modes).toMatch(/"depth": "lite \| focused \| full"/)
-    expect(modes).toMatch(/one independent adversarial read/)
-    expect(modes).toMatch(/never run both on the same brief/)
+    expect(modes).toMatch(/read `references\/depth-paths\.md` at that point/)
+    expect(modes).not.toMatch(/### Lite path/)
+    expect(paths).toMatch(/one independent adversarial read/)
+    expect(paths).toMatch(/never run both on the same brief/)
     expect(helper).toMatch(/FULL_EXEC_LINE_MIN = 200/)
     expect(helper).not.toMatch(/SMALL_LINE_MAX/)
     // A 400 total-line backstop was added and then dropped (plan

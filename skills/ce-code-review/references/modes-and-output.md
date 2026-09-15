@@ -71,32 +71,7 @@ A helper-named silent-pass class (`silent_pass_classes`, today the CI workflow p
 
 A floor cannot be talked down, and a path may only move toward full: lite never becomes the answer once the diff reads silent or the helper named a silent-pass class, and focused never replaces a floor.
 
-### Lite path
-
-Lite is the same review with the same receipt, done in this context. Do not dispatch reviewers or finish leaves. Read no reference beyond the two named below. The skill's done condition applies unchanged: every retained finding is supported by the source, and the receipt states its coverage limits.
-
-Produce, in this context:
-
-- Correctness findings on the diff. Every lite finding carries the merged finding fields the output format lists, with severity, `autofix_class`, and `owner` set by `references/action-class-rubric.md` (read it before writing a finding). A lite finding quotes its motivating line as `first_evidence` and carries confidence `100` when the defect is mechanical or `75` when it names a concrete consequence; a concern you cannot quote goes to `residual_risks`, not `findings`.
-- Criteria findings from the Stage 1c mapping: read each governing criteria file, judge every changed file only against the criteria paired with it, and report a changed line that contradicts a written rule as a finding that quotes the rule and names its file.
-- Requirements verification: read the Plan Requirements Completeness and Stage 2b sections of `references/intent-and-plan.md`, discover a plan by that contract (the `plan:` argument, the PR body, or the branch), and when one is found fill `requirements_completeness`. An unaddressed requirement or unit is a finding routed by `plan_source` under that section's rule, so an explicit-plan omission reaches `actionable_findings`; it also makes the verdict Not ready unless the omission is intentional.
-- Test sufficiency: when the change alters runtime behavior without corresponding test work, record the gap in `testing_gaps`. Risks you can see but cannot settle go in `residual_risks`.
-
-Coverage states that the lite path ran and no reviewer agents were dispatched; names the criteria files checked, or that none govern the change, and the instruction-file fallback when it supplied criteria; states that declared Compound Packs were not applied; and names what lite did not assess (learnings, agent-native gaps, deployment notes).
-
-Write the receipt and `metadata.json` (## Run artifacts below) into the run directory Stage 1b created and emit the receipt as the response. In `mode:agent`, the receipt is the JSON object the output format below defines, written to `review.json`. In default mode, it is every retained finding (stable `#`, severity, `file:line`, route), then Actionable Findings, Coverage, and Verdict, written to `report.md`; a retained finding that is not actionable still appears in the findings list.
-
-### Focused path
-
-Focused is the lite review plus one independent adversarial read of the same diff, merged in this context. It exists for a change that can fail silently but does not need the full roster: the defects it targets are the ones a second, differently-seated reader finds and a single reader rationalizes away. No finish leaves run; the round is small enough to finish where it was dispatched.
-
-Do the lite path's four pieces of work above, in this context, and additionally read the Stage 2 section of `references/intent-and-plan.md` and write the intent summary, because the independent read needs it. In default mode, tell the user the review is focused and that one independent adversarial read will run; in `mode:agent` the receipt is the only output.
-
-**The independent read.** The Review depth gate's silent-consequence decision is the adversarial selection this run makes; no roster stage runs. Where the reviewed tree is local (standalone, `base:`, or `local-aligned` scope), read `references/cross-model-review.md` in full and run its Steps 1 through 4 to start the peer, then its Step 5 to fold the artifact in, with the run directory Stage 1c created. Start the peer before doing your own review so the two overlap; wait for it afterwards exactly as that reference's single-reap finish states. The focused path needs one usable independent read: the peer is the only independent read on this path, unlike the full path where other reviewers still cover the change when the peer yields nothing. When the peer route does not produce a usable review artifact, for any reason that reference or its recovery branches in `references/cross-model-recovery.md` name, or when scope is `pr-remote` or `branch-remote`, read `references/dispatch-reviewers.md` and dispatch exactly one local `adversarial-reviewer` by its Spawning rules, collected in this turn; when that fallback also fails, the receipt's verdict is Not ready and Coverage says the adversarial lens did not run. One read covers the lens; never run both on the same brief.
-
-**Merging the two reads.** Your own findings keep the lite confidence rule. A finding the independent read returns is retained when you can quote its motivating line from the source as `first_evidence`; one you cannot quote goes to `residual_risks` with its reviewer named. A finding both reads made is one finding with both reviewers listed; it promotes one confidence level only when the peer artifact records `independence_verified: true`. A local `adversarial-reviewer` is a separately dispatched context, so agreement with it is corroboration, but from the same serving family: it never counts as cross-model, and Coverage says which it was. No validator batch runs on this path; a P0 or P1 that only one read found carries `requires_verification: true` and says so in its detail line.
-
-Coverage states that the focused path ran, which independent read covered the adversarial lens (the peer with its receipt fields named as that reference's Step 5 lists them, or the local fallback and why), that no other reviewer agents were dispatched and no validator ran, and everything the lite path's Coverage states. `reviewers` is `["correctness", "adversarial-<provider>"]` for a peer or `["correctness", "adversarial"]` for the local fallback; `coverage.depth` is `"focused"`. Write the receipt and `metadata.json` as lite does, and delete the consumed peer job directory before returning.
+When the gate selects lite or focused, read `references/depth-paths.md` at that point and run the selected path from this context; the full spine continues from Stage 2 and never opens that file.
 
 ## Run artifacts
 

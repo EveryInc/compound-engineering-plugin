@@ -1914,7 +1914,7 @@ PLAN: unaddressed
 
 where PLAN is unaddressed when the named plan has any requirement or implementation unit the diff does not address. Name those ids in prose above the two lines, not on them.`,
     grade: {
-      files_read_post: ["references/modes-and-output.md", "references/intent-and-plan.md"],
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md", "references/intent-and-plan.md"],
       declared: { DEPTH: "lite", PLAN: "unaddressed" },
       actions: "none",
       delegates: "none",
@@ -1947,7 +1947,7 @@ STANDARDS: clean
 
 where STANDARDS is violation when a changed line contradicts a rule in a criteria file that governs it. Quote the rule in prose above the two lines, not on them.`,
     grade: {
-      files_read_post: ["references/modes-and-output.md"],
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
       declared: { DEPTH: "lite", STANDARDS: "violation" },
       actions: "none",
       delegates: "none",
@@ -1980,7 +1980,7 @@ STANDARDS: clean
 
 where STANDARDS is violation when a changed line contradicts a rule in a criteria file that governs it. Quote the rule in prose above the two lines, not on them.`,
     grade: {
-      files_read_post: ["references/modes-and-output.md"],
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
       declared: { DEPTH: "lite", STANDARDS: "clean" },
       actions: "none",
       delegates: "none",
