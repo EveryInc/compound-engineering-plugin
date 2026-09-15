@@ -1505,6 +1505,8 @@ describe("cross-model peer skip legibility", () => {
     {
       worker: "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
       reference: "skills/ce-code-review/references/cross-model-review.md",
+      // The skip-reason classification lives in the recovery file (plan 2026-09-15-1322, U4).
+      skipReference: "skills/ce-code-review/references/cross-model-recovery.md",
     },
     {
       worker: "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
@@ -1584,7 +1586,8 @@ describe("cross-model peer skip legibility", () => {
     })
   }
 
-  for (const { worker, reference } of pairs) {
+  for (const { worker, reference: mainReference, skipReference } of pairs) {
+    const reference = skipReference ?? mainReference
     test(`${worker} surfaces peer skip evidence that ${reference} classifies`, async () => {
       const workerSrc = await readRepoFile(worker)
       const referenceSrc = await readRepoFile(reference)
@@ -1633,8 +1636,10 @@ describe("cross-model peer skip legibility", () => {
     const routing = await readRepoFile(
       "skills/ce-code-review/references/select-and-route.md",
     )
+    // The did-not-run fallback and skip classification live in the recovery file
+    // (plan 2026-09-15-1322, U4); the main reference points there from its fold-in read.
     const reference = await readRepoFile(
-      "skills/ce-code-review/references/cross-model-review.md",
+      "skills/ce-code-review/references/cross-model-recovery.md",
     )
 
     expect(skill).toMatch(/did-not-run fallback/)
@@ -1676,11 +1681,24 @@ describe("cross-model peer skip legibility", () => {
     "skills/ce-doc-review/references/cross-model-review.md",
     "skills/ce-pov/references/cross-model-panel.md",
   ]
+  // ce-code-review split its recovery branches into a second file (plan
+  // 2026-09-15-1322, U4); its auth-classification phrases live there while the
+  // pre-dispatch and sandbox phrases stay in the main reference, so this entry
+  // reads both. The other two skills keep one file.
+  const authScopeCompanions: Record<string, string[]> = {
+    "skills/ce-code-review/references/cross-model-review.md": [
+      "skills/ce-code-review/references/cross-model-recovery.md",
+    ],
+  }
+  async function readAuthScope(reference: string): Promise<string> {
+    const parts = [reference, ...(authScopeCompanions[reference] ?? [])]
+    return (await Promise.all(parts.map(readRepoFile))).join("\n")
+  }
   for (const reference of authScopeRefs) {
     test(`${reference} classifies auth from the provider-capable boundary`, async () => {
       // Collapse whitespace: ce-pov hard-wraps prose, so the anchor phrases can
       // straddle a line break while the code-review/doc-review bullets do not.
-      const src = (await readRepoFile(reference)).replace(/\s+/g, " ")
+      const src = (await readAuthScope(reference)).replace(/\s+/g, " ")
       expect(src).toContain(
         "Attribute an account authentication failure only after provider-capable dispatch is positively established",
       )
