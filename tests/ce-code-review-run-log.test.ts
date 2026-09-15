@@ -64,15 +64,29 @@ describe("ce-code-review run-log", () => {
   test("a truncated trailing line is counted, not fatal, and a dangling start makes the run partial", () => {
     const dir = freshRunDir()
     runLog(dir, "event", "--start", "scope")
-    runLog(dir, "event", "--end", "scope", "--start", "dispatch", "--reviewers", "4", "--candidates", "9")
-    appendFileSync(path.join(dir, "stages.jsonl"), '{"ts": "2026-09-15T00:00:00+00:00", "stage": "dis')
+    runLog(dir, "event", "--end", "scope", "--start", "dispatch", "--reviewers", "4")
+    runLog(dir, "event", "--end", "dispatch", "--start", "merge", "--candidates", "9")
+    appendFileSync(path.join(dir, "stages.jsonl"), '{"ts": "2026-09-15T00:00:00+00:00", "stage": "mer')
     runLog(dir, "summarize")
     const cost = metadata(dir).cost
     expect(cost.truncated_events).toBe(1)
     expect(cost.status).toBe("partial")
-    expect(cost.dangling_stages).toEqual(["dispatch"])
+    expect(cost.dangling_stages).toEqual(["merge"])
     expect(cost.totals.reviewers).toBe(4)
     expect(cost.totals.candidates).toBe(9)
+  })
+
+  test("total candidates count only producing stages, not the merge and validate filters", () => {
+    const dir = freshRunDir()
+    runLog(dir, "event", "--start", "dispatch")
+    runLog(dir, "event", "--end", "dispatch", "--start", "merge", "--candidates", "12")
+    runLog(dir, "event", "--end", "merge", "--start", "validate", "--candidates", "5")
+    runLog(dir, "event", "--end", "validate", "--start", "report", "--candidates", "2")
+    runLog(dir, "event", "--end", "report")
+    runLog(dir, "summarize")
+    const cost = metadata(dir).cost
+    expect(cost.totals.candidates).toBe(12)
+    expect(cost.stages.find((s: { stage: string }) => s.stage === "merge").candidates).toBe(5)
   })
 
   test("summarize with no stage log writes an unavailable cost block and still exits 0", () => {
