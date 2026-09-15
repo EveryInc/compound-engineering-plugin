@@ -41,7 +41,7 @@ Add `--owner-pid <pid>` only when the harness exposes the process id of the agen
 
 `start` prints one JSON line: `url` (the endpoint origin), `port`, and `page_token`. That is the only place the page token appears; the agent token never prints and lives in `$LIVE_ROOT/state/session.json` for `wait` and your own posts. Do not echo that file. Add `--host <interface>` and `--port <n>` only for a remote session, per `references/live-remote.md`; read that file before starting the endpoint when the riffer's browser is on another machine, because `--app-origin` must then be the tunnel origin.
 
-`status --root "$LIVE_ROOT"` prints the board summary at any time; `stop --root "$LIVE_ROOT"` invalidates both tokens and keeps `state/log/`. Owner death and idle timeout stop the process but not the session: a later `start` with the same `--root` resumes it.
+`status --root "$LIVE_ROOT"` prints the board summary at any time; `stop --root "$LIVE_ROOT"` invalidates both tokens and keeps `state/log/`. Owner death and idle timeout stop the process but not the session. Recovery is the same `start` again with the same `--root` and `--app-origin`: against a state file whose session has not ended it is a resume that reuses the stored page token, agent token, and port, and prints the page token the live page already holds. The riffer's URL and page keep working; never hand over a new URL after a resume.
 
 ## Session brief
 
@@ -67,7 +67,7 @@ Tell the riffer, in this shape:
 
 ```text
 Live polish is ready: <handoff-url>
-The page will ask for your microphone and show what gets shared: audio and the session brief go to OpenAI; transcript, screenshots, frames, and events go to the endpoint on this machine. Talk and draw; I act when you pause or press Send. The mode switch on the board is Instant / Smart / Collect (Smart is on).
+The page will ask for your microphone and show what gets shared: audio and the session brief go to OpenAI; transcript, screenshots, frames, and events go to the endpoint on this machine. Talk and draw; I act when you pause, change pages, or press Send. The mode switch on the board is Instant / Smart / Collect (Smart is on). Press Done on the board when you are finished.
 Setup commit: <hash or "none needed">.
 ```
 

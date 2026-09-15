@@ -1,6 +1,6 @@
 # Live session loop
 
-Load this once the riffer has accepted the consent screen. The loop is: park a wait, receive a checkpoint batch, acknowledge it, act on it per the mode it carries, post what happened, park again. It ends at the `final` checkpoint or when the session ends, and closes with commits, a residual list, and the session log path.
+Load this once the riffer has accepted the consent screen. The loop is: park a wait, receive a checkpoint batch, acknowledge it, act on it per the mode it carries, post what happened, park again. It ends at the `final` checkpoint the overlay's Done control emits, or when the session ends without one, and closes with commits, a residual list, and the session log path.
 
 ## Wait
 
@@ -16,9 +16,9 @@ A wait is outstanding until the helper exits. A call the host backgrounds or yie
 
 Exit codes:
 
-- **0** — one JSON envelope on stdout: `checkpoint_id`, `kind` (`silence`, `page_change`, `send`, `answer`, `final`), `mode_at_checkpoint`, `session_status` (`live` or `page_lost`), `units[]`, `annotations[]`, `answers[]`. Handle it as below.
+- **0** — one JSON envelope on stdout: `checkpoint_id`, `kind` (`silence`, `page_change`, `send`, `answer`, `mode_change`, `final`), `mode_at_checkpoint`, `session_status` (`live` or `page_lost`), `units[]`, `annotations[]`, `answers[]`. Handle it as below. `silence`, `page_change`, and `send` come from the page and always carry newly released units. `answer` and `mode_change` come from the endpoint, and `final` from the overlay's Done control; these three wake you even when nothing new was held, because what they carry (answers, or the accepted-but-unapplied backlog) is work you have not done. An empty-looking one of those is not a no-op.
 - **1** — the session ended with nothing held. Close out (see "Session end") without a final batch.
-- **2** — error. Run `status` once; if the helper is not running, `start` it again with the same `--root` (state resumes) and park again. A second consecutive error ends the run: report it with the helper's stderr and the log path, and stop the endpoint.
+- **2** — error. Run `status` once; if the helper is not running, `start` it again with the same `--root` and the same `--app-origin`: that is a resume, which reuses the stored tokens and port, so the riffer's page keeps working on the URL it already has. Never hand over a new URL. Then park again. A second consecutive error ends the run: report it with the helper's stderr and the log path, and stop the endpoint.
 - **3** — `wait-taken`: another process already holds the wake for this session. Stop this run and say so. Do not stop the endpoint; the other process owns it.
 
 ## Acknowledge first
@@ -55,7 +55,9 @@ Triage each remaining unit by its statement, anchors, and evidence into one of t
 | Ambiguous | apply the best reading now, post `applied` with `guess` stating the reading | post `ask` with one question; the unit waits in needs-info | post `ask`; hold the answer for the final pass |
 | Beyond polish | post `blocked` with the reason; residual | post `blocked` with the reason; residual | post `blocked` with the reason; residual |
 
-Under Instant, apply independent units in parallel when the harness can run work concurrently; serialize only units that touch the same file. Post `accepted` before starting an edit and `applied` once it has landed and hot reload has picked it up; a unit that cannot be applied after acceptance becomes `blocked` with a note. A mode switch takes effect at the next checkpoint and covers every accepted-but-unapplied unit: a batch stamped Instant or Smart releases what Collect was holding, and a batch stamped Collect holds anything not yet applied.
+Under Instant, apply independent units in parallel when the harness can run work concurrently; serialize only units that touch the same file. Post `accepted` before starting an edit and `applied` once it has landed and hot reload has picked it up; a unit that cannot be applied after acceptance becomes `blocked` with a note. The endpoint tracks every unit you left at `accepted` without a later `applied` or `blocked` as the **backlog**; Collect is what fills it.
+
+A mode switch takes effect at the next checkpoint and covers that backlog. When the riffer moves the switch off Collect, the endpoint emits a `kind: "mode_change"` batch at once with the backlog in `units[]` (those units were released earlier, so no later page checkpoint would carry them again): acknowledge it and apply every unit it carries under `mode_at_checkpoint`, exactly as if they had just been triaged as clear edits, posting `applied` or `blocked` for each. A batch stamped Collect holds anything not yet applied.
 
 Edits land on the current feature branch on the surface the anchors name, uncommitted until the session closes. A question is posted, not asked in chat: post `ask`, leave the unit in needs-info, and park the next wait right away; the answer arrives in a later batch.
 
@@ -67,13 +69,13 @@ After each batch, before parking again, one line in chat: what applied, what was
 
 ## Session end
 
-A `kind: "final"` batch means the riffer said done. Acknowledge it, act on it per the mode (a Collect session applies its whole accepted batch now, as one pass), and then close out. Exit 1 from a wait with no final batch (the riffer stopped from the page, or closed it) closes out the same way, with whatever was applied so far.
+A `kind: "final"` batch means the riffer pressed the overlay's Done control, after confirming each unit's intended element and change. It carries the backlog plus anything newly held, and it arrives after the page has ended its side of the session; your agent token stays valid until `stop`, so acknowledge it and post statuses as usual. Act on everything it carries per the mode: a Collect session applies its whole backlog now, as one pass, and an Instant or Smart session applies whatever is left. Only then close out. Exit 1 from a wait with no `final` batch (the riffer closed the page without Done) closes out the same way, with whatever was applied so far.
 
 Close-out, in order:
 
 1. Invoke `ce-commit` for the polish edits on the current branch. The setup commit from install, if any, is already there.
 2. Write the residual list to `$LIVE_ROOT/residual.md`: every unit that ended `blocked`, still in needs-info, or beyond polish, each with its statement, anchors (route and element), status, and reason, so the riffer can hand the file to planning as is.
-3. Stop the endpoint: `stop --root "$LIVE_ROOT"`. It invalidates both tokens and keeps `state/log/`, which holds the full-evidence session log the page posted at the end (transcript, units with the riffer's confirmations, annotations, frames, the evidence profile used). The helper's `replay` can re-emit that log to another endpoint under a different profile later.
+3. Stop the endpoint: `stop --root "$LIVE_ROOT"`. It invalidates the agent token (the page token ended with the session) and keeps `state/log/`, which holds the full-evidence session log the page posted at the end (transcript, units with the riffer's confirmations, annotations, frames, the evidence profile used). The helper's `replay` can re-emit that log to another endpoint under a different profile later.
 4. Report: the commit(s), the still-running app URL, the residual list path, and the session log path `$LIVE_ROOT/state/log/`.
 
 Nothing is pushed and no PR is opened; that stays with the riffer.
