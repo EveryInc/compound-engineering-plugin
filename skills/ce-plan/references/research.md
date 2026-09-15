@@ -180,6 +180,6 @@ Use the output to:
 - Tighten requirements trace or verification strategy
 - Add only the flow details that materially improve the plan
 
-#### 1.6 Requested Bake-off
+#### 1.6 Bake-off
 
-When the user explicitly requests a Bake-off, read `references/bakeoff.md` after research and before fixing technical decisions or dependent units. Otherwise continue ordinary planning.
+Read `references/bakeoff.md` after research and before fixing technical decisions or dependent units when either holds. The user asked for a Bake-off. Or this is a Standard or Deep Durable plan and research left a consequential HOW open: two or more structurally distinct mechanisms survived research, choosing between them needs further development rather than judgment of what is already there, and reversing the choice later would be costly, such as a data shape, storage format, interface, or ownership boundary that later work builds on. Otherwise continue ordinary planning. When a decision came close, say in the plan's technical-decision rationale why it did not qualify.

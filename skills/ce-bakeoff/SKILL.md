@@ -7,7 +7,7 @@ description: "Develop independent competing solutions to a defined brief, compar
 
 Develop concrete competing solutions and return the strongest coherent approach to the user or calling skill. You do the generation, comparison, selection, synthesis, and verification. The caller decides adoption and does the subsequent work. Done means at least two usable independent candidates received an independent assessment, the coordinator reconciled it with its own comparison, the final artifact was verified against evidence and the brief, and the complete decision reached its consumer; otherwise return an explicit incomplete or unresolved result. The purpose is exploration before commitment, not a larger option count.
 
-Direct use is available; `ce-plan` and `ce-brainstorm` integrate it only when explicitly requested. Do not turn a routine choice into an automatic competition.
+Direct use is available. `ce-plan` routes here on its own conditions; `ce-brainstorm` integrates it only when explicitly requested. Do not turn a routine choice into a competition.
 
 ## Frame and authority
 

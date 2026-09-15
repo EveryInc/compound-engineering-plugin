@@ -6,7 +6,7 @@ Bake-off provides shared exploration and selection for sibling skills, initially
 
 It creates independent candidate artifacts, obtains an independent assessment, selects a base, incorporates useful contributions, and checks the final result. Bake-off owns the winner; the calling skill owns adopting that result and continuing its workflow. Users can also invoke it directly whenever a defined brief would benefit from this comparison.
 
-The `ce-brainstorm` and `ce-plan` integrations run only when explicitly requested.
+`ce-plan` runs it on its own when a Standard or Deep Durable plan leaves a consequential, costly-to-reverse technical choice open after research, or when you ask for one. The `ce-brainstorm` integration runs only when explicitly requested.
 
 ## When to use it
 
@@ -44,7 +44,7 @@ A fresh subagent running `ce-pov` as a guest is required before selection. A dif
 
 ## Position in the workflow
 
-- **In planning:** explicitly requested, after research and before fixing a consequential unresolved HOW on Standard/Deep Durable plans. The selected approach informs the normal plan; final authoring, confidence, review, and handoff remain in planning.
+- **In planning:** automatic on Standard/Deep Durable plans when research leaves a consequential, costly-to-reverse HOW open whose alternatives need development, or on request; it runs after research and before fixing that decision. A settled HOW, alternatives already concrete enough to judge, a budget the competition cannot fit, or an instruction to just pick one keeps planning on the ordinary path. The selected approach informs the normal plan; final authoring, confidence, review, and handoff remain in planning.
 - **In brainstorming:** explicitly requested, after goals are clear, replacing Phase 2 generation for the selected product mechanism. Options precede the recommendation and user confirmation remains authoritative.
 - **Direct use:** a standalone solution and decision record without implementation.
 
