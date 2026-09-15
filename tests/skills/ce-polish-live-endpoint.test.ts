@@ -1,0 +1,526 @@
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
+import { promises as fs } from "fs"
+import os from "os"
+import path from "path"
+import { FakeLivePage, FIXTURES_DIR, readFixture } from "../helpers/fakeLivePage"
+import { APP_ORIGIN, FakeLiveAgent, FakeOpenAI, runHelper, parseJsonLine } from "../helpers/fakeLiveAgent"
+
+setDefaultTimeout(30_000)
+
+// Scenario suite for skills/ce-polish/scripts/live-endpoint.js against the
+// riffrec stream-contract fixtures (tests/fixtures/ce-polish-live/). The
+// one-checkpoint round trip and the credential classes are also smoke-tested
+// in ce-polish-live-endpoint.smoke.test.ts; this file covers the U10 plan
+// scenarios at the helper seam. Both fakes live in tests/helpers/.
+
+const agents: FakeLiveAgent[] = []
+const stubs: FakeOpenAI[] = []
+
+async function startAgent(options: Parameters<typeof FakeLiveAgent.start>[0] = {}): Promise<FakeLiveAgent> {
+  const agent = await FakeLiveAgent.start(options)
+  agents.push(agent)
+  return agent
+}
+
+function startOpenAI(): FakeOpenAI {
+  const stub = new FakeOpenAI()
+  stubs.push(stub)
+  return stub
+}
+
+afterEach(async () => {
+  while (agents.length > 0) await agents.pop()!.dispose()
+  while (stubs.length > 0) stubs.pop()!.stop()
+})
+
+// Every page-envelope fixture, in seq order; wake-batch and the mint pair are not page envelopes.
+const PAGE_FIXTURES = [
+  "click", "network-request", "console-error", "navigation", "transcript", "unit", "unit-update",
+  "unit-withdraw", "annotation", "checkpoint", "answer", "frame", "mic", "mode", "stream-state",
+]
+
+describe("live endpoint: stream contract intake", () => {
+  test("every fixture envelope is accepted with acked_seq advancing; a replayed seq does not duplicate the unit; a foreign schema_version returns 409", async () => {
+    const agent = await startAgent()
+    const fixtures = await Promise.all(PAGE_FIXTURES.map(readFixture))
+    const sessionId = fixtures[0].session_id
+    expect(new Set(fixtures.map((fixture) => fixture.session_id)).size).toBe(1)
+    const page = new FakeLivePage(agent.url, agent.pageToken, sessionId)
+
+    let expectedAck = 0
+    for (const fixture of fixtures.sort((a, b) => a.seq - b.seq)) {
+      // The fixtures are posted verbatim: same seq, same payload. Frames post alone.
+      const result = await page.post(fixture)
+      expect(result.status, `${fixture.type} (seq ${fixture.seq}) -> ${JSON.stringify(result.body)}`).toBe(200)
+      expectedAck = fixture.seq
+      expect(result.body.acked_seq).toBe(expectedAck)
+    }
+    expect(page.ackedSeq).toBe(15)
+
+    const status = await agent.statusHttp()
+    expect(status.body.acked_seq).toBe(15)
+    const units = status.body.units as { total: number }
+    expect(units.total).toBe(1)
+    expect(status.body.annotations).toBe(1)
+    expect(status.body.frame_count).toBe(1)
+    expect(status.body.transcript_count).toBe(1)
+    expect(status.body.answers).toBe(1)
+    expect(status.body.mode).toBe("collect")
+
+    const replayed = await page.post(await readFixture("unit"))
+    expect(replayed.status).toBe(200)
+    expect(replayed.body.acked_seq).toBe(15)
+    expect(((await agent.statusHttp()).body.units as { total: number }).total).toBe(1)
+
+    const foreign = await page.post({ ...(await readFixture("mic")), seq: 16, schema_version: "live/2" })
+    expect(foreign.status).toBe(409)
+    expect(foreign.body).toEqual({ expected_schema_version: "live/1" })
+
+    // The stored frame landed under state/log/frames with the fixture bytes.
+    const frame = await readFixture("frame")
+    const stored = await fs.readFile(path.join(agent.stateDir, "log", "frames", `${frame.payload.id}.jpg`))
+    expect(Buffer.from(stored).toString("base64")).toBe(String(frame.payload.jpeg_base64))
+  })
+
+  test("the wake-batch fixture is the shape /wait serves", async () => {
+    const agent = await startAgent()
+    const wakeFixture = JSON.parse(await fs.readFile(path.join(FIXTURES_DIR, "wake-batch.json"), "utf8"))
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const unit = await readFixture("unit")
+    const annotation = await readFixture("annotation")
+    expect((await page.post([page.fromFixture(unit), page.fromFixture(annotation)])).status).toBe(200)
+    expect((await page.sendCheckpoint("cp_0001", "silence", "smart")).status).toBe(200)
+
+    const wake = await agent.waitHttp()
+    expect(wake.status).toBe(200)
+    expect(Object.keys(wake.envelope!).sort()).toEqual(Object.keys(wakeFixture).sort())
+    expect(wake.envelope!.checkpoint_id).toBe("cp_0001")
+    expect(wake.envelope!.kind).toBe("silence")
+    expect(wake.envelope!.mode_at_checkpoint).toBe("smart")
+    expect(wake.envelope!.session_status).toBe("live")
+    expect(wake.envelope!.units[0].id).toBe("unit_0001")
+    expect(wake.envelope!.units[0].status).toBe("triaging")
+    expect(wake.envelope!.annotations[0].id).toBe("ann_0001")
+    expect(wake.envelope!.answers).toEqual([])
+  })
+})
+
+describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
+  test("AE1: three units then a page_change checkpoint produce exactly one wake with three units; an empty silence checkpoint produces no wake", async () => {
+    const agent = await startAgent()
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    await page.sendUnit("u1", "make the header red")
+    await page.sendUnit("u2", "move the toggle right")
+    await page.sendUnit("u3", "bigger avatar")
+    expect((await page.sendCheckpoint("ck-nav", "page_change", "smart")).status).toBe(200)
+
+    const first = await agent.waitCli()
+    expect(first.exitCode, first.stderr).toBe(0)
+    const wake = first.envelope as { checkpoint_id: string; kind: string; units: Array<{ id: string; status: string }> }
+    expect(wake.checkpoint_id).toBe("ck-nav")
+    expect(wake.kind).toBe("page_change")
+    expect(wake.units.map((unit) => unit.id)).toEqual(["u1", "u2", "u3"])
+    expect(wake.units.every((unit) => unit.status === "triaging")).toBe(true)
+    expect((await agent.ack("ck-nav")).status).toBe(200)
+
+    expect((await page.sendCheckpoint("ck-silence", "silence", "smart")).status).toBe(200)
+    // Nothing held: the wake parks and times out instead of returning an empty batch.
+    const second = await agent.waitHttp()
+    expect(second.status).toBe(204)
+    const board = await agent.statusHttp()
+    expect((board.body.batches as { unserved: number; unacked: number })).toEqual({ unserved: 0, unacked: 0 })
+    expect(board.body.checkpoints).toBe(1)
+  })
+
+  // U8 finding: the helper has no accepted-but-unapplied backlog (KTD12). `accepted` is not in
+  // its AGENT_UNIT_STATUSES, a `final` checkpoint with nothing held returns no batch (KTD9 says
+  // final always wakes), and a `mode` event leaving Collect emits no `mode_change` checkpoint.
+  test.todo("AE2: in Collect, an empty final checkpoint wakes with the three accepted units (U8: no KTD12 backlog, `accepted` rejected, empty final suppressed)", async () => {
+    const agent = await startAgent()
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    await page.send("mode", { mode: "collect" })
+    await page.sendUnit("u1", "make the header red")
+    await page.sendUnit("u2", "move the toggle right")
+    await page.sendUnit("u3", "bigger avatar")
+    await page.sendCheckpoint("ck1", "silence", "collect")
+    const first = await agent.waitHttp()
+    expect(first.status).toBe(200)
+    expect(first.envelope!.mode_at_checkpoint).toBe("collect")
+    expect((await agent.ack("ck1")).status).toBe(200)
+    for (const id of ["u1", "u2", "u3"]) expect((await agent.postStatus(id, "accepted")).status).toBe(200)
+
+    expect((await page.sendCheckpoint("ck-final", "final", "collect")).status).toBe(200)
+    const final = await agent.waitHttp()
+    expect(final.status).toBe(200)
+    expect(final.envelope!.kind).toBe("final")
+    expect(final.envelope!.units.map((unit) => unit.id).sort()).toEqual(["u1", "u2", "u3"])
+  })
+
+  test.todo("AE2: in Collect, a mode event switching to Smart produces a mode_change wake carrying the three accepted units (U8: no KTD12 backlog / mode_change emission)", async () => {
+    const agent = await startAgent()
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    await page.send("mode", { mode: "collect" })
+    await page.sendUnit("u1", "make the header red")
+    await page.sendUnit("u2", "move the toggle right")
+    await page.sendUnit("u3", "bigger avatar")
+    await page.sendCheckpoint("ck1", "silence", "collect")
+    expect((await agent.waitHttp()).status).toBe(200)
+    expect((await agent.ack("ck1")).status).toBe(200)
+    for (const id of ["u1", "u2", "u3"]) expect((await agent.postStatus(id, "accepted")).status).toBe(200)
+
+    expect((await page.send("mode", { mode: "smart" })).status).toBe(200)
+    const wake = await agent.waitHttp()
+    expect(wake.status).toBe(200)
+    expect(wake.envelope!.kind).toBe("mode_change")
+    expect(wake.envelope!.mode_at_checkpoint).toBe("smart")
+    expect(wake.envelope!.units.map((unit) => unit.id).sort()).toEqual(["u1", "u2", "u3"])
+  })
+
+  test("AE12: a unit_withdraw before the checkpoint excludes the unit; one after release appears in the next batch as withdrawn", async () => {
+    const agent = await startAgent()
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    await page.openStream()
+    await page.sendUnit("u1", "make this red")
+    await page.sendUnit("u2", "keep this one")
+    await page.send("unit_withdraw", { unit_id: "u1", reason: "no, forget that" })
+    await page.sendCheckpoint("ck1", "silence", "smart")
+
+    const first = await agent.waitHttp()
+    expect(first.status).toBe(200)
+    expect(first.envelope!.units.map((unit) => unit.id)).toEqual(["u2"])
+    expect((await agent.ack("ck1")).status).toBe(200)
+    await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u2" && event.data.status === "triaging")
+
+    // u2 was released; the riffer withdraws it after the fact.
+    await page.send("unit_withdraw", { unit_id: "u2", reason: "changed my mind" })
+    await page.sendUnit("u3", "and a new one")
+    await page.sendCheckpoint("ck2", "send", "smart")
+    const second = await agent.waitHttp()
+    expect(second.status).toBe(200)
+    expect(second.envelope!.units.map((unit) => `${unit.id}:${unit.status}`).sort()).toEqual(["u2:withdrawn", "u3:triaging"])
+    expect((await agent.ack("ck2")).status).toBe(200)
+
+    // A withdrawal that arrives after release without any new unit still wakes on its own.
+    await page.send("unit_withdraw", { unit_id: "u3" })
+    await page.sendCheckpoint("ck3", "silence", "smart")
+    const third = await agent.waitHttp()
+    expect(third.status).toBe(200)
+    expect(third.envelope!.units.map((unit) => `${unit.id}:${unit.status}`)).toEqual(["u3:withdrawn"])
+    await page.closeStream()
+  })
+})
+
+describe("live endpoint: /mint (KTD4, I2)", () => {
+  test("without a key /mint returns 503 no_key", async () => {
+    const agent = await startAgent({ env: { OPENAI_API_KEY: undefined } })
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const minted = await page.mint(JSON.parse(await fs.readFile(path.join(FIXTURES_DIR, "mint-request.json"), "utf8")))
+    expect(minted.status).toBe(503)
+    expect(minted.body).toEqual({ reason: "no_key" })
+  })
+
+  test("upstream 401 -> 502 with upstream_status; a brief with sk- -> 503 brief_contains_secret; the sixth mint in a minute -> 429; state/ holds neither the key nor the secret", async () => {
+    const openai = startOpenAI()
+    const stubKey = "sk-stub-key-for-tests-0123456789abcdef"
+    const agent = await startAgent({ env: { OPENAI_API_KEY: stubKey, OPENAI_BASE_URL: openai.baseUrl } })
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const mintResponseFixture = JSON.parse(await fs.readFile(path.join(FIXTURES_DIR, "mint-response.json"), "utf8"))
+
+    // Mint 1: upstream accepts; the response carries the I2 shape (fixture keys).
+    const secret = "ek_test_minted_secret_9f8e7d6c"
+    openai.respondWith(200, { value: secret, expires_at: 1789686600, session: { model: "gpt-realtime" } })
+    const ok = await page.mint()
+    expect(ok.status).toBe(200)
+    expect(Object.keys(ok.body).sort()).toEqual(Object.keys(mintResponseFixture).sort())
+    expect(ok.body.client_secret).toBe(secret)
+    expect(ok.body.expires_at).toBe(1789686600)
+    expect(openai.requests).toHaveLength(1)
+    expect(openai.requests[0].url).toBe("/v1/realtime/client_secrets")
+    expect(openai.requests[0].authorization).toBe(`Bearer ${stubKey}`)
+    const session = openai.requests[0].body.session as { tools: Array<{ name: string }>; instructions: string; audio: unknown }
+    expect(session.tools.map((tool) => tool.name)).toEqual(["record_unit", "update_unit", "withdraw_unit", "relay_answer"])
+    expect(session.audio).toBeDefined()
+
+    // Mint 2: upstream rejects the key; the body is not echoed.
+    const rejected = await page.mint()
+    expect(rejected.status).toBe(502)
+    expect(rejected.body).toEqual({ reason: "openai_error", upstream_status: 401 })
+
+    // A brief carrying a key shape refuses before any upstream call.
+    await fs.writeFile(path.join(agent.stateDir, "brief.md"), "Routes: /, /settings\nAlso: OPENAI_API_KEY=sk-leaked-0123456789abcdef\n")
+    const leaked = await page.mint()
+    expect(leaked.status).toBe(503)
+    expect(leaked.body).toEqual({ reason: "brief_contains_secret" })
+    expect(openai.requests).toHaveLength(2)
+
+    await fs.writeFile(path.join(agent.stateDir, "brief.md"), "Routes: /, /settings\nComponents: SidebarToggle, SettingsPanel\n")
+    for (let i = 0; i < 3; i++) expect((await page.mint()).status).toBe(502)
+    const limited = await page.mint()
+    expect(limited.status).toBe(429)
+    expect(typeof limited.body.retry_after).toBe("number")
+    expect(openai.requests).toHaveLength(5)
+    // The brief rode along in the instructions after the persona.
+    const withBrief = openai.requests[4].body.session as { instructions: string }
+    expect(withBrief.instructions).toContain("SidebarToggle")
+
+    // Neither the API key nor the minted secret is persisted anywhere under state/.
+    const files = await collectFiles(agent.stateDir)
+    expect(files.length).toBeGreaterThan(0)
+    for (const file of files) {
+      const text = await fs.readFile(file, "utf8").catch(() => "")
+      expect(text, file).not.toContain(stubKey)
+      expect(text, file).not.toContain(secret)
+    }
+  })
+
+  test("a non-loopback plain-HTTP peer gets 403 tls_required; X-Forwarded-Proto: https lifts it", async () => {
+    const lanAddress = Object.values(os.networkInterfaces())
+      .flat()
+      .find((iface) => iface && !iface.internal && iface.family === "IPv4")?.address
+    if (!lanAddress) {
+      // No non-loopback interface on this machine; the TLS gate cannot be reached.
+      return
+    }
+    const agent = await startAgent({ host: "0.0.0.0", env: { OPENAI_API_KEY: undefined } })
+    const lanUrl = `http://${lanAddress}:${agent.port}`
+    const page = new FakeLivePage(lanUrl, agent.pageToken)
+    const plain = await page.mint()
+    expect(plain.status).toBe(403)
+    expect(plain.body).toEqual({ reason: "tls_required" })
+    const forwarded = await page.mint({ session_id: page.sessionId }, page.headers({ "X-Forwarded-Proto": "https" }))
+    // Past the TLS gate the request reaches the key check.
+    expect(forwarded.status).toBe(503)
+    expect(forwarded.body).toEqual({ reason: "no_key" })
+  })
+})
+
+describe("live endpoint: wake ownership, credentials, and caps (KTD7, I3, I4)", () => {
+  test("a second concurrent wait receives 409 and the CLI exits 3 with wait-taken", async () => {
+    const agent = await startAgent()
+    const controller = new AbortController()
+    const parked = fetch(`${agent.url}/wait`, { headers: agent.headers(), signal: controller.signal }).catch(() => null)
+    // Give the first wait time to park before the second arrives.
+    await Bun.sleep(150)
+    const second = await agent.waitHttp()
+    expect(second.status).toBe(409)
+    expect(second.body).toEqual({ status: "wait-taken" })
+    const cli = await agent.waitCli()
+    expect(cli.exitCode).toBe(3)
+    expect(cli.envelope).toEqual({ status: "wait-taken" })
+    controller.abort()
+    await parked
+    // The wake is free again once the first holder is gone.
+    await Bun.sleep(50)
+    expect((await agent.waitHttp()).status).toBe(204)
+  })
+
+  test("every route without a credential returns 401; wrong credential class returns 403; ?token= is ignored; Origin on an agent route is 403; OPTIONS /events returns the exact app origin without a credentials flag", async () => {
+    const agent = await startAgent()
+    const routes: Array<[string, string]> = [
+      ["POST", "/events"], ["GET", "/stream"], ["POST", "/mint"], ["POST", "/session/end"],
+      ["GET", "/wait"], ["GET", "/status"], ["POST", "/checkpoints/ck1/ack"], ["POST", "/units/u1/status"], ["POST", "/units/u1/ask"],
+    ]
+    for (const [method, route] of routes) {
+      const response = await fetch(`${agent.url}${route}`, { method, headers: { "X-Riffrec-Session": "s1" }, body: method === "POST" ? "{}" : undefined })
+      expect(response.status, `${method} ${route}`).toBe(401)
+    }
+    for (const [method, route] of routes) {
+      const url = new URL(`${agent.url}${route}`)
+      url.searchParams.set("token", route === "/events" || route === "/stream" || route === "/mint" || route === "/session/end" ? agent.pageToken : agent.agentToken)
+      const response = await fetch(url, { method, headers: { "X-Riffrec-Session": "s1" }, body: method === "POST" ? "{}" : undefined })
+      expect(response.status, `${method} ${route}?token=`).toBe(401)
+    }
+    // Page token on agent routes, agent token on page routes.
+    for (const [method, route] of routes.slice(4)) {
+      const response = await fetch(`${agent.url}${route}`, { method, headers: { Authorization: `Bearer ${agent.pageToken}` }, body: method === "POST" ? "{}" : undefined })
+      expect(response.status, `${method} ${route} with page token`).toBe(403)
+    }
+    for (const [method, route] of routes.slice(0, 4)) {
+      const response = await fetch(`${agent.url}${route}`, {
+        method,
+        headers: { Authorization: `Bearer ${agent.agentToken}`, "X-Riffrec-Session": "s1" },
+        body: method === "POST" ? "{}" : undefined,
+      })
+      expect(response.status, `${method} ${route} with agent token`).toBe(403)
+    }
+    for (const [method, route] of routes.slice(4)) {
+      const response = await fetch(`${agent.url}${route}`, { method, headers: { ...agent.headers(), Origin: APP_ORIGIN }, body: method === "POST" ? "{}" : undefined })
+      expect(response.status, `${method} ${route} with Origin`).toBe(403)
+      expect(response.headers.get("access-control-allow-origin")).toBeNull()
+    }
+    // A page request from a foreign origin is refused even with the right token.
+    const foreignOrigin = await fetch(`${agent.url}/events`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${agent.pageToken}`, "X-Riffrec-Session": "s1", Origin: "http://evil.example" },
+      body: "[]",
+    })
+    expect(foreignOrigin.status).toBe(403)
+
+    const preflight = await fetch(`${agent.url}/events`, { method: "OPTIONS", headers: { Origin: APP_ORIGIN, "Access-Control-Request-Method": "POST" } })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(APP_ORIGIN)
+    expect(preflight.headers.get("access-control-allow-headers")).toBe("Authorization, Content-Type, X-Riffrec-Session")
+    expect(preflight.headers.get("access-control-allow-methods")).toBe("GET, POST")
+    expect(preflight.headers.get("vary")).toBe("Origin")
+    expect(preflight.headers.get("access-control-allow-credentials")).toBeNull()
+    // Nothing is served from the run directory (R40).
+    expect((await fetch(`${agent.url}/state/session.json`)).status).toBe(404)
+    expect((await fetch(`${agent.url}/`)).status).toBe(404)
+  })
+
+  test("a 3 MB batch returns 413; a 100 KB non-frame batch returns 413 with the 64 KB cap; a lone 1.5 MB frame is accepted", async () => {
+    const agent = await startAgent()
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const frame = page.envelope("frame", { id: "f-ok", t: 2, route: "/", kind: "gesture", jpeg_base64: "B".repeat(Math.floor(1.5 * 1024 * 1024)) })
+    const accepted = await page.post(frame)
+    expect(accepted.status).toBe(200)
+    expect(accepted.body.acked_seq).toBe(frame.seq)
+
+    const big = page.envelope("frame", { id: "f-big", t: 1, route: "/", kind: "periodic", jpeg_base64: "A".repeat(3 * 1024 * 1024) })
+    const tooBig = await page.postRaw(JSON.stringify([big]))
+    expect(tooBig.status).toBe(413)
+    expect(typeof tooBig.body.max_bytes).toBe("number")
+
+    const batch = Array.from({ length: 40 }, (_, i) => page.envelope("transcript", { id: `tr-${i}`, role: "riffer", text: "x".repeat(2600), t_start: i, t_end: i + 1, final: true }))
+    const overCap = await page.postRaw(JSON.stringify(batch))
+    expect(overCap.status).toBe(413)
+    expect(overCap.body).toEqual({ max_bytes: 64 * 1024 })
+    // Refused bodies do not count: the ack stays where the accepted frame left it.
+    expect((await agent.statusHttp()).body.acked_seq).toBe(frame.seq)
+
+    // A frame batched with another envelope is refused (KTD2: frames post alone).
+    const mixed = await page.postRaw(JSON.stringify([page.envelope("mic", { state: "granted" }), page.envelope("frame", { id: "f-2", t: 3, route: "/", kind: "gesture", jpeg_base64: "QQ==" })]))
+    expect(mixed.status).toBe(400)
+  })
+
+  test("the start envelope omits agent_token, state/ is 0700, and state/session.json is 0600 with the I4 fields", async () => {
+    const agent = await startAgent()
+    expect(Object.keys(agent.startEnvelope).sort()).toEqual(["page_token", "port", "status", "url"])
+    expect(agent.startEnvelope.status).toBe("started")
+    expect((await fs.stat(agent.stateDir)).mode & 0o777).toBe(0o700)
+    expect((await fs.stat(path.join(agent.stateDir, "session.json"))).mode & 0o777).toBe(0o600)
+    const session = await agent.session()
+    for (const key of ["page_token", "agent_token", "url", "app_origin", "port", "pid", "owner_pid", "ended"]) expect(session).toHaveProperty(key)
+    expect(session.ended).toBe(false)
+    expect(session.app_origin).toBe(APP_ORIGIN)
+    expect(session.agent_token).not.toBe(session.page_token)
+    // A second start against a running root reports it without minting.
+    const again = await runHelper(["start", "--root", agent.root, "--app-origin", APP_ORIGIN])
+    expect(again.exitCode).toBe(0)
+    const envelope = parseJsonLine(again.stdout)
+    expect(envelope.status).toBe("running")
+    expect(envelope.page_token).toBe(agent.pageToken)
+    expect(envelope).not.toHaveProperty("agent_token")
+  })
+})
+
+describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
+  test("/session/end stores the archive under state/log/, marks ended, invalidates the page token while the agent token still serves and acks the final batch; stop then invalidates the agent token", async () => {
+    const agent = await startAgent()
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    await page.openStream()
+    await page.sendUnit("u1", "make the header red")
+    await page.send("unit_update", { unit_id: "u1", confirmed: { element: true, change: true } })
+
+    const archive = new TextEncoder().encode("PK\u0003\u0004fake-zip-archive-bytes")
+    const ended = await page.endSession(archive, "application/zip")
+    expect(ended.status).toBe(200)
+    expect(ended.body.status).toBe("session-ended")
+    expect(ended.body.archive_bytes).toBe(archive.byteLength)
+    const stored = await fs.readFile(path.join(agent.stateDir, "log", "archive.zip"))
+    expect(Buffer.from(stored).equals(Buffer.from(archive))).toBe(true)
+    await page.waitForEvent((event) => event.event === "session_ended")
+    await page.closeStream()
+
+    const session = await agent.session()
+    expect(session.ended).toBe(true)
+    expect(session.page_token).toBeNull()
+    expect(session.agent_token).toBe(agent.agentToken)
+    // The page token is dead...
+    expect((await page.send("mic", { state: "muted" })).status).toBe(410)
+    // ...while the agent token still serves the final batch and its ack.
+    const final = await agent.waitCli()
+    expect(final.exitCode, final.stderr).toBe(0)
+    const envelope = final.envelope as { kind: string; checkpoint_id: string; units: Array<{ id: string; confirmed: unknown }> }
+    expect(envelope.kind).toBe("final")
+    expect(envelope.units.map((unit) => unit.id)).toEqual(["u1"])
+    expect(envelope.units[0].confirmed).toEqual({ element: true, change: true })
+    expect((await agent.ack(envelope.checkpoint_id)).status).toBe(200)
+
+    const stopped = await agent.stopCli()
+    expect(stopped.exitCode).toBe(0)
+    const after = await agent.session()
+    expect(after.agent_token).toBeNull()
+    expect(after.page_token).toBeNull()
+    expect(await fs.exists(path.join(agent.stateDir, "batches"))).toBe(false)
+    expect(await fs.exists(path.join(agent.stateDir, "log", "events.ndjson"))).toBe(true)
+    expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(true)
+    const afterStop = await agent.waitCli()
+    expect(afterStop.exitCode).toBe(1)
+    expect(afterStop.envelope).toEqual({ status: "session-ended" })
+  })
+
+  // U8 finding: finishEndedSession() nulls the agent token as soon as the final batch is acked,
+  // so the status posts live-loop.md makes after the ack get 410. KTD18/I4: `stop` invalidates it.
+  test.todo("after the final batch is acknowledged, the agent token still accepts status posts until stop (U8: agent token invalidated at final ack, not at stop)", async () => {
+    const agent = await startAgent()
+    const page = new FakeLivePage(agent.url, agent.pageToken)
+    await page.sendUnit("u1", "make the header red")
+    expect((await page.endSession("{}", "application/json")).status).toBe(200)
+    const final = await agent.waitHttp()
+    expect(final.status).toBe(200)
+    expect((await agent.ack(final.envelope!.checkpoint_id)).status).toBe(200)
+    expect((await agent.postStatus("u1", "applied", { note: "done in the final pass" })).status).toBe(200)
+    expect((await agent.statusHttp()).status).toBe(200)
+    expect((await agent.session()).agent_token).toBe(agent.agentToken)
+  })
+
+  test("replay --profile anchors_transcript_only re-emits the log to a second helper with frames stripped", async () => {
+    const source = await startAgent()
+    const page = new FakeLivePage(source.url, source.pageToken)
+    const fixtures = await Promise.all(["transcript", "unit", "annotation", "frame"].map(readFixture))
+    for (const fixture of fixtures) expect((await page.post(page.fromFixture(fixture))).status).toBe(200)
+    await page.sendUnit("u2", "second unit", { evidence: { frame_ids: ["frame_0007"], annotation_ids: ["ann_0001"], transcript_span: { t_start: 0, t_end: 1 }, audio_clip_id: "clip_0002" } })
+    await page.sendCheckpoint("ck1", "silence", "smart")
+    expect((await source.statusHttp()).body.frame_count).toBe(1)
+
+    const target = await startAgent()
+    const replayed = await source.replayCli("anchors_transcript_only", target.url, target.pageToken)
+    expect(replayed.exitCode, replayed.stderr).toBe(0)
+    const summary = parseJsonLine(replayed.stdout)
+    expect(summary.status).toBe("replayed")
+    expect(summary.profile).toBe("anchors_transcript_only")
+    expect(summary.envelopes_skipped).toBe(2)
+    expect(summary.envelopes_sent).toBe(4)
+
+    const targetStatus = (await target.statusHttp()).body
+    expect(targetStatus.frame_count).toBe(0)
+    expect(targetStatus.annotations).toBe(0)
+    expect(targetStatus.transcript_count).toBe(1)
+    expect((targetStatus.units as { total: number }).total).toBe(2)
+    const targetBoard = (await target.board()) as { units: Record<string, { evidence: Record<string, unknown> }> }
+    for (const id of ["unit_0001", "u2"]) {
+      expect(targetBoard.units[id].evidence.frame_ids).toEqual([])
+      expect(targetBoard.units[id].evidence.annotation_ids).toEqual([])
+      expect(targetBoard.units[id].evidence).not.toHaveProperty("audio_clip_id")
+      expect(targetBoard.units[id].evidence).not.toHaveProperty("telemetry_window")
+    }
+    const targetLog = await fs.readFile(path.join(target.stateDir, "log", "events.ndjson"), "utf8")
+    expect(targetLog).not.toContain('"type":"frame"')
+    expect(await fs.readdir(path.join(target.stateDir, "log", "frames"))).toEqual([])
+    // The replayed checkpoint released both units to the target's own wake.
+    const wake = await target.waitHttp()
+    expect(wake.status).toBe(200)
+    expect(wake.envelope!.units.map((unit) => unit.id).sort()).toEqual(["u2", "unit_0001"])
+  })
+})
+
+async function collectFiles(dir: string): Promise<string[]> {
+  const out: string[] = []
+  for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) out.push(...(await collectFiles(full)))
+    else out.push(full)
+  }
+  return out
+}
