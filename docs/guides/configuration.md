@@ -8,6 +8,7 @@ Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-eng
 
 - **Ordinary keys:** read `config.local.yaml`, then `config.yaml`. The first active (non-commented) value wins. A missing file is skipped. Invalid or empty scalars continue to the next layer, then the skill default. A present list or map, including empty, replaces the whole key.
 - **`docs_root`:** read only from `config.yaml`. A `docs_root` in `config.local.yaml` is ignored.
+- **`knowledge`:** read only from `config.yaml`, as one block; a `knowledge` block in `config.local.yaml` is ignored. See [Knowledge layout](#knowledge-layout).
 - **Gitignore does not change resolution.** Either file works whether ignored or committed.
 - A current-task instruction still wins over config. Session and project instructions already in context can override or narrow it.
 
@@ -23,6 +24,28 @@ Two other things make `docs_root` unlike the other settings:
 - **It fails closed.** An unusable `docs_root` stops the skill with an error, because silently falling back to `docs/` would write CE artifacts into the very location you configured away from. `/ce-setup` reports the resolved root.
 
 `docs_root` does not make artifacts survive an ephemeral workspace. The root is inside the repo, so it lives and dies with the checkout.
+
+## Knowledge layout
+
+The `knowledge` block says where knowledge artifacts live in a folder, as data the skills query ("where does a `source` note go?") rather than prose an agent interprets. It is written by `/ce-setup knowledge`, which expands a **layout template** into the block; [`ce-capture`](./ce-capture.md), [`ce-dream`](./ce-dream.md), [`ce-experiment`](./ce-experiment.md), and [`ce-compound`](./ce-compound.md) read it. Unset, those skills say the layout is unset and file nothing rather than guess; the rest of the plugin is unaffected.
+
+Built-in templates: `none` (an inbox and a learnings folder, nothing else prescribed), `kieran` (numbered experiment folders with flat sources, ideas, themes, and transferable learnings; `learnings/` doubles as `docs_root`), `katie` (command center, project homes, project records, knowledge, with an explicit promotion ladder), `nityesh` (Projects, ephemeral Work, Notes, dated Diary that keeps raw session logs as sources), `para`, and `johnny-decimal`. A folder may name a custom template file instead. Templates live in the setup skill (`skills/ce-setup/references/layouts/`), and setup expands the chosen one **into** the block: consuming skills read one file, the folder's layout does not drift when the plugin's template changes, and overriding a role path is an ordinary edit. `layout:` keeps the template name for provenance.
+
+Keys inside the block:
+
+| Key | Meaning |
+|---|---|
+| `layout`, `root` | Template the block was expanded from; folder the layout applies to (repo-relative, default `.`). |
+| `id_scheme` | How projects get identity: `sequential` (never renumber), `date`, `johnny-decimal`, or `none`. |
+| `roles` | One entry per artifact role, keys drawn from `inbox, sources, ideas, themes, projects, notes, learnings, writing, memory, scratch, archive, templates`; every layout sets at least `inbox`, `learnings`, and `memory`. Each role has a `path` (relative; may use `{id:03d}` and `{slug}`), a `filename` pattern, the frontmatter `types` that file there, `retention` (`keep` or `discard`), and `tracked` (`false` means never committed -- raw session logs and scratch). A role the block leaves unset means "do not create it, do not file there". |
+| `frontmatter` | The contract every knowledge artifact carries: `required` keys, `type_enum`, `provenance` keys (e.g. `generated_with`), `source_keys` for source-derived notes, `source_access_enum`. Skills emit exactly these keys and never invent others. |
+| `promotion` | Allowed moves as `role: [roles]`, with `pack-rule` as the terminal target (`inbox -> sources`, `notes -> learnings`, `learnings -> pack-rule`). |
+| `retention` | `inbox_flag_after_days`: age after which `ce-dream` flags an inbox item. |
+| `git` | Write authority for unattended runs: `mode` is `none` (default; proposals only), `commit`, or `commit+push`, and `allow` lists the paths those runs may write or commit under. The `kieran` template ships `commit+push` for `inbox/` and `sources/` because that folder authorized reviewed captures; every other template ships `none`. |
+| `index` | Reserved for an external index adapter. `none` is the only accepted value in this release. |
+| `recurring` | Cadence notes (`capture`, `dream`) for whichever scheduler the harness provides. Nothing acts on them; the harness owns the clock. |
+
+Like `docs_root`, an unusable block **fails closed**: an unknown role, a path that escapes the folder, a `git.mode` or `index` outside its enum stops the skill with an error naming the key, because a typo must not scatter files. `/ce-setup knowledge` validates the block and dry-runs the moves a folder would need to match it; nothing is moved without approval.
 
 ## Compound Packs (experimental — shape may change)
 
@@ -90,6 +113,7 @@ All settings are optional. Commented examples are documentation, not active valu
 | Consumer | Options | Purpose and values |
 |---|---|---|
 | all artifact-writing skills | `docs_root` | Repo-relative folder every CE artifact subdirectory lives under. Set only in `config.yaml`. Unset -> `docs`. See [Artifact root](#artifact-root). |
+| [`ce-capture`](./ce-capture.md), [`ce-dream`](./ce-dream.md), [`ce-experiment`](./ce-experiment.md), [`ce-compound`](./ce-compound.md) | `knowledge` | Where knowledge artifacts live: roles, paths, frontmatter contract, promotion edges, write authority. Written by `/ce-setup knowledge` from a layout template. Set only in `config.yaml`; fails closed. See [Knowledge layout](#knowledge-layout). |
 | [`ce-ideate`](./ce-ideate.md), [`ce-brainstorm`](./ce-brainstorm.md), [`ce-plan`](./ce-plan.md) | `ideate_output`, `brainstorm_output`, `plan_output` | Artifact format: `md` or `html`. Defaults are HTML for ideation and markdown for brainstorms/plans. Headless and pipeline runs resolve the format the same way; nothing forces markdown. |
 | [`ce-plan`](./ce-plan.md) | `plan_skip_scoping_confirm` | `true` skips the normal pre-plan scope confirmation; default `false`. It does not suppress genuine blockers or the post-plan menu. |
 | [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_model`, `brainstorm_model` | Model elevation: send the reasoning-heavy step to a named model (e.g. `fable`, `opus`) instead of the session model. Value is a model alias; a prompt request or an orchestrator's `plan_model:<alias>` carrier (e.g. from `lfg`, honored even in pipeline mode) overrides it. Takes effect on every harness: natively where the host serves the model, else via the Claude CLI, else inline. For explicitly requested Bake-offs, pass the corresponding choice as a candidate model preference. Bake-off owns its dispatch: native access, authorized model CLIs, then fresh same-host agents on failure, subject to explicit model restrictions. With no preference, it seeks model-family diversity. Planning still has a final authoring call, while brainstorming replaces its ordinary generation. No default (elevation off). |
