@@ -19,7 +19,7 @@ SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read
 bash "$SKILL_DIR/scripts/detect-riffrec.sh" "<project-root>"
 ```
 
-One JSON line: `dependency`, `version`, `mount`, `package_manager`. Live mode needs all of: dependency true, version at or above the minimum named in `references/install-riffrec.md`, and mount true with `live=` on the mount (open the mounting file to check the prop; the script reports only that a mount exists). Anything short of that: read `references/install-riffrec.md` and complete it before continuing. The setup commit it makes stays after the session.
+One JSON line: `dependency`, `version`, `mount`, `package_manager`. Live mode needs all of: dependency true, a version at or above the minimum named in `references/install-riffrec.md` (or a dependency installed from riffrec's GitHub `main`, that file's interim path), and mount true with `live=` on the mount (open the mounting file to check the prop; the script reports only that a mount exists). Anything short of that: read `references/install-riffrec.md` and complete it before continuing. The setup commit it makes stays after the session.
 
 ## Run directory and endpoint
 
