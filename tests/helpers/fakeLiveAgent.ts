@@ -5,6 +5,7 @@
 // stub OpenAI client-secret server is included so /mint can be exercised
 // offline through the helper's OPENAI_BASE_URL override.
 import { promises as fs } from "fs"
+import http from "http"
 import os from "os"
 import path from "path"
 
@@ -88,6 +89,41 @@ export async function waitUntil(predicate: () => Promise<boolean> | boolean, tim
     await Bun.sleep(stepMs)
   }
   throw new Error(`condition not met within ${timeoutMs}ms`)
+}
+
+export type DirectResponse = { status: number; headers: http.IncomingHttpHeaders; text: string; json: () => Record<string, unknown> }
+
+/**
+ * A plain node:http request. Unlike fetch it ignores HTTP_PROXY/HTTPS_PROXY,
+ * so a request to a LAN address of this machine reaches the helper and not an
+ * ambient proxy whose NO_PROXY does not list that address.
+ */
+export function directRequest(url: string, options: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<DirectResponse> {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, { method: options.method ?? "GET", headers: options.headers ?? {} }, (response) => {
+      const chunks: Buffer[] = []
+      response.on("data", (chunk: Buffer) => chunks.push(chunk))
+      response.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8")
+        resolve({
+          status: response.statusCode ?? 0,
+          headers: response.headers,
+          text,
+          json: () => {
+            try {
+              return JSON.parse(text)
+            } catch {
+              return { raw: text }
+            }
+          },
+        })
+      })
+      response.on("error", reject)
+    })
+    request.on("error", reject)
+    if (options.body !== undefined) request.write(options.body)
+    request.end()
+  })
 }
 
 function processAlive(pid: number): boolean {
@@ -200,7 +236,13 @@ export class FakeLiveAgent {
     }
   }
 
-  /** Owner death / idle timeout stand-in: the process goes away, the session does not end. */
+  /**
+   * Owner death / idle timeout stand-in: the process goes away, the session
+   * does not end. "Gone" is judged by the listener refusing connections, not
+   * by pid liveness alone: a detached child whose parent already exited can
+   * linger as a zombie on runtimes without a reaper, and `kill(pid, 0)`
+   * still succeeds on a zombie.
+   */
   async killServer(): Promise<void> {
     const pid = await this.serverPid()
     if (!pid) return
@@ -209,7 +251,17 @@ export class FakeLiveAgent {
     } catch {
       return
     }
-    await waitUntil(() => !processAlive(pid), 5000)
+    await waitUntil(async () => !processAlive(pid) || !(await this.listening()), 5000)
+  }
+
+  /** True while something answers on the helper's port (any status, even 401). */
+  async listening(): Promise<boolean> {
+    try {
+      const response = await directRequest(`${this.url}/status`, { method: "GET" })
+      return response.status > 0
+    } catch {
+      return false
+    }
   }
 
   headers(extra: Record<string, string> = {}): Record<string, string> {

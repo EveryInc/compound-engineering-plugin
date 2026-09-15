@@ -3,7 +3,7 @@ import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
 import { FakeLivePage, FIXTURES_DIR, readFixture } from "../helpers/fakeLivePage"
-import { APP_ORIGIN, FakeLiveAgent, FakeOpenAI, runHelper, parseJsonLine } from "../helpers/fakeLiveAgent"
+import { APP_ORIGIN, FakeLiveAgent, FakeOpenAI, directRequest, runHelper, parseJsonLine } from "../helpers/fakeLiveAgent"
 
 setDefaultTimeout(30_000)
 
@@ -302,24 +302,27 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
       // No non-loopback interface on this machine; the TLS gate cannot be reached.
       return
     }
+    // node:http, not fetch: an ambient HTTP_PROXY whose NO_PROXY omits this address must not swallow the request.
+    const mintDirect = async (agent: FakeLiveAgent, extra: Record<string, string> = {}) => {
+      const page = new FakeLivePage(`http://${lanAddress}:${agent.port}`, agent.pageToken)
+      const response = await directRequest(`${page.url}/mint`, { method: "POST", headers: page.headers(extra), body: JSON.stringify({ session_id: page.sessionId }) })
+      return { status: response.status, body: response.json() }
+    }
     const agent = await startAgent({ host: "0.0.0.0", env: { OPENAI_API_KEY: undefined } })
-    const lanUrl = `http://${lanAddress}:${agent.port}`
-    const page = new FakeLivePage(lanUrl, agent.pageToken)
-    const plain = await page.mint()
+    const plain = await mintDirect(agent)
     expect(plain.status).toBe(403)
     expect(plain.body).toEqual({ reason: "tls_required" })
     // The header alone proves nothing: only a proxy named with --trust-proxy may assert it.
-    const untrusted = await page.mint({ session_id: page.sessionId }, page.headers({ "X-Forwarded-Proto": "https" }))
+    const untrusted = await mintDirect(agent, { "X-Forwarded-Proto": "https" })
     expect(untrusted.status).toBe(403)
     expect(untrusted.body).toEqual({ reason: "tls_required" })
 
     const trusted = await startAgent({ host: "0.0.0.0", env: { OPENAI_API_KEY: undefined }, startArgs: ["--trust-proxy", lanAddress] })
-    const proxied = new FakeLivePage(`http://${lanAddress}:${trusted.port}`, trusted.pageToken)
-    const forwarded = await proxied.mint({ session_id: proxied.sessionId }, proxied.headers({ "X-Forwarded-Proto": "https" }))
+    const forwarded = await mintDirect(trusted, { "X-Forwarded-Proto": "https" })
     // Past the TLS gate the request reaches the key check.
     expect(forwarded.status).toBe(503)
     expect(forwarded.body).toEqual({ reason: "no_key" })
-    expect((await proxied.mint()).status).toBe(403)
+    expect((await mintDirect(trusted)).status).toBe(403)
   })
 })
 
