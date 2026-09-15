@@ -112,7 +112,7 @@ Every run, lite, focused, or full, leaves its receipt (`review.json` in `mode:ag
 }
 ```
 
-The full path's finish leaf adds the artifacts `references/finish-review.md` lists.
+The full path adds the artifacts listed under "Run artifacts" in `references/finish-input.md`.
 
 ## JSON output format (`mode:agent` only)
 

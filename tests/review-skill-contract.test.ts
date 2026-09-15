@@ -139,6 +139,9 @@ async function readCodeReviewRuntimeContract(): Promise<string> {
     readRepoFile("skills/ce-code-review/references/dispatch-reviewers.md"),
     readRepoFile("skills/ce-code-review/references/action-class-rubric.md"),
     readRepoFile("skills/ce-code-review/references/finish-review.md"),
+    // Stage 5b step 4 and the run-artifact list moved here (plan 2026-09-15-1322, U3)
+    // so the orchestrator never opens finish-review.md.
+    readRepoFile("skills/ce-code-review/references/finish-input.md"),
   ])
   return parts.join("\n")
 }
@@ -553,6 +556,7 @@ describe("ce-code-review contract", () => {
     const crossModel = await readRepoFile(
       "skills/ce-code-review/references/cross-model-review.md",
     )
+    const handoff = await readRepoFile("skills/ce-code-review/references/finish-input.md")
     const solution = await readRepoFile(
       "docs/solutions/skill-design/anti-poll-scope-and-async-subagent-dispatch.md",
     )
@@ -581,7 +585,8 @@ describe("ce-code-review contract", () => {
     // The lifecycle rule moved out of the body (#1689 byte cap); it must fire where agents are launched and where the validator is collected.
     expect(content).toMatch(/\*\*Agent lifecycle\.\*\* Collect each reviewer's final result/)
     const finish = await readRepoFile("skills/ce-code-review/references/finish-review.md")
-    expect(finish).toMatch(/agent lifecycle rule from `references\/dispatch-reviewers\.md`/)
+    // Moved with Stage 5b step 4 into finish-input.md (plan 2026-09-15-1322, U3).
+    expect(handoff).toMatch(/agent lifecycle rule from `references\/dispatch-reviewers\.md`/)
     // #1654: Codex delivers a subagent's final answer as a host message tagged with the
     // launch's task name, while wait_agent reports status. The collector rule must state the
     // condition (an attributable terminal result reached in-turn), accept that channel, and
@@ -630,7 +635,8 @@ describe("ce-code-review contract", () => {
     expect(finish).toMatch(/^This reference runs across three contexts/m)
     expect(finish).toMatch(/A leaf launches no subagents/)
     expect(finish).toMatch(/Each leaf reads `<run-dir>\/finish-input\.json` first/)
-    expect(finish).toMatch(/- `finish-input\.json`/)
+    // The run-artifact list moved to finish-input.md (plan 2026-09-15-1322, U3).
+    expect(handoff).toMatch(/- `finish-input\.json`/)
     // The contract file names every field the finish context may need and the failure direction.
     for (const field of ["run_id", "skill_dir", "docs_root", "apply_local", "raw-returns.json", "failed_reviewers", "preference_source", "coverage_notes"]) {
       expect(handoff).toContain(field)
@@ -705,6 +711,9 @@ describe("ce-code-review contract", () => {
     const validatorTemplate = await readRepoFile(
       "skills/ce-code-review/references/validator-batch-template.md",
     )
+    // Stage 5b step 4 (the validator launch) lives in finish-input.md since plan
+    // 2026-09-15-1322 U3; its pins read that file. Steps 1-3 and 5 stay in finish-review.md.
+    const step4 = await readRepoFile("skills/ce-code-review/references/finish-input.md")
 
     // Stage 5b exists between Stage 5 and Stage 6
     expect(content).toContain("### Stage 5b: Validation pass")
@@ -723,13 +732,13 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/never split the work into another batch/i)
     // #1679: a foreground-only collector has no end on hosts whose blocking call
     // cannot be bounded, so the contract is a bounded wait on the verdicts file.
-    expect(content).not.toMatch(/Run the validator batch foreground/i)
-    expect(content).toMatch(/wait that has an end/i)
-    expect(content).toMatch(/validator-verdicts\.json/)
+    expect(step4).not.toMatch(/Run the validator batch foreground/i)
+    expect(step4).toMatch(/wait that has an end/i)
+    expect(step4).toMatch(/validator-verdicts\.json/)
     // Codex's wait_agent caps a single wait at ~30s (PR #1688 review): the bound is aggregate, not per wait.
-    expect(content).toMatch(/repeated back to back.*aggregate wall-clock limit/i)
-    expect(content).toMatch(/no bounded wait exists.*do not launch the validator/i)
-    expect(content).toMatch(/bound passes.*validator infrastructure failure/i)
+    expect(step4).toMatch(/repeated back to back.*aggregate wall-clock limit/i)
+    expect(step4).toMatch(/no bounded wait exists.*do not launch the validator/i)
+    expect(step4).toMatch(/bound passes.*validator infrastructure failure/i)
     expect(content).toMatch(/uninspected.*validator infrastructure failure for that finding/i)
     // #1693: a conservative validator must not silently drop a protected-subject finding.
     expect(content).toMatch(/classify every selected finding yourself/i)
@@ -740,15 +749,15 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Cost, elapsed time, confidence.*never licenses an additional skip/i)
 
     // Foreground is a request, not proof that the host returned a verdict in-band.
-    expect(content).toMatch(/compact.*verdict.*in[- ]band/i)
-    expect(content).toMatch(/launch receipt.*not.*validator return/i)
-    expect(content).toMatch(/launch receipt.*uncollected/i)
-    expect(content).toMatch(/blocking collection/i)
-    expect(content).toMatch(/terminal outcome/i)
-    expect(content).toMatch(/host-delivered terminal message/i)
-    expect(content).toMatch(/malformed output.*validator infrastructure failure/i)
+    expect(step4).toMatch(/compact.*verdict.*in[- ]band/i)
+    expect(step4).toMatch(/launch receipt.*not.*validator return/i)
+    expect(step4).toMatch(/launch receipt.*uncollected/i)
+    expect(step4).toMatch(/blocking collection/i)
+    expect(step4).toMatch(/terminal outcome/i)
+    expect(step4).toMatch(/host-delivered terminal message/i)
+    expect(content).toMatch(/malformed output.*validator infrastructure failure/i) // step 5 text
     expect(content).toMatch(/validator infrastructure failure/i)
-    expect(content).not.toMatch(/A foreground Agent call is the wait/i)
+    expect(step4).not.toMatch(/A foreground Agent call is the wait/i)
 
     // Validator template exists and is read-only
     expect(validatorTemplate).toMatch(/validator is independent|independent validation gate/i)
@@ -1699,6 +1708,8 @@ describe("cross-model peer skip legibility", () => {
     const reference = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
     const routing = await readRepoFile("skills/ce-code-review/references/select-and-route.md")
     const finish = await readRepoFile("skills/ce-code-review/references/finish-review.md")
+    // The run-artifact list moved to finish-input.md (plan 2026-09-15-1322, U3).
+    const handoff = await readRepoFile("skills/ce-code-review/references/finish-input.md")
     const worker = await readRepoFile("skills/ce-code-review/scripts/cross-model-adversarial-review.sh")
     expect(reference).toContain("`adversarial-review-constraints.md`")
     expect(reference).toContain("never combines their trust domains")
@@ -1709,7 +1720,7 @@ describe("cross-model peer skip legibility", () => {
     expect(reference).toContain("Missing or oversized constraints stop before provider egress")
     expect(routing).toContain("dedicated host-vetted constraints file")
     expect(routing).toContain("separate untrusted semantic brief")
-    expect(finish).toContain("`adversarial-review-constraints.md`")
+    expect(handoff).toContain("`adversarial-review-constraints.md`")
     expect(finish).toContain("local `project-standards` review and synthesis are the sole owners of scoped-rule coverage")
     expect(finish).toContain("peer candidate enters the final report only when it is compatible with every applicable scoped rule")
     expect(finish).toContain("A replacement candidate requires independent local evidence")

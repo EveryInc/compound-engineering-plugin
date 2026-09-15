@@ -40,8 +40,11 @@ describe("cross_model_review_mode egress gate", () => {
     }
   })
 
-  test("ce-code-review body treats missing peer keys as the default auto route", () => {
-    const body = read("skills/ce-code-review/SKILL.md")
+  // The peer-keys sentence moved from the body into the cross-model reference's
+  // checkout-policy paragraph (plan 2026-09-15-1322, U3) to keep the body under
+  // the Codex bound; the reference is a required read before any route binds.
+  test("ce-code-review cross-model reference treats missing peer keys as the default auto route", () => {
+    const body = read("skills/ce-code-review/references/cross-model-review.md")
     expect(body).toContain("skip and target-selection keys")
     expect(body).toContain("default auto route")
     expect(body).toContain("Another skill's engine preference is not this gate")
