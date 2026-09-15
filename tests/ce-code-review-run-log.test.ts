@@ -10,10 +10,32 @@ import { describe, expect, test } from "bun:test"
 
 const SCRIPT = path.join(process.cwd(), "skills", "ce-code-review", "scripts", "run-log.py")
 
+// Every host attestation variable run-log.py recognizes; the suite may itself
+// run inside one of these hosts, so the unknown-host test must clear them all.
+const HOST_ATTESTATION_VARS = [
+  "CLAUDECODE",
+  "CODEX_SANDBOX",
+  "CODEX_SANDBOX_NETWORK_DISABLED",
+  "CODEX_SESSION_ID",
+  "CODEX_THREAD_ID",
+  "CODEX_CI",
+  "GROK_AGENT",
+  "GROK_SESSION_ID",
+  "CURSOR_AGENT",
+  "CURSOR_CONVERSATION_ID",
+  "OPENCODE_TERMINAL",
+]
+
+function hostlessEnv(overrides: Record<string, string> = {}) {
+  const env: Record<string, string | undefined> = { ...process.env }
+  for (const name of HOST_ATTESTATION_VARS) delete env[name]
+  return { ...env, ...overrides }
+}
+
 function runLog(runDir: string, ...args: string[]) {
   const result = spawnSync("python3", [SCRIPT, ...args, "--run-dir", runDir], {
     encoding: "utf8",
-    env: { ...process.env, CLAUDECODE: "", CODEX_SESSION_ID: "" },
+    env: hostlessEnv(),
   })
   expect(result.status, result.stderr).toBe(0)
   return result
@@ -142,7 +164,7 @@ describe("ce-code-review run-log", () => {
     expect(metadata(dir).cost.host).toBe("unknown")
     const claude = spawnSync("python3", [SCRIPT, "summarize", "--run-dir", dir], {
       encoding: "utf8",
-      env: { ...process.env, CLAUDECODE: "1" },
+      env: hostlessEnv({ CLAUDECODE: "1" }),
     })
     expect(claude.status).toBe(0)
     expect(metadata(dir).cost.host).toBe("claude")
