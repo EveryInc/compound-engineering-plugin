@@ -158,4 +158,40 @@ describe("ce-polish live endpoint smoke", () => {
     expect(afterStop.exitCode).toBe(1)
     expect(JSON.parse(afterStop.stdout.trim())).toEqual({ status: "session-ended" })
   })
+
+  test("leaving Collect and the page's final checkpoint always wake, carrying the accepted backlog", async () => {
+    const { url, pageToken, agentToken } = await startEndpoint()
+    const sessionId = "s2"
+    const page = { Authorization: `Bearer ${pageToken}`, "X-Riffrec-Session": sessionId, "Content-Type": "application/json" }
+    const agent = { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json" }
+    const post = (body: object) => fetch(`${url}/events`, { method: "POST", headers: page, body: JSON.stringify(body) })
+    const wake = async () => {
+      const response = await fetch(`${url}/wait`, { headers: agent })
+      expect(response.status).toBe(200)
+      const batch = await response.json()
+      await fetch(`${url}/checkpoints/${batch.checkpoint_id}/ack`, { method: "POST", headers: agent, body: "{}" })
+      return batch
+    }
+    const unit = (id: string, seq: number) =>
+      envelope(sessionId, seq, "unit", { id, statement: id, transcript_excerpt: id, anchors: [], evidence: { frame_ids: [], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } }, status: "initial" })
+
+    await post([envelope(sessionId, 1, "mode", { mode: "collect" }), unit("a", 2), unit("b", 3), envelope(sessionId, 4, "checkpoint", { id: "ck-send", trigger: "send", mode: "collect" })])
+    expect((await wake()).units.map((u: { id: string }) => u.id)).toEqual(["a", "b"])
+    for (const id of ["a", "b"]) {
+      await fetch(`${url}/units/${id}/status`, { method: "POST", headers: agent, body: JSON.stringify({ status: "accepted" }) })
+    }
+
+    await post([envelope(sessionId, 5, "mode", { mode: "smart" })])
+    const modeChange = await wake()
+    expect(modeChange.kind).toBe("mode_change")
+    expect(modeChange.mode_at_checkpoint).toBe("smart")
+    expect(modeChange.units.map((u: { id: string; status: string }) => `${u.id}:${u.status}`)).toEqual(["a:accepted", "b:accepted"])
+
+    await fetch(`${url}/units/a/status`, { method: "POST", headers: agent, body: JSON.stringify({ status: "applied" }) })
+    await post([envelope(sessionId, 6, "checkpoint", { id: "ck-final", trigger: "final", mode: "smart" })])
+    const final = await wake()
+    expect(final.checkpoint_id).toBe("ck-final")
+    expect(final.kind).toBe("final")
+    expect(final.units.map((u: { id: string; status: string }) => `${u.id}:${u.status}`)).toEqual(["b:accepted"])
+  })
 })
