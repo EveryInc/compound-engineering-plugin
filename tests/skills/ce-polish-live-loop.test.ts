@@ -56,7 +56,8 @@ describe("ce-polish live loop smoke", () => {
     const stroke = await readFixture("annotation")
     const drawingOnly = page.envelope("annotation", { ...stroke.payload, id: "ann-box", unit_id: "u-drawing", text: undefined })
     expectOk(await page.post(drawingOnly))
-    expectOk(await page.sendUnit("u-drawing", "(drawing)", { evidence: { frame_ids: [], annotation_ids: ["ann-box"], transcript_span: null } }))
+    // A drawing-only unit has no words, but the contract still requires a span (I1): it collapses onto the stroke's time.
+    expectOk(await page.sendUnit("u-drawing", "(drawing)", { evidence: { frame_ids: [], annotation_ids: ["ann-box"], transcript_span: { t_start: 12.5, t_end: 12.5 } } }))
     await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u-toggle" && event.data.status === "withdrawn")
 
     // Nothing wakes the agent before a checkpoint (R36).
