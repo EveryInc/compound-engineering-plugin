@@ -81,6 +81,35 @@ json_value() {
     | sed -e 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//' -e 's/"$//'
 }
 
+# The declared range of `riffrec` from dependencies, devDependencies, or
+# peerDependencies only; a `riffrec` key under scripts, overrides,
+# resolutions, or any other section is not a dependency. Prefers a real JSON
+# parse through node; without node, a line-based walk that tracks which
+# top-level section the cursor is in (package.json as written by the package
+# managers is one key per line).
+declared_dependency() {
+  # $1 package.json
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+      const fs = require("fs");
+      let pkg;
+      try { pkg = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch { process.exit(0); }
+      for (const section of ["dependencies", "devDependencies", "peerDependencies"]) {
+        const range = pkg && pkg[section] && pkg[section].riffrec;
+        if (typeof range === "string") { process.stdout.write(range); process.exit(0); }
+      }
+    ' "$1" 2>/dev/null
+    return
+  fi
+  awk '
+    /^[[:space:]]*"(dependencies|devDependencies|peerDependencies)"[[:space:]]*:[[:space:]]*\{/ { inside = 1; next }
+    inside && /^[[:space:]]*\}/ { inside = 0; next }
+    inside && /^[[:space:]]*"riffrec"[[:space:]]*:[[:space:]]*"/ {
+      sub(/^[[:space:]]*"riffrec"[[:space:]]*:[[:space:]]*"/, ""); sub(/".*$/, ""); print; exit
+    }
+  ' "$1" 2>/dev/null
+}
+
 DEPENDENCY=false
 VERSION=""
 MOUNT=false
@@ -95,10 +124,7 @@ if [ -f "$PACKAGE_JSON" ]; then
     *) PACKAGE_MANAGER="" ;;
   esac
 
-  # A `"riffrec": "<range>"` entry anywhere in package.json is a dependency
-  # declaration: package.json has no other place a bare package name appears
-  # as a key with a string value.
-  DECLARED=$(json_value "$PACKAGE_JSON" "riffrec")
+  DECLARED=$(declared_dependency "$PACKAGE_JSON")
   if [ -n "$DECLARED" ]; then
     DEPENDENCY=true
     INSTALLED_PKG="$TARGET_PATH/node_modules/riffrec/package.json"

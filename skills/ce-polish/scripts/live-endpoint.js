@@ -11,6 +11,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { execFileSync, spawn } from "node:child_process"
 import fs from "node:fs"
 import http from "node:http"
+import net from "node:net"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -28,6 +29,10 @@ const FRAME_BODY_LIMIT = 2 * 1024 * 1024
 const ARCHIVE_BODY_LIMIT = Number(process.env.CE_LIVE_ARCHIVE_LIMIT_BYTES) || 400 * 1024 * 1024
 const DISK_CAP_BYTES = Number(process.env.CE_LIVE_DISK_CAP_BYTES) || 500 * 1024 * 1024
 const BRIEF_MAX_CHARS = 3000
+// Envelopes held ahead of a sequence gap before early arrivals are dropped for replay.
+const OUT_OF_ORDER_CAP = 512
+// Replay batches stay under the target's 64 KB cap with headroom for the array framing.
+const REPLAY_BATCH_LIMIT = BODY_LIMIT - 1024
 const MINTS_PER_MINUTE = 5
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "")
 const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime"
@@ -39,88 +44,129 @@ const PAGE_EVENT_TYPES = new Set([
   "transcript", "unit", "unit_update", "unit_withdraw", "annotation",
   "checkpoint", "answer", "frame", "mic", "mode", "stream_state",
 ])
-const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "final"])
+// Page-emitted checkpoint triggers (KTD9). `silence`/`page_change`/`send`
+// wake the agent only when they release something; `final` always wakes.
+const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "answer", "final"])
+const ALWAYS_WAKE_KINDS = new Set(["answer", "mode_change", "final"])
+const EXECUTION_MODES = new Set(["instant", "smart", "collect"])
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
-const AGENT_UNIT_STATUSES = new Set([
-  "triaging", "applying", "applied", "needs_info", "blocked", "residual", "withdrawn", "skipped",
-])
+// Agent-postable unit statuses: riffrec's UnitStatus set minus `initial`.
+const AGENT_UNIT_STATUSES = new Set(["triaging", "accepted", "needs_info", "applied", "blocked", "withdrawn"])
 const EVIDENCE_PROFILES = {
   anchors_transcript_only: { frames: "none", annotations: false, clips: false, telemetry: false },
   strokes_composite: { frames: "composite", annotations: true, clips: false, telemetry: false },
   everything: { frames: "all", annotations: true, clips: true, telemetry: true },
 }
 
-// The interviewer's function tools and default persona live in
-// references/live-stream-contract.md; this is the executable copy the mint
-// sends to OpenAI. Keep the two in step.
+// The executable copy of the interviewer's tools the mint sends to OpenAI:
+// verbatim riffrec `LIVE_TOOLS` (src/live/tools.ts). The human-readable copy
+// is references/live-stream-contract.md; change all three together.
 const INTERVIEWER_TOOLS = [
   {
-    type: "function",
-    name: "record_unit",
-    description: "Record one requested change the riffer just described, as a normalized statement with the elements it refers to.",
-    parameters: {
-      type: "object",
-      properties: {
-        statement: { type: "string", description: "One requested change in the riffer's intent, normalized to a single imperative sentence." },
-        anchors: {
-          type: "array",
-          description: "Elements the riffer pointed at, clicked, or drew on for this change.",
-          items: {
-            type: "object",
-            properties: {
-              route: { type: "string" },
-              selector: { type: "string" },
-              component: { type: "string" },
-            },
-            required: ["route", "selector"],
-          },
+    "type": "function",
+    "name": "record_unit",
+    "description": "Record one requested change as a unit on the board. Call when the riffer has asked for exactly one concrete change to the app and you can state it in one sentence; call once per change, so a sentence that asks for three things becomes three calls. Never call for questions, thinking aloud, praise, or utterances shorter than three words without a change verb; ask a clarifying question instead when the target element or the intended change is ambiguous.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "statement": {
+          "type": "string",
+          "description": "Normalized imperative statement of the change, in the riffer's vocabulary, one sentence, no speculation."
         },
-        transcript_excerpt: { type: "string", description: "The riffer's own words this unit came from." },
-      },
-      required: ["statement", "anchors", "transcript_excerpt"],
-    },
-  },
-  {
-    type: "function",
-    name: "update_unit",
-    description: "Refine a unit that is still initial: change its statement or add anchors. Rejected once the unit has left initial.",
-    parameters: {
-      type: "object",
-      properties: {
-        unit_id: { type: "string" },
-        statement: { type: "string" },
-        anchors_add: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: { route: { type: "string" }, selector: { type: "string" }, component: { type: "string" } },
-            required: ["route", "selector"],
-          },
+        "anchors": {
+          "type": "array",
+          "description": "Anchor references for the element(s) the change is about: the riffer's own words for the element (\"the sidebar toggle\", \"that red button\") or an anchor id the page announced in conversation. Empty only when the riffer named no element at all.",
+          "items": {
+            "type": "string"
+          }
         },
+        "transcript_excerpt": {
+          "type": "string",
+          "description": "The riffer's own words that carry this change, verbatim, trimmed to the relevant span."
+        }
       },
-      required: ["unit_id"],
-    },
+      "required": [
+        "statement",
+        "anchors",
+        "transcript_excerpt"
+      ],
+      "additionalProperties": false
+    }
   },
   {
-    type: "function",
-    name: "withdraw_unit",
-    description: "Withdraw a unit the riffer no longer wants.",
-    parameters: {
-      type: "object",
-      properties: { unit_id: { type: "string" }, reason: { type: "string" } },
-      required: ["unit_id"],
-    },
+    "type": "function",
+    "name": "update_unit",
+    "description": "Refine a unit you recorded earlier. Call when the riffer adds detail, corrects wording, or names another element for a change already on the board, or when they answer a clarifying question you asked about it. Never call to change a unit into a different change; withdraw it and record a new one. The call is rejected once the unit has left the initial status; the result tells you so, and you must then record the refinement as a new unit.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "description": "Id returned by record_unit."
+        },
+        "statement": {
+          "type": "string",
+          "description": "Replacement statement, when the wording changes."
+        },
+        "anchors_add": {
+          "type": "array",
+          "description": "Additional anchor references to attach; existing anchors are kept.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "unit_id"
+      ],
+      "additionalProperties": false
+    }
   },
   {
-    type: "function",
-    name: "relay_answer",
-    description: "Relay the riffer's spoken answer to a question the coding agent asked about a unit.",
-    parameters: {
-      type: "object",
-      properties: { unit_id: { type: "string" }, answer_text: { type: "string" } },
-      required: ["unit_id", "answer_text"],
-    },
+    "type": "function",
+    "name": "withdraw_unit",
+    "description": "Retract a unit the riffer no longer wants. Call when the riffer says never mind, undo, scrap that, or otherwise takes back a change you recorded. Never call because you are unsure the unit was right; ask instead. Never call for units you did not record in this session.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "description": "Id returned by record_unit."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The riffer's reason, in their words, when they gave one."
+        }
+      },
+      "required": [
+        "unit_id"
+      ],
+      "additionalProperties": false
+    }
   },
+  {
+    "type": "function",
+    "name": "relay_answer",
+    "description": "Relay the riffer's answer to a question the coding agent asked about a unit. Call when you voiced a question that arrived from the endpoint for a specific unit and the riffer has answered it. Never call for answers to your own clarifying questions; use update_unit for those. Never invent or summarize an answer the riffer did not give.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "description": "Id of the unit the question was attached to."
+        },
+        "answer_text": {
+          "type": "string",
+          "description": "The riffer's answer, verbatim or lightly cleaned of filler."
+        }
+      },
+      "required": [
+        "unit_id",
+        "answer_text"
+      ],
+      "additionalProperties": false
+    }
+  }
 ]
 
 const INTERVIEWER_PERSONA = [
@@ -139,7 +185,7 @@ const INTERVIEWER_PERSONA = [
 function usage() {
   return [
     "Usage:",
-    "  node live-endpoint.js start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--foreground]",
+    "  node live-endpoint.js start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--trust-proxy <ip>[,<ip>]] [--foreground]",
     "  node live-endpoint.js status --root <dir>",
     "  node live-endpoint.js stop --root <dir>",
     "  node live-endpoint.js wait --root <dir>",
@@ -162,6 +208,7 @@ function parseArgs(argv) {
     else if (arg === "--profile") options.profile = argv[++i]
     else if (arg === "--to") options.to = argv[++i]
     else if (arg === "--token") options.token = argv[++i]
+    else if (arg === "--trust-proxy") options.trustProxy = [...(options.trustProxy ?? []), ...String(argv[++i] ?? "").split(",").map((ip) => ip.trim()).filter(Boolean)]
     else throw new Error(`Unknown argument: ${arg}`)
   }
 
@@ -175,7 +222,9 @@ function parseArgs(argv) {
   if (options.ownerPid !== undefined && (!Number.isInteger(options.ownerPid) || options.ownerPid <= 1)) {
     throw new Error("--owner-pid must be an integer greater than 1")
   }
+  options.trustProxy = options.trustProxy ?? []
   if (command === "start" || command === "serve") {
+    if (options.trustProxy.some((ip) => !net.isIP(ip))) throw new Error("--trust-proxy takes IP addresses (comma-separated or repeated)")
     if (!options.appOrigin) throw new Error("--app-origin is required (the browser-facing origin of the app under polish)")
     options.appOrigin = normalizeOrigin(options.appOrigin)
     if (!options.appOrigin) throw new Error("--app-origin must be an origin such as http://localhost:3000")
@@ -456,7 +505,6 @@ function emptyBoard() {
     ended: false,
     mode: "smart",
     acked_seq: 0,
-    pending_seqs: [],
     units: {},
     unit_order: [],
     annotations: {},
@@ -565,6 +613,7 @@ async function start(options) {
     options.host,
     ...(options.port !== undefined ? ["--port", String(options.port)] : []),
     ...(options.ownerPid ? ["--owner-pid", String(options.ownerPid)] : []),
+    ...(options.trustProxy.length > 0 ? ["--trust-proxy", options.trustProxy.join(",")] : []),
   ], {
     detached: true,
     stdio: ["ignore", logFd, logFd],
@@ -728,6 +777,7 @@ async function replay(options) {
   let sent = 0
   let skipped = 0
   let batch = []
+  let batchBytes = 0
 
   async function post(envelopes) {
     const response = await fetch(`${options.to}/events`, { method: "POST", headers, body: JSON.stringify(envelopes) })
@@ -742,6 +792,7 @@ async function replay(options) {
     if (batch.length === 0) return
     const pending = batch
     batch = []
+    batchBytes = 0
     await post(pending)
   }
 
@@ -769,8 +820,13 @@ async function replay(options) {
       await post([envelope])
       continue
     }
+    // The target's 64 KB cap is in encoded bytes; measure the same way and
+    // flush before the envelope that would cross it.
+    const encoded = Buffer.byteLength(JSON.stringify(envelope))
+    if (batch.length > 0 && batchBytes + encoded + 2 > REPLAY_BATCH_LIMIT) await flush()
     batch.push(envelope)
-    if (JSON.stringify(batch).length > BODY_LIMIT / 2 || envelope.type === "checkpoint") await flush()
+    batchBytes += encoded + 1
+    if (envelope.type === "checkpoint") await flush()
   }
   await flush()
   jsonOut({ status: "replayed", to: options.to, profile: options.profile, session_id: sessionId, envelopes_sent: sent, envelopes_skipped: skipped })
@@ -817,6 +873,7 @@ async function serve(options) {
   let session = null
   let waiter = null
   const streamClients = new Set()
+  const outOfOrder = new Map()
   let pageLostTimer = null
   let mintInFlight = false
   const mintTimes = []
@@ -890,7 +947,7 @@ async function serve(options) {
   }
 
   function publicUnit(unit) {
-    const { released, ...rest } = unit
+    const { released, checkpoint_id, ...rest } = unit
     return rest
   }
 
@@ -899,17 +956,29 @@ async function serve(options) {
     return rest
   }
 
+  // KTD12: units the agent accepted but has not applied or blocked since.
+  // `final` and `mode_change` carry them so a Collect backlog is applied.
+  function backlogUnits() {
+    return board.unit_order
+      .map((id) => board.units[id])
+      .filter((unit) => unit && unit.released && unit.status === "accepted")
+  }
+
   // A checkpoint releases every held unit and annotation plus the
-  // withdrawals that arrived after an earlier release. It wakes the agent
-  // only when it releases something.
+  // withdrawals that arrived after an earlier release. `silence`,
+  // `page_change`, and `send` wake the agent only when they release
+  // something; `final` always wakes and also carries the accepted backlog.
   function releaseCheckpoint(checkpointId, kind, mode) {
     const units = heldUnits()
     const annotations = heldAnnotations()
     const withdrawn = board.pending_withdrawn.map((id) => board.units[id]).filter(Boolean)
-    if (units.length === 0 && annotations.length === 0 && withdrawn.length === 0) return null
+    const backlog = kind === "final" ? backlogUnits() : []
+    const releases = units.length + annotations.length + withdrawn.length + backlog.length > 0
+    if (!releases && !ALWAYS_WAKE_KINDS.has(kind)) return null
     for (const unit of units) {
       unit.released = true
       unit.status = "triaging"
+      unit.checkpoint_id = checkpointId
       board.released_unit_ids.push(unit.id)
     }
     for (const annotation of annotations) {
@@ -921,13 +990,24 @@ async function serve(options) {
     board.checkpoints.push({ id: checkpointId, kind, mode, t: Date.now() })
     if (kind === "final") board.final_emitted = true
     const envelope = makeEnvelope(checkpointId, kind, mode, {
-      units: [...units.map(publicUnit), ...withdrawn.map((unit) => ({ ...publicUnit(unit), status: "withdrawn" }))],
+      units: [
+        ...units.map(publicUnit),
+        ...backlog.map(publicUnit),
+        ...withdrawn.map((unit) => ({ ...publicUnit(unit), status: "withdrawn" })),
+      ],
       annotations: annotations.map(publicAnnotation),
     })
     enqueueBatch(envelope)
-    for (const unit of units) broadcast("unit_status", { unit_id: unit.id, status: "triaging", checkpoint_id: checkpointId })
+    for (const unit of units) broadcast("unit_status", { unit_id: unit.id, status: "triaging" })
     saveBoard()
     return envelope
+  }
+
+  // KTD12: leaving Collect wakes the agent at once with the accepted backlog.
+  function emitModeChange(mode) {
+    const checkpointId = `ck-mode-${randomUUID()}`
+    board.checkpoints.push({ id: checkpointId, kind: "mode_change", mode, t: Date.now() })
+    enqueueBatch(makeEnvelope(checkpointId, "mode_change", mode, { units: backlogUnits().map(publicUnit) }))
   }
 
   function enqueueBatch(envelope) {
@@ -1022,7 +1102,7 @@ async function serve(options) {
     board.page.stream = streamClients.size > 0 ? "connected" : board.page.stream
     saveBoard()
     saveSession({ page_token: null, ended: true })
-    broadcast("session_ended", { session_id: board.session_id, log_dir: options.logDir })
+    broadcast("session_ended", { reason: "session_end", session_id: board.session_id, log_dir: options.logDir })
     for (const client of streamClients) {
       if (!client.writableEnded) client.end()
     }
@@ -1109,17 +1189,22 @@ async function serve(options) {
 
   // --- page routes -------------------------------------------------------------
 
+  // Rejection names follow riffrec's LiveEnvelopeRejection; only
+  // `unsupported_schema_version` maps to 409, everything else to 400.
   function validEnvelope(value, sessionId) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return "envelope must be an object"
-    if (value.schema_version !== SCHEMA_VERSION) return "schema_version"
-    if (value.session_id !== sessionId) return "session_id does not match X-Riffrec-Session"
-    if (!Number.isInteger(value.seq) || value.seq < 1) return "seq must be a positive integer"
-    if (typeof value.type !== "string" || !PAGE_EVENT_TYPES.has(value.type)) return `unknown type ${String(value.type)}`
-    if (value.payload === undefined || value.payload === null || typeof value.payload !== "object") return "payload must be an object"
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "not_object"
+    if (value.schema_version !== SCHEMA_VERSION) return "unsupported_schema_version"
+    if (typeof value.session_id !== "string" || !value.session_id) return "missing_session_id"
+    if (value.session_id !== sessionId) return "session_mismatch"
+    if (value.seq === undefined || value.seq === null) return "missing_seq"
+    if (!Number.isInteger(value.seq) || value.seq < 1) return "invalid_seq"
+    if (typeof value.t !== "number" || !Number.isFinite(value.t)) return "invalid_t"
+    if (typeof value.type !== "string" || !PAGE_EVENT_TYPES.has(value.type)) return "unknown_type"
+    if (value.payload === undefined || value.payload === null || typeof value.payload !== "object" || Array.isArray(value.payload)) return "invalid_payload"
     // Ids become object keys and batch file names.
     for (const field of ["id", "unit_id"]) {
       const id = value.payload[field]
-      if (id !== undefined && !SAFE_ID.test(String(id))) return `${field} must match ${SAFE_ID}`
+      if (id !== undefined && !SAFE_ID.test(String(id))) return "invalid_payload"
     }
     return null
   }
@@ -1158,23 +1243,24 @@ async function serve(options) {
       if (!existing) board.annotation_order.push(payload.id)
     } else if (type === "checkpoint") {
       const trigger = PAGE_CHECKPOINT_KINDS.has(payload.trigger) ? payload.trigger : "send"
-      const mode = typeof payload.mode === "string" ? payload.mode : board.mode
+      const mode = EXECUTION_MODES.has(payload.mode) ? payload.mode : board.mode
       board.mode = mode
       releaseCheckpoint(typeof payload.id === "string" && payload.id ? payload.id : `ck-${randomUUID()}`, trigger, mode)
     } else if (type === "answer") {
       const answer = { unit_id: payload.unit_id, text: payload.text, t: envelope.t }
       board.answers.push(answer)
-      const unit = board.units[payload.unit_id]
-      if (unit && unit.status === "needs_info") unit.status = "answered"
-      board.checkpoints.push({ id: `ck-answer-${randomUUID()}`, kind: "answer", mode: board.mode, t: Date.now() })
-      const checkpoint = board.checkpoints[board.checkpoints.length - 1]
-      enqueueBatch(makeEnvelope(checkpoint.id, "answer", board.mode, { answers: [{ unit_id: answer.unit_id, text: answer.text }] }))
+      const checkpointId = `ck-answer-${randomUUID()}`
+      board.checkpoints.push({ id: checkpointId, kind: "answer", mode: board.mode, t: Date.now() })
+      enqueueBatch(makeEnvelope(checkpointId, "answer", board.mode, { answers: [{ unit_id: answer.unit_id, text: answer.text }] }))
     } else if (type === "frame") {
       board.frame_count += 1
     } else if (type === "mic") {
       board.page.mic = payload.state ?? null
     } else if (type === "mode") {
-      if (typeof payload.mode === "string") board.mode = payload.mode
+      if (!EXECUTION_MODES.has(payload.mode)) return
+      const leavingCollect = board.mode === "collect" && payload.mode !== "collect"
+      board.mode = payload.mode
+      if (leavingCollect) emitModeChange(payload.mode)
     } else if (type === "stream_state") {
       board.page.last_stream_state = payload.state ?? null
     }
@@ -1197,14 +1283,26 @@ async function serve(options) {
     logEvent({ seq: envelope.seq, t: envelope.t, type: envelope.type, payload: envelope.payload })
   }
 
-  function advanceAck(seq) {
-    if (seq <= board.acked_seq || board.pending_seqs.includes(seq)) return false
-    board.pending_seqs.push(seq)
-    board.pending_seqs.sort((a, b) => a - b)
-    while (board.pending_seqs.length > 0 && board.pending_seqs[0] === board.acked_seq + 1) {
-      board.acked_seq = board.pending_seqs.shift()
+  // Envelopes are applied strictly in `seq` order. One that arrives ahead
+  // of a gap waits in memory until the gap closes; it is not acknowledged,
+  // so a restart loses nothing the page will not replay. The buffer is
+  // bounded: past the cap an early envelope is dropped unacknowledged and
+  // the page replays it after the gap closes.
+  function admitEnvelope(envelope) {
+    const { seq } = envelope
+    if (seq <= board.acked_seq || outOfOrder.has(seq)) return
+    if (seq !== board.acked_seq + 1) {
+      if (outOfOrder.size < OUT_OF_ORDER_CAP) outOfOrder.set(seq, envelope)
+      return
     }
-    return true
+    let next = envelope
+    while (next) {
+      board.acked_seq = next.seq
+      outOfOrder.delete(next.seq)
+      storeEnvelope(next)
+      applyEnvelope(next)
+      next = outOfOrder.get(board.acked_seq + 1)
+    }
   }
 
   async function handleEvents(req, res, sessionId) {
@@ -1226,16 +1324,16 @@ async function serve(options) {
     }
     for (const envelope of envelopes) {
       const problem = validEnvelope(envelope, sessionId)
-      if (problem === "schema_version") {
+      if (problem === "unsupported_schema_version") {
         sendJson(res, 409, { expected_schema_version: SCHEMA_VERSION }, corsHeaders())
         return
       }
       if (problem) {
-        sendJson(res, 400, { error: problem }, corsHeaders())
+        sendJson(res, 400, { reason: problem, seq: Number.isInteger(envelope?.seq) ? envelope.seq : null }, corsHeaders())
         return
       }
       if (envelope.type === "frame" && envelopes.length > 1) {
-        sendJson(res, 400, { error: "frame envelopes are posted alone" }, corsHeaders())
+        sendJson(res, 400, { reason: "invalid_payload", seq: envelope.seq, detail: "frame envelopes are posted alone" }, corsHeaders())
         return
       }
     }
@@ -1244,11 +1342,7 @@ async function serve(options) {
       return
     }
     touch()
-    for (const envelope of envelopes) {
-      if (!advanceAck(envelope.seq)) continue
-      storeEnvelope(envelope)
-      applyEnvelope(envelope)
-    }
+    for (const envelope of envelopes) admitEnvelope(envelope)
     saveBoard()
     broadcast("ack", { acked_seq: board.acked_seq })
     sendJson(res, 200, { acked_seq: board.acked_seq }, corsHeaders())
@@ -1296,9 +1390,14 @@ async function serve(options) {
       sendJson(res, 400, { error: "session_id must match X-Riffrec-Session" }, corsHeaders())
       return
     }
+    // A loopback peer is either the local browser or a TLS-terminating
+    // tunnel on this host. Any other peer must be a proxy named with
+    // --trust-proxy for its X-Forwarded-Proto to count; the header alone
+    // proves nothing about the transport it arrived on.
     const peer = req.socket.remoteAddress
     const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim().toLowerCase()
-    if (!isLoopback(peer) && forwardedProto !== "https") {
+    const trustedProxy = options.trustProxy.includes(String(peer ?? "").replace(/^::ffff:/, ""))
+    if (!isLoopback(peer) && !(trustedProxy && forwardedProto === "https")) {
       sendJson(res, 403, { reason: "tls_required" }, corsHeaders())
       return
     }
@@ -1421,7 +1520,12 @@ async function serve(options) {
           fs.rmSync(tmpPath, { force: true })
         }
         touch()
-        if (!board.final_emitted) releaseCheckpoint(`ck-final-${randomUUID()}`, "final", board.mode)
+        // The overlay's Done control sends the `final` checkpoint before
+        // /session/end; a page that ended without one still hands the agent
+        // whatever is held or accepted.
+        if (!board.final_emitted && (heldUnits().length > 0 || heldAnnotations().length > 0 || backlogUnits().length > 0 || board.pending_withdrawn.length > 0)) {
+          releaseCheckpoint(`ck-final-${randomUUID()}`, "final", board.mode)
+        }
         logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size })
         endSession()
         sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
@@ -1487,7 +1591,7 @@ async function serve(options) {
     const notice = { unit_id: unitId, status: parsed.status, ...(parsed.note !== undefined ? { note: parsed.note } : {}), ...(parsed.guess !== undefined ? { guess: parsed.guess } : {}) }
     broadcast("unit_status", notice)
     if (parsed.status === "applied") {
-      broadcast("applied", notice)
+      broadcast("applied", { checkpoint_id: unit.checkpoint_id ?? null, unit_ids: [unitId] })
       board.watch_for_loss = true
       saveBoard()
       if (streamClients.size === 0) armPageLost()
@@ -1613,20 +1717,26 @@ async function serve(options) {
   const address = server.address()
   const boundPort = typeof address === "object" && address ? address.port : port
   const urlHost = options.host === DEFAULT_HOST || options.host === "0.0.0.0" || options.host === "::" ? DEFAULT_URL_HOST : localAddressFor(options.host)
-  session = {
-    page_token: pageToken,
-    agent_token: agentToken,
-    url: `http://${urlHost}:${boundPort}`,
-    app_origin: options.appOrigin,
-    host: options.host,
-    port: boundPort,
-    pid: process.pid,
-    owner_pid: options.ownerPid ?? null,
-    ended: false,
-    root: options.root,
-    log_dir: options.logDir,
-    started_at: new Date().toISOString(),
-  }
+  const url = `http://${urlHost}:${boundPort}`
+  // A resume rewrites only what this process changed: pid, owner_pid, url
+  // (and host/port when the old port was taken). Tokens and everything else
+  // are the previous session's.
+  session = resuming
+    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: false }
+    : {
+      page_token: pageToken,
+      agent_token: agentToken,
+      url,
+      app_origin: options.appOrigin,
+      host: options.host,
+      port: boundPort,
+      pid: process.pid,
+      owner_pid: options.ownerPid ?? null,
+      ended: false,
+      root: options.root,
+      log_dir: options.logDir,
+      started_at: new Date().toISOString(),
+    }
   if (board.page.stream === "connected") board.page.stream = "disconnected"
   writePrivate(options.pidFile, `${process.pid}\n`)
   saveBoard()

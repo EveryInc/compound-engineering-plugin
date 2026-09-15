@@ -10,10 +10,10 @@ Every page -> endpoint message is one envelope:
 { "schema_version": "live/1", "session_id": "<page-minted id>", "seq": 12, "t": 1726000000000, "type": "unit", "payload": { } }
 ```
 
-- `seq` is a per-session monotonic integer starting at 1. The endpoint deduplicates on `(session_id, seq)` and acknowledges the highest contiguous `seq`; after an outage the page replays from the last acknowledged `seq`.
+- `seq` is a per-session monotonic integer starting at 1. The endpoint deduplicates on `(session_id, seq)`, applies envelopes strictly in `seq` order (one that arrives ahead of a gap waits, unacknowledged, until the gap closes), and acknowledges the highest contiguous `seq`; after an outage the page replays from the last acknowledged `seq`.
 - `type` is one of the four riffrec capture events (`click`, `navigation`, `network_request`, `console_error`) or `transcript`, `unit`, `unit_update`, `unit_withdraw`, `annotation`, `checkpoint`, `answer`, `frame`, `mic`, `mode`, `stream_state`.
 - `frame` envelopes are posted alone, never in a batch with other events.
-- An unsupported `schema_version` is answered `409 { "expected_schema_version": "live/1" }`.
+- An unsupported `schema_version` is answered `409 { "expected_schema_version": "live/1" }`; any other invalid envelope is `400 { "reason": <not_object | missing_session_id | session_mismatch | missing_seq | invalid_seq | invalid_t | unknown_type | invalid_payload>, "seq" }`.
 
 ## Payload shapes
 
@@ -25,7 +25,7 @@ Every page -> endpoint message is one envelope:
 | `transcript` | `{ id, role: "riffer" \| "interviewer", text, t_start, t_end, final }` |
 | `unit_update` | `{ unit_id, statement?, anchors_add?, confirmed? }` |
 | `unit_withdraw` | `{ unit_id, reason? }` |
-| `checkpoint` | `{ id, trigger: "silence" \| "page_change" \| "send", mode }` |
+| `checkpoint` | `{ id, trigger: "silence" \| "page_change" \| "send" \| "final", mode }` (`final` comes from the overlay's Done control) |
 | `answer` | `{ unit_id, text }` |
 | `frame` | `{ id, t, route, kind: "gesture" \| "periodic" \| "composite", jpeg_base64 }` |
 | `mic` | `{ state: "granted" \| "denied" \| "muted" \| "unmuted" }` |
@@ -52,9 +52,9 @@ Page routes answer `OPTIONS` with `Access-Control-Allow-Origin: <exact --app-ori
 | Route | Body | Response |
 |---|---|---|
 | `POST /events` | one envelope or an array of envelopes | `200 { "acked_seq" }`. Body cap 64 KB, or 2 MB for a lone `frame`; oversize is `413 { "max_bytes" }` and does not count toward the page's buffering threshold. Beyond the 500 MB per-session disk cap, frames are refused with `507 { "reason": "disk_cap", "stream_state": "buffering", "max_bytes", "acked_seq" }`. |
-| `GET /stream` | none | SSE. Event names: `ack { acked_seq }`, `unit_status { unit_id, status, note?, guess?, checkpoint_id? }`, `applied { unit_id, status: "applied", note? }`, `ask { unit_id, question }`, `session_ended { session_id, log_dir }`. On connect the stream replays `ack` and a `unit_status` for every released or withdrawn unit so a reloaded page reconciles its board. |
-| `POST /mint` | `{ "session_id" }` | `200 { "client_secret", "expires_at", "model" }`; `403 { "reason": "tls_required" }` when the peer is not loopback and the request has no `X-Forwarded-Proto: https`; `429 { "retry_after" }` past one mint in flight or five per minute; `502 { "reason": "openai_error", "upstream_status" }` with the upstream body discarded; `503 { "reason": "no_key" \| "brief_contains_secret" }`. |
-| `POST /session/end` | the page's full-evidence archive (`application/zip` or `application/json`; may be empty) | `200 { "status": "session-ended", "log_dir", "archive_bytes" }`. Stores the archive under `state/log/`, emits a `final` checkpoint if anything is still held, invalidates the page token, and closes every stream with `session_ended`. |
+| `GET /stream` | none | SSE. Event names: `ack { acked_seq }`, `unit_status { unit_id, status, note?, guess? }`, `applied { checkpoint_id, unit_ids[] }`, `ask { unit_id, question }`, `session_ended { reason, session_id, log_dir }`. On connect the stream replays `ack` and a `unit_status` for every released or withdrawn unit so a reloaded page reconciles its board. |
+| `POST /mint` | `{ "session_id" }` | `200 { "client_secret", "expires_at", "model" }`; `403 { "reason": "tls_required" }` when the peer is not loopback, unless the peer is an address named with `--trust-proxy` and the request carries `X-Forwarded-Proto: https` (the header alone is never trusted); `429 { "retry_after" }` past one mint in flight or five per minute; `502 { "reason": "openai_error", "upstream_status" }` with the upstream body discarded; `503 { "reason": "no_key" \| "brief_contains_secret" }`. |
+| `POST /session/end` | the page's full-evidence archive (`application/zip` or `application/json`; may be empty) | `200 { "status": "session-ended", "log_dir", "archive_bytes" }`. Stores the archive under `state/log/`, emits a `final` checkpoint only if the page never sent one and something is still held or accepted, retires the page token, and closes every stream with `session_ended`. |
 
 ### Agent routes
 
@@ -62,7 +62,7 @@ Page routes answer `OPTIONS` with `Access-Control-Allow-Origin: <exact --app-ori
 |---|---|---|
 | `GET /wait` | none | Long-poll. `200 <wake envelope>`; `204` after the poll window (the CLI loops); `409 { "status": "wait-taken" }` when another wait is parked; `410 { "status": "session-ended" }` when the session ended and nothing is held. |
 | `POST /checkpoints/:id/ack` | `{}` | `200 { "ok", "checkpoint_id" }`; `404` for an unknown or already-acknowledged checkpoint. |
-| `POST /units/:id/status` | `{ "status", "note"?, "guess"? }` with status in `triaging`, `applying`, `applied`, `needs_info`, `blocked`, `residual`, `withdrawn`, `skipped` | `200`; relays `unit_status` (and `applied`) on the stream. |
+| `POST /units/:id/status` | `{ "status", "note"?, "guess"? }` with status in `triaging`, `accepted`, `needs_info`, `applied`, `blocked`, `withdrawn` | `200`; relays `unit_status` (and `applied`) on the stream. `accepted` puts the unit in the backlog below; `applied` or `blocked` takes it out. |
 | `POST /units/:id/ask` | `{ "question" }` | `200`; moves the unit to `needs_info` and relays `ask` on the stream. |
 | `GET /status` | none | The board summary, the same document the `status` CLI prints. |
 
@@ -70,11 +70,12 @@ Nothing else is served: there is no file route, and every unknown path is 404.
 
 ## Checkpoints and the wake envelope
 
-A checkpoint releases every held unit and annotation plus any withdrawal that arrived after an earlier release. A checkpoint that releases nothing does not wake the agent. On release the endpoint marks each unit `triaging` and broadcasts `unit_status: "triaging"`; the page treats that event as the release marker. A withdrawal before release removes the unit from the batch; one after release is forwarded in the next batch with `status: "withdrawn"`.
+A checkpoint releases every held unit and annotation plus any withdrawal that arrived after an earlier release. On release the endpoint marks each unit `triaging` and broadcasts `unit_status: "triaging"`; the page treats that event as the release marker. A withdrawal before release removes the unit from the batch; one after release is forwarded in the next batch with `status: "withdrawn"`.
 
-- Page-emitted checkpoints: `silence`, `page_change`, `send`, carrying the mode at emission.
-- Endpoint-emitted checkpoints: `answer`, created whenever an `answer` event arrives (carries `answers[]` only and releases no units), and `final`, created at `/session/end` when anything is still held.
-- `mode_at_checkpoint` is the mode carried by the releasing checkpoint, or the last `mode` event for endpoint-emitted checkpoints.
+- Page-emitted checkpoints: `silence`, `page_change`, `send`, and `final` (the overlay's Done control), each carrying the mode at emission. `silence`, `page_change`, and `send` wake the agent only when they release something; `final` always wakes.
+- Endpoint-emitted checkpoints: `answer`, created whenever an `answer` event arrives (carries `answers[]` only and releases no units), and `mode_change`, created the moment a `mode` event leaves Collect. Both always wake.
+- **Accepted backlog.** Units the endpoint released, the agent posted `accepted` for, and no `applied` or `blocked` has followed. `mode_change` carries the whole backlog in `units[]` (status `accepted`) so a Collect session's work is applied under the new mode; `final` carries the backlog too, after anything newly released. A `mode_change` or `final` envelope may therefore carry units that were already served once, or nothing at all; treat it as work to apply, not a no-op.
+- `mode_at_checkpoint` is the mode carried by the releasing checkpoint, or the mode in force for endpoint-emitted checkpoints.
 
 `wait` prints one envelope and exits 0:
 
@@ -82,7 +83,7 @@ A checkpoint releases every held unit and annotation plus any withdrawal that ar
 {
   "schema_version": "live/1",
   "checkpoint_id": "ck-…",
-  "kind": "silence" | "page_change" | "send" | "answer" | "final",
+  "kind": "silence" | "page_change" | "send" | "answer" | "mode_change" | "final",
   "mode_at_checkpoint": "instant" | "smart" | "collect",
   "session_status": "live" | "page_lost",
   "units": [ ], "annotations": [ ], "answers": [ ]
@@ -99,11 +100,13 @@ After the endpoint relays an `applied` notice, a page stream that closes and doe
 
 | Command | Behavior | Exit |
 |---|---|---|
-| `start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--foreground]` | Prints `{ url, port, page_token, status }` once; writes `state/session.json`. When the root holds a session that has not ended, resumes it with the same tokens, board, acknowledged `seq`, and pending batches, preferring its previous port. | 0 |
+| `start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--trust-proxy <ip>[,<ip>]] [--foreground]` | Prints `{ url, port, page_token, status }` once; writes `state/session.json`. When `state/session.json` has `ended: false`, this is a resume: the same `page_token` and `agent_token` are reused, the `session_id` binding, board, acknowledged `seq`, and un-acknowledged batches are reloaded, the previous port is preferred, and only `pid`, `owner_pid`, and `url` are rewritten (`status: "resumed"`). Fresh tokens are minted only when there is no state file or the session ended. | 0 |
 | `status --root <dir>` | Prints `{ status, url?, port?, session_ended, board }` from `state/` without contacting the server. | 0 |
 | `stop --root <dir>` | Stops the server, invalidates both tokens, deletes `state/batches/`, keeps `state/log/`. | 0 |
 | `wait --root <dir>` | Reads the agent token from `state/session.json`, long-polls `/wait` with it as a bearer header, prints one envelope. | 0 batch; 1 session ended with nothing held (`{ "status": "session-ended" }`); 2 error; 3 another process holds the wake (`{ "status": "wait-taken" }`, do not stop the endpoint) |
 | `replay --root <dir> --profile <name> --to <endpoint> --token <page token>` | Re-emits `state/log/` to another endpoint under an evidence profile, as a fresh session over the page routes. | 0 |
+
+`--trust-proxy` names the TLS-terminating proxy or tunnel addresses whose `X-Forwarded-Proto` the mint route may believe; a tunnel client on the same host connects over loopback and needs no entry.
 
 Owner death (`--owner-pid`) and the idle timeout (default 30 min, `CE_LIVE_IDLE_TIMEOUT_MS`) stop the process without ending the session; `state/` stays intact and `start --root` resumes. Only `/session/end` or `stop` ends a session. After `/session/end` the page token is retired immediately; the agent token stays valid until the final batch is acknowledged and nothing is held, then it is retired too, so `wait` exit 1 always means "ended with nothing held".
 
@@ -162,10 +165,12 @@ Four flat function tools. No tool emits checkpoints or reports state: the page o
 
 | Tool | Parameters | Purpose |
 |---|---|---|
-| `record_unit` | `statement`, `anchors[] { route, selector, component? }`, `transcript_excerpt` | Record one requested change. |
-| `update_unit` | `unit_id`, `statement?`, `anchors_add?` | Refine a unit; rejected once it has left `initial`. |
-| `withdraw_unit` | `unit_id`, `reason?` | Withdraw a unit. |
-| `relay_answer` | `unit_id`, `answer_text` | Relay the riffer's spoken answer to an agent question. |
+| `record_unit` | `statement`, `anchors: string[]` (the riffer's words for the element or an anchor id the page announced), `transcript_excerpt` | Record one requested change; once per change; never for questions, thinking aloud, or short utterances without a change verb. |
+| `update_unit` | `unit_id`, `statement?`, `anchors_add?: string[]` | Refine a unit the interviewer recorded; rejected once it has left `initial`, in which case the refinement is recorded as a new unit. |
+| `withdraw_unit` | `unit_id`, `reason?` | Retract a unit the riffer took back; never because the interviewer is unsure. |
+| `relay_answer` | `unit_id`, `answer_text` | Relay the riffer's answer to a question that arrived from the endpoint; not for the interviewer's own clarifying questions. |
+
+Every parameter schema carries `additionalProperties: false`. The definitions in `scripts/live-endpoint.js` are a verbatim copy of riffrec's `LIVE_TOOLS` (`src/live/tools.ts`), which is the source of truth for wording.
 
 ## Default persona
 

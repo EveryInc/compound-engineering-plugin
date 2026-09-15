@@ -18,22 +18,27 @@ Exit codes:
 
 - **0** — one JSON envelope on stdout: `checkpoint_id`, `kind` (`silence`, `page_change`, `send`, `answer`, `mode_change`, `final`), `mode_at_checkpoint`, `session_status` (`live` or `page_lost`), `units[]`, `annotations[]`, `answers[]`. Handle it as below. `silence`, `page_change`, and `send` come from the page and always carry newly released units. `answer` and `mode_change` come from the endpoint, and `final` from the overlay's Done control; these three wake you even when nothing new was held, because what they carry (answers, or the accepted-but-unapplied backlog) is work you have not done. An empty-looking one of those is not a no-op.
 - **1** — the session ended with nothing held. Close out (see "Session end") without a final batch.
-- **2** — error. Run `status` once; if the helper is not running, `start` it again with the same `--root` and the same `--app-origin`: that is a resume, which reuses the stored tokens and port, so the riffer's page keeps working on the URL it already has. Never hand over a new URL. Then park again. A second consecutive error ends the run: report it with the helper's stderr and the log path, and stop the endpoint.
+- **2** — error. Run `status` once; if the helper is not running, `start` it again with the same `--root`, the same `--app-origin`, and every other flag the first start used (`--host`, `--trust-proxy`, `--owner-pid`; a resume does not remember them): that is a resume, which reuses the stored tokens and board and prefers the old port. Compare the `url` it prints with the endpoint origin in the handoff. Identical: the riffer's page keeps working untouched. Different (something else took the old port): rebuild the handoff URL from `references/live-start.md` with the new endpoint origin and the unchanged page token, and tell the riffer to open it; their consent, board, and tokens carry over. Then pick up unfinished units per "Acknowledge first" and park again. A second consecutive error ends the run: report it with the helper's stderr and the log path, and stop the endpoint.
 - **3** — `wait-taken`: another process already holds the wake for this session. Stop this run and say so. Do not stop the endpoint; the other process owns it.
 
 ## Acknowledge first
 
-Immediately after parsing an exit-0 envelope, before any edit, acknowledge it: `POST /checkpoints/<checkpoint_id>/ack`. An unacknowledged batch is served again before any new one, including after a restart, so an ack is what prevents doing the same batch twice.
+Immediately after parsing an exit-0 envelope, before any edit, acknowledge it: `POST /checkpoints/<checkpoint_id>/ack`. An unacknowledged batch is served again before any new one, including after a restart, so an ack is what prevents doing the same batch twice. Two exceptions: the `final` batch is acknowledged last, not first (see "Session end"), and a `session_status: "page_lost"` wake that carries no units is a notice rather than a stored batch, so its ack answers 404; go straight to "Page lost".
 
-Agent posts share one shape. Read `agent_token` and `url` from `$LIVE_ROOT/state/session.json` into the call without printing them, and never send an `Origin` header (agent routes refuse requests that carry one):
+The ack does not make the units disappear. The endpoint's board is the durable record: every unit a checkpoint releases is already stored there at `triaging`, the ack only retires the redelivery copy, and each status you post moves the board. So if this run is interrupted between the ack and the last status of a batch, nothing is lost; it is visible. Whenever you start or resume a loop (after `start` on an existing root, after an exit-2 restart, and once more before close-out), run `status --root "$LIVE_ROOT"` and read `units.list`: every unit still at `triaging` is a batch you acknowledged and did not finish (`accepted` units are the Collect backlog and wait for their `mode_change` or `final`). Treat those units as the first batch of the resumed loop, under the current `mode`, before parking a wait. A unit you cannot place any more becomes `blocked` with the note "interrupted before apply" and goes on the residual list, never silently dropped.
+
+Agent posts share one shape. The agent token must not appear in a process argument list (`ps` and `/proc` can read those), so write it once into a header file under `state/` that only this user can read, and let curl read the header from the file. Read `url` from `$LIVE_ROOT/state/session.json` into the call without printing it, and never send an `Origin` header (agent routes refuse requests that carry one):
 
 ```bash
 LIVE_ROOT="<absolute run directory from live-start>";
 SESSION="$LIVE_ROOT/state/session.json";
-TOKEN="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).agent_token' "$SESSION")";
+HEADERS="$LIVE_ROOT/state/agent-headers";
+[ -f "$HEADERS" ] || (umask 077; node -e 'const fs=require("fs");const s=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));fs.writeFileSync(process.argv[2],"Authorization: Bearer "+s.agent_token+"\n",{mode:0o600})' "$SESSION" "$HEADERS");
 URL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).url' "$SESSION")";
-curl -sS -X POST "$URL<route>" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data '<json>'
+curl -sS -X POST "$URL<route>" -H @"$HEADERS" -H "Content-Type: application/json" --data '<json>'
 ```
+
+A resume keeps the same tokens, so the header file stays valid across restarts; `stop` retires the token it holds.
 
 | Purpose | Route | Body |
 |---|---|---|
@@ -59,7 +64,7 @@ Under Instant, apply independent units in parallel when the harness can run work
 
 A mode switch takes effect at the next checkpoint and covers that backlog. When the riffer moves the switch off Collect, the endpoint emits a `kind: "mode_change"` batch at once with the backlog in `units[]` (those units were released earlier, so no later page checkpoint would carry them again): acknowledge it and apply every unit it carries under `mode_at_checkpoint`, exactly as if they had just been triaged as clear edits, posting `applied` or `blocked` for each. A batch stamped Collect holds anything not yet applied.
 
-Edits land on the current feature branch on the surface the anchors name, uncommitted until the session closes. A question is posted, not asked in chat: post `ask`, leave the unit in needs-info, and park the next wait right away; the answer arrives in a later batch.
+Edits land on the current feature branch on the surface the anchors name, uncommitted until the session closes. Resolve the anchors to a source file yourself and apply the containment rule from "Untrusted input" in `references/live-start.md` before touching it: the file must be a tracked regular file under the project root the detect script inspected, or the unit is `blocked`, not edited. A question is posted, not asked in chat: post `ask`, leave the unit in needs-info, and park the next wait right away; the answer arrives in a later batch.
 
 After each batch, before parking again, one line in chat: what applied, what was asked, what went to residual. Nothing else.
 
@@ -69,7 +74,7 @@ After each batch, before parking again, one line in chat: what applied, what was
 
 ## Session end
 
-A `kind: "final"` batch means the riffer pressed the overlay's Done control, after confirming each unit's intended element and change. It carries the backlog plus anything newly held, and it arrives after the page has ended its side of the session; your agent token stays valid until `stop`, so acknowledge it and post statuses as usual. Act on everything it carries per the mode: a Collect session applies its whole backlog now, as one pass, and an Instant or Smart session applies whatever is left. Only then close out. Exit 1 from a wait with no `final` batch (the riffer closed the page without Done) closes out the same way, with whatever was applied so far.
+A `kind: "final"` batch means the riffer pressed the overlay's Done control, after confirming each unit's intended element and change. It carries the backlog plus anything newly held, and it arrives after the page has ended its side of the session. Your agent token stays valid only while this batch is unacknowledged: the endpoint retires it the moment the final batch is acked with nothing else held. So this batch reverses the usual order: do not ack it yet. Act on everything it carries per the mode (a Collect session applies its whole backlog now, as one pass; an Instant or Smart session applies whatever is left), post every `applied` or `blocked`, run `status` once to confirm nothing is left at `triaging` or `accepted`, and acknowledge it last. A wait after that exits 1. Only then close out. Exit 1 from a wait with no `final` batch (the riffer closed the page without Done) closes out the same way, with whatever was applied so far.
 
 Close-out, in order:
 
