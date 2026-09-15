@@ -925,6 +925,12 @@ describe("ce-code-review contract", () => {
     expect(helper).toMatch(/"silent_pass_classes"/)
     expect(modes).toMatch(/`unclassified_lines`/)
     expect(modes).toMatch(/`silent_pass_classes`/)
+    // Stage cost instrumentation (plan 2026-09-15-1322, U6): the stage log opens
+    // with the run directory and the receipt writer folds it in last.
+    const scope = await readRepoFile("skills/ce-code-review/references/scope.md")
+    expect(scope).toMatch(/scripts\/run-log\.py" event --run-dir "\$RUN_DIR" --start scope/)
+    expect(modes).toMatch(/run-log\.py summarize --run-dir "\$RUN_DIR"/)
+    expect(modes).toMatch(/only writer that touches `metadata\.json` after the receipt write/)
     expect(modes).toMatch(
       /`mode:agent` bypasses this short-circuit only/,
     )

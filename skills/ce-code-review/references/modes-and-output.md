@@ -71,11 +71,11 @@ A helper-named silent-pass class (`silent_pass_classes`, today the CI workflow p
 
 A floor cannot be talked down, and a path may only move toward full: lite never becomes the answer once the diff reads silent or the helper named a silent-pass class, and focused never replaces a floor.
 
-When the gate selects lite or focused, read `references/depth-paths.md` at that point and run the selected path from this context; the full spine continues from Stage 2 and never opens that file.
+When the gate selects lite or focused, read `references/depth-paths.md` at that point and run the selected path from this context; the full spine continues from Stage 2 and never opens that file. Either way, close the scope stage with the decision: the stage-log call from `references/scope.md` with `--end scope --start review` (lite, focused) or `--end scope --start select` (full), carrying `--fact` entries for `exec_nontest_lines`, `changed_lines`, `size_band`, `unclassified_lines`, and `depth`.
 
 ## Run artifacts
 
-Every run, lite, focused, or full, leaves its receipt (`review.json` in `mode:agent`, `report.md` in default mode) and `metadata.json` in the run directory. `metadata.json` minimum fields:
+Every run, lite, focused, or full, leaves its receipt (`review.json` in `mode:agent`, `report.md` in default mode), `stages.jsonl` (the stage log `references/scope.md` opens), and `metadata.json` in the run directory. `metadata.json` minimum fields:
 
 ```json
 {
@@ -86,6 +86,8 @@ Every run, lite, focused, or full, leaves its receipt (`review.json` in `mode:ag
   "completed_at": "<ISO 8601 UTC timestamp>"
 }
 ```
+
+After `metadata.json` is written, the receipt writer runs `run-log.py summarize --run-dir "$RUN_DIR"` (the same `SKILL_DIR` and interpreter recipe as the stage log) as its last action before returning or emitting the receipt; it is the only writer that touches `metadata.json` after the receipt write, and it merges a `cost` object into the existing fields: `status` (`complete` when every started stage ended and the receipt stage is present, else `partial`), `host`, `scope` (the helper facts and chosen depth from the scope stage), `stages` (name, elapsed seconds, reviewers, candidates, tokens when present), `totals` (elapsed, reviewers, candidates, artifact bytes, tokens when any stage carried them), `peer` (from `adversarial-<provider>-usage.json` when present), and `truncated_events`. A run killed mid-way leaves a parseable partial log, and a maintainer tuning `FULL_EXEC_LINE_MIN` or another threshold reads `cost.status` before trusting a run's numbers.
 
 The full path adds the artifacts listed under "Run artifacts" in `references/finish-input.md`.
 
