@@ -4,7 +4,7 @@ Load this when the riffer chose live mode. It ends when the riffer has the sessi
 
 Live mode runs three things: the endpoint helper bundled with this skill (receives the stream, mints the interviewer's secret, wakes you at checkpoints), the host app's dev server with riffrec live mode mounted, and a browser the riffer opens on the app URL. The riffer's speech becomes units on a board in the page; you act on them only when a checkpoint hands you a batch.
 
-The helper is `live-endpoint.js`, a Node program in this skill's `scripts` directory, with the subcommands `start`, `wait`, `status`, `stop`, and `replay`. Every block in this file and in `references/live-loop.md` refers to it as `LIVE_HELPER`, its absolute path. If that file is not present in the skill directory you loaded, this installed version cannot run live mode: say so and offer traditional.
+The helper is `scripts/live-endpoint.js`, a Node program with the subcommands `start`, `wait`, `status`, `stop`, and `replay`; every invocation in this file and in `references/live-loop.md` anchors it on `SKILL_DIR`, as the other bundled scripts do. If `SKILL_DIR` cannot be resolved to a concrete skill directory, do not guess from the project CWD: say live mode cannot start and offer traditional.
 
 ## Preconditions
 
@@ -32,9 +32,9 @@ LIVE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ce-polish-live-XXXXXX")"; echo "$LIVE_RO
 Start the endpoint with the origin the browser will use for the app (`--app-origin` is the exact scheme, host, and port the page loads from; it is the CORS allow-list):
 
 ```bash
-LIVE_HELPER="<absolute path of live-endpoint.js in this skill's scripts directory>";
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 LIVE_ROOT="<absolute run directory printed above>";
-node "$LIVE_HELPER" start --root "$LIVE_ROOT" --app-origin "<app-origin>"
+node "$SKILL_DIR/scripts/live-endpoint.js" start --root "$LIVE_ROOT" --app-origin "<app-origin>"
 ```
 
 Add `--owner-pid <pid>` only when the harness exposes the process id of the agent session that outlives individual shell calls; the helper then exits when that process does. Never pass the shell's own pid (`$$`): each tool call is a fresh shell, so the helper would exit at once. Without the flag the helper resolves its owner itself when it can, and otherwise relies on its idle timeout.
