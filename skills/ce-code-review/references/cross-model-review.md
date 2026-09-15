@@ -9,7 +9,7 @@ Before any reviewed content leaves the machine, the host picks one concrete rout
 ## Run conditions — run only when all hold
 
 1. `adversarial-reviewer` was selected in Stage 3 (reviewer selection), or the Review depth gate chose the focused path, whose one independent read is this lens. Reuse that selection; do not run a costly external CLI on a trivial diff.
-2. Scope is `local-aligned` or standalone, meaning the working tree IS the reviewed head. Skip in `pr-remote` / `branch-remote`: the peer reviews the local tree, which is not the PR or branch head.
+2. The working tree is the reviewed head (standalone, `base:`, or `local-aligned` scope). Skip in `pr-remote` / `branch-remote`: the peer reviews the local tree, which is not the PR or branch head.
 
 ## Step 1 — Attest host identity, then sanction one fixed route
 
