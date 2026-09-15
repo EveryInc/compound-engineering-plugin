@@ -11,6 +11,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { execFileSync, spawn } from "node:child_process"
 import fs from "node:fs"
 import http from "node:http"
+import net from "node:net"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -28,6 +29,10 @@ const FRAME_BODY_LIMIT = 2 * 1024 * 1024
 const ARCHIVE_BODY_LIMIT = Number(process.env.CE_LIVE_ARCHIVE_LIMIT_BYTES) || 400 * 1024 * 1024
 const DISK_CAP_BYTES = Number(process.env.CE_LIVE_DISK_CAP_BYTES) || 500 * 1024 * 1024
 const BRIEF_MAX_CHARS = 3000
+// Envelopes held ahead of a sequence gap before early arrivals are dropped for replay.
+const OUT_OF_ORDER_CAP = 512
+// Replay batches stay under the target's 64 KB cap with headroom for the array framing.
+const REPLAY_BATCH_LIMIT = BODY_LIMIT - 1024
 const MINTS_PER_MINUTE = 5
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "")
 const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime"
@@ -180,7 +185,7 @@ const INTERVIEWER_PERSONA = [
 function usage() {
   return [
     "Usage:",
-    "  node live-endpoint.js start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--foreground]",
+    "  node live-endpoint.js start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--trust-proxy <ip>[,<ip>]] [--foreground]",
     "  node live-endpoint.js status --root <dir>",
     "  node live-endpoint.js stop --root <dir>",
     "  node live-endpoint.js wait --root <dir>",
@@ -203,6 +208,7 @@ function parseArgs(argv) {
     else if (arg === "--profile") options.profile = argv[++i]
     else if (arg === "--to") options.to = argv[++i]
     else if (arg === "--token") options.token = argv[++i]
+    else if (arg === "--trust-proxy") options.trustProxy = [...(options.trustProxy ?? []), ...String(argv[++i] ?? "").split(",").map((ip) => ip.trim()).filter(Boolean)]
     else throw new Error(`Unknown argument: ${arg}`)
   }
 
@@ -216,7 +222,9 @@ function parseArgs(argv) {
   if (options.ownerPid !== undefined && (!Number.isInteger(options.ownerPid) || options.ownerPid <= 1)) {
     throw new Error("--owner-pid must be an integer greater than 1")
   }
+  options.trustProxy = options.trustProxy ?? []
   if (command === "start" || command === "serve") {
+    if (options.trustProxy.some((ip) => !net.isIP(ip))) throw new Error("--trust-proxy takes IP addresses (comma-separated or repeated)")
     if (!options.appOrigin) throw new Error("--app-origin is required (the browser-facing origin of the app under polish)")
     options.appOrigin = normalizeOrigin(options.appOrigin)
     if (!options.appOrigin) throw new Error("--app-origin must be an origin such as http://localhost:3000")
@@ -497,7 +505,6 @@ function emptyBoard() {
     ended: false,
     mode: "smart",
     acked_seq: 0,
-    pending_seqs: [],
     units: {},
     unit_order: [],
     annotations: {},
@@ -606,6 +613,7 @@ async function start(options) {
     options.host,
     ...(options.port !== undefined ? ["--port", String(options.port)] : []),
     ...(options.ownerPid ? ["--owner-pid", String(options.ownerPid)] : []),
+    ...(options.trustProxy.length > 0 ? ["--trust-proxy", options.trustProxy.join(",")] : []),
   ], {
     detached: true,
     stdio: ["ignore", logFd, logFd],
@@ -769,6 +777,7 @@ async function replay(options) {
   let sent = 0
   let skipped = 0
   let batch = []
+  let batchBytes = 0
 
   async function post(envelopes) {
     const response = await fetch(`${options.to}/events`, { method: "POST", headers, body: JSON.stringify(envelopes) })
@@ -783,6 +792,7 @@ async function replay(options) {
     if (batch.length === 0) return
     const pending = batch
     batch = []
+    batchBytes = 0
     await post(pending)
   }
 
@@ -810,8 +820,13 @@ async function replay(options) {
       await post([envelope])
       continue
     }
+    // The target's 64 KB cap is in encoded bytes; measure the same way and
+    // flush before the envelope that would cross it.
+    const encoded = Buffer.byteLength(JSON.stringify(envelope))
+    if (batch.length > 0 && batchBytes + encoded + 2 > REPLAY_BATCH_LIMIT) await flush()
     batch.push(envelope)
-    if (JSON.stringify(batch).length > BODY_LIMIT / 2 || envelope.type === "checkpoint") await flush()
+    batchBytes += encoded + 1
+    if (envelope.type === "checkpoint") await flush()
   }
   await flush()
   jsonOut({ status: "replayed", to: options.to, profile: options.profile, session_id: sessionId, envelopes_sent: sent, envelopes_skipped: skipped })
@@ -858,6 +873,7 @@ async function serve(options) {
   let session = null
   let waiter = null
   const streamClients = new Set()
+  const outOfOrder = new Map()
   let pageLostTimer = null
   let mintInFlight = false
   const mintTimes = []
@@ -1267,14 +1283,26 @@ async function serve(options) {
     logEvent({ seq: envelope.seq, t: envelope.t, type: envelope.type, payload: envelope.payload })
   }
 
-  function advanceAck(seq) {
-    if (seq <= board.acked_seq || board.pending_seqs.includes(seq)) return false
-    board.pending_seqs.push(seq)
-    board.pending_seqs.sort((a, b) => a - b)
-    while (board.pending_seqs.length > 0 && board.pending_seqs[0] === board.acked_seq + 1) {
-      board.acked_seq = board.pending_seqs.shift()
+  // Envelopes are applied strictly in `seq` order. One that arrives ahead
+  // of a gap waits in memory until the gap closes; it is not acknowledged,
+  // so a restart loses nothing the page will not replay. The buffer is
+  // bounded: past the cap an early envelope is dropped unacknowledged and
+  // the page replays it after the gap closes.
+  function admitEnvelope(envelope) {
+    const { seq } = envelope
+    if (seq <= board.acked_seq || outOfOrder.has(seq)) return
+    if (seq !== board.acked_seq + 1) {
+      if (outOfOrder.size < OUT_OF_ORDER_CAP) outOfOrder.set(seq, envelope)
+      return
     }
-    return true
+    let next = envelope
+    while (next) {
+      board.acked_seq = next.seq
+      outOfOrder.delete(next.seq)
+      storeEnvelope(next)
+      applyEnvelope(next)
+      next = outOfOrder.get(board.acked_seq + 1)
+    }
   }
 
   async function handleEvents(req, res, sessionId) {
@@ -1314,11 +1342,7 @@ async function serve(options) {
       return
     }
     touch()
-    for (const envelope of envelopes) {
-      if (!advanceAck(envelope.seq)) continue
-      storeEnvelope(envelope)
-      applyEnvelope(envelope)
-    }
+    for (const envelope of envelopes) admitEnvelope(envelope)
     saveBoard()
     broadcast("ack", { acked_seq: board.acked_seq })
     sendJson(res, 200, { acked_seq: board.acked_seq }, corsHeaders())
@@ -1366,9 +1390,14 @@ async function serve(options) {
       sendJson(res, 400, { error: "session_id must match X-Riffrec-Session" }, corsHeaders())
       return
     }
+    // A loopback peer is either the local browser or a TLS-terminating
+    // tunnel on this host. Any other peer must be a proxy named with
+    // --trust-proxy for its X-Forwarded-Proto to count; the header alone
+    // proves nothing about the transport it arrived on.
     const peer = req.socket.remoteAddress
     const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim().toLowerCase()
-    if (!isLoopback(peer) && forwardedProto !== "https") {
+    const trustedProxy = options.trustProxy.includes(String(peer ?? "").replace(/^::ffff:/, ""))
+    if (!isLoopback(peer) && !(trustedProxy && forwardedProto === "https")) {
       sendJson(res, 403, { reason: "tls_required" }, corsHeaders())
       return
     }

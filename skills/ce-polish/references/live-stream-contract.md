@@ -10,7 +10,7 @@ Every page -> endpoint message is one envelope:
 { "schema_version": "live/1", "session_id": "<page-minted id>", "seq": 12, "t": 1726000000000, "type": "unit", "payload": { } }
 ```
 
-- `seq` is a per-session monotonic integer starting at 1. The endpoint deduplicates on `(session_id, seq)` and acknowledges the highest contiguous `seq`; after an outage the page replays from the last acknowledged `seq`.
+- `seq` is a per-session monotonic integer starting at 1. The endpoint deduplicates on `(session_id, seq)`, applies envelopes strictly in `seq` order (one that arrives ahead of a gap waits, unacknowledged, until the gap closes), and acknowledges the highest contiguous `seq`; after an outage the page replays from the last acknowledged `seq`.
 - `type` is one of the four riffrec capture events (`click`, `navigation`, `network_request`, `console_error`) or `transcript`, `unit`, `unit_update`, `unit_withdraw`, `annotation`, `checkpoint`, `answer`, `frame`, `mic`, `mode`, `stream_state`.
 - `frame` envelopes are posted alone, never in a batch with other events.
 - An unsupported `schema_version` is answered `409 { "expected_schema_version": "live/1" }`; any other invalid envelope is `400 { "reason": <not_object | missing_session_id | session_mismatch | missing_seq | invalid_seq | invalid_t | unknown_type | invalid_payload>, "seq" }`.
@@ -53,7 +53,7 @@ Page routes answer `OPTIONS` with `Access-Control-Allow-Origin: <exact --app-ori
 |---|---|---|
 | `POST /events` | one envelope or an array of envelopes | `200 { "acked_seq" }`. Body cap 64 KB, or 2 MB for a lone `frame`; oversize is `413 { "max_bytes" }` and does not count toward the page's buffering threshold. Beyond the 500 MB per-session disk cap, frames are refused with `507 { "reason": "disk_cap", "stream_state": "buffering", "max_bytes", "acked_seq" }`. |
 | `GET /stream` | none | SSE. Event names: `ack { acked_seq }`, `unit_status { unit_id, status, note?, guess? }`, `applied { checkpoint_id, unit_ids[] }`, `ask { unit_id, question }`, `session_ended { reason, session_id, log_dir }`. On connect the stream replays `ack` and a `unit_status` for every released or withdrawn unit so a reloaded page reconciles its board. |
-| `POST /mint` | `{ "session_id" }` | `200 { "client_secret", "expires_at", "model" }`; `403 { "reason": "tls_required" }` when the peer is not loopback and the request has no `X-Forwarded-Proto: https`; `429 { "retry_after" }` past one mint in flight or five per minute; `502 { "reason": "openai_error", "upstream_status" }` with the upstream body discarded; `503 { "reason": "no_key" \| "brief_contains_secret" }`. |
+| `POST /mint` | `{ "session_id" }` | `200 { "client_secret", "expires_at", "model" }`; `403 { "reason": "tls_required" }` when the peer is not loopback, unless the peer is an address named with `--trust-proxy` and the request carries `X-Forwarded-Proto: https` (the header alone is never trusted); `429 { "retry_after" }` past one mint in flight or five per minute; `502 { "reason": "openai_error", "upstream_status" }` with the upstream body discarded; `503 { "reason": "no_key" \| "brief_contains_secret" }`. |
 | `POST /session/end` | the page's full-evidence archive (`application/zip` or `application/json`; may be empty) | `200 { "status": "session-ended", "log_dir", "archive_bytes" }`. Stores the archive under `state/log/`, emits a `final` checkpoint only if the page never sent one and something is still held or accepted, retires the page token, and closes every stream with `session_ended`. |
 
 ### Agent routes
@@ -100,11 +100,13 @@ After the endpoint relays an `applied` notice, a page stream that closes and doe
 
 | Command | Behavior | Exit |
 |---|---|---|
-| `start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--foreground]` | Prints `{ url, port, page_token, status }` once; writes `state/session.json`. When `state/session.json` has `ended: false`, this is a resume: the same `page_token` and `agent_token` are reused, the `session_id` binding, board, acknowledged `seq`, and un-acknowledged batches are reloaded, the previous port is preferred, and only `pid`, `owner_pid`, and `url` are rewritten (`status: "resumed"`). Fresh tokens are minted only when there is no state file or the session ended. | 0 |
+| `start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--trust-proxy <ip>[,<ip>]] [--foreground]` | Prints `{ url, port, page_token, status }` once; writes `state/session.json`. When `state/session.json` has `ended: false`, this is a resume: the same `page_token` and `agent_token` are reused, the `session_id` binding, board, acknowledged `seq`, and un-acknowledged batches are reloaded, the previous port is preferred, and only `pid`, `owner_pid`, and `url` are rewritten (`status: "resumed"`). Fresh tokens are minted only when there is no state file or the session ended. | 0 |
 | `status --root <dir>` | Prints `{ status, url?, port?, session_ended, board }` from `state/` without contacting the server. | 0 |
 | `stop --root <dir>` | Stops the server, invalidates both tokens, deletes `state/batches/`, keeps `state/log/`. | 0 |
 | `wait --root <dir>` | Reads the agent token from `state/session.json`, long-polls `/wait` with it as a bearer header, prints one envelope. | 0 batch; 1 session ended with nothing held (`{ "status": "session-ended" }`); 2 error; 3 another process holds the wake (`{ "status": "wait-taken" }`, do not stop the endpoint) |
 | `replay --root <dir> --profile <name> --to <endpoint> --token <page token>` | Re-emits `state/log/` to another endpoint under an evidence profile, as a fresh session over the page routes. | 0 |
+
+`--trust-proxy` names the TLS-terminating proxy or tunnel addresses whose `X-Forwarded-Proto` the mint route may believe; a tunnel client on the same host connects over loopback and needs no entry.
 
 Owner death (`--owner-pid`) and the idle timeout (default 30 min, `CE_LIVE_IDLE_TIMEOUT_MS`) stop the process without ending the session; `state/` stays intact and `start --root` resumes. Only `/session/end` or `stop` ends a session. After `/session/end` the page token is retired immediately; the agent token stays valid until the final batch is acknowledged and nothing is held, then it is retired too, so `wait` exit 1 always means "ended with nothing held".
 
