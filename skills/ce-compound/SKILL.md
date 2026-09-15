@@ -74,6 +74,6 @@ Run these in order. Each reference is a required read at the step that names it.
 3. **Assembly and write** — wait for every Phase 1 input, then read `references/assembly.md`.
 4. **Refresh check and discoverability** — read `references/refresh-and-discoverability.md`.
 5. **Optional enhancement** — read `references/enhancement.md`. Interactive only.
-6. **Report** — read `references/report.md` for the report shape your mode must emit, then end the turn.
+6. **Report** — read `references/report.md` for the report shape your mode must emit and how the skill ends.
 
 **Lightweight Mode** replaces steps 1-6 with a single pass; read `references/lightweight.md`, which defines its own completion output for both modes.

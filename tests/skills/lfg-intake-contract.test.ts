@@ -198,3 +198,35 @@ describe("ce-brainstorm return-to-caller seam (ce-brainstorm <-> lfg)", () => {
     expect(brainstormHandoff).toContain("Ship it autonomously with `lfg`")
   })
 })
+
+// 2026-09-14: an lfg run ended its turn after ce-debug's return-to-caller
+// output because the callee said "emit ... as the final output" and nothing at
+// the caller said to continue. Children run inline, so a return is text the
+// caller wrote and no event resumes it. Each callee return contract must not
+// claim the turn, and lfg's completion rule must resume the next step.
+describe("inline child returns do not end the caller's turn", () => {
+  const calleeReturns: Record<string, string> = {
+    "skills/ce-debug/SKILL.md": debugSkill,
+    "skills/ce-debug/references/return-to-caller.md": debugReturn,
+    "skills/ce-debug/references/pipeline-mode.md": readRepoFile("skills/ce-debug/references/pipeline-mode.md"),
+    "skills/ce-work/references/return-to-caller.md": readRepoFile("skills/ce-work/references/return-to-caller.md"),
+    "skills/ce-brainstorm/references/handoff.md": brainstormHandoff,
+    "skills/ce-compound/references/report.md": readRepoFile("skills/ce-compound/references/report.md"),
+    "skills/ce-plan/references/plan-handoff.md": readRepoFile("skills/ce-plan/references/plan-handoff.md"),
+    "skills/ce-pov/references/invocation.md": readRepoFile("skills/ce-pov/references/invocation.md"),
+    "skills/ce-doc-review/references/synthesis-and-presentation.md": readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md"),
+  }
+
+  test("callee return contracts say the return ends the skill, not the turn", () => {
+    for (const [file, body] of Object.entries(calleeReturns)) {
+      expect(body, `${file} must not present the return as the final output`).not.toMatch(/as the final output/)
+      expect(body, `${file} must state the return ends the skill, not the turn`).toMatch(/ends this skill, not the turn/)
+    }
+  })
+
+  test("lfg's completion rule resumes the next step after a child return", () => {
+    const taskVisibility = readRepoFile("skills/lfg/references/task-visibility.md")
+    expect(lfg).toMatch(/a child skill's return resumes the next numbered step in the same turn/)
+    expect(taskVisibility).toMatch(/Its return ends the child, not the run: after writing or reading it, continue with the next numbered step in the same turn/)
+  })
+})

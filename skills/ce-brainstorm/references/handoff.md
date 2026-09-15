@@ -14,7 +14,9 @@ waiting for the result and owns what happens next, so none of 4.1 through 4.3
 runs: no menu, no closing summary, and never an invocation of `lfg` or
 `ce-plan` from here. The dialogue that produced the result is unchanged; the
 caller is present precisely because a human was there to answer. Emit this
-return as the final output, with these exact field names:
+return as the last thing this skill writes, with these exact field names. The
+return ends this skill, not the turn. The caller runs in this same session,
+and its next step follows the return.
 
 - `status`: `complete`, or `blocked` when `Resolve Before Planning` still
   holds items the user chose not to resolve.

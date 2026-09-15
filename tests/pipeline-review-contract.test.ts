@@ -865,7 +865,10 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("requirements-only unified plan")
     expect(synthesis).toContain("implementation-ready unified plan")
     expect(synthesis).toContain("user's existing request authorizes it")
-    expect(synthesis).toContain("return control to the caller")
+    // 2026-09-14: "return control to the caller" read as a handoff cue that ended
+    // the turn in an inline lfg run; the invariant is the nested return, stated as
+    // the skill ending rather than the turn.
+    expect(synthesis).toContain("ends this skill, not the turn")
   })
 
   // Split by load-time: the question-tool rules and the dispatch backpressure

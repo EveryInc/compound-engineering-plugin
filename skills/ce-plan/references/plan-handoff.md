@@ -55,7 +55,7 @@ After all mutations in this run have settled (initial write, deepening synthesis
 
 **Execution handoff:** After review and any corrections, assess the final plan against its implementation contract and repository evidence. Do not offer execution while a material prerequisite is unverified or a launch-blocking question or finding remains. Name the blocker in the plan and handoff; in pipeline mode return `status: blocked` with the artifact path, blocker, and recovery path. A skipped review is not a pass; establish the needed evidence within the planning request or report the gap. Deferred details and explicitly planned new files do not prevent handoff.
 
-**Pipeline mode:** Return control to the caller without an interactive menu. If document review started but did not complete, return the skill's `status: blocked` result with `phase`, `blocker`, `recovery_path`, and the preserved `artifact_path`. Otherwise return the resolved structured review result from completion, or the `skill_unreachable` stand-in recorded when the review never started.
+**Pipeline mode:** No interactive menu. The result below is the last thing this skill writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the result. If document review started but did not complete, return the skill's `status: blocked` result with `phase`, `blocker`, `recovery_path`, and the preserved `artifact_path`. Otherwise return the resolved structured review result from completion, or the `skill_unreachable` stand-in recorded when the review never started.
 
 **Path format:** Use absolute paths for chat-output file references — relative paths are not auto-linked as clickable in most terminals.
 

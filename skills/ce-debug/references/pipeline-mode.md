@@ -12,7 +12,7 @@ Being invoked by an orchestrator is **not** itself authorization. You mutate und
 - **Phase 1 (reproduce):** When reproduction cannot run in this environment (a CI- or production-only failure), do not ask for access, artifacts, or a go-ahead. Continue on the best evidence already in reach: the failing job's logs, captured artifacts, the seeded log tails. If a gap-free root cause is still established, the ordinary statuses apply. If not, return `needs-human` with a `decision_context` naming what reproduction requires and what was tried.
 - **Phase 2 (root cause + fix gate):** There is no "Fix it now / Diagnosis only" question. The caller invoked this skill to fix, so **fix by default, but only convergent fixes** (see the boundary below). A divergent fix is deferred, not applied.
 - **Phase 3 (workspace/branch):** Operate on the current branch. The orchestrator decides branch context, so never prompt to create a branch and never prompt about uncommitted work. Commit the fix (`fix(ci): <summary>` for a CI failure, else `fix: <summary>`) and push. Never weaken, skip, or mock a failing assertion to make it pass. Repair the real issue or defer.
-- **Phase 4 (handoff):** No prompt. Emit the structured return below. Skip the compound offer.
+- **Phase 4 (handoff):** No prompt. Emit the structured return below as the last thing this skill writes, then skip the compound offer. The return ends this skill, not the turn. The caller runs in this same session, and its next step follows the return.
 - **Post-fix simplify and review steps:** Skip them in pipeline to bound cost and nesting depth; the orchestrator scopes review at its own level. Keep the Phase 3 tests.
 
 ## The fix-authority boundary: convergent vs divergent
@@ -42,7 +42,7 @@ Return each decision in the shared typed residual contract. Its `sources` enumer
 
 ## Structured return
 
-The skill's final output in pipeline mode is machine-readable (the caller parses it):
+The return in pipeline mode is machine-readable (the caller parses it):
 
 ```json
 {

@@ -30,7 +30,7 @@ When unsure, take the route that asks more of the evidence.
 
 A stop leaves nothing pushed that was not already pushed.
 
-Resolve every skill named here against the host's available-skills list and invoke that exact entry; some hosts namespace it (`compound-engineering:ce-plan`). Read `references/task-visibility.md` before starting: it defines the stage view published through the platform's task-tracking capability, the chat narration, and the completion rule that a step is done only after it ran and the turn does not end before DONE or a stop.
+Resolve every skill named here against the host's available-skills list and invoke that exact entry; some hosts namespace it (`compound-engineering:ce-plan`). Read `references/task-visibility.md` before starting: it defines the stage view published through the platform's task-tracking capability, the chat narration, and the completion rule that a step is done only after it ran, a child skill's return resumes the next numbered step in the same turn, and the turn does not end before DONE or a stop.
 
 ## The run (routes that change the code)
 

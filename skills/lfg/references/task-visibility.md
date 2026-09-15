@@ -8,4 +8,4 @@ Narrate the run in chat as it moves. Narration is chat prose, never entries on t
 
 ## Completion discipline
 
-Report a step as done only after it actually ran and returned. Describing what a step would do, or what comes next, is not doing it; invoke it in the same turn. Do not end the turn before `<promise>DONE</promise>` or an explicit GATE stop naming the blocker. Work merely described, or a step skipped outside its stated skip condition, makes DONE false.
+Report a step as done only after it actually ran and returned. Describing what a step would do, or what comes next, is not doing it; invoke it in the same turn. A child skill runs inline, and nothing resumes you when it returns. Its return ends the child, not the run: after writing or reading it, continue with the next numbered step in the same turn. Do not end the turn before `<promise>DONE</promise>` or an explicit GATE stop naming the blocker. Work merely described, or a step skipped outside its stated skip condition, makes DONE false.

@@ -13,11 +13,11 @@ Phases 0 through 3 run as the body defines them, with the investigation rigor un
 - **Phase 0:** if an issue fetch fails, continue with the input you have and record the gap in the return. Never ask the user to paste content.
 - **Phase 2 gate:** there is no fix-choice question. The caller's invocation authorized the fix, so proceed to Phase 3 with a **convergent** fix only. A **divergent** fix, one that would reverse a deliberate contract, behavior, or product decision, including a "failing" test that asserts intended behavior, is deferred as `needs-human` with a `decision_context`, never applied. Never route to `ce-brainstorm`; a design problem is a `needs-human` residual. When reproduction cannot run in this environment, continue on the best evidence in reach; if the causal chain still has a gap, return `needs-human` naming what reproduction requires and what was tried.
 - **Phase 3:** apply the fix on the feature branch, verify it as `references/fix.md` defines (red then green where a test can run here; otherwise the reproduction check or characterization that file allows, recorded in the evidence), and commit only the fix-owned files (`fix: <summary>`, or `fix(<scope>): <summary>` when the project's conventions carry a scope). Do not push. A file the fix must touch that already carries the user's uncommitted edits stops the run before the first edit to it: return `blocked` naming the file, with nothing applied, since no commit could separate their edits from the fix and the caller cannot answer for the user. The pre-fix scope record makes this known before Phase 3 edits anything.
-- **Phase 4:** skip the Debug Summary block, the post-fix polish and review steps (`references/post-fix-handoff.md`), the commit/PR routing, and the learning-capture offer. Emit the structured return below as the final output.
+- **Phase 4:** skip the Debug Summary block, the post-fix polish and review steps (`references/post-fix-handoff.md`), the commit/PR routing, and the learning-capture offer. Emit the structured return below as the last thing this skill writes. The return ends this skill, not the turn. The caller runs in this same session, and its next step follows the return.
 
 ## Structured return
 
-The final output is machine-readable; the caller parses it and branches on the exact `status` spellings, so never rename, abbreviate, or add to them.
+The return is machine-readable; the caller parses it and branches on the exact `status` spellings, so never rename, abbreviate, or add to them.
 
 ```json
 {

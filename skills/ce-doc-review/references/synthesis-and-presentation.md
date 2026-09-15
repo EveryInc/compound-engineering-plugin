@@ -322,7 +322,7 @@ During synthesis, discard any finding that recommends deleting or removing a CE 
 
 ## Phase 5: Return to the Caller
 
-Return "Review complete" with the completion report or the non-interactive result. A finished review does not need a terminal question. When nested, return control to the caller; do not start a nested planning or execution workflow merely because the review is complete.
+Return "Review complete" with the completion report or the non-interactive result. A finished review does not need a terminal question. When nested, "Review complete" ends this skill, not the turn: the caller runs in this same session, and its next step follows the report. Do not start a nested planning or execution workflow merely because the review is complete.
 
 For standalone use, a useful next step may be named without a blocking menu. A requirements-only unified plan or legacy standalone requirements doc routes to `ce-plan`; an implementation-ready unified plan or legacy implementation plan routes to `ce-work`. Invoke that next skill only when the user's existing request authorizes it. Review completion alone does not authorize new work.
 

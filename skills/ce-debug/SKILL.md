@@ -80,7 +80,7 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 
 ### Phase 4: Handoff
 
-**`mode:pipeline` — skip this entire interactive handoff.** No polish or review steps, no residual questions, no preview, no learning-capture offer. Commit and push the convergent fix per `references/pipeline-mode.md`, then emit that reference's **structured return** as the final output. Divergent / needs-human items are deferred there (open thread or the caller's run-report comment — never a PR-body section). **`mode:return-to-caller` — skip it too:** commit the fix-owned files on the feature branch, push nothing, and emit the structured return `references/return-to-caller.md` defines. The rest of this section is the interactive path only.
+**`mode:pipeline` — skip this entire interactive handoff.** No polish or review steps, no residual questions, no preview, no learning-capture offer. Commit and push the convergent fix per `references/pipeline-mode.md`, then emit that reference's **structured return**. Divergent / needs-human items are deferred there (open thread or the caller's run-report comment — never a PR-body section). **`mode:return-to-caller` — skip it too:** commit the fix-owned files on the feature branch, push nothing, and emit the structured return `references/return-to-caller.md` defines. In both modes the return is the last thing this skill writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the return; do not announce a handoff to it. The rest of this section is the interactive path only.
 
 **Structured summary** — always write this first:
 

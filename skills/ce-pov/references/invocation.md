@@ -43,5 +43,5 @@ Warm is a guest, not a host:
 
 - Consult a peer only when the warm invocation explicitly requests one; never make a proactive panel offer mid-session.
 - Output a **requested POV only** — no reframing of the host session, no taking over the brainstorm.
-- **Hand control back** after the POV.
+- The POV is the last thing this skill writes. It ends this skill, not the turn. The host session's next step follows it.
 - **Skip the capture offer** unless the user asks — a mid-session interjection should not push a durable-record decision.

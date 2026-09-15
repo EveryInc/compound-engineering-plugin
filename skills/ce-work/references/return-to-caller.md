@@ -2,7 +2,7 @@
 
 Read this when input triage enters Return-to-Caller Mode, and read it again immediately before returning. Input triage owns and validates the invocation grammar (`references/input-triage.md` parses the mode token and carriers). This file defines every field of the summary you return, the evidence rule for `status: complete`, how a repeated run recovers without reimplementing, and the standalone work you must not do here: simplify, review, PR, CI, and babysitting.
 
-In this mode `ce-work` performs implementation and local verification only — including mid-implementation Phase 2 "Simplify as You Go" — then returns a structured summary instead of running the standalone shipping tail (final simplify, review, commit, PR, CI).
+In this mode `ce-work` performs implementation and local verification only — including mid-implementation Phase 2 "Simplify as You Go" — then returns a structured summary instead of running the standalone shipping tail (final simplify, review, commit, PR, CI). The summary is the last thing this mode writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the summary.
 
 Return:
 
