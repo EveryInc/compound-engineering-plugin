@@ -898,7 +898,15 @@ describe("ce-code-review contract", () => {
     expect(modes).toMatch(/never run both on the same brief/)
     expect(helper).toMatch(/FULL_EXEC_LINE_MIN = 200/)
     expect(helper).not.toMatch(/SMALL_LINE_MAX/)
+    // A 400 total-line backstop was added and then dropped (plan
+    // 2026-09-15-1322): a count is not the consequence judgment. The helper
+    // reports what it could not classify instead.
+    expect(helper).not.toMatch(/FULL_TOTAL_LINE_MIN/)
     expect(helper).toMatch(/"exec_nontest_lines"/)
+    expect(helper).toMatch(/"unclassified_lines"/)
+    expect(helper).toMatch(/"silent_pass_classes"/)
+    expect(modes).toMatch(/`unclassified_lines`/)
+    expect(modes).toMatch(/`silent_pass_classes`/)
     expect(modes).toMatch(
       /`mode:agent` bypasses this short-circuit only/,
     )

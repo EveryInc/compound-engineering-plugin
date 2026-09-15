@@ -2118,6 +2118,72 @@ DEPTH: full`,
     },
   },
   {
+    id: "ce-code-review/depth-gate-unlisted-language",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["R/bucket.R"],
+    fixture: `${FIX}/review-depth-unlisted-language`,
+    post_only: true,
+    why: "A 400-line R token-bucket limiter is executable code the helper's extension list does not name: exec_nontest_lines is 0 and unclassified_lines carries the .r count. The gate must read it as code that degrades silently under load and never declare lite; the 400 total-line backstop that used to catch this was dropped in favor of that judgment.",
+    pre_contract:
+      "A 400-line change of any file type is size_band large and forces the full spine.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: focused
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      must_include_any: [["DEPTH: focused", "DEPTH: full"]],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-prose-only",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["docs/runbook.md"],
+    fixture: `${FIX}/review-depth-prose-only`,
+    post_only: true,
+    why: "The control for the unlisted-language cell: a 300-line markdown runbook produces the same unclassified_lines shape under .md, and the gate must read what those lines are and declare lite rather than treating any large unclassified change as code.",
+    pre_contract:
+      "A 400-line change of any file type is size_band large and forces the full spine.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: focused
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      declared: { DEPTH: "lite" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
     id: "ce-code-review/report-only-default",
     skill: "ce-code-review",
     cohort: "resized",

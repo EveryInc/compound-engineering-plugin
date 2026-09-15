@@ -66,9 +66,6 @@ SILENT_PASS_PATTERNS = {
 # Executable non-test changed lines at or above this run the full spine; it
 # matches the maintainability reviewer's trigger. Below it, consequence decides.
 FULL_EXEC_LINE_MIN = 200
-# Total changed lines at or above this run the full spine whatever the file
-# types: a backstop for executable sources the extension list does not name.
-FULL_TOTAL_LINE_MIN = 400
 
 # Conventions recognized: tests?/spec/__tests__ directories; a .test./.spec.
 # suffix; a test_*.py / conftest.py Python prefix; and a case-sensitive
@@ -226,6 +223,7 @@ def fail_closed(reason: str, signals: dict[str, object]) -> dict[str, object]:
         "reason": reason,
         "exec_lines": None,
         "exec_nontest_lines": None,
+        "unclassified_lines": {},
         "changed_lines": None,
         "uncounted_files": 1,
         "changed_files": [],
@@ -240,16 +238,15 @@ def fail_closed(reason: str, signals: dict[str, object]) -> dict[str, object]:
     }
 
 
-def size_band_for(exec_nontest_lines: int | None, changed_lines: int | None) -> str:
-    """Band the change: `large` is a full-spine floor.
+def size_band_for(exec_nontest_lines: int | None) -> str:
+    """Band the executable non-test lines: `large` is a full-spine floor.
 
-    Executable non-test lines at `FULL_EXEC_LINE_MIN` decide it; total changed
-    lines at `FULL_TOTAL_LINE_MIN` back it up for sources the extension list
-    cannot name.
+    Sources the extension list cannot name are not banded; they are reported
+    in `unclassified_lines` for the gate's consequence judgment.
     """
-    if exec_nontest_lines is None or changed_lines is None:
+    if exec_nontest_lines is None:
         return "unknown"
-    if exec_nontest_lines >= FULL_EXEC_LINE_MIN or changed_lines >= FULL_TOTAL_LINE_MIN:
+    if exec_nontest_lines >= FULL_EXEC_LINE_MIN:
         return "large"
     return "small"
 
@@ -328,6 +325,7 @@ def main() -> int:
     files = sorted(line for line in names.stdout.splitlines() if line)
     executable_lines = 0
     executable_nontest_lines = 0
+    unclassified_lines: dict[str, int] = {}
     changed_lines = 0
     uncounted = 0
     for line in numstat.stdout.splitlines():
@@ -352,19 +350,23 @@ def main() -> int:
             executable_lines += total
             if not TEST_PATTERN.search(resolved_name):
                 executable_nontest_lines += total
+        elif not TEST_PATTERN.search(resolved_name):
+            ext = Path(resolved_name).suffix.lower()
+            unclassified_lines[ext] = unclassified_lines.get(ext, 0) + total
 
     signals = matching_classes(files, SIGNAL_PATTERNS)
     hard_block_classes = matching_classes(files, HARD_BLOCK_PATTERNS)
     silent_pass_classes = matching_classes(files, SILENT_PASS_PATTERNS)
     if uncounted:
         hard_block_classes.append("uncounted")
-    band = size_band_for(executable_nontest_lines, changed_lines)
+    band = size_band_for(executable_nontest_lines)
 
     result = {
         "status": "complete",
         "reason": None,
         "exec_lines": executable_lines,
         "exec_nontest_lines": executable_nontest_lines,
+        "unclassified_lines": unclassified_lines,
         "changed_lines": changed_lines,
         "uncounted_files": uncounted,
         "changed_files": files,

@@ -323,23 +323,38 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.size_band).toBe("large")
   })
 
-  test("scope helper backstops an unlisted executable language by total changed lines", () => {
+  test("scope helper reports an unlisted executable language as unclassified lines, never a floor", () => {
     const { dir, base } = fixtureRepo()
-    const small = Array.from({ length: 250 }, (_, i) => `x${i} <- ${i}`).join("\n") + "\n"
-    writeFileSync(path.join(dir, "model.R"), small)
-    git(dir, "add", ".")
-    let scope = JSON.parse(run("python3", [SCOPE_SCRIPT, "--base", base], dir).stdout)
-    expect(scope.exec_nontest_lines).toBe(0)
-    expect(scope.size_band).toBe("small")
-
     const big = Array.from({ length: 400 }, (_, i) => `x${i} <- ${i}`).join("\n") + "\n"
     writeFileSync(path.join(dir, "model.R"), big)
     git(dir, "add", ".")
-    scope = JSON.parse(run("python3", [SCOPE_SCRIPT, "--base", base], dir).stdout)
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
     expect(scope.exec_nontest_lines).toBe(0)
     expect(scope.changed_lines).toBeGreaterThanOrEqual(400)
-    expect(scope.size_band).toBe("large")
-    expect(scope.hard_block_full).toBe(true)
+    expect(scope.unclassified_lines).toEqual({ ".r": 400 })
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_full).toBe(false)
+  })
+
+  test("scope helper lists prose and test files separately from unclassified lines", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "docs"))
+    mkdirSync(path.join(dir, "tests"))
+    writeFileSync(path.join(dir, "docs", "guide.md"), Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\n") + "\n")
+    writeFileSync(path.join(dir, "tests", "fixture.txt"), "a\nb\n")
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_nontest_lines).toBe(0)
+    expect(scope.unclassified_lines).toEqual({ ".md": 30 })
+    expect(scope.test_files_changed).toBe(true)
   })
 
   test("scope helper emits UNKNOWN-equivalent state for an invalid endpoint", () => {
