@@ -828,7 +828,7 @@ async function replay(options) {
   // No longer than the recorded id: the rewrite must not push an envelope the
   // source accepted at the 64 KB cap over it at the target.
   const recorded = readJsonOrNull(options.boardFile)?.session_id ?? ""
-  const sessionId = `r${randomBytes(16).toString("hex")}`.slice(0, Math.max(8, String(recorded).length))
+  const sessionId = `r${randomBytes(16).toString("hex")}`.slice(0, Math.max(1, String(recorded).length))
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${options.token}`,
@@ -917,6 +917,7 @@ async function serve(options) {
   // A resume keeps the previous bind host unless the caller names a new one;
   // the documented recovery is a bare `start --root <dir>` again.
   if (resuming && !options.hostExplicit && typeof previous.host === "string" && previous.host) options.host = previous.host
+  if (resuming && options.trustProxy.length === 0 && Array.isArray(previous.trust_proxy)) options.trustProxy = previous.trust_proxy.filter((ip) => net.isIP(ip))
   const pageToken = resuming ? previous.page_token : newToken()
   const agentToken = resuming ? previous.agent_token : newToken()
   if (!resuming) {
@@ -1325,7 +1326,12 @@ async function serve(options) {
       const trigger = PAGE_CHECKPOINT_KINDS.has(payload.trigger) ? payload.trigger : "send"
       const mode = EXECUTION_MODES.has(payload.mode) ? payload.mode : board.mode
       board.mode = mode
-      releaseCheckpoint(typeof payload.id === "string" && payload.id ? payload.id : `ck-${randomUUID()}`, trigger, mode)
+      // A checkpoint id keys its batch file and its ack route, so a reused
+      // page id gets a suffix rather than overwriting the earlier batch.
+      const wanted = typeof payload.id === "string" && payload.id ? payload.id : `ck-${randomUUID()}`
+      let checkpointId = wanted
+      for (let n = 2; board.checkpoints.some((c) => c.id === checkpointId); n += 1) checkpointId = `${wanted}-${n}`
+      releaseCheckpoint(checkpointId, trigger, mode)
     } else if (type === "answer") {
       const answer = { unit_id: payload.unit_id, text: payload.text, t: envelope.t }
       board.answers.push(answer)
@@ -1585,7 +1591,12 @@ async function serve(options) {
         out.destroy()
         return
       }
-      out.write(chunk)
+      // Pause the upload while the disk catches up; a fast sender must not
+      // park the archive in process memory.
+      if (!out.write(chunk)) {
+        req.pause()
+        out.once("drain", () => req.resume())
+      }
     })
     req.on("error", () => {
       out.destroy()
@@ -1816,7 +1827,7 @@ async function serve(options) {
   // (and host/port when the old port was taken). Tokens and everything else
   // are the previous session's.
   session = resuming
-    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: false }
+    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, trust_proxy: options.trustProxy, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: false }
     : {
       page_token: pageToken,
       agent_token: agentToken,
@@ -1824,6 +1835,7 @@ async function serve(options) {
       app_origin: options.appOrigin,
       host: options.host,
       port: boundPort,
+      trust_proxy: options.trustProxy,
       pid: process.pid,
       owner_pid: options.ownerPid ?? null,
       ended: false,
