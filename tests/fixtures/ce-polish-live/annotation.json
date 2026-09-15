@@ -1,0 +1,49 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 9,
+  "t": 13400,
+  "type": "annotation",
+  "payload": {
+    "id": "ann_0001",
+    "kind": "stroke",
+    "points": [
+      {
+        "x": 20,
+        "y": 92,
+        "pressure": 0.5
+      },
+      {
+        "x": 44,
+        "y": 90,
+        "pressure": 0.6
+      },
+      {
+        "x": 68,
+        "y": 96,
+        "pressure": 0.5
+      }
+    ],
+    "bbox": {
+      "x": 20,
+      "y": 90,
+      "width": 48,
+      "height": 6
+    },
+    "anchor": {
+      "route": "/settings",
+      "selector": "button[aria-label=\"Toggle sidebar\"]",
+      "component": "SidebarToggle",
+      "rect": {
+        "x": 24,
+        "y": 96,
+        "width": 40,
+        "height": 40
+      },
+      "t": 12120
+    },
+    "text": "this one",
+    "unit_id": "unit_0001",
+    "composite_frame_id": "frame_0008"
+  }
+}

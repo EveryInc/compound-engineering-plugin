@@ -1,0 +1,1 @@
+Copied verbatim from https://github.com/kieranklaassen/riffrec `src/live/fixtures/` at `main` @ `972fcb6f777abf569ad7200524e74cf7951a7e96` (U1 PR #20 merged as `2c44409`; identical to branch `cursor/live-u1-stream-contract-6a92` @ `7814c053`) on 2026-09-15.

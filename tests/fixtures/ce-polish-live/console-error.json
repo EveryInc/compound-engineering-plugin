@@ -1,0 +1,14 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 3,
+  "t": 2010,
+  "type": "console_error",
+  "payload": {
+    "t": 2010,
+    "type": "console_error",
+    "message": "Cannot read properties of undefined (reading \"theme\")",
+    "stack": "TypeError: Cannot read properties of undefined (reading \"theme\")\n    at SettingsPanel (SettingsPanel.tsx:42:11)",
+    "component": "SettingsPanel"
+  }
+}
