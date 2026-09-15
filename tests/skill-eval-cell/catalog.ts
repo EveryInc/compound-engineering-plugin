@@ -30,6 +30,8 @@ export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 export const HOLDABLE_OBJECTIVE_BASE_REF = "0e758b60b35cec165470443fde5acf60db8bdae9"
 const PLAN_CONTENT_BASE_REF = "5c32ef92339b95348d6a12000e814d4877902557"
 export const CE_OPTIMIZE_BASE_REF = "b159e1fa4c70efa995742269d38269bcc7524dd2"
+/** main before streak interpretation accounted for estimated baselines and candidate selection (#1698). */
+const RETUNE_STREAK_BASE_REF = "53af1a2eab6415be9881c1987dbc986dcb54465c"
 export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68bf7"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
@@ -726,6 +728,94 @@ Required lower-is-better objectives: latency (ms), memory (MB). Workload checkou
     pre_contract: "Judge-scored outcomes and disk-backed historical results are supported optimization inputs.",
     task: `Use ce-optimize for a Phase 4 summary only, no tools beyond reading skill references and no follow-up actions. This legacy log has no forecast or comparison revision fields. Primary required objective: human-anchored relevance rubric, 1-5 ordinal scale, higher better. Baseline 3.0, final confirmed 3.6; two changes kept, only overall aggregate scores survive. Coverage gate passed; judge sampling uncertainty was not recorded. Total judge cost $2. No remaining-opportunity evidence exists. Stop: iteration cap.`,
     grade: { files_read_post: ["references/wrap-up.md"], must_include: ["3.6"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-retune/selected-streak-claim",
+    skill: "ce-retune",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: RETUNE_STREAK_BASE_REF,
+    timeout_secs: 180,
+    why: "A winning streak after candidate selection does not turn an estimated baseline into an exact search-wide significance claim.",
+    pre_contract: "An independently established baseline makes p^N an exact one-armed test; changed candidates may restart their streak.",
+    task: `Use ce-retune to assess this registration and completed run ledger. The measurement gate and A/A check are complete; assess the result only, without new runs, edits, or delegation.
+Registration before edits: target model M; fixed task, runner, grader, and coverage; bar 8 consecutive complete runs on one build; stop each attempt at its first behavioral failure. An independent archive had 58 complete runs out of 100. No procedure for baseline uncertainty or repeated testing was registered.
+Ledger: builds C1 through C19 each had a clean diagnostic followed by a confirmation attempt that stopped on a behavioral failure. Those findings guided the next build. C20 had a clean diagnostic, was frozen, and then completed eight fresh confirmation runs. No infrastructure failures occurred. Each attempt used separate runs; all twenty attempts remain in the archive.
+Draft conclusion: "C20 cleared bar:8. Its 0.58^8 = 0.0128 result establishes exact significance for this search and shows that its completion improvement exceeds baseline noise. All twenty attempts are included in the report."
+Explain what conclusion the records support and which records the report needs. End with exactly one BAR line (cleared or not-cleared) and one CLAIM line (supported or unsupported), where CLAIM assesses the entire draft conclusion.`,
+    grade: {
+      files_read_post: ["references/noise-floor.md"],
+      declared: { BAR: "cleared", CLAIM: "unsupported" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-retune/fixed-null-confirmation",
+    skill: "ce-retune",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: RETUNE_STREAK_BASE_REF,
+    timeout_secs: 180,
+    why: "Qualifying adaptive-search evidence must preserve the valid conditional probability for one planned attempt under a known fixed null.",
+    pre_contract: "One planned streak has probability p^N under an independently established null and stops at the first failure.",
+    task: `Use ce-retune to assess this registration and completed run ledger. The measurement gate and A/A check are complete; assess the result only, without new runs, edits, or delegation.
+Registration: one candidate and one planned eight-run attempt, both fixed before outcomes were seen. Under the null, each run has known success probability exactly 0.58, stipulated independently of these data rather than estimated from an archive. Runs are independent; the model, task, grader, and runner are unchanged. Stop at the first behavioral failure. There are no other candidates or attempts.
+Ledger: eight complete runs on the frozen build, with no broken runs.
+Draft conclusion: "The registered bar is cleared. Under the stipulated null and independence assumptions, the probability that this one planned attempt produces eight successes is 0.58^8, approximately 0.0128063. This does not estimate percentage improvement or the probability that the null is true."
+Explain whether the conclusion is supported. End with exactly one BAR line (cleared or not-cleared) and one CLAIM line (supported or unsupported), where CLAIM assesses the entire draft conclusion.`,
+    grade: {
+      files_read_post: ["references/noise-floor.md"],
+      declared: { BAR: "cleared", CLAIM: "supported" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-retune/fresh-operational-confirmation",
+    skill: "ce-retune",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: RETUNE_STREAK_BASE_REF,
+    timeout_secs: 180,
+    why: "Fresh confirmation can clear an operational bar after diagnostics while excluding a registered infrastructure interruption and retaining earlier attempts.",
+    pre_contract: "Diagnostics and other builds do not count toward a streak; registration defines broken runs and coverage limits.",
+    task: `Use ce-retune to assess this registration and completed run ledger. The measurement gate and A/A check are complete; assess the result only, without new runs, edits, or delegation.
+Registration before edits: eight consecutive complete runs on a frozen build, using the same model M, runner, task, and grader. A transport outage before any model output is a broken run, retained in the archive but excluded from the streak. A behavioral failure ends the attempt. The task covers planning and implementation, not publishing. The archive baseline is 58 complete runs out of 100.
+Ledger: C1's attempt failed and led to C2; C2's attempt failed and led to C3. A clean diagnostic selected C3. After C3 was frozen, confirmation records were complete, complete, transport outage before model output, complete, complete, complete, complete, complete, complete. No edits or measurement-condition changes occurred during confirmation. All records are retained.
+Draft conclusion: "C3 has eight complete confirmation runs, excluding the recorded transport interruption under the registered rule. It clears the operational bar for planning and implementation. The diagnostic and earlier builds do not contribute to that count. All attempts remain reported. This is descriptive confirmation, with no effect-size, search-wide significance, or publishing-coverage claim."
+Explain whether the conclusion is supported and how the interruption and diagnostics affect the count. End with exactly one BAR line (cleared or not-cleared) and one CLAIM line (supported or unsupported), where CLAIM assesses the entire draft conclusion.`,
+    grade: {
+      files_read_post: ["references/noise-floor.md"],
+      declared: { BAR: "cleared", CLAIM: "supported" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-retune/behavioral-failure-stops-attempt",
+    skill: "ce-retune",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: RETUNE_STREAK_BASE_REF,
+    timeout_secs: 180,
+    why: "A behavioral failure ends the current attempt; a diagnostic or queued successes cannot rescue its count.",
+    pre_contract: "The runner stops at the first failure; diagnostics and successes across edited builds never form a confirmation streak.",
+    task: `Use ce-retune to assess this registration and paused run ledger. The measurement gate and A/A check are complete; decide what the operator should do next, without executing runs, editing files, or delegating.
+Registration before edits: eight consecutive complete confirmation runs on one frozen build; stop at the first behavioral failure. Only a transport failure before model output is a broken run excluded from the streak.
+Ledger: C1 completed three runs before a failure prompted an edit. C2 had a clean diagnostic, was frozen, and then produced complete, complete, task-incomplete. The third confirmation run exited normally with a usable tool trace showing an omitted required implementation phase. Eight more runs on C2 are queued but have not started.
+The operator proposes treating the third run as broken, using the earlier C1 successes and C2 diagnostic toward the count, and continuing the queue until the bar clears.
+Explain the supported next action and what should happen to the failed record. End with exactly one BAR line (cleared or not-cleared) and one NEXT line (continue, diagnose, or report).`,
+    grade: {
+      files_read_post: ["references/noise-floor.md"],
+      declared: { BAR: "not-cleared", NEXT: "diagnose" },
+      actions: "none",
+      delegates: "none",
+    },
   },
   {
     id: "ce-babysit-pr/refuse-unasked-update",

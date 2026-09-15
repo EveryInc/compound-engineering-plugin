@@ -91,6 +91,19 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 bun run test:skill-eval-pack -- --id lfg/plan-first --arm ab
 ```
 
+## ce-retune streak interpretation
+
+Run `bun run test:skill-eval-pack -- --skill ce-retune --arm ab --hosts claude,codex`.
+These judgment cells compare the pre-change main at `53af1a2e` with the current skill.
+Read the transcripts alongside the declared decisions; these cells do not execute the retuning loop or establish real-run independence.
+
+| ID | Decision |
+|---|---|
+| `ce-retune/selected-streak-claim` | An estimated baseline and selected winning attempt support a cleared operational bar, not the draft's statistical claim |
+| `ce-retune/fixed-null-confirmation` | One planned attempt under a known fixed null retains its valid conditional probability |
+| `ce-retune/fresh-operational-confirmation` | Fresh runs clear the operational bar; diagnostics and registered broken runs stay outside its count |
+| `ce-retune/behavioral-failure-stops-attempt` | A behavioral failure ends the attempt and requires diagnosis; no pooling or queue continuation |
+
 ## Named gaps
 
 - **Reaping a peer session the cell never launched.** A timed-out host is killed by process group, but `ce-pov`'s peer runner double-forks and calls `setsid()`, so its supervisor lives in a new session outside that group and survives. The driver has no handle on it — it never sees the run id the runner keys its jobs by. Containing it means running each cell inside a cleanup boundary that owns new sessions too (a container, cgroup, or jail), not a change to the kill call.
