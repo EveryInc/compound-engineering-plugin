@@ -59,18 +59,6 @@ Skills that anchor, feed, or maintain the loop without being steps inside it.
 
 ---
 
-## Knowledge Folders
-
-Skills for a folder whose subject is knowledge rather than code: sources, ideas, experiments, and the learnings that transfer. All read the `knowledge:` layout `/ce-setup knowledge` writes ([configuration](./configuration.md#knowledge-layout)); `ce-compound` files a `learning` there when the layout sets one.
-
-| Skill | Description |
-|-------|-------------|
-| [`/ce-capture`](./ce-capture.md) | Raw input (thread, URL, transcript, observation) to one paraphrased, typed note in the role the layout assigns; `source_id` dedup; private-source boundary |
-| [`/ce-dream`](./ce-dream.md) | Recurring consolidation: inbox triage, duplicate merge, note-to-learning promotion, stale flags, conflicts with both sides, pack-rule candidates. Proposals unless the layout's `git` field allow-lists a path; idempotent and lease-guarded for schedulers |
-| [`/ce-experiment`](./ce-experiment.md) | Idea to numbered experiment: brief at the `projects` role, measurement loop via `ce-optimize`, dated run notes, drafted write-up |
-
----
-
 ## On-Demand
 
 Invoked when a specific need arises, not part of any chain.

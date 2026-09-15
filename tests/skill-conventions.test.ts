@@ -184,10 +184,6 @@ const NAME_CHAR_BUDGET = 64
 
 const EXPECTED_USER_INVOKED_SKILLS = new Set([
   "ce-dogfood",
-  // ce-dream: a recurring consolidation pass a harness scheduler invokes with
-  // mode:non-interactive. It moves files under the layout's git allow-list, so
-  // a model must not route an ordinary "tidy up" request into it.
-  "ce-dream",
   "ce-polish",
   "ce-product-pulse",
   "ce-promote",

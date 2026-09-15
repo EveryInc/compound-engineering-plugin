@@ -209,8 +209,6 @@ docs/solutions/[category]/[filename].md
 
 That is the default root; the store follows `docs_root` if it is set in `config.yaml`, so on a project that relocates CE artifacts the path is `<docs_root>/solutions/...`. Categories are auto-detected. Bug-track examples: `build-errors/`, `test-failures/`, `runtime-errors/`, `performance-issues/`, `database-issues/`, `security-issues/`, `ui-bugs/`, `integration-issues/`, `logic-errors/`. Knowledge-track examples: `architecture-patterns/`, `design-patterns/`, `tooling-decisions/`, `conventions/`, `workflow-issues/`, `developer-experience/`, `documentation-gaps/`, `best-practices/`.
 
-In a knowledge folder -- a checkout with a `knowledge:` layout whose `learnings` role is set ([Knowledge layout](./configuration.md#knowledge-layout)) -- a finding about the folder's subject (an experiment outcome, a transferable insight from sources and notes) is written instead at the `learnings` role's path with the layout's frontmatter contract and `type: learning`. A code problem in the checkout keeps `solutions/`; the two live side by side.
-
 The doc carries YAML frontmatter (`module`, `tags`, `problem_type`, and so on) for searchability. `scripts/validate-frontmatter.py` catches silent corruption, and `scripts/validate-doc-claims.py` checks the body's cited paths, SHAs, links, and drafting scaffold against the tree.
 
 In interactive Full mode, the skill may also make a small edit to `AGENTS.md`/`CLAUDE.md` if the discoverability check finds the knowledge store is not surfaced and you consent. Non-interactive and lightweight never apply that edit.
