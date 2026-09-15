@@ -1,5 +1,13 @@
 #!/usr/bin/env node
-import { createHash, randomUUID } from "node:crypto"
+// Live endpoint for ce-polish live mode: page -> endpoint event intake over
+// HTTP POST, endpoint -> page SSE, endpoint -> agent blocking wake.
+// Adapted from the ce-prototype helper (light-webserver.js): the run-directory
+// lifecycle (pidfile, state/, idle timeout, --owner-pid, start/status/stop/wait)
+// is kept; file serving, the overlay, /version, SSE grace shutdown, and the
+// pending-document handshake are gone. Owner death and idle timeout stop the
+// process but never end the session: a later `start --root` resumes it.
+// Only /session/end or an explicit `stop` ends a session.
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto"
 import { execFileSync, spawn } from "node:child_process"
 import fs from "node:fs"
 import http from "node:http"
@@ -7,88 +15,222 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 const scriptPath = fileURLToPath(import.meta.url)
-const assetsDir = path.join(path.dirname(scriptPath), "..", "assets")
 const DEFAULT_HOST = "127.0.0.1"
 const DEFAULT_URL_HOST = "localhost"
-const IDLE_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_IDLE_TIMEOUT_MS) || 30 * 60 * 1000
-const LIFECYCLE_CHECK_MS = Number(process.env.CE_LIGHT_WEB_LIFECYCLE_CHECK_MS) || 60 * 1000
-const WAIT_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_WAIT_TIMEOUT_MS) || 30 * 1000
-const SSE_GRACE_MS = Number(process.env.CE_LIGHT_WEB_SSE_GRACE_MS) || 5000
+const SCHEMA_VERSION = "live/1"
+const IDLE_TIMEOUT_MS = Number(process.env.CE_LIVE_IDLE_TIMEOUT_MS) || 30 * 60 * 1000
+const LIFECYCLE_CHECK_MS = Number(process.env.CE_LIVE_LIFECYCLE_CHECK_MS) || 60 * 1000
+const WAIT_TIMEOUT_MS = Number(process.env.CE_LIVE_WAIT_TIMEOUT_MS) || 30 * 1000
+const PAGE_LOST_GRACE_MS = Number(process.env.CE_LIVE_PAGE_LOST_GRACE_MS) || 15 * 1000
+const MINT_TIMEOUT_MS = Number(process.env.CE_LIVE_MINT_TIMEOUT_MS) || 10 * 1000
 const BODY_LIMIT = 64 * 1024
-// Reserved URL namespace for the overlay, so a screen's own /annotate.js or
-// /annotate.css under screens/ is never shadowed.
-const OVERLAY_PREFIX = "/__ce-annotate"
-const OVERLAY_FILES = {
-  [`${OVERLAY_PREFIX}/annotate.js`]: "annotate.js",
-  [`${OVERLAY_PREFIX}/annotate.css`]: "annotate.css",
+const FRAME_BODY_LIMIT = 2 * 1024 * 1024
+const ARCHIVE_BODY_LIMIT = Number(process.env.CE_LIVE_ARCHIVE_LIMIT_BYTES) || 400 * 1024 * 1024
+const DISK_CAP_BYTES = Number(process.env.CE_LIVE_DISK_CAP_BYTES) || 500 * 1024 * 1024
+const BRIEF_MAX_CHARS = 3000
+const MINTS_PER_MINUTE = 5
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "")
+const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime"
+const REALTIME_VOICE = process.env.OPENAI_REALTIME_VOICE || "marin"
+const CLIENT_SECRET_TTL_S = 600
+
+const PAGE_EVENT_TYPES = new Set([
+  "click", "navigation", "network_request", "console_error",
+  "transcript", "unit", "unit_update", "unit_withdraw", "annotation",
+  "checkpoint", "answer", "frame", "mic", "mode", "stream_state",
+])
+const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "final"])
+const AGENT_UNIT_STATUSES = new Set([
+  "triaging", "applying", "applied", "needs_info", "blocked", "residual", "withdrawn", "skipped",
+])
+const EVIDENCE_PROFILES = {
+  anchors_transcript_only: { frames: "none", annotations: false, clips: false, telemetry: false },
+  strokes_composite: { frames: "composite", annotations: true, clips: false, telemetry: false },
+  everything: { frames: "all", annotations: true, clips: true, telemetry: true },
 }
-// A Host header is reflected into the served document only in this shape.
-const HOST_HEADER = /^[A-Za-z0-9.\-]+(:\d{1,5})?$|^\[[0-9A-Fa-f:.]+\](:\d{1,5})?$/
+
+// The interviewer's function tools and default persona live in
+// references/live-stream-contract.md; this is the executable copy the mint
+// sends to OpenAI. Keep the two in step.
+const INTERVIEWER_TOOLS = [
+  {
+    type: "function",
+    name: "record_unit",
+    description: "Record one requested change the riffer just described, as a normalized statement with the elements it refers to.",
+    parameters: {
+      type: "object",
+      properties: {
+        statement: { type: "string", description: "One requested change in the riffer's intent, normalized to a single imperative sentence." },
+        anchors: {
+          type: "array",
+          description: "Elements the riffer pointed at, clicked, or drew on for this change.",
+          items: {
+            type: "object",
+            properties: {
+              route: { type: "string" },
+              selector: { type: "string" },
+              component: { type: "string" },
+            },
+            required: ["route", "selector"],
+          },
+        },
+        transcript_excerpt: { type: "string", description: "The riffer's own words this unit came from." },
+      },
+      required: ["statement", "anchors", "transcript_excerpt"],
+    },
+  },
+  {
+    type: "function",
+    name: "update_unit",
+    description: "Refine a unit that is still initial: change its statement or add anchors. Rejected once the unit has left initial.",
+    parameters: {
+      type: "object",
+      properties: {
+        unit_id: { type: "string" },
+        statement: { type: "string" },
+        anchors_add: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { route: { type: "string" }, selector: { type: "string" }, component: { type: "string" } },
+            required: ["route", "selector"],
+          },
+        },
+      },
+      required: ["unit_id"],
+    },
+  },
+  {
+    type: "function",
+    name: "withdraw_unit",
+    description: "Withdraw a unit the riffer no longer wants.",
+    parameters: {
+      type: "object",
+      properties: { unit_id: { type: "string" }, reason: { type: "string" } },
+      required: ["unit_id"],
+    },
+  },
+  {
+    type: "function",
+    name: "relay_answer",
+    description: "Relay the riffer's spoken answer to a question the coding agent asked about a unit.",
+    parameters: {
+      type: "object",
+      properties: { unit_id: { type: "string" }, answer_text: { type: "string" } },
+      required: ["unit_id", "answer_text"],
+    },
+  },
+]
+
+const INTERVIEWER_PERSONA = [
+  "You are the interviewer in a live polish session. A person (the riffer) is using their own web app,",
+  "talking about what they want changed, and pointing, clicking, or drawing on the page. A coding agent",
+  "applies the changes; you never edit anything yourself.",
+  "Listen more than you speak. When the riffer describes a change, call record_unit once with a single",
+  "normalized statement and the anchors you were told about. Refine a unit with update_unit while it is",
+  "still initial; withdraw it with withdraw_unit if the riffer changes their mind. When you are handed a",
+  "question from the coding agent, ask it in one short sentence after the riffer has finished speaking,",
+  "and relay the answer with relay_answer. Do not confirm every unit aloud, do not summarize, and do not",
+  "propose changes of your own. Facts about the page (a drawing, a mute, buffering) arrive as text items;",
+  "refer to them naturally without claiming to see the screen.",
+].join(" ")
 
 function usage() {
   return [
     "Usage:",
-    "  node light-webserver.js start --root <dir> [--host 127.0.0.1] [--port 0] [--foreground] [--owner-pid <pid>] [--annotate]",
-    "  node light-webserver.js stop --root <dir>",
-    "  node light-webserver.js status --root <dir>",
-    "  node light-webserver.js wait --root <dir>",
+    "  node live-endpoint.js start --root <dir> --app-origin <origin> [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--foreground]",
+    "  node live-endpoint.js status --root <dir>",
+    "  node live-endpoint.js stop --root <dir>",
+    "  node live-endpoint.js wait --root <dir>",
+    "  node live-endpoint.js replay --root <dir> --profile <anchors_transcript_only|strokes_composite|everything> --to <endpoint> --token <page token>",
   ].join("\n")
 }
 
 function parseArgs(argv) {
   const command = argv[2]
-  const options = {
-    command,
-    host: DEFAULT_HOST,
-    port: 0,
-    foreground: false,
-    annotate: false,
-  }
+  const options = { command, host: DEFAULT_HOST, port: undefined, foreground: false }
 
   for (let i = 3; i < argv.length; i++) {
     const arg = argv[i]
-    if (arg === "--root") {
-      options.root = argv[++i]
-    } else if (arg === "--host") {
-      options.host = argv[++i]
-    } else if (arg === "--port") {
-      options.port = Number(argv[++i])
-    } else if (arg === "--foreground") {
-      options.foreground = true
-    } else if (arg === "--owner-pid") {
-      options.ownerPid = Number(argv[++i])
-    } else if (arg === "--annotate") {
-      options.annotate = true
-    } else {
-      throw new Error(`Unknown argument: ${arg}`)
-    }
+    if (arg === "--root") options.root = argv[++i]
+    else if (arg === "--host") options.host = argv[++i]
+    else if (arg === "--port") options.port = Number(argv[++i])
+    else if (arg === "--foreground") options.foreground = true
+    else if (arg === "--owner-pid") options.ownerPid = Number(argv[++i])
+    else if (arg === "--app-origin") options.appOrigin = argv[++i]
+    else if (arg === "--profile") options.profile = argv[++i]
+    else if (arg === "--to") options.to = argv[++i]
+    else if (arg === "--token") options.token = argv[++i]
+    else throw new Error(`Unknown argument: ${arg}`)
   }
 
-  if (!["start", "serve", "stop", "status", "wait"].includes(command)) {
+  if (!["start", "serve", "stop", "status", "wait", "replay"].includes(command)) {
     throw new Error(usage())
   }
-  if (!options.root) {
-    throw new Error("--root is required")
-  }
-  if (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535) {
+  if (!options.root) throw new Error("--root is required")
+  if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535)) {
     throw new Error("--port must be an integer from 0 to 65535")
   }
   if (options.ownerPid !== undefined && (!Number.isInteger(options.ownerPid) || options.ownerPid <= 1)) {
     throw new Error("--owner-pid must be an integer greater than 1")
   }
+  if (command === "start" || command === "serve") {
+    if (!options.appOrigin) throw new Error("--app-origin is required (the browser-facing origin of the app under polish)")
+    options.appOrigin = normalizeOrigin(options.appOrigin)
+    if (!options.appOrigin) throw new Error("--app-origin must be an origin such as http://localhost:3000")
+  }
+  if (command === "replay") {
+    if (!options.profile || !EVIDENCE_PROFILES[options.profile]) {
+      throw new Error(`--profile must be one of: ${Object.keys(EVIDENCE_PROFILES).join(", ")}`)
+    }
+    if (!options.to || !normalizeOrigin(options.to)) throw new Error("--to must be the endpoint origin to replay into")
+    options.to = normalizeOrigin(options.to)
+    if (!options.token) throw new Error("--token is required (the target endpoint's page token)")
+  }
 
   options.root = path.resolve(options.root)
-  options.screensDir = path.join(options.root, "screens")
   options.stateDir = path.join(options.root, "state")
   options.pidFile = path.join(options.stateDir, "server.pid")
-  options.infoFile = path.join(options.stateDir, "display-info.json")
+  options.sessionFile = path.join(options.stateDir, "session.json")
+  options.boardFile = path.join(options.stateDir, "board.json")
+  options.briefFile = path.join(options.stateDir, "brief.md")
   options.logFile = path.join(options.stateDir, "server.log")
+  options.batchesDir = path.join(options.stateDir, "batches")
+  options.logDir = path.join(options.stateDir, "log")
   return options
 }
 
+function normalizeOrigin(value) {
+  try {
+    const url = new URL(value)
+    if (!/^https?:$/.test(url.protocol) || url.pathname !== "/" || url.search || url.hash) return null
+    return url.origin
+  } catch {
+    return null
+  }
+}
+
 function ensureDirs(options) {
-  fs.mkdirSync(options.screensDir, { recursive: true })
-  fs.mkdirSync(options.stateDir, { recursive: true })
+  fs.mkdirSync(options.stateDir, { recursive: true, mode: 0o700 })
+  fs.chmodSync(options.stateDir, 0o700)
+  fs.mkdirSync(options.batchesDir, { recursive: true, mode: 0o700 })
+  fs.mkdirSync(options.logDir, { recursive: true, mode: 0o700 })
+  fs.mkdirSync(path.join(options.logDir, "frames"), { recursive: true, mode: 0o700 })
+}
+
+function writePrivate(filePath, contents) {
+  const tmp = `${filePath}.${process.pid}.tmp`
+  fs.writeFileSync(tmp, contents, { mode: 0o600 })
+  fs.chmodSync(tmp, 0o600)
+  fs.renameSync(tmp, filePath)
+}
+
+function writePrivateJson(filePath, value) {
+  writePrivate(filePath, `${JSON.stringify(value, null, 2)}\n`)
+}
+
+function appendPrivate(filePath, line) {
+  fs.appendFileSync(filePath, line, { mode: 0o600 })
 }
 
 function jsonOut(value) {
@@ -97,6 +239,14 @@ function jsonOut(value) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"))
+}
+
+function readJsonOrNull(filePath) {
+  try {
+    return readJson(filePath)
+  } catch {
+    return null
+  }
 }
 
 function processAlive(pid) {
@@ -127,7 +277,6 @@ function ownsServerProcess(options, pid) {
   if (args === null) return true
   if (!args.includes(scriptPath) || !args.includes(options.root)) return false
   const tokens = args.split(/\s+/)
-  // Detached start spawns `serve`; `--foreground` keeps `start` in-process.
   return tokens.includes("serve") || tokens.includes("start")
 }
 
@@ -152,525 +301,24 @@ function readPid(options) {
   return Number.isInteger(pid) ? pid : null
 }
 
-function getRunningInfo(options) {
+function readSession(options) {
+  return readJsonOrNull(options.sessionFile)
+}
+
+function serverRunning(options) {
   const pid = readPid(options)
-  if (!processAlive(pid)) return null
-  if (!ownsServerProcess(options, pid)) return null
-  if (!fs.existsSync(options.infoFile)) return null
-  try {
-    return readJson(options.infoFile)
-  } catch {
-    return null
-  }
+  return processAlive(pid) && ownsServerProcess(options, pid)
 }
 
-function sessionHasEnded(options) {
-  try {
-    return Boolean(readJson(options.infoFile).session_ended)
-  } catch {
-    return false
-  }
+function getRunningInfo(options) {
+  if (!serverRunning(options)) return null
+  const session = readSession(options)
+  if (!session || session.pid !== readPid(options)) return null
+  return session
 }
 
-function exitSessionEnded() {
-  process.exitCode = 1
-  jsonOut({ status: "session-ended" })
-}
-
-// Containment has to survive symlinks: path.resolve is lexical, so a link
-// inside the run directory would otherwise be followed straight out of it.
-// Every route that reads a file goes through this — the screen route and the
-// asset route drifting apart is what left one of them unguarded before.
-function containedRealPath(rootDir, candidate) {
-  let root
-  let real
-  try {
-    root = fs.realpathSync(rootDir)
-    real = fs.realpathSync(candidate)
-  } catch {
-    return null
-  }
-  if (real !== root && !real.startsWith(root + path.sep)) return null
-  return real
-}
-
-function newestScreen(options) {
-  if (!fs.existsSync(options.screensDir)) return null
-  const files = fs.readdirSync(options.screensDir)
-    .filter((file) => file.endsWith(".html"))
-    .map((file) => containedRealPath(options.screensDir, path.join(options.screensDir, file)))
-    .filter(Boolean)
-    .map((filePath) => ({ filePath, mtimeMs: fs.statSync(filePath).mtimeMs }))
-    .sort((a, b) => b.mtimeMs - a.mtimeMs)
-  return files[0]?.filePath ?? null
-}
-
-function isFullDocument(html) {
-  // After ignorable prologue (whitespace, HTML comments), a doctype or <html>
-  // is a complete document; anything else is a fragment.
-  let text = html
-  for (;;) {
-    text = text.trimStart()
-    if (!text.startsWith("<!--")) break
-    const end = text.indexOf("-->")
-    if (end === -1) return false
-    text = text.slice(end + 3)
-  }
-  const trimmed = text.toLowerCase()
-  return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html")
-}
-
-function screenVersion(options) {
-  const screen = newestScreen(options)
-  if (!screen) return { screen: null, mtimeMs: 0 }
-  return {
-    screen: path.basename(screen),
-    mtimeMs: fs.statSync(screen).mtimeMs,
-  }
-}
-
-function versionKey(version) {
-  return `${version?.screen ?? ""}:${version?.mtimeMs ?? 0}`
-}
-
-// Annotate mode reloads the explorer's page on any change under screens/,
-// including a stylesheet or script the newest screen links, so the change key
-// covers every regular file there, not only the newest screen.
-function screensChangeKey(options) {
-  const hash = createHash("sha1")
-  const walk = (dir, prefix) => {
-    let entries
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      const rel = `${prefix}${entry.name}`
-      if (entry.isDirectory()) {
-        walk(path.join(dir, entry.name), `${rel}/`)
-        continue
-      }
-      if (!entry.isFile()) continue
-      try {
-        const stat = fs.statSync(path.join(dir, entry.name))
-        hash.update(`${rel}:${stat.mtimeMs}:${stat.size}\n`)
-      } catch {
-        // Removed between readdir and stat: the next tick sees the settled tree.
-      }
-    }
-  }
-  walk(options.screensDir, "")
-  return hash.digest("hex")
-}
-
-const WAITING_HTML = "<h1>Waiting for a page...</h1><p>The agent will update this page when a screen is ready.</p>"
-const NO_STORE = { "Cache-Control": "no-store" }
-
-function refreshScript(options) {
-  const initialVersion = JSON.stringify(screenVersion(options))
-  return `<script>
-(function(){
-  var currentVersion = ${initialVersion};
-  function key(version) {
-    return String(version && version.screen) + ":" + String(version && version.mtimeMs);
-  }
-  async function checkForVisualProbeUpdate() {
-    try {
-      var response = await fetch("/version", { cache: "no-store" });
-      if (!response.ok) return;
-      var nextVersion = await response.json();
-      if (key(nextVersion) !== key(currentVersion)) {
-        window.location.reload();
-      }
-    } catch (error) {
-      // Keep the current sketch visible if the transient version check fails.
-    }
-  }
-  setInterval(checkForVisualProbeUpdate, 1000);
-})();
-</script>`
-}
-
-// Ahead of the authored document: deferred overlay. Its URL is absolute on
-// the request's own origin, so a screen's <base href> cannot redirect it.
-// data-ce-page is the path this response served, so a later History API
-// rewrite is not the screen.
-function htmlAttr(value) {
-  return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
-}
-
-function encodePagePath(page) {
-  if (typeof page !== "string" || !page.startsWith("/") || page === "/") return "/"
-  return `/${page.slice(1).split("/").map((segment) => {
-    try {
-      return encodeURIComponent(decodeURIComponent(segment))
-    } catch {
-      return encodeURIComponent(segment)
-    }
-  }).join("/")}`
-}
-
-function annotateBoot(origin, page = "/") {
-  const servedPage = encodePagePath(typeof page === "string" && page.startsWith("/") ? page : "/")
-  return `<script defer src="${origin}${OVERLAY_PREFIX}/annotate.js" data-ce-page="${htmlAttr(servedPage)}"></script>`
-}
-
-function wrapFragment(options, content) {
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CE local web</title>
-  <style>
-    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f7f8; color: #1f2328; }
-    header { padding: 10px 18px; border-bottom: 1px solid #d8dee4; background: #fff; color: #57606a; font-size: 13px; }
-    main { padding: 24px; }
-  </style>
-</head>
-<body>
-  <header>CE local web - newest screen, reloads on change</header>
-  <main>${content}</main>
-  ${refreshScript(options)}
-</body>
-</html>`
-}
-
-function wrapAnnotateFragment(content, boot) {
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CE local web</title>
-  ${boot}
-  <style>
-    body { margin: 0; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; background: #f7f7f8; color: #1f2328; }
-    header { padding: 10px 18px; border-bottom: 1px solid #d8dee4; background: #fff; color: #57606a; font-size: 13px; }
-    main { padding: 24px; }
-  </style>
-</head>
-<body>
-  <header>CE local web - newest screen</header>
-  <main>${content}</main>
-</body>
-</html>`
-}
-
-function injectRefresh(options, html) {
-  if (html.includes("</body>")) {
-    return html.replace("</body>", `${refreshScript(options)}\n</body>`)
-  }
-  return `${html}\n${refreshScript(options)}`
-}
-
-// The document the annotate client sees. A full document is served unchanged
-// behind our doctype and the boot script: the parser opens html/head for the
-// script, then merges the authored <html> attributes, processes the authored
-// head children in head, ignores the second doctype and <head> start tag, and
-// creates <body> with its attributes. Nothing in the authored text is located
-// or rewritten, so a "</body>" in a script string or comment cannot mislead it.
-function annotateScreen(html, origin, page = "/") {
-  const boot = annotateBoot(origin, page)
-  const text = html.replace(/^\uFEFF/, "")
-  if (!isFullDocument(text)) return wrapAnnotateFragment(text, boot)
-  return `<!doctype html>\n${boot}\n${text}`
-}
-
-function annotateDocument(options, origin) {
-  const screen = newestScreen(options)
-  if (!screen) return wrapAnnotateFragment(WAITING_HTML, annotateBoot(origin))
-  return annotateScreen(fs.readFileSync(screen, "utf8"), origin, pageForScreen(options, screen))
-}
-
-function renderPage(options, origin) {
-  if (options.annotate) return annotateDocument(options, origin)
-  const screen = newestScreen(options)
-  if (!screen) return wrapFragment(options, WAITING_HTML)
-  const html = fs.readFileSync(screen, "utf8")
-  return isFullDocument(html) ? injectRefresh(options, html) : wrapFragment(options, html)
-}
-
-function cookieValue(req, name) {
-  const header = req.headers.cookie
-  if (typeof header !== "string") return null
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=")
-    if (eq === -1) continue
-    if (part.slice(0, eq).trim() === name) return part.slice(eq + 1).trim()
-  }
-  return null
-}
-
-// Every credential the request presents. A prototype may use ?token= for its
-// own purposes, so no single source may shadow another: the gate accepts the
-// request when any of these matches.
-function requestCredentials(req, cookieName) {
-  const url = new URL(req.url, "http://127.0.0.1")
-  const auth = req.headers.authorization
-  return [
-    url.searchParams.get("token"),
-    req.headers["x-session-token"],
-    typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7) : null,
-    cookieName ? cookieValue(req, cookieName) : null,
-  ].filter((value) => typeof value === "string" && value)
-}
-
-function tokenMatches(candidate, expected) {
-  return typeof candidate === "string" && candidate === expected
-}
-
-function sendJson(res, status, value) {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" })
-  res.end(`${JSON.stringify(value)}\n`)
-}
-
-function readBody(req, limit = BODY_LIMIT) {
-  return new Promise((resolve, reject) => {
-    const chunks = []
-    let size = 0
-    req.on("data", (chunk) => {
-      size += chunk.length
-      if (size > limit) {
-        req.destroy()
-        reject(new Error("payload too large"))
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")))
-    req.on("error", reject)
-  })
-}
-
-// Screens-relative URL path for a file we just served, so the overlay names
-// that file rather than "/". "/" would re-resolve to newestScreen at POST
-// time, and a newer sibling would steal the pin.
-function pageForScreen(options, filePath) {
-  let root
-  try {
-    root = fs.realpathSync(options.screensDir)
-  } catch {
-    return "/"
-  }
-  const relative = path.relative(root, filePath).split(path.sep).join("/")
-  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) return "/"
-  return `/${relative}`
-}
-
-// The screens/-relative HTML file the annotated page resolves to, or null.
-// "/" (also a missing page, from an older overlay) is the newest screen at
-// that moment; any other path must name an HTML file under screens/, through
-// the same containment as the route that served it. This is the file the
-// agent edits, so it is resolved here rather than trusted from the client.
-function screenForPage(options, page = "/") {
-  if (typeof page !== "string" || !page.startsWith("/")) return null
-  let filePath
-  if (page === "/") {
-    filePath = newestScreen(options)
-  } else {
-    let name
-    try {
-      name = decodeURIComponent(page)
-    } catch {
-      return null
-    }
-    filePath = containedRealPath(options.screensDir, path.resolve(options.screensDir, name.replace(/^\/+/, "")))
-    if (!filePath || contentType(filePath) !== CONTENT_TYPES[".html"]) return null
-    try {
-      if (!fs.statSync(filePath).isFile()) return null
-    } catch {
-      return null
-    }
-  }
-  if (!filePath) return null
-  let root
-  try {
-    root = fs.realpathSync(options.screensDir)
-  } catch {
-    return null
-  }
-  return path.relative(root, filePath).split(path.sep).join("/")
-}
-
-function parseAnnotation(raw, options) {
-  if (!raw || !raw.trim()) return null
-  let body
-  try {
-    body = JSON.parse(raw)
-  } catch {
-    return null
-  }
-  if (!body || typeof body !== "object" || Array.isArray(body)) return null
-  const comment = typeof body.comment === "string" ? body.comment.trim() : ""
-  const selector = typeof body.selector === "string" ? body.selector.trim() : ""
-  if (!comment || !selector) return null
-  const screen = screenForPage(options, body.page)
-  if (!screen) return null
-  const textSnippet = typeof body.textSnippet === "string" ? body.textSnippet : null
-  const rect = body.rect && typeof body.rect === "object" && !Array.isArray(body.rect) ? body.rect : null
-  return {
-    id: randomUUID(),
-    screen,
-    comment,
-    selector,
-    textSnippet,
-    rect,
-  }
-}
-
-// Whether a request for an HTML file is the browser navigating to it, as
-// opposed to a script fetching it. Fetch metadata decides when the browser
-// sends it (frames stay raw: only a top-level document is a screen); without
-// it, a request that accepts HTML and states no fetch mode is a navigation.
-function isDocumentNavigation(req) {
-  const dest = req.headers["sec-fetch-dest"]
-  if (dest) return dest === "document"
-  return !req.headers["sec-fetch-mode"] && /\btext\/html\b/.test(req.headers.accept || "")
-}
-
-// The regular file under rootDir that the request names, or null after the
-// error response has been written.
-function resolveContainedFile(rootDir, req, res) {
-  let name
-  try {
-    // A malformed percent-escape throws URIError; without this the throw is
-    // uncaught in the request handler and takes the whole server down.
-    name = decodeURIComponent(req.url.split("?")[0].split("#")[0])
-  } catch {
-    res.writeHead(400)
-    res.end("Bad request")
-    return null
-  }
-  name = name.replace(/^\/+/, "")
-  // Serve nested paths so a screen can keep the asset layout it was copied
-  // from, but never resolve outside the run's screens directory.
-  const filePath = containedRealPath(rootDir, path.resolve(rootDir, name))
-  if (!filePath) {
-    res.writeHead(404)
-    res.end("Not found")
-    return null
-  }
-  let stat
-  try {
-    stat = fs.statSync(filePath)
-  } catch {
-    res.writeHead(404)
-    res.end("Not found")
-    return null
-  }
-  // `/files/%2e` resolves to the screens directory itself, which passes an
-  // existence check and then throws EISDIR on read — uncaught, killing the server.
-  if (!stat.isFile()) {
-    res.writeHead(404)
-    res.end("Not found")
-    return null
-  }
-  return filePath
-}
-
-function sendFile(filePath, res, headers = {}) {
-  res.writeHead(200, { "Content-Type": contentType(filePath), ...headers })
-  res.end(fs.readFileSync(filePath))
-}
-
-function safeFileResponse(rootDir, req, res, headers = {}) {
-  const filePath = resolveContainedFile(rootDir, req, res)
-  if (filePath) sendFile(filePath, res, headers)
-}
-
-// A prototype recreated from a real product brings whatever that product uses,
-// so this covers the ordinary web asset set rather than an allowlist that has
-// to grow every time a screen references a new kind of file.
-const CONTENT_TYPES = {
-  ".html": "text/html; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".mjs": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".txt": "text/plain; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".avif": "image/avif",
-  ".ico": "image/x-icon",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
-  ".otf": "font/otf",
-  ".mp4": "video/mp4",
-  ".webm": "video/webm",
-  ".mp3": "audio/mpeg",
-  ".wasm": "application/wasm",
-}
-
-function contentType(filePath) {
-  return CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? "application/octet-stream"
-}
-
-async function start(options) {
-  ensureDirs(options)
-  options.ownerPid = options.ownerPid ?? resolveOwnerPid()
-  const running = getRunningInfo(options)
-  if (running && Boolean(running.annotate) === options.annotate && !running.session_ended) {
-    jsonOut({ ...running, status: "running" })
-    return
-  }
-  // A server in the other mode cannot serve this start: a default server has
-  // no token for wait, and an annotate server would gate a default preview.
-  if (running) await stopServer(options)
-
-  fs.rmSync(options.pidFile, { force: true })
-  fs.rmSync(options.infoFile, { force: true })
-
-  if (options.foreground) {
-    await serve(options)
-    return
-  }
-
-  const logFd = fs.openSync(options.logFile, "a")
-  const child = spawn(process.execPath, [
-    scriptPath,
-    "serve",
-    "--root",
-    options.root,
-    "--host",
-    options.host,
-    "--port",
-    String(options.port),
-    ...(options.ownerPid ? ["--owner-pid", String(options.ownerPid)] : []),
-    ...(options.annotate ? ["--annotate"] : []),
-  ], {
-    detached: true,
-    stdio: ["ignore", logFd, logFd],
-  })
-  child.unref()
-  fs.closeSync(logFd)
-
-  const started = await waitForInfo(options, child.pid)
-  if (!started) {
-    throw new Error(`Server failed to start. See ${options.logFile}`)
-  }
-  jsonOut({ ...started, status: "started" })
-}
-
-async function waitForInfo(options, pid) {
-  for (let i = 0; i < 100; i++) {
-    if (fs.existsSync(options.infoFile)) {
-      try {
-        return readJson(options.infoFile)
-      } catch {
-        // Truncated write; keep polling.
-      }
-    }
-    if (pid && !processAlive(pid)) return null
-    await new Promise((resolve) => setTimeout(resolve, 50))
-  }
-  return null
+function publicStartEnvelope(session) {
+  return { url: session.url, port: session.port, page_token: session.page_token }
 }
 
 // The address a local client uses to reach the bound interface: a wildcard
@@ -681,6 +329,270 @@ function localAddressFor(host) {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host
 }
 
+function newToken() {
+  return randomBytes(32).toString("base64url")
+}
+
+function tokenMatches(candidate, expected) {
+  if (typeof candidate !== "string" || typeof expected !== "string") return false
+  const a = Buffer.from(candidate)
+  const b = Buffer.from(expected)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+// Credentials are accepted from `Authorization: Bearer` only.
+function bearerToken(req) {
+  const auth = req.headers.authorization
+  if (typeof auth !== "string" || !auth.startsWith("Bearer ")) return null
+  const token = auth.slice(7).trim()
+  return token || null
+}
+
+function sendJson(res, status, value, headers = {}) {
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers })
+  res.end(`${JSON.stringify(value)}\n`)
+}
+
+// Reads a body up to `limit` bytes. Past the limit the request is drained
+// (so the 413 the caller writes is delivered) and the promise resolves with
+// `{ tooLarge: true }`; a hard ceiling destroys the socket so an attacker
+// cannot make the server read forever.
+function readBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    let size = 0
+    let tooLarge = false
+    const hardCeiling = Math.max(limit * 2, limit + 1024 * 1024)
+    req.on("data", (chunk) => {
+      size += chunk.length
+      if (tooLarge) {
+        if (size > hardCeiling) req.destroy()
+        return
+      }
+      if (size > limit) {
+        tooLarge = true
+        chunks.length = 0
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on("end", () => resolve(tooLarge ? { tooLarge: true, size } : { text: Buffer.concat(chunks).toString("utf8"), size }))
+    req.on("error", reject)
+  })
+}
+
+function parseJsonObject(text) {
+  try {
+    const value = JSON.parse(text)
+    return value && typeof value === "object" ? value : null
+  } catch {
+    return null
+  }
+}
+
+function isLoopback(address) {
+  if (!address) return false
+  const plain = address.replace(/^::ffff:/, "")
+  return plain === "127.0.0.1" || plain === "::1" || plain.startsWith("127.")
+}
+
+const SECRET_SHAPES = [
+  /\bsk-[A-Za-z0-9_-]{8,}/,
+  /\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{16,}/,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
+  /\bAIza[0-9A-Za-z_-]{30,}/,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  /\b[A-Za-z0-9_.-]*(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIALS?)\s*[=:]\s*["']?[^\s"']{6,}/i,
+  /[?&](token|key|api_key|apikey|secret|password|access_token|auth|sig|signature)=[^&\s]+/i,
+  // Any URL scheme with userinfo credentials: postgres://u:p@h, https://u:p@h.
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^\s/@]+@/i,
+]
+
+function briefContainsSecret(text) {
+  return SECRET_SHAPES.some((shape) => shape.test(text))
+}
+
+function readBrief(options) {
+  try {
+    return fs.readFileSync(options.briefFile, "utf8").slice(0, BRIEF_MAX_CHARS)
+  } catch {
+    return ""
+  }
+}
+
+function directorySize(dir) {
+  let total = 0
+  let entries
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return 0
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) total += directorySize(full)
+    else if (entry.isFile()) {
+      try {
+        total += fs.statSync(full).size
+      } catch {
+        // Removed between readdir and stat.
+      }
+    }
+  }
+  return total
+}
+
+// ---------------------------------------------------------------------------
+// Board: the persisted session state `GET /status` and the `status` CLI read.
+// ---------------------------------------------------------------------------
+
+function emptyBoard() {
+  return {
+    schema_version: SCHEMA_VERSION,
+    session_id: null,
+    ended: false,
+    mode: "smart",
+    acked_seq: 0,
+    pending_seqs: [],
+    units: {},
+    unit_order: [],
+    annotations: {},
+    annotation_order: [],
+    answers: [],
+    transcript_count: 0,
+    frame_count: 0,
+    checkpoints: [],
+    released_unit_ids: [],
+    released_annotation_ids: [],
+    pending_withdrawn: [],
+    page: { stream: "never", last_stream_state: null, mic: null, lost_episodes: 0 },
+    page_lost_pending: null,
+    watch_for_loss: false,
+    final_emitted: false,
+  }
+}
+
+function boardSummary(board, batches, logBytes) {
+  const byStatus = {}
+  for (const id of board.unit_order) {
+    const status = board.units[id]?.status ?? "unknown"
+    byStatus[status] = (byStatus[status] ?? 0) + 1
+  }
+  return {
+    schema_version: SCHEMA_VERSION,
+    session_id: board.session_id,
+    ended: board.ended,
+    mode: board.mode,
+    page: board.page,
+    acked_seq: board.acked_seq,
+    units: {
+      total: board.unit_order.length,
+      by_status: byStatus,
+      list: board.unit_order.map((id) => {
+        const unit = board.units[id]
+        return { id, statement: unit.statement, status: unit.status, confirmed: unit.confirmed ?? null }
+      }),
+    },
+    annotations: board.annotation_order.length,
+    answers: board.answers.length,
+    transcript_count: board.transcript_count,
+    frame_count: board.frame_count,
+    checkpoints: board.checkpoints.length,
+    batches: {
+      unserved: batches.filter((batch) => !batch.served).length,
+      unacked: batches.filter((batch) => batch.served).length,
+    },
+    page_lost_pending: Boolean(board.page_lost_pending),
+    log_bytes: logBytes,
+  }
+}
+
+function loadBatches(options) {
+  let files
+  try {
+    files = fs.readdirSync(options.batchesDir).filter((file) => file.endsWith(".json"))
+  } catch {
+    return []
+  }
+  return files
+    .map((file) => readJsonOrNull(path.join(options.batchesDir, file)))
+    .filter((batch) => batch && batch.envelope?.checkpoint_id)
+    .sort((a, b) => a.order - b.order)
+}
+
+// `status` CLI and `GET /status` read the board through this one function.
+function readBoardSummary(options) {
+  const board = readJsonOrNull(options.boardFile) ?? emptyBoard()
+  return boardSummary(board, loadBatches(options), directorySize(options.logDir))
+}
+
+// ---------------------------------------------------------------------------
+// CLI commands
+// ---------------------------------------------------------------------------
+
+async function start(options) {
+  ensureDirs(options)
+  options.ownerPid = options.ownerPid ?? resolveOwnerPid()
+  const running = getRunningInfo(options)
+  if (running && !running.ended) {
+    if (running.app_origin !== options.appOrigin) {
+      throw new Error(`An endpoint for this root is already running with --app-origin ${running.app_origin}; stop it first`)
+    }
+    jsonOut({ ...publicStartEnvelope(running), status: "running" })
+    return
+  }
+  if (running) await stopServer(options)
+  fs.rmSync(options.pidFile, { force: true })
+
+  if (options.foreground) {
+    await serve(options)
+    return
+  }
+
+  const previous = readSession(options)
+  const logFd = fs.openSync(options.logFile, "a", 0o600)
+  const child = spawn(process.execPath, [
+    scriptPath,
+    "serve",
+    "--root",
+    options.root,
+    "--app-origin",
+    options.appOrigin,
+    "--host",
+    options.host,
+    ...(options.port !== undefined ? ["--port", String(options.port)] : []),
+    ...(options.ownerPid ? ["--owner-pid", String(options.ownerPid)] : []),
+  ], {
+    detached: true,
+    stdio: ["ignore", logFd, logFd],
+  })
+  child.unref()
+  fs.closeSync(logFd)
+
+  const started = await waitForSession(options, child.pid, previous)
+  if (!started) {
+    throw new Error(`Endpoint failed to start. See ${options.logFile}`)
+  }
+  jsonOut({ ...publicStartEnvelope(started), status: previous && !previous.ended ? "resumed" : "started" })
+}
+
+async function waitForSession(options, pid, previous) {
+  for (let i = 0; i < 100; i++) {
+    const session = readSession(options)
+    if (session && session.pid === pid && session.pid !== previous?.pid) return session
+    if (pid && !processAlive(pid)) return null
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  return null
+}
+
+function exitSessionEnded() {
+  process.exitCode = 1
+  jsonOut({ status: "session-ended" })
+}
+
 async function wait(options) {
   process.stdout.on("error", (error) => {
     console.error(error.message)
@@ -688,24 +600,26 @@ async function wait(options) {
   })
   const info = getRunningInfo(options)
   if (!info?.port) {
-    // Idle/owner shutdown records session_ended and exits; wait must still
-    // report that terminal status rather than "not running".
-    if (sessionHasEnded(options)) return exitSessionEnded()
-    console.error("Server is not running")
+    // Idle/owner shutdown leaves the session file in place; an ended session
+    // must still report that terminal status rather than "not running".
+    if (readSession(options)?.ended) return exitSessionEnded()
+    console.error("Endpoint is not running; run `start --root` to resume the session")
     process.exit(2)
   }
-  if (!info.token) {
-    console.error("Annotation is not enabled for this server")
+  if (!info.agent_token) {
+    if (info.ended) return exitSessionEnded()
+    console.error("No agent token in state/session.json")
     process.exit(2)
   }
 
-  const url = `http://${localAddressFor(info.host)}:${info.port}/wait?token=${encodeURIComponent(info.token)}`
+  const url = `http://${localAddressFor(info.host)}:${info.port}/wait`
+  const headers = { Authorization: `Bearer ${info.agent_token}` }
   while (true) {
     let response
     try {
-      response = await fetch(url)
+      response = await fetch(url, { headers })
     } catch {
-      if (sessionHasEnded(options)) return exitSessionEnded()
+      if (readSession(options)?.ended) return exitSessionEnded()
       process.exit(2)
     }
     if (response.status === 200 || response.status === 410) {
@@ -715,486 +629,14 @@ async function wait(options) {
       process.stdout.write(text.endsWith("\n") ? text : `${text}\n`)
       return
     }
+    if (response.status === 409) {
+      process.exitCode = 3
+      jsonOut({ status: "wait-taken" })
+      return
+    }
     if (response.status === 204) continue
+    console.error(`wait: unexpected HTTP ${response.status}`)
     process.exit(2)
-  }
-}
-
-async function serve(options) {
-  ensureDirs(options)
-
-  const sessionToken = options.annotate ? randomUUID() : null
-  const overlaySession = options.annotate ? randomUUID() : ""
-  let cookieName = null
-  const heldQueue = []
-  const annotationQueue = []
-  // id -> held | queued | working | done, in POST order. The overlay's pin
-  // status follows this, never the screen changes an annotation happens to cause.
-  const annotationStates = new Map()
-  const waiters = []
-  const sseClients = new Set()
-  let sessionEnded = false
-  let publishedInfo = null
-  let sawSseClient = false
-  let sseGraceTimer = null
-  const pendingDocuments = new Map()
-  let lastBroadcastKey = options.annotate ? screensChangeKey(options) : null
-  let lastActivity = Date.now()
-  const touch = () => {
-    lastActivity = Date.now()
-  }
-
-  function endSession() {
-    if (sessionEnded) return
-    sessionEnded = true
-    if (publishedInfo && options.infoFile) {
-      publishedInfo = { ...publishedInfo, session_ended: true }
-      try {
-        fs.writeFileSync(options.infoFile, `${JSON.stringify(publishedInfo, null, 2)}\n`)
-      } catch {
-        // Reuse without this flag would report a live session that cannot wait.
-      }
-    }
-    for (const id of [...pendingDocuments.keys()]) forgetPendingDocument(id)
-    if (sseGraceTimer) {
-      clearTimeout(sseGraceTimer)
-      sseGraceTimer = null
-    }
-    for (const [id, state] of annotationStates) {
-      if (state === "working") annotationStates.set(id, "done")
-    }
-    flushHeld()
-    broadcastAnnotations()
-    fulfillWaiters()
-    const body = `${JSON.stringify({ status: "session-ended" })}\n`
-    const draining = []
-    while (waiters.length > 0) {
-      const parked = waiters.shift()
-      clearTimeout(parked.timer)
-      if (!parked.res.writableEnded) {
-        parked.res.writeHead(410, { "Content-Type": "application/json; charset=utf-8" })
-        draining.push(new Promise((resolve) => parked.res.end(body, resolve)))
-      }
-    }
-    for (const client of sseClients) {
-      if (!client.writableEnded) {
-        client.write("event: session-ended\ndata: {}\n\n")
-        draining.push(new Promise((resolve) => client.end(resolve)))
-      }
-    }
-    sseClients.clear()
-    return Promise.all(draining)
-  }
-
-  function annotationsPayload() {
-    return JSON.stringify(Object.fromEntries(annotationStates))
-  }
-
-  function broadcastAnnotations() {
-    const frame = `event: annotations\ndata: ${annotationsPayload()}\n\n`
-    for (const client of sseClients) {
-      if (!client.writableEnded) client.write(frame)
-    }
-  }
-
-  // The agent asking for the next annotation is the completion signal for the
-  // one it was serving; the wait CLI only re-enters after a 204 while idle.
-  function completeWorking() {
-    let changed = false
-    for (const [id, state] of annotationStates) {
-      if (state === "working") {
-        annotationStates.set(id, "done")
-        changed = true
-      }
-    }
-    if (changed) broadcastAnnotations()
-  }
-
-  function flushHeld() {
-    if (heldQueue.length === 0) return
-    for (const item of heldQueue) {
-      annotationQueue.push(item)
-      if (annotationStates.get(item.id) === "held") annotationStates.set(item.id, "queued")
-    }
-    heldQueue.length = 0
-  }
-
-  function serveBatch(res, items) {
-    for (const item of items) annotationStates.set(item.id, "working")
-    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
-    res.end(`${JSON.stringify(items)}\n`)
-    broadcastAnnotations()
-  }
-
-  function fulfillWaiters() {
-    while (waiters.length > 0 && annotationQueue.length > 0) {
-      const parked = waiters.shift()
-      clearTimeout(parked.timer)
-      if (parked.res.writableEnded) continue
-      serveBatch(parked.res, annotationQueue.splice(0, annotationQueue.length))
-    }
-  }
-
-  // The client reloads on this event; the browser then owns every
-  // reconciliation (head, html/body attributes, linked assets, scripts).
-  function broadcastScreenChange(key) {
-    lastBroadcastKey = key
-    const payload = JSON.stringify({ version: key })
-    for (const client of sseClients) {
-      if (!client.writableEnded) {
-        client.write(`event: screen-changed\ndata: ${payload}\n\n`)
-      }
-    }
-  }
-
-  function broadcastIfChanged() {
-    const key = screensChangeKey(options)
-    if (key !== lastBroadcastKey) broadcastScreenChange(key)
-  }
-
-  function authorized(req) {
-    return requestCredentials(req, cookieName).some((candidate) => tokenMatches(candidate, sessionToken))
-  }
-
-  function requireAnnotateToken(req, res) {
-    if (authorized(req)) return true
-    sendJson(res, 401, { error: "unauthorized" })
-    return false
-  }
-
-  function requireLiveAnnotate(req, res) {
-    if (!requireAnnotateToken(req, res)) return false
-    if (sessionEnded) {
-      sendJson(res, 410, { status: "session-ended" })
-      return false
-    }
-    return true
-  }
-
-  function requestOrigin(req) {
-    const host = req.headers.host
-    if (typeof host === "string" && HOST_HEADER.test(host)) return `http://${host}`
-    return `http://${DEFAULT_URL_HOST}:${server.address().port}`
-  }
-
-  function stampOverlayDocument(html, documentId) {
-    const marker = `${OVERLAY_PREFIX}/annotate.js"`
-    const at = html.indexOf(marker)
-    if (at === -1) return html
-    const after = at + marker.length
-    return `${html.slice(0, after)} data-ce-session="${htmlAttr(overlaySession)}" data-ce-document="${htmlAttr(documentId)}"${html.slice(after)}`
-  }
-
-  function forgetPendingDocument(id) {
-    return pendingDocuments.delete(id)
-  }
-
-  function abandonPendingDocument(id) {
-    if (forgetPendingDocument(id) && sseClients.size === 0 && sawSseClient && !sessionEnded) {
-      armSseGrace()
-    }
-  }
-
-  function unbindPendingFromSocket(socket, exceptId) {
-    if (!socket) return
-    for (const [id, entry] of pendingDocuments) {
-      if (entry.socket !== socket || id === exceptId) continue
-      entry.socket = null
-    }
-  }
-
-  function retainPendingDocument(id, socket) {
-    unbindPendingFromSocket(socket, id)
-    pendingDocuments.set(id, { socket: socket || null })
-  }
-
-  // Every document that carries the overlay is served the same way.
-  // `renderedKey` is captured with `html`; scanning screens/ here races a rewrite.
-  function serveAnnotateDocument(req, res, html, renderedKey) {
-    // A page being served is a tab loading, not the last tab closing. The
-    // overlay is deferred and may sit behind parser-blocking work, so cancel
-    // the reconnect grace until that document's /events connects; ending on
-    // the short elapsed timeout would kill a still-loading tab. The old
-    // stream's close can arrive after this response; it must not start grace
-    // while any replacement is still pending. /events names the document it
-    // completes, so another tab's reconnect cannot consume this pending load.
-    // The handshake dies when this document can no longer open /events: the
-    // request aborted before the body was delivered, /events completed it, or
-    // the session ended. A completed response is not that; the overlay may
-    // connect on a new connection. Keep-alive reuse is not replacement:
-    // another document on the same socket leaves this pending in place.
-    // A script fetching the page is not a tab loading, so it does not create
-    // a handshake.
-    const pending = randomUUID()
-    if (isDocumentNavigation(req)) {
-      retainPendingDocument(pending, req.socket)
-      if (sseGraceTimer) {
-        clearTimeout(sseGraceTimer)
-        sseGraceTimer = null
-      }
-      req.on("close", () => {
-        if (res.writableEnded) return
-        abandonPendingDocument(pending)
-      })
-    }
-    // Sync the change key to what this page will render, so a stream that
-    // connects right after load does not reload the same screen. Any
-    // already-open stream still receives the change.
-    if (renderedKey !== lastBroadcastKey) broadcastScreenChange(renderedKey)
-    const headers = {
-      "Content-Type": CONTENT_TYPES[".html"],
-      ...NO_STORE,
-      "Referrer-Policy": "no-referrer",
-    }
-    if (cookieName && sessionToken) {
-      headers["Set-Cookie"] = `${cookieName}=${sessionToken}; HttpOnly; SameSite=Strict; Path=/`
-    }
-    res.writeHead(200, headers)
-    res.end(stampOverlayDocument(html, pending))
-  }
-
-  function armSseGrace() {
-    if (pendingDocuments.size > 0 || sessionEnded) return
-    if (sseGraceTimer) clearTimeout(sseGraceTimer)
-    sseGraceTimer = setTimeout(() => {
-      if (sseClients.size === 0 && pendingDocuments.size === 0) endSession()
-    }, SSE_GRACE_MS)
-    sseGraceTimer.unref()
-  }
-
-  async function handleRequest(req, res) {
-    const urlPath = req.url.split("?")[0].split("#")[0]
-
-    if (req.method === "GET" && urlPath === "/version") {
-      unbindPendingFromSocket(req.socket)
-      res.writeHead(200, {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store",
-      })
-      res.end(`${JSON.stringify(screenVersion(options))}\n`)
-      return
-    }
-
-    if (options.annotate) {
-      if (req.method === "GET" && urlPath === "/wait") {
-        unbindPendingFromSocket(req.socket)
-        if (!requireAnnotateToken(req, res)) return
-        broadcastIfChanged()
-        completeWorking()
-        if (annotationQueue.length > 0) {
-          serveBatch(res, annotationQueue.splice(0, annotationQueue.length))
-          return
-        }
-        if (sessionEnded) {
-          sendJson(res, 410, { status: "session-ended" })
-          return
-        }
-        const parked = { res, timer: null }
-        parked.timer = setTimeout(() => {
-          const index = waiters.indexOf(parked)
-          if (index !== -1) waiters.splice(index, 1)
-          if (!res.writableEnded) {
-            res.writeHead(204)
-            res.end()
-          }
-        }, WAIT_TIMEOUT_MS)
-        waiters.push(parked)
-        req.on("close", () => {
-          clearTimeout(parked.timer)
-          const index = waiters.indexOf(parked)
-          if (index !== -1) waiters.splice(index, 1)
-        })
-        return
-      }
-
-      if (req.method === "POST" && urlPath === "/annotation") {
-        unbindPendingFromSocket(req.socket)
-        if (!requireLiveAnnotate(req, res)) return
-        let raw
-        try {
-          raw = await readBody(req)
-        } catch {
-          sendJson(res, 400, { error: "invalid annotation" })
-          return
-        }
-        // The session can end while the body is still arriving.
-        if (sessionEnded) {
-          sendJson(res, 410, { status: "session-ended" })
-          return
-        }
-        const record = parseAnnotation(raw, options)
-        if (!record) {
-          sendJson(res, 400, { error: "invalid annotation" })
-          return
-        }
-        heldQueue.push(record)
-        annotationStates.set(record.id, "held")
-        touch()
-        broadcastAnnotations()
-        sendJson(res, 200, { ok: true, id: record.id })
-        return
-      }
-
-      if (req.method === "POST" && urlPath === "/session/flush") {
-        unbindPendingFromSocket(req.socket)
-        if (!requireLiveAnnotate(req, res)) return
-        flushHeld()
-        broadcastAnnotations()
-        fulfillWaiters()
-        sendJson(res, 200, { ok: true })
-        return
-      }
-
-      if (req.method === "POST" && urlPath === "/session/end") {
-        unbindPendingFromSocket(req.socket)
-        if (!requireAnnotateToken(req, res)) return
-        endSession()
-        sendJson(res, 200, { status: "session-ended" })
-        return
-      }
-
-      if (req.method === "GET" && urlPath === "/events") {
-        if (!requireLiveAnnotate(req, res)) return
-        res.writeHead(200, {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        })
-        res.write(":ok\n\n")
-        // A client that just reloaded reconciles its pins from this frame.
-        res.write(`event: annotations\ndata: ${annotationsPayload()}\n\n`)
-        sawSseClient = true
-        const documentId = new URL(req.url, "http://127.0.0.1").searchParams.get("document")
-        if (documentId) forgetPendingDocument(documentId)
-        unbindPendingFromSocket(req.socket, documentId)
-        if (sseGraceTimer) {
-          clearTimeout(sseGraceTimer)
-          sseGraceTimer = null
-        }
-        sseClients.add(res)
-        req.on("close", () => {
-          sseClients.delete(res)
-          if (sseClients.size === 0 && sawSseClient && !sessionEnded) armSseGrace()
-        })
-        return
-      }
-
-      if (req.method === "GET" && OVERLAY_FILES[urlPath]) {
-        safeFileResponse(assetsDir, { url: `/${OVERLAY_FILES[urlPath]}` }, res, NO_STORE)
-        return
-      }
-
-      if (req.method === "GET" && urlPath === "/") {
-        touch()
-        if (isDocumentNavigation(req)) {
-          const renderedKey = screensChangeKey(options)
-          serveAnnotateDocument(req, res, renderPage(options, requestOrigin(req)), renderedKey)
-          return
-        }
-        const screen = newestScreen(options)
-        if (screen) {
-          sendFile(screen, res, NO_STORE)
-          return
-        }
-        res.writeHead(200, { "Content-Type": CONTENT_TYPES[".html"], ...NO_STORE })
-        res.end(WAITING_HTML)
-        return
-      }
-
-      // A linked page under screens/ is a screen too: navigated to, it carries
-      // the same overlay and stream, or the session would end at the first
-      // navigation. It stays ungated like every other screen file. Fetched by
-      // a script, the same file is a partial and is served raw.
-      if (req.method === "GET") {
-        touch()
-        const filePath = resolveContainedFile(options.screensDir, req, res)
-        if (!filePath) return
-        if (contentType(filePath) === CONTENT_TYPES[".html"] && isDocumentNavigation(req)) {
-          const renderedKey = screensChangeKey(options)
-          serveAnnotateDocument(req, res, annotateScreen(fs.readFileSync(filePath, "utf8"), requestOrigin(req), urlPath), renderedKey)
-          return
-        }
-        // A reload must pick up a revised stylesheet or script whose URL did
-        // not change; a cached copy would show the old screen.
-        sendFile(filePath, res, NO_STORE)
-        return
-      }
-    }
-
-    if (req.method === "GET" && urlPath === "/") {
-      touch()
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-      res.end(renderPage(options))
-      return
-    }
-    if (req.method === "GET") {
-      touch()
-      safeFileResponse(options.screensDir, req, res)
-      return
-    }
-    res.writeHead(404)
-    res.end("Not found")
-  }
-
-  const server = http.createServer((req, res) => {
-    Promise.resolve(handleRequest(req, res)).catch(() => {
-      if (!res.headersSent) {
-        res.writeHead(500)
-        res.end("Internal error")
-      }
-    })
-  })
-
-  server.listen(options.port, options.host, () => {
-    const address = server.address()
-    const port = typeof address === "object" && address ? address.port : options.port
-    cookieName = `ce-light-web-${port}`
-    const baseUrl = `http://${DEFAULT_URL_HOST}:${port}`
-    const info = {
-      status: "running",
-      root: options.root,
-      host: options.host,
-      port,
-      url: baseUrl,
-      screen_dir: options.screensDir,
-      state_dir: options.stateDir,
-      pid: process.pid,
-      owner_pid: options.ownerPid ?? null,
-      ...(sessionToken ? { token: sessionToken, annotate: true } : {}),
-    }
-    publishedInfo = info
-    fs.writeFileSync(options.pidFile, `${process.pid}\n`)
-    fs.writeFileSync(options.infoFile, `${JSON.stringify(info, null, 2)}\n`)
-    console.log(JSON.stringify(info))
-  })
-
-  // An open change stream or parked wait is an active connection, and
-  // server.close waits for those forever; end the session so they drain.
-  // CLI `stop` sends SIGTERM; without this handler the process exits before
-  // waiters receive session-ended.
-  function shutdown() {
-    Promise.resolve(endSession()).finally(() => {
-      server.close(() => process.exit(0))
-      server.closeAllConnections()
-    })
-  }
-  process.on("SIGTERM", shutdown)
-  process.on("SIGINT", shutdown)
-
-  const idleTimer = setInterval(() => {
-    if (options.ownerPid && !processAlive(options.ownerPid)) {
-      shutdown()
-    } else if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-      shutdown()
-    }
-  }, LIFECYCLE_CHECK_MS)
-  idleTimer.unref()
-
-  if (options.annotate) {
-    const changeTimer = setInterval(() => {
-      if (sseClients.size > 0) broadcastIfChanged()
-    }, 250)
-    changeTimer.unref()
   }
 }
 
@@ -1217,18 +659,1003 @@ async function stopServer(options) {
   fs.rmSync(options.pidFile, { force: true })
 }
 
+// `stop` ends the session: both tokens are invalidated, un-acked batches are
+// discarded, and state/log/ is kept for replay.
 async function stop(options) {
   await stopServer(options)
-  jsonOut({ status: "stopped", root: options.root })
+  const session = readSession(options)
+  if (session) {
+    writePrivateJson(options.sessionFile, { ...session, page_token: null, agent_token: null, ended: true, pid: null })
+  }
+  const board = readJsonOrNull(options.boardFile)
+  if (board) writePrivateJson(options.boardFile, { ...board, ended: true })
+  fs.rmSync(options.batchesDir, { recursive: true, force: true })
+  jsonOut({ status: "stopped", root: options.root, log_dir: options.logDir })
 }
 
 function status(options) {
-  const info = getRunningInfo(options)
-  if (!info) {
-    jsonOut({ status: "stopped", root: options.root })
-    return
+  const running = getRunningInfo(options)
+  const session = readSession(options)
+  jsonOut({
+    status: running ? "running" : "stopped",
+    root: options.root,
+    ...(running ? { url: running.url, port: running.port, app_origin: running.app_origin } : {}),
+    session_ended: Boolean(session?.ended),
+    board: readBoardSummary(options),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Replay: re-emit state/log/ under an evidence profile to another endpoint.
+// ---------------------------------------------------------------------------
+
+function applyProfile(envelope, profile) {
+  const rules = EVIDENCE_PROFILES[profile]
+  const { type, payload } = envelope
+  if (type === "frame") {
+    if (rules.frames === "none") return null
+    if (rules.frames === "composite" && payload?.kind !== "composite") return null
+    return envelope
   }
-  jsonOut({ ...info, status: "running" })
+  if (type === "annotation" && !rules.annotations) return null
+  if ((type === "unit" || type === "unit_update") && payload && typeof payload === "object") {
+    const next = { ...payload }
+    if (next.evidence && typeof next.evidence === "object") {
+      const evidence = { ...next.evidence }
+      if (rules.frames === "none") evidence.frame_ids = []
+      if (!rules.annotations) evidence.annotation_ids = []
+      if (!rules.clips) delete evidence.audio_clip_id
+      if (!rules.telemetry) delete evidence.telemetry_window
+      next.evidence = evidence
+    }
+    return { ...envelope, payload: next }
+  }
+  return envelope
+}
+
+async function replay(options) {
+  const eventsFile = path.join(options.logDir, "events.ndjson")
+  if (!fs.existsSync(eventsFile)) throw new Error(`No session log at ${eventsFile}`)
+  const lines = fs.readFileSync(eventsFile, "utf8").split("\n").filter(Boolean)
+  const sessionId = `replay-${randomUUID()}`
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${options.token}`,
+    "X-Riffrec-Session": sessionId,
+  }
+  let seq = 0
+  let sent = 0
+  let skipped = 0
+  let batch = []
+
+  async function post(envelopes) {
+    const response = await fetch(`${options.to}/events`, { method: "POST", headers, body: JSON.stringify(envelopes) })
+    if (!response.ok) {
+      const text = await response.text().catch(() => "")
+      throw new Error(`replay: ${options.to}/events answered ${response.status} ${text.trim()}`)
+    }
+    sent += envelopes.length
+  }
+
+  async function flush() {
+    if (batch.length === 0) return
+    const pending = batch
+    batch = []
+    await post(pending)
+  }
+
+  for (const line of lines) {
+    const stored = parseJsonObject(line)
+    if (!stored || typeof stored.type !== "string") continue
+    let envelope = { schema_version: SCHEMA_VERSION, session_id: sessionId, seq: 0, t: stored.t, type: stored.type, payload: stored.payload }
+    if (stored.type === "frame" && stored.frame_file) {
+      try {
+        const jpeg = fs.readFileSync(path.join(options.logDir, stored.frame_file))
+        envelope = { ...envelope, payload: { ...stored.payload, jpeg_base64: jpeg.toString("base64") } }
+      } catch {
+        skipped += 1
+        continue
+      }
+    }
+    envelope = applyProfile(envelope, options.profile)
+    if (!envelope) {
+      skipped += 1
+      continue
+    }
+    envelope.seq = ++seq
+    if (envelope.type === "frame") {
+      await flush()
+      await post([envelope])
+      continue
+    }
+    batch.push(envelope)
+    if (JSON.stringify(batch).length > BODY_LIMIT / 2 || envelope.type === "checkpoint") await flush()
+  }
+  await flush()
+  jsonOut({ status: "replayed", to: options.to, profile: options.profile, session_id: sessionId, envelopes_sent: sent, envelopes_skipped: skipped })
+}
+
+// ---------------------------------------------------------------------------
+// Server
+// ---------------------------------------------------------------------------
+
+async function serve(options) {
+  ensureDirs(options)
+
+  // Resume when a live session file exists for this root; otherwise mint a
+  // fresh pair of credentials and start a new board.
+  const previous = readSession(options)
+  const resuming = Boolean(previous && !previous.ended && previous.page_token && previous.agent_token)
+  const pageToken = resuming ? previous.page_token : newToken()
+  const agentToken = resuming ? previous.agent_token : newToken()
+  if (!resuming) {
+    fs.rmSync(options.batchesDir, { recursive: true, force: true })
+    fs.rmSync(options.boardFile, { force: true })
+    fs.mkdirSync(options.batchesDir, { recursive: true, mode: 0o700 })
+    if (previous?.ended) {
+      // A new session after an ended one keeps the old log by rotating it.
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+      const rotated = path.join(options.stateDir, `log-ended-${stamp}`)
+      try {
+        fs.renameSync(options.logDir, rotated)
+      } catch {
+        // Nothing to rotate.
+      }
+      ensureDirs(options)
+    }
+  }
+  const board = resuming ? { ...emptyBoard(), ...(readJsonOrNull(options.boardFile) ?? {}) } : emptyBoard()
+  const batches = resuming ? loadBatches(options) : []
+  let batchOrder = batches.reduce((max, batch) => Math.max(max, batch.order), 0)
+  const port = options.port ?? (resuming && Number.isInteger(previous.port) ? previous.port : 0)
+
+  const eventsLog = path.join(options.logDir, "events.ndjson")
+  const agentLog = path.join(options.logDir, "agent.ndjson")
+  const framesDir = path.join(options.logDir, "frames")
+  let logBytes = directorySize(options.logDir)
+  let session = null
+  let waiter = null
+  const streamClients = new Set()
+  let pageLostTimer = null
+  let mintInFlight = false
+  const mintTimes = []
+  let lastActivity = Date.now()
+  const touch = () => {
+    lastActivity = Date.now()
+  }
+
+  function saveBoard() {
+    writePrivateJson(options.boardFile, board)
+  }
+
+  function saveSession(patch) {
+    session = { ...session, ...patch }
+    writePrivateJson(options.sessionFile, session)
+  }
+
+  function logEvent(record) {
+    const line = `${JSON.stringify(record)}\n`
+    appendPrivate(eventsLog, line)
+    logBytes += Buffer.byteLength(line)
+  }
+
+  function logAgent(record) {
+    const line = `${JSON.stringify({ t: Date.now(), ...record })}\n`
+    appendPrivate(agentLog, line)
+    logBytes += Buffer.byteLength(line)
+  }
+
+  function broadcast(event, payload) {
+    const frame = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`
+    for (const client of streamClients) {
+      if (!client.writableEnded) client.write(frame)
+    }
+  }
+
+  // --- batches ---------------------------------------------------------------
+
+  function batchFile(checkpointId) {
+    return path.join(options.batchesDir, `${encodeURIComponent(checkpointId)}.json`)
+  }
+
+  function persistBatch(batch) {
+    writePrivateJson(batchFile(batch.envelope.checkpoint_id), batch)
+  }
+
+  function heldUnits() {
+    return board.unit_order
+      .map((id) => board.units[id])
+      .filter((unit) => unit && !unit.released && unit.status !== "withdrawn")
+  }
+
+  function heldAnnotations() {
+    return board.annotation_order
+      .map((id) => board.annotations[id])
+      .filter((annotation) => annotation && !annotation.released)
+  }
+
+  function makeEnvelope(checkpointId, kind, mode, extra) {
+    return {
+      schema_version: SCHEMA_VERSION,
+      checkpoint_id: checkpointId,
+      kind,
+      mode_at_checkpoint: mode,
+      session_status: "live",
+      units: [],
+      annotations: [],
+      answers: [],
+      ...extra,
+    }
+  }
+
+  function publicUnit(unit) {
+    const { released, ...rest } = unit
+    return rest
+  }
+
+  function publicAnnotation(annotation) {
+    const { released, ...rest } = annotation
+    return rest
+  }
+
+  // A checkpoint releases every held unit and annotation plus the
+  // withdrawals that arrived after an earlier release. It wakes the agent
+  // only when it releases something.
+  function releaseCheckpoint(checkpointId, kind, mode) {
+    const units = heldUnits()
+    const annotations = heldAnnotations()
+    const withdrawn = board.pending_withdrawn.map((id) => board.units[id]).filter(Boolean)
+    if (units.length === 0 && annotations.length === 0 && withdrawn.length === 0) return null
+    for (const unit of units) {
+      unit.released = true
+      unit.status = "triaging"
+      board.released_unit_ids.push(unit.id)
+    }
+    for (const annotation of annotations) {
+      annotation.released = true
+      board.released_annotation_ids.push(annotation.id)
+    }
+    board.pending_withdrawn = []
+    board.mode = mode
+    board.checkpoints.push({ id: checkpointId, kind, mode, t: Date.now() })
+    if (kind === "final") board.final_emitted = true
+    const envelope = makeEnvelope(checkpointId, kind, mode, {
+      units: [...units.map(publicUnit), ...withdrawn.map((unit) => ({ ...publicUnit(unit), status: "withdrawn" }))],
+      annotations: annotations.map(publicAnnotation),
+    })
+    enqueueBatch(envelope)
+    for (const unit of units) broadcast("unit_status", { unit_id: unit.id, status: "triaging", checkpoint_id: checkpointId })
+    saveBoard()
+    return envelope
+  }
+
+  function enqueueBatch(envelope) {
+    const batch = { order: ++batchOrder, served: false, envelope }
+    batches.push(batch)
+    persistBatch(batch)
+    fulfillWaiter()
+  }
+
+  function nextBatch() {
+    return batches.find((batch) => batch.served) ?? batches.find((batch) => !batch.served) ?? null
+  }
+
+  function takeWaiter() {
+    const parked = waiter
+    waiter = null
+    clearTimeout(parked.timer)
+    return parked.res
+  }
+
+  // Serve order: a batch served without an ack first, then the oldest new
+  // batch, then a pending page-lost notice; an ended session with nothing
+  // held answers 410.
+  function fulfillWaiter() {
+    if (!waiter || waiter.res.writableEnded) return
+    const batch = nextBatch()
+    if (batch) {
+      batch.served = true
+      persistBatch(batch)
+      sendJson(takeWaiter(), 200, batch.envelope)
+      return
+    }
+    if (board.page_lost_pending) {
+      const envelope = board.page_lost_pending
+      board.page_lost_pending = null
+      saveBoard()
+      sendJson(takeWaiter(), 200, envelope)
+      return
+    }
+    if (board.ended) {
+      sendJson(takeWaiter(), 410, { status: "session-ended" })
+      finishEndedSession()
+    }
+  }
+
+  // --- page-lost detection (KTD8) ----------------------------------------------
+
+  function armPageLost() {
+    if (pageLostTimer || board.ended) return
+    pageLostTimer = setTimeout(() => {
+      pageLostTimer = null
+      if (streamClients.size > 0 || board.ended) return
+      const last = board.checkpoints[board.checkpoints.length - 1]
+      board.page.lost_episodes += 1
+      board.page.stream = "lost"
+      board.watch_for_loss = false
+      board.page_lost_pending = makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
+        session_status: "page_lost",
+        lost_after_checkpoint_id: last?.id ?? null,
+      })
+      saveBoard()
+      fulfillWaiter()
+    }, PAGE_LOST_GRACE_MS)
+    pageLostTimer.unref()
+  }
+
+  function disarmPageLost() {
+    if (pageLostTimer) {
+      clearTimeout(pageLostTimer)
+      pageLostTimer = null
+    }
+  }
+
+  // --- session end -----------------------------------------------------------
+
+  function nothingHeld() {
+    return batches.length === 0 && !board.page_lost_pending
+  }
+
+  // The page token dies with /session/end. The agent token survives until
+  // the agent has drained and acknowledged the final batch, so exit 1 is
+  // only ever "ended with nothing held" (KTD7).
+  function finishEndedSession() {
+    if (!board.ended || !nothingHeld() || session.agent_token === null) return
+    saveSession({ agent_token: null })
+  }
+
+  function endSession() {
+    if (board.ended) return
+    disarmPageLost()
+    board.ended = true
+    board.page.stream = streamClients.size > 0 ? "connected" : board.page.stream
+    saveBoard()
+    saveSession({ page_token: null, ended: true })
+    broadcast("session_ended", { session_id: board.session_id, log_dir: options.logDir })
+    for (const client of streamClients) {
+      if (!client.writableEnded) client.end()
+    }
+    streamClients.clear()
+    fulfillWaiter()
+    finishEndedSession()
+  }
+
+  // --- auth and CORS -----------------------------------------------------------
+
+  function corsHeaders() {
+    return {
+      "Access-Control-Allow-Origin": options.appOrigin,
+      Vary: "Origin",
+    }
+  }
+
+  // Page routes: the page token, the session header, and an Origin that is
+  // either absent or exactly --app-origin.
+  function authorizePage(req, res) {
+    const origin = req.headers.origin
+    if (typeof origin === "string" && origin !== options.appOrigin) {
+      sendJson(res, 403, { reason: "origin" }, corsHeaders())
+      return null
+    }
+    const token = bearerToken(req)
+    if (!token) {
+      sendJson(res, 401, { error: "unauthorized" }, corsHeaders())
+      return null
+    }
+    if (tokenMatches(token, agentToken)) {
+      sendJson(res, 403, { reason: "wrong_credential" }, corsHeaders())
+      return null
+    }
+    if (!tokenMatches(token, pageToken)) {
+      sendJson(res, 401, { error: "unauthorized" }, corsHeaders())
+      return null
+    }
+    if (board.ended || session.page_token === null) {
+      sendJson(res, 410, { status: "session-ended" }, corsHeaders())
+      return null
+    }
+    const sessionId = req.headers["x-riffrec-session"]
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      sendJson(res, 400, { error: "missing X-Riffrec-Session" }, corsHeaders())
+      return null
+    }
+    if (board.session_id && board.session_id !== sessionId) {
+      sendJson(res, 409, { active_session_id: board.session_id }, corsHeaders())
+      return null
+    }
+    if (!board.session_id) {
+      board.session_id = sessionId
+      saveBoard()
+    }
+    return sessionId
+  }
+
+  // Agent routes: the agent token, no Origin header at all, no CORS.
+  function authorizeAgent(req, res) {
+    if (req.headers.origin !== undefined) {
+      sendJson(res, 403, { reason: "browser_origin" })
+      return false
+    }
+    const token = bearerToken(req)
+    if (!token) {
+      sendJson(res, 401, { error: "unauthorized" })
+      return false
+    }
+    if (tokenMatches(token, pageToken)) {
+      sendJson(res, 403, { reason: "wrong_credential" })
+      return false
+    }
+    if (!tokenMatches(token, agentToken)) {
+      sendJson(res, 401, { error: "unauthorized" })
+      return false
+    }
+    if (session.agent_token === null) {
+      sendJson(res, 410, { status: "session-ended" })
+      return false
+    }
+    return true
+  }
+
+  // --- page routes -------------------------------------------------------------
+
+  function validEnvelope(value, sessionId) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "envelope must be an object"
+    if (value.schema_version !== SCHEMA_VERSION) return "schema_version"
+    if (value.session_id !== sessionId) return "session_id does not match X-Riffrec-Session"
+    if (!Number.isInteger(value.seq) || value.seq < 1) return "seq must be a positive integer"
+    if (typeof value.type !== "string" || !PAGE_EVENT_TYPES.has(value.type)) return `unknown type ${String(value.type)}`
+    if (value.payload === undefined || value.payload === null || typeof value.payload !== "object") return "payload must be an object"
+    return null
+  }
+
+  function applyEnvelope(envelope) {
+    const { type, payload } = envelope
+    if (type === "transcript") {
+      board.transcript_count += 1
+    } else if (type === "unit") {
+      if (typeof payload.id !== "string" || !payload.id) return
+      const existing = board.units[payload.id]
+      board.units[payload.id] = {
+        ...(existing ?? {}),
+        ...payload,
+        status: existing?.released ? existing.status : (payload.status ?? "initial"),
+        released: Boolean(existing?.released),
+      }
+      if (!existing) board.unit_order.push(payload.id)
+    } else if (type === "unit_update") {
+      const unit = board.units[payload.unit_id]
+      if (!unit) return
+      if (typeof payload.statement === "string") unit.statement = payload.statement
+      if (Array.isArray(payload.anchors_add)) unit.anchors = [...(unit.anchors ?? []), ...payload.anchors_add]
+      if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
+    } else if (type === "unit_withdraw") {
+      const unit = board.units[payload.unit_id]
+      if (!unit || unit.status === "withdrawn") return
+      unit.status = "withdrawn"
+      unit.withdraw_reason = payload.reason ?? null
+      if (unit.released && !board.pending_withdrawn.includes(unit.id)) board.pending_withdrawn.push(unit.id)
+      broadcast("unit_status", { unit_id: unit.id, status: "withdrawn" })
+    } else if (type === "annotation") {
+      if (typeof payload.id !== "string" || !payload.id) return
+      const existing = board.annotations[payload.id]
+      board.annotations[payload.id] = { ...(existing ?? {}), ...payload, released: Boolean(existing?.released) }
+      if (!existing) board.annotation_order.push(payload.id)
+    } else if (type === "checkpoint") {
+      const trigger = PAGE_CHECKPOINT_KINDS.has(payload.trigger) ? payload.trigger : "send"
+      const mode = typeof payload.mode === "string" ? payload.mode : board.mode
+      board.mode = mode
+      releaseCheckpoint(typeof payload.id === "string" && payload.id ? payload.id : `ck-${randomUUID()}`, trigger, mode)
+    } else if (type === "answer") {
+      const answer = { unit_id: payload.unit_id, text: payload.text, t: envelope.t }
+      board.answers.push(answer)
+      const unit = board.units[payload.unit_id]
+      if (unit && unit.status === "needs_info") unit.status = "answered"
+      board.checkpoints.push({ id: `ck-answer-${randomUUID()}`, kind: "answer", mode: board.mode, t: Date.now() })
+      const checkpoint = board.checkpoints[board.checkpoints.length - 1]
+      enqueueBatch(makeEnvelope(checkpoint.id, "answer", board.mode, { answers: [{ unit_id: answer.unit_id, text: answer.text }] }))
+    } else if (type === "frame") {
+      board.frame_count += 1
+    } else if (type === "mic") {
+      board.page.mic = payload.state ?? null
+    } else if (type === "mode") {
+      if (typeof payload.mode === "string") board.mode = payload.mode
+    } else if (type === "stream_state") {
+      board.page.last_stream_state = payload.state ?? null
+    }
+  }
+
+  function storeEnvelope(envelope) {
+    if (envelope.type === "frame") {
+      const id = typeof envelope.payload.id === "string" && envelope.payload.id ? envelope.payload.id : randomUUID()
+      const safeId = encodeURIComponent(id)
+      const frameFile = path.join("frames", `${safeId}.jpg`)
+      const { jpeg_base64: jpeg, ...rest } = envelope.payload
+      if (typeof jpeg === "string") {
+        const bytes = Buffer.from(jpeg, "base64")
+        fs.writeFileSync(path.join(framesDir, `${safeId}.jpg`), bytes, { mode: 0o600 })
+        logBytes += bytes.length
+      }
+      logEvent({ seq: envelope.seq, t: envelope.t, type: "frame", payload: rest, frame_file: frameFile })
+      return
+    }
+    logEvent({ seq: envelope.seq, t: envelope.t, type: envelope.type, payload: envelope.payload })
+  }
+
+  function advanceAck(seq) {
+    if (seq <= board.acked_seq || board.pending_seqs.includes(seq)) return false
+    board.pending_seqs.push(seq)
+    board.pending_seqs.sort((a, b) => a - b)
+    while (board.pending_seqs.length > 0 && board.pending_seqs[0] === board.acked_seq + 1) {
+      board.acked_seq = board.pending_seqs.shift()
+    }
+    return true
+  }
+
+  async function handleEvents(req, res, sessionId) {
+    const body = await readBody(req, FRAME_BODY_LIMIT)
+    if (body.tooLarge) {
+      sendJson(res, 413, { max_bytes: FRAME_BODY_LIMIT }, corsHeaders())
+      return
+    }
+    const parsed = parseJsonObject(body.text)
+    const envelopes = Array.isArray(parsed) ? parsed : parsed ? [parsed] : null
+    if (!envelopes || envelopes.length === 0) {
+      sendJson(res, 400, { error: "body must be an envelope or an array of envelopes" }, corsHeaders())
+      return
+    }
+    const loneFrame = envelopes.length === 1 && envelopes[0]?.type === "frame"
+    if (!loneFrame && body.size > BODY_LIMIT) {
+      sendJson(res, 413, { max_bytes: BODY_LIMIT }, corsHeaders())
+      return
+    }
+    for (const envelope of envelopes) {
+      const problem = validEnvelope(envelope, sessionId)
+      if (problem === "schema_version") {
+        sendJson(res, 409, { expected_schema_version: SCHEMA_VERSION }, corsHeaders())
+        return
+      }
+      if (problem) {
+        sendJson(res, 400, { error: problem }, corsHeaders())
+        return
+      }
+      if (envelope.type === "frame" && envelopes.length > 1) {
+        sendJson(res, 400, { error: "frame envelopes are posted alone" }, corsHeaders())
+        return
+      }
+    }
+    if (loneFrame && logBytes + body.size > DISK_CAP_BYTES) {
+      sendJson(res, 507, { reason: "disk_cap", stream_state: "buffering", max_bytes: DISK_CAP_BYTES, acked_seq: board.acked_seq }, corsHeaders())
+      return
+    }
+    touch()
+    for (const envelope of envelopes) {
+      if (!advanceAck(envelope.seq)) continue
+      storeEnvelope(envelope)
+      applyEnvelope(envelope)
+    }
+    saveBoard()
+    broadcast("ack", { acked_seq: board.acked_seq })
+    sendJson(res, 200, { acked_seq: board.acked_seq }, corsHeaders())
+  }
+
+  function handleStream(req, res) {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      ...corsHeaders(),
+    })
+    res.write(":ok\n\n")
+    res.write(`event: ack\ndata: ${JSON.stringify({ acked_seq: board.acked_seq })}\n\n`)
+    // A page that just reloaded reconciles its board from these.
+    for (const id of board.unit_order) {
+      const unit = board.units[id]
+      if (unit.released || unit.status === "withdrawn") {
+        res.write(`event: unit_status\ndata: ${JSON.stringify({ unit_id: id, status: unit.status })}\n\n`)
+      }
+    }
+    streamClients.add(res)
+    disarmPageLost()
+    board.page.stream = "connected"
+    saveBoard()
+    touch()
+    req.on("close", () => {
+      streamClients.delete(res)
+      if (streamClients.size === 0 && !board.ended) {
+        board.page.stream = "disconnected"
+        saveBoard()
+        if (board.watch_for_loss) armPageLost()
+      }
+    })
+  }
+
+  async function handleMint(req, res, sessionId) {
+    const body = await readBody(req, BODY_LIMIT)
+    if (body.tooLarge) {
+      sendJson(res, 413, { max_bytes: BODY_LIMIT }, corsHeaders())
+      return
+    }
+    const parsed = parseJsonObject(body.text || "{}")
+    if (!parsed || (parsed.session_id !== undefined && parsed.session_id !== sessionId)) {
+      sendJson(res, 400, { error: "session_id must match X-Riffrec-Session" }, corsHeaders())
+      return
+    }
+    const peer = req.socket.remoteAddress
+    const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim().toLowerCase()
+    if (!isLoopback(peer) && forwardedProto !== "https") {
+      sendJson(res, 403, { reason: "tls_required" }, corsHeaders())
+      return
+    }
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      sendJson(res, 503, { reason: "no_key" }, corsHeaders())
+      return
+    }
+    const brief = readBrief(options)
+    if (brief && briefContainsSecret(brief)) {
+      sendJson(res, 503, { reason: "brief_contains_secret" }, corsHeaders())
+      return
+    }
+    const now = Date.now()
+    while (mintTimes.length > 0 && now - mintTimes[0] > 60 * 1000) mintTimes.shift()
+    if (mintInFlight) {
+      sendJson(res, 429, { retry_after: 1 }, corsHeaders())
+      return
+    }
+    if (mintTimes.length >= MINTS_PER_MINUTE) {
+      sendJson(res, 429, { retry_after: Math.ceil((60 * 1000 - (now - mintTimes[0])) / 1000) }, corsHeaders())
+      return
+    }
+    mintTimes.push(now)
+    mintInFlight = true
+    touch()
+    try {
+      const instructions = brief ? `${INTERVIEWER_PERSONA}\n\nSession brief:\n${brief}` : INTERVIEWER_PERSONA
+      const upstreamBody = {
+        expires_after: { anchor: "created_at", seconds: CLIENT_SECRET_TTL_S },
+        session: {
+          type: "realtime",
+          model: REALTIME_MODEL,
+          instructions,
+          tools: INTERVIEWER_TOOLS,
+          tool_choice: "auto",
+          audio: {
+            input: {
+              transcription: { model: "gpt-4o-mini-transcribe" },
+              turn_detection: { type: "semantic_vad", create_response: true, interrupt_response: true },
+            },
+            output: { voice: REALTIME_VOICE },
+          },
+        },
+      }
+      let upstream
+      try {
+        upstream = await fetch(`${OPENAI_BASE_URL}/v1/realtime/client_secrets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify(upstreamBody),
+          signal: AbortSignal.timeout(MINT_TIMEOUT_MS),
+        })
+      } catch {
+        sendJson(res, 502, { reason: "openai_error", upstream_status: null }, corsHeaders())
+        return
+      }
+      if (!upstream.ok) {
+        // The upstream body is discarded: it may echo the request.
+        await upstream.arrayBuffer().catch(() => undefined)
+        sendJson(res, 502, { reason: "openai_error", upstream_status: upstream.status }, corsHeaders())
+        return
+      }
+      const minted = await upstream.json().catch(() => null)
+      const secret = typeof minted?.value === "string" ? minted.value : minted?.client_secret?.value
+      const expiresAt = minted?.expires_at ?? minted?.client_secret?.expires_at ?? null
+      if (!secret) {
+        sendJson(res, 502, { reason: "openai_error", upstream_status: upstream.status }, corsHeaders())
+        return
+      }
+      logAgent({ kind: "mint", session_id: sessionId, expires_at: expiresAt })
+      sendJson(res, 200, { client_secret: secret, expires_at: expiresAt, model: REALTIME_MODEL }, corsHeaders())
+    } finally {
+      mintInFlight = false
+    }
+  }
+
+  function archiveExtension(contentType) {
+    const type = String(contentType ?? "").split(";")[0].trim().toLowerCase()
+    if (type === "application/zip") return "zip"
+    if (type === "application/json") return "json"
+    return "bin"
+  }
+
+  // The page's full-evidence archive is streamed to state/log/ then the
+  // session ends: a final checkpoint releases anything still held, the page
+  // token is invalidated, and the stream announces session_ended.
+  function handleSessionEnd(req, res) {
+    const remaining = Math.max(0, Math.min(ARCHIVE_BODY_LIMIT, DISK_CAP_BYTES - logBytes))
+    const archivePath = path.join(options.logDir, `archive.${archiveExtension(req.headers["content-type"])}`)
+    const tmpPath = `${archivePath}.part`
+    const out = fs.createWriteStream(tmpPath, { mode: 0o600 })
+    let size = 0
+    let tooLarge = false
+    req.on("data", (chunk) => {
+      size += chunk.length
+      if (tooLarge) return
+      if (size > remaining) {
+        tooLarge = true
+        out.destroy()
+        return
+      }
+      out.write(chunk)
+    })
+    req.on("error", () => {
+      out.destroy()
+      fs.rmSync(tmpPath, { force: true })
+    })
+    req.on("end", () => {
+      if (tooLarge) {
+        fs.rmSync(tmpPath, { force: true })
+        sendJson(res, 413, { max_bytes: remaining }, corsHeaders())
+        return
+      }
+      out.end(() => {
+        if (size > 0) {
+          fs.renameSync(tmpPath, archivePath)
+          logBytes += size
+        } else {
+          fs.rmSync(tmpPath, { force: true })
+        }
+        touch()
+        if (!board.final_emitted) releaseCheckpoint(`ck-final-${randomUUID()}`, "final", board.mode)
+        logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size })
+        endSession()
+        sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
+      })
+    })
+  }
+
+  // --- agent routes ------------------------------------------------------------
+
+  function handleWait(req, res) {
+    touch()
+    if (waiter && !waiter.res.writableEnded) {
+      sendJson(res, 409, { status: "wait-taken" })
+      return
+    }
+    const parked = { res, timer: null }
+    parked.timer = setTimeout(() => {
+      if (waiter === parked) waiter = null
+      if (!res.writableEnded) {
+        res.writeHead(204)
+        res.end()
+      }
+    }, WAIT_TIMEOUT_MS)
+    waiter = parked
+    req.on("close", () => {
+      clearTimeout(parked.timer)
+      if (waiter === parked) waiter = null
+    })
+    fulfillWaiter()
+  }
+
+  function handleAck(req, res, checkpointId) {
+    const index = batches.findIndex((batch) => batch.envelope.checkpoint_id === checkpointId)
+    if (index === -1) {
+      sendJson(res, 404, { error: "unknown checkpoint" })
+      return
+    }
+    batches.splice(index, 1)
+    fs.rmSync(batchFile(checkpointId), { force: true })
+    logAgent({ kind: "ack", checkpoint_id: checkpointId })
+    touch()
+    sendJson(res, 200, { ok: true, checkpoint_id: checkpointId })
+    finishEndedSession()
+  }
+
+  async function handleUnitStatus(req, res, unitId) {
+    const body = await readBody(req, BODY_LIMIT)
+    const parsed = body.tooLarge ? null : parseJsonObject(body.text)
+    if (!parsed || typeof parsed.status !== "string" || !AGENT_UNIT_STATUSES.has(parsed.status)) {
+      sendJson(res, 400, { error: `status must be one of ${[...AGENT_UNIT_STATUSES].join(", ")}` })
+      return
+    }
+    const unit = board.units[unitId]
+    if (!unit) {
+      sendJson(res, 404, { error: "unknown unit" })
+      return
+    }
+    unit.status = parsed.status
+    if (typeof parsed.note === "string") unit.note = parsed.note
+    if (typeof parsed.guess === "string") unit.guess = parsed.guess
+    saveBoard()
+    logAgent({ kind: "unit_status", unit_id: unitId, status: parsed.status, note: parsed.note ?? null, guess: parsed.guess ?? null })
+    const notice = { unit_id: unitId, status: parsed.status, ...(parsed.note !== undefined ? { note: parsed.note } : {}), ...(parsed.guess !== undefined ? { guess: parsed.guess } : {}) }
+    broadcast("unit_status", notice)
+    if (parsed.status === "applied") {
+      broadcast("applied", notice)
+      board.watch_for_loss = true
+      saveBoard()
+      if (streamClients.size === 0) armPageLost()
+    }
+    touch()
+    sendJson(res, 200, { ok: true, unit_id: unitId, status: parsed.status })
+  }
+
+  async function handleUnitAsk(req, res, unitId) {
+    const body = await readBody(req, BODY_LIMIT)
+    const parsed = body.tooLarge ? null : parseJsonObject(body.text)
+    if (!parsed || typeof parsed.question !== "string" || !parsed.question.trim()) {
+      sendJson(res, 400, { error: "question is required" })
+      return
+    }
+    const unit = board.units[unitId]
+    if (!unit) {
+      sendJson(res, 404, { error: "unknown unit" })
+      return
+    }
+    unit.status = "needs_info"
+    unit.question = parsed.question
+    saveBoard()
+    logAgent({ kind: "ask", unit_id: unitId, question: parsed.question })
+    broadcast("unit_status", { unit_id: unitId, status: "needs_info" })
+    broadcast("ask", { unit_id: unitId, question: parsed.question })
+    touch()
+    sendJson(res, 200, { ok: true, unit_id: unitId, status: "needs_info" })
+  }
+
+  function handleStatus(req, res) {
+    sendJson(res, 200, boardSummary(board, batches, logBytes))
+  }
+
+  // --- dispatch ----------------------------------------------------------------
+
+  const PAGE_ROUTES = new Set(["/events", "/stream", "/mint", "/session/end"])
+
+  function preflight(res) {
+    res.writeHead(204, {
+      ...corsHeaders(),
+      "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Riffrec-Session",
+      "Access-Control-Allow-Methods": "GET, POST",
+      "Access-Control-Max-Age": "600",
+    })
+    res.end()
+  }
+
+  async function handleRequest(req, res) {
+    let urlPath
+    try {
+      urlPath = decodeURIComponent(req.url.split("?")[0].split("#")[0])
+    } catch {
+      sendJson(res, 400, { error: "bad request" })
+      return
+    }
+
+    if (PAGE_ROUTES.has(urlPath)) {
+      if (req.method === "OPTIONS") {
+        preflight(res)
+        return
+      }
+      const expected = urlPath === "/stream" ? "GET" : "POST"
+      if (req.method !== expected) {
+        sendJson(res, 405, { error: "method not allowed" }, { ...corsHeaders(), Allow: `${expected}, OPTIONS` })
+        return
+      }
+      const sessionId = authorizePage(req, res)
+      if (!sessionId) return
+      if (urlPath === "/events") return handleEvents(req, res, sessionId)
+      if (urlPath === "/stream") return handleStream(req, res)
+      if (urlPath === "/mint") return handleMint(req, res, sessionId)
+      return handleSessionEnd(req, res)
+    }
+
+    const ack = urlPath.match(/^\/checkpoints\/([^/]+)\/ack$/)
+    const unitStatus = urlPath.match(/^\/units\/([^/]+)\/status$/)
+    const unitAsk = urlPath.match(/^\/units\/([^/]+)\/ask$/)
+    const agentRoute = urlPath === "/wait" || urlPath === "/status" || ack || unitStatus || unitAsk
+    if (agentRoute) {
+      if (!authorizeAgent(req, res)) return
+      if (req.method === "GET" && urlPath === "/wait") return handleWait(req, res)
+      if (req.method === "GET" && urlPath === "/status") return handleStatus(req, res)
+      if (req.method === "POST" && ack) return handleAck(req, res, ack[1])
+      if (req.method === "POST" && unitStatus) return handleUnitStatus(req, res, unitStatus[1])
+      if (req.method === "POST" && unitAsk) return handleUnitAsk(req, res, unitAsk[1])
+      sendJson(res, 405, { error: "method not allowed" })
+      return
+    }
+
+    // Nothing is served from the run directory (R40).
+    sendJson(res, 404, { error: "not found" })
+  }
+
+  const server = http.createServer((req, res) => {
+    Promise.resolve(handleRequest(req, res)).catch(() => {
+      if (!res.headersSent) sendJson(res, 500, { error: "internal error" })
+      else if (!res.writableEnded) res.end()
+    })
+  })
+  // The session archive on /session/end can take longer than Node's default
+  // 5-minute request budget on a slow link.
+  server.requestTimeout = 0
+
+  const listen = (onPort) => new Promise((resolve, reject) => {
+    const onError = (error) => reject(error)
+    server.once("error", onError)
+    server.listen(onPort, options.host, () => {
+      server.off("error", onError)
+      resolve()
+    })
+  })
+  try {
+    await listen(port)
+  } catch (error) {
+    // A resumed session prefers its old port; when something else took it,
+    // any free port still resumes the session (the page learns the new
+    // origin from the URL the skill hands over).
+    if (options.port !== undefined || error?.code !== "EADDRINUSE") throw error
+    await listen(0)
+  }
+
+  const address = server.address()
+  const boundPort = typeof address === "object" && address ? address.port : port
+  const urlHost = options.host === DEFAULT_HOST || options.host === "0.0.0.0" || options.host === "::" ? DEFAULT_URL_HOST : localAddressFor(options.host)
+  session = {
+    page_token: pageToken,
+    agent_token: agentToken,
+    url: `http://${urlHost}:${boundPort}`,
+    app_origin: options.appOrigin,
+    host: options.host,
+    port: boundPort,
+    pid: process.pid,
+    owner_pid: options.ownerPid ?? null,
+    ended: false,
+    root: options.root,
+    log_dir: options.logDir,
+    started_at: new Date().toISOString(),
+  }
+  if (board.page.stream === "connected") board.page.stream = "disconnected"
+  writePrivate(options.pidFile, `${process.pid}\n`)
+  saveBoard()
+  writePrivateJson(options.sessionFile, session)
+  // The agent token never leaves the state file. This line is the start
+  // envelope for `--foreground`; detached, it lands in server.log (0600).
+  jsonOut({ ...publicStartEnvelope(session), status: resuming ? "resumed" : "started" })
+
+  // Owner death, idle timeout, SIGTERM: stop the process, keep the session.
+  // The board, batches, and session file are already on disk, so a later
+  // `start --root` resumes with the same tokens.
+  function shutdown() {
+    disarmPageLost()
+    if (waiter && !waiter.res.writableEnded) {
+      clearTimeout(waiter.timer)
+      waiter.res.writeHead(204)
+      waiter.res.end()
+      waiter = null
+    }
+    for (const client of streamClients) {
+      if (!client.writableEnded) client.end()
+    }
+    streamClients.clear()
+    server.close(() => process.exit(0))
+    server.closeAllConnections()
+    setTimeout(() => process.exit(0), 2000).unref()
+  }
+  process.on("SIGTERM", shutdown)
+  process.on("SIGINT", shutdown)
+
+  const idleTimer = setInterval(() => {
+    if (options.ownerPid && !processAlive(options.ownerPid)) shutdown()
+    else if (Date.now() - lastActivity > IDLE_TIMEOUT_MS && streamClients.size === 0) shutdown()
+  }, LIFECYCLE_CHECK_MS)
+  idleTimer.unref()
 }
 
 async function main() {
@@ -1236,14 +1663,15 @@ async function main() {
   try {
     const options = parseArgs(process.argv)
     command = options.command
-    if (options.command === "start") await start(options)
-    else if (options.command === "serve") await serve(options)
-    else if (options.command === "stop") await stop(options)
-    else if (options.command === "status") status(options)
-    else if (options.command === "wait") await wait(options)
+    if (command === "start") await start(options)
+    else if (command === "serve") await serve(options)
+    else if (command === "stop") await stop(options)
+    else if (command === "status") status(options)
+    else if (command === "wait") await wait(options)
+    else if (command === "replay") await replay(options)
   } catch (error) {
     console.error(error.message)
-    // Wait reserves exit 1 for session-ended; any other failure is exit 2.
+    // Wait reserves exit 1 for session-ended and 3 for wait-taken; any other failure is exit 2.
     process.exit((command ?? process.argv[2]) === "wait" ? 2 : 1)
   }
 }
