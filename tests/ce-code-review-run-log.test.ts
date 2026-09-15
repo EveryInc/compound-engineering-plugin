@@ -2,11 +2,14 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, appendFileSync } f
 import { tmpdir } from "os"
 import path from "path"
 import { spawnSync } from "node:child_process"
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setDefaultTimeout, test } from "bun:test"
 
 // Per-stage cost instrumentation for ce-code-review (plan 2026-09-15-1322, U6).
 // The script is the only writer of stages.jsonl and the last writer of
 // metadata.json; these tests pin the contract the references name.
+
+// Each test launches Python several times; a loaded runner crosses the 5s default.
+setDefaultTimeout(20_000)
 
 const SCRIPT = path.join(process.cwd(), "skills", "ce-code-review", "scripts", "run-log.py")
 
