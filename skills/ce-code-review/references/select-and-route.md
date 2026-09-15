@@ -72,7 +72,7 @@ Stage 1c already paired each criteria file governing this change with the change
 
 ### Stage 3c: Depth already decided
 
-The Review depth gate in `references/modes-and-output.md` already chose lite or full, before this file was read. This stage does not size the run and does not shrink the roster. You are on the full spine. Continue to Stage 3d.
+The Review depth gate in `references/modes-and-output.md` already chose lite, focused, or full, before this file was read. This stage does not size the run and does not shrink the roster. You are on the full spine. Continue to Stage 3d.
 
 ### Stage 3d: Bind the adversarial route and final roster
 

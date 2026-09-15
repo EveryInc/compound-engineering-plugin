@@ -3,8 +3,10 @@
 
 The helper never awards lite. It reports counts, path classes, and floors
 the skill's Review depth gate reads. `hard_block_full` forces the full
-spine; a clear floor still needs the agent to confirm no high-consequence
-class before lite.
+spine: a path class the script can name, a file it could not count, or a
+change whose executable non-test lines reach the full floor. Below that
+floor, size is a fact the gate reads, never a decision; the agent judges
+consequence.
 """
 
 from __future__ import annotations
@@ -52,7 +54,9 @@ HARD_BLOCK_PATTERNS = {
     "migrations": SIGNAL_PATTERNS["migrations"],
 }
 
-SMALL_LINE_MAX = 39
+# Executable non-test changed lines at or above this run the full spine; it
+# matches the maintainability reviewer's trigger. Below it, consequence decides.
+FULL_EXEC_LINE_MIN = 200
 
 TEST_PATTERN = re.compile(
     r"(^|/)(tests?|spec|__tests__)/|(^|/)[^/]+[._-](test|spec)\.[^/]+$",
@@ -202,6 +206,7 @@ def fail_closed(reason: str, signals: dict[str, object]) -> dict[str, object]:
         "status": "unknown",
         "reason": reason,
         "exec_lines": None,
+        "exec_nontest_lines": None,
         "changed_lines": None,
         "uncounted_files": 1,
         "changed_files": [],
@@ -215,12 +220,13 @@ def fail_closed(reason: str, signals: dict[str, object]) -> dict[str, object]:
     }
 
 
-def size_band_for(changed_lines: int | None) -> str:
-    if changed_lines is None:
+def size_band_for(exec_nontest_lines: int | None) -> str:
+    """Band the executable non-test lines: `large` is a full-spine floor."""
+    if exec_nontest_lines is None:
         return "unknown"
-    if 1 <= changed_lines <= SMALL_LINE_MAX:
-        return "small"
-    return "large"
+    if exec_nontest_lines >= FULL_EXEC_LINE_MIN:
+        return "large"
+    return "small"
 
 
 def matching_classes(
@@ -267,6 +273,7 @@ def main() -> int:
 
     files = sorted(line for line in names.stdout.splitlines() if line)
     executable_lines = 0
+    executable_nontest_lines = 0
     changed_lines = 0
     uncounted = 0
     for line in numstat.stdout.splitlines():
@@ -285,17 +292,20 @@ def main() -> int:
         changed_lines += total
         if Path(name).suffix.lower() in CODE_EXTENSIONS:
             executable_lines += total
+            if not TEST_PATTERN.search(name):
+                executable_nontest_lines += total
 
     signals = matching_classes(files, SIGNAL_PATTERNS)
     hard_block_classes = matching_classes(files, HARD_BLOCK_PATTERNS)
     if uncounted:
         hard_block_classes.append("uncounted")
-    band = size_band_for(changed_lines)
+    band = size_band_for(executable_nontest_lines)
 
     result = {
         "status": "complete",
         "reason": None,
         "exec_lines": executable_lines,
+        "exec_nontest_lines": executable_nontest_lines,
         "changed_lines": changed_lines,
         "uncounted_files": uncounted,
         "changed_files": files,

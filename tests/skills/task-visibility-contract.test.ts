@@ -23,7 +23,10 @@ const skills = {
   brainstorm: readRepoFile("skills/ce-brainstorm/references/phase-0.md"),
   plan: readRepoFile("skills/ce-plan/references/intake.md"),
   work: readRepoFile("skills/ce-work/references/workspace-setup.md"),
-  codeReview: readSkill("ce-code-review"),
+  // 2026-09-15: ce-code-review's body pointer to this rule was removed for
+  // headroom under the Codex 8000-byte bound; the rule lives whole in
+  // references/scope.md, the body's required Stage 1 read.
+  codeReview: readRepoFile("skills/ce-code-review/references/scope.md"),
   simplify: readSkill("ce-simplify-code"),
   lfg: readSkill("lfg"),
 }

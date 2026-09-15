@@ -1875,6 +1875,10 @@ DEPTH: lite
 
 or
 
+DEPTH: focused
+
+or
+
 DEPTH: full`,
     grade: {
       files_read_post: ["references/modes-and-output.md"],
@@ -2003,11 +2007,114 @@ DEPTH: lite
 
 or
 
+DEPTH: focused
+
+or
+
 DEPTH: full`,
     grade: {
       files_read_post: ["references/modes-and-output.md"],
       declared: { DEPTH: "full" },
       actions: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-loud-lite",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/tablefmt.ts"],
+    fixture: `${FIX}/review-depth-loud-lite`,
+    post_only: true,
+    why: "A 60-line text-table formatter fails loudly in its own output. The old total-line floor at 39 forced the full spine on it; the floor now counts executable non-test lines against 200, so the consequence question runs and must answer lite.",
+    pre_contract:
+      "Any change over 39 total changed lines is size_band large and runs the full spine; the loud/silent question never runs.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: focused
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      declared: { DEPTH: "lite" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-focused",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/landing.ts"],
+    fixture: `${FIX}/review-depth-focused`,
+    post_only: true,
+    why: "A landing-path guard that decides whether an agent pushes to main fails silently: a wrong read of branch policy pushes when it should have opened a PR, with no error at the change site. It is not an auth, money, or public-contract boundary, so it takes the focused path (lite plus one independent adversarial read), not the full roster. Modeled on a real 2026-09-15 run that paid for the full spine on this shape.",
+    pre_contract:
+      "Any change over 39 total changed lines runs the full spine; there is no focused path.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: focused
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      declared: { DEPTH: "focused" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-auth-full",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/access.ts"],
+    fixture: `${FIX}/review-depth-auth-full`,
+    post_only: true,
+    why: "A workspace authorization check is a silent failure on an auth boundary. That boundary keeps the full spine even below the size floor; the agent must not stop at focused because the diff is small.",
+    pre_contract:
+      "Full spine by size band; the auth condition was not separately stated.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate only. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: focused
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md"],
+      declared: { DEPTH: "full" },
+      actions: "none",
+      delegates: "none",
     },
   },
   {

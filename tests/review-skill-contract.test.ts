@@ -888,8 +888,17 @@ describe("ce-code-review contract", () => {
     expect(modes).toMatch(
       /silent-pass guard, an auth \/ money \/ data boundary, or a public contract/,
     )
-    expect(modes).toMatch(/You may only upgrade to the full spine/)
+    expect(modes).toMatch(/a path may only move toward full/)
     expect(modes).toMatch(/Do not dispatch reviewers or finish leaves/)
+    // Size below the full floor is a fact, never a decision: the floor is
+    // executable non-test lines at FULL_EXEC_LINE_MIN, and a total-line band is gone.
+    expect(modes).toMatch(/### Focused path/)
+    expect(modes).toMatch(/"depth": "lite \| focused \| full"/)
+    expect(modes).toMatch(/one independent adversarial read/)
+    expect(modes).toMatch(/never run both on the same brief/)
+    expect(helper).toMatch(/FULL_EXEC_LINE_MIN = 200/)
+    expect(helper).not.toMatch(/SMALL_LINE_MAX/)
+    expect(helper).toMatch(/"exec_nontest_lines"/)
     expect(modes).toMatch(
       /`mode:agent` bypasses this short-circuit only/,
     )

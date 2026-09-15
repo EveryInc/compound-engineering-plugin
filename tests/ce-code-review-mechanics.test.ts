@@ -142,7 +142,9 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.hard_block_full).toBe(false)
   })
 
-  test("scope helper hard-blocks a large size band", () => {
+  test("scope helper leaves a 40-line executable change below the full floor", () => {
+    // The floor counts executable non-test lines against FULL_EXEC_LINE_MIN, not
+    // total changed lines: a 40-line change is the gate's consequence question.
     const { dir, base } = fixtureRepo()
     const lines = Array.from({ length: 40 }, (_, i) => `export const n${i} = ${i}`).join("\n") + "\n"
     writeFileSync(path.join(dir, "service.ts"), lines)
@@ -153,9 +155,44 @@ describe("ce-code-review deterministic mechanics", () => {
     const scope = JSON.parse(result.stdout)
 
     expect(scope.changed_lines).toBeGreaterThanOrEqual(40)
+    expect(scope.exec_nontest_lines).toBeGreaterThanOrEqual(40)
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_full).toBe(false)
+    expect(scope.hard_block_classes).toEqual([])
+  })
+
+  test("scope helper hard-blocks executable non-test changes at the full floor", () => {
+    const { dir, base } = fixtureRepo()
+    const lines = Array.from({ length: 200 }, (_, i) => `export const n${i} = ${i}`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "service.ts"), lines)
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_nontest_lines).toBeGreaterThanOrEqual(200)
     expect(scope.size_band).toBe("large")
     expect(scope.hard_block_full).toBe(true)
     expect(scope.hard_block_classes).toEqual([])
+  })
+
+  test("scope helper does not count test files toward the full floor", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "tests"))
+    const lines = Array.from({ length: 250 }, (_, i) => `test("n${i}", () => {})`).join("\n") + "\n"
+    writeFileSync(path.join(dir, "tests", "service.test.ts"), lines)
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_lines).toBeGreaterThanOrEqual(250)
+    expect(scope.exec_nontest_lines).toBe(0)
+    expect(scope.test_files_changed).toBe(true)
+    expect(scope.size_band).toBe("small")
+    expect(scope.hard_block_full).toBe(false)
   })
 
   test("scope helper emits UNKNOWN-equivalent state for an invalid endpoint", () => {

@@ -46,7 +46,7 @@ packs:
 
 > Load invoices in the settings controller and pass them as Inertia props; no new endpoint. `(pack: house-rules, no-parallel-json-api.md)`
 
-And if a later diff adds `/api/invoices` anyway, `ce-code-review` flags it against the same rule on its full review path (a small diff that takes the lite path is not checked against packs, and its receipt says so).
+And if a later diff adds `/api/invoices` anyway, `ce-code-review` flags it against the same rule on its full review path (a diff that takes the lite or focused path is not checked against packs, and its receipt says so).
 
 ## Pack layout
 
