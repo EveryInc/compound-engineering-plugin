@@ -62,8 +62,8 @@ Page routes answer `OPTIONS` with `Access-Control-Allow-Origin: <exact --app-ori
 
 | Route | Body | Response |
 |---|---|---|
-| `GET /wait` | none | Long-poll. `200 <wake envelope>`; `204` after the poll window (the CLI loops); `409 { "status": "wait-taken" }` when another wait is parked; `410 { "status": "session-ended" }` when the session ended and nothing is held. |
-| `POST /checkpoints/:id/ack` | `{}` | `200 { "ok", "checkpoint_id" }`; `404` for an unknown or already-acknowledged checkpoint. |
+| `GET /wait` | none | Long-poll. `200 <wake envelope>`; `204` after the poll window (the CLI loops); `409 { "status": "wait-taken" }` when another wait is parked; `410 { "status": "session-ended" }` when the session ended and nothing is held (the agent token itself stays valid until `stop`). |
+| `POST /checkpoints/:id/ack` | `{}` | `200 { "ok", "checkpoint_id" }`; idempotent: a repeated ack of a batch this session already dropped is `200 { "ok", "checkpoint_id", "already_acked": true }`; `404` for a checkpoint the session never served. |
 | `POST /units/:id/status` | `{ "status", "note"?, "guess"? }` with status in `triaging`, `accepted`, `needs_info`, `applied`, `blocked`, `withdrawn` | `200`; relays `unit_status` (and `applied`) on the stream. `accepted` puts the unit in the backlog below; `applied` or `blocked` takes it out. `409` once the page has withdrawn the unit: a withdrawal is terminal. |
 | `POST /units/:id/ask` | `{ "question" }` | `200`; moves the unit to `needs_info` and relays `ask` on the stream. `409` for a withdrawn unit. |
 | `GET /status` | none | The board summary, the same document the `status` CLI prints. |
@@ -103,7 +103,7 @@ After the endpoint relays an `applied` notice, a page stream that closes and doe
 
 | Command | Behavior | Exit |
 |---|---|---|
-| `start --root <dir> [--app-origin <origin>] [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--trust-proxy <ip>[,<ip>]] [--foreground]` | Prints `{ url, port, page_token, status }` once; writes `state/session.json`. When `state/session.json` has `ended: false`, this is a resume: the same `page_token` and `agent_token` are reused, the `session_id` binding, board, acknowledged `seq`, and un-acknowledged batches are reloaded, the previous port is preferred, and only `pid`, `owner_pid`, and `url` are rewritten (`status: "resumed"`); the previous `--app-origin`, bind host, and `--trust-proxy` list are kept unless given again, so the documented recovery is a bare `start --root <dir>`. `--app-origin` is required for a fresh session. An ended session whose agent token is still retained (its `final` batch unacknowledged) also resumes, with `page_token: null`, so the batch survives a restart. `wait` on such a stopped root exits 2 ("not running; resume"), never 1, while batches remain. Concurrent `start` calls for one root are serialized by `state/start.lock`. Fresh tokens are minted only when there is no state file or the session ended and drained. | 0 |
+| `start --root <dir> [--app-origin <origin>] [--host 127.0.0.1] [--port 0] [--owner-pid <pid>] [--trust-proxy <ip>[,<ip>]] [--foreground]` | Prints `{ url, port, page_token, status }` once; writes `state/session.json`. When `state/session.json` has `ended: false`, this is a resume: the same `page_token` and `agent_token` are reused, the `session_id` binding, board, acknowledged `seq`, and un-acknowledged batches are reloaded, the previous port is preferred, and only `pid`, `owner_pid`, and `url` are rewritten (`status: "resumed"`); the previous `--app-origin`, bind host, and `--trust-proxy` list are kept unless given again, so the documented recovery is a bare `start --root <dir>`. `--app-origin` is required for a fresh session. An ended session that still holds un-acknowledged batches also resumes, with `page_token: null`, so the `final` batch survives a restart; `wait` on such a stopped root exits 2 ("not running; resume"), never 1, while batches remain. An ended and drained root is not resumed: `start` mints fresh tokens and rotates the log. Concurrent `start` calls for one root are serialized by `state/start.lock`. Fresh tokens are minted only when there is no state file, or the session ended and drained (`stop`, or `start` on such a root). | 0 |
 | `status --root <dir>` | Prints `{ status, url?, port?, session_ended, board }` from `state/` without contacting the server. | 0 |
 | `stop --root <dir>` | Stops the server, invalidates both tokens, deletes `state/batches/`, keeps `state/log/`. | 0 |
 | `wait --root <dir>` | Reads the agent token from `state/session.json`, long-polls `/wait` with it as a bearer header, prints one envelope. | 0 batch; 1 session ended with nothing held (`{ "status": "session-ended" }`); 2 error; 3 another process holds the wake (`{ "status": "wait-taken" }`, do not stop the endpoint) |
@@ -111,14 +111,14 @@ After the endpoint relays an `applied` notice, a page stream that closes and doe
 
 `--trust-proxy` names the TLS-terminating proxy or tunnel addresses whose `X-Forwarded-Proto` the mint route may believe; a tunnel client on the same host connects over loopback and needs no entry.
 
-Owner death (`--owner-pid`) and the idle timeout (default 30 min, `CE_LIVE_IDLE_TIMEOUT_MS`) stop the process without ending the session; `state/` stays intact and `start --root` resumes. Only `/session/end` or `stop` ends a session. After `/session/end` the page token is retired immediately; the agent token stays valid until the final batch is acknowledged and nothing is held, then it is retired too, so `wait` exit 1 always means "ended with nothing held".
+Owner death (`--owner-pid`) and the idle timeout (default 30 min, `CE_LIVE_IDLE_TIMEOUT_MS`) stop the process without ending the session; `state/` stays intact and `start --root` resumes. Only `/session/end` or `stop` ends a session. After `/session/end` the page token is retired immediately; the agent token stays valid until `stop` (or a fresh, non-resume `start` on the ended root), per I4/KTD18. Once the `final` batch is acknowledged and nothing is held, `GET /wait` with the still-valid agent token answers `410 { "status": "session-ended" }` and the `wait` CLI exits 1; `GET /status`, `POST /checkpoints/:id/ack` (idempotent) and the `status` CLI keep working until `stop`, so an agent that crashes between the final ack and `stop` can still resume, inspect, and stop the root. `stop` retires both tokens.
 
 ### Run directory
 
 ```
 state/                  0700
   session.json          0600  { page_token, agent_token, url, app_origin, host, port, pid, owner_pid, ended, root, log_dir }
-  board.json            0600  units, annotations, answers, checkpoints, acked_seq, page state
+  board.json            0600  units, annotations, answers, checkpoints, acked_checkpoint_ids, acked_seq, page state
   brief.md                    session brief the skill writes before start (read at mint, max 3000 chars)
   server.pid, server.log
   batches/<checkpoint>.json   un-acknowledged wake envelopes
