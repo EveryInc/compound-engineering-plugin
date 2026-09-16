@@ -589,6 +589,7 @@ function emptyBoard() {
     transcript_count: 0,
     frame_count: 0,
     checkpoints: [],
+    acked_checkpoint_ids: [],
     released_unit_ids: [],
     released_annotation_ids: [],
     pending_withdrawn: [],
@@ -1225,7 +1226,6 @@ async function serve(options) {
     }
     if (board.ended) {
       sendJson(takeWaiter(), 410, { status: "session-ended" })
-      finishEndedSession()
     }
   }
 
@@ -1259,18 +1259,9 @@ async function serve(options) {
 
   // --- session end -----------------------------------------------------------
 
-  function nothingHeld() {
-    return batches.length === 0 && !board.page_lost_pending
-  }
-
-  // The page token dies with /session/end. The agent token survives until
-  // the agent has drained and acknowledged the final batch, so exit 1 is
-  // only ever "ended with nothing held" (KTD7).
-  function finishEndedSession() {
-    if (!board.ended || !nothingHeld() || session.agent_token === null) return
-    saveSession({ agent_token: null })
-  }
-
+  // The page token dies with /session/end. The agent token lives until `stop`
+  // (or a fresh start on the ended root), per I4/KTD18: an agent that crashes
+  // between the final ack and `stop` can still resume, `status`, and `stop`.
   function endSession() {
     if (board.ended) return
     // Terminal state is committed before anything observable happens; if the
@@ -1296,7 +1287,6 @@ async function serve(options) {
     }
     streamClients.clear()
     fulfillWaiter()
-    finishEndedSession()
   }
 
   // --- auth and CORS -----------------------------------------------------------
@@ -1862,15 +1852,22 @@ async function serve(options) {
   function handleAck(req, res, checkpointId) {
     const index = batches.findIndex((batch) => batch.envelope.checkpoint_id === checkpointId)
     if (index === -1) {
+      // Idempotent: a repeated ack of a batch this session already dropped is
+      // still a success, so a crashed agent can safely re-ack on resume.
+      if (board.acked_checkpoint_ids.includes(checkpointId)) {
+        sendJson(res, 200, { ok: true, checkpoint_id: checkpointId, already_acked: true })
+        return
+      }
       sendJson(res, 404, { error: "unknown checkpoint" })
       return
     }
     batches.splice(index, 1)
     fs.rmSync(batchFile(checkpointId), { force: true })
-    logAgent({ kind: "ack", checkpoint_id: checkpointId })
+    board.acked_checkpoint_ids.push(checkpointId)
+    bestEffort(() => saveBoard())
+    bestEffort(() => logAgent({ kind: "ack", checkpoint_id: checkpointId }))
     touch()
     sendJson(res, 200, { ok: true, checkpoint_id: checkpointId })
-    finishEndedSession()
   }
 
   async function handleUnitStatus(req, res, unitId) {
