@@ -13,6 +13,7 @@ import fs from "node:fs"
 import http from "node:http"
 import net from "node:net"
 import path from "node:path"
+import readline from "node:readline"
 import { fileURLToPath } from "node:url"
 
 const scriptPath = fileURLToPath(import.meta.url)
@@ -286,9 +287,10 @@ function parseArgs(argv) {
     if (options.trustProxy.some((ip) => !net.isIP(ip))) throw new Error("--trust-proxy takes IP addresses (comma-separated or repeated)")
     if (!options.appOrigin) {
       // The documented recovery is a bare `start --root <dir>`: a session
-      // that has not ended lends its origin.
+      // whose agent token is still retained lends its origin.
       const resumable = readJsonOrNull(path.join(path.resolve(options.root), "state", "session.json"))
-      if (resumable && resumable.ended === false && typeof resumable.app_origin === "string") options.appOrigin = resumable.app_origin
+      // Also lent by an ended session still draining its final batch.
+      if (resumable && resumable.agent_token && typeof resumable.app_origin === "string") options.appOrigin = resumable.app_origin
     }
     if (!options.appOrigin) throw new Error("--app-origin is required (the browser-facing origin of the app under polish)")
     options.appOrigin = normalizeOrigin(options.appOrigin)
@@ -446,6 +448,14 @@ function localAddressFor(host) {
 
 function newToken() {
   return randomBytes(32).toString("base64url")
+}
+
+function bestEffort(action) {
+  try {
+    action()
+  } catch {
+    // Cleanup on a failing disk is advisory.
+  }
 }
 
 function tokenMatches(candidate, expected) {
@@ -689,7 +699,7 @@ async function start(options) {
   if (!started) {
     throw new Error(`Endpoint failed to start. See ${options.logFile}`)
   }
-  jsonOut({ ...publicStartEnvelope(started), status: previous && !previous.ended ? "resumed" : "started" })
+  jsonOut({ ...publicStartEnvelope(started), status: previous?.agent_token ? "resumed" : "started" })
 }
 
 async function waitForSession(options, pid, previous) {
@@ -830,7 +840,6 @@ function applyProfile(envelope, profile) {
 async function replay(options) {
   const eventsFile = path.join(options.logDir, "events.ndjson")
   if (!fs.existsSync(eventsFile)) throw new Error(`No session log at ${eventsFile}`)
-  const lines = fs.readFileSync(eventsFile, "utf8").split("\n").filter(Boolean)
   // No longer than the recorded id: the rewrite must not push an envelope the
   // source accepted at the 64 KB cap over it at the target.
   const recorded = readJsonOrNull(options.boardFile)?.session_id ?? ""
@@ -870,7 +879,10 @@ async function replay(options) {
     return count <= 1 ? payloadBytes : payloadBytes + 2 + (count - 1)
   }
 
-  for (const line of lines) {
+  // Line by line: a log near the 500 MB budget must not be held whole.
+  const lines = readline.createInterface({ input: fs.createReadStream(eventsFile, "utf8"), crlfDelay: Infinity })
+  for await (const line of lines) {
+    if (!line) continue
     const stored = parseJsonObject(line)
     if (!stored || typeof stored.type !== "string") continue
     let envelope = { schema_version: SCHEMA_VERSION, session_id: sessionId, seq: 0, t: stored.t, type: stored.type, payload: stored.payload }
@@ -919,7 +931,10 @@ async function serve(options) {
   // Resume when a live session file exists for this root; otherwise mint a
   // fresh pair of credentials and start a new board.
   const previous = readSession(options)
-  const resuming = Boolean(previous && !previous.ended && previous.page_token && previous.agent_token)
+  // An ended session whose agent token is still retained is draining its
+  // final batch; it resumes too, so the batch survives a restart.
+  const draining = Boolean(previous?.ended && previous.agent_token && loadBatches(options).length > 0)
+  const resuming = Boolean(previous && previous.agent_token && ((!previous.ended && previous.page_token) || draining))
   // A resume keeps the previous bind host unless the caller names a new one;
   // the documented recovery is a bare `start --root <dir>` again.
   if (resuming && !options.hostExplicit && typeof previous.host === "string" && previous.host) options.host = previous.host
@@ -955,6 +970,7 @@ async function serve(options) {
   let waiter = null
   const streamClients = new Set()
   const outOfOrder = new Map()
+  let endingInFlight = false
   // Ids are validated but may still name inherited Object properties.
   const unitById = (id) => (Object.hasOwn(board.units, id) ? board.units[id] : undefined)
   const annotationById = (id) => (Object.hasOwn(board.annotations, id) ? board.annotations[id] : undefined)
@@ -1585,9 +1601,14 @@ async function serve(options) {
   // session ends: a final checkpoint releases anything still held, the page
   // token is invalidated, and the stream announces session_ended.
   function handleSessionEnd(req, res) {
+    if (endingInFlight) {
+      sendJson(res, 409, { error: "session_end_in_progress" }, corsHeaders())
+      return
+    }
+    endingInFlight = true
     const remaining = Math.max(0, Math.min(ARCHIVE_BODY_LIMIT, DISK_CAP_BYTES - logBytes))
     const archivePath = path.join(options.logDir, `archive.${archiveExtension(req.headers["content-type"])}`)
-    const tmpPath = `${archivePath}.part`
+    const tmpPath = `${archivePath}.${randomUUID()}.part`
     const out = fs.createWriteStream(tmpPath, { mode: 0o600 })
     let size = 0
     let tooLarge = false
@@ -1612,28 +1633,33 @@ async function serve(options) {
       // session stays live and resumable and the page may retry.
       if (failed || tooLarge) return
       failed = true
+      endingInFlight = false
       req.pause()
-      fs.rmSync(tmpPath, { force: true })
-      logAgent({ kind: "archive_failed", error: error.code ?? error.message })
+      // The response must not depend on another write to the disk that just failed.
       sendJson(res, 500, { error: "archive_write_failed", code: error.code ?? null }, corsHeaders())
+      bestEffort(() => fs.rmSync(tmpPath, { force: true }))
+      bestEffort(() => logAgent({ kind: "archive_failed", error: error.code ?? error.message }))
     })
     req.on("error", () => {
+      endingInFlight = false
       out.destroy()
-      fs.rmSync(tmpPath, { force: true })
+      bestEffort(() => fs.rmSync(tmpPath, { force: true }))
     })
     req.on("end", () => {
       if (failed) return
       if (tooLarge) {
-        fs.rmSync(tmpPath, { force: true })
+        endingInFlight = false
+        bestEffort(() => fs.rmSync(tmpPath, { force: true }))
         sendJson(res, 413, { max_bytes: remaining }, corsHeaders())
         return
       }
       out.end(() => {
+        if (failed) return
         if (size > 0) {
           fs.renameSync(tmpPath, archivePath)
           logBytes += size
         } else {
-          fs.rmSync(tmpPath, { force: true })
+          bestEffort(() => fs.rmSync(tmpPath, { force: true }))
         }
         touch()
         // The overlay's Done control sends the `final` checkpoint before
@@ -1644,6 +1670,7 @@ async function serve(options) {
         }
         logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size })
         endSession()
+        endingInFlight = false
         sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
       })
     })
@@ -1847,7 +1874,7 @@ async function serve(options) {
   // (and host/port when the old port was taken). Tokens and everything else
   // are the previous session's.
   session = resuming
-    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, trust_proxy: options.trustProxy, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: false }
+    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, trust_proxy: options.trustProxy, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: Boolean(previous.ended) }
     : {
       page_token: pageToken,
       agent_token: agentToken,
