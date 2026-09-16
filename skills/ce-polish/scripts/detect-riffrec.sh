@@ -15,10 +15,14 @@
 #   {
 #     "dependency": true|false,      riffrec listed in dependencies,
 #                                    devDependencies, or peerDependencies
+#     "installed": true|false,       node_modules/riffrec/package.json exists
+#     "live_build": true|false,      the installed dist/index.d.ts names
+#                                    RiffrecLiveConfig (a live-capable build)
 #     "version": "1.2.3"|null,       installed node_modules/riffrec version,
 #                                    else the declared range with a leading
 #                                    ^ ~ = or v stripped; null when absent
-#     "mount": true|false,           a RiffrecProvider JSX mount exists in a
+#     "mount": true|false,           a RiffrecProvider JSX opening element
+#                                    (not a comment or string) exists in a
 #                                    source file outside node_modules and
 #                                    build output
 #     "package_manager": "npm"|"pnpm"|"yarn"|"bun"|null
@@ -58,6 +62,7 @@ json_string() {
 
 emit() {
   # $1 dependency  $2 version-or-empty  $3 mount  $4 package-manager-or-empty
+  # $5 installed  $6 live_build
   if [ -n "$2" ]; then
     version_json="\"$(json_string "$2")\""
   else
@@ -68,8 +73,37 @@ emit() {
   else
     pm_json="null"
   fi
-  printf '{"dependency":%s,"version":%s,"mount":%s,"package_manager":%s}\n' \
-    "$1" "$version_json" "$3" "$pm_json"
+  printf '{"dependency":%s,"installed":%s,"live_build":%s,"version":%s,"mount":%s,"package_manager":%s}\n' \
+    "$1" "$5" "$6" "$version_json" "$3" "$pm_json"
+}
+
+# A real JSX opening element for RiffrecProvider in one file: the tag begins
+# a line (after whitespace, `(`, or `return`), is followed by whitespace, `>`,
+# or end of line, and is not inside a `//` line, a `/* */` or `{/* */}` block,
+# or a quoted string on the same line.
+has_jsx_mount() {
+  # $1 file
+  awk '
+    {
+      line = $0
+      if (inblock) {
+        if (index(line, "*/") == 0) next
+        line = substr(line, index(line, "*/") + 2)
+        inblock = 0
+      }
+      while ((start = index(line, "/*")) > 0) {
+        stop = index(substr(line, start + 2), "*/")
+        if (stop == 0) { line = substr(line, 1, start - 1); inblock = 1; break }
+        line = substr(line, 1, start - 1) substr(line, start + 2 + stop + 1)
+      }
+      if ((c = index(line, "//")) > 0) line = substr(line, 1, c - 1)
+      if (match(line, /^[[:space:]]*(\(|return[[:space:]]+)?<RiffrecProvider([[:space:]>]|$)/)) {
+        before = substr(line, 1, RSTART - 1)
+        if (index(before, "\"") == 0 && index(before, "\047") == 0 && index(before, "`") == 0) { found = 1; exit }
+      }
+    }
+    END { exit found ? 0 : 1 }
+  ' "$1" 2>/dev/null
 }
 
 # Extract the first `"<key>": "<string>"` pair from a JSON file, wherever it
@@ -111,6 +145,8 @@ declared_dependency() {
 }
 
 DEPENDENCY=false
+INSTALLED=false
+LIVE_BUILD=false
 VERSION=""
 MOUNT=false
 PACKAGE_MANAGER=""
@@ -129,7 +165,17 @@ if [ -f "$PACKAGE_JSON" ]; then
     DEPENDENCY=true
     INSTALLED_PKG="$TARGET_PATH/node_modules/riffrec/package.json"
     if [ -f "$INSTALLED_PKG" ]; then
+      INSTALLED=true
       VERSION=$(json_value "$INSTALLED_PKG" "version")
+      # The built entry types name the live provider config only in a build
+      # that carries live mode; a declared range or a stale committed dist
+      # proves nothing.
+      for dts in "$TARGET_PATH/node_modules/riffrec/dist/index.d.ts" "$TARGET_PATH/node_modules/riffrec/dist/index.d.cts"; do
+        if [ -f "$dts" ] && grep -q "RiffrecLiveConfig" "$dts" 2>/dev/null; then
+          LIVE_BUILD=true
+          break
+        fi
+      done
     fi
     if [ -z "$VERSION" ]; then
       VERSION=$(printf '%s' "$DECLARED" | sed -e 's/^[\^~=v]//')
@@ -146,7 +192,7 @@ if find "$TARGET_PATH" \
     -type f \( -name '*.tsx' -o -name '*.jsx' -o -name '*.ts' -o -name '*.js' -o -name '*.mjs' \) \
     -print 2>/dev/null \
   | while IFS= read -r file; do
-      if grep -q '<RiffrecProvider' "$file" 2>/dev/null; then
+      if grep -q '<RiffrecProvider' "$file" 2>/dev/null && has_jsx_mount "$file"; then
         echo found
         break
       fi
@@ -155,5 +201,5 @@ if find "$TARGET_PATH" \
   MOUNT=true
 fi
 
-emit "$DEPENDENCY" "$VERSION" "$MOUNT" "$PACKAGE_MANAGER"
+emit "$DEPENDENCY" "$VERSION" "$MOUNT" "$PACKAGE_MANAGER" "$INSTALLED" "$LIVE_BUILD"
 exit 0
