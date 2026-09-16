@@ -13,6 +13,7 @@ import fs from "node:fs"
 import http from "node:http"
 import net from "node:net"
 import path from "node:path"
+import readline from "node:readline"
 import { fileURLToPath } from "node:url"
 
 const scriptPath = fileURLToPath(import.meta.url)
@@ -284,6 +285,13 @@ function parseArgs(argv) {
   options.trustProxy = options.trustProxy ?? []
   if (command === "start" || command === "serve") {
     if (options.trustProxy.some((ip) => !net.isIP(ip))) throw new Error("--trust-proxy takes IP addresses (comma-separated or repeated)")
+    if (!options.appOrigin) {
+      // The documented recovery is a bare `start --root <dir>`: a session
+      // whose agent token is still retained lends its origin.
+      const resumable = readJsonOrNull(path.join(path.resolve(options.root), "state", "session.json"))
+      // Also lent by an ended session still draining its final batch.
+      if (resumable && resumable.agent_token && typeof resumable.app_origin === "string") options.appOrigin = resumable.app_origin
+    }
     if (!options.appOrigin) throw new Error("--app-origin is required (the browser-facing origin of the app under polish)")
     options.appOrigin = normalizeOrigin(options.appOrigin)
     if (!options.appOrigin) throw new Error("--app-origin must be an origin such as http://localhost:3000")
@@ -440,6 +448,14 @@ function localAddressFor(host) {
 
 function newToken() {
   return randomBytes(32).toString("base64url")
+}
+
+function bestEffort(action) {
+  try {
+    action()
+  } catch {
+    // Cleanup on a failing disk is advisory.
+  }
 }
 
 function tokenMatches(candidate, expected) {
@@ -683,7 +699,7 @@ async function start(options) {
   if (!started) {
     throw new Error(`Endpoint failed to start. See ${options.logFile}`)
   }
-  jsonOut({ ...publicStartEnvelope(started), status: previous && !previous.ended ? "resumed" : "started" })
+  jsonOut({ ...publicStartEnvelope(started), status: previous?.agent_token ? "resumed" : "started" })
 }
 
 async function waitForSession(options, pid, previous) {
@@ -824,11 +840,10 @@ function applyProfile(envelope, profile) {
 async function replay(options) {
   const eventsFile = path.join(options.logDir, "events.ndjson")
   if (!fs.existsSync(eventsFile)) throw new Error(`No session log at ${eventsFile}`)
-  const lines = fs.readFileSync(eventsFile, "utf8").split("\n").filter(Boolean)
   // No longer than the recorded id: the rewrite must not push an envelope the
   // source accepted at the 64 KB cap over it at the target.
   const recorded = readJsonOrNull(options.boardFile)?.session_id ?? ""
-  const sessionId = `r${randomBytes(16).toString("hex")}`.slice(0, Math.max(8, String(recorded).length))
+  const sessionId = `r${randomBytes(16).toString("hex")}`.slice(0, Math.max(1, String(recorded).length))
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${options.token}`,
@@ -864,7 +879,10 @@ async function replay(options) {
     return count <= 1 ? payloadBytes : payloadBytes + 2 + (count - 1)
   }
 
-  for (const line of lines) {
+  // Line by line: a log near the 500 MB budget must not be held whole.
+  const lines = readline.createInterface({ input: fs.createReadStream(eventsFile, "utf8"), crlfDelay: Infinity })
+  for await (const line of lines) {
+    if (!line) continue
     const stored = parseJsonObject(line)
     if (!stored || typeof stored.type !== "string") continue
     let envelope = { schema_version: SCHEMA_VERSION, session_id: sessionId, seq: 0, t: stored.t, type: stored.type, payload: stored.payload }
@@ -913,10 +931,14 @@ async function serve(options) {
   // Resume when a live session file exists for this root; otherwise mint a
   // fresh pair of credentials and start a new board.
   const previous = readSession(options)
-  const resuming = Boolean(previous && !previous.ended && previous.page_token && previous.agent_token)
+  // An ended session whose agent token is still retained is draining its
+  // final batch; it resumes too, so the batch survives a restart.
+  const draining = Boolean(previous?.ended && previous.agent_token && loadBatches(options).length > 0)
+  const resuming = Boolean(previous && previous.agent_token && ((!previous.ended && previous.page_token) || draining))
   // A resume keeps the previous bind host unless the caller names a new one;
   // the documented recovery is a bare `start --root <dir>` again.
   if (resuming && !options.hostExplicit && typeof previous.host === "string" && previous.host) options.host = previous.host
+  if (resuming && options.trustProxy.length === 0 && Array.isArray(previous.trust_proxy)) options.trustProxy = previous.trust_proxy.filter((ip) => net.isIP(ip))
   const pageToken = resuming ? previous.page_token : newToken()
   const agentToken = resuming ? previous.agent_token : newToken()
   if (!resuming) {
@@ -948,6 +970,7 @@ async function serve(options) {
   let waiter = null
   const streamClients = new Set()
   const outOfOrder = new Map()
+  let endingInFlight = false
   // Ids are validated but may still name inherited Object properties.
   const unitById = (id) => (Object.hasOwn(board.units, id) ? board.units[id] : undefined)
   const annotationById = (id) => (Object.hasOwn(board.annotations, id) ? board.annotations[id] : undefined)
@@ -1121,10 +1144,11 @@ async function serve(options) {
       return
     }
     if (board.page_lost_pending) {
+      // Left by a helper from before page-lost wakes were queued as batches.
       const envelope = board.page_lost_pending
       board.page_lost_pending = null
       saveBoard()
-      sendJson(takeWaiter(), 200, envelope)
+      enqueueBatch(envelope)
       return
     }
     if (board.ended) {
@@ -1144,12 +1168,12 @@ async function serve(options) {
       board.page.lost_episodes += 1
       board.page.stream = "lost"
       board.watch_for_loss = false
-      board.page_lost_pending = makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
+      saveBoard()
+      // Queued like any batch: persisted and re-served until acknowledged.
+      enqueueBatch(makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
         session_status: "page_lost",
         lost_after_checkpoint_id: last?.id ?? null,
-      })
-      saveBoard()
-      fulfillWaiter()
+      }))
     }, PAGE_LOST_GRACE_MS)
     pageLostTimer.unref()
   }
@@ -1325,7 +1349,12 @@ async function serve(options) {
       const trigger = PAGE_CHECKPOINT_KINDS.has(payload.trigger) ? payload.trigger : "send"
       const mode = EXECUTION_MODES.has(payload.mode) ? payload.mode : board.mode
       board.mode = mode
-      releaseCheckpoint(typeof payload.id === "string" && payload.id ? payload.id : `ck-${randomUUID()}`, trigger, mode)
+      // A checkpoint id keys its batch file and its ack route, so a reused
+      // page id gets a suffix rather than overwriting the earlier batch.
+      const wanted = typeof payload.id === "string" && payload.id ? payload.id : `ck-${randomUUID()}`
+      let checkpointId = wanted
+      for (let n = 2; board.checkpoints.some((c) => c.id === checkpointId); n += 1) checkpointId = `${wanted}-${n}`
+      releaseCheckpoint(checkpointId, trigger, mode)
     } else if (type === "answer") {
       const answer = { unit_id: payload.unit_id, text: payload.text, t: envelope.t }
       board.answers.push(answer)
@@ -1349,12 +1378,13 @@ async function serve(options) {
   function storeEnvelope(envelope) {
     if (envelope.type === "frame") {
       const id = typeof envelope.payload.id === "string" && envelope.payload.id ? envelope.payload.id : randomUUID()
-      const safeId = encodeURIComponent(id)
-      const frameFile = path.join("frames", `${safeId}.jpg`)
+      // Keyed by seq too: a reused frame id must not overwrite earlier evidence.
+      const fileName = `${envelope.seq}-${encodeURIComponent(id)}.jpg`
+      const frameFile = path.join("frames", fileName)
       const { jpeg_base64: jpeg, ...rest } = envelope.payload
       if (typeof jpeg === "string") {
         const bytes = Buffer.from(jpeg, "base64")
-        fs.writeFileSync(path.join(framesDir, `${safeId}.jpg`), bytes, { mode: 0o600 })
+        fs.writeFileSync(path.join(framesDir, fileName), bytes, { mode: 0o600 })
         logBytes += bytes.length
       }
       logEvent({ seq: envelope.seq, t: envelope.t, type: "frame", payload: rest, frame_file: frameFile })
@@ -1571,9 +1601,14 @@ async function serve(options) {
   // session ends: a final checkpoint releases anything still held, the page
   // token is invalidated, and the stream announces session_ended.
   function handleSessionEnd(req, res) {
+    if (endingInFlight) {
+      sendJson(res, 409, { error: "session_end_in_progress" }, corsHeaders())
+      return
+    }
+    endingInFlight = true
     const remaining = Math.max(0, Math.min(ARCHIVE_BODY_LIMIT, DISK_CAP_BYTES - logBytes))
     const archivePath = path.join(options.logDir, `archive.${archiveExtension(req.headers["content-type"])}`)
-    const tmpPath = `${archivePath}.part`
+    const tmpPath = `${archivePath}.${randomUUID()}.part`
     const out = fs.createWriteStream(tmpPath, { mode: 0o600 })
     let size = 0
     let tooLarge = false
@@ -1585,24 +1620,46 @@ async function serve(options) {
         out.destroy()
         return
       }
-      out.write(chunk)
+      // Pause the upload while the disk catches up; a fast sender must not
+      // park the archive in process memory.
+      if (!out.write(chunk)) {
+        req.pause()
+        out.once("drain", () => req.resume())
+      }
+    })
+    let failed = false
+    out.on("error", (error) => {
+      // ENOSPC or a permission error must not take the endpoint down; the
+      // session stays live and resumable and the page may retry.
+      if (failed || tooLarge) return
+      failed = true
+      endingInFlight = false
+      req.pause()
+      // The response must not depend on another write to the disk that just failed.
+      sendJson(res, 500, { error: "archive_write_failed", code: error.code ?? null }, corsHeaders())
+      bestEffort(() => fs.rmSync(tmpPath, { force: true }))
+      bestEffort(() => logAgent({ kind: "archive_failed", error: error.code ?? error.message }))
     })
     req.on("error", () => {
+      endingInFlight = false
       out.destroy()
-      fs.rmSync(tmpPath, { force: true })
+      bestEffort(() => fs.rmSync(tmpPath, { force: true }))
     })
     req.on("end", () => {
+      if (failed) return
       if (tooLarge) {
-        fs.rmSync(tmpPath, { force: true })
+        endingInFlight = false
+        bestEffort(() => fs.rmSync(tmpPath, { force: true }))
         sendJson(res, 413, { max_bytes: remaining }, corsHeaders())
         return
       }
       out.end(() => {
+        if (failed) return
         if (size > 0) {
           fs.renameSync(tmpPath, archivePath)
           logBytes += size
         } else {
-          fs.rmSync(tmpPath, { force: true })
+          bestEffort(() => fs.rmSync(tmpPath, { force: true }))
         }
         touch()
         // The overlay's Done control sends the `final` checkpoint before
@@ -1613,6 +1670,7 @@ async function serve(options) {
         }
         logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size })
         endSession()
+        endingInFlight = false
         sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
       })
     })
@@ -1816,7 +1874,7 @@ async function serve(options) {
   // (and host/port when the old port was taken). Tokens and everything else
   // are the previous session's.
   session = resuming
-    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: false }
+    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, trust_proxy: options.trustProxy, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: Boolean(previous.ended) }
     : {
       page_token: pageToken,
       agent_token: agentToken,
@@ -1824,6 +1882,7 @@ async function serve(options) {
       app_origin: options.appOrigin,
       host: options.host,
       port: boundPort,
+      trust_proxy: options.trustProxy,
       pid: process.pid,
       owner_pid: options.ownerPid ?? null,
       ended: false,
