@@ -13,6 +13,7 @@ import fs from "node:fs"
 import http from "node:http"
 import net from "node:net"
 import path from "node:path"
+import readline from "node:readline"
 import { fileURLToPath } from "node:url"
 
 const scriptPath = fileURLToPath(import.meta.url)
@@ -31,8 +32,6 @@ const DISK_CAP_BYTES = Number(process.env.CE_LIVE_DISK_CAP_BYTES) || 500 * 1024 
 const BRIEF_MAX_CHARS = 3000
 // Envelopes held ahead of a sequence gap before early arrivals are dropped for replay.
 const OUT_OF_ORDER_CAP = 512
-// Replay batches stay under the target's 64 KB cap with headroom for the array framing.
-const REPLAY_BATCH_LIMIT = BODY_LIMIT - 1024
 const MINTS_PER_MINUTE = 5
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "")
 const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime"
@@ -46,12 +45,73 @@ const PAGE_EVENT_TYPES = new Set([
 ])
 // Page-emitted checkpoint triggers (KTD9). `silence`/`page_change`/`send`
 // wake the agent only when they release something; `final` always wakes.
-const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "answer", "final"])
+const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "final"])
 const ALWAYS_WAKE_KINDS = new Set(["answer", "mode_change", "final"])
 const EXECUTION_MODES = new Set(["instant", "smart", "collect"])
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 // Agent-postable unit statuses: riffrec's UnitStatus set minus `initial`.
 const AGENT_UNIT_STATUSES = new Set(["triaging", "accepted", "needs_info", "applied", "blocked", "withdrawn"])
+const UNIT_STATUSES = new Set(["initial", ...AGENT_UNIT_STATUSES])
+
+// Payload shapes, ported from riffrec's `isPayloadFor` (src/live/contract.ts)
+// so a malformed event is refused before it is acknowledged.
+const isRecord = (v) => typeof v === "object" && v !== null && !Array.isArray(v)
+const isString = (v) => typeof v === "string"
+const isFiniteNumber = (v) => typeof v === "number" && Number.isFinite(v)
+const isBoolean = (v) => typeof v === "boolean"
+const optionalString = (v) => v === undefined || isString(v)
+const isStringArray = (v) => Array.isArray(v) && v.every(isString)
+const isRect = (v) => isRecord(v) && isFiniteNumber(v.x) && isFiniteNumber(v.y) && isFiniteNumber(v.width) && isFiniteNumber(v.height)
+const isAnchor = (v) => isRecord(v) && isString(v.route) && isString(v.selector) && (v.component === undefined || v.component === null || isString(v.component)) && isRect(v.rect) && isFiniteNumber(v.t)
+const isAnchorArray = (v) => Array.isArray(v) && v.every(isAnchor)
+const isConfirmation = (v) => isRecord(v) && isBoolean(v.element) && isBoolean(v.change)
+const isSpan = (v) => isRecord(v) && isFiniteNumber(v.t_start) && isFiniteNumber(v.t_end)
+const isEvidence = (v) => isRecord(v) && isStringArray(v.frame_ids) && isStringArray(v.annotation_ids) && isSpan(v.transcript_span)
+  && optionalString(v.audio_clip_id) && (v.telemetry_window === undefined || (isSpan(v.telemetry_window) && Array.isArray(v.telemetry_window.events)))
+const isPointArray = (v) => Array.isArray(v) && v.every((p) => isRecord(p) && isFiniteNumber(p.x) && isFiniteNumber(p.y) && (p.pressure === undefined || isFiniteNumber(p.pressure)))
+
+function validPayload(type, payload) {
+  if (!isRecord(payload)) return false
+  switch (type) {
+    case "click":
+      return payload.type === type && isFiniteNumber(payload.t) && isRecord(payload.element) && isString(payload.element.selector)
+    case "network_request":
+      return payload.type === type && isFiniteNumber(payload.t) && isString(payload.url) && isString(payload.method) && isFiniteNumber(payload.status)
+    case "console_error":
+      return payload.type === type && isFiniteNumber(payload.t) && isString(payload.message)
+    case "navigation":
+      return payload.type === type && isFiniteNumber(payload.t) && isString(payload.from) && isString(payload.to)
+    case "transcript":
+      return isString(payload.id) && (payload.role === "riffer" || payload.role === "interviewer") && isString(payload.text)
+        && isFiniteNumber(payload.t_start) && isFiniteNumber(payload.t_end) && isBoolean(payload.final)
+    case "unit":
+      return isString(payload.id) && isString(payload.statement) && isString(payload.transcript_excerpt) && isAnchorArray(payload.anchors)
+        && isEvidence(payload.evidence) && UNIT_STATUSES.has(payload.status) && (payload.confirmed === undefined || isConfirmation(payload.confirmed))
+    case "unit_update":
+      return isString(payload.unit_id) && optionalString(payload.statement) && (payload.anchors_add === undefined || isAnchorArray(payload.anchors_add))
+        && (payload.confirmed === undefined || isConfirmation(payload.confirmed))
+    case "unit_withdraw":
+      return isString(payload.unit_id) && optionalString(payload.reason)
+    case "annotation":
+      return isString(payload.id) && (payload.kind === "stroke" || payload.kind === "pin") && isPointArray(payload.points) && isRect(payload.bbox)
+        && isAnchor(payload.anchor) && optionalString(payload.text) && optionalString(payload.unit_id) && optionalString(payload.composite_frame_id)
+    case "checkpoint":
+      return isString(payload.id) && PAGE_CHECKPOINT_KINDS.has(payload.trigger) && EXECUTION_MODES.has(payload.mode)
+    case "answer":
+      return isString(payload.unit_id) && isString(payload.text)
+    case "frame":
+      return isString(payload.id) && isFiniteNumber(payload.t) && isString(payload.route)
+        && ["gesture", "periodic", "composite"].includes(payload.kind) && isString(payload.jpeg_base64)
+    case "mic":
+      return ["granted", "denied", "muted", "unmuted"].includes(payload.state)
+    case "mode":
+      return EXECUTION_MODES.has(payload.mode)
+    case "stream_state":
+      return ["streaming", "buffering", "unloading"].includes(payload.state)
+    default:
+      return false
+  }
+}
 const EVIDENCE_PROFILES = {
   anchors_transcript_only: { frames: "none", annotations: false, clips: false, telemetry: false },
   strokes_composite: { frames: "composite", annotations: true, clips: false, telemetry: false },
@@ -200,7 +260,7 @@ function parseArgs(argv) {
   for (let i = 3; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === "--root") options.root = argv[++i]
-    else if (arg === "--host") options.host = argv[++i]
+    else if (arg === "--host") { options.host = argv[++i]; options.hostExplicit = true }
     else if (arg === "--port") options.port = Number(argv[++i])
     else if (arg === "--foreground") options.foreground = true
     else if (arg === "--owner-pid") options.ownerPid = Number(argv[++i])
@@ -225,6 +285,13 @@ function parseArgs(argv) {
   options.trustProxy = options.trustProxy ?? []
   if (command === "start" || command === "serve") {
     if (options.trustProxy.some((ip) => !net.isIP(ip))) throw new Error("--trust-proxy takes IP addresses (comma-separated or repeated)")
+    if (!options.appOrigin) {
+      // The documented recovery is a bare `start --root <dir>`: a session
+      // whose agent token is still retained lends its origin.
+      const resumable = readJsonOrNull(path.join(path.resolve(options.root), "state", "session.json"))
+      // Also lent by an ended session still draining its final batch.
+      if (resumable && resumable.agent_token && typeof resumable.app_origin === "string") options.appOrigin = resumable.app_origin
+    }
     if (!options.appOrigin) throw new Error("--app-origin is required (the browser-facing origin of the app under polish)")
     options.appOrigin = normalizeOrigin(options.appOrigin)
     if (!options.appOrigin) throw new Error("--app-origin must be an origin such as http://localhost:3000")
@@ -381,6 +448,14 @@ function localAddressFor(host) {
 
 function newToken() {
   return randomBytes(32).toString("base64url")
+}
+
+function bestEffort(action) {
+  try {
+    action()
+  } catch {
+    // Cleanup on a failing disk is advisory.
+  }
 }
 
 function tokenMatches(candidate, expected) {
@@ -584,6 +659,35 @@ function readBoardSummary(options) {
 async function start(options) {
   ensureDirs(options)
   options.ownerPid = options.ownerPid ?? resolveOwnerPid()
+  // One start per root at a time, foreground or detached: the running check
+  // and the launch happen under the same claim.
+  const lockPath = acquireStartLock(options)
+  try {
+    await startLocked(options)
+  } finally {
+    fs.rmSync(lockPath, { force: true })
+  }
+}
+
+function acquireStartLock(options) {
+  const lockPath = path.join(options.stateDir, "start.lock")
+  let lockFd
+  try {
+    lockFd = fs.openSync(lockPath, "wx", 0o600)
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error
+    const holder = Number(fs.readFileSync(lockPath, "utf8")) || null
+    if (holder && processAlive(holder)) throw new Error("Another `start` for this root is in progress")
+    fs.rmSync(lockPath, { force: true })
+    lockFd = fs.openSync(lockPath, "wx", 0o600)
+  }
+  fs.writeSync(lockFd, `${process.pid}\n`)
+  fs.closeSync(lockFd)
+  return lockPath
+}
+
+// Releases the lock only once the session file proves the server is up.
+async function startLocked(options) {
   const running = getRunningInfo(options)
   if (running && !running.ended) {
     if (running.app_origin !== options.appOrigin) {
@@ -594,13 +698,22 @@ async function start(options) {
   }
   if (running) await stopServer(options)
   fs.rmSync(options.pidFile, { force: true })
+  const previous = readSession(options)
 
   if (options.foreground) {
-    await serve(options)
-    return
+    // serve() resolves once listening; the server handle keeps the process up.
+    const serving = serve(options)
+    serving.catch(() => {})
+    const up = await waitForSession(options, process.pid, previous)
+    await serving
+    if (!up) throw new Error("Endpoint failed to start")
+    return null
   }
 
-  const previous = readSession(options)
+  await spawnServe(options, previous)
+}
+
+async function spawnServe(options, previous) {
   const logFd = fs.openSync(options.logFile, "a", 0o600)
   const child = spawn(process.execPath, [
     scriptPath,
@@ -609,8 +722,7 @@ async function start(options) {
     options.root,
     "--app-origin",
     options.appOrigin,
-    "--host",
-    options.host,
+    ...(options.hostExplicit ? ["--host", options.host] : []),
     ...(options.port !== undefined ? ["--port", String(options.port)] : []),
     ...(options.ownerPid ? ["--owner-pid", String(options.ownerPid)] : []),
     ...(options.trustProxy.length > 0 ? ["--trust-proxy", options.trustProxy.join(",")] : []),
@@ -625,7 +737,7 @@ async function start(options) {
   if (!started) {
     throw new Error(`Endpoint failed to start. See ${options.logFile}`)
   }
-  jsonOut({ ...publicStartEnvelope(started), status: previous && !previous.ended ? "resumed" : "started" })
+  jsonOut({ ...publicStartEnvelope(started), status: previous?.agent_token ? "resumed" : "started" })
 }
 
 async function waitForSession(options, pid, previous) {
@@ -652,7 +764,10 @@ async function wait(options) {
   if (!info?.port) {
     // Idle/owner shutdown leaves the session file in place; an ended session
     // must still report that terminal status rather than "not running".
-    if (readSession(options)?.ended) return exitSessionEnded()
+    const stopped = readSession(options)
+    // Ended and drained is terminal; ended with a retained agent token and
+    // batches on disk still holds work and needs a resume.
+    if (stopped?.ended && !(stopped.agent_token && loadBatches(options).length > 0)) return exitSessionEnded()
     console.error("Endpoint is not running; run `start --root` to resume the session")
     process.exit(2)
   }
@@ -739,7 +854,11 @@ function status(options) {
 // Replay: re-emit state/log/ under an evidence profile to another endpoint.
 // ---------------------------------------------------------------------------
 
-function applyProfile(envelope, profile) {
+const TELEMETRY_EVENT_TYPES = new Set(["click", "navigation", "network_request", "console_error"])
+
+// `retainedFrames` is the set of frame ids the profile keeps, so unit
+// evidence never points at a frame the replay did not send.
+function applyProfile(envelope, profile, retainedFrames) {
   const rules = EVIDENCE_PROFILES[profile]
   const { type, payload } = envelope
   if (type === "frame") {
@@ -747,12 +866,14 @@ function applyProfile(envelope, profile) {
     if (rules.frames === "composite" && payload?.kind !== "composite") return null
     return envelope
   }
+  if (TELEMETRY_EVENT_TYPES.has(type) && !rules.telemetry) return null
   if (type === "annotation" && !rules.annotations) return null
   if ((type === "unit" || type === "unit_update") && payload && typeof payload === "object") {
     const next = { ...payload }
     if (next.evidence && typeof next.evidence === "object") {
       const evidence = { ...next.evidence }
       if (rules.frames === "none") evidence.frame_ids = []
+      else if (rules.frames === "composite" && Array.isArray(evidence.frame_ids)) evidence.frame_ids = evidence.frame_ids.filter((id) => retainedFrames.has(id))
       if (!rules.annotations) evidence.annotation_ids = []
       if (!rules.clips) delete evidence.audio_clip_id
       if (!rules.telemetry) delete evidence.telemetry_window
@@ -766,8 +887,10 @@ function applyProfile(envelope, profile) {
 async function replay(options) {
   const eventsFile = path.join(options.logDir, "events.ndjson")
   if (!fs.existsSync(eventsFile)) throw new Error(`No session log at ${eventsFile}`)
-  const lines = fs.readFileSync(eventsFile, "utf8").split("\n").filter(Boolean)
-  const sessionId = `replay-${randomUUID()}`
+  // No longer than the recorded id: the rewrite must not push an envelope the
+  // source accepted at the 64 KB cap over it at the target.
+  const recorded = readJsonOrNull(options.boardFile)?.session_id ?? ""
+  const sessionId = `r${randomBytes(16).toString("hex")}`.slice(0, Math.max(1, String(recorded).length))
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${options.token}`,
@@ -779,8 +902,20 @@ async function replay(options) {
   let batch = []
   let batchBytes = 0
 
+  // First pass: which frames the profile keeps, so evidence can be pruned to
+  // them on the second pass. Only ids are held.
+  const retainedFrames = new Set()
+  if (EVIDENCE_PROFILES[options.profile].frames === "composite") {
+    const scan = readline.createInterface({ input: fs.createReadStream(eventsFile, "utf8"), crlfDelay: Infinity })
+    for await (const line of scan) {
+      const stored = line ? parseJsonObject(line) : null
+      if (stored?.type === "frame" && stored.payload?.kind === "composite" && typeof stored.payload.id === "string") retainedFrames.add(stored.payload.id)
+    }
+  }
+
   async function post(envelopes) {
-    const response = await fetch(`${options.to}/events`, { method: "POST", headers, body: JSON.stringify(envelopes) })
+    const body = JSON.stringify(envelopes.length === 1 ? envelopes[0] : envelopes)
+    const response = await fetch(`${options.to}/events`, { method: "POST", headers, body })
     if (!response.ok) {
       const text = await response.text().catch(() => "")
       throw new Error(`replay: ${options.to}/events answered ${response.status} ${text.trim()}`)
@@ -796,7 +931,16 @@ async function replay(options) {
     await post(pending)
   }
 
-  for (const line of lines) {
+  // Encoded size of the request body the batch would produce: a lone
+  // envelope is posted bare, so it fits whenever the target accepted it.
+  function bodyBytes(count, payloadBytes) {
+    return count <= 1 ? payloadBytes : payloadBytes + 2 + (count - 1)
+  }
+
+  // Line by line: a log near the 500 MB budget must not be held whole.
+  const lines = readline.createInterface({ input: fs.createReadStream(eventsFile, "utf8"), crlfDelay: Infinity })
+  for await (const line of lines) {
+    if (!line) continue
     const stored = parseJsonObject(line)
     if (!stored || typeof stored.type !== "string") continue
     let envelope = { schema_version: SCHEMA_VERSION, session_id: sessionId, seq: 0, t: stored.t, type: stored.type, payload: stored.payload }
@@ -809,7 +953,7 @@ async function replay(options) {
         continue
       }
     }
-    envelope = applyProfile(envelope, options.profile)
+    envelope = applyProfile(envelope, options.profile, retainedFrames)
     if (!envelope) {
       skipped += 1
       continue
@@ -823,9 +967,12 @@ async function replay(options) {
     // The target's 64 KB cap is in encoded bytes; measure the same way and
     // flush before the envelope that would cross it.
     const encoded = Buffer.byteLength(JSON.stringify(envelope))
-    if (batch.length > 0 && batchBytes + encoded + 2 > REPLAY_BATCH_LIMIT) await flush()
+    if (envelope.type !== "frame" && encoded > BODY_LIMIT) {
+      throw new Error(`replay: envelope ${stored.seq ?? "?"} (${envelope.type}) is ${encoded} bytes, over the ${BODY_LIMIT}-byte cap even posted alone`)
+    }
+    if (batch.length > 0 && bodyBytes(batch.length + 1, batchBytes + encoded) > BODY_LIMIT) await flush()
     batch.push(envelope)
-    batchBytes += encoded + 1
+    batchBytes += encoded
     if (envelope.type === "checkpoint") await flush()
   }
   await flush()
@@ -842,7 +989,14 @@ async function serve(options) {
   // Resume when a live session file exists for this root; otherwise mint a
   // fresh pair of credentials and start a new board.
   const previous = readSession(options)
-  const resuming = Boolean(previous && !previous.ended && previous.page_token && previous.agent_token)
+  // An ended session whose agent token is still retained is draining its
+  // final batch; it resumes too, so the batch survives a restart.
+  const draining = Boolean(previous?.ended && previous.agent_token && loadBatches(options).length > 0)
+  const resuming = Boolean(previous && previous.agent_token && ((!previous.ended && previous.page_token) || draining))
+  // A resume keeps the previous bind host unless the caller names a new one;
+  // the documented recovery is a bare `start --root <dir>` again.
+  if (resuming && !options.hostExplicit && typeof previous.host === "string" && previous.host) options.host = previous.host
+  if (resuming && options.trustProxy.length === 0 && Array.isArray(previous.trust_proxy)) options.trustProxy = previous.trust_proxy.filter((ip) => net.isIP(ip))
   const pageToken = resuming ? previous.page_token : newToken()
   const agentToken = resuming ? previous.agent_token : newToken()
   if (!resuming) {
@@ -874,6 +1028,13 @@ async function serve(options) {
   let waiter = null
   const streamClients = new Set()
   const outOfOrder = new Map()
+  let endingInFlight = false
+  // Ids are validated but may still name inherited Object properties.
+  const unitById = (id) => (Object.hasOwn(board.units, id) ? board.units[id] : undefined)
+  const annotationById = (id) => (Object.hasOwn(board.annotations, id) ? board.annotations[id] : undefined)
+  // Bytes of frames waiting in the gap buffer, counted against the disk cap
+  // before they land so a burst of early frames cannot overshoot it.
+  let reservedBytes = 0
   let pageLostTimer = null
   let mintInFlight = false
   const mintTimes = []
@@ -922,13 +1083,13 @@ async function serve(options) {
 
   function heldUnits() {
     return board.unit_order
-      .map((id) => board.units[id])
+      .map((id) => unitById(id))
       .filter((unit) => unit && !unit.released && unit.status !== "withdrawn")
   }
 
   function heldAnnotations() {
     return board.annotation_order
-      .map((id) => board.annotations[id])
+      .map((id) => annotationById(id))
       .filter((annotation) => annotation && !annotation.released)
   }
 
@@ -960,7 +1121,7 @@ async function serve(options) {
   // `final` and `mode_change` carry them so a Collect backlog is applied.
   function backlogUnits() {
     return board.unit_order
-      .map((id) => board.units[id])
+      .map((id) => unitById(id))
       .filter((unit) => unit && unit.released && unit.status === "accepted")
   }
 
@@ -971,7 +1132,7 @@ async function serve(options) {
   function releaseCheckpoint(checkpointId, kind, mode) {
     const units = heldUnits()
     const annotations = heldAnnotations()
-    const withdrawn = board.pending_withdrawn.map((id) => board.units[id]).filter(Boolean)
+    const withdrawn = board.pending_withdrawn.map((id) => unitById(id)).filter(Boolean)
     const backlog = kind === "final" ? backlogUnits() : []
     const releases = units.length + annotations.length + withdrawn.length + backlog.length > 0
     if (!releases && !ALWAYS_WAKE_KINDS.has(kind)) return null
@@ -1041,10 +1202,11 @@ async function serve(options) {
       return
     }
     if (board.page_lost_pending) {
+      // Left by a helper from before page-lost wakes were queued as batches.
       const envelope = board.page_lost_pending
       board.page_lost_pending = null
       saveBoard()
-      sendJson(takeWaiter(), 200, envelope)
+      enqueueBatch(envelope)
       return
     }
     if (board.ended) {
@@ -1064,12 +1226,12 @@ async function serve(options) {
       board.page.lost_episodes += 1
       board.page.stream = "lost"
       board.watch_for_loss = false
-      board.page_lost_pending = makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
+      saveBoard()
+      // Queued like any batch: persisted and re-served until acknowledged.
+      enqueueBatch(makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
         session_status: "page_lost",
         lost_after_checkpoint_id: last?.id ?? null,
-      })
-      saveBoard()
-      fulfillWaiter()
+      }))
     }, PAGE_LOST_GRACE_MS)
     pageLostTimer.unref()
   }
@@ -1200,7 +1362,7 @@ async function serve(options) {
     if (!Number.isInteger(value.seq) || value.seq < 1) return "invalid_seq"
     if (typeof value.t !== "number" || !Number.isFinite(value.t)) return "invalid_t"
     if (typeof value.type !== "string" || !PAGE_EVENT_TYPES.has(value.type)) return "unknown_type"
-    if (value.payload === undefined || value.payload === null || typeof value.payload !== "object" || Array.isArray(value.payload)) return "invalid_payload"
+    if (!validPayload(value.type, value.payload)) return "invalid_payload"
     // Ids become object keys and batch file names.
     for (const field of ["id", "unit_id"]) {
       const id = value.payload[field]
@@ -1215,7 +1377,7 @@ async function serve(options) {
       board.transcript_count += 1
     } else if (type === "unit") {
       if (typeof payload.id !== "string" || !payload.id) return
-      const existing = board.units[payload.id]
+      const existing = unitById(payload.id)
       board.units[payload.id] = {
         ...(existing ?? {}),
         ...payload,
@@ -1224,13 +1386,16 @@ async function serve(options) {
       }
       if (!existing) board.unit_order.push(payload.id)
     } else if (type === "unit_update") {
-      const unit = board.units[payload.unit_id]
+      const unit = unitById(payload.unit_id)
       if (!unit) return
+      // KTD5: a unit is refined only while it is still initial and unreleased;
+      // the riffer's confirmation pass (KTD22) may land at any point.
+      if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
+      if (unit.released || unit.status !== "initial") return
       if (typeof payload.statement === "string") unit.statement = payload.statement
       if (Array.isArray(payload.anchors_add)) unit.anchors = [...(unit.anchors ?? []), ...payload.anchors_add]
-      if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
     } else if (type === "unit_withdraw") {
-      const unit = board.units[payload.unit_id]
+      const unit = unitById(payload.unit_id)
       if (!unit || unit.status === "withdrawn") return
       unit.status = "withdrawn"
       unit.withdraw_reason = payload.reason ?? null
@@ -1238,14 +1403,19 @@ async function serve(options) {
       broadcast("unit_status", { unit_id: unit.id, status: "withdrawn" })
     } else if (type === "annotation") {
       if (typeof payload.id !== "string" || !payload.id) return
-      const existing = board.annotations[payload.id]
+      const existing = annotationById(payload.id)
       board.annotations[payload.id] = { ...(existing ?? {}), ...payload, released: Boolean(existing?.released) }
       if (!existing) board.annotation_order.push(payload.id)
     } else if (type === "checkpoint") {
       const trigger = PAGE_CHECKPOINT_KINDS.has(payload.trigger) ? payload.trigger : "send"
       const mode = EXECUTION_MODES.has(payload.mode) ? payload.mode : board.mode
       board.mode = mode
-      releaseCheckpoint(typeof payload.id === "string" && payload.id ? payload.id : `ck-${randomUUID()}`, trigger, mode)
+      // A checkpoint id keys its batch file and its ack route, so a reused
+      // page id gets a suffix rather than overwriting the earlier batch.
+      const wanted = typeof payload.id === "string" && payload.id ? payload.id : `ck-${randomUUID()}`
+      let checkpointId = wanted
+      for (let n = 2; board.checkpoints.some((c) => c.id === checkpointId); n += 1) checkpointId = `${wanted}-${n}`
+      releaseCheckpoint(checkpointId, trigger, mode)
     } else if (type === "answer") {
       const answer = { unit_id: payload.unit_id, text: payload.text, t: envelope.t }
       board.answers.push(answer)
@@ -1266,15 +1436,31 @@ async function serve(options) {
     }
   }
 
+  // Everything applyEnvelope may touch: the board and the batch queue.
+  function snapshotState() {
+    const savedBoard = structuredClone(board)
+    const savedBatches = batches.slice()
+    const savedOrder = batchOrder
+    return () => {
+      for (const key of Object.keys(board)) delete board[key]
+      Object.assign(board, savedBoard)
+      for (const batch of batches.slice(savedBatches.length)) bestEffort(() => fs.rmSync(batchFile(batch.envelope.checkpoint_id), { force: true }))
+      batches.length = 0
+      batches.push(...savedBatches)
+      batchOrder = savedOrder
+    }
+  }
+
   function storeEnvelope(envelope) {
     if (envelope.type === "frame") {
       const id = typeof envelope.payload.id === "string" && envelope.payload.id ? envelope.payload.id : randomUUID()
-      const safeId = encodeURIComponent(id)
-      const frameFile = path.join("frames", `${safeId}.jpg`)
+      // Keyed by seq too: a reused frame id must not overwrite earlier evidence.
+      const fileName = `${envelope.seq}-${encodeURIComponent(id)}.jpg`
+      const frameFile = path.join("frames", fileName)
       const { jpeg_base64: jpeg, ...rest } = envelope.payload
       if (typeof jpeg === "string") {
         const bytes = Buffer.from(jpeg, "base64")
-        fs.writeFileSync(path.join(framesDir, `${safeId}.jpg`), bytes, { mode: 0o600 })
+        fs.writeFileSync(path.join(framesDir, fileName), bytes, { mode: 0o600 })
         logBytes += bytes.length
       }
       logEvent({ seq: envelope.seq, t: envelope.t, type: "frame", payload: rest, frame_file: frameFile })
@@ -1288,27 +1474,46 @@ async function serve(options) {
   // so a restart loses nothing the page will not replay. The buffer is
   // bounded: past the cap an early envelope is dropped unacknowledged and
   // the page replays it after the gap closes.
-  function admitEnvelope(envelope) {
+  function admitEnvelope(envelope, bodySize) {
     const { seq } = envelope
     if (seq <= board.acked_seq || outOfOrder.has(seq)) return
     if (seq !== board.acked_seq + 1) {
-      if (outOfOrder.size < OUT_OF_ORDER_CAP) outOfOrder.set(seq, envelope)
+      if (outOfOrder.size < OUT_OF_ORDER_CAP) {
+        const reserved = envelope.type === "frame" ? bodySize : 0
+        outOfOrder.set(seq, { envelope, reserved })
+        reservedBytes += reserved
+      }
       return
     }
-    let next = envelope
+    let next = { envelope, reserved: 0 }
     while (next) {
-      board.acked_seq = next.seq
-      outOfOrder.delete(next.seq)
-      storeEnvelope(next)
-      applyEnvelope(next)
+      // Apply and store first: a failure rolls the board back and leaves the
+      // seq unacknowledged, so the page retries it instead of discarding an
+      // event the endpoint lost.
+      const undo = snapshotState()
+      try {
+        applyEnvelope(next.envelope)
+        storeEnvelope(next.envelope)
+      } catch (error) {
+        undo()
+        throw error
+      }
+      board.acked_seq = next.envelope.seq
+      outOfOrder.delete(next.envelope.seq)
+      reservedBytes -= next.reserved
       next = outOfOrder.get(board.acked_seq + 1)
     }
   }
 
   async function handleEvents(req, res, sessionId) {
     const body = await readBody(req, FRAME_BODY_LIMIT)
+    // The session may have ended while this body was in flight.
+    if (board.ended || session.page_token === null) {
+      sendJson(res, 410, { status: "session-ended" }, corsHeaders())
+      return
+    }
     if (body.tooLarge) {
-      sendJson(res, 413, { max_bytes: FRAME_BODY_LIMIT }, corsHeaders())
+      sendJson(res, 413, { max_bytes: BODY_LIMIT, frame_max_bytes: FRAME_BODY_LIMIT }, corsHeaders())
       return
     }
     const parsed = parseJsonObject(body.text)
@@ -1337,14 +1542,26 @@ async function serve(options) {
         return
       }
     }
-    if (loneFrame && logBytes + body.size > DISK_CAP_BYTES) {
+    if (loneFrame && logBytes + reservedBytes + body.size > DISK_CAP_BYTES) {
       sendJson(res, 507, { reason: "disk_cap", stream_state: "buffering", max_bytes: DISK_CAP_BYTES, acked_seq: board.acked_seq }, corsHeaders())
       return
     }
     touch()
-    for (const envelope of envelopes) admitEnvelope(envelope)
-    saveBoard()
+    let storageError = null
+    try {
+      for (const envelope of envelopes) admitEnvelope(envelope, body.size)
+      saveBoard()
+    } catch (error) {
+      storageError = error
+      bestEffort(() => saveBoard())
+    }
     broadcast("ack", { acked_seq: board.acked_seq })
+    if (storageError) {
+      // Whatever was acknowledged before the failure stays acknowledged;
+      // the rest is retriable from acked_seq.
+      sendJson(res, 500, { error: "storage_failed", code: storageError.code ?? null, acked_seq: board.acked_seq }, corsHeaders())
+      return
+    }
     sendJson(res, 200, { acked_seq: board.acked_seq }, corsHeaders())
   }
 
@@ -1359,7 +1576,7 @@ async function serve(options) {
     res.write(`event: ack\ndata: ${JSON.stringify({ acked_seq: board.acked_seq })}\n\n`)
     // A page that just reloaded reconciles its board from these.
     for (const id of board.unit_order) {
-      const unit = board.units[id]
+      const unit = unitById(id)
       if (unit.released || unit.status === "withdrawn") {
         res.write(`event: unit_status\ndata: ${JSON.stringify({ unit_id: id, status: unit.status })}\n\n`)
       }
@@ -1469,6 +1686,11 @@ async function serve(options) {
         return
       }
       logAgent({ kind: "mint", session_id: sessionId, expires_at: expiresAt })
+      // The session may have ended while the upstream call was in flight.
+      if (board.ended || session.page_token === null) {
+        sendJson(res, 410, { status: "session-ended" }, corsHeaders())
+        return
+      }
       sendJson(res, 200, { client_secret: secret, expires_at: expiresAt, model: REALTIME_MODEL }, corsHeaders())
     } finally {
       mintInFlight = false
@@ -1486,9 +1708,14 @@ async function serve(options) {
   // session ends: a final checkpoint releases anything still held, the page
   // token is invalidated, and the stream announces session_ended.
   function handleSessionEnd(req, res) {
+    if (endingInFlight) {
+      sendJson(res, 409, { error: "session_end_in_progress" }, corsHeaders())
+      return
+    }
+    endingInFlight = true
     const remaining = Math.max(0, Math.min(ARCHIVE_BODY_LIMIT, DISK_CAP_BYTES - logBytes))
     const archivePath = path.join(options.logDir, `archive.${archiveExtension(req.headers["content-type"])}`)
-    const tmpPath = `${archivePath}.part`
+    const tmpPath = `${archivePath}.${randomUUID()}.part`
     const out = fs.createWriteStream(tmpPath, { mode: 0o600 })
     let size = 0
     let tooLarge = false
@@ -1500,24 +1727,55 @@ async function serve(options) {
         out.destroy()
         return
       }
-      out.write(chunk)
+      // Pause the upload while the disk catches up; a fast sender must not
+      // park the archive in process memory.
+      if (!out.write(chunk)) {
+        req.pause()
+        out.once("drain", () => req.resume())
+      }
+    })
+    let failed = false
+    out.on("error", (error) => {
+      // ENOSPC or a permission error must not take the endpoint down; the
+      // session stays live and resumable and the page may retry.
+      if (failed || tooLarge) return
+      failed = true
+      endingInFlight = false
+      req.pause()
+      // The response must not depend on another write to the disk that just failed.
+      sendJson(res, 500, { error: "archive_write_failed", code: error.code ?? null }, corsHeaders())
+      bestEffort(() => fs.rmSync(tmpPath, { force: true }))
+      bestEffort(() => logAgent({ kind: "archive_failed", error: error.code ?? error.message }))
     })
     req.on("error", () => {
+      endingInFlight = false
       out.destroy()
-      fs.rmSync(tmpPath, { force: true })
+      bestEffort(() => fs.rmSync(tmpPath, { force: true }))
     })
     req.on("end", () => {
+      if (failed) return
       if (tooLarge) {
-        fs.rmSync(tmpPath, { force: true })
+        endingInFlight = false
+        bestEffort(() => fs.rmSync(tmpPath, { force: true }))
         sendJson(res, 413, { max_bytes: remaining }, corsHeaders())
         return
       }
       out.end(() => {
+        if (failed) return
+        try {
+          finalize()
+        } catch (error) {
+          // Any filesystem failure here takes the same recoverable path.
+          out.emit("error", error)
+        }
+      })
+
+      function finalize() {
         if (size > 0) {
           fs.renameSync(tmpPath, archivePath)
           logBytes += size
         } else {
-          fs.rmSync(tmpPath, { force: true })
+          bestEffort(() => fs.rmSync(tmpPath, { force: true }))
         }
         touch()
         // The overlay's Done control sends the `final` checkpoint before
@@ -1528,8 +1786,9 @@ async function serve(options) {
         }
         logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size })
         endSession()
+        endingInFlight = false
         sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
-      })
+      }
     })
   }
 
@@ -1578,9 +1837,14 @@ async function serve(options) {
       sendJson(res, 400, { error: `status must be one of ${[...AGENT_UNIT_STATUSES].join(", ")}` })
       return
     }
-    const unit = board.units[unitId]
+    const unit = unitById(unitId)
     if (!unit) {
       sendJson(res, 404, { error: "unknown unit" })
+      return
+    }
+    // A page withdrawal is terminal; a late agent status must not revive it.
+    if (unit.status === "withdrawn") {
+      sendJson(res, 409, { error: "unit withdrawn", unit_id: unitId, status: "withdrawn" })
       return
     }
     unit.status = parsed.status
@@ -1607,9 +1871,13 @@ async function serve(options) {
       sendJson(res, 400, { error: "question is required" })
       return
     }
-    const unit = board.units[unitId]
+    const unit = unitById(unitId)
     if (!unit) {
       sendJson(res, 404, { error: "unknown unit" })
+      return
+    }
+    if (unit.status === "withdrawn") {
+      sendJson(res, 409, { error: "unit withdrawn", unit_id: unitId, status: "withdrawn" })
       return
     }
     unit.status = "needs_info"
@@ -1722,7 +1990,7 @@ async function serve(options) {
   // (and host/port when the old port was taken). Tokens and everything else
   // are the previous session's.
   session = resuming
-    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: false }
+    ? { ...previous, url, app_origin: options.appOrigin, host: options.host, port: boundPort, trust_proxy: options.trustProxy, pid: process.pid, owner_pid: options.ownerPid ?? null, ended: Boolean(previous.ended) }
     : {
       page_token: pageToken,
       agent_token: agentToken,
@@ -1730,6 +1998,7 @@ async function serve(options) {
       app_origin: options.appOrigin,
       host: options.host,
       port: boundPort,
+      trust_proxy: options.trustProxy,
       pid: process.pid,
       owner_pid: options.ownerPid ?? null,
       ended: false,
@@ -1738,6 +2007,9 @@ async function serve(options) {
       started_at: new Date().toISOString(),
     }
   if (board.page.stream === "connected") board.page.stream = "disconnected"
+  // A shutdown inside the grace window dropped the timer; the promise of a
+  // page_lost wake survives in the board, so pick it up again.
+  if (board.watch_for_loss && !board.ended) armPageLost()
   writePrivate(options.pidFile, `${process.pid}\n`)
   saveBoard()
   writePrivateJson(options.sessionFile, session)
