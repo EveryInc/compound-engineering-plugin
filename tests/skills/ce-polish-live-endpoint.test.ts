@@ -3,7 +3,7 @@ import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
 import { FakeLivePage, FIXTURES_DIR, readFixture } from "../helpers/fakeLivePage"
-import { APP_ORIGIN, FakeLiveAgent, FakeOpenAI, directRequest, runHelper, parseJsonLine } from "../helpers/fakeLiveAgent"
+import { APP_ORIGIN, FakeLiveAgent, FakeOpenAI, directRequest, runHelper, parseJsonLine, waitUntil } from "../helpers/fakeLiveAgent"
 
 setDefaultTimeout(30_000)
 
@@ -318,6 +318,13 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
       return { status: response.status, body: response.json() }
     }
     const agent = await startAgent({ host: "0.0.0.0", env: { OPENAI_API_KEY: undefined } })
+    // An advertised address is not a reachable one: some runners refuse hairpin
+    // connections to their own interface, or a network policy answers in the
+    // helper's place. Only this helper's own status proves the route.
+    const probe = await directRequest(`http://${lanAddress}:${agent.port}/status`, { method: "GET", headers: agent.headers() }).catch(() => null)
+    if (!probe || probe.status !== 200 || probe.json().schema_version !== "live/1") {
+      return
+    }
     const plain = await mintDirect(agent)
     expect(plain.status).toBe(403)
     expect(plain.body).toEqual({ reason: "tls_required" })
@@ -338,21 +345,20 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
 describe("live endpoint: wake ownership, credentials, and caps (KTD7, I3, I4)", () => {
   test("a second concurrent wait receives 409 and the CLI exits 3 with wait-taken", async () => {
     const agent = await startAgent()
+    // Ownership is observed, not assumed: two waits race and whichever answers
+    // first is the one refused, because the holder stays parked until aborted.
     const controller = new AbortController()
-    const parked = fetch(`${agent.url}/wait`, { headers: agent.headers(), signal: controller.signal }).catch(() => null)
-    // Give the first wait time to park before the second arrives.
-    await Bun.sleep(150)
-    const second = await agent.waitHttp()
-    expect(second.status).toBe(409)
-    expect(second.body).toEqual({ status: "wait-taken" })
+    const waits = [0, 1].map(() => fetch(`${agent.url}/wait`, { headers: agent.headers(), signal: controller.signal }).catch(() => null))
+    const refused = await Promise.race(waits)
+    expect(refused?.status).toBe(409)
+    expect(await refused!.json()).toEqual({ status: "wait-taken" })
     const cli = await agent.waitCli()
     expect(cli.exitCode).toBe(3)
     expect(cli.envelope).toEqual({ status: "wait-taken" })
     controller.abort()
-    await parked
-    // The wake is free again once the first holder is gone.
-    await Bun.sleep(50)
-    expect((await agent.waitHttp()).status).toBe(204)
+    await Promise.all(waits)
+    // The wake is free again once the holder is gone: the next wait parks and times out empty.
+    await waitUntil(async () => (await agent.waitHttp()).status === 204, 10_000, 50)
   })
 
   test("every route without a credential returns 401; wrong credential class returns 403; ?token= is ignored; Origin on an agent route is 403; OPTIONS /events returns the exact app origin without a credentials flag", async () => {

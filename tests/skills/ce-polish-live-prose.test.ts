@@ -4,7 +4,7 @@ import path from "path"
 
 // Mechanical guards on the ce-polish live-mode prose (U9): every skill-local
 // path the live files name resolves inside the skill, SKILL.md stays under
-// the Codex prompt ceiling, the skill count is unchanged, and the seams the
+// the Codex prompt ceiling, live mode adds no skill directory, and the seams the
 // helper (U8) and the loop tests depend on are named where the agent reads
 // them. Behavioral judgment (the F1-F3 dry read) is a fresh-agent eval, not
 // this file.
@@ -14,7 +14,6 @@ const skillDir = path.join(repoRoot, "skills", "ce-polish")
 const referencesDir = path.join(skillDir, "references")
 const scriptsDir = path.join(skillDir, "scripts")
 const SKILL_MD_BYTE_CEILING = 8000
-const EXPECTED_SKILL_COUNT = 35
 
 const LIVE_FILES = ["live-start.md", "live-loop.md", "live-remote.md", "install-riffrec.md", "live-stream-contract.md"]
 
@@ -71,14 +70,14 @@ describe("ce-polish live-mode prose", () => {
     }
   })
 
-  test("the skill count is unchanged", async () => {
+  test("live mode lives inside ce-polish and adds no skill directory (the count itself is release-metadata's)", async () => {
     const entries = await fs.readdir(path.join(repoRoot, "skills"), { withFileTypes: true })
     const skills = []
     for (const entry of entries) {
       if (entry.isDirectory() && (await fs.exists(path.join(repoRoot, "skills", entry.name, "SKILL.md")))) skills.push(entry.name)
     }
-    expect(skills).toHaveLength(EXPECTED_SKILL_COUNT)
     expect(skills).toContain("ce-polish")
+    expect(skills.filter((name) => /live|polish/.test(name))).toEqual(["ce-polish"])
   })
 
   test("live-start.md names the helper start, the fragment handoff, the detect script, and the key precondition (KTD3, KTD20, I4)", async () => {
