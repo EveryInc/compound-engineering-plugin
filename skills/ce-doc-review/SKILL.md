@@ -1,7 +1,7 @@
 ---
 name: ce-doc-review
 description: Review requirements, plans, or specs with role-specific lenses. Use when the user wants to improve an existing planning document.
-argument-hint: "[mode:non-interactive] [path/to/document.{md,html}]"
+argument-hint: "[mode:non-interactive] [job:<ledger>] [path/to/document.{md,html}]"
 ---
 
 # Document Review
@@ -29,6 +29,10 @@ Resolve `<root>` **only** in the no-path interactive branch, which discovers the
 - **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
 - **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
 <!-- ce-docs-root:end -->
+
+## Job ledger
+
+When the invocation names a `ce-job` ledger, read it before classifying the document. Use the ledger's goal, scope, decisions, open questions, test requests, and done criteria as review context. After review completes, append fixes applied, proposed fixes, decisions, FYIs, blockers, and the reviewed document path to the ledger. When the invoking workflow provides an executable `ce-job` helper command, prefer its `receipt <ledger> doc-review ...` operation for the durable update. Do not reference sibling skill files directly. If review cannot start, record that skipped state instead of implying the document was reviewed.
 
 ## Phase 1: Get and Analyze Document
 

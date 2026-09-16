@@ -348,6 +348,12 @@ docs_root_source=""
 docs_root_error=""
 docs_root_local_ignored=""
 tracked_cfg="skip"
+job_helper_status="skip"
+job_state_root_status="skip"
+job_state_root_value=""
+job_state_root_detail=""
+job_state_visibility_value="tracked"
+job_event_detail=""
 project_issues=0
 
 if [ "$in_repo" = "yes" ]; then
@@ -356,6 +362,8 @@ if [ "$in_repo" = "yes" ]; then
   tracked_config_path="$repo_root/.compound-engineering/config.yaml"
   resolve_docs_root "$repo_root"
   [ "$docs_root_status" = "invalid" ] && project_issues=$((project_issues + 1))
+
+  job_helper_status="host_managed"
   legacy_cfg="missing"
   [ -f "$repo_root/compound-engineering.local.md" ] && legacy_cfg="present"
 
@@ -378,6 +386,62 @@ if [ "$in_repo" = "yes" ]; then
 
   tracked_cfg="missing"
   [ -f "$tracked_config_path" ] && tracked_cfg="present"
+
+  job_state_visibility_value="tracked"
+  for cfg_path in "$local_config_path" "$tracked_config_path"; do
+    [ -f "$cfg_path" ] || continue
+    candidate_value=$(read_flat_config_value "$cfg_path" "job_state_visibility")
+    [ -n "$candidate_value" ] || continue
+    case "$candidate_value" in
+      tracked|local) job_state_visibility_value="$candidate_value"; break ;;
+      *) ;;
+    esac
+  done
+
+  job_state_root_status="default"
+  job_state_root_value="${docs_root_value%/}/jobs"
+  for cfg_path in "$local_config_path" "$tracked_config_path"; do
+    [ -f "$cfg_path" ] || continue
+    candidate_value=$(read_flat_config_value "$cfg_path" "job_state_root")
+    [ -n "$candidate_value" ] || continue
+    candidate_status="configured"
+    candidate_detail=""
+    case "$candidate_value" in
+      /*) candidate_status="invalid"; candidate_detail="absolute paths are not allowed" ;;
+      */../*|../*|*/..) candidate_status="invalid"; candidate_detail="path traversal ('..') is not allowed" ;;
+      *)
+        repo_real="$(cd "$repo_root" 2>/dev/null && pwd -P)"
+        job_root_real="$(resolve_real_best_effort "$repo_root/$candidate_value" 2>/dev/null || true)"
+        if [ -z "$job_root_real" ]; then
+          candidate_status="invalid"; candidate_detail="could not resolve the path"
+        else
+          case "$job_root_real/" in
+            "$repo_real/"*) ;;
+            *) candidate_status="invalid"; candidate_detail="resolves outside the repository ($job_root_real)" ;;
+          esac
+          if [ "$job_root_real" = "$repo_real" ]; then
+            candidate_status="invalid"; candidate_detail="resolves to the repository root itself"
+          fi
+          case "$job_root_real/" in
+            "$repo_real/.git/"*) candidate_status="invalid"; candidate_detail="resolves inside .git/" ;;
+          esac
+        fi
+        ;;
+    esac
+    if [ "$candidate_status" = "configured" ]; then
+      job_state_root_status="configured"
+      job_state_root_value="$candidate_value"
+      job_state_root_detail=""
+      break
+    elif [ "$job_state_root_status" = "default" ]; then
+      job_state_root_detail="ignored invalid $(basename "$cfg_path"): $candidate_detail"
+    fi
+  done
+  if [ "$job_state_visibility_value" = "local" ]; then
+    job_event_detail="events and live sidecars are local under .context/compound-engineering/jobs/"
+  else
+    job_event_detail="events are tracked with the job root under .events/; live sidecars stay local"
+  fi
 
   resolve_ordinary_scalar "$local_config_path" "$tracked_config_path" "work_engine_mode"
   work_engine_mode="$ordinary_value"
@@ -492,7 +556,6 @@ if [ "$in_repo" = "yes" ]; then
       ;;
   esac
 
-  script_dir="$(cd "$(dirname "$0")" && pwd)"
   template="$script_dir/../references/config-template.yaml"
   example="$repo_root/.compound-engineering/config.example.yaml"
   if [ ! -f "$example" ]; then
@@ -598,6 +661,22 @@ if [ "$in_repo" = "yes" ]; then
   if [ -n "$docs_root_local_ignored" ]; then
     skip "Local docs_root '${docs_root_local_ignored}' is ignored; set docs_root only in config.yaml"
   fi
+
+  if [ "$job_helper_status" = "host_managed" ]; then
+    skip "ce-job helper is checked by the ce-job skill at invocation time"
+  fi
+  if [ "$job_state_root_status" = "default" ]; then
+    ok "Job ledger root: ${job_state_root_value}/ (default)"
+  elif [ "$job_state_root_status" = "configured" ]; then
+    ok "Job ledger root: ${job_state_root_value}/"
+  elif [ "$job_state_root_status" = "invalid" ]; then
+    warn "Invalid job_state_root '${job_state_root_value}': ${job_state_root_detail}"
+  fi
+  case "$job_state_visibility_value" in
+    tracked|local) ok "Job ledger visibility: ${job_state_visibility_value}" ;;
+    invalid:*) warn "Invalid job_state_visibility '${job_state_visibility_value#invalid:}'" ;;
+  esac
+  detail "$job_event_detail"
 
   if [ "$work_engine_cfg" = "native" ]; then
     ok "CE Work implementation engine: native (${work_engine_detail})"

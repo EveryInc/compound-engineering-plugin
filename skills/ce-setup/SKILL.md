@@ -82,7 +82,7 @@ If optional tools are missing, do not offer a bulk install. The diagnostic alrea
 
 ## Phase 2: Fix Repo-Local Issues
 
-Read `references/repo-fixes.md` from this skill's directory before making any repo-local change. It carries Steps 4-9: removing the obsolete `compound-engineering.local.md`, refreshing the example config, offering to create `config.yaml`, repairing invalid `work_engine_preferences` and `docs_root`, the two `.gitignore` offers, and the agent-instructions offers (a knowledge-store mention, the compounding directive, and the chat-register directive for `ce-noslop`).
+Read `references/repo-fixes.md` from this skill's directory before making any repo-local change. It carries Steps 4-9: removing the obsolete `compound-engineering.local.md`, refreshing the example config, offering to create `config.yaml`, repairing invalid `work_engine_preferences` and `docs_root`, the `.gitignore` offers, and the agent-instructions offers (a knowledge-store mention, the compounding directive, and the chat-register directive for `ce-noslop`).
 
 All paths there resolve from the repository root (`git rev-parse --show-toplevel`), not the current working directory. Maintaining the generated example files is the work Phase 2 does on its own — refreshing `config.example.yaml` and removing the superseded `config.local.example.yaml`. Every change to a user-owned file is offered and applied only if the user approves.
 

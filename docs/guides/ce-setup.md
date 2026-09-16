@@ -52,6 +52,7 @@ The example config refresh happens on its own (it is the committed template copy
 - Offers to create `.compound-engineering/config.yaml` when missing. Never overwrites an existing `config.yaml` or `config.local.yaml`, and never creates the local override.
 - Offers to add `.compound-engineering/*.local.yaml` to `.gitignore`, but only when `config.local.yaml` already exists and is not ignored.
 - Offers to add `.context/compound-engineering/` to `.gitignore` whether or not that directory exists yet. An uncovered path is a note, not a project issue.
+- Offers to gitignore the configured `ce-job` ledger directory when `job_state_visibility: local` is set.
 - Offers to add a line about the `<root>/solutions/` knowledge store to your root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, or equivalent) when the file does not already convey it, placed in the file's own structure. Then offers the standing compounding instruction from the [ce-compound guide](./ce-compound.md#make-capture-automatic), offer-first or automatic, inserted verbatim. Only when the store is tracked in this repo, and never creates the file. Then offers the `ce-noslop` chat-register instruction, inserted verbatim, so agent reports and summaries to you lead with the outcome and carry no acknowledgements, offers of more help, or process narration. Skipped only when the file already covers the report boundary, that register, and the exclusions (code, config, verbatim quotes, text you asked to post as written); a partial or unrelated writing rule still gets the offer.
 - Repairs an invalid CE Work implementation-engine block, or leftover retired routing keys, in the config layer that supplied the bad value.
 - Repairs an invalid `docs_root`. This one is a real project issue: CE artifacts will not be written until it is fixed. See [Artifact root](./configuration.md#artifact-root).
@@ -130,7 +131,7 @@ Skip it when:
 | Phase | Step |
 |-------|------|
 | Diagnose | Plugin version when the host exposes it, optional capabilities, project config, artifact root, work-engine block |
-| Fix | Obsolete local-md, example refresh, create repo config if wanted, gitignore safety, scratch-space gitignore, repair invalid `docs_root` or work-engine prefs, knowledge-store mention, compounding directive, and `ce-noslop` chat-register directive in the agent-instructions file |
+| Fix | Obsolete local-md, example refresh, create repo config if wanted, gitignore safety, scratch-space and local job-ledger gitignore, repair invalid `docs_root` or work-engine prefs, knowledge-store mention, compounding directive, and `ce-noslop` chat-register directive in the agent-instructions file |
 | Summary | Fixes applied, skipped actions, missing optional tools |
 
 ---

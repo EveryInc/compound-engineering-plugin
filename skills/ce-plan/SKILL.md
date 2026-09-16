@@ -1,7 +1,7 @@
 ---
 name: ce-plan
 description: "Create structured plans for multi-step work, including software and non-software tasks. Use when asked to plan, break down implementation, plan from requirements, or deepen an existing plan; prefer ce-brainstorm for exploratory framing."
-argument-hint: "[optional: feature description, requirements doc path, plan path to deepen, or any task to plan] [output:html]"
+argument-hint: "[optional: feature description, requirements doc path, plan path to deepen, job:<ledger>, or any task to plan] [output:html]"
 ---
 
 # Create Technical Plan
@@ -33,6 +33,10 @@ Decide which output contract applies at the start of scoping (Phase 0.6), before
 - **Durable** — everything else. Continue the workflow below.
 
 `references/output-contracts.md` defines Direct and Chat brief; read it when either is selected. When the tier is still uncertain after those reads, take the heavier one. If a read surfaces a decision the user would weigh, a risk surface, or multi-pass verification, move to the heavier tier before emitting anything. Durable regardless of size: a run with no synchronous user to act on chat this turn (pipeline, headless, goal- or scheduler-driven), a request whose wording asks for a plan, a plan file, or an output format, a request that continues an existing plan's item, and a risk surface — authentication, payments, migrations, external contracts.
+
+## Job ledger
+
+When the invocation names a `ce-job` ledger, read it as planning context before scoping. Use its goal, scope, settled decisions, open questions, test requests, and done criteria as inputs; do not treat the ledger as implementation authority. After writing and reviewing the plan, append the plan path, `ce-doc-review` state, unresolved review decisions, and any launch blocker to the ledger. When the invoking workflow provides an executable `ce-job` helper command, prefer its `receipt <ledger> plan ...` and `receipt <ledger> doc-review ...` operations for those durable updates. Do not reference sibling skill files directly, and do not create a job ledger here; `ce-job start` owns that.
 
 ## Workflow
 

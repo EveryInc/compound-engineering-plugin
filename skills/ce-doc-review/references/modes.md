@@ -7,7 +7,7 @@
 
 ## Phase 0: Detect Mode
 
-Arguments may contain a document path, a mode token, or both; both tokens together is not a conflict. Tokens starting with `mode:` are flags, not paths — strip them, and use any remaining token as the document path for Phase 1 (getting the document).
+Arguments may contain a document path, a mode token, a `job:<repo-relative-ledger>` context carrier, or these together. Tokens starting with `mode:` are flags, not paths — strip them. Strip one `job:` carrier, validate that it resolves inside the repo, and keep it as review context and receipt destination. Use any remaining token as the document path for Phase 1 (getting the document).
 
 `mode:non-interactive` (or its deprecated alias `mode:headless`) sets **non-interactive mode**. This mode changes how the findings that were not applied are delivered; it does not change how findings are classified. Use the same judgment about which tier each finding belongs in:
 

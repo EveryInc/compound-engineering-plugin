@@ -67,6 +67,9 @@ An empty invoke picks the newest eligible implementation-ready code plan in `doc
 # Outer orchestrator: implement and locally verify, then return a structured envelope
 /ce-work mode:return-to-caller docs/plans/notification-mute.md
 
+# Execute while updating a shared job ledger
+/ce-work job:docs/jobs/refund-audit.md docs/plans/refund-audit.md
+
 # Resume, inspect, or clean up an existing external implementation run
 /ce-work resume run 20260812-1430-ab12
 ```

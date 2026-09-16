@@ -82,6 +82,10 @@ Append the entry to the repo-root `.gitignore` only if the user approves. Do not
 
 Unlike Step 7 this does not wait for the path to exist. The skill about to write there offers the same entry at its first write, so a repository that never uses one of those skills never needs the line — adding it here only means that prompt never has to fire.
 
+### Step 8a: Honor Local Job Ledger Visibility
+
+If config sets `job_state_visibility: local`, resolve the `ce-job` ledger path from `job_state_root` or the default `<root>/jobs`. Probe coverage with `git -C <repo root> check-ignore -q <ledger path>`. When it is not covered, offer to add the repo-relative directory with a trailing slash to `.gitignore`. Append only if the user approves, and do not overwrite unrelated `.gitignore` content. If visibility is missing or `tracked`, make no offer.
+
 ### Step 9: Point Agents At The Knowledge Store, And Offer The Standing Directives
 
 Runs whenever the repository has a root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, or the equivalent this project uses). When one file only `@`-includes another, the substantive file is the target. No such file: skip this step and say so in the summary; setup never creates one.

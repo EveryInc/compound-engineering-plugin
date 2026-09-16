@@ -1,7 +1,7 @@
 ---
 name: ce-code-review
 description: "Review a named diff or PR for bugs, regressions, tests, and standards. Use when asked to review code or when a shipping skill needs a review receipt. Use when asked to apply this review's findings locally. Use ce-resolve-pr-feedback for feedback already left on a PR."
-argument-hint: "[mode:agent] [apply:local] [blank to review current branch, or provide PR link]"
+argument-hint: "[mode:agent] [apply:local] [job:<ledger>] [blank to review current branch, or provide PR link]"
 ---
 
 # Code Review
@@ -19,6 +19,10 @@ Help the caller deliver a correct change within the agreed scope. Find defects a
 - **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
 - **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
 <!-- ce-docs-root:end -->
+
+## Job ledger
+
+When the invocation names a `ce-job` ledger, read it before resolving intent and scope. Use its goal, scope, done criteria, and open questions as review context. After the report is complete, append the report path or receipt, verdict, unresolved findings, and coverage limits to that ledger. When the invoking workflow provides an executable `ce-job` helper command, prefer its `receipt <ledger> code-review ...` operation for the durable update. Do not reference sibling skill files directly. Do not create a job ledger here; use `ce-job start` when review state must persist.
 
 ## Execution spine
 

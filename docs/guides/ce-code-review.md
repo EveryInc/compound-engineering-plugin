@@ -52,6 +52,9 @@ If the repo declares [Compound Packs](./packs.md) in its `packs` config, the ins
 # Load a plan for requirements verification
 /ce-code-review plan:docs/plans/2026-03-25-001-feat-foo-plan.md
 
+# Review with shared job context and attach the receipt to the ledger
+/ce-code-review job:docs/jobs/refund-audit.md
+
 # JSON handoff for a caller. Always report-only. The caller applies.
 /ce-code-review mode:agent
 

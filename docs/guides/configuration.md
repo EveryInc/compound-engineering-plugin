@@ -24,6 +24,12 @@ Two other things make `docs_root` unlike the other settings:
 
 `docs_root` does not make artifacts survive an ephemeral workspace. The root is inside the repo, so it lives and dies with the checkout.
 
+## Job ledger
+
+`ce-job` writes one Markdown ledger per job. By default ledgers live under `<docs_root>/jobs` (`docs/jobs/` unless `docs_root` is set). Set `job_state_root` only when the ledger needs a different repo-relative location.
+
+`job_state_visibility` records the intended sharing mode. `tracked` means ledgers may be committed as team context; `local` means the configured path should stay out of git for private or high-churn work. It is advisory: resolution still reads the files from the configured root, and `/ce-setup` is the workflow that should repair ignore rules.
+
 ## Compound Packs (experimental — shape may change)
 
 > Full guide — authoring rule files, publishing multi-pack repos, per-stage behavior, troubleshooting: [Compound Packs](./packs.md). This section is the config-key reference.
@@ -90,6 +96,7 @@ All settings are optional. Commented examples are documentation, not active valu
 | Consumer | Options | Purpose and values |
 |---|---|---|
 | all artifact-writing skills | `docs_root` | Repo-relative folder every CE artifact subdirectory lives under. Set only in `config.yaml`. Unset -> `docs`. See [Artifact root](#artifact-root). |
+| [`ce-job`](./ce-job.md) | `job_state_root`, `job_state_visibility` | Repo-relative ledger directory and advisory sharing mode. Default root is `<docs_root>/jobs`; visibility is `tracked` or `local` (default `tracked`). |
 | [`ce-ideate`](./ce-ideate.md), [`ce-brainstorm`](./ce-brainstorm.md), [`ce-plan`](./ce-plan.md) | `ideate_output`, `brainstorm_output`, `plan_output` | Artifact format: `md` or `html`. Defaults are HTML for ideation and markdown for brainstorms/plans. Headless and pipeline runs resolve the format the same way; nothing forces markdown. |
 | [`ce-plan`](./ce-plan.md) | `plan_skip_scoping_confirm` | `true` skips the normal pre-plan scope confirmation; default `false`. It does not suppress genuine blockers or the post-plan menu. |
 | [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_model`, `brainstorm_model` | Model elevation: send the reasoning-heavy step to a named model (e.g. `fable`, `opus`) instead of the session model. Value is a model alias; a prompt request or an orchestrator's `plan_model:<alias>` carrier (e.g. from `lfg`, honored even in pipeline mode) overrides it. Takes effect on every harness: natively where the host serves the model, else via the Claude CLI, else inline. Whenever one of these skills runs a Bake-off, automatically in planning or on request, pass the corresponding choice as a candidate model preference. Bake-off owns its dispatch: native access, authorized model CLIs, then fresh same-host agents on failure, subject to explicit model restrictions. With no preference, it seeks model-family diversity. Planning still has a final authoring call, while brainstorming replaces its ordinary generation. No default (elevation off). |

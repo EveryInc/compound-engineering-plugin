@@ -24,6 +24,17 @@
 
 # docs_root: .compound-engineering/artifacts   # repo-relative dir (default: docs)
 
+# --- Job ledger ---
+# Shared state for /ce-job. The default follows docs_root and writes to
+# <docs_root>/jobs (normally docs/jobs). Set job_state_root only when job
+# ledgers should live outside the artifact root.
+#
+# Visibility is advisory: tracked means the ledger may be committed as team
+# context; local means setup should help gitignore the configured path.
+
+# job_state_root: .compound-engineering/jobs   # repo-relative dir (default: <docs_root>/jobs)
+# job_state_visibility: tracked                # tracked | local (default: tracked)
+
 # --- Product pulse ---
 # Settings written by /ce-product-pulse first-run interview. Re-run the skill with
 # argument `setup` or `reconfigure` to edit interactively.

@@ -8,6 +8,8 @@ The **input document** for this run is the input this skill was invoked with —
 
 Invocation origin is not observable or relevant: apply the same source-resolution rules whether the user invoked `ce-work` explicitly or the host selected it automatically.
 
+If `<input_document>` contains a `job:<repo-relative-ledger>` token, strip it before source classification, validate that the ledger path resolves inside the repo, and carry the path through the run as shared state. The remaining input still decides whether the work source is a plan, blank latest-plan discovery, or a bare prompt; the ledger supplies context, not implementation authority.
+
 ## Artifact Root
 
 This skill discovers plans under `<root>/plans/`. Resolve `<root>` when you first compose a `<root>/` path (per the block below), never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count as composing a `<root>/` path, so either one triggers resolution; only a run that touches no `<root>/` path at all -- a scratch-only or no-repo flow -- skips it; pass the resolved path to any subagent, not the config.

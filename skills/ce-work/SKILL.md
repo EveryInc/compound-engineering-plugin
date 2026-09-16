@@ -1,7 +1,7 @@
 ---
 name: ce-work
 description: Execute a plan or concrete work prompt end-to-end. Use when implementing from a plan document, a spec path, or a clear build request; use ce-debug for open-ended bugs. Use when an outer orchestrator needs implementation and local verification only, without the shipping tail.
-argument-hint: "[Plan path, work description, or recovery request with run id; blank uses latest] | [mode:return-to-caller [implementation_engine:<compact-json>] [implementation_run:<safe-id>] <plan path> for outer orchestrators]"
+argument-hint: "[Plan path, work description, job:<ledger>, or recovery request with run id; blank uses latest] | [mode:return-to-caller [implementation_engine:<compact-json>] [implementation_run:<safe-id>] <plan path> for outer orchestrators]"
 ---
 
 # Work Execution Command
@@ -12,6 +12,10 @@ argument-hint: "[Plan path, work description, or recovery request with run id; b
 - **Next consumer:** In standalone use, the shipping workflow takes the verified change through review and delivery. In Return-to-Caller Mode, the invoking workflow receives the structured implementation and verification result and owns its remaining gates.
 - **Done:** Every in-scope task is complete, required verification evidence is recorded, relevant checks pass, and the run reaches either its owned shipping handoff (with a code-review receipt or explicit skip phrase — see Phase 3-4), a complete return result, or an explicit blocker.
 - **Intent:** Finish the requested feature without renegotiating the plan or transferring canonical integration authority. Workers receive bounded units; the host orchestrator inspects actual changes and owns authoritative verification and canonical commits.
+
+## Job ledger
+
+When the invocation names a `ce-job` ledger, or the user has already selected one in this session, treat that file as shared state. Read it before implementation planning, keep its scope and open questions in force, and append durable progress: changed files, decisions, verification commands, results, evidence paths, blockers, and the final status. When the invoking workflow provides an executable `ce-job` helper command, prefer its `receipt <ledger> work ...` operation for changed files, checks, blockers, and evidence. Do not reference sibling skill files directly. Do not create a job ledger from this skill; use `ce-job start` when the work needs one.
 
 ## Execution Workflow
 

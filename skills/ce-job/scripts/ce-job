@@ -1,0 +1,1244 @@
+#!/usr/bin/env python3
+"""Deterministic helper for CE job ledgers.
+
+The CE job skill owns the human-facing workflow; this helper owns low-variance
+file mechanics: resolve the job root, append durable events, render ledgers,
+classify queues, manage optional live sidecars, and enforce evidence gates.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import json
+import os
+import re
+import hashlib
+import subprocess
+import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX fallback
+    fcntl = None  # type: ignore[assignment]
+
+REQUIRED_SECTIONS = [
+    "Goal",
+    "Scope",
+    "Kickoff",
+    "Decisions",
+    "Plan links",
+    "Work log",
+    "Test requests",
+    "Evidence",
+    "Reviews",
+    "Live control",
+    "Open questions",
+    "Done criteria",
+]
+TERMINAL_STATUSES = {"complete"}
+VALID_STATUSES = {"draft", "active", "blocked", "paused", "ready-for-work", "needs-review", "complete"}
+VALID_MODES = {"assist", "guarded", "lane"}
+SAFE_JOB_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$")
+KIND_TO_SECTION = {
+    "decision": "Decisions",
+    "requirement": "Scope",
+    "test-request": "Test requests",
+    "blocker": "Open questions",
+    "work-log": "Work log",
+    "evidence": "Evidence",
+    "review": "Reviews",
+    "live-control": "Live control",
+}
+RECEIPT_SECTIONS = {
+    "plan": "Plan links",
+    "doc-review": "Reviews",
+    "work": "Work log",
+    "code-review": "Reviews",
+    "test": "Evidence",
+    "shipping": "Evidence",
+    "lane": "Work log",
+}
+PASSING_RECEIPT_STATUSES = {"passed", "pass", "clean", "ok", "complete", "completed", "success", "succeeded"}
+USER_SKIP_STATUSES = {"skipped-user-approved", "user-skipped", "out-of-scope", "not-applicable", "not_applicable"}
+BLOCKING_SKIP_STATUSES = {"skipped", "skill_unreachable", "failed", "error", "timeout", "blocked"}
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def run_git(args: list[str], cwd: Path | None = None) -> str | None:
+    try:
+        out = subprocess.check_output(["git", *args], cwd=cwd, stderr=subprocess.DEVNULL, text=True)
+        return out.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def repo_root() -> Path:
+    root = run_git(["rev-parse", "--show-toplevel"])
+    if not root:
+        raise SystemExit("ce-job: not inside a git repository")
+    return Path(root).resolve()
+
+
+def read_flat_scalar(path: Path, key: str) -> str | None:
+    if not path.is_file():
+        return None
+    pattern = re.compile(rf"^\s*{re.escape(key)}\s*:\s*(.*?)\s*(?:#.*)?$")
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        match = pattern.match(raw)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        if not value:
+            return ""
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1]
+        return value
+    return None
+
+
+def validate_repo_relative(root: Path, value: str, key: str, *, allow_missing: bool = True) -> Path:
+    if os.path.isabs(value):
+        raise SystemExit(f"ce-job: {key} must be repo-relative, got {value!r}")
+    raw = Path(value)
+    if any(part in {"", ".", ".."} for part in raw.parts):
+        raise SystemExit(f"ce-job: {key} must be a normal repo-relative directory, got {value!r}")
+    candidate = root / raw
+    try:
+        if candidate.exists():
+            resolved = candidate.resolve()
+        else:
+            if not allow_missing:
+                raise SystemExit(f"ce-job: {key} does not exist: {value!r}")
+            parent = candidate.parent
+            while not parent.exists() and parent != root and root in parent.parents:
+                parent = parent.parent
+            resolved_parent = parent.resolve()
+            relative_tail = candidate.relative_to(parent)
+            resolved = resolved_parent / relative_tail
+    except (OSError, ValueError):
+        raise SystemExit(f"ce-job: invalid {key}: {value!r}")
+    if resolved == root or root not in resolved.parents:
+        raise SystemExit(f"ce-job: {key} escapes the repository: {value!r}")
+    git_dir = root / ".git"
+    try:
+        resolved_git = git_dir.resolve()
+        if resolved == resolved_git or resolved_git in resolved.parents:
+            raise SystemExit(f"ce-job: {key} must not live under .git: {value!r}")
+    except OSError:
+        pass
+    return resolved
+
+
+def artifact_root(root: Path) -> Path:
+    cfg = root / ".compound-engineering" / "config.yaml"
+    docs_root = read_flat_scalar(cfg, "docs_root")
+    if docs_root is None or docs_root == "":
+        return root / "docs"
+    return validate_repo_relative(root, docs_root, "docs_root")
+
+
+def config_values(root: Path, key: str) -> list[tuple[str, str]]:
+    values: list[tuple[str, str]] = []
+    local_cfg = root / ".compound-engineering" / "config.local.yaml"
+    tracked_cfg = root / ".compound-engineering" / "config.yaml"
+    local_value = read_flat_scalar(local_cfg, key)
+    if local_value is not None:
+        values.append(("local", local_value))
+    tracked_value = read_flat_scalar(tracked_cfg, key)
+    if tracked_value is not None:
+        values.append(("tracked", tracked_value))
+    return values
+
+
+def config_value(root: Path, key: str) -> str | None:
+    values = config_values(root, key)
+    return values[0][1] if values else None
+
+
+def job_root(root: Path) -> Path:
+    errors: list[str] = []
+    for source, value in config_values(root, "job_state_root"):
+        if value == "":
+            continue
+        try:
+            return validate_repo_relative(root, value, "job_state_root")
+        except SystemExit as exc:
+            errors.append(f"{source}: {exc}")
+            continue
+    if errors and not (root / ".compound-engineering" / "config.yaml").is_file():
+        raise SystemExit(f"ce-job: invalid job_state_root ({'; '.join(errors)})")
+    return artifact_root(root) / "jobs"
+
+
+def job_visibility(root: Path) -> str:
+    for _source, value in config_values(root, "job_state_visibility"):
+        if value in {"tracked", "local"}:
+            return value
+    return "tracked"
+
+
+def slugify(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip().lower()).strip("-._")
+    return slug[:80] or "job"
+
+
+def validate_job_id(job_id: str, context: str = "job_id") -> str:
+    if not SAFE_JOB_ID.match(job_id):
+        raise SystemExit(f"ce-job: invalid {context}: {job_id!r}")
+    return job_id
+
+
+def parse_ledger(path: Path) -> dict[str, Any]:
+    text = path.read_text(encoding="utf-8")
+    frontmatter: dict[str, str] = {}
+    body = text
+    if text.startswith("---\n"):
+        end = text.find("\n---", 4)
+        if end != -1:
+            raw_fm = text[4:end].strip("\n")
+            body = text[end + 4 :].lstrip("\n")
+            for line in raw_fm.splitlines():
+                if ":" not in line:
+                    continue
+                key, value = line.split(":", 1)
+                frontmatter[key.strip()] = value.strip()
+    sections: dict[str, str] = {}
+    matches = list(re.finditer(r"(?m)^##\s+(.+?)\s*$", body))
+    for idx, match in enumerate(matches):
+        name = match.group(1).strip()
+        start = match.end()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(body)
+        sections[name] = body[start:end].strip()
+    title_match = re.search(r"(?m)^#\s+(.+?)\s*$", body)
+    return {"path": path, "text": text, "frontmatter": frontmatter, "sections": sections, "title": title_match.group(1).strip() if title_match else path.stem}
+
+
+def render(frontmatter: dict[str, str], title: str, sections: dict[str, str]) -> str:
+    ordered_fm = ["job_id", "status", "mode", "created", "updated", "owner", "branch", "risk", "priority", "assignee", "depends_on", "due"]
+    lines = ["---"]
+    for key in ordered_fm:
+        if key in frontmatter and frontmatter[key] != "":
+            lines.append(f"{key}: {frontmatter[key]}")
+    for key in sorted(k for k in frontmatter if k not in ordered_fm):
+        lines.append(f"{key}: {frontmatter[key]}")
+    lines.extend(["---", "", f"# {title}", ""])
+    section_names = list(sections.keys())
+    for required in REQUIRED_SECTIONS:
+        if required not in sections:
+            section_names.append(required)
+    for section in section_names:
+        lines.append(f"## {section}")
+        content = sections.get(section, "").strip()
+        if content:
+            lines.append("")
+            lines.append(content)
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def ensure_ledger_shape(record: dict[str, Any]) -> tuple[dict[str, str], str, dict[str, str]]:
+    fm = dict(record["frontmatter"])
+    title = record["title"]
+    sections = dict(record["sections"])
+    for section in REQUIRED_SECTIONS:
+        sections.setdefault(section, "")
+    return fm, title, sections
+
+
+def atomic_write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def write_ledger(path: Path, fm: dict[str, str], title: str, sections: dict[str, str]) -> None:
+    atomic_write(path, render(fm, title, sections))
+
+
+@contextlib.contextmanager
+def ledger_lock(path: Path):
+    lock_key = hashlib.sha256(str(path.resolve()).encode("utf-8")).hexdigest()[:24]
+    lock_path = sidecar_dir(repo_root()) / "locks" / f"{lock_key}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        if fcntl is None:
+            raise SystemExit("ce-job: ledger locking requires fcntl on this platform")
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def validate_existing_ledger(root: Path, path: Path) -> Path:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        raise SystemExit(f"ce-job: invalid ledger path: {path}")
+    if resolved == root or root not in resolved.parents:
+        raise SystemExit(f"ce-job: ledger path escapes the repository: {path}")
+    git_dir = root / ".git"
+    try:
+        resolved_git = git_dir.resolve()
+        if resolved == resolved_git or resolved_git in resolved.parents:
+            raise SystemExit(f"ce-job: ledger path must not live under .git: {path}")
+    except OSError:
+        pass
+    record = parse_ledger(resolved)
+    fm = record["frontmatter"]
+    if not fm.get("job_id") or fm.get("status") not in VALID_STATUSES or fm.get("mode") not in VALID_MODES:
+        raise SystemExit(f"ce-job: not a ce-job ledger: {path}")
+    validate_job_id(str(fm["job_id"]), "ledger job_id")
+    if not any(section in record["sections"] for section in REQUIRED_SECTIONS):
+        raise SystemExit(f"ce-job: not a ce-job ledger: {path}")
+    return resolved
+
+
+def iter_ledgers(root: Path) -> list[dict[str, Any]]:
+    if not root.is_dir():
+        return []
+    records = []
+    for path in sorted(root.glob("*.md")):
+        try:
+            records.append(parse_ledger(path))
+        except UnicodeDecodeError:
+            continue
+    return records
+
+
+def sidecar_dir(root: Path) -> Path:
+    return root / ".context" / "compound-engineering" / "jobs"
+
+
+def sidecar_path_for(root: Path, job_id: str) -> Path:
+    return sidecar_dir(root) / f"{job_id}.json"
+
+
+def event_log_path(root: Path, ledger_path: Path, job_id: str) -> Path:
+    if job_visibility(root) == "local":
+        return sidecar_dir(root) / job_id / "events.jsonl"
+    job_dir = job_root(root)
+    try:
+        ledger_path.relative_to(job_dir)
+        return job_dir / ".events" / f"{job_id}.jsonl"
+    except ValueError:
+        return ledger_path.parent / ".events" / f"{job_id}.jsonl"
+
+
+def event_for(root: Path, ledger_path: Path, event_type: str, message: str, payload: dict[str, Any] | None = None, actor: str | None = None, source: str = "ce-job") -> dict[str, Any]:
+    job_id = ledger_path.stem
+    if ledger_path.is_file():
+        try:
+            job_id = parse_ledger(ledger_path)["frontmatter"].get("job_id", job_id)
+        except Exception:
+            pass
+    return {
+        "event_id": f"{now_iso()}-{uuid.uuid4().hex[:12]}",
+        "job_id": job_id,
+        "ts": now_iso(),
+        "type": event_type,
+        "actor": actor or os.environ.get("USER") or "unknown",
+        "source": source,
+        "message": message,
+        "payload": payload or {},
+    }
+
+
+def append_event(root: Path, ledger_path: Path, event: dict[str, Any]) -> Path:
+    path = event_log_path(root, ledger_path, str(event.get("job_id") or ledger_path.stem))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    return path
+
+
+def read_events(root: Path, ledger_path: Path, job_id: str) -> tuple[list[dict[str, Any]], list[str]]:
+    path = event_log_path(root, ledger_path, job_id)
+    if not path.is_file():
+        return [], []
+    events: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+            if isinstance(item, dict):
+                events.append(item)
+            else:
+                errors.append(f"line {number}: not an object")
+        except json.JSONDecodeError as exc:
+            errors.append(f"line {number}: {exc.msg}")
+    return events, errors
+
+
+def resolve_job(root: Path, token: str | None) -> Path:
+    jobs = job_root(root)
+    if token:
+        candidate = Path(token)
+        if candidate.is_file():
+            return validate_existing_ledger(root, candidate)
+        if not candidate.is_absolute():
+            cwd_candidate = (Path.cwd() / candidate)
+            if cwd_candidate.is_file():
+                return validate_existing_ledger(root, cwd_candidate)
+            root_candidate = jobs / f"{token}.md"
+            if root_candidate.is_file():
+                return validate_existing_ledger(root, root_candidate)
+        matches = []
+        for record in iter_ledgers(jobs):
+            fm = record["frontmatter"]
+            if fm.get("job_id") == token or Path(record["path"]).stem == token:
+                matches.append(record["path"].resolve())
+        if len(matches) == 1:
+            return validate_existing_ledger(root, matches[0])
+        if len(matches) > 1:
+            raise SystemExit(f"ce-job: job id {token!r} is ambiguous")
+        raise SystemExit(f"ce-job: no such job: {token}")
+    branch = run_git(["branch", "--show-current"]) or "unknown"
+    matches = []
+    for record in iter_ledgers(jobs):
+        fm = record["frontmatter"]
+        if fm.get("branch") == branch and fm.get("status") not in TERMINAL_STATUSES:
+            matches.append(record["path"].resolve())
+    if len(matches) == 1:
+        return validate_existing_ledger(root, matches[0])
+    if len(matches) > 1:
+        ids = ", ".join(path.stem for path in matches)
+        raise SystemExit(f"ce-job: more than one active job matches branch {branch!r}: {ids}")
+    raise SystemExit("ce-job: no current job; pass a job id/path or run `ce-job start`")
+
+
+def latest_bullet(text: str) -> str:
+    bullets = [line.strip() for line in text.splitlines() if line.strip().startswith("-")]
+    return bullets[-1] if bullets else ""
+
+
+def section_has_real_content(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    normalized = re.sub(r"^[\s\-*]+", "", stripped).strip().lower()
+    return normalized not in {"none", "none.", "n/a", "not applicable"} and not normalized.startswith("none blocking")
+
+
+def open_questions_resolved(sections: dict[str, str]) -> bool:
+    questions = sections.get("Open questions", "")
+    if not section_has_real_content(questions):
+        return True
+    question_items = bullet_items(questions) or [questions.strip()]
+    resolution_text = f"{sections.get('Decisions', '')}\n{sections.get('Scope', '')}"
+    return all(request_has_evidence(question, resolution_text, []) for question in question_items)
+
+
+def canonical_receipt_type(value: str) -> str:
+    return value.replace("_", "-")
+
+
+def event_receipt_type(event: dict[str, Any]) -> str | None:
+    event_type = str(event.get("type", ""))
+    if not event_type.startswith("receipt."):
+        return None
+    return canonical_receipt_type(event_type.split(".", 1)[1])
+
+
+def receipt_events(events: list[dict[str, Any]], receipt_type: str | None = None) -> list[dict[str, Any]]:
+    out = [event for event in events if event_receipt_type(event) is not None]
+    if receipt_type:
+        wanted = canonical_receipt_type(receipt_type)
+        out = [event for event in out if event_receipt_type(event) == wanted]
+    return out
+
+
+def receipt_status(event: dict[str, Any]) -> str:
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    return str(payload.get("status") or payload.get("verdict") or "").strip().lower()
+
+
+def latest_receipt(events: list[dict[str, Any]], receipt_type: str) -> dict[str, Any] | None:
+    matching = receipt_events(events, receipt_type)
+    return matching[-1] if matching else None
+
+
+def has_passing_receipt(events: list[dict[str, Any]], receipt_type: str) -> bool:
+    event = latest_receipt(events, receipt_type)
+    if not event:
+        return False
+    status = receipt_status(event)
+    return status in PASSING_RECEIPT_STATUSES or status in USER_SKIP_STATUSES
+
+
+def has_blocking_receipt(events: list[dict[str, Any]], receipt_type: str) -> bool:
+    event = latest_receipt(events, receipt_type)
+    if not event:
+        return False
+    status = receipt_status(event)
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    return status in BLOCKING_SKIP_STATUSES or payload.get("skipped_reason") == "skill_unreachable"
+
+
+def bullet_items(text: str) -> list[str]:
+    items: list[str] = []
+    for line in text.splitlines():
+        if not line.strip().startswith(("-", "*")):
+            continue
+        item = line.strip().lstrip("-* ").strip()
+        item = re.sub(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z:\s*", "", item)
+        item = re.sub(r"^[A-Za-z][A-Za-z -]{0,30}:\s*", "", item)
+        items.append(item.strip())
+    return items
+
+
+def normalized_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+
+
+def event_search_text(event: dict[str, Any]) -> str:
+    payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+    pieces: list[str] = [event.get("message", "")]
+    for key in ("artifact", "verdict", "skipped_reason"):
+        pieces.append(str(payload.get(key) or ""))
+    for key in ("checks", "blockers", "changed_files", "covers", "requests"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            pieces.extend(str(item) for item in value)
+        elif value:
+            pieces.append(str(value))
+    nested = payload.get("payload")
+    if isinstance(nested, dict):
+        for value in nested.values():
+            if isinstance(value, list):
+                pieces.extend(str(item) for item in value)
+            elif value:
+                pieces.append(str(value))
+    return normalized_text(" ".join(pieces))
+
+
+def request_has_evidence(request: str, evidence_text: str, test_receipts: list[dict[str, Any]]) -> bool:
+    needle = normalized_text(request)
+    if not needle:
+        return True
+    evidence_lines = [normalized_text(item) for item in bullet_items(evidence_text)]
+    if any(needle in line for line in evidence_lines):
+        return True
+    return any(needle in event_search_text(event) for event in test_receipts if receipt_status(event) in PASSING_RECEIPT_STATUSES or receipt_status(event) in USER_SKIP_STATUSES)
+
+
+def guarded_ready_blockers(record: dict[str, Any], root: Path) -> list[str]:
+    fm = record["frontmatter"]
+    if fm.get("mode") != "guarded":
+        return []
+    sections = record["sections"]
+    job_id = fm.get("job_id", Path(record["path"]).stem)
+    events, event_errors = read_events(root, record["path"], job_id)
+    blockers = ["event log has unreadable lines: " + "; ".join(event_errors)] if event_errors else []
+    plan_linked = section_has_real_content(sections.get("Plan links", "")) or has_passing_receipt(events, "plan")
+    if not plan_linked:
+        blockers.append("plan receipt or plan link")
+    if has_blocking_receipt(events, "doc-review"):
+        blockers.append("passing or user-approved doc-review receipt")
+    elif not has_passing_receipt(events, "doc-review") and "doc-review" not in sections.get("Reviews", "").lower() and "ce-doc-review" not in sections.get("Reviews", "").lower():
+        blockers.append("doc-review receipt")
+    return blockers
+
+
+def live_sidecar(root: Path, job_id: str) -> dict[str, Any] | None:
+    path = sidecar_path_for(root, job_id)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except json.JSONDecodeError:
+        return {"state": "unreadable", "path": str(path)}
+
+
+def proof(record: dict[str, Any], root: Path) -> dict[str, Any]:
+    fm = record["frontmatter"]
+    sections = record["sections"]
+    job_id = fm.get("job_id", Path(record["path"]).stem)
+    events, event_errors = read_events(root, record["path"], job_id)
+    proven: list[str] = []
+    missing: list[str] = []
+    blocked: list[str] = []
+    out_of_scope: list[str] = []
+
+    if event_errors:
+        blocked.append("event log has unreadable lines: " + "; ".join(event_errors))
+    if fm.get("status") == "blocked":
+        blocked.append("job status is blocked")
+    if not open_questions_resolved(sections):
+        blocked.append("open questions remain")
+
+    has_test_requests = section_has_real_content(sections.get("Test requests", ""))
+    has_evidence_text = section_has_real_content(sections.get("Evidence", ""))
+    if has_test_requests:
+        requests = bullet_items(sections.get("Test requests", "")) or [sections.get("Test requests", "").strip()]
+        test_receipts = receipt_events(events, "test")
+        missing_requests = [request for request in requests if not request_has_evidence(request, sections.get("Evidence", ""), test_receipts)]
+        if missing_requests:
+            for request in missing_requests:
+                missing.append(f"test request evidence for: {request}")
+        else:
+            proven.append("test requests have evidence")
+
+    has_done_criteria = section_has_real_content(sections.get("Done criteria", ""))
+    if has_done_criteria:
+        criteria = bullet_items(sections.get("Done criteria", "")) or [sections.get("Done criteria", "").strip()]
+        evidence_receipts = receipt_events(events, "work") + receipt_events(events, "test")
+        missing_criteria = [criterion for criterion in criteria if not request_has_evidence(criterion, sections.get("Evidence", ""), evidence_receipts)]
+        if missing_criteria:
+            for criterion in missing_criteria:
+                missing.append(f"done criteria evidence for: {criterion}")
+        else:
+            proven.append("done criteria have recorded evidence")
+
+    mode = fm.get("mode")
+    plan_linked = section_has_real_content(sections.get("Plan links", "")) or has_passing_receipt(events, "plan")
+    if mode == "guarded":
+        if not plan_linked:
+            missing.append("plan receipt or plan link")
+        elif has_blocking_receipt(events, "doc-review"):
+            missing.append("passing or user-approved doc-review receipt")
+        elif has_passing_receipt(events, "doc-review") or "doc-review" in sections.get("Reviews", "").lower() or "ce-doc-review" in sections.get("Reviews", "").lower():
+            proven.append("doc-review gate recorded")
+        else:
+            missing.append("doc-review receipt")
+
+    if has_blocking_receipt(events, "code-review"):
+        missing.append("passing or user-approved code-review receipt")
+    elif has_passing_receipt(events, "code-review"):
+        proven.append("code-review gate recorded")
+    else:
+        missing.append("code-review receipt or explicit user-approved skip")
+
+    for event in receipt_events(events):
+        if receipt_status(event) in USER_SKIP_STATUSES:
+            out_of_scope.append(f"{event.get('type')} marked {receipt_status(event)}")
+
+    return {
+        "job_id": job_id,
+        "path": str(record["path"]),
+        "status": "blocked" if blocked else ("missing" if missing else "proven"),
+        "proven": proven,
+        "missing": missing,
+        "blocked": blocked,
+        "out_of_scope": out_of_scope,
+    }
+
+
+def queue_bucket(record: dict[str, Any], root: Path, stale_hours: int = 48) -> str:
+    fm = record["frontmatter"]
+    status = fm.get("status", "unknown")
+    if status == "complete":
+        return "complete"
+    if status == "paused":
+        return "paused"
+    if status == "blocked":
+        return "blocked"
+    if status == "ready-for-work":
+        return "ready-for-work"
+    if status == "needs-review":
+        return "needs-review"
+    p = proof(record, root)
+    if p["blocked"]:
+        return "blocked"
+    if p["missing"]:
+        if any("evidence" in item for item in p["missing"]):
+            return "needs-evidence"
+        if any("review" in item for item in p["missing"]):
+            return "needs-review"
+    updated = fm.get("updated", "")
+    try:
+        dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+        age_hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
+        if age_hours >= stale_hours:
+            return "stale"
+    except ValueError:
+        pass
+    return "active"
+
+
+def classify_next(record: dict[str, Any], root: Path | None = None) -> str:
+    fm = record["frontmatter"]
+    sections = record["sections"]
+    status = fm.get("status", "unknown")
+    if status == "complete":
+        return "closed"
+    if status == "blocked":
+        return "resolve blocker or update scope"
+    if status == "paused":
+        return "resume or keep paused"
+    if not open_questions_resolved(sections):
+        return "answer open questions"
+    if status == "ready-for-work":
+        return "run ce-work with job context"
+    if status == "needs-review":
+        return "run ce-code-review with job context"
+    if root is not None:
+        p = proof(record, root)
+        if any("evidence" in item for item in p["missing"]):
+            return "collect requested evidence"
+        if any("doc-review" in item for item in p["missing"]):
+            return "run ce-doc-review with job context"
+        if any("code-review" in item for item in p["missing"]):
+            return "run ce-code-review with job context"
+    if sections.get("Test requests", "").strip() and not sections.get("Evidence", "").strip():
+        return "collect requested evidence"
+    return "continue work or record evidence"
+
+
+def summary(record: dict[str, Any], root: Path | None = None) -> dict[str, Any]:
+    fm = record["frontmatter"]
+    sections = record["sections"]
+    job_id = fm.get("job_id", Path(record["path"]).stem)
+    events: list[dict[str, Any]] = []
+    event_errors: list[str] = []
+    sidecar = None
+    bucket = "unknown"
+    if root is not None:
+        events, event_errors = read_events(root, record["path"], job_id)
+        sidecar = live_sidecar(root, job_id)
+        bucket = queue_bucket(record, root)
+    return {
+        "path": str(record["path"]),
+        "job_id": job_id,
+        "title": record["title"],
+        "status": fm.get("status", "unknown"),
+        "mode": fm.get("mode", "unknown"),
+        "branch": fm.get("branch", "unknown"),
+        "owner": fm.get("owner", "unknown"),
+        "assignee": fm.get("assignee", ""),
+        "priority": fm.get("priority", ""),
+        "depends_on": fm.get("depends_on", ""),
+        "risk": fm.get("risk", "unknown"),
+        "updated": fm.get("updated", "unknown"),
+        "bucket": bucket,
+        "latest_evidence": latest_bullet(sections.get("Evidence", "")),
+        "latest_review": latest_bullet(sections.get("Reviews", "")),
+        "open_questions": sections.get("Open questions", "").strip(),
+        "test_requests": sections.get("Test requests", "").strip(),
+        "receipts": [event for event in events if str(event.get("type", "")).startswith("receipt.")],
+        "event_errors": event_errors,
+        "live": sidecar,
+        "next": classify_next(record, root),
+    }
+
+
+def print_json(data: Any) -> None:
+    print(json.dumps(data, indent=2, sort_keys=True))
+
+
+def append_section_bullet(root: Path, path: Path, kind: str, message: str, section: str | None = None, label: str | None = None, payload: dict[str, Any] | None = None, event_type: str | None = None) -> tuple[dict[str, str], str, dict[str, str], str, str]:
+    with ledger_lock(path):
+        record = parse_ledger(path)
+        fm, title, sections = ensure_ledger_shape(record)
+        target = section or KIND_TO_SECTION[kind]
+        if target not in REQUIRED_SECTIONS:
+            raise SystemExit(f"ce-job: unsupported section {target!r}")
+        ts = now_iso()
+        prefix = label or kind.replace("-", " ")
+        bullet = f"- {ts}: {prefix}: {message.strip()}"
+        event = event_for(root, path, event_type or f"{kind.replace('-', '_')}.added", message, payload={"section": target, **(payload or {})})
+        append_event(root, path, event)
+        current = sections.get(target, "").strip()
+        sections[target] = f"{current}\n{bullet}".strip() if current else bullet
+        fm.setdefault("job_id", path.stem)
+        fm["updated"] = ts
+        if kind == "blocker":
+            fm["status"] = "blocked"
+        elif kind == "review" and fm.get("status") not in {"blocked", "paused", "complete"}:
+            fm["status"] = "needs-review"
+        write_ledger(path, fm, title, sections)
+    return fm, title, sections, target, bullet
+
+
+def cmd_root(args: argparse.Namespace) -> int:
+    root = repo_root()
+    jobs = job_root(root)
+    data = {
+        "job_root": str(jobs),
+        "visibility": job_visibility(root),
+        "event_root": str((jobs / ".events") if job_visibility(root) == "tracked" else sidecar_dir(root)),
+        "sidecar_root": str(sidecar_dir(root)),
+    }
+    print_json(data) if args.json else print(jobs)
+    return 0
+
+
+def cmd_start(args: argparse.Namespace) -> int:
+    root = repo_root()
+    jobs = job_root(root)
+    title = args.title or args.goal.splitlines()[0][:80]
+    job_id = validate_job_id(slugify(args.job_id or title))
+    path = jobs / f"{job_id}.md"
+    if path.exists() and not args.force:
+        raise SystemExit(f"ce-job: ledger already exists: {path}")
+    ts = now_iso()
+    branch = run_git(["branch", "--show-current"]) or "unknown"
+    fm = {
+        "job_id": job_id,
+        "status": args.status,
+        "mode": args.mode,
+        "created": ts,
+        "updated": ts,
+        "owner": args.owner,
+        "branch": branch,
+        "risk": args.risk,
+    }
+    if args.priority:
+        fm["priority"] = args.priority
+    if args.assignee:
+        fm["assignee"] = args.assignee
+    if args.depends_on:
+        fm["depends_on"] = args.depends_on
+    sections = {section: "" for section in REQUIRED_SECTIONS}
+    sections["Goal"] = args.goal.strip()
+    if args.scope:
+        sections["Scope"] = args.scope.strip()
+    sections["Kickoff"] = f"- {ts}: Created by `ce-job start`."
+    event = event_for(root, path, "job.started", args.goal, payload={"title": title, "mode": args.mode, "status": args.status, "branch": branch})
+    with ledger_lock(path):
+        if args.force:
+            old_events = event_log_path(root, path, job_id)
+            if old_events.exists():
+                archive = old_events.with_name(f"{old_events.name}.{ts.replace(':', '').replace('-', '')}.bak")
+                old_events.replace(archive)
+        append_event(root, path, event)
+        write_ledger(path, fm, title, sections)
+    print_json(summary(parse_ledger(path), root)) if args.json else print(path)
+    return 0
+
+
+def cmd_list(args: argparse.Namespace) -> int:
+    root = repo_root()
+    rows = [summary(record, root) for record in iter_ledgers(job_root(root))]
+    if not args.all:
+        rows = [row for row in rows if row["status"] not in TERMINAL_STATUSES]
+    if args.json:
+        print_json(rows)
+    else:
+        if not rows:
+            print("No matching job ledgers.")
+            return 0
+        for row in rows:
+            print(f"{row['job_id']}\t{row['status']}\t{row['mode']}\t{row['branch']}\t{row['updated']}\t{row['next']}")
+    return 0
+
+
+def cmd_queue(args: argparse.Namespace) -> int:
+    root = repo_root()
+    rows = [summary(record, root) for record in iter_ledgers(job_root(root))]
+    if not args.all:
+        rows = [row for row in rows if row["bucket"] != "complete"]
+    if args.bucket:
+        rows = [row for row in rows if row["bucket"] == args.bucket]
+    order = {"blocked": 0, "needs-review": 1, "ready-for-work": 2, "needs-evidence": 3, "active": 4, "stale": 5, "paused": 6, "complete": 7, "unknown": 8}
+    rows.sort(key=lambda row: (order.get(str(row["bucket"]), 99), str(row.get("priority") or "zz"), str(row["updated"])))
+    if args.json:
+        print_json(rows)
+    else:
+        if not rows:
+            print("No matching queued jobs.")
+            return 0
+        for row in rows:
+            print(f"{row['bucket']}\t{row['job_id']}\t{row['priority']}\t{row['assignee']}\t{row['next']}")
+    return 0
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    record = parse_ledger(path)
+    data = summary(record, root)
+    if args.json:
+        print_json(data)
+    else:
+        print(f"Job: {data['job_id']} ({data['title']})")
+        print(f"Status: {data['status']} | Bucket: {data['bucket']} | Mode: {data['mode']} | Branch: {data['branch']} | Owner: {data['owner']}")
+        print(f"Updated: {data['updated']}")
+        print(f"Next: {data['next']}")
+        if data["open_questions"]:
+            print("Open questions:")
+            print(data["open_questions"])
+        if data["test_requests"]:
+            print("Test requests:")
+            print(data["test_requests"])
+        if data["live"]:
+            print(f"Live: {data['live']}")
+        if data["latest_evidence"]:
+            print(f"Latest evidence: {data['latest_evidence']}")
+        if data["latest_review"]:
+            print(f"Latest review: {data['latest_review']}")
+        if data["event_errors"]:
+            print(f"Event errors: {'; '.join(data['event_errors'])}")
+        print(f"Path: {data['path']}")
+    return 0
+
+
+def cmd_append(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    fm, _title, _sections, section, bullet = append_section_bullet(root, path, args.kind, args.message, args.section, args.label)
+    if args.json:
+        print_json({"path": str(path), "section": section, "status": fm.get("status"), "appended": bullet})
+    else:
+        print(f"appended to {section}: {path}")
+    return 0
+
+
+def cmd_receipt(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    receipt_type = args.receipt_type
+    section = RECEIPT_SECTIONS[receipt_type]
+    payload: dict[str, Any] = {
+        "receipt_type": receipt_type,
+        "status": args.status,
+        "artifact": args.artifact,
+        "verdict": args.verdict,
+        "changed_files": args.changed_file or [],
+        "checks": args.check or [],
+        "blockers": args.blocker or [],
+        "skipped_reason": args.skipped_reason,
+    }
+    if args.payload:
+        try:
+            extra = json.loads(args.payload)
+            if isinstance(extra, dict):
+                payload["payload"] = extra
+            else:
+                raise ValueError("payload must be an object")
+        except ValueError as exc:
+            raise SystemExit(f"ce-job: invalid receipt payload: {exc}")
+    parts = [receipt_type, args.status]
+    if args.artifact:
+        parts.append(args.artifact)
+    if args.verdict:
+        parts.append(f"verdict={args.verdict}")
+    if args.skipped_reason:
+        parts.append(f"skipped={args.skipped_reason}")
+    if args.message:
+        parts.append(args.message)
+    message = " — ".join(parts)
+    with ledger_lock(path):
+        record = parse_ledger(path)
+        fm, title, sections = ensure_ledger_shape(record)
+        event = event_for(root, path, f"receipt.{receipt_type.replace('-', '_')}", message, payload=payload)
+        append_event(root, path, event)
+        ts = now_iso()
+        bullet = f"- {ts}: receipt:{message}"
+        current = sections.get(section, "").strip()
+        sections[section] = f"{current}\n{bullet}".strip() if current else bullet
+        fm["updated"] = ts
+        if receipt_type == "work" and fm.get("status") not in {"blocked", "paused", "complete"}:
+            fm["status"] = "needs-review"
+        if receipt_type == "doc-review" and args.status.lower() in PASSING_RECEIPT_STATUSES and fm.get("mode") == "guarded" and fm.get("status") not in {"blocked", "paused", "complete"} and not guarded_ready_blockers({"frontmatter": fm, "sections": sections, "path": path}, root):
+            fm["status"] = "ready-for-work"
+        if receipt_type == "code-review" and args.status.lower() in PASSING_RECEIPT_STATUSES and fm.get("status") == "needs-review":
+            fm["status"] = "active"
+        write_ledger(path, fm, title, sections)
+    data = {"path": str(path), "section": section, "event": event, "status": fm.get("status")}
+    print_json(data) if args.json else print(f"receipt {receipt_type}: {path}")
+    return 0
+
+
+def cmd_prove(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    result = proof(parse_ledger(path), root)
+    if args.json:
+        print_json(result)
+    else:
+        print(f"Proof: {result['status']}")
+        for label in ("proven", "missing", "blocked", "out_of_scope"):
+            print(f"{label.replace('_', ' ').title()}:")
+            items = result[label]
+            if items:
+                for item in items:
+                    print(f"- {item}")
+            else:
+                print("- none")
+    return 0 if result["status"] == "proven" or args.json else 1
+
+
+def cmd_set_status(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    with ledger_lock(path):
+        record = parse_ledger(path)
+        if args.status == "complete" and not args.force:
+            result = proof(record, root)
+            if result["missing"] or result["blocked"]:
+                if args.json:
+                    print_json(result)
+                else:
+                    print("ce-job: cannot complete; proof is missing or blocked", file=sys.stderr)
+                    for item in result["blocked"] + result["missing"]:
+                        print(f"- {item}", file=sys.stderr)
+                return 1
+        if args.status == "ready-for-work" and not args.force:
+            blockers = guarded_ready_blockers(record, root)
+            if blockers:
+                result = {"job_id": record["frontmatter"].get("job_id", path.stem), "path": str(path), "status": "missing", "missing": blockers, "blocked": [], "proven": [], "out_of_scope": []}
+                if args.json:
+                    print_json(result)
+                else:
+                    print("ce-job: cannot mark ready-for-work; guarded gate is missing", file=sys.stderr)
+                    for item in blockers:
+                        print(f"- {item}", file=sys.stderr)
+                return 1
+        fm, title, sections = ensure_ledger_shape(record)
+        ts = now_iso()
+        fm["status"] = args.status
+        fm["updated"] = ts
+        note = args.message or f"status set to {args.status}"
+        section = "Evidence" if args.status == "complete" else "Work log"
+        event = event_for(root, path, f"job.{args.status.replace('-', '_')}", note, payload={"status": args.status})
+        append_event(root, path, event)
+        current = sections.get(section, "").strip()
+        bullet = f"- {ts}: {note}"
+        sections[section] = f"{current}\n{bullet}".strip() if current else bullet
+        write_ledger(path, fm, title, sections)
+    print_json(summary(parse_ledger(path), root)) if args.json else print(f"status {args.status}: {path}")
+    return 0
+
+
+def cmd_attach(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    record = parse_ledger(path)
+    job_id = record["frontmatter"].get("job_id", Path(path).stem)
+    ts = now_iso()
+    data = {
+        "job_id": job_id,
+        "target": args.target,
+        "target_type": args.target_type,
+        "attached_by": os.environ.get("USER") or "unknown",
+        "attached_at": ts,
+        "last_seen": ts,
+        "state": args.state,
+        "last_output_summary": args.summary or "",
+    }
+    sidecar = sidecar_path_for(root, job_id)
+    atomic_write(sidecar, json.dumps(data, indent=2, sort_keys=True) + "\n")
+    append_section_bullet(root, path, "live-control", f"attached {args.target_type}:{args.target}", payload=data, event_type="live.attached")
+    print_json({"path": str(path), "sidecar": str(sidecar), "live": data}) if args.json else print(f"attached {args.target_type}:{args.target} to {path}")
+    return 0
+
+
+def cmd_live_status(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    record = parse_ledger(path)
+    job_id = record["frontmatter"].get("job_id", Path(path).stem)
+    data = live_sidecar(root, job_id)
+    if data is None:
+        data = {"job_id": job_id, "state": "unattached", "path": str(sidecar_path_for(root, job_id))}
+    print_json(data) if args.json else print(json.dumps(data, sort_keys=True))
+    return 0
+
+
+def cmd_heartbeat(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    record = parse_ledger(path)
+    job_id = record["frontmatter"].get("job_id", Path(path).stem)
+    sidecar = sidecar_path_for(root, job_id)
+    current = live_sidecar(root, job_id) or {"job_id": job_id}
+    current["last_seen"] = now_iso()
+    current["state"] = args.state
+    if args.summary:
+        current["last_output_summary"] = args.summary
+    with ledger_lock(path):
+        atomic_write(sidecar, json.dumps(current, indent=2, sort_keys=True) + "\n")
+        event = event_for(root, path, "live.heartbeat", args.summary or args.state, payload=current)
+        append_event(root, path, event)
+    print_json({"sidecar": str(sidecar), "live": current}) if args.json else print(f"heartbeat {args.state}: {path}")
+    return 0
+
+
+def cmd_operator_status(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    record = parse_ledger(path)
+    data = summary(record, root)
+    data["proof"] = proof(record, root)
+    data["suggested_action"] = next_action(data)
+    if args.json:
+        print_json(data)
+    else:
+        print(f"Job: {data['job_id']}")
+        print(f"State: {data['status']}, {data['mode']} ({data['bucket']})")
+        print(f"Now: {data['next']}")
+        print(f"Evidence: {data['latest_evidence'] or 'missing'}")
+        print(f"Review: {data['latest_review'] or 'pending'}")
+        print(f"Next: {data['suggested_action']['action']}")
+        print(f"Needs you: {', '.join(data['proof']['blocked']) if data['proof']['blocked'] else 'none'}")
+    return 0
+
+
+def helper_executable() -> str:
+    return str(Path(__file__).resolve())
+
+
+def next_action(data: dict[str, Any]) -> dict[str, str]:
+    job = data["path"]
+    helper = helper_executable()
+    proof_data = data.get("proof") or {}
+    if proof_data.get("blocked"):
+        return {"action": "resolve-blocker", "reason": "; ".join(proof_data["blocked"]), "command": f"{helper} feedback {job} --kind decision --message '<decision>'"}
+    missing = proof_data.get("missing") or []
+    if any("doc-review" in item for item in missing):
+        return {"action": "run-doc-review", "reason": "guarded plan review is missing", "command": f"ce-doc-review job:{job} <plan>"}
+    if data.get("status") == "ready-for-work":
+        return {"action": "run-work", "reason": "job is ready for implementation", "command": f"ce-work job:{job} <plan-or-brief>"}
+    if any("code-review" in item for item in missing) or data.get("status") == "needs-review":
+        return {"action": "run-code-review", "reason": "code review gate is missing", "command": f"ce-code-review job:{job}"}
+    if missing:
+        return {"action": "collect-evidence", "reason": "; ".join(missing), "command": f"{helper} test {job} --message '<evidence needed>'"}
+    return {"action": "done", "reason": "proof is clean", "command": f"{helper} done {job} --message '<proof summary>'"}
+
+
+def cmd_next(args: argparse.Namespace) -> int:
+    root = repo_root()
+    path = resolve_job(root, args.job)
+    data = summary(parse_ledger(path), root)
+    data["proof"] = proof(parse_ledger(path), root)
+    action = next_action(data)
+    print_json(action) if args.json else print(f"{action['action']}: {action['reason']}\n{action['command']}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="ce-job")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("root")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_root)
+
+    p = sub.add_parser("start")
+    p.add_argument("--title")
+    p.add_argument("--goal", required=True)
+    p.add_argument("--scope")
+    p.add_argument("--id", dest="job_id")
+    p.add_argument("--mode", choices=sorted(VALID_MODES), default="assist")
+    p.add_argument("--status", choices=sorted(VALID_STATUSES), default="active")
+    p.add_argument("--owner", default="unknown")
+    p.add_argument("--risk", choices=["low", "medium", "high", "unknown"], default="unknown")
+    p.add_argument("--priority")
+    p.add_argument("--assignee")
+    p.add_argument("--depends-on", dest="depends_on")
+    p.add_argument("--force", action="store_true")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_start)
+
+    p = sub.add_parser("list")
+    p.add_argument("--all", action="store_true")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_list)
+
+    p = sub.add_parser("queue")
+    p.add_argument("--all", action="store_true")
+    p.add_argument("--bucket")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_queue)
+
+    p = sub.add_parser("status")
+    p.add_argument("job", nargs="?")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_status)
+
+    for name, default_kind in (("feedback", "work-log"), ("capture", "work-log"), ("test", "test-request")):
+        p = sub.add_parser(name)
+        p.add_argument("job", nargs="?")
+        p.add_argument("--message", "-m", required=True)
+        p.add_argument("--kind", choices=sorted(KIND_TO_SECTION), default=default_kind)
+        p.add_argument("--section", choices=REQUIRED_SECTIONS)
+        p.add_argument("--label")
+        p.add_argument("--json", action="store_true")
+        p.set_defaults(func=cmd_append)
+
+    p = sub.add_parser("receipt")
+    p.add_argument("job")
+    p.add_argument("receipt_type", choices=sorted(RECEIPT_SECTIONS))
+    p.add_argument("--status", required=True)
+    p.add_argument("--artifact")
+    p.add_argument("--verdict")
+    p.add_argument("--changed-file", action="append")
+    p.add_argument("--check", action="append")
+    p.add_argument("--blocker", action="append")
+    p.add_argument("--skipped-reason")
+    p.add_argument("--payload")
+    p.add_argument("--message")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_receipt)
+
+    p = sub.add_parser("prove")
+    p.add_argument("job", nargs="?")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_prove)
+
+    for name, status in (("pause", "paused"), ("resume", "active"), ("ready", "ready-for-work"), ("done", "complete")):
+        p = sub.add_parser(name)
+        p.add_argument("job", nargs="?")
+        p.add_argument("--message", "-m")
+        p.add_argument("--force", action="store_true")
+        p.add_argument("--json", action="store_true")
+        p.set_defaults(func=cmd_set_status, status=status)
+
+    p = sub.add_parser("attach")
+    p.add_argument("job")
+    p.add_argument("target")
+    p.add_argument("--target-type", default="agent")
+    p.add_argument("--state", default="attached")
+    p.add_argument("--summary")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_attach)
+
+    p = sub.add_parser("live-status")
+    p.add_argument("job")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_live_status)
+
+    p = sub.add_parser("heartbeat")
+    p.add_argument("job")
+    p.add_argument("--state", default="running")
+    p.add_argument("--summary")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_heartbeat)
+
+    p = sub.add_parser("operator-status")
+    p.add_argument("job", nargs="?")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_operator_status)
+
+    p = sub.add_parser("next")
+    p.add_argument("job", nargs="?")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_next)
+
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
