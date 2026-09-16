@@ -56,14 +56,15 @@ Set `BASE:` to `pr:<number-or-url>` (logical marker — not a git SHA). Set `UNT
 1. `git rev-parse --abbrev-ref HEAD` equals `headRefName`.
 2. The PR is **not** cross-repository (`isCrossRepository` is false).
 3. `git rev-parse HEAD` equals `headRefOid` exactly. An ancestor match does not authorize reviewing unpushed commits.
-4. Both `git diff --quiet` and `git diff --cached --quiet` exit 0. Local edits are an overlay, not part of the requested PR.
+4. Both `git diff --quiet` and `git diff --cached --quiet` exit 0.
+5. `git ls-files --others --exclude-standard` produces no paths. Tracked edits and untracked files are local overlays, not part of the requested PR. Ignored/generated files are not PR evidence; inspect only content tracked at the verified PR head.
 
-- **`local-aligned`** — all four checks pass. Local Read/Grep/git blame against workspace files are valid for PR changed paths.
+- **`local-aligned`** — all five checks pass. Local Read/Grep/git blame against workspace files are valid for PR changed paths.
 - **`pr-remote`** — any check fails. The working tree is **not** the PR head; workspace file contents for changed paths may be stale or unrelated.
 
 **Diff by scope mode** (do not mix remote and local diffs — contradictory hunks cause false positives):
 
-- **`local-aligned`:** Resolve `<resolved-base-ref>` from `baseRefName` (fetch if needed). Compute `BASE=$(git merge-base HEAD <resolved-base-ref>)`, then set `FILES:` from `git diff --name-only $BASE` and `DIFF:` from `git diff -U10 $BASE` (the clean checkout is exactly the PR head). Do **not** append remote hunks. If HEAD or tracked state changed since the alignment check, reclassify as `pr-remote` before inspection or apply. Note in Coverage: `scope: local-aligned (PR; local tree diff)`.
+- **`local-aligned`:** Resolve `<resolved-base-ref>` from `baseRefName` (fetch if needed). Compute `BASE=$(git merge-base HEAD <resolved-base-ref>)`, then set `FILES:` from `git diff --name-only $BASE` and `DIFF:` from `git diff -U10 $BASE` (the clean checkout is exactly the PR head). Do **not** append remote hunks. If HEAD, tracked state, or untracked paths changed since the alignment check, reclassify as `pr-remote` before inspection or apply. Note in Coverage: `scope: local-aligned (PR; local tree diff)`.
 - **`pr-remote`:** Set `FILES:` from the PR `files` array. Set `DIFF:` from `gh pr diff <number-or-url> --color=never`. If `gh pr diff` fails, stop with an actionable error — do not fall back to checkout.
 
 When **`pr-remote`**, before Stage 4:

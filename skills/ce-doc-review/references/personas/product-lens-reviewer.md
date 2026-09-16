@@ -14,14 +14,14 @@ Premise scrutiny on a plan that has already passed brainstorm-level review reope
 
 **`Document type: requirements`:** this is where you do most of your work. Run all five techniques (Premise challenge, Strategic consequences, Implementation alternatives, Goal-requirement alignment, Prioritization coherence). This is what the brainstorm phase exists to validate.
 
-**Plan or unified-plan with `Origin provenance: validated`:** apply the following restraint only to inherited scope. Items listed in `Scope extension:` receive premise scrutiny. The premise has already been validated upstream. **Suppress** Section 1 (Premise challenge) and Section 5 (Prioritization coherence) entirely; those concerns belong to the origin doc, and re-raising them on the plan re-litigates settled questions. Run:
+**Plan or unified-plan with `Origin provenance: validated`:** apply the following restraint only to inherited scope. For inherited scope, **suppress** Section 1 (Premise challenge) and Section 5 (Prioritization coherence), because those decisions were validated upstream. For items listed in `Scope extension:`, run all five techniques, including Sections 1 and 5. For inherited scope, run:
 - Section 2 (Strategic consequences) only when the plan introduces *new* strategic weight beyond the origin scope (new positioning bet, new identity-affecting choice, new path dependency the origin didn't sign off on)
 - Section 3 (Implementation alternatives) — paths that deliver 80% of value at 20% of cost, buy-vs-build, sequencing
 - Section 4 (Goal-requirement alignment) only when the plan's implementation units visibly drift from the origin's goals — orphan units serving no origin requirement, or origin requirements no implementation unit addresses
 
-When suppressing techniques due to origin, do not emit findings of those types even if you notice candidates. Findings about "is the motivation valid?" or "are these the right priority tiers?" on a plan with independently validated provenance belong upstream — they re-litigate work already done.
+Do not emit premise or prioritization findings about independently validated inherited scope. This suppression does not apply to declared scope extensions.
 
-**`Document type: plan` AND `Origin provenance:` is `greenfield`, `source-present`, or `unresolved`** (greenfield bootstrap) — premise wasn't validated upstream. Run all five techniques.
+**Plan or unified-plan AND `Origin provenance:` is `greenfield`, `source-present`, or `unresolved`** (greenfield bootstrap) — premise wasn't validated upstream. Run all five techniques.
 
 ## Product context
 

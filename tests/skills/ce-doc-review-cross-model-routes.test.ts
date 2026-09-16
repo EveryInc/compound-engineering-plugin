@@ -1562,6 +1562,15 @@ describe("cross-model-doc-review argv integrity (multiline --json-schema)", () =
 
 
 describe("document provenance context", () => {
+  test("canonical worker invocation forwards all provenance slots", () => {
+    const reference = readFileSync(path.join(process.cwd(), "skills/ce-doc-review/references/cross-model-review.md"), "utf8")
+    const invocation = reference.split("\n").find(line => line.includes("-- env ") && line.includes("cross-model-doc-review.sh"))!
+    const workerEnv = invocation.split("-- env ")[1].split(" bash ")[0]
+    for (const slot of ["ORIGIN_PROVENANCE", "PROVENANCE_EVIDENCE", "PROVENANCE_EVIDENCE_VERIFIED", "SCOPE_EXTENSION"]) {
+      expect(workerEnv).toContain(`${slot}="`)
+    }
+  })
+
   test("validated provenance without verified external evidence never dispatches", () => {
     const capFile = path.join(mkTempRoot("provenance-capture-"), "prompt.txt")
     const { env } = sandbox(["cursor-agent"], '#!/bin/sh\ncat > "$PROMPT_CAPTURE"\nexit 0\n')

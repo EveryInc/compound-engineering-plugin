@@ -1034,6 +1034,8 @@ describe("ce-code-review contract", () => {
     expect(skill).toMatch(/Do \*\*not\*\* append remote hunks/)
     expect(skill).toContain("equals `headRefOid` exactly")
     expect(skill).toContain("`git diff --cached --quiet`")
+    const alignment = skill.split("**PR scope mode.**")[1].split("**Diff by scope mode**")[0]
+    expect(alignment).toContain("`git ls-files --others --exclude-standard` produces no paths")
     expect(stage2c).toMatch(
       /pr-remote.*branch-remote.*targeted probe.*`git show`.*reviewed head ref.*supplied diff hunks.*never inspect workspace paths/is,
     )
