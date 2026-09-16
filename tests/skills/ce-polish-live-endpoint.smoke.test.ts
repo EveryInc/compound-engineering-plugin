@@ -1,0 +1,197 @@
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
+
+setDefaultTimeout(20_000)
+import { promises as fs } from "fs"
+import os from "os"
+import path from "path"
+
+// Smoke coverage for skills/ce-polish/scripts/live-endpoint.js: the start
+// envelope, credential classes, one checkpoint -> wake -> ack round trip,
+// and the CLI lifecycle. The full scenario suite lives in
+// ce-polish-live-endpoint.test.ts.
+
+const script = path.join(import.meta.dir, "..", "..", "skills", "ce-polish", "scripts", "live-endpoint.js")
+const APP_ORIGIN = "http://localhost:3000"
+const rootsToStop: string[] = []
+
+type Run = { exitCode: number; stdout: string; stderr: string }
+
+async function run(args: string[], env: Record<string, string> = {}): Promise<Run> {
+  const proc = Bun.spawn(["node", script, ...args], {
+    stdout: "pipe",
+    stderr: "pipe",
+    env: { ...process.env, CE_LIVE_WAIT_TIMEOUT_MS: "2000", ...env },
+  })
+  const [exitCode, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ])
+  return { exitCode, stdout, stderr }
+}
+
+async function startEndpoint(): Promise<{ root: string; url: string; pageToken: string; agentToken: string; envelope: Record<string, unknown> }> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-polish-live-"))
+  rootsToStop.push(root)
+  const result = await run(["start", "--root", root, "--app-origin", APP_ORIGIN, "--port", "0"])
+  expect(result.exitCode, result.stderr).toBe(0)
+  const envelope = JSON.parse(result.stdout.trim())
+  const session = JSON.parse(await fs.readFile(path.join(root, "state", "session.json"), "utf8"))
+  return { root, url: String(envelope.url), pageToken: String(envelope.page_token), agentToken: String(session.agent_token), envelope }
+}
+
+afterEach(async () => {
+  while (rootsToStop.length > 0) {
+    const root = rootsToStop.pop()!
+    await run(["stop", "--root", root])
+    await fs.rm(root, { recursive: true, force: true })
+  }
+})
+
+function envelope(sessionId: string, seq: number, type: string, payload: object) {
+  return { schema_version: "live/1", session_id: sessionId, seq, t: Date.now(), type, payload }
+}
+
+describe("ce-polish live endpoint smoke", () => {
+  test("start prints the page token only and writes a private session file", async () => {
+    const { root, envelope: started } = await startEndpoint()
+    expect(started.page_token).toBeString()
+    expect(started).not.toHaveProperty("agent_token")
+    const stateMode = (await fs.stat(path.join(root, "state"))).mode & 0o777
+    const sessionMode = (await fs.stat(path.join(root, "state", "session.json"))).mode & 0o777
+    expect(stateMode).toBe(0o700)
+    expect(sessionMode).toBe(0o600)
+    const status = await run(["status", "--root", root])
+    expect(status.exitCode).toBe(0)
+    const board = JSON.parse(status.stdout.trim())
+    expect(board.status).toBe("running")
+    expect(board.board.units.total).toBe(0)
+  })
+
+  test("credential classes and CORS follow the contract", async () => {
+    const { url, pageToken, agentToken } = await startEndpoint()
+    const noCred = await fetch(`${url}/events`, { method: "POST", body: "[]" })
+    expect(noCred.status).toBe(401)
+    const queryToken = await fetch(`${url}/status?token=${agentToken}`)
+    expect(queryToken.status).toBe(401)
+    const pageOnAgent = await fetch(`${url}/status`, { headers: { Authorization: `Bearer ${pageToken}` } })
+    expect(pageOnAgent.status).toBe(403)
+    const agentOnPage = await fetch(`${url}/events`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${agentToken}`, "X-Riffrec-Session": "s1" },
+      body: "[]",
+    })
+    expect(agentOnPage.status).toBe(403)
+    const browserOnAgent = await fetch(`${url}/status`, { headers: { Authorization: `Bearer ${agentToken}`, Origin: APP_ORIGIN } })
+    expect(browserOnAgent.status).toBe(403)
+    const preflight = await fetch(`${url}/events`, { method: "OPTIONS", headers: { Origin: APP_ORIGIN } })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(APP_ORIGIN)
+    expect(preflight.headers.get("access-control-allow-headers")).toBe("Authorization, Content-Type, X-Riffrec-Session")
+    expect(preflight.headers.get("access-control-allow-credentials")).toBeNull()
+    expect(preflight.headers.get("vary")).toBe("Origin")
+    const notServed = await fetch(`${url}/state/session.json`)
+    expect(notServed.status).toBe(404)
+  })
+
+  test("a checkpoint releases held units to one wake, which is re-served until acknowledged", async () => {
+    const { root, url, pageToken, agentToken } = await startEndpoint()
+    const sessionId = "s1"
+    const page = { Authorization: `Bearer ${pageToken}`, "X-Riffrec-Session": sessionId, "Content-Type": "application/json" }
+    const agent = { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json" }
+    const unit = (id: string, seq: number) =>
+      envelope(sessionId, seq, "unit", { id, statement: `change ${id}`, transcript_excerpt: id, anchors: [], evidence: { frame_ids: [], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } }, status: "initial" })
+
+    const posted = await fetch(`${url}/events`, { method: "POST", headers: page, body: JSON.stringify([unit("u1", 1), unit("u2", 2)]) })
+    expect(await posted.json()).toEqual({ acked_seq: 2 })
+
+    const wrongSchema = await fetch(`${url}/events`, {
+      method: "POST",
+      headers: page,
+      body: JSON.stringify([{ ...unit("u3", 3), schema_version: "live/0" }]),
+    })
+    expect(wrongSchema.status).toBe(409)
+    expect(await wrongSchema.json()).toEqual({ expected_schema_version: "live/1" })
+
+    const emptyCheckpoint = await fetch(`${url}/events`, {
+      method: "POST",
+      headers: page,
+      body: JSON.stringify([envelope(sessionId, 3, "checkpoint", { id: "ck0", trigger: "silence", mode: "smart" })]),
+    })
+    expect(emptyCheckpoint.status).toBe(200)
+    // ck0 released u1 and u2; the next checkpoint holds nothing and must not wake.
+    const secondEmpty = await fetch(`${url}/events`, {
+      method: "POST",
+      headers: page,
+      body: JSON.stringify([envelope(sessionId, 4, "checkpoint", { id: "ck1", trigger: "send", mode: "collect" })]),
+    })
+    expect(secondEmpty.status).toBe(200)
+
+    const first = await run(["wait", "--root", root])
+    expect(first.exitCode, first.stderr).toBe(0)
+    const wake = JSON.parse(first.stdout.trim())
+    expect(wake.checkpoint_id).toBe("ck0")
+    expect(wake.kind).toBe("silence")
+    expect(wake.mode_at_checkpoint).toBe("smart")
+    expect(wake.session_status).toBe("live")
+    expect(wake.units.map((u: { id: string; status: string }) => `${u.id}:${u.status}`)).toEqual(["u1:triaging", "u2:triaging"])
+
+    const reserved = await fetch(`${url}/wait`, { headers: agent })
+    expect(reserved.status).toBe(200)
+    expect((await reserved.json()).checkpoint_id).toBe("ck0")
+
+    const ack = await fetch(`${url}/checkpoints/ck0/ack`, { method: "POST", headers: agent, body: "{}" })
+    expect(ack.status).toBe(200)
+    // ck1 released nothing, so the wake now parks and times out.
+    const idle = await fetch(`${url}/wait`, { headers: agent })
+    expect(idle.status).toBe(204)
+
+    const stopped = await run(["stop", "--root", root])
+    expect(stopped.exitCode).toBe(0)
+    const session = JSON.parse(await fs.readFile(path.join(root, "state", "session.json"), "utf8"))
+    expect(session.ended).toBe(true)
+    expect(session.page_token).toBeNull()
+    expect(session.agent_token).toBeNull()
+    expect(await fs.exists(path.join(root, "state", "batches"))).toBe(false)
+    expect(await fs.exists(path.join(root, "state", "log", "events.ndjson"))).toBe(true)
+    const afterStop = await run(["wait", "--root", root])
+    expect(afterStop.exitCode).toBe(1)
+    expect(JSON.parse(afterStop.stdout.trim())).toEqual({ status: "session-ended" })
+  })
+
+  test("leaving Collect and the page's final checkpoint always wake, carrying the accepted backlog", async () => {
+    const { url, pageToken, agentToken } = await startEndpoint()
+    const sessionId = "s2"
+    const page = { Authorization: `Bearer ${pageToken}`, "X-Riffrec-Session": sessionId, "Content-Type": "application/json" }
+    const agent = { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json" }
+    const post = (body: object) => fetch(`${url}/events`, { method: "POST", headers: page, body: JSON.stringify(body) })
+    const wake = async () => {
+      const response = await fetch(`${url}/wait`, { headers: agent })
+      expect(response.status).toBe(200)
+      const batch = await response.json()
+      await fetch(`${url}/checkpoints/${batch.checkpoint_id}/ack`, { method: "POST", headers: agent, body: "{}" })
+      return batch
+    }
+    const unit = (id: string, seq: number) =>
+      envelope(sessionId, seq, "unit", { id, statement: id, transcript_excerpt: id, anchors: [], evidence: { frame_ids: [], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } }, status: "initial" })
+
+    await post([envelope(sessionId, 1, "mode", { mode: "collect" }), unit("a", 2), unit("b", 3), envelope(sessionId, 4, "checkpoint", { id: "ck-send", trigger: "send", mode: "collect" })])
+    expect((await wake()).units.map((u: { id: string }) => u.id)).toEqual(["a", "b"])
+    for (const id of ["a", "b"]) {
+      await fetch(`${url}/units/${id}/status`, { method: "POST", headers: agent, body: JSON.stringify({ status: "accepted" }) })
+    }
+
+    await post([envelope(sessionId, 5, "mode", { mode: "smart" })])
+    const modeChange = await wake()
+    expect(modeChange.kind).toBe("mode_change")
+    expect(modeChange.mode_at_checkpoint).toBe("smart")
+    expect(modeChange.units.map((u: { id: string; status: string }) => `${u.id}:${u.status}`)).toEqual(["a:accepted", "b:accepted"])
+
+    await fetch(`${url}/units/a/status`, { method: "POST", headers: agent, body: JSON.stringify({ status: "applied" }) })
+    await post([envelope(sessionId, 6, "checkpoint", { id: "ck-final", trigger: "final", mode: "smart" })])
+    const final = await wake()
+    expect(final.checkpoint_id).toBe("ck-final")
+    expect(final.kind).toBe("final")
+    expect(final.units.map((u: { id: string; status: string }) => `${u.id}:${u.status}`)).toEqual(["b:accepted"])
+  })
+})
