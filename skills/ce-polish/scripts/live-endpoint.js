@@ -676,6 +676,28 @@ async function start(options) {
   }
 
   const previous = readSession(options)
+  // Two concurrent starts must not both spawn a helper for one root.
+  const lockPath = path.join(options.stateDir, "start.lock")
+  let lockFd
+  try {
+    lockFd = fs.openSync(lockPath, "wx", 0o600)
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error
+    const holder = Number(fs.readFileSync(lockPath, "utf8")) || null
+    if (holder && processAlive(holder)) throw new Error("Another `start` for this root is in progress")
+    fs.rmSync(lockPath, { force: true })
+    lockFd = fs.openSync(lockPath, "wx", 0o600)
+  }
+  fs.writeSync(lockFd, `${process.pid}\n`)
+  fs.closeSync(lockFd)
+  try {
+    await spawnServe(options, previous)
+  } finally {
+    fs.rmSync(lockPath, { force: true })
+  }
+}
+
+async function spawnServe(options, previous) {
   const logFd = fs.openSync(options.logFile, "a", 0o600)
   const child = spawn(process.execPath, [
     scriptPath,
@@ -726,7 +748,10 @@ async function wait(options) {
   if (!info?.port) {
     // Idle/owner shutdown leaves the session file in place; an ended session
     // must still report that terminal status rather than "not running".
-    if (readSession(options)?.ended) return exitSessionEnded()
+    const stopped = readSession(options)
+    // Ended and drained is terminal; ended with a retained agent token and
+    // batches on disk still holds work and needs a resume.
+    if (stopped?.ended && !(stopped.agent_token && loadBatches(options).length > 0)) return exitSessionEnded()
     console.error("Endpoint is not running; run `start --root` to resume the session")
     process.exit(2)
   }
@@ -1422,8 +1447,13 @@ async function serve(options) {
 
   async function handleEvents(req, res, sessionId) {
     const body = await readBody(req, FRAME_BODY_LIMIT)
+    // The session may have ended while this body was in flight.
+    if (board.ended || session.page_token === null) {
+      sendJson(res, 410, { status: "session-ended" }, corsHeaders())
+      return
+    }
     if (body.tooLarge) {
-      sendJson(res, 413, { max_bytes: FRAME_BODY_LIMIT }, corsHeaders())
+      sendJson(res, 413, { max_bytes: BODY_LIMIT, frame_max_bytes: FRAME_BODY_LIMIT }, corsHeaders())
       return
     }
     const parsed = parseJsonObject(body.text)
@@ -1656,7 +1686,12 @@ async function serve(options) {
       out.end(() => {
         if (failed) return
         if (size > 0) {
-          fs.renameSync(tmpPath, archivePath)
+          try {
+            fs.renameSync(tmpPath, archivePath)
+          } catch (error) {
+            out.emit("error", error)
+            return
+          }
           logBytes += size
         } else {
           bestEffort(() => fs.rmSync(tmpPath, { force: true }))
