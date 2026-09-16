@@ -102,6 +102,7 @@ function validPayload(type, payload) {
     case "frame":
       return isString(payload.id) && isFiniteNumber(payload.t) && isString(payload.route)
         && ["gesture", "periodic", "composite"].includes(payload.kind) && isString(payload.jpeg_base64)
+        && (payload.dropped === undefined || ["quota", "oversize"].includes(payload.dropped))
     case "mic":
       return ["granted", "denied", "muted", "unmuted"].includes(payload.state)
     case "mode":
@@ -588,6 +589,7 @@ function emptyBoard() {
     transcript_count: 0,
     frame_count: 0,
     checkpoints: [],
+    acked_checkpoint_ids: [],
     released_unit_ids: [],
     released_annotation_ids: [],
     pending_withdrawn: [],
@@ -659,6 +661,35 @@ function readBoardSummary(options) {
 async function start(options) {
   ensureDirs(options)
   options.ownerPid = options.ownerPid ?? resolveOwnerPid()
+  // One start per root at a time, foreground or detached: the running check
+  // and the launch happen under the same claim.
+  const lockPath = acquireStartLock(options)
+  try {
+    await startLocked(options)
+  } finally {
+    fs.rmSync(lockPath, { force: true })
+  }
+}
+
+function acquireStartLock(options) {
+  const lockPath = path.join(options.stateDir, "start.lock")
+  let lockFd
+  try {
+    lockFd = fs.openSync(lockPath, "wx", 0o600)
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error
+    const holder = Number(fs.readFileSync(lockPath, "utf8")) || null
+    if (holder && processAlive(holder)) throw new Error("Another `start` for this root is in progress")
+    fs.rmSync(lockPath, { force: true })
+    lockFd = fs.openSync(lockPath, "wx", 0o600)
+  }
+  fs.writeSync(lockFd, `${process.pid}\n`)
+  fs.closeSync(lockFd)
+  return lockPath
+}
+
+// Releases the lock only once the session file proves the server is up.
+async function startLocked(options) {
   const running = getRunningInfo(options)
   if (running && !running.ended) {
     if (running.app_origin !== options.appOrigin) {
@@ -669,13 +700,22 @@ async function start(options) {
   }
   if (running) await stopServer(options)
   fs.rmSync(options.pidFile, { force: true })
+  const previous = readSession(options)
 
   if (options.foreground) {
-    await serve(options)
-    return
+    // serve() resolves once listening; the server handle keeps the process up.
+    const serving = serve(options)
+    serving.catch(() => {})
+    const up = await waitForSession(options, process.pid, previous)
+    await serving
+    if (!up) throw new Error("Endpoint failed to start")
+    return null
   }
 
-  const previous = readSession(options)
+  await spawnServe(options, previous)
+}
+
+async function spawnServe(options, previous) {
   const logFd = fs.openSync(options.logFile, "a", 0o600)
   const child = spawn(process.execPath, [
     scriptPath,
@@ -699,7 +739,9 @@ async function start(options) {
   if (!started) {
     throw new Error(`Endpoint failed to start. See ${options.logFile}`)
   }
-  jsonOut({ ...publicStartEnvelope(started), status: previous?.agent_token ? "resumed" : "started" })
+  // The child decides whether it resumed; the same tokens are the proof.
+  const resumed = Boolean(previous?.agent_token) && started.agent_token === previous.agent_token
+  jsonOut({ ...publicStartEnvelope(started), status: resumed ? "resumed" : "started" })
 }
 
 async function waitForSession(options, pid, previous) {
@@ -710,6 +752,11 @@ async function waitForSession(options, pid, previous) {
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
   return null
+}
+
+function endedAndDrained(options) {
+  const stopped = readSession(options)
+  return Boolean(stopped?.ended) && loadBatches(options).length === 0
 }
 
 function exitSessionEnded() {
@@ -726,7 +773,9 @@ async function wait(options) {
   if (!info?.port) {
     // Idle/owner shutdown leaves the session file in place; an ended session
     // must still report that terminal status rather than "not running".
-    if (readSession(options)?.ended) return exitSessionEnded()
+    // Ended and drained is terminal; ended with batches on disk still holds
+    // work and needs a resume.
+    if (endedAndDrained(options)) return exitSessionEnded()
     console.error("Endpoint is not running; run `start --root` to resume the session")
     process.exit(2)
   }
@@ -743,7 +792,10 @@ async function wait(options) {
     try {
       response = await fetch(url, { headers })
     } catch {
-      if (readSession(options)?.ended) return exitSessionEnded()
+      // The helper may have died mid-poll; a retained final batch still needs
+      // a resume, never a "session-ended" exit.
+      if (endedAndDrained(options)) return exitSessionEnded()
+      console.error("Endpoint is not running; run `start --root` to resume the session")
       process.exit(2)
     }
     if (response.status === 200 || response.status === 410) {
@@ -813,7 +865,11 @@ function status(options) {
 // Replay: re-emit state/log/ under an evidence profile to another endpoint.
 // ---------------------------------------------------------------------------
 
-function applyProfile(envelope, profile) {
+const TELEMETRY_EVENT_TYPES = new Set(["click", "navigation", "network_request", "console_error"])
+
+// `retainedFrames` is the set of frame ids the profile keeps, so unit
+// evidence never points at a frame the replay did not send.
+function applyProfile(envelope, profile, retainedFrames) {
   const rules = EVIDENCE_PROFILES[profile]
   const { type, payload } = envelope
   if (type === "frame") {
@@ -821,12 +877,14 @@ function applyProfile(envelope, profile) {
     if (rules.frames === "composite" && payload?.kind !== "composite") return null
     return envelope
   }
+  if (TELEMETRY_EVENT_TYPES.has(type) && !rules.telemetry) return null
   if (type === "annotation" && !rules.annotations) return null
   if ((type === "unit" || type === "unit_update") && payload && typeof payload === "object") {
     const next = { ...payload }
     if (next.evidence && typeof next.evidence === "object") {
       const evidence = { ...next.evidence }
       if (rules.frames === "none") evidence.frame_ids = []
+      else if (rules.frames === "composite" && Array.isArray(evidence.frame_ids)) evidence.frame_ids = evidence.frame_ids.filter((id) => retainedFrames.has(id))
       if (!rules.annotations) evidence.annotation_ids = []
       if (!rules.clips) delete evidence.audio_clip_id
       if (!rules.telemetry) delete evidence.telemetry_window
@@ -854,6 +912,17 @@ async function replay(options) {
   let skipped = 0
   let batch = []
   let batchBytes = 0
+
+  // First pass: which frames the profile keeps, so evidence can be pruned to
+  // them on the second pass. Only ids are held.
+  const retainedFrames = new Set()
+  if (EVIDENCE_PROFILES[options.profile].frames === "composite") {
+    const scan = readline.createInterface({ input: fs.createReadStream(eventsFile, "utf8"), crlfDelay: Infinity })
+    for await (const line of scan) {
+      const stored = line ? parseJsonObject(line) : null
+      if (stored?.type === "frame" && stored.payload?.kind === "composite" && typeof stored.payload.id === "string") retainedFrames.add(stored.payload.id)
+    }
+  }
 
   async function post(envelopes) {
     const body = JSON.stringify(envelopes.length === 1 ? envelopes[0] : envelopes)
@@ -886,7 +955,9 @@ async function replay(options) {
     const stored = parseJsonObject(line)
     if (!stored || typeof stored.type !== "string") continue
     let envelope = { schema_version: SCHEMA_VERSION, session_id: sessionId, seq: 0, t: stored.t, type: stored.type, payload: stored.payload }
-    if (stored.type === "frame" && stored.frame_file) {
+    if (stored.type === "frame" && !stored.frame_file) {
+      envelope = { ...envelope, payload: { ...stored.payload, jpeg_base64: "" } }
+    } else if (stored.type === "frame") {
       try {
         const jpeg = fs.readFileSync(path.join(options.logDir, stored.frame_file))
         envelope = { ...envelope, payload: { ...stored.payload, jpeg_base64: jpeg.toString("base64") } }
@@ -895,7 +966,7 @@ async function replay(options) {
         continue
       }
     }
-    envelope = applyProfile(envelope, options.profile)
+    envelope = applyProfile(envelope, options.profile, retainedFrames)
     if (!envelope) {
       skipped += 1
       continue
@@ -971,6 +1042,9 @@ async function serve(options) {
   const streamClients = new Set()
   const outOfOrder = new Map()
   let endingInFlight = false
+  // Non-null while an envelope transaction is open; SSE notices and wakes
+  // queue here and are delivered only once the transaction commits.
+  let heldNotices = null
   // Ids are validated but may still name inherited Object properties.
   const unitById = (id) => (Object.hasOwn(board.units, id) ? board.units[id] : undefined)
   const annotationById = (id) => (Object.hasOwn(board.annotations, id) ? board.annotations[id] : undefined)
@@ -1007,6 +1081,10 @@ async function serve(options) {
   }
 
   function broadcast(event, payload) {
+    if (heldNotices) {
+      heldNotices.push({ event, payload })
+      return
+    }
     const frame = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`
     for (const client of streamClients) {
       if (!client.writableEnded) client.write(frame)
@@ -1135,6 +1213,10 @@ async function serve(options) {
   // batch, then a pending page-lost notice; an ended session with nothing
   // held answers 410.
   function fulfillWaiter() {
+    if (heldNotices) {
+      heldNotices.push({ wake: true })
+      return
+    }
     if (!waiter || waiter.res.writableEnded) return
     const batch = nextBatch()
     if (batch) {
@@ -1153,7 +1235,6 @@ async function serve(options) {
     }
     if (board.ended) {
       sendJson(takeWaiter(), 410, { status: "session-ended" })
-      finishEndedSession()
     }
   }
 
@@ -1187,32 +1268,34 @@ async function serve(options) {
 
   // --- session end -----------------------------------------------------------
 
-  function nothingHeld() {
-    return batches.length === 0 && !board.page_lost_pending
-  }
-
-  // The page token dies with /session/end. The agent token survives until
-  // the agent has drained and acknowledged the final batch, so exit 1 is
-  // only ever "ended with nothing held" (KTD7).
-  function finishEndedSession() {
-    if (!board.ended || !nothingHeld() || session.agent_token === null) return
-    saveSession({ agent_token: null })
-  }
-
+  // The page token dies with /session/end. The agent token lives until `stop`
+  // (or a fresh start on the ended root), per I4/KTD18: an agent that crashes
+  // between the final ack and `stop` can still resume, `status`, and `stop`.
   function endSession() {
     if (board.ended) return
-    disarmPageLost()
+    // Terminal state is committed before anything observable happens; if the
+    // writes fail the session stays live and /session/end can be retried.
+    const before = { ended: board.ended, stream: board.page.stream, session }
     board.ended = true
     board.page.stream = streamClients.size > 0 ? "connected" : board.page.stream
-    saveBoard()
-    saveSession({ page_token: null, ended: true })
+    try {
+      saveBoard()
+      saveSession({ page_token: null, ended: true })
+    } catch (error) {
+      board.ended = before.ended
+      board.page.stream = before.stream
+      session = before.session
+      bestEffort(() => saveBoard())
+      bestEffort(() => writePrivateJson(options.sessionFile, session))
+      throw error
+    }
+    disarmPageLost()
     broadcast("session_ended", { reason: "session_end", session_id: board.session_id, log_dir: options.logDir })
     for (const client of streamClients) {
       if (!client.writableEnded) client.end()
     }
     streamClients.clear()
     fulfillWaiter()
-    finishEndedSession()
   }
 
   // --- auth and CORS -----------------------------------------------------------
@@ -1330,9 +1413,12 @@ async function serve(options) {
     } else if (type === "unit_update") {
       const unit = unitById(payload.unit_id)
       if (!unit) return
+      // KTD5: a unit is refined only while it is still initial and unreleased;
+      // the riffer's confirmation pass (KTD22) may land at any point.
+      if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
+      if (unit.released || unit.status !== "initial") return
       if (typeof payload.statement === "string") unit.statement = payload.statement
       if (Array.isArray(payload.anchors_add)) unit.anchors = [...(unit.anchors ?? []), ...payload.anchors_add]
-      if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
     } else if (type === "unit_withdraw") {
       const unit = unitById(payload.unit_id)
       if (!unit || unit.status === "withdrawn") return
@@ -1375,6 +1461,24 @@ async function serve(options) {
     }
   }
 
+  // Everything applyEnvelope may touch: the board and the batch queue.
+  function snapshotState() {
+    const savedBoard = structuredClone(board)
+    const savedBatches = batches.slice()
+    const savedOrder = batchOrder
+    return () => {
+      for (const key of Object.keys(board)) delete board[key]
+      Object.assign(board, savedBoard)
+      for (const batch of batches.slice(savedBatches.length)) bestEffort(() => fs.rmSync(batchFile(batch.envelope.checkpoint_id), { force: true }))
+      batches.length = 0
+      batches.push(...savedBatches)
+      batchOrder = savedOrder
+      // applyEnvelope may have saved the board mid-way (releaseCheckpoint);
+      // the durable copy must match the restored state.
+      bestEffort(() => saveBoard())
+    }
+  }
+
   function storeEnvelope(envelope) {
     if (envelope.type === "frame") {
       const id = typeof envelope.payload.id === "string" && envelope.payload.id ? envelope.payload.id : randomUUID()
@@ -1382,6 +1486,12 @@ async function serve(options) {
       const fileName = `${envelope.seq}-${encodeURIComponent(id)}.jpg`
       const frameFile = path.join("frames", fileName)
       const { jpeg_base64: jpeg, ...rest } = envelope.payload
+      // A `dropped` frame kept its seq but not its bytes: keep the metadata,
+      // write no file, and treat the image as absent.
+      if (rest.dropped) {
+        logEvent({ seq: envelope.seq, t: envelope.t, type: "frame", payload: rest, frame_file: null })
+        return
+      }
       if (typeof jpeg === "string") {
         const bytes = Buffer.from(jpeg, "base64")
         fs.writeFileSync(path.join(framesDir, fileName), bytes, { mode: 0o600 })
@@ -1411,19 +1521,43 @@ async function serve(options) {
     }
     let next = { envelope, reserved: 0 }
     while (next) {
-      board.acked_seq = next.envelope.seq
+      // One transaction per envelope: apply, store, save the board with the
+      // advanced seq. A failure rolls everything back and leaves the seq
+      // unacknowledged, so the page retries it instead of discarding an event
+      // the endpoint lost. Wakes and SSE notices are held until the commit.
+      const undo = snapshotState()
+      heldNotices = []
+      try {
+        applyEnvelope(next.envelope)
+        storeEnvelope(next.envelope)
+        board.acked_seq = next.envelope.seq
+        saveBoard()
+      } catch (error) {
+        heldNotices = null
+        undo()
+        throw error
+      }
+      const notices = heldNotices
+      heldNotices = null
       outOfOrder.delete(next.envelope.seq)
       reservedBytes -= next.reserved
-      storeEnvelope(next.envelope)
-      applyEnvelope(next.envelope)
+      for (const notice of notices) {
+        if (notice.wake) fulfillWaiter()
+        else broadcast(notice.event, notice.payload)
+      }
       next = outOfOrder.get(board.acked_seq + 1)
     }
   }
 
   async function handleEvents(req, res, sessionId) {
     const body = await readBody(req, FRAME_BODY_LIMIT)
+    // The session may have ended while this body was in flight.
+    if (board.ended || session.page_token === null) {
+      sendJson(res, 410, { status: "session-ended" }, corsHeaders())
+      return
+    }
     if (body.tooLarge) {
-      sendJson(res, 413, { max_bytes: FRAME_BODY_LIMIT }, corsHeaders())
+      sendJson(res, 413, { max_bytes: BODY_LIMIT, frame_max_bytes: FRAME_BODY_LIMIT }, corsHeaders())
       return
     }
     const parsed = parseJsonObject(body.text)
@@ -1457,9 +1591,19 @@ async function serve(options) {
       return
     }
     touch()
-    for (const envelope of envelopes) admitEnvelope(envelope, body.size)
-    saveBoard()
+    let storageError = null
+    try {
+      for (const envelope of envelopes) admitEnvelope(envelope, body.size)
+    } catch (error) {
+      storageError = error
+    }
     broadcast("ack", { acked_seq: board.acked_seq })
+    if (storageError) {
+      // Whatever was acknowledged before the failure stays acknowledged;
+      // the rest is retriable from acked_seq.
+      sendJson(res, 500, { error: "storage_failed", code: storageError.code ?? null, acked_seq: board.acked_seq }, corsHeaders())
+      return
+    }
     sendJson(res, 200, { acked_seq: board.acked_seq }, corsHeaders())
   }
 
@@ -1584,6 +1728,11 @@ async function serve(options) {
         return
       }
       logAgent({ kind: "mint", session_id: sessionId, expires_at: expiresAt })
+      // The session may have ended while the upstream call was in flight.
+      if (board.ended || session.page_token === null) {
+        sendJson(res, 410, { status: "session-ended" }, corsHeaders())
+        return
+      }
       sendJson(res, 200, { client_secret: secret, expires_at: expiresAt, model: REALTIME_MODEL }, corsHeaders())
     } finally {
       mintInFlight = false
@@ -1655,6 +1804,15 @@ async function serve(options) {
       }
       out.end(() => {
         if (failed) return
+        try {
+          finalize()
+        } catch (error) {
+          // Any filesystem failure here takes the same recoverable path.
+          out.emit("error", error)
+        }
+      })
+
+      function finalize() {
         if (size > 0) {
           fs.renameSync(tmpPath, archivePath)
           logBytes += size
@@ -1672,7 +1830,7 @@ async function serve(options) {
         endSession()
         endingInFlight = false
         sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
-      })
+      }
     })
   }
 
@@ -1703,15 +1861,22 @@ async function serve(options) {
   function handleAck(req, res, checkpointId) {
     const index = batches.findIndex((batch) => batch.envelope.checkpoint_id === checkpointId)
     if (index === -1) {
+      // Idempotent: a repeated ack of a batch this session already dropped is
+      // still a success, so a crashed agent can safely re-ack on resume.
+      if (board.acked_checkpoint_ids.includes(checkpointId)) {
+        sendJson(res, 200, { ok: true, checkpoint_id: checkpointId, already_acked: true })
+        return
+      }
       sendJson(res, 404, { error: "unknown checkpoint" })
       return
     }
     batches.splice(index, 1)
     fs.rmSync(batchFile(checkpointId), { force: true })
-    logAgent({ kind: "ack", checkpoint_id: checkpointId })
+    board.acked_checkpoint_ids.push(checkpointId)
+    bestEffort(() => saveBoard())
+    bestEffort(() => logAgent({ kind: "ack", checkpoint_id: checkpointId }))
     touch()
     sendJson(res, 200, { ok: true, checkpoint_id: checkpointId })
-    finishEndedSession()
   }
 
   async function handleUnitStatus(req, res, unitId) {
