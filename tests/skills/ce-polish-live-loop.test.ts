@@ -167,7 +167,7 @@ describe("ce-polish live loop smoke", () => {
 
     const lost = await agent.waitCli()
     expect(lost.exitCode, lost.stderr).toBe(0)
-    const envelope = lost.envelope as { session_status: string; units: unknown[]; kind: string; lost_after_checkpoint_id: string }
+    const envelope = lost.envelope as { checkpoint_id: string; session_status: string; units: unknown[]; kind: string; lost_after_checkpoint_id: string }
     expect(envelope.session_status).toBe("page_lost")
     expect(envelope.units).toEqual([])
     expect(envelope.lost_after_checkpoint_id).toBe("ck2")
@@ -176,7 +176,12 @@ describe("ce-polish live loop smoke", () => {
     expect(session.ended).toBe(false)
     expect(session.page_token).toBe(agent.pageToken)
     expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(false)
-    // Once per episode: the next wait blocks.
+    // One wake per episode: it is a batch like any other (KTD7), re-served
+    // until acknowledged and never a second page_lost; once acked the next wait blocks.
+    const reserved = await agent.waitHttp()
+    expect(reserved.status).toBe(200)
+    expect(reserved.envelope!.checkpoint_id).toBe(envelope.checkpoint_id)
+    expectOk(await agent.ack(envelope.checkpoint_id))
     expect((await agent.waitHttp()).status).toBe(204)
     expect(((await agent.statusHttp()).body.page as { lost_episodes: number; stream: string })).toMatchObject({ lost_episodes: 1, stream: "lost" })
 

@@ -82,8 +82,12 @@ describe("live endpoint: stream contract intake", () => {
     expect(foreign.body).toEqual({ expected_schema_version: "live/1" })
 
     // The stored frame landed under state/log/frames with the fixture bytes.
+    // The file name is the helper's own layout; only the frame id must appear in it.
     const frame = await readFixture("frame")
-    const stored = await fs.readFile(path.join(agent.stateDir, "log", "frames", `${frame.payload.id}.jpg`))
+    const framesDir = path.join(agent.stateDir, "log", "frames")
+    const frameFiles = (await fs.readdir(framesDir)).filter((name) => name.includes(String(frame.payload.id)) && name.endsWith(".jpg"))
+    expect(frameFiles).toHaveLength(1)
+    const stored = await fs.readFile(path.join(framesDir, frameFiles[0]))
     expect(Buffer.from(stored).toString("base64")).toBe(String(frame.payload.jpeg_base64))
   })
 
