@@ -77,10 +77,11 @@ emit() {
     "$1" "$5" "$6" "$version_json" "$3" "$pm_json"
 }
 
-# A real JSX opening element for RiffrecProvider in one file: the tag begins
-# a line (after whitespace, `(`, or `return`), is followed by whitespace, `>`,
-# or end of line, and is not inside a `//` line, a `/* */` or `{/* */}` block,
-# or a quoted string on the same line.
+# A real JSX opening element for RiffrecProvider in one file: the tag follows
+# the start of the line or an ordinary JSX expression prefix (whitespace, `(`,
+# `{`, `=`, `>` of an arrow, `?`, `:`, `,`, `&`, `|`, or the `return` keyword),
+# is followed by whitespace, `>`, or end of line, and is not inside a `//`
+# remainder, a `/* */` or `{/* */}` block, or a quoted string on the same line.
 has_jsx_mount() {
   # $1 file
   awk '
@@ -97,9 +98,10 @@ has_jsx_mount() {
         line = substr(line, 1, start - 1) substr(line, start + 2 + stop + 1)
       }
       if ((c = index(line, "//")) > 0) line = substr(line, 1, c - 1)
-      if (match(line, /^[[:space:]]*(\(|return[[:space:]]+)?<RiffrecProvider([[:space:]>]|$)/)) {
+      if (match(line, /<RiffrecProvider([[:space:]>]|$)/)) {
         before = substr(line, 1, RSTART - 1)
-        if (index(before, "\"") == 0 && index(before, "\047") == 0 && index(before, "`") == 0) { found = 1; exit }
+        if (index(before, "\"") > 0 || index(before, "\047") > 0 || index(before, "`") > 0) next
+        if (before ~ /(^|[[:space:](){}=>?:,&|]|return)[[:space:]]*$/) { found = 1; exit }
       }
     }
     END { exit found ? 0 : 1 }
