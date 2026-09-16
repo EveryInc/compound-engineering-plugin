@@ -739,7 +739,9 @@ async function spawnServe(options, previous) {
   if (!started) {
     throw new Error(`Endpoint failed to start. See ${options.logFile}`)
   }
-  jsonOut({ ...publicStartEnvelope(started), status: previous?.agent_token ? "resumed" : "started" })
+  // The child decides whether it resumed; the same tokens are the proof.
+  const resumed = Boolean(previous?.agent_token) && started.agent_token === previous.agent_token
+  jsonOut({ ...publicStartEnvelope(started), status: resumed ? "resumed" : "started" })
 }
 
 async function waitForSession(options, pid, previous) {
