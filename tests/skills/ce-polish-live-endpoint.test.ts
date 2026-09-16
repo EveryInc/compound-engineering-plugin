@@ -33,7 +33,17 @@ function startOpenAI(): FakeOpenAI {
   return stub
 }
 
+const pages: FakeLivePage[] = []
+
+/** Every page is registered so an assertion failure cannot leave a stream reader open past the test. */
+function pageFor(url: string, token: string, sessionId?: string): FakeLivePage {
+  const page = new FakeLivePage(url, token, sessionId)
+  pages.push(page)
+  return page
+}
+
 afterEach(async () => {
+  while (pages.length > 0) await pages.pop()!.closeStream()
   while (agents.length > 0) await agents.pop()!.dispose()
   while (stubs.length > 0) stubs.pop()!.stop()
 })
@@ -50,7 +60,7 @@ describe("live endpoint: stream contract intake", () => {
     const fixtures = await Promise.all(PAGE_FIXTURES.map(readFixture))
     const sessionId = fixtures[0].session_id
     expect(new Set(fixtures.map((fixture) => fixture.session_id)).size).toBe(1)
-    const page = new FakeLivePage(agent.url, agent.pageToken, sessionId)
+    const page = pageFor(agent.url, agent.pageToken, sessionId)
 
     let expectedAck = 0
     for (const fixture of fixtures.sort((a, b) => a.seq - b.seq)) {
@@ -94,7 +104,7 @@ describe("live endpoint: stream contract intake", () => {
   test("the wake-batch fixture is the shape /wait serves", async () => {
     const agent = await startAgent()
     const wakeFixture = JSON.parse(await fs.readFile(path.join(FIXTURES_DIR, "wake-batch.json"), "utf8"))
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     const unit = await readFixture("unit")
     const annotation = await readFixture("annotation")
     expectOk(await page.post([page.fromFixture(unit), page.fromFixture(annotation)]))
@@ -117,7 +127,7 @@ describe("live endpoint: stream contract intake", () => {
 describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
   test("AE1: three units then a page_change checkpoint produce exactly one wake with three units; an empty silence checkpoint produces no wake", async () => {
     const agent = await startAgent()
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     await page.sendUnit("u1", "make the header red")
     await page.sendUnit("u2", "move the toggle right")
     await page.sendUnit("u3", "bigger avatar")
@@ -143,7 +153,7 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
 
   test("AE2: in Collect, after three released units were accepted, an empty final checkpoint still wakes the agent and carries those three (KTD12)", async () => {
     const agent = await startAgent()
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     await page.send("mode", { mode: "collect" })
     await page.sendUnit("u1", "make the header red")
     await page.sendUnit("u2", "move the toggle right")
@@ -168,7 +178,7 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
 
   test("AE2: in Collect, a mode event switching to Smart produces a mode_change wake carrying the accepted units; applied and blocked ones drop out of the backlog (KTD12)", async () => {
     const agent = await startAgent()
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     // The page keeps its stream open, so an `applied` notice below is not a page-lost episode.
     await page.openStream()
     await page.send("mode", { mode: "collect" })
@@ -208,7 +218,7 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
 
   test("AE12: a unit_withdraw before the checkpoint excludes the unit; one after release appears in the next batch as withdrawn", async () => {
     const agent = await startAgent()
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     await page.openStream()
     await page.sendUnit("u1", "make this red")
     await page.sendUnit("u2", "keep this one")
@@ -243,7 +253,7 @@ describe("live endpoint: checkpoints (AE1, AE2, AE12)", () => {
 describe("live endpoint: /mint (KTD4, I2)", () => {
   test("without a key /mint returns 503 no_key", async () => {
     const agent = await startAgent({ env: { OPENAI_API_KEY: undefined } })
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     const minted = await page.mint(JSON.parse(await fs.readFile(path.join(FIXTURES_DIR, "mint-request.json"), "utf8")))
     expect(minted.status).toBe(503)
     expect(minted.body).toEqual({ reason: "no_key" })
@@ -253,7 +263,7 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
     const openai = startOpenAI()
     const stubKey = "sk-stub-key-for-tests-0123456789abcdef"
     const agent = await startAgent({ env: { OPENAI_API_KEY: stubKey, OPENAI_BASE_URL: openai.baseUrl } })
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     const mintResponseFixture = JSON.parse(await fs.readFile(path.join(FIXTURES_DIR, "mint-response.json"), "utf8"))
 
     // Mint 1: upstream accepts; the response carries the I2 shape (fixture keys).
@@ -313,7 +323,7 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
     }
     // node:http, not fetch: an ambient HTTP_PROXY whose NO_PROXY omits this address must not swallow the request.
     const mintDirect = async (agent: FakeLiveAgent, extra: Record<string, string> = {}) => {
-      const page = new FakeLivePage(`http://${lanAddress}:${agent.port}`, agent.pageToken)
+      const page = pageFor(`http://${lanAddress}:${agent.port}`, agent.pageToken)
       const response = await directRequest(`${page.url}/mint`, { method: "POST", headers: page.headers(extra), body: JSON.stringify({ session_id: page.sessionId }) })
       return { status: response.status, body: response.json() }
     }
@@ -417,7 +427,7 @@ describe("live endpoint: wake ownership, credentials, and caps (KTD7, I3, I4)", 
 
   test("a 3 MB batch returns 413; a 100 KB non-frame batch returns 413 with the 64 KB cap; a lone 1.5 MB frame is accepted", async () => {
     const agent = await startAgent()
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     const frame = page.envelope("frame", { id: "f-ok", t: 2, route: "/", kind: "gesture", jpeg_base64: "B".repeat(Math.floor(1.5 * 1024 * 1024)) })
     const accepted = await page.post(frame)
     expect(accepted.status).toBe(200)
@@ -464,7 +474,7 @@ describe("live endpoint: wake ownership, credentials, and caps (KTD7, I3, I4)", 
 describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
   test("/session/end stores the archive under state/log/, marks ended, invalidates the page token while the agent token still serves and acks the final batch; stop then invalidates the agent token", async () => {
     const agent = await startAgent()
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     await page.openStream()
     await page.sendUnit("u1", "make the header red")
     await page.send("unit_update", { unit_id: "u1", confirmed: { element: true, change: true } })
@@ -513,7 +523,7 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
   // and that `stop` is what invalidates the agent token. Coordinator decision: plan or code.
   test.todo("after the final batch is acknowledged, the agent token still accepts status posts until stop (U8+U9: token retired at final ack; plan KTD18/I4 says at stop)", async () => {
     const agent = await startAgent()
-    const page = new FakeLivePage(agent.url, agent.pageToken)
+    const page = pageFor(agent.url, agent.pageToken)
     await page.sendUnit("u1", "make the header red")
     expectOk(await page.endSession("{}", "application/json"))
     const final = await agent.waitHttp()
@@ -526,7 +536,7 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
 
   test("replay --profile anchors_transcript_only re-emits the log to a second helper with frames stripped", async () => {
     const source = await startAgent()
-    const page = new FakeLivePage(source.url, source.pageToken)
+    const page = pageFor(source.url, source.pageToken)
     const fixtures = await Promise.all(["transcript", "unit", "annotation", "frame"].map(readFixture))
     for (const fixture of fixtures) expectOk(await page.post(page.fromFixture(fixture)))
     await page.sendUnit("u2", "second unit", { evidence: { frame_ids: ["frame_0007"], annotation_ids: ["ann_0001"], transcript_span: { t_start: 0, t_end: 1 }, audio_clip_id: "clip_0002" } })
