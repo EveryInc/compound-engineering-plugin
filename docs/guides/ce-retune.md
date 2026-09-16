@@ -76,7 +76,7 @@ Empty transcripts and error exits look like model failures and silently inflate 
 
 ### The noise floor comes before the claim
 
-Two identical builds are compared before anything is credited. That is the step most retuning skips, and skipping it is why those results do not survive scrutiny. It also yields a cheap one-armed test: once the baseline rate is known, N consecutive clean runs has an exact probability under it, so a streak can clear a bar without a control arm.
+Two identical builds are compared before anything is credited. That is the step most retuning skips, and skipping it is why those results do not survive scrutiny. A pre-registered streak on one fixed candidate can also clear an operational bar. Its `p^N` probability assumes a known fixed baseline rate, independent runs, and one planned attempt. Estimated baselines and candidate selection require additional statistical treatment; without it, report the observed confirmation rather than an exact-significance claim.
 
 ### An adversary defends the prose
 
@@ -108,7 +108,7 @@ It then runs the same commit against itself. The spread on identical builds beco
 
 The audit proposes cuts. The defender keeps several lines with citations from tests and git history. The remaining cuts go out as one-problem, one-agent passes. After each pass the harness runs. A failure that moved to a later phase names the next target. A failure at the same site means the last cut missed.
 
-Eight clean runs later the bar clears. Each pass is its own commit. The measurement artifacts stay with the work. `/ce-compound` gets the mechanism and the hypotheses that died.
+After selecting and fixing the candidate, eight fresh clean runs clear the pre-registered operational bar. Each pass is its own commit. The measurement artifacts retain all attempts, not just the final streak; clearing the bar alone is not a search-wide significance claim. `/ce-compound` gets the mechanism and the hypotheses that died.
 
 ---
 
@@ -176,7 +176,7 @@ The skill stops and names the missing piece. Build the harness (archive, build s
 Yes, if you ask for it as an audit. That pass can say what looks cuttable. It cannot say whether cutting helped.
 
 **What does `bar:8` mean?**
-Eight consecutive clean runs under the one-armed test, once the baseline rate is known. The bar is written down before any change exists.
+An operational bar of eight consecutive clean runs on one fixed candidate. The bar is written down before any change exists. It does not by itself establish effect size or significance after candidate selection; the measurement protocol determines which statistical claims the evidence supports.
 
 **Is a green test suite enough?**
 No. Tests prove the suite still passes. They do not prove the new model finishes the workflow.
