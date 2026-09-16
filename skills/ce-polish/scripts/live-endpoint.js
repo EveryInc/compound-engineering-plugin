@@ -739,7 +739,9 @@ async function spawnServe(options, previous) {
   if (!started) {
     throw new Error(`Endpoint failed to start. See ${options.logFile}`)
   }
-  jsonOut({ ...publicStartEnvelope(started), status: previous?.agent_token ? "resumed" : "started" })
+  // The child decides whether it resumed; the same tokens are the proof.
+  const resumed = Boolean(previous?.agent_token) && started.agent_token === previous.agent_token
+  jsonOut({ ...publicStartEnvelope(started), status: resumed ? "resumed" : "started" })
 }
 
 async function waitForSession(options, pid, previous) {
@@ -750,6 +752,11 @@ async function waitForSession(options, pid, previous) {
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
   return null
+}
+
+function endedAndDrained(options) {
+  const stopped = readSession(options)
+  return Boolean(stopped?.ended) && loadBatches(options).length === 0
 }
 
 function exitSessionEnded() {
@@ -766,10 +773,9 @@ async function wait(options) {
   if (!info?.port) {
     // Idle/owner shutdown leaves the session file in place; an ended session
     // must still report that terminal status rather than "not running".
-    const stopped = readSession(options)
-    // Ended and drained is terminal; ended with a retained agent token and
-    // batches on disk still holds work and needs a resume.
-    if (stopped?.ended && !(stopped.agent_token && loadBatches(options).length > 0)) return exitSessionEnded()
+    // Ended and drained is terminal; ended with batches on disk still holds
+    // work and needs a resume.
+    if (endedAndDrained(options)) return exitSessionEnded()
     console.error("Endpoint is not running; run `start --root` to resume the session")
     process.exit(2)
   }
@@ -786,7 +792,10 @@ async function wait(options) {
     try {
       response = await fetch(url, { headers })
     } catch {
-      if (readSession(options)?.ended) return exitSessionEnded()
+      // The helper may have died mid-poll; a retained final batch still needs
+      // a resume, never a "session-ended" exit.
+      if (endedAndDrained(options)) return exitSessionEnded()
+      console.error("Endpoint is not running; run `start --root` to resume the session")
       process.exit(2)
     }
     if (response.status === 200 || response.status === 410) {
