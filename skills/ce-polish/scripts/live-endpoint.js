@@ -659,24 +659,17 @@ function readBoardSummary(options) {
 async function start(options) {
   ensureDirs(options)
   options.ownerPid = options.ownerPid ?? resolveOwnerPid()
-  const running = getRunningInfo(options)
-  if (running && !running.ended) {
-    if (running.app_origin !== options.appOrigin) {
-      throw new Error(`An endpoint for this root is already running with --app-origin ${running.app_origin}; stop it first`)
-    }
-    jsonOut({ ...publicStartEnvelope(running), status: "running" })
-    return
+  // One start per root at a time, foreground or detached: the running check
+  // and the launch happen under the same claim.
+  const lockPath = acquireStartLock(options)
+  try {
+    await startLocked(options)
+  } finally {
+    fs.rmSync(lockPath, { force: true })
   }
-  if (running) await stopServer(options)
-  fs.rmSync(options.pidFile, { force: true })
+}
 
-  if (options.foreground) {
-    await serve(options)
-    return
-  }
-
-  const previous = readSession(options)
-  // Two concurrent starts must not both spawn a helper for one root.
+function acquireStartLock(options) {
   const lockPath = path.join(options.stateDir, "start.lock")
   let lockFd
   try {
@@ -690,11 +683,34 @@ async function start(options) {
   }
   fs.writeSync(lockFd, `${process.pid}\n`)
   fs.closeSync(lockFd)
-  try {
-    await spawnServe(options, previous)
-  } finally {
-    fs.rmSync(lockPath, { force: true })
+  return lockPath
+}
+
+// Releases the lock only once the session file proves the server is up.
+async function startLocked(options) {
+  const running = getRunningInfo(options)
+  if (running && !running.ended) {
+    if (running.app_origin !== options.appOrigin) {
+      throw new Error(`An endpoint for this root is already running with --app-origin ${running.app_origin}; stop it first`)
+    }
+    jsonOut({ ...publicStartEnvelope(running), status: "running" })
+    return
   }
+  if (running) await stopServer(options)
+  fs.rmSync(options.pidFile, { force: true })
+  const previous = readSession(options)
+
+  if (options.foreground) {
+    // serve() resolves once listening; the server handle keeps the process up.
+    const serving = serve(options)
+    serving.catch(() => {})
+    const up = await waitForSession(options, process.pid, previous)
+    await serving
+    if (!up) throw new Error("Endpoint failed to start")
+    return null
+  }
+
+  await spawnServe(options, previous)
 }
 
 async function spawnServe(options, previous) {
@@ -838,7 +854,11 @@ function status(options) {
 // Replay: re-emit state/log/ under an evidence profile to another endpoint.
 // ---------------------------------------------------------------------------
 
-function applyProfile(envelope, profile) {
+const TELEMETRY_EVENT_TYPES = new Set(["click", "navigation", "network_request", "console_error"])
+
+// `retainedFrames` is the set of frame ids the profile keeps, so unit
+// evidence never points at a frame the replay did not send.
+function applyProfile(envelope, profile, retainedFrames) {
   const rules = EVIDENCE_PROFILES[profile]
   const { type, payload } = envelope
   if (type === "frame") {
@@ -846,12 +866,14 @@ function applyProfile(envelope, profile) {
     if (rules.frames === "composite" && payload?.kind !== "composite") return null
     return envelope
   }
+  if (TELEMETRY_EVENT_TYPES.has(type) && !rules.telemetry) return null
   if (type === "annotation" && !rules.annotations) return null
   if ((type === "unit" || type === "unit_update") && payload && typeof payload === "object") {
     const next = { ...payload }
     if (next.evidence && typeof next.evidence === "object") {
       const evidence = { ...next.evidence }
       if (rules.frames === "none") evidence.frame_ids = []
+      else if (rules.frames === "composite" && Array.isArray(evidence.frame_ids)) evidence.frame_ids = evidence.frame_ids.filter((id) => retainedFrames.has(id))
       if (!rules.annotations) evidence.annotation_ids = []
       if (!rules.clips) delete evidence.audio_clip_id
       if (!rules.telemetry) delete evidence.telemetry_window
@@ -879,6 +901,17 @@ async function replay(options) {
   let skipped = 0
   let batch = []
   let batchBytes = 0
+
+  // First pass: which frames the profile keeps, so evidence can be pruned to
+  // them on the second pass. Only ids are held.
+  const retainedFrames = new Set()
+  if (EVIDENCE_PROFILES[options.profile].frames === "composite") {
+    const scan = readline.createInterface({ input: fs.createReadStream(eventsFile, "utf8"), crlfDelay: Infinity })
+    for await (const line of scan) {
+      const stored = line ? parseJsonObject(line) : null
+      if (stored?.type === "frame" && stored.payload?.kind === "composite" && typeof stored.payload.id === "string") retainedFrames.add(stored.payload.id)
+    }
+  }
 
   async function post(envelopes) {
     const body = JSON.stringify(envelopes.length === 1 ? envelopes[0] : envelopes)
@@ -920,7 +953,7 @@ async function replay(options) {
         continue
       }
     }
-    envelope = applyProfile(envelope, options.profile)
+    envelope = applyProfile(envelope, options.profile, retainedFrames)
     if (!envelope) {
       skipped += 1
       continue
@@ -1355,9 +1388,12 @@ async function serve(options) {
     } else if (type === "unit_update") {
       const unit = unitById(payload.unit_id)
       if (!unit) return
+      // KTD5: a unit is refined only while it is still initial and unreleased;
+      // the riffer's confirmation pass (KTD22) may land at any point.
+      if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
+      if (unit.released || unit.status !== "initial") return
       if (typeof payload.statement === "string") unit.statement = payload.statement
       if (Array.isArray(payload.anchors_add)) unit.anchors = [...(unit.anchors ?? []), ...payload.anchors_add]
-      if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
     } else if (type === "unit_withdraw") {
       const unit = unitById(payload.unit_id)
       if (!unit || unit.status === "withdrawn") return
@@ -1436,11 +1472,13 @@ async function serve(options) {
     }
     let next = { envelope, reserved: 0 }
     while (next) {
+      // Store and apply first: a failure leaves the seq unacknowledged, so
+      // the page retries it instead of discarding an event the log lost.
+      storeEnvelope(next.envelope)
+      applyEnvelope(next.envelope)
       board.acked_seq = next.envelope.seq
       outOfOrder.delete(next.envelope.seq)
       reservedBytes -= next.reserved
-      storeEnvelope(next.envelope)
-      applyEnvelope(next.envelope)
       next = outOfOrder.get(board.acked_seq + 1)
     }
   }
@@ -1487,9 +1525,21 @@ async function serve(options) {
       return
     }
     touch()
-    for (const envelope of envelopes) admitEnvelope(envelope, body.size)
-    saveBoard()
+    let storageError = null
+    try {
+      for (const envelope of envelopes) admitEnvelope(envelope, body.size)
+      saveBoard()
+    } catch (error) {
+      storageError = error
+      bestEffort(() => saveBoard())
+    }
     broadcast("ack", { acked_seq: board.acked_seq })
+    if (storageError) {
+      // Whatever was acknowledged before the failure stays acknowledged;
+      // the rest is retriable from acked_seq.
+      sendJson(res, 500, { error: "storage_failed", code: storageError.code ?? null, acked_seq: board.acked_seq }, corsHeaders())
+      return
+    }
     sendJson(res, 200, { acked_seq: board.acked_seq }, corsHeaders())
   }
 
@@ -1614,6 +1664,11 @@ async function serve(options) {
         return
       }
       logAgent({ kind: "mint", session_id: sessionId, expires_at: expiresAt })
+      // The session may have ended while the upstream call was in flight.
+      if (board.ended || session.page_token === null) {
+        sendJson(res, 410, { status: "session-ended" }, corsHeaders())
+        return
+      }
       sendJson(res, 200, { client_secret: secret, expires_at: expiresAt, model: REALTIME_MODEL }, corsHeaders())
     } finally {
       mintInFlight = false
@@ -1685,13 +1740,17 @@ async function serve(options) {
       }
       out.end(() => {
         if (failed) return
+        try {
+          finalize()
+        } catch (error) {
+          // Any filesystem failure here takes the same recoverable path.
+          out.emit("error", error)
+        }
+      })
+
+      function finalize() {
         if (size > 0) {
-          try {
-            fs.renameSync(tmpPath, archivePath)
-          } catch (error) {
-            out.emit("error", error)
-            return
-          }
+          fs.renameSync(tmpPath, archivePath)
           logBytes += size
         } else {
           bestEffort(() => fs.rmSync(tmpPath, { force: true }))
@@ -1707,7 +1766,7 @@ async function serve(options) {
         endSession()
         endingInFlight = false
         sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
-      })
+      }
     })
   }
 
