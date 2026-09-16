@@ -88,9 +88,9 @@ describe("ce-polish live loop smoke", () => {
       await page.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === id && event.data.status === "triaging")
     }
 
-    // Acknowledge first; the batch is not re-served afterwards.
+    // Acknowledge first; the batch is not re-served afterwards and a repeated ack is idempotent.
     expectOk(await agent.ack(wake.checkpoint_id))
-    expect((await agent.ack(wake.checkpoint_id)).status).toBe(404)
+    expect(await agent.ack(wake.checkpoint_id)).toMatchObject({ status: 200, body: { already_acked: true } })
 
     // Smart triage: the clear edit is applied, the redesign is blocked, the drawing needs a question.
     expectOk(await agent.postStatus("u-red", "applied", { note: "header color -> red" }))

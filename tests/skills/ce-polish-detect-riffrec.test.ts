@@ -11,7 +11,7 @@ import path from "path"
 const detectRiffrec = path.join(import.meta.dir, "..", "..", "skills", "ce-polish", "scripts", "detect-riffrec.sh")
 const fixturesDir = path.join(import.meta.dir, "..", "fixtures", "ce-polish-live")
 
-type Detection = { dependency: boolean; version: string | null; mount: boolean; package_manager: string | null }
+type Detection = { dependency: boolean; installed: boolean; live_build: boolean; version: string | null; mount: boolean; package_manager: string | null }
 
 async function run(args: string[], cwd?: string): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const proc = Bun.spawn(["bash", detectRiffrec, ...args], { cwd, stdout: "pipe", stderr: "pipe" })
@@ -36,14 +36,14 @@ describe("detect-riffrec.sh", () => {
   test("the with-riffrec fixture reports dependency true, a version string, mount true, and its package manager", async () => {
     const root = await copyFixture("project-with-riffrec")
     const detection = await detect(root)
-    expect(detection).toEqual({ dependency: true, version: "0.6.0", mount: true, package_manager: "pnpm" })
-    expect(Object.keys(detection).sort()).toEqual(["dependency", "mount", "package_manager", "version"])
+    expect(detection).toEqual({ dependency: true, installed: false, live_build: false, version: "0.6.0", mount: true, package_manager: "pnpm" })
+    expect(Object.keys(detection).sort()).toEqual(["dependency", "installed", "live_build", "mount", "package_manager", "version"])
   })
 
   test("the without-riffrec fixture reports dependency false, version null, mount false", async () => {
     const root = await copyFixture("project-without-riffrec")
     const detection = await detect(root)
-    expect(detection).toEqual({ dependency: false, version: null, mount: false, package_manager: "npm" })
+    expect(detection).toEqual({ dependency: false, installed: false, live_build: false, version: null, mount: false, package_manager: "npm" })
   })
 
   test("an installed node_modules/riffrec wins over the declared range", async () => {
@@ -53,7 +53,24 @@ describe("detect-riffrec.sh", () => {
     // A mount inside node_modules or build output does not count.
     await fs.mkdir(path.join(root, "dist"), { recursive: true })
     await fs.writeFile(path.join(root, "dist", "bundle.js"), "<RiffrecProvider forceEnable>")
-    expect((await detect(root)).version).toBe("0.6.3")
+    const detection = await detect(root)
+    expect(detection.version).toBe("0.6.3")
+    // Installed, but nothing in dist/ names the live config: not a live-capable build.
+    expect(detection).toMatchObject({ installed: true, live_build: false })
+  })
+
+  test("an installed build whose dist/index.d.ts names RiffrecLiveConfig is live-capable", async () => {
+    const root = await copyFixture("project-with-riffrec")
+    await fs.mkdir(path.join(root, "node_modules", "riffrec", "dist"), { recursive: true })
+    await fs.writeFile(path.join(root, "node_modules", "riffrec", "package.json"), JSON.stringify({ name: "riffrec", version: "0.7.0" }))
+    await fs.writeFile(path.join(root, "node_modules", "riffrec", "dist", "index.d.ts"), "export interface RiffrecLiveConfig {}\nexport declare function RiffrecProvider(props: { live?: RiffrecLiveConfig }): null\n")
+    expect(await detect(root)).toMatchObject({ dependency: true, installed: true, live_build: true, version: "0.7.0", mount: true })
+  })
+
+  test("a RiffrecProvider tag only inside a comment or a string is not a mount", async () => {
+    const root = await copyFixture("project-without-riffrec")
+    await fs.writeFile(path.join(root, "src", "notes.tsx"), '// <RiffrecProvider forceEnable live={{}}>\nconst hint = "<RiffrecProvider forceEnable>"\n/* <RiffrecProvider> */\n')
+    expect((await detect(root)).mount).toBe(false)
   })
 
   test("a mount inside node_modules or dist alone is not a mount; an import without the JSX tag is not a mount", async () => {
@@ -70,7 +87,7 @@ describe("detect-riffrec.sh", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-polish-detect-"))
     await fs.mkdir(path.join(root, "app"), { recursive: true })
     await fs.writeFile(path.join(root, "app", "root.jsx"), "<RiffrecProvider forceEnable live={{}} />")
-    expect(await detect(root)).toEqual({ dependency: false, version: null, mount: true, package_manager: null })
+    expect(await detect(root)).toEqual({ dependency: false, installed: false, live_build: false, version: null, mount: true, package_manager: null })
   })
 
   test("a missing path exits 1 with an ERROR line", async () => {

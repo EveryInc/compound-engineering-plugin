@@ -15,6 +15,9 @@ const referencesDir = path.join(skillDir, "references")
 const scriptsDir = path.join(skillDir, "scripts")
 const SKILL_MD_BYTE_CEILING = 8000
 
+// riffrec main commit the fixtures, contract mirror, and install pin all refer to (tests/fixtures/ce-polish-live/SOURCE.md).
+const RIFFREC_REFERENCE_SHA = "bff7ffe5febf686151f9edd517d2c7ac636d763c"
+
 const LIVE_FILES = ["live-start.md", "live-loop.md", "live-remote.md", "install-riffrec.md", "live-stream-contract.md"]
 
 async function read(relative: string): Promise<string> {
@@ -84,8 +87,11 @@ describe("ce-polish live-mode prose", () => {
     expect(start).toContain("OPENAI_API_KEY")
     expect(start).toContain("state/brief.md")
     expect(start).toMatch(/3,000 characters/)
-    // Resume semantics: the same start again, same tokens, never a new URL.
-    expect(start).toMatch(/never hand over a new URL/i)
+    // Resume semantics: the same start again reuses the stored tokens; the old URL
+    // stands only while its origin does (a taken port hands the rebuild to live-loop.md).
+    expect(start).toMatch(/reuses the stored tokens/i)
+    expect(start).toMatch(/unless the old port was taken/i)
+    expect(start).toMatch(/do not hand over a URL whose origin differs/i)
     // The start envelope fields and that the agent token never prints.
     for (const field of ["`url`", "`port`", "`page_token`"]) expect(start).toContain(field)
     expect(start).toMatch(/agent token never prints/i)
@@ -117,10 +123,14 @@ describe("ce-polish live-mode prose", () => {
     expect(loop).toContain("ce-commit")
   })
 
-  test("install-riffrec.md mounts live={{}} with forceEnable and names the minimum version constant (I5, KTD20)", async () => {
+  test("install-riffrec.md mounts live={{}} with forceEnable, pins the GitHub install to the reference commit, and keeps the registry range as the future switch (I5, KTD20)", async () => {
     const install = await read("references/install-riffrec.md")
     expect(install).toContain("<RiffrecProvider forceEnable live={{}}>")
     expect(install).toContain("RIFFREC_MIN_VERSION")
+    expect(install).toContain("RIFFREC_MIN_COMMIT")
+    expect(install).toContain(RIFFREC_REFERENCE_SHA)
+    expect(install).toMatch(/kieranklaassen\/riffrec#/)
+    expect(install).toMatch(/dist\/index\.d\.ts/)
     expect(install).toMatch(/pnpm add riffrec@|npm install riffrec@/)
     expect(install).toMatch(/setup commit/i)
     // The endpoint origin is never written into source or config (KTD20).

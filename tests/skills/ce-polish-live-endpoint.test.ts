@@ -472,7 +472,7 @@ describe("live endpoint: wake ownership, credentials, and caps (KTD7, I3, I4)", 
 })
 
 describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
-  test("/session/end stores the archive under state/log/, marks ended, invalidates the page token while the agent token still serves and acks the final batch; stop then invalidates the agent token", async () => {
+  test("I4 token lifecycle: /session/end retires the page token only; the agent token serves and acks final, wait then exits 1, status and re-ack still work, and stop retires it (KTD18)", async () => {
     const agent = await startAgent()
     const page = pageFor(agent.url, agent.pageToken)
     await page.openStream()
@@ -493,17 +493,35 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     expect(session.ended).toBe(true)
     expect(session.page_token).toBeNull()
     expect(session.agent_token).toBe(agent.agentToken)
-    // The page token is dead...
+    // The page token is dead on every page route...
     expect((await page.send("mic", { state: "muted" })).status).toBe(410)
-    // ...while the agent token still serves the final batch and its ack.
+    expect((await page.mint()).status).toBe(410)
+    // ...while the agent token serves the final batch.
     const final = await agent.waitCli()
     expect(final.exitCode, final.stderr).toBe(0)
     const envelope = final.envelope as { kind: string; checkpoint_id: string; units: Array<{ id: string; confirmed: unknown }> }
     expect(envelope.kind).toBe("final")
     expect(envelope.units.map((unit) => unit.id)).toEqual(["u1"])
     expect(envelope.units[0].confirmed).toEqual({ element: true, change: true })
+    // Ack first, then status-post: the token is not retired by the ack (I4).
     expectOk(await agent.ack(envelope.checkpoint_id))
+    expectOk(await agent.postStatus("u1", "applied", { note: "done in the final pass" }))
+    // Drained: wait is session-ended (exit 1) with the still-valid token; status keeps working; a re-ack is idempotent.
+    const drained = await agent.waitHttp()
+    expect(drained.status).toBe(410)
+    expect(drained.body).toEqual({ status: "session-ended" })
+    const drainedCli = await agent.waitCli()
+    expect(drainedCli.exitCode).toBe(1)
+    expect(drainedCli.envelope).toEqual({ status: "session-ended" })
+    const status = await agent.statusHttp()
+    expectOk(status)
+    expect((status.body.units as { by_status: Record<string, number> }).by_status).toEqual({ applied: 1 })
+    expect(await agent.statusCli()).toMatchObject({ status: "running", session_ended: true })
+    expect(await agent.ack(envelope.checkpoint_id)).toMatchObject({ status: 200, body: { already_acked: true } })
+    expect((await agent.board()).acked_checkpoint_ids).toEqual([envelope.checkpoint_id])
+    expect((await agent.session()).agent_token).toBe(agent.agentToken)
 
+    // stop is the explicit end: both tokens gone, batches/ dropped, log/ kept, agent routes rejected.
     const stopped = await agent.stopCli()
     expect(stopped.exitCode).toBe(0)
     const after = await agent.session()
@@ -515,29 +533,96 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     const afterStop = await agent.waitCli()
     expect(afterStop.exitCode).toBe(1)
     expect(afterStop.envelope).toEqual({ status: "session-ended" })
+    expect(await agent.listening()).toBe(false)
+
+    // A start on the ended, drained root is a fresh session, not a resume.
+    const fresh = await agent.restart()
+    expect(fresh.status).toBe("started")
+    expect(fresh.page_token).not.toBe(session.page_token)
+    expect(agent.agentToken).not.toBe(session.agent_token)
+    expect((await agent.statusHttp()).body.ended).toBe(false)
   })
 
-  // U8/U9 finding: the helper retires the agent token the moment the final batch is acked with
-  // nothing else held (finishEndedSession), and live-loop.md now tells the agent to ack the final
-  // batch last. Plan KTD18/I4 says the final batch is "served, acknowledged, and status-posted"
-  // and that `stop` is what invalidates the agent token. Coordinator decision: plan or code.
-  test.todo("after the final batch is acknowledged, the agent token still accepts status posts until stop (U8+U9: token retired at final ack; plan KTD18/I4 says at stop)", async () => {
+  test("/mint that completes after /session/end answers 410 and mints nothing usable", async () => {
+    const openai = startOpenAI()
+    const agent = await startAgent({ env: { OPENAI_API_KEY: "sk-stub-key-for-tests-0123456789abcdef", OPENAI_BASE_URL: openai.baseUrl } })
+    const page = pageFor(agent.url, agent.pageToken)
+    openai.respondWith(200, { value: "ek_test_minted_after_end", expires_at: 1789686600, session: { model: "gpt-realtime" } }, 400)
+    const inFlight = page.mint()
+    await waitUntil(() => openai.requests.length === 1)
+    expectOk(await page.endSession("{}", "application/json"))
+    const minted = await inFlight
+    expect(minted.status, JSON.stringify(minted.body)).toBe(410)
+    expect(minted.body).toEqual({ status: "session-ended" })
+    expect(JSON.stringify(minted.body)).not.toContain("ek_test_minted_after_end")
+  })
+
+  test("a storage failure answers 500 storage_failed with the last durable acked_seq; the same seq is accepted on retry and the batch is served once", async () => {
     const agent = await startAgent()
     const page = pageFor(agent.url, agent.pageToken)
-    await page.sendUnit("u1", "make the header red")
-    expectOk(await page.endSession("{}", "application/json"))
-    const final = await agent.waitHttp()
-    expect(final.status).toBe(200)
-    expectOk(await agent.ack(final.envelope!.checkpoint_id))
-    expectOk(await agent.postStatus("u1", "applied", { note: "done in the final pass" }))
-    expectOk(await agent.statusHttp())
-    expect((await agent.session()).agent_token).toBe(agent.agentToken)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    // A checkpoint persists a batch file; a regular file where batches/ should be makes that write fail.
+    const batchesDir = path.join(agent.stateDir, "batches")
+    await fs.rm(batchesDir, { recursive: true, force: true })
+    await fs.writeFile(batchesDir, "not a directory")
+    const checkpoint = page.envelope("checkpoint", { id: "ck1", trigger: "silence", mode: "smart" })
+    const failed = await page.post(checkpoint)
+    expect(failed.status).toBe(500)
+    expect(failed.body).toMatchObject({ error: "storage_failed", acked_seq: 1 })
+    expect(typeof failed.body.code).toBe("string")
+    expect((await agent.statusHttp()).body.acked_seq).toBe(1)
+    expect((await agent.waitHttp()).status).toBe(204)
+    await fs.rm(batchesDir, { force: true })
+    await fs.mkdir(batchesDir, { recursive: true })
+    const retried = await page.post(checkpoint)
+    expectOk(retried)
+    expect(retried.body.acked_seq).toBe(2)
+    const wake = await agent.waitHttp()
+    expect(wake.status).toBe(200)
+    expect(wake.envelope!.checkpoint_id).toBe("ck1")
+    expect(wake.envelope!.units.map((unit) => unit.id)).toEqual(["u1"])
+    // One log line per seq, no duplicate from the failed attempt.
+    const log = (await fs.readFile(path.join(agent.stateDir, "log", "events.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { seq: number })
+    expect(log.map((line) => line.seq)).toEqual([1, 2])
   })
 
-  test("replay --profile anchors_transcript_only re-emits the log to a second helper with frames stripped", async () => {
+  test("unit_update refines statement and anchors only while the unit is initial and unreleased; confirmed applies at any time (KTD5, KTD22)", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent.url, agent.pageToken)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expectOk(await page.send("unit_update", { unit_id: "u1", statement: "make the header dark red", anchors_add: [{ route: "/", selector: "header h1", rect: { x: 0, y: 0, width: 50, height: 20 }, t: 2 }] }))
+    let unit = ((await agent.statusHttp()).body.units as { list: Array<{ id: string; statement: string }> }).list[0]
+    expect(unit.statement).toBe("make the header dark red")
+    expectOk(await page.sendCheckpoint("ck1", "silence", "smart"))
+    const wake = await agent.waitHttp()
+    expect(wake.envelope!.units[0]).toMatchObject({ id: "u1", statement: "make the header dark red" })
+    expect((wake.envelope!.units[0] as { anchors: unknown[] }).anchors).toHaveLength(2)
+    expectOk(await agent.ack("ck1"))
+    // Released: the wording is frozen, the confirmation still lands.
+    expectOk(await page.send("unit_update", { unit_id: "u1", statement: "actually make it blue", confirmed: { element: true, change: false } }))
+    unit = ((await agent.statusHttp()).body.units as { list: Array<{ id: string; statement: string; confirmed: unknown }> }).list[0]
+    expect(unit).toMatchObject({ statement: "make the header dark red", confirmed: { element: true, change: false } })
+  })
+
+  test("a frame the page dropped for quota or size is accepted with its metadata and no image bytes", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent.url, agent.pageToken)
+    const frame = await readFixture("frame")
+    const dropped = page.envelope("frame", { ...frame.payload, id: "frame_dropped", jpeg_base64: "", dropped: "quota" })
+    expectOk(await page.post(dropped))
+    expect((await page.post(page.envelope("frame", { ...frame.payload, id: "frame_bad", dropped: "because" }))).body).toMatchObject({ reason: "invalid_payload" })
+    expect((await agent.statusHttp()).body.frame_count).toBe(1)
+    const framesDir = path.join(agent.stateDir, "log", "frames")
+    const files = await fs.readdir(framesDir).catch(() => [] as string[])
+    expect(files.filter((name) => name.includes("frame_dropped"))).toEqual([])
+    const log = (await fs.readFile(path.join(agent.stateDir, "log", "events.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line))
+    expect(log[0]).toMatchObject({ type: "frame", frame_file: null, payload: { id: "frame_dropped", dropped: "quota" } })
+  })
+
+  test("replay --profile anchors_transcript_only re-emits the log to a second helper with frames and telemetry stripped", async () => {
     const source = await startAgent()
     const page = pageFor(source.url, source.pageToken)
-    const fixtures = await Promise.all(["transcript", "unit", "annotation", "frame"].map(readFixture))
+    const fixtures = await Promise.all(["transcript", "unit", "annotation", "frame", "click", "navigation", "network-request", "console-error"].map(readFixture))
     for (const fixture of fixtures) expectOk(await page.post(page.fromFixture(fixture)))
     await page.sendUnit("u2", "second unit", { evidence: { frame_ids: ["frame_0007"], annotation_ids: ["ann_0001"], transcript_span: { t_start: 0, t_end: 1 }, audio_clip_id: "clip_0002" } })
     await page.sendCheckpoint("ck1", "silence", "smart")
@@ -549,7 +634,8 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     const summary = parseJsonLine(replayed.stdout)
     expect(summary.status).toBe("replayed")
     expect(summary.profile).toBe("anchors_transcript_only")
-    expect(summary.envelopes_skipped).toBe(2)
+    // Skipped: the frame, the annotation, and the four telemetry envelopes.
+    expect(summary.envelopes_skipped).toBe(6)
     expect(summary.envelopes_sent).toBe(4)
 
     const targetStatus = (await target.statusHttp()).body
@@ -566,6 +652,7 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     }
     const targetLog = await fs.readFile(path.join(target.stateDir, "log", "events.ndjson"), "utf8")
     expect(targetLog).not.toContain('"type":"frame"')
+    for (const telemetry of ["click", "navigation", "network_request", "console_error"]) expect(targetLog).not.toContain(`"type":"${telemetry}"`)
     expect(await fs.readdir(path.join(target.stateDir, "log", "frames"))).toEqual([])
     // The replayed checkpoint released both units to the target's own wake.
     const wake = await target.waitHttp()

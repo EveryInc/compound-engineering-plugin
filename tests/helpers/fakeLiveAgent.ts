@@ -141,7 +141,7 @@ function processAlive(pid: number): boolean {
 export class FakeOpenAI {
   private server: ReturnType<typeof Bun.serve>
   readonly requests: Array<{ url: string; authorization: string | null; body: Record<string, unknown> }> = []
-  private queue: Array<{ status: number; body: unknown }> = []
+  private queue: Array<{ status: number; body: unknown; delayMs: number }> = []
 
   constructor() {
     this.server = Bun.serve({
@@ -150,7 +150,8 @@ export class FakeOpenAI {
       fetch: async (request) => {
         const body = await request.json().catch(() => ({}))
         this.requests.push({ url: new URL(request.url).pathname, authorization: request.headers.get("authorization"), body })
-        const next = this.queue.shift() ?? { status: 401, body: { error: { message: "Incorrect API key provided" } } }
+        const next = this.queue.shift() ?? { status: 401, body: { error: { message: "Incorrect API key provided" } }, delayMs: 0 }
+        if (next.delayMs > 0) await Bun.sleep(next.delayMs)
         return new Response(JSON.stringify(next.body), { status: next.status, headers: { "Content-Type": "application/json" } })
       },
     })
@@ -160,8 +161,9 @@ export class FakeOpenAI {
     return `http://127.0.0.1:${this.server.port}`
   }
 
-  respondWith(status: number, body: unknown): void {
-    this.queue.push({ status, body })
+  /** Queues one answer; `delayMs` holds it so a session can end mid-upstream-call. */
+  respondWith(status: number, body: unknown, delayMs = 0): void {
+    this.queue.push({ status, body, delayMs })
   }
 
   stop(): void {
