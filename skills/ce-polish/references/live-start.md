@@ -19,17 +19,22 @@ SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read
 bash "$SKILL_DIR/scripts/detect-riffrec.sh" "<project-root>"
 ```
 
-One JSON line: `dependency`, `version`, `mount`, `package_manager`. Live mode needs all of: dependency true, a version at or above the minimum named in `references/install-riffrec.md` (or a dependency installed from riffrec's GitHub `main`, that file's interim path), and mount true with `live=` on the mount (open the mounting file to check the prop; the script reports only that a mount exists). Anything short of that: read `references/install-riffrec.md` and complete it before continuing. The setup commit it makes stays after the session.
+One JSON line: `dependency`, `installed`, `live_build`, `version`, `mount`, `package_manager`. Live mode needs positive proof of an installed live-capable build, not a declaration: `installed` true (riffrec is present under `node_modules`), `live_build` true (its built `dist/index.d.ts` carries the `live` provider config), and `mount` true with `live=` on the mount (open the mounting file to check the prop; the script reports only that a mount exists). `version` is informational while `RIFFREC_MIN_VERSION` in `references/install-riffrec.md` is still the placeholder: no declared range satisfies a placeholder, so the interim `main` path applies whenever `live_build` is false, whatever `package.json` says. Once a real minimum exists, `version` at or above it is required as well. Anything short of that: read `references/install-riffrec.md` and complete it before continuing. The setup commit it makes stays after the session.
+
+## Dev server
+
+Start or attribute the dev server per `references/run.md`, "Start and hand off", and resolve the app's **verified actual URL** there before anything below runs: server output or a correction from the riffer may replace the candidate URL, and the endpoint's CORS allow-list is fixed at start from that origin. When the mount edit landed while a server was already running, hot reload usually picks it up; if the probe below finds no live bootstrap, restart that server (only one this run launched; for a reused instance, ask the riffer to restart it). Reachability at the actual URL is the same gate as traditional polish. For a remote session, read `references/live-remote.md` now: the origin the browser will load the page from may be a tunnel or LAN origin rather than the local URL.
 
 ## Run directory and endpoint
 
-Create the run directory the helper owns; everything the session writes lives under it:
+Create the run directory the helper owns under the private scratch root (it will hold bearer tokens and the full session log, so the shipped preamble's ownership, symlink, and permission checks are required); everything the session writes lives under it:
 
 ```bash
-LIVE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/ce-polish-live-XXXXXX")"; echo "$LIVE_ROOT"
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"; [ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)"; [ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && chmod 700 "$SCRATCH_ROOT" || { echo "unsafe scratch root: $SCRATCH_ROOT" >&2; exit 1; };
+LIVE_ROOT="$(mktemp -d "$SCRATCH_ROOT/ce-polish-live-XXXXXX")" && chmod 700 "$LIVE_ROOT" && echo "$LIVE_ROOT"
 ```
 
-Start the endpoint with the origin the browser will use for the app (`--app-origin` is the exact scheme, host, and port the page loads from; it is the CORS allow-list):
+Start the endpoint with the browser-facing origin of the verified actual URL resolved above (`--app-origin` is the exact scheme, host, and port the page loads from; it is the CORS allow-list, and a running helper refuses a restart with a different one). If the URL changes after this point, `stop` the endpoint and start a fresh root; do not hand over a URL whose origin differs from the one the endpoint was given.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
@@ -39,17 +44,13 @@ node "$SKILL_DIR/scripts/live-endpoint.js" start --root "$LIVE_ROOT" --app-origi
 
 Add `--owner-pid <pid>` only when the harness exposes the process id of the agent session that outlives individual shell calls; the helper then exits when that process does. Never pass the shell's own pid (`$$`): each tool call is a fresh shell, so the helper would exit at once. Without the flag the helper resolves its owner itself when it can, and otherwise relies on its idle timeout.
 
-`start` prints one JSON line: `url` (the endpoint origin), `port`, and `page_token`. That is the only place the page token appears; the agent token never prints and lives in `$LIVE_ROOT/state/session.json` for `wait` and your own posts. Do not echo that file. Add `--host <interface>` and `--port <n>` only for a remote session, per `references/live-remote.md`; read that file before starting the endpoint when the riffer's browser is on another machine, because `--app-origin` must then be the tunnel origin.
+`start` prints one JSON line: `url` (the endpoint origin), `port`, and `page_token`. That is the only place the page token appears; the agent token never prints and lives in `$LIVE_ROOT/state/session.json` for `wait` and your own posts. Do not echo that file. Add `--host <interface>` and `--port <n>` only for a remote session, per `references/live-remote.md`, where `--app-origin` is the tunnel or LAN origin.
 
-`status --root "$LIVE_ROOT"` prints the board summary at any time; `stop --root "$LIVE_ROOT"` invalidates both tokens and keeps `state/log/`. Owner death and idle timeout stop the process but not the session. Recovery is the same `start` again with the same `--root` and `--app-origin`: against a state file whose session has not ended it is a resume that reuses the stored page token, agent token, and port, and prints the page token the live page already holds. The riffer's URL and page keep working; never hand over a new URL after a resume.
+`status --root "$LIVE_ROOT"` prints the board summary at any time; `stop --root "$LIVE_ROOT"` retires the agent token (the page token ends with `/session/end`) and keeps `state/log/`. Owner death and idle timeout stop the process but not the session. Recovery is a bare `start --root "$LIVE_ROOT"`: against a state file whose agent token has not been retired by `stop` (the session may already have ended on the page side) it is a resume that reuses the stored tokens, board, app origin, bind host, and trusted proxies, prefers the old port, and prints `status: "resumed"`. The riffer's URL and page keep working unless the old port was taken; `references/live-loop.md` (exit 2) says what to do then. Two starts on one root at the same time are refused by `state/start.lock`; wait for the first.
 
 ## Session brief
 
 Write `$LIVE_ROOT/state/brief.md` after `start` has created `state/`. The interviewer's instructions carry it so its questions are grounded in this app. Content is limited to four categories: the app's route list, component names near the files this branch touched, design token names, and a one-paragraph summary of the recent changes. Hard cap 3,000 characters. Never file contents, environment values, credentials, URLs with credential parameters, or user data; the endpoint scans the brief for secret shapes and refuses to mint with `brief_contains_secret` if one slips through, which the page reports on the consent step. Draw the four categories from repo context you already hold; do not run a scan of the repo to fill it. Keep each category to what the session needs: the routes and components the branch touched plus their immediate neighbours, not the whole app map; the token names used on those surfaces; a summary that says what changed, not which controls or safeguards were added. Leave out any identifier that would itself disclose something (a regulated-data workflow, an unreleased product, a security control). The riffer cannot see the brief on the consent screen, so paste its full text into the handoff message, above the URL, with the sentence "this is the brief that goes to OpenAI; say so if anything should come out before you accept". Change it on request before the riffer accepts; after acceptance the brief is what the interviewer holds.
-
-## Dev server
-
-Start or attribute the dev server per `references/run.md`, "Start and hand off". When the mount edit landed while a server was already running, hot reload usually picks it up; if the probe below finds no live bootstrap, restart that server (only one this run launched; for a reused instance, ask the riffer to restart it). Reachability at the actual URL is the same gate as traditional polish.
 
 ## Probe and hand off
 
@@ -61,7 +62,7 @@ The handoff URL is the app's verified actual URL with the live fragment appended
 
 `page_token` and `endpoint-url` are the `page_token` and `url` fields `start` printed. Riffrec reads both on load, strips them from the address bar before any history entry, and keeps them in session storage, so the riffer can reload freely and a bookmark never carries them.
 
-Before handing the URL over, confirm the live bootstrap is present: with a browser capability in the harness, open the handoff URL, look for riffrec's consent screen, and close that page without accepting (the endpoint binds the token to the first page that streams, and that must be the riffer's browser); without a browser capability, hand the URL over and ask the riffer whether the consent screen appeared. No consent screen means the page is not running live mode: check the mount file for `live=`, the installed version against the minimum, and whether the server restarted after the mount edit. Do not start the loop until the consent screen has been seen.
+Before handing the URL over, confirm the live bootstrap is present: with a browser capability in the harness, open the handoff URL, look for riffrec's consent screen, and close that page without accepting (the endpoint binds the token to the first page that streams, and that must be the riffer's browser); without a browser capability, hand the URL over and ask the riffer whether the consent screen appeared. No consent screen means the page is not running live mode: check the mount file for `live=` with the `autoStart` fragment test from `references/install-riffrec.md` (without it nothing opens the consent step), check that `node_modules/riffrec/dist/index.d.ts` mentions `live?: RiffrecLiveConfig` (a git install of a stale `dist/` has no live mode), and check whether the server restarted after the mount edit. Do not start the loop until the consent screen has been seen.
 
 Tell the riffer, in this shape:
 
