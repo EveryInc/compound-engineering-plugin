@@ -102,6 +102,7 @@ function validPayload(type, payload) {
     case "frame":
       return isString(payload.id) && isFiniteNumber(payload.t) && isString(payload.route)
         && ["gesture", "periodic", "composite"].includes(payload.kind) && isString(payload.jpeg_base64)
+        && (payload.dropped === undefined || ["quota", "oversize"].includes(payload.dropped))
     case "mic":
       return ["granted", "denied", "muted", "unmuted"].includes(payload.state)
     case "mode":
@@ -944,7 +945,9 @@ async function replay(options) {
     const stored = parseJsonObject(line)
     if (!stored || typeof stored.type !== "string") continue
     let envelope = { schema_version: SCHEMA_VERSION, session_id: sessionId, seq: 0, t: stored.t, type: stored.type, payload: stored.payload }
-    if (stored.type === "frame" && stored.frame_file) {
+    if (stored.type === "frame" && !stored.frame_file) {
+      envelope = { ...envelope, payload: { ...stored.payload, jpeg_base64: "" } }
+    } else if (stored.type === "frame") {
       try {
         const jpeg = fs.readFileSync(path.join(options.logDir, stored.frame_file))
         envelope = { ...envelope, payload: { ...stored.payload, jpeg_base64: jpeg.toString("base64") } }
@@ -1458,6 +1461,12 @@ async function serve(options) {
       const fileName = `${envelope.seq}-${encodeURIComponent(id)}.jpg`
       const frameFile = path.join("frames", fileName)
       const { jpeg_base64: jpeg, ...rest } = envelope.payload
+      // A `dropped` frame kept its seq but not its bytes: keep the metadata,
+      // write no file, and treat the image as absent.
+      if (rest.dropped) {
+        logEvent({ seq: envelope.seq, t: envelope.t, type: "frame", payload: rest, frame_file: null })
+        return
+      }
       if (typeof jpeg === "string") {
         const bytes = Buffer.from(jpeg, "base64")
         fs.writeFileSync(path.join(framesDir, fileName), bytes, { mode: 0o600 })

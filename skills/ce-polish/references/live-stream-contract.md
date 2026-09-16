@@ -2,6 +2,8 @@
 
 The wire contract between a riffrec live page, the `scripts/live-endpoint.js` helper, and the coding agent. This is the skill's own copy of the contract; the page's copy ships with the riffrec package and the two are kept identical by that package's fixtures. When they disagree, the endpoint rejects the page's `schema_version` and the page shows its incompatible-endpoint state instead of parsing best-effort.
 
+Mirrors riffrec `docs/live-stream-contract.md` @ d4d8c5a (`src/live/contract.ts` and `src/live/tools.ts` are the typed source of truth). Adding an optional payload field or a new event type is not a breaking change; consumers ignore fields they do not know but reject event types they do not know.
+
 ## Envelope
 
 Every page -> endpoint message is one envelope:
@@ -19,18 +21,18 @@ Every page -> endpoint message is one envelope:
 
 | type | payload |
 |---|---|
-| `unit` | `{ id, statement, transcript_excerpt, anchors[], evidence { frame_ids[], annotation_ids[], transcript_span, telemetry_window?, audio_clip_id? }, status, confirmed? }` |
+| `unit` | `{ id, statement, transcript_excerpt, anchors[], evidence { frame_ids[], annotation_ids[], transcript_span, telemetry_window?, audio_clip_id? }, status, confirmed? }`; status follows `initial` → `triaging` → `accepted` or `needs_info`, then `applied` or `blocked`, and `withdrawn` when the riffer retracts it; `confirmed { element, change }` is present after the final confirmation pass |
 | `anchor` (inside units and annotations) | `{ route, selector, component?, rect, t }` |
 | `annotation` | `{ id, kind: "stroke" \| "pin", points[], bbox, anchor, text?, unit_id?, composite_frame_id? }` |
 | `transcript` | `{ id, role: "riffer" \| "interviewer", text, t_start, t_end, final }` |
 | `unit_update` | `{ unit_id, statement?, anchors_add?, confirmed? }`; `statement`/`anchors_add` apply only while the unit is still `initial` and unreleased (KTD5), `confirmed` at any time |
 | `unit_withdraw` | `{ unit_id, reason? }` |
-| `checkpoint` | `{ id, trigger: "silence" \| "page_change" \| "send" \| "final", mode }` (`final` comes from the overlay's Done control) |
+| `checkpoint` | `{ id, trigger, mode }`. riffrec's `CheckpointTrigger` is `silence \| page_change \| send \| answer \| mode_change \| final`; the page sends only `silence`, `page_change`, `send`, `final` (the overlay's Done control, after the confirmation pass and before `/session/end`), and this endpoint answers `400 invalid_payload` to `answer`/`mode_change` on the wire since it produces those two itself |
 | `answer` | `{ unit_id, text }` |
-| `frame` | `{ id, t, route, kind: "gesture" \| "periodic" \| "composite", jpeg_base64 }` |
+| `frame` | `{ id, t, route, kind: "gesture" \| "periodic" \| "composite", jpeg_base64, dropped?: "quota" \| "oversize" }`. `dropped` means the page discarded the bytes but kept the frame's `seq` so numbering stays contiguous (`quota`: the buffering queue evicted it; `oversize`: after a `413`); `jpeg_base64` is then empty, the endpoint keeps id and metadata, writes no image, and treats the frame as absent |
 | `mic` | `{ state: "granted" \| "denied" \| "muted" \| "unmuted" }` |
-| `mode` | `{ mode: "instant" \| "smart" \| "collect" }` |
-| `stream_state` | `{ state: "streaming" \| "buffering" \| "unloading" }` |
+| `mode` | `{ mode: "instant" \| "smart" \| "collect" }` (default `smart`; the switch takes effect at the next checkpoint) |
+| `stream_state` | `{ state: "streaming" \| "buffering" \| "unloading" }` (`unloading` is sent on `pagehide` with `keepalive` so an ordinary reload classifies without waiting for the page-lost grace window) |
 
 ## Credentials
 
@@ -72,8 +74,8 @@ Nothing else is served: there is no file route, and every unknown path is 404.
 
 A checkpoint releases every held unit and annotation plus any withdrawal that arrived after an earlier release. On release the endpoint marks each unit `triaging` and broadcasts `unit_status: "triaging"`; the page treats that event as the release marker. A withdrawal before release removes the unit from the batch; one after release is forwarded in the next batch with `status: "withdrawn"`.
 
-- Page-emitted checkpoints: `silence`, `page_change`, `send`, and `final` (the overlay's Done control), each carrying the mode at emission. `silence`, `page_change`, and `send` wake the agent only when they release something; `final` always wakes.
-- Endpoint-emitted checkpoints: `answer`, created whenever an `answer` event arrives (carries `answers[]` only and releases no units), and `mode_change`, created the moment a `mode` event leaves Collect. Both always wake.
+- Page-emitted checkpoints: `silence`, `page_change`, `send`, and `final` (the overlay's Done control), each carrying the mode at emission. A `silence`, `page_change`, or `send` checkpoint that releases nothing does not wake the agent; `final` always wakes.
+- Endpoint-emitted checkpoints: `answer`, created whenever an `answer` event arrives (carries `answers[]` only and releases no units), and `mode_change`, created the moment a `mode` event leaves Collect (KTD12). Both always wake. riffrec exports the always-wake set as `ALWAYS_WAKE_TRIGGERS = ["answer", "mode_change", "final"]` (KTD9).
 - **Accepted backlog.** Units the endpoint released, the agent posted `accepted` for, and no `applied` or `blocked` has followed. `mode_change` carries the whole backlog in `units[]` (status `accepted`) so a Collect session's work is applied under the new mode; `final` carries the backlog too, after anything newly released. A `mode_change` or `final` envelope may therefore carry units that were already served once, or nothing at all; treat it as work to apply, not a no-op.
 - A page checkpoint id that was already used gets a `-2`, `-3`, … suffix in `checkpoint_id`, so every batch has its own file and ack route.
 - `mode_at_checkpoint` is the mode carried by the releasing checkpoint, or the mode in force for endpoint-emitted checkpoints.
@@ -120,8 +122,8 @@ state/                  0700
   brief.md                    session brief the skill writes before start (read at mint, max 3000 chars)
   server.pid, server.log
   batches/<checkpoint>.json   un-acknowledged wake envelopes
-  log/events.ndjson           every accepted envelope, in seq order (frames reference log/frames/<id>.jpg)
-  log/frames/<id>.jpg
+  log/events.ndjson           every accepted envelope, in seq order (frames reference log/frames/<seq>-<id>.jpg; a dropped frame has frame_file null)
+  log/frames/<seq>-<id>.jpg
   log/agent.ndjson            acknowledgments, statuses, asks, mints (never secrets)
   log/archive.{zip,json,bin}  the page's archive from /session/end
 ```
