@@ -28,6 +28,10 @@ const CONSUMER_FILES: Record<string, string> = {
   // ce-work reads input triage before source classification; that owner resolves
   // the root only when blank-plan discovery first composes a rooted path.
   "ce-work": "references/input-triage.md",
+  // ce-code-review's always-loaded body sits under Codex's 8000-byte prompt
+  // bound; spine step 1 reads modes-and-output before any <root>/ path is
+  // composed, so the rule rides there.
+  "ce-code-review": "references/modes-and-output.md",
   // lfg composes one <root>/ path, in step 1's gate, and step 1's first action is
   // reading this reference. Codex injects only the first 8000 bytes of a SKILL.md,
   // so a body copy is the less reliable of the two homes.
