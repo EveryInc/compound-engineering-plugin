@@ -74,6 +74,27 @@
 # plan_model: fable              # model alias for plan authoring; candidate preference when a Bake-off runs (no default)
 # brainstorm_model: fable        # model alias for approach generation; candidate preference when a Bake-off runs (no default)
 
+# --- Subagent worker profiles ---
+# Name the worker profile a generic subagent dispatch requests, split by
+# authority class: `subagent_read_profile` covers dispatches that do not mutate
+# tracked project content (writing per-run scratch artifacts stays read class);
+# `subagent_write_profile` covers those that do. Values are Devin
+# `run_subagent` profile names -- opaque host-defined strings CE never invents
+# or validates. On hosts whose dispatch primitive takes no profile selector the
+# keys are inert; unset -> dispatch exactly as today on every host.
+#
+# These are ordinarily personal, machine-local choices: set them in
+# config.local.yaml alongside profile files under ~/.config/devin/agents/.
+# Committing a key here is shared team policy -- it changes every
+# collaborator's and CI's dispatch, and the child's model and tool policy ship
+# with the profile, so commit a key only alongside the matching profile files
+# under .devin/agents/ (which register ambiently in every contributor's Devin
+# session). Never reuse a built-in profile name: the collision is skipped with
+# a warning and the key resolves to the built-in.
+
+# subagent_read_profile: ce-explorer    # Devin run_subagent profile for generic dispatches that do not mutate tracked content (no default)
+# subagent_write_profile: ce-worker     # Devin run_subagent profile for generic dispatches that do (no default)
+
 # --- PR concept teaching (ce-commit-push-pr) ---
 # When a PR introduces a concept new to the codebase, the generated PR
 # description gains a "New concepts" section teaching it. The section toggle is

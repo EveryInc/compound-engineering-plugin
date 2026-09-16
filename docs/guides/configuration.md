@@ -94,6 +94,7 @@ All settings are optional. Commented examples are documentation, not active valu
 | [`ce-plan`](./ce-plan.md) | `plan_skip_scoping_confirm` | `true` skips the normal pre-plan scope confirmation; default `false`. It does not suppress genuine blockers or the post-plan menu. |
 | [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_model`, `brainstorm_model` | Model elevation: send the reasoning-heavy step to a named model (e.g. `fable`, `opus`) instead of the session model. Value is a model alias; a prompt request or an orchestrator's `plan_model:<alias>` carrier (e.g. from `lfg`, honored even in pipeline mode) overrides it. Takes effect on every harness: natively where the host serves the model, else via the Claude CLI, else inline. Whenever one of these skills runs a Bake-off, automatically in planning or on request, pass the corresponding choice as a candidate model preference. Bake-off owns its dispatch: native access, authorized model CLIs, then fresh same-host agents on failure, subject to explicit model restrictions. With no preference, it seeks model-family diversity. Planning still has a final authoring call, while brainstorming replaces its ordinary generation. No default (elevation off). |
 | [`ce-work`](./ce-work.md), [`lfg`](./lfg.md) | `work_engine_mode`, `work_engine_preferences` | Ordered implementation-author preferences. Mode is `off`, `prefer`, or `require`; each entry has a `harness` and optional `model`. See [Implementation routing](#implementation-routing). |
+| every skill that dispatches generic subagents | `subagent_read_profile`, `subagent_write_profile` | Named worker profiles for generic subagent dispatch, split by authority class: read = the child does not mutate tracked project content, write = it does. Values are Devin `run_subagent` profile names; inert on hosts without a profile selector; unset = unchanged dispatch. See [Subagent worker profiles](#subagent-worker-profiles). |
 | [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_review_mode` | Whether the automatic cross-model pass may send review content to a second provider: `auto` (default, current behavior) or `off`. `off` is evaluated before any peer or route is resolved, keeps every local reviewer and the local adversarial fallback, and is reported as "disabled by checkout config" rather than as an unavailable route. A direct conversation request for a peer overrides `off` for that run; a conversation prohibition overrides `auto`. |
 | [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_peer` | Preferred cross-model review target: `codex`, `claude`, `grok`, `cursor`, `composer`, or `opencode`. `grok` binds the native grok CLI when it is installed, and falls back to Grok through Cursor only when that CLI is absent and Cursor is a sanctioned recipient. The review skills still apply host-independence and route-availability gates. |
 | [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_model`, `cross_model_effort` | Pin the resolved peer target's model (an alias such as `fable` or a full id such as `claude-opus-5`, same family as the target; a codex id may carry its serving provider's namespace, such as `openai.gpt-5.6-sol`, when the CLI routes through a non-default `model_provider`) and reasoning effort (claude `low`..`max`, codex `minimal`..`xhigh`, grok `low`..`high`; cursor-agent routes accept none). Unset keeps the skills' editorial mapping. A value the peer cannot honor skips the pass with a stated reason rather than substituting; a conversation request overrides both. |
@@ -123,6 +124,37 @@ Supported harnesses are `codex`, `claude`, `grok`, `cursor`, and `opencode`. Omi
 `ce-work` walks the list in order and skips an entry equivalent to the current host/default model. A different explicit model in the same harness remains eligible. With either `prefer` or `require`, an unavailable list falls back to native implementation on the current harness and session model with one disclosure. `require` keeps the requested external identity fixed while viable; it never authorizes an unrequested external recipient or turns route unavailability into a blocker.
 
 Current-task wording can select a different route for one run without editing config, such as “use Codex for implementation” or “only use Composer for implementation.” The assignment applies to implementation; the host still owns validation, integration, commits, and the rest of the calling workflow.
+
+## Subagent worker profiles
+
+`subagent_read_profile` and `subagent_write_profile` name the worker profile a generic CE subagent dispatch requests, split by authority class: the read key covers children that do not mutate tracked project content - writing per-run scratch artifacts (dossiers, reviewer JSON, run logs) stays read class - and the write key covers children that do. Both are ordinary keys resolved by the usual cascade.
+
+The values are opaque host-defined profile names: CE never invents, validates, or defaults them, and unset keys leave dispatch exactly as today. On hosts whose dispatch primitive has no profile selector the keys are inert even when set. Today that selector is Devin's `run_subagent` `profile` argument (Devin CLI and Devin Desktop's Devin Local), where a configured name substitutes for the built-in profile the call would otherwise use. A resolved profile carries the child's model and tool policy, so it supersedes that dispatch's model selection - including the per-persona session-model pins the review surfaces make for correctness; leave the read key unset if you want differentiated reviewer models. A rejected or unknown name follows the dispatching surface's ordinary failure rule and is named in the coverage or degradation note - a run never claims a profile, or its model, that did not serve.
+
+Profile files are markdown with YAML frontmatter under `.devin/agents/` or `.agents/agents/` in the project, or `~/.config/devin/agents/` (`%APPDATA%\devin\agents\` on Windows) machine-wide; both flat `<name>.md` and `<name>/AGENT.md` layouts register. Frontmatter carries `name` (defaults to the file or directory name; must not collide with the built-ins `subagent_explore` / `subagent_general` - a collision is skipped with a warning) and `description` (shown to the agent when it selects a profile), plus optional `model`, `allowed-tools`, and `max-nesting`.
+
+Match the profile's toolset to its class. A read profile still needs `exec` and file-write ability: CE read-class dispatches run `git`/`gh` and write run artifacts, so a purely read-only toolset fails on this work. A write profile needs write tools, and needs `max-nesting` where a write-class worker itself dispatches nested workers (the ce-work Figma design-sync path). Omit `model:` to inherit the org's default subagent model; a pin is the only way to run a write-capable subagent off the parent model. Background dispatches run only pre-approved tools regardless of profile, and `devin doctor` validates profile frontmatter on builds that ship the check.
+
+For a personal setup, set the keys in `config.local.yaml` and keep profiles under `~/.config/devin/agents/`. Committing them in `config.yaml` is shared team policy: it changes every collaborator's and CI's dispatch, and a profile committed under `.devin/agents/` auto-registers in every contributor's Devin session - selectable by description for any dispatch, not only CE's - so commit shared keys only alongside the profile files they name. Custom profiles are an experimental Devin feature; their format and behavior may change.
+
+Example `.devin/agents/ce-explorer/AGENT.md` - the `model:` pin is an example, not a recommendation or a default:
+
+```markdown
+---
+name: ce-explorer
+description: CE read-class worker - research, review, and reporting dispatches that do not mutate tracked project content
+model: swe-2-high   # example only - any model id your account serves; omit to inherit the default subagent model
+allowed-tools:
+  - read
+  - grep
+  - glob
+  - exec   # read-class dispatches run git/gh
+  - edit   # per-run scratch artifacts under the run directory
+---
+
+You are a read-class Compound Engineering worker. Investigate, review, and
+report findings to the parent; never modify tracked project content.
+```
 
 ## Safe maintenance
 
