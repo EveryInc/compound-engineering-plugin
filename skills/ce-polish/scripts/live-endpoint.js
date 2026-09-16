@@ -1032,6 +1032,9 @@ async function serve(options) {
   const streamClients = new Set()
   const outOfOrder = new Map()
   let endingInFlight = false
+  // Non-null while an envelope transaction is open; SSE notices and wakes
+  // queue here and are delivered only once the transaction commits.
+  let heldNotices = null
   // Ids are validated but may still name inherited Object properties.
   const unitById = (id) => (Object.hasOwn(board.units, id) ? board.units[id] : undefined)
   const annotationById = (id) => (Object.hasOwn(board.annotations, id) ? board.annotations[id] : undefined)
@@ -1068,6 +1071,10 @@ async function serve(options) {
   }
 
   function broadcast(event, payload) {
+    if (heldNotices) {
+      heldNotices.push({ event, payload })
+      return
+    }
     const frame = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`
     for (const client of streamClients) {
       if (!client.writableEnded) client.write(frame)
@@ -1196,6 +1203,10 @@ async function serve(options) {
   // batch, then a pending page-lost notice; an ended session with nothing
   // held answers 410.
   function fulfillWaiter() {
+    if (heldNotices) {
+      heldNotices.push({ wake: true })
+      return
+    }
     if (!waiter || waiter.res.writableEnded) return
     const batch = nextBatch()
     if (batch) {
@@ -1262,11 +1273,23 @@ async function serve(options) {
 
   function endSession() {
     if (board.ended) return
-    disarmPageLost()
+    // Terminal state is committed before anything observable happens; if the
+    // writes fail the session stays live and /session/end can be retried.
+    const before = { ended: board.ended, stream: board.page.stream, session }
     board.ended = true
     board.page.stream = streamClients.size > 0 ? "connected" : board.page.stream
-    saveBoard()
-    saveSession({ page_token: null, ended: true })
+    try {
+      saveBoard()
+      saveSession({ page_token: null, ended: true })
+    } catch (error) {
+      board.ended = before.ended
+      board.page.stream = before.stream
+      session = before.session
+      bestEffort(() => saveBoard())
+      bestEffort(() => writePrivateJson(options.sessionFile, session))
+      throw error
+    }
+    disarmPageLost()
     broadcast("session_ended", { reason: "session_end", session_id: board.session_id, log_dir: options.logDir })
     for (const client of streamClients) {
       if (!client.writableEnded) client.end()
@@ -1496,20 +1519,30 @@ async function serve(options) {
     }
     let next = { envelope, reserved: 0 }
     while (next) {
-      // Apply and store first: a failure rolls the board back and leaves the
-      // seq unacknowledged, so the page retries it instead of discarding an
-      // event the endpoint lost.
+      // One transaction per envelope: apply, store, save the board with the
+      // advanced seq. A failure rolls everything back and leaves the seq
+      // unacknowledged, so the page retries it instead of discarding an event
+      // the endpoint lost. Wakes and SSE notices are held until the commit.
       const undo = snapshotState()
+      heldNotices = []
       try {
         applyEnvelope(next.envelope)
         storeEnvelope(next.envelope)
+        board.acked_seq = next.envelope.seq
+        saveBoard()
       } catch (error) {
+        heldNotices = null
         undo()
         throw error
       }
-      board.acked_seq = next.envelope.seq
+      const notices = heldNotices
+      heldNotices = null
       outOfOrder.delete(next.envelope.seq)
       reservedBytes -= next.reserved
+      for (const notice of notices) {
+        if (notice.wake) fulfillWaiter()
+        else broadcast(notice.event, notice.payload)
+      }
       next = outOfOrder.get(board.acked_seq + 1)
     }
   }
@@ -1559,10 +1592,8 @@ async function serve(options) {
     let storageError = null
     try {
       for (const envelope of envelopes) admitEnvelope(envelope, body.size)
-      saveBoard()
     } catch (error) {
       storageError = error
-      bestEffort(() => saveBoard())
     }
     broadcast("ack", { acked_seq: board.acked_seq })
     if (storageError) {
