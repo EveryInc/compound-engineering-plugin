@@ -6,6 +6,8 @@ import { promises as fs } from "fs"
 import path from "path"
 
 export const SCHEMA_VERSION = "live/1"
+// Under the helper's 64 KB non-frame body cap, with room for the JSON array framing.
+export const REPLAY_BATCH_BYTES = 60 * 1024
 export const FIXTURES_DIR = path.join(import.meta.dir, "..", "fixtures", "ce-polish-live")
 
 export type Envelope = {
@@ -131,17 +133,47 @@ export class FakeLivePage {
     return this.buffered.length
   }
 
-  /** Comes back online and replays every buffered envelope past the last ack, oldest first. */
+  /**
+   * Comes back online and replays every buffered envelope past the last ack,
+   * oldest first and in sequence: frames go alone, everything else in batches
+   * under the endpoint's 64 KB body cap. The first rejected post stops the
+   * replay; it and everything after it stay buffered, and its result is returned.
+   */
   async replay(): Promise<PostResult> {
     this.silent = false
     const pending = this.buffered.filter((envelope) => envelope.seq > this.ackedSeq).sort((a, b) => a.seq - b.seq)
     this.buffered = []
     if (pending.length === 0) return { status: 200, body: { acked_seq: this.ackedSeq } }
-    const frames = pending.filter((envelope) => envelope.type === "frame")
-    const rest = pending.filter((envelope) => envelope.type !== "frame")
+    const batches: Envelope[][] = []
+    let batch: Envelope[] = []
+    let batchBytes = 2
+    for (const envelope of pending) {
+      const bytes = JSON.stringify(envelope).length + 1
+      if (envelope.type === "frame") {
+        if (batch.length > 0) batches.push(batch)
+        batches.push([envelope])
+        batch = []
+        batchBytes = 2
+        continue
+      }
+      if (batch.length > 0 && batchBytes + bytes > REPLAY_BATCH_BYTES) {
+        batches.push(batch)
+        batch = []
+        batchBytes = 2
+      }
+      batch.push(envelope)
+      batchBytes += bytes
+    }
+    if (batch.length > 0) batches.push(batch)
     let last: PostResult = { status: 200, body: { acked_seq: this.ackedSeq } }
-    if (rest.length > 0) last = await this.post(rest)
-    for (const frame of frames) last = await this.post(frame)
+    for (let index = 0; index < batches.length; index++) {
+      last = await this.post(batches[index])
+      if (last.status !== 200) {
+        // An unreachable endpoint (status 0) has already re-buffered this batch inside post().
+        this.buffered.push(...batches.slice(last.status === 0 ? index + 1 : index).flat())
+        return last
+      }
+    }
     return last
   }
 
