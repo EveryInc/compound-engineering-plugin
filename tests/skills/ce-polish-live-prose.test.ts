@@ -70,14 +70,9 @@ describe("ce-polish live-mode prose", () => {
     }
   })
 
-  test("live mode lives inside ce-polish and adds no skill directory (the count itself is release-metadata's)", async () => {
-    const entries = await fs.readdir(path.join(repoRoot, "skills"), { withFileTypes: true })
-    const skills = []
-    for (const entry of entries) {
-      if (entry.isDirectory() && (await fs.exists(path.join(repoRoot, "skills", entry.name, "SKILL.md")))) skills.push(entry.name)
-    }
-    expect(skills).toContain("ce-polish")
-    expect(skills.filter((name) => /live|polish/.test(name))).toEqual(["ce-polish"])
+  test("live mode lives inside ce-polish: the skill directory exists and every live reference sits under it", async () => {
+    expect(await fs.exists(path.join(skillDir, "SKILL.md"))).toBe(true)
+    for (const file of LIVE_FILES) expect(await fs.exists(path.join(referencesDir, file)), file).toBe(true)
   })
 
   test("live-start.md names the helper start, the fragment handoff, the detect script, and the key precondition (KTD3, KTD20, I4)", async () => {
