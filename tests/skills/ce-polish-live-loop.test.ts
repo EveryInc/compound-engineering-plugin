@@ -137,7 +137,8 @@ describe("ce-polish live loop smoke", () => {
   })
 
   test("AE13: after an applied notice, a stream that does not reconnect within the grace window makes the next wait return page_lost once and then block until reconnect", async () => {
-    const agent = await startAgent()
+    // A grace window well above scheduler jitter, still inside the wait timeout so the loss below wakes a parked wait.
+    const agent = await startAgent({ env: { CE_LIVE_PAGE_LOST_GRACE_MS: "1000" } })
     const page = pageFor(agent)
     await page.openStream()
     await page.sendUnit("u1", "make the header red")
@@ -146,15 +147,17 @@ describe("ce-polish live loop smoke", () => {
     expect(wake.status).toBe(200)
     expectOk(await agent.ack("ck1"))
 
-    // An ordinary reload inside the grace window is not a loss.
+    // An ordinary reload inside the grace window is not a loss: the stream is
+    // reopened at once and the helper's own state shows the reconnect, no episode, nothing queued.
     expectOk(await agent.postStatus("u1", "applied"))
     await page.waitForEvent((event) => event.event === "applied")
     await page.closeStream()
-    await Bun.sleep(100)
     await page.openStream()
-    await Bun.sleep(600)
+    await waitUntil(async () => ((await agent.statusHttp()).body.page as { stream: string }).stream === "connected")
+    const afterReload = (await agent.statusHttp()).body as { page: { lost_episodes: number }; batches: { unserved: number; unacked: number } }
+    expect(afterReload.page.lost_episodes).toBe(0)
+    expect(afterReload.batches).toEqual({ unserved: 0, unacked: 0 })
     expect((await agent.waitHttp()).status).toBe(204)
-    expect(((await agent.statusHttp()).body.page as { lost_episodes: number }).lost_episodes).toBe(0)
 
     // Instant mode applies again and this time the page crashes and never comes back.
     await page.sendUnit("u2", "invert the layout")

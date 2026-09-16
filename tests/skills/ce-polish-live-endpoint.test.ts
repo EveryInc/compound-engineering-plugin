@@ -321,7 +321,7 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
     // An advertised address is not a reachable one: some runners refuse hairpin
     // connections to their own interface, or a network policy answers in the
     // helper's place. Only this helper's own status proves the route.
-    const probe = await directRequest(`http://${lanAddress}:${agent.port}/status`, { method: "GET", headers: agent.headers() }).catch(() => null)
+    const probe = await directRequest(`http://${lanAddress}:${agent.port}/status`, { method: "GET", headers: agent.headers(), timeoutMs: 2000 }).catch(() => null)
     if (!probe || probe.status !== 200 || probe.json().schema_version !== "live/1") {
       return
     }

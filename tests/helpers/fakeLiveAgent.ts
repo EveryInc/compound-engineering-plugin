@@ -98,9 +98,9 @@ export type DirectResponse = { status: number; headers: http.IncomingHttpHeaders
  * so a request to a LAN address of this machine reaches the helper and not an
  * ambient proxy whose NO_PROXY does not list that address.
  */
-export function directRequest(url: string, options: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<DirectResponse> {
+export function directRequest(url: string, options: { method?: string; headers?: Record<string, string>; body?: string; timeoutMs?: number } = {}): Promise<DirectResponse> {
   return new Promise((resolve, reject) => {
-    const request = http.request(url, { method: options.method ?? "GET", headers: options.headers ?? {} }, (response) => {
+    const request = http.request(url, { method: options.method ?? "GET", headers: options.headers ?? {}, timeout: options.timeoutMs }, (response) => {
       const chunks: Buffer[] = []
       response.on("data", (chunk: Buffer) => chunks.push(chunk))
       response.on("end", () => {
@@ -121,6 +121,8 @@ export function directRequest(url: string, options: { method?: string; headers?:
       response.on("error", reject)
     })
     request.on("error", reject)
+    // A silently dropped route never errors on its own; the deadline turns it into a rejection.
+    request.on("timeout", () => request.destroy(new Error(`no response within ${options.timeoutMs}ms`)))
     if (options.body !== undefined) request.write(options.body)
     request.end()
   })

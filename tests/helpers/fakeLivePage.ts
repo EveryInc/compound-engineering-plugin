@@ -148,7 +148,7 @@ export class FakeLivePage {
     let batch: Envelope[] = []
     let batchBytes = 2
     for (const envelope of pending) {
-      const bytes = JSON.stringify(envelope).length + 1
+      const bytes = Buffer.byteLength(JSON.stringify(envelope), "utf8") + 1
       if (envelope.type === "frame") {
         if (batch.length > 0) batches.push(batch)
         batches.push([envelope])
