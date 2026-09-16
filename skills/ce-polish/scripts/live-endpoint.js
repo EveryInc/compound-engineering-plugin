@@ -1474,6 +1474,9 @@ async function serve(options) {
       batches.length = 0
       batches.push(...savedBatches)
       batchOrder = savedOrder
+      // applyEnvelope may have saved the board mid-way (releaseCheckpoint);
+      // the durable copy must match the restored state.
+      bestEffort(() => saveBoard())
     }
   }
 
