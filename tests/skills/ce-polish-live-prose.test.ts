@@ -110,6 +110,11 @@ describe("ce-polish live-mode prose", () => {
     expect(loop).toContain("/units/<unit_id>/status")
     expect(loop).toContain("/units/<unit_id>/ask")
     expect(loop).toMatch(/Acknowledge first/i)
+    // F1 (I4/KTD18): the agent token lives until stop; /session/end retires only the page token; page_lost is acked like any batch.
+    expect(loop).toMatch(/agent token lives until `stop`/i)
+    expect(loop).toMatch(/`\/session\/end` retires only the page token/i)
+    expect(loop).not.toMatch(/acknowledge it last/i)
+    expect(loop).not.toMatch(/returns 404/i)
     expect(loop).toMatch(/never send an `Origin` header/i)
     expect(loop).toContain('"page_lost"')
     for (const mode of ["Instant", "Smart", "Collect"]) expect(loop).toContain(`| ${mode}`.replace("| ", ""))
@@ -131,7 +136,10 @@ describe("ce-polish live-mode prose", () => {
     expect(install).toContain(RIFFREC_REFERENCE_SHA)
     expect(install).toMatch(/kieranklaassen\/riffrec#/)
     expect(install).toMatch(/dist\/index\.d\.ts/)
-    expect(install).toMatch(/pnpm add riffrec@|npm install riffrec@/)
+    // The registry range is the documented future switch, not a gate on today's git install.
+    expect(install).toMatch(/riffrec@\^<min>/)
+    expect(install).toMatch(/future switch/i)
+    expect(install).toMatch(/`installed` and `live_build` must both be true/)
     expect(install).toMatch(/setup commit/i)
     // The endpoint origin is never written into source or config (KTD20).
     expect(install).toMatch(/nothing about the endpoint is written into source/i)
