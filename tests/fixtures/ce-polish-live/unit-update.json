@@ -1,0 +1,29 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 7,
+  "t": 15900,
+  "type": "unit_update",
+  "payload": {
+    "unit_id": "unit_0001",
+    "statement": "Move the sidebar toggle to the right of the header, next to the avatar, keeping its shortcut.",
+    "anchors_add": [
+      {
+        "route": "/settings",
+        "selector": "button[aria-label=\"Toggle sidebar\"]",
+        "component": "SidebarToggle",
+        "rect": {
+          "x": 24,
+          "y": 96,
+          "width": 40,
+          "height": 40
+        },
+        "t": 12120
+      }
+    ],
+    "confirmed": {
+      "element": true,
+      "change": false
+    }
+  }
+}

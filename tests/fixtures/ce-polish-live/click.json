@@ -1,0 +1,38 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 1,
+  "t": 1200,
+  "type": "click",
+  "payload": {
+    "t": 1200,
+    "type": "click",
+    "component": "SidebarToggle",
+    "componentPath": [
+      "App",
+      "Shell",
+      "SidebarToggle"
+    ],
+    "element": {
+      "tag": "button",
+      "text": "Toggle sidebar",
+      "id": null,
+      "selector": "button[aria-label=\"Toggle sidebar\"]",
+      "name": "Toggle sidebar",
+      "fullPath": "html > body > div#root > div.shell > button",
+      "classes": [
+        "shell__toggle"
+      ],
+      "role": "button",
+      "ariaLabel": "Toggle sidebar",
+      "nearbyText": "Settings",
+      "nearbyElements": "nav.sidebar",
+      "boundingBox": {
+        "x": 24,
+        "y": 96,
+        "width": 40,
+        "height": 40
+      }
+    }
+  }
+}
