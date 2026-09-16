@@ -1559,3 +1559,39 @@ describe("cross-model-doc-review argv integrity (multiline --json-schema)", () =
     expect(readFileSync(capFile, "utf8")).toContain("UNIQUE_DOC_MARKER_9x7")
   })
 })
+
+
+describe("document provenance context", () => {
+  test("validated provenance without verified external evidence never dispatches", () => {
+    const capFile = path.join(mkTempRoot("provenance-capture-"), "prompt.txt")
+    const { env } = sandbox(["cursor-agent"], '#!/bin/sh\ncat > "$PROMPT_CAPTURE"\nexit 0\n')
+    for (const extra of [
+      { PROVENANCE_EVIDENCE: "none", PROVENANCE_EVIDENCE_VERIFIED: "1" },
+      { PROVENANCE_EVIDENCE: "requirements-revision:", PROVENANCE_EVIDENCE_VERIFIED: "1" },
+      { PROVENANCE_EVIDENCE: "requirements-revision:abc123", PROVENANCE_EVIDENCE_VERIFIED: "0" },
+    ]) {
+      const dir = makeRunDir()
+      const result = run(["claude", "composer", "adversarial", makeDoc(), "plan", "source.md", dir], dir,
+        { ...env, PROMPT_CAPTURE: capFile, ORIGIN_PROVENANCE: "validated", ...extra })
+      expect(result.code).toBe(0)
+      expect(result.stderr + result.stdout).toContain("provenance")
+      expect(existsSync(capFile)).toBe(false)
+    }
+  })
+
+  test("peer receives the same evidence and scope extension as local reviewers", () => {
+    const capFile = path.join(mkTempRoot("provenance-capture-"), "prompt.txt")
+    const { env } = sandbox(["cursor-agent"], `#!/bin/sh\ncat > "$PROMPT_CAPTURE"\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`)
+    const dir = makeRunDir()
+    const result = run(["claude", "composer", "adversarial", makeDoc(), "plan", "source.md", dir], dir, {
+      ...env, PROMPT_CAPTURE: capFile, ORIGIN_PROVENANCE: "validated",
+      PROVENANCE_EVIDENCE: "requirements-revision:abc123", PROVENANCE_EVIDENCE_VERIFIED: "1",
+      SCOPE_EXTENSION: "R5 adds external data sharing",
+    })
+    expect(result.code).toBe(0)
+    const prompt = readFileSync(capFile, "utf8")
+    expect(prompt).toContain("Origin provenance: validated")
+    expect(prompt).toContain("Provenance evidence: requirements-revision:abc123")
+    expect(prompt).toContain("Scope extension: R5 adds external data sharing")
+  })
+})
