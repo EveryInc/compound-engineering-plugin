@@ -1436,6 +1436,21 @@ async function serve(options) {
     }
   }
 
+  // Everything applyEnvelope may touch: the board and the batch queue.
+  function snapshotState() {
+    const savedBoard = structuredClone(board)
+    const savedBatches = batches.slice()
+    const savedOrder = batchOrder
+    return () => {
+      for (const key of Object.keys(board)) delete board[key]
+      Object.assign(board, savedBoard)
+      for (const batch of batches.slice(savedBatches.length)) bestEffort(() => fs.rmSync(batchFile(batch.envelope.checkpoint_id), { force: true }))
+      batches.length = 0
+      batches.push(...savedBatches)
+      batchOrder = savedOrder
+    }
+  }
+
   function storeEnvelope(envelope) {
     if (envelope.type === "frame") {
       const id = typeof envelope.payload.id === "string" && envelope.payload.id ? envelope.payload.id : randomUUID()
@@ -1472,10 +1487,17 @@ async function serve(options) {
     }
     let next = { envelope, reserved: 0 }
     while (next) {
-      // Store and apply first: a failure leaves the seq unacknowledged, so
-      // the page retries it instead of discarding an event the log lost.
-      storeEnvelope(next.envelope)
-      applyEnvelope(next.envelope)
+      // Apply and store first: a failure rolls the board back and leaves the
+      // seq unacknowledged, so the page retries it instead of discarding an
+      // event the endpoint lost.
+      const undo = snapshotState()
+      try {
+        applyEnvelope(next.envelope)
+        storeEnvelope(next.envelope)
+      } catch (error) {
+        undo()
+        throw error
+      }
       board.acked_seq = next.envelope.seq
       outOfOrder.delete(next.envelope.seq)
       reservedBytes -= next.reserved
