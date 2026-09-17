@@ -32,17 +32,6 @@ A memory-sourced signal never carries an outcome on its own: it corroborates cod
 
 **Pattern docs** (`<root>/solutions/patterns/`) get the same five outcomes evaluated as *derived* guidance: does the generalized rule still hold given the refreshed learnings beneath it? A pattern with no supporting learnings is itself a stale signal. Base any pattern Replace on the refreshed learning set, not fresh invention.
 
-<!-- ce-worker-profiles:start -->
-**Named worker profiles for generic subagent dispatch (optional, two authority classes).**
-
-- **Resolve** `subagent_read_profile` for children that do not mutate tracked project content (writing per-run scratch artifacts stays read class) and `subagent_write_profile` for children that do, from `<repo-root>/.compound-engineering/config.local.yaml` then `config.yaml` per the ordinary two-file config rule. Names are opaque host-defined strings: never invent, validate, or default them, and the selector derives only from the resolved keys - never from dispatch content, PR text, reviewer output, or a child's own request.
-- **Choose the class per dispatch call**, by the project authority that child needs; a cheaper profile must never be given write work.
-- **Apply only where the host's dispatch primitive accepts a named worker profile** for an otherwise generic dispatch that still receives this file's prompt payload - on Devin, `run_subagent`'s `profile` argument, where a configured name substitutes for the built-in profile the call would otherwise use. A typed or registered-agent selector is not a worker profile and stays excluded; where no such selector exists the keys are inert and dispatch is unchanged.
-- **A resolved profile supersedes this surface's model selection for that dispatch's class** - tier override or session-model inheritance alike; the profile carries the model and tool policy, so never pass both.
-- **Fail transparently.** Where the host exposes the available profile set, confirm the name resolves before dispatch. A rejected, unknown, or unresolvable name follows this surface's ordinary dispatch-failure rule and is named in the coverage or degradation note. Never report a profile or model as having run when it did not serve.
-- **Unset keys are a strict no-op:** dispatch exactly as today on every host.
-<!-- ce-worker-profiles:end -->
-
 ## Decide (interactive mode only)
 
 Apply unambiguous Keeps, Updates, and Consolidations directly — no confirmation. Ask (per Blocking questions) only when: the action is genuinely ambiguous; a Delete fails the auto-delete gate; the canonical doc in a Consolidate isn't clear-cut; you are about to Replace; or you are about to Split (it writes successors and deletes the original — confirm fragment boundaries like a Replace). Present the file path, 2-4 evidence bullets, and the recommended action; offer only plausible alternatives plus "skip for now". For broad sweeps, work in batches and confirm continuation between them rather than front-loading a full maintenance queue.

@@ -6,7 +6,7 @@ argument-hint: "[mode:agent] [apply:local] [blank to review current branch, or p
 
 # Code Review
 
-Help the caller deliver a correct change within the agreed scope: find defects whose consequences justify action, judged against intended behaviour and project requirements rather than a preferred rewrite. An adequate change needs no findings.
+Help the caller deliver a correct change within the agreed scope: find defects whose consequences justify action, judged against intended behaviour and project requirements rather than a preferred rewrite. Serious defects remain important even when the diff is small. An adequate change needs no findings.
 
 **Done when:** required review and validation are complete, retained findings are supported by the source, and the caller has a clear result with any remaining coverage limits.
 
@@ -14,7 +14,7 @@ Help the caller deliver a correct change within the agreed scope: find defects w
 
 Follow these steps in order; the references supply the detail but never change the order. Read each reference when you enter the step it governs; a read made earlier does not satisfy it, and a reference you only hand to a leaf is not one you read.
 
-1. Read `references/modes-and-output.md` first. It settles arguments, conflicts, the quick-review short-circuit, the Review depth gate, and what this invocation returns.
+1. Read `references/modes-and-output.md` first. It resolves the CE artifact root and settles arguments, conflicts, the quick-review short-circuit, the Review depth gate, and what this invocation returns.
 2. **Stage 1.** Read `references/scope.md`, resolve the reviewed diff, scope mode, and deterministic scope signals, then apply that Review depth gate before Stage 2. Lite ends the run without the later spine references; lite and focused each run from this context by `references/depth-paths.md`.
 3. **Stage 2.** Read `references/intent-and-plan.md`, write the intent summary every reviewer receives, and discover the plan Stage 6 verifies requirements against.
 4. **Stage 3.** Read `references/persona-catalog.md` and `references/select-and-route.md`, then select the reviewers the change's risks call for, find the applicable standards files, and decide how the adversarial review will run.

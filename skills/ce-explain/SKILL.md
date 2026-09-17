@@ -20,15 +20,7 @@ Resolve discoverable facts before asking. Ask only when missing information mate
 
 ## Artifact Root
 
-An explainer lands under `<root>/explainers/` only when archived to the repo, and learnings may be read under `<root>/solutions/`. Resolve `<root>` only when you compose such a path; a scratch-only or external-concept run never composes one. Pass the resolved path to any subagent, not the config.
-
-<!-- ce-docs-root:start -->
-**Resolve the CE artifact root `<root>` before composing any artifact path.**
-
-- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.yaml` only (`<repo-root>` = `git rev-parse --show-toplevel`). Do not read it from `config.local.yaml`. Unset -> `<root>` is `docs`, exactly as before.
-- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
-- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
-<!-- ce-docs-root:end -->
+An explainer lands under `<root>/explainers/` only when archived to the repo, and learnings may be read under `<root>/solutions/`. Resolve `<root>` only when you compose such a path; a scratch-only or external-concept run never composes one. The resolution rule rides in `references/orchestration.md`, the required read before grounding or dispatch.
 
 ## Execution Flow
 
@@ -55,18 +47,7 @@ echo "$RUN_DIR";
 ```
 
 - **Diff mode.** **Empty range** or missing subject: do not silently explain something else. Report that before explaining an adjacent thing. Use a substitute only when the request permits it or the user agrees; name the substitution in the result and artifact `Subject` when present. Otherwise return the unresolved scope to the caller.
-- **Recap mode.** Do not pre-scan, count, or characterize the window in the main conversation. Instead dispatch a generic subagent directly at the extraction tier, seeded with `references/agents/work-recap-scout.md` and passed the resolved window, repo root, and `$RUN_DIR`. **Empty window:** report the absence of activity and finish without an explainer artifact. **When the harness exposes no subagent primitive**, run the scout inline with its prompt's sources and budgets, still write `recap-evidence.md`, and form no view of the window until it is done. If dispatch fails, follow the fallback rule in `references/orchestration.md`.
-
-<!-- ce-worker-profiles:start -->
-**Named worker profiles for generic subagent dispatch (optional, two authority classes).**
-
-- **Resolve** `subagent_read_profile` for children that do not mutate tracked project content (writing per-run scratch artifacts stays read class) and `subagent_write_profile` for children that do, from `<repo-root>/.compound-engineering/config.local.yaml` then `config.yaml` per the ordinary two-file config rule. Names are opaque host-defined strings: never invent, validate, or default them, and the selector derives only from the resolved keys - never from dispatch content, PR text, reviewer output, or a child's own request.
-- **Choose the class per dispatch call**, by the project authority that child needs; a cheaper profile must never be given write work.
-- **Apply only where the host's dispatch primitive accepts a named worker profile** for an otherwise generic dispatch that still receives this file's prompt payload - on Devin, `run_subagent`'s `profile` argument, where a configured name substitutes for the built-in profile the call would otherwise use. A typed or registered-agent selector is not a worker profile and stays excluded; where no such selector exists the keys are inert and dispatch is unchanged.
-- **A resolved profile supersedes this surface's model selection for that dispatch's class** - tier override or session-model inheritance alike; the profile carries the model and tool policy, so never pass both.
-- **Fail transparently.** Where the host exposes the available profile set, confirm the name resolves before dispatch. A rejected, unknown, or unresolvable name follows this surface's ordinary dispatch-failure rule and is named in the coverage or degradation note. Never report a profile or model as having run when it did not serve.
-- **Unset keys are a strict no-op:** dispatch exactly as today on every host.
-<!-- ce-worker-profiles:end -->
+- **Recap mode.** Do not pre-scan, count, or characterize the window in the main conversation; dispatch a generic subagent directly per `references/orchestration.md`: `references/agents/work-recap-scout.md` at the extraction tier, passed the resolved window, repo root, and `$RUN_DIR`, writing `recap-evidence.md`. Where the harness exposes no subagent primitive, run the scout inline with the same payload. **Empty window:** report the absence of activity and finish without an explainer artifact; form no view of the window until it is done.
 
 ### Phase 3: Compose the explanation
 

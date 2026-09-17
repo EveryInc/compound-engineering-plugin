@@ -4,7 +4,7 @@ For each learning in scope, read it and cross-reference its claims against the c
 
 After individual docs, evaluate the set: overlaps, supersession (an older narrow doc a newer doc subsumes), and outright contradictions — between docs, or between a learning and a guidance file it names — contradictions actively mislead and outrank individual staleness. Note category-shape problems (a directory whose docs span unrelated themes, a near-empty category) as report-only observations — never restructure directories or create categories.
 
-**Subagents.** Use them for context isolation, choosing the lightest approach that fits: main thread for small scopes, parallel investigation subagents for 3+ independent docs, batches for broad sweeps; docs that overlap or share a root issue are investigated together, not parallelized. When spawning any subagent, omit the `mode` parameter so the user's permission settings apply, and include in its prompt:
+**Subagents.** Use them for context isolation, choosing the lightest approach that fits: main thread for small scopes, parallel investigation subagents for 3+ independent docs, batches for broad sweeps; docs that overlap or share a root issue are investigated together, not parallelized. When spawning any subagent, omit the `mode` parameter so the user's permission settings apply, pass it the resolved `<root>/solutions/` path rather than the config, and include in its prompt:
 
 ## Subagent prompt
 

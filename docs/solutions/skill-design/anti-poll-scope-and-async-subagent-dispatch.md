@@ -32,7 +32,7 @@ The relevant history: the anti-poll discipline (`docs/solutions/skill-design/det
 
 ## Guidance
 
-Two rules, both grounded in `skills/ce-code-review/references/dispatch-reviewers.md` (the "Bounded foreground dispatch" paragraph) and the execution spine at `skills/ce-code-review/SKILL.md:27` (step 4).
+Two rules, both grounded in `skills/ce-code-review/references/dispatch-reviewers.md` (the "Bounded foreground dispatch" paragraph) and the execution spine at `skills/ce-code-review/SKILL.md` (Stage 4).
 
 ### 1. Scope the anti-poll ban to detached delegates, not harness-managed subagents
 

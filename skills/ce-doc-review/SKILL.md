@@ -14,68 +14,45 @@ Reviewer personas supply evidence; the judgment is yours. Check their claims aga
 
 ## Interactive mode rules
 
-**Read `references/modes.md` before anything else.** It defines how the mode is detected, the non-interactive argument contract, and the question-tool rules: match the host's blocking question tool already in the current tool list (never call a user-facing question tool to discover it), pre-load it at the top of the interactive flow if it is listed but unloaded, and fall back to a numbered list only when the harness genuinely lacks one.
+**Read `references/modes.md` before anything else.** It defines mode detection, the non-interactive argument contract, and the question-tool rules: match the host's blocking question tool already in the current tool list (never call a user-facing question tool to discover it), pre-load it at the top of the interactive flow if listed but unloaded, and fall back to a numbered list only when the harness lacks one.
 
 Either way, a question that calls for a user decision calls the tool or falls back loudly. Narrating it as plain text is a bug.
 
 ## Artifact Root
 
-Resolve `<root>` **only** in the no-path interactive branch, which discovers the most recent plan under `<root>/plans/`. Every other run reads the document at the path it was handed. So an absolute-path or non-interactive review — `/tmp/plan.md`, possibly outside any repo — never depends on a repo root or a CE config it does not need.
-
-<!-- ce-docs-root:start -->
-**Resolve the CE artifact root `<root>` before composing any artifact path.**
-
-- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.yaml` only (`<repo-root>` = `git rev-parse --show-toplevel`). Do not read it from `config.local.yaml`. Unset -> `<root>` is `docs`, exactly as before.
-- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
-- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
-<!-- ce-docs-root:end -->
+Resolve `<root>` **only** in the no-path interactive branch, which discovers the most recent plan under `<root>/plans/`; every other run reads the document at the path it was handed, so an absolute-path or non-interactive review never depends on a repo root or a CE config. The rule rides in `references/document-intake.md`.
 
 ## Phase 1: Get and Analyze Document
 
-**Read `references/document-intake.md` now.** It covers how the document is obtained in each mode, what to do and say when no document is found, and the classification signals.
+**Read `references/document-intake.md` now.** It covers how the document is obtained in each mode, what to do and say when no document is found, and the classification signals; two rules apply to every later step.
 
-Two of its rules apply to every later step.
+**Verify before any dispatch.** Every resolved path must be readable on disk; reviewers read from the filesystem, so a path existing only on an unchecked-out branch is unreachable — dispatch **no** personas (issue #925).
 
-**Verify before any dispatch.** Every resolved path must be readable on disk. If one is not, dispatch **no** personas: reviewers read from the filesystem, so they cannot reach a path that exists only on an unchecked-out branch (issue #925).
-
-**Classify by content, not readiness labels or file path.** A unified artifact with only a Product Contract is **`unified-requirements`**; missing implementation sections are expected. Any implementation planning makes it **`unified-plan`**, including incomplete or blocked planning that needs review. Other artifacts use the legacy `requirements` / `plan` split.
-
-HTML unified artifacts take the same routes. Every fix lands in the document's native format; never insert markdown into HTML. That reference covers ID-bearing items. Pass the classification to each persona in the `{document_type}` slot.
+**Classify by content, not readiness labels or file path.** A unified artifact with only a Product Contract is **`unified-requirements`**; missing implementation sections are expected. Any implementation planning makes it **`unified-plan`**, including incomplete or blocked planning needing review. Other artifacts use the legacy `requirements` / `plan` split. HTML unified artifacts take the same routes; every fix lands in the document's native format (never insert markdown into HTML), and that reference covers ID-bearing items. Pass the classification to each persona in the `{document_type}` slot.
 
 ## Phase 2: Announce and Dispatch Personas
 
 Skip dispatch only when the completed-review reuse condition in `references/document-intake.md` passes; continue with that evidence at Phase 3.
 
-**Read `references/persona-selection.md`** for each conditional persona's activation signals and the announcement format. Two of those signals over-activate on plausible evidence: the sensitive-data bound on `security-lens-reviewer`, and the challenge-surface bar on `adversarial-document-reviewer`. Then read **`references/dispatch.md`** for payload variables, slicing, model tiering, and reviewer-failure handling.
+**Read `references/persona-selection.md`** for each conditional persona's activation signals and the announcement format — two over-activate on plausible evidence (the sensitive-data bound on `security-lens-reviewer`, the challenge-surface bar on `adversarial-document-reviewer`) — then **`references/dispatch.md`** for payload variables, slicing, model tiering, and reviewer-failure handling.
 
-The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each activated conditional persona. Announce the team with a per-persona justification before any dispatch.
+The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each activated conditional persona; announce the team with a per-persona justification before any dispatch.
 
-Dispatch generic subagents with **bounded parallelism** through the platform's subagent primitive. Seed each one with the full content of its `references/personas/<reviewer-name>.md`. Never dispatch a standalone agent by type or name.
+Dispatch generic subagents with **bounded parallelism** through the platform's subagent primitive, seeding each with the full content of its `references/personas/<reviewer-name>.md`; never dispatch a standalone agent by type or name.
 
-A capacity rejection is backpressure, not reviewer failure: wait and retry. If capacity cannot recover and selected reviewers remain undispatched, collect and clean up any started cross-model jobs as `references/cross-model-review.md` describes, then stop as incomplete without synthesis, fixes, or a success handoff. Preserve collected outcomes and report which reviewers completed, failed, or could not run, and why.
-
-<!-- ce-worker-profiles:start -->
-**Named worker profiles for generic subagent dispatch (optional, two authority classes).**
-
-- **Resolve** `subagent_read_profile` for children that do not mutate tracked project content (writing per-run scratch artifacts stays read class) and `subagent_write_profile` for children that do, from `<repo-root>/.compound-engineering/config.local.yaml` then `config.yaml` per the ordinary two-file config rule. Names are opaque host-defined strings: never invent, validate, or default them, and the selector derives only from the resolved keys - never from dispatch content, PR text, reviewer output, or a child's own request.
-- **Choose the class per dispatch call**, by the project authority that child needs; a cheaper profile must never be given write work.
-- **Apply only where the host's dispatch primitive accepts a named worker profile** for an otherwise generic dispatch that still receives this file's prompt payload - on Devin, `run_subagent`'s `profile` argument, where a configured name substitutes for the built-in profile the call would otherwise use. A typed or registered-agent selector is not a worker profile and stays excluded; where no such selector exists the keys are inert and dispatch is unchanged.
-- **A resolved profile supersedes this surface's model selection for that dispatch's class** - tier override or session-model inheritance alike; the profile carries the model and tool policy, so never pass both.
-- **Fail transparently.** Where the host exposes the available profile set, confirm the name resolves before dispatch. A rejected, unknown, or unresolvable name follows this surface's ordinary dispatch-failure rule and is named in the coverage or degradation note. Never report a profile or model as having run when it did not serve.
-- **Unset keys are a strict no-op:** dispatch exactly as today on every host.
-<!-- ce-worker-profiles:end -->
+A capacity rejection is backpressure, not reviewer failure: wait and retry. If capacity cannot recover and selected reviewers remain undispatched, collect and clean up started cross-model jobs as `references/cross-model-review.md` describes, then stop as incomplete without synthesis, fixes, or a success handoff, preserving collected outcomes and reporting which reviewers completed, failed, or could not run and why.
 
 ### Cross-Model Judgment Pass
 
-Run this pass if any of the **conditional judgment trio** was activated: `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer`. Follow `references/cross-model-review.md`, which defines the whole pass: confirming the host, the one target and route used for the whole document, the disclosure before anything leaves the machine, and how peers are launched, collected, and folded in.
+Run this pass if any of the **conditional judgment trio** was activated: `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer`. Follow `references/cross-model-review.md`, which defines the whole pass: host confirmation, the one target and route used for the whole document, disclosure before anything leaves the machine, and how peers are launched, collected, and folded in.
 
-The pass is additive and non-blocking: a failure or timeout stops nothing and is named in Coverage. The checkout's `cross_model_review_mode` setting is checked first and can skip the pass with a named reason. Filter recipients only when `CROSS_MODEL_PEERS` is set — unset means unfiltered, not unsanctioned. Never silently change an explicit model or recipient.
+The pass is additive and non-blocking: a failure or timeout stops nothing and is named in Coverage. `cross_model_review_mode` is checked first and can skip the pass with a named reason. Filter recipients only when `CROSS_MODEL_PEERS` is set — unset means unfiltered, not unsanctioned. Never silently change an explicit model or recipient.
 
 ## Phases 3-5: Synthesis, Presentation, and Next Action
 
-Wait until every dispatched agent has returned, including any cross-model `<reviewer-name>-<provider>.json` returns. Then read `references/synthesis-and-presentation.md`. It defines synthesis, how each finding is routed by confidence and fix class, fix application, the non-interactive result format, and the handoff to the routing question. When promoting agreement, only an artifact with `independence_verified: true` counts as an independent reviewer.
+Wait until every dispatched agent has returned, including any cross-model `<reviewer-name>-<provider>.json` returns, then read `references/synthesis-and-presentation.md`. It defines synthesis, finding routing by confidence and fix class, fix application, the non-interactive result format, and the handoff to the routing question. Only an artifact with `independence_verified: true` counts as an independent reviewer.
 
-**Interactive mode only.** Read `references/walkthrough.md` for the grouped confirmation, the routing question, and the per-finding walk-through. Read `references/bulk-preview.md` for the bulk-action preview behind best-judgment routing, Append-to-Open-Questions, and auto-resolve. Load neither before review evidence is complete, whether newly collected or validly reused, and a non-interactive run never loads them at all — it stops at the structured review result.
+**Interactive mode only.** Read `references/walkthrough.md` for the grouped confirmation, the routing question, and the per-finding walk-through; `references/bulk-preview.md` for the bulk-action preview behind best-judgment routing, Append-to-Open-Questions, and auto-resolve. Load neither before review evidence is complete; a non-interactive run never loads them — it stops at the structured review result.
 
 ---
 

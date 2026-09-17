@@ -36,6 +36,18 @@ const CONSUMER_FILES: Record<string, string> = {
   // reading this reference. Codex injects only the first 8000 bytes of a SKILL.md,
   // so a body copy is the less reliable of the two homes.
   lfg: "references/plan-brief.md",
+  // ce-doc-review resolves <root> only in the no-path interactive branch, which
+  // lives in this Phase 1 mandated read; the body sits under the Codex bound.
+  "ce-doc-review": "references/document-intake.md",
+  // ce-pov's Phase 1 mandates grounding.md before the prior-decision scan that
+  // composes <root>/solutions/; the body sits under the Codex bound.
+  "ce-pov": "references/grounding.md",
+  // ce-explain mandates orchestration.md before grounding, where <root>/ paths
+  // are composed; the body sits under the Codex bound.
+  "ce-explain": "references/orchestration.md",
+  // ce-compound-refresh reads modes.md first; artifact paths are composed only
+  // inside the mode flow it defines.
+  "ce-compound-refresh": "references/modes.md",
 }
 const CONSUMER_SKILLS = [
   "ce-bakeoff",

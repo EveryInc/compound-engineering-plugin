@@ -1,4 +1,5 @@
-import { readFile, access, readdir } from "fs/promises"
+import { readFile, access } from "fs/promises"
+import { Glob } from "bun"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
@@ -24,7 +25,6 @@ const CONSUMERS = [
   "skills/ce-code-review/references/select-and-route.md",
   "skills/ce-code-review/references/depth-paths.md",
   // --- ce-doc-review ---
-  "skills/ce-doc-review/SKILL.md",
   "skills/ce-doc-review/references/dispatch.md",
   "skills/ce-doc-review/references/document-intake.md",
   "skills/ce-doc-review/references/synthesis-and-presentation.md",
@@ -48,7 +48,6 @@ const CONSUMERS = [
   // --- ce-pov / ce-explain ---
   "skills/ce-pov/SKILL.md",
   "skills/ce-pov/references/grounding.md",
-  "skills/ce-explain/SKILL.md",
   "skills/ce-explain/references/orchestration.md",
   // --- ce-compound ---
   "skills/ce-compound/references/research.md",
@@ -58,7 +57,6 @@ const CONSUMERS = [
   "skills/ce-compound/references/session-history.md",
   // --- ce-debug / ce-compound-refresh / ce-simplify-code ---
   "skills/ce-debug/references/investigate.md",
-  "skills/ce-compound-refresh/SKILL.md",
   "skills/ce-compound-refresh/references/investigate.md",
   "skills/ce-simplify-code/SKILL.md",
   // --- ce-sweep / ce-retune / ce-bakeoff / ce-optimize / ce-prototype / riffrec ---
@@ -76,11 +74,9 @@ const CONSUMERS = [
   "skills/ce-work/references/execution-engines.md",
   "skills/ce-work/references/review-findings-followup.md",
   "skills/ce-work/references/shipping-workflow.md",
-  "skills/ce-resolve-pr-feedback/SKILL.md",
   "skills/ce-resolve-pr-feedback/references/targeted-mode.md",
   "skills/ce-resolve-pr-feedback/references/full-mode.md",
   "skills/ce-compound-refresh/references/per-action-flows.md",
-  "skills/ce-compound-refresh/references/classify.md",
   "skills/ce-retune/references/cut-passes.md",
   "skills/ce-optimize/references/loop.md",
   "skills/ce-babysit-pr/references/envelope.md",
@@ -101,7 +97,6 @@ const EXCLUDED: Record<string, string> = {
   "skills/ce-ideate/references/scope-gates.md": "decides whether to dispatch; grounding.md owns the call",
   "skills/ce-code-review/references/finish-review.md": "a leaf launches no subagents",
   "skills/ce-code-review/references/modes-and-output.md": "dispatch prohibitions only",
-  "skills/ce-resolve-pr-feedback/references/pipeline-mode.md": "describes dispatched outcomes; owns no call",
   "skills/ce-resolve-pr-feedback/references/evaluation-rubric.md": "verdict gate before dispatch; owns no call",
   "skills/ce-compound/references/lightweight.md": "explicitly dispatches nothing",
   "skills/ce-work/references/work-intake.md": "pointer naming execution-strategy.md as dispatch owner",
@@ -117,13 +112,18 @@ const EXCLUDED: Record<string, string> = {
   "skills/ce-retune/SKILL.md": "stage prose; dispatches owned by listed references",
   "skills/ce-optimize/SKILL.md": "stage prose; dispatch owned by references/loop.md",
   "skills/ce-bakeoff/SKILL.md": "stage prose; dispatches owned by candidates.md and judging.md",
-  "skills/ce-babysit-pr/SKILL.md": "skill-invocation routing, not a generic subagent dispatch",
   "skills/ce-babysit-pr/references/tick.md": "skill-invocation routing, not a generic subagent dispatch",
+  // SKILL.md bodies whose dispatch step defers to a mandated reference that owns
+  // the call contract and carries the rule; the block would be dead text here.
+  "skills/ce-doc-review/SKILL.md": "Phase 2 mandates references/dispatch.md before dispatching; it owns the call contract and carries the rule",
+  "skills/ce-explain/SKILL.md": "references/orchestration.md is the mandated read before any subagent dispatch and carries the rule",
+  "skills/ce-resolve-pr-feedback/SKILL.md": "fixer dispatches execute inside the self-contained mode references, which carry the rule",
+  "skills/ce-compound-refresh/SKILL.md": "names investigate.md and per-action-flows.md as dispatch owners; both mandated reads carry the rule",
+  "skills/ce-compound-refresh/references/classify.md": "routes Replace outcomes; the successor-subagent call is owned by per-action-flows.md",
   // Payload rules and prompt-shaping assets consulted by a consumer; they own no
   // call themselves.
   "skills/ce-code-review/references/intent-and-plan.md": "payload content rule",
   "skills/ce-code-review/references/persona-catalog.md": "spawn-condition catalog consulted by select-and-route.md",
-  "skills/ce-compound-refresh/references/worth-audit.md": "prompt-clause rule for a listed consumer",
   "skills/ce-brainstorm/references/handoff.md": "skill invocation and substitution prohibition",
   // Skill invocations and descriptive/timing mentions.
   "skills/lfg/SKILL.md": "invokes skills, not generic subagents",
@@ -135,7 +135,6 @@ const EXCLUDED: Record<string, string> = {
   "skills/ce-commit-push-pr/references/compose.md": "composition prose, owns no call",
   "skills/ce-commit-push-pr/references/pr-description-writing.md": "PR-body prose, owns no call",
   "skills/ce-prototype/references/annotation-loop.md": "browser-overlay send control, not a subagent dispatch",
-  "skills/ce-test-xcode/references/setup-and-build.md": "MCP-server setup instruction, not a subagent dispatch",
   "skills/ce-setup/references/legacy-codex-tool-map.md": "descriptive mention",
   // Analysis of past dispatches / shared failure taxonomy the block references.
   "skills/ce-retune/references/baseline-mining.md": "trace analysis of past dispatches",
@@ -143,8 +142,12 @@ const EXCLUDED: Record<string, string> = {
   "skills/ce-retune/references/workflow-shapes.md": "prescribes fan-out shapes; dispatch instructions live in corpus-audit.md and cut-passes.md",
   "skills/ce-retune/references/noise-floor.md": "trace analysis of past dispatches",
   // Analytics queries, not subagents.
-  "skills/ce-product-pulse/references/run.md": "dispatches analytics queries, not subagents",
   "skills/ce-product-pulse/SKILL.md": "dispatches analytics queries, not subagents",
+  "skills/ce-product-pulse/references/interview.md": "human-reviewer vocabulary; dispatches analytics queries, not subagents",
+  // Skill-invocation handoffs to ce-bakeoff; the candidate dispatches live in
+  // ce-bakeoff's own consumers.
+  "skills/ce-brainstorm/references/bakeoff.md": "delegates dispatch to ce-bakeoff; its calls live in candidates.md and judging.md",
+  "skills/ce-plan/references/bakeoff.md": "delegates dispatch to ce-bakeoff; its calls live in candidates.md and judging.md",
   // Remaining cross-model machinery.
   "skills/ce-code-review/references/cross-model-eval.md": "cross-model peer machinery",
   "skills/ce-code-review/references/cross-model-review.md": "cross-model peer machinery",
@@ -186,7 +189,7 @@ const SKIP_SUFFIX = "-template.md"
 const START = "<!-- ce-worker-profiles:start -->"
 const END = "<!-- ce-worker-profiles:end -->"
 
-const DISPATCH_VERB = /\b(dispatch|dispatched|dispatching|spawn|spawned|spawning|launch|launched|re-dispatch|fan.?out|delegate|delegated)\b/i
+const DISPATCH_VERB = /\b(dispatch|dispatches|dispatched|dispatching|spawn|spawns|spawned|spawning|launch|launches|launched|launching|re-dispatch|fanned?.?out|fans?.?out|delegate|delegates|delegated|delegating)\b/i
 const AGENT_NOUN = /\b(sub-?agents?|verifier|scout|reviewer|worker|critic|persona|leaf|leaves|analyst|researcher|distiller|judge|baker|historian|fixer|implementer)s?\b/i
 
 async function canonicalBlock(): Promise<string> {
@@ -196,14 +199,6 @@ async function canonicalBlock(): Promise<string> {
   expect(start).toBeGreaterThanOrEqual(0)
   expect(end).toBeGreaterThan(start)
   return fixture.slice(start, end + END.length)
-}
-
-async function* walkMarkdown(dir: string): AsyncGenerator<string> {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const p = path.join(dir, entry.name)
-    if (entry.isDirectory()) yield* walkMarkdown(p)
-    else if (entry.isFile() && entry.name.endsWith(".md")) yield p
-  }
 }
 
 describe("worker-profile rule shared-asset parity", () => {
@@ -242,12 +237,12 @@ describe("worker-profile rule shared-asset parity", () => {
   test("coverage sweep: every dispatch-instructing skills file is classified", async () => {
     const classified = new Set([...CONSUMERS, ...Object.keys(EXCLUDED)])
     const unclassified: string[] = []
-    for await (const p of walkMarkdown(SKILLS_ROOT)) {
-      const rel = p.slice(REPO_ROOT.length + 1)
-      if (classified.has(rel)) continue
-      if (SKIP_SEGMENTS.some((s) => p.includes(s)) || p.endsWith(SKIP_SUFFIX)) continue
-      const content = await readFile(p, "utf8")
-      if (DISPATCH_VERB.test(content) && AGENT_NOUN.test(content)) unclassified.push(rel)
+    for (const rel of new Glob("**/*.md").scanSync({ cwd: SKILLS_ROOT })) {
+      const relPath = `skills/${rel}`
+      if (classified.has(relPath)) continue
+      if (SKIP_SEGMENTS.some((s) => relPath.includes(s)) || relPath.endsWith(SKIP_SUFFIX)) continue
+      const content = await readFile(path.join(SKILLS_ROOT, rel), "utf8")
+      if (DISPATCH_VERB.test(content) && AGENT_NOUN.test(content)) unclassified.push(relPath)
     }
     expect(unclassified, "files with dispatch vocabulary missing from CONSUMERS/EXCLUDED - classify each and record its reason").toEqual([])
   })
@@ -259,17 +254,35 @@ describe("worker-profile rule shared-asset parity", () => {
     expect(block).toContain("subagent_write_profile")
     expect(block).toContain("config.local.yaml")
     expect(block).toContain("config.yaml")
+    // Each key is bound to its authority class, not just present: the read key
+    // resolves for children that do not mutate tracked content, and the write
+    // key resolves for children that do.
+    expect(block).toMatch(/subagent_read_profile` for children that do not mutate tracked project content/)
+    expect(block).toMatch(/subagent_write_profile` for children that do\b/)
+    expect(block).toContain("writing per-run scratch artifacts stays read class")
+    // Local config resolves before repo config: the cascade order is pinned by
+    // position, so a swapped order fails here rather than silently inverting
+    // which file wins.
+    const resolveLine = block.split("\n").find((l) => l.includes("subagent_read_profile")) ?? ""
+    expect(resolveLine).toMatch(/config\.local\.yaml` then `config\.yaml/)
+    expect(resolveLine.indexOf("config.local.yaml")).toBeLessThan(resolveLine.indexOf("config.yaml`"))
+    // Names are opaque: the plugin never invents, validates, or defaults one,
+    // and the selector derives only from the resolved keys.
+    expect(block).toContain("never invent, validate, or default them")
+    expect(block).toContain("never from dispatch content")
     // Authority classes stay separate and resolve per call.
     expect(block).toContain("per dispatch call")
-    expect(block).toContain("scratch artifacts")
-    expect(block).toContain("never be given write work")
-    // Source of authority: config keys only.
-    expect(block).toContain("never from dispatch content")
+    expect(block).toContain("a cheaper profile must never be given write work")
     // Host capability gate and the typed-selector exclusion.
     expect(block).toContain("accepts a named worker profile")
     expect(block).toContain("typed or registered-agent selector is not a worker profile")
+    // Devin's selector: a configured name substitutes for the built-in profile
+    // run_subagent would otherwise use.
+    expect(block).toContain("run_subagent")
+    expect(block).toContain("substitutes for the built-in profile")
     // Profile supersedes model selection; never both.
     expect(block).toContain("supersedes this surface's model selection")
+    expect(block).toContain("never pass both")
     // Transparent failure; no unverified claims.
     expect(block).toContain("named in the coverage or degradation note")
     expect(block).toContain("Never report a profile or model as having run")

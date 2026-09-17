@@ -1,5 +1,13 @@
 # Interactive and non-interactive modes
 
+<!-- ce-docs-root:start -->
+**Resolve the CE artifact root `<root>` before composing any artifact path.**
+
+- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.yaml` only (`<repo-root>` = `git rev-parse --show-toplevel`). Do not read it from `config.local.yaml`. Unset -> `<root>` is `docs`, exactly as before.
+- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
+- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
+<!-- ce-docs-root:end -->
+
 If the arguments contain `mode:non-interactive` (or its deprecated alias `mode:headless`), strip those tokens (the remainder is a scope hint) and run **non-interactive**; otherwise run **interactive**.
 
 **Interactive:** apply unambiguous actions directly; ask the user only on genuine judgment calls (the Decide section of `references/classify.md` lists them).
