@@ -1,6 +1,12 @@
 import { beforeAll, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
@@ -66,7 +72,7 @@ function mixedShaPrefix(sha: string): string {
 }
 
 beforeAll(() => {
-  repo = mkdtempSync(path.join(tmpdir(), "doc-claims-repo-"))
+  repo = realpathSync(mkdtempSync(path.join(tmpdir(), "doc-claims-repo-")))
   sh(repo, "git", ["init", "-b", "main"])
   sh(repo, "git", ["config", "user.email", "test@example.com"])
   sh(repo, "git", ["config", "user.name", "Test"])
@@ -140,14 +146,20 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).not.toContain("FLAG")
       })
 
-      test("flags a cited path that exists nowhere", () => {
+      test("flags a cited path that exists nowhere, naming the search base", () => {
         const docPath = writeRepoDoc(
           "The handler is `src/does-not-exist.ts` in the tree.\n",
         )
         const result = runValidator(skillDir, docPath)
         expect(result.code).toBe(1)
         expect(result.stdout).toContain("FLAG path `src/does-not-exist.ts`")
-        expect(result.stdout).toContain("not found")
+        expect(result.stdout).toContain(
+          `not found in working tree or origin/main, under ${repo}`,
+        )
+        expect(result.stdout).toContain(
+          "This check only looks in this repository; check other stores " +
+            "before treating the citation as wrong.",
+        )
       })
 
       test("checks an absolute citation that points inside the repo", () => {
@@ -272,8 +284,9 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         )
         const result = runValidator(skillDir, docPath)
         expect(result.code).toBe(1)
-        expect(result.stdout).toContain("FLAG path `src/nonexistent-helper`")
-        expect(result.stdout).toContain("not found")
+        expect(result.stdout).toContain(
+          `not found in working tree or origin/main, under ${repo}`,
+        )
       })
 
       test("ignores placeholder and URL-like tokens", () => {
@@ -625,7 +638,9 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         expect(result.stdout).toContain(
           "FLAG path `../best-practices/does-not-exist.md`",
         )
-        expect(result.stdout).toContain("not found")
+        expect(result.stdout).toContain(
+          `not found in working tree or origin/main, under ${repo}`,
+        )
       })
 
       test("skips a `../` token that escapes the repository", () => {
