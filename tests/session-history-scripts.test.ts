@@ -352,6 +352,57 @@ describe("extract-metadata", () => {
     expect(platforms).toContain("omp")
   })
 
+  test("detects Claude sessions whose metadata preamble exceeds 25 records", async () => {
+    // Issue #1727: resumed Claude Code sessions front-load dozens of
+    // non-message records (queue-operation, system, hook, file-history-snapshot,
+    // ...) before the first user record that carries gitBranch. A scan capped
+    // at the first 25 lines drops the session and reports it as a parse error.
+    const preamble = [
+      ...Array(10).fill("queue-operation"),
+      ...Array(10).fill("system"),
+      ...Array(10).fill("hook"),
+    ]
+      .map((t) => JSON.stringify({ type: t, value: "x" }))
+      .join("\n")
+    const base = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-resumed-meta-"))
+    const file = path.join(dir, "session.jsonl")
+    fs.writeFileSync(file, preamble + "\n" + base)
+    try {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [file])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const session = lines.find((l) => !l._meta)
+      expect(session.platform).toBe("claude")
+      expect(session.branch).toBe("feat/auth-fix")
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_processed).toBe(1)
+      expect(meta.parse_errors).toBe(0)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test("counts files with no recognizable metadata separately from parse errors", async () => {
+    // Issue #1727: a readable file that matches no platform is not a parse
+    // error. parse_errors is reserved for files that could not be read.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-nometa-"))
+    const file = path.join(dir, "session.jsonl")
+    fs.writeFileSync(file, JSON.stringify({ type: "unknown" }) + "\n")
+    try {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [file])
+      expect(exitCode).toBe(0)
+      const meta = parseJsonLines(stdout).find((l) => l._meta)
+      expect(meta.files_processed).toBe(1)
+      expect(meta.parse_errors).toBe(0)
+      expect(meta.files_without_metadata).toBe(1)
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test("--cwd-filter excludes non-matching Codex sessions", async () => {
     const { stdout, exitCode } = await runScript("extract-metadata.py", [
       "--cwd-filter",
