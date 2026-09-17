@@ -1477,8 +1477,12 @@ describe("review coverage fallback wording (issue #1732)", () => {
 
   test("did-not-run fallback branch pins the exact in-process Coverage wording", () => {
     const content = readFileSync(RECOVERY, "utf8")
+    const fullForm =
+      /adversarial lens: in-process fallback \(cross-model peer not run: [^)]+\)/.test(
+        content,
+      ) && content.includes("peer.outcome: in-process-fallback")
     expect(
-      content.includes(PINNED_WORDING),
+      fullForm,
       `cross-model-recovery.md must pin the exact Coverage wording \`${PINNED_WORDING} (cross-model peer not run: <reason>)\` so a complete review is never reported with ce-work's ship-gate skip phrase (issue #1732).`,
     ).toBe(true)
   })
@@ -1492,9 +1496,10 @@ describe("review coverage fallback wording (issue #1732)", () => {
       const lines = readFileSync(filePath, "utf8").split("\n")
       for (const [index, line] of lines.entries()) {
         // The one legitimate occurrence names the phrase to forbid it
-        // (cross-model-recovery.md's "Never write `harness-native fallback`").
-        if (/never write `harness-native fallback`/i.test(line)) continue
-        if (/harness-native fallback/i.test(line)) {
+        // (cross-model-recovery.md's "Never write `harness-native fallback`"):
+        // strip exactly that clause so the rest of the line is still checked.
+        const checked = line.replace(/never write `harness-native fallback`/i, "")
+        if (/harness-native fallback/i.test(checked)) {
           offenders.push(`${fileRel}:${index + 1}`)
         }
       }
