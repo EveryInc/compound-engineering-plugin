@@ -1467,3 +1467,41 @@ describe("python interpreter resolution (no bare python3 invocations)", () => {
     ).toEqual([])
   })
 })
+
+describe("review coverage fallback wording (issue #1732)", () => {
+  const RECOVERY = path.join(
+    REPO_ROOT,
+    "skills/ce-code-review/references/cross-model-recovery.md",
+  )
+  const PINNED_WORDING = "adversarial lens: in-process fallback"
+
+  test("did-not-run fallback branch pins the exact in-process Coverage wording", () => {
+    const content = readFileSync(RECOVERY, "utf8")
+    expect(
+      content.includes(PINNED_WORDING),
+      `cross-model-recovery.md must pin the exact Coverage wording \`${PINNED_WORDING} (cross-model peer not run: <reason>)\` so a complete review is never reported with ce-work's ship-gate skip phrase (issue #1732).`,
+    ).toBe(true)
+  })
+
+  test("ce-code-review Coverage guidance never uses the ship-gate skip phrase", () => {
+    const skill = skillDirs.find((s) => s.relPath === "skills/ce-code-review")
+    if (!skill) throw new Error("skills/ce-code-review not found")
+    const offenders: string[] = []
+    for (const filePath of listMarkdownFiles(skill.absPath)) {
+      const fileRel = path.relative(REPO_ROOT, filePath)
+      const lines = readFileSync(filePath, "utf8").split("\n")
+      for (const [index, line] of lines.entries()) {
+        // The one legitimate occurrence names the phrase to forbid it
+        // (cross-model-recovery.md's "Never write `harness-native fallback`").
+        if (/never write `harness-native fallback`/i.test(line)) continue
+        if (/harness-native fallback/i.test(line)) {
+          offenders.push(`${fileRel}:${index + 1}`)
+        }
+      }
+    }
+    expect(
+      offenders,
+      "`harness-native fallback` is ce-work's ship-gate signal for a review that ran without ce-code-review; ce-code-review Coverage guidance must not reuse it for the in-process fallback (issue #1732).",
+    ).toEqual([])
+  })
+})
