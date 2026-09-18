@@ -444,7 +444,7 @@
       const visible = el.checkVisibility
         ? el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
         : getComputedStyle(el).visibility === "visible"
-      if (visible) candidates.push(el)
+      if (visible && paintsAt(el, x, y)) candidates.push(el)
     }
     if (candidates.length === 0) return null
     const saved = candidates.map((el) => [
@@ -454,14 +454,40 @@
     ])
     for (const el of candidates) el.style.setProperty("pointer-events", "auto", "important")
     try {
-      const top = pageElementFromPoint(x, y)
-      return candidates.includes(top) ? top : null
+      // The top element can be a part of a candidate, such as a shape inside
+      // an svg, which became hittable by inheritance.
+      let top = pageElementFromPoint(x, y)
+      while (top && !candidates.includes(top)) top = top.parentElement
+      return top || null
     } finally {
       for (const [el, value, priority] of saved) {
         if (value) el.style.setProperty("pointer-events", value, priority)
         else el.style.removeProperty("pointer-events")
       }
     }
+  }
+
+  // A box that contains the point can paint nothing there: a positioned
+  // wrapper around labels has a box and no pixels of its own. Only what the
+  // element itself draws counts, so a wrapper's children are judged as themselves.
+  const REPLACED = new Set(["IMG", "SVG", "VIDEO", "CANVAS", "PICTURE", "IFRAME", "OBJECT", "EMBED", "INPUT", "SELECT", "TEXTAREA", "BUTTON"])
+  function paintsAt(el, x, y) {
+    if (REPLACED.has(el.tagName.toUpperCase())) return true
+    const style = getComputedStyle(el)
+    const transparent = (color) => color === "transparent" || /,\s*0\)$/.test(color)
+    if (!transparent(style.backgroundColor) || style.backgroundImage !== "none") return true
+    for (const side of ["Top", "Right", "Bottom", "Left"]) {
+      if (parseFloat(style[`border${side}Width`]) > 0 && style[`border${side}Style`] !== "none" && !transparent(style[`border${side}Color`])) return true
+    }
+    const range = document.createRange()
+    for (const node of el.childNodes) {
+      if (node.nodeType !== 3 || !node.nodeValue.trim()) continue
+      range.selectNodeContents(node)
+      for (const box of range.getClientRects()) {
+        if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) return true
+      }
+    }
+    return false
   }
 
   function targetFromCatcher(event) {
