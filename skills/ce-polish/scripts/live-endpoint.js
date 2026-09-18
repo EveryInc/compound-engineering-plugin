@@ -1584,10 +1584,26 @@ async function serve(options) {
   // A new session id on an ended, drained board: what a fresh `start` on an
   // ended root does, in-process and with the same tokens.
   function openSession(sessionId) {
-    fs.rmSync(options.batchesDir, { recursive: true, force: true })
-    rotateLog(options)
+    // The durable writes come first and the irreversible steps last: if the
+    // new board or the live session record cannot be saved, the ended
+    // session is restored in memory and on disk, and its log and batches
+    // directory are untouched, so a refused opener leaves it intact.
+    const before = { board: structuredClone(board), session }
     for (const key of Object.keys(board)) delete board[key]
     Object.assign(board, emptyBoard(), { session_id: sessionId })
+    try {
+      saveBoard()
+      saveSession({ ended: false })
+    } catch (error) {
+      for (const key of Object.keys(board)) delete board[key]
+      Object.assign(board, before.board)
+      session = before.session
+      bestEffort(() => saveBoard())
+      bestEffort(() => writePrivateJson(options.sessionFile, session))
+      throw error
+    }
+    fs.rmSync(options.batchesDir, { recursive: true, force: true })
+    rotateLog(options)
     batches.length = 0
     batchOrder = 0
     outOfOrder.clear()
@@ -1595,8 +1611,6 @@ async function serve(options) {
     logBytes = 0
     disarmPageLost()
     clearWatchForLoss()
-    saveBoard()
-    saveSession({ ended: false })
     logAgent({ kind: "session_opened", session_id: sessionId })
   }
 
@@ -2227,11 +2241,22 @@ async function serve(options) {
         // The overlay's Done control sends the `final` checkpoint before
         // /session/end; a page that ended without one still hands the agent
         // whatever is held or accepted.
-        if (!board.final_emitted && (heldUnits().length > 0 || heldAnnotations().length > 0 || backlogUnits().length > 0 || board.pending_withdrawn.length > 0)) {
-          releaseCheckpoint(`ck-final-${randomUUID()}`, "final", board.mode)
+        try {
+          if (!board.final_emitted && (heldUnits().length > 0 || heldAnnotations().length > 0 || backlogUnits().length > 0 || board.pending_withdrawn.length > 0)) {
+            releaseCheckpoint(`ck-final-${randomUUID()}`, "final", board.mode)
+          }
+          endSession()
+        } catch (error) {
+          // The session did not end, so the page retries with the whole
+          // archive: the copy just landed is a replacement-in-waiting, not
+          // stored evidence, and must not be charged against that retry.
+          if (size > 0) {
+            bestEffort(() => fs.rmSync(archivePath, { force: true }))
+            logBytes -= size
+          }
+          throw error
         }
         logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size })
-        endSession()
         endingInFlight = false
         sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
       }

@@ -268,6 +268,63 @@ describe("live endpoint recovery: refusals under load", () => {
   })
 })
 
+describe("live endpoint recovery: session transitions", () => {
+  test("a new-session opener whose board save fails leaves the ended session intact on disk and in memory; the retry opens it", async () => {
+    const agent = await startAgent()
+    const first = pageFor(agent, "sess_first")
+    expectOk(await first.sendUnit("u1", "make the header red"))
+    expectOk(await first.endSession("PK\u0003\u0004first-archive", "application/zip"))
+    const final = await agent.waitHttp()
+    expectOk(await agent.ack(final.envelope!.checkpoint_id))
+    expectOk(await agent.postStatus("u1", "applied"))
+
+    const boardFile = path.join(agent.stateDir, "board.json")
+    const boardBackup = await fs.readFile(boardFile)
+    await fs.rm(boardFile)
+    await fs.mkdir(boardFile)
+    const refused = await pageFor(agent, "sess_second").sendUnit("u2", "make the footer blue")
+    expect(refused.status).toBe(500)
+    // Nothing moved: the ended first session is what /status, session.json, and the log directory still describe.
+    expect((await agent.statusHttp()).body).toMatchObject({ session_id: "sess_first", ended: true })
+    expect((await agent.session()).ended).toBe(true)
+    expect((await fs.readdir(agent.stateDir)).filter((name) => name.startsWith("log-ended-"))).toEqual([])
+    expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(true)
+
+    await fs.rmdir(boardFile)
+    await fs.writeFile(boardFile, boardBackup)
+    const second = pageFor(agent, "sess_second")
+    expectOk(await second.sendUnit("u2", "make the footer blue"))
+    expect(await agent.board()).toMatchObject({ session_id: "sess_second", ended: false, acked_seq: 1 })
+    expect((await agent.session()).ended).toBe(false)
+    expect((await fs.readdir(agent.stateDir)).filter((name) => name.startsWith("log-ended-"))).toHaveLength(1)
+  })
+
+  test("an archive whose termination write fails is released with its accounting, so the page's retry is a replacement and lands", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_DISK_CAP_BYTES: "4096" } })
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    // session.json cannot be rewritten: the archive lands, then ending the session fails.
+    const sessionFile = path.join(agent.stateDir, "session.json")
+    const sessionBackup = await fs.readFile(sessionFile)
+    await fs.rm(sessionFile)
+    await fs.mkdir(sessionFile)
+    const archive = Buffer.alloc(2000, 3)
+    const failed = await page.endSession(archive, "application/zip")
+    expect(failed.status).toBe(500)
+    expect(failed.body).toMatchObject({ error: "archive_write_failed" })
+    expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(false)
+    expect(Number((await agent.statusHttp()).body.log_bytes)).toBeLessThan(2000)
+    expect((await agent.statusHttp()).body.ended).toBe(false)
+
+    await fs.rmdir(sessionFile)
+    await fs.writeFile(sessionFile, sessionBackup)
+    const retried = await page.endSession(archive, "application/zip")
+    expectOk(retried)
+    expect(retried.body.archive_bytes).toBe(2000)
+    expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(true)
+  })
+})
+
 describe("live endpoint recovery: replay and lifecycle", () => {
   test("replay --profile strokes_composite prunes unit evidence to the composite frames it can actually emit", async () => {
     const source = await startAgent()
