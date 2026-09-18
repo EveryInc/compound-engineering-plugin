@@ -196,7 +196,13 @@ export class FakeLivePage {
     if (this.streamAbort) return
     const abort = new AbortController()
     this.streamAbort = abort
-    const response = await fetch(`${this.url}/stream`, { headers: this.headers(), signal: abort.signal })
+    let response: Response
+    try {
+      response = await fetch(`${this.url}/stream`, { headers: this.headers(), signal: abort.signal })
+    } catch (error) {
+      if (this.streamAbort === abort) this.streamAbort = null
+      throw error
+    }
     if (response.status !== 200 || !response.body) {
       this.streamAbort = null
       throw new Error(`stream refused: HTTP ${response.status}`)
@@ -222,8 +228,19 @@ export class FakeLivePage {
       } finally {
         if (this.streamAbort === abort) this.streamAbort = null
       }
+      // riffrec's client reopens the stream after a clean end (the helper
+      // ends a response after each delivery so buffering proxies flush it);
+      // only closeStream() stops that. Faster than the page's 1 s for tests.
+      if (!abort.signal.aborted) {
+        this.streamEnds += 1
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        if (!abort.signal.aborted && this.streamAbort === null) await this.openStream().catch(() => undefined)
+      }
     })()
   }
+
+  /** How many stream responses the helper has ended so far (each is one flushed delivery). */
+  streamEnds = 0
 
   private consumeFrame(frame: string): void {
     let event = "message"

@@ -26,6 +26,9 @@ const WAIT_TIMEOUT_MS = Number(process.env.CE_LIVE_WAIT_TIMEOUT_MS) || 30 * 1000
 const PAGE_LOST_GRACE_MS = Number(process.env.CE_LIVE_PAGE_LOST_GRACE_MS) || 15 * 1000
 const MINT_TIMEOUT_MS = Number(process.env.CE_LIVE_MINT_TIMEOUT_MS) || 10 * 1000
 const BODY_LIMIT = 64 * 1024
+// How long after a stream delivery the response is ended so buffering
+// intermediaries release it; a burst inside this window shares one response.
+const STREAM_FLUSH_MS = Number(process.env.CE_LIVE_STREAM_FLUSH_MS) || 300
 const FRAME_BODY_LIMIT = 2 * 1024 * 1024
 const ARCHIVE_BODY_LIMIT = Number(process.env.CE_LIVE_ARCHIVE_LIMIT_BYTES) || 400 * 1024 * 1024
 const DISK_CAP_BYTES = Number(process.env.CE_LIVE_DISK_CAP_BYTES) || 500 * 1024 * 1024
@@ -1139,6 +1142,30 @@ async function serve(options) {
     for (const client of streamClients) {
       if (!client.writableEnded) client.write(frame)
     }
+    // An ack rides every POST and the page already has it in that POST's
+    // response; ending the stream for it would keep the page reconnecting.
+    if (event !== "ack") scheduleStreamFlush()
+  }
+
+  // A stream response is ended shortly after a delivery. Some TLS-terminating
+  // intermediaries (cloudflared quick tunnels, fronted by a Worker) hold a
+  // streaming body until the response completes, so an open SSE stream never
+  // reaches the page; a completed one does at once. The page reconnects a
+  // second later and handleStream replays every unit's current state, so on
+  // such a path the stream is a sequence of short responses, and on a direct
+  // path the same responses arrive as they are written. The delay lets a
+  // burst (a release, an accepted then applied) ride one response.
+  let streamFlushTimer = null
+  function scheduleStreamFlush() {
+    if (streamClients.size === 0) return
+    if (streamFlushTimer) clearTimeout(streamFlushTimer)
+    streamFlushTimer = setTimeout(() => {
+      streamFlushTimer = null
+      for (const client of streamClients) {
+        if (!client.writableEnded) client.end()
+      }
+    }, STREAM_FLUSH_MS)
+    streamFlushTimer.unref?.()
   }
 
   // --- batches ---------------------------------------------------------------
@@ -1670,19 +1697,32 @@ async function serve(options) {
   }
 
   function handleStream(req, res) {
+    // No `Connection` header: it is hop-by-hop, and a TLS-terminating tunnel
+    // (cloudflared) forwards this response over HTTP/2, where that header is
+    // invalid; the edge then held the whole stream and the page never saw a
+    // status. `no-transform` and `X-Accel-Buffering` tell intermediaries not
+    // to buffer, and the flush pushes the headers out with the first bytes.
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
       ...corsHeaders(),
     })
+    res.flushHeaders()
     res.write(":ok\n\n")
     res.write(`event: ack\ndata: ${JSON.stringify({ acked_seq: board.acked_seq })}\n\n`)
-    // A page that just reloaded reconciles its board from these.
+    // A page that just reloaded, or reconnected after a flushed response,
+    // reconciles its board from these: every unit the endpoint has moved,
+    // with the note or guess that moved it, and any question still open.
     for (const id of board.unit_order) {
       const unit = unitById(id)
-      if (unit.released || unit.status === "withdrawn") {
-        res.write(`event: unit_status\ndata: ${JSON.stringify({ unit_id: id, status: unit.status })}\n\n`)
+      if (!unit.released && unit.status !== "withdrawn") continue
+      const status = { unit_id: id, status: unit.status }
+      if (typeof unit.note === "string") status.note = unit.note
+      if (typeof unit.guess === "string") status.guess = unit.guess
+      res.write(`event: unit_status\ndata: ${JSON.stringify(status)}\n\n`)
+      if (unit.status === "needs_info" && typeof unit.question === "string") {
+        res.write(`event: ask\ndata: ${JSON.stringify({ unit_id: id, question: unit.question })}\n\n`)
       }
     }
     streamClients.add(res)

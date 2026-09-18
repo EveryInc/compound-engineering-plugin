@@ -25,7 +25,7 @@ Through tunnels, both processes stay on loopback; the tunnel connects locally an
 One tunnel per origin, each pointing at the local port:
 
 - **Tailscale serve** (HTTPS on the tailnet, one command per origin, distinct HTTPS ports): `tailscale serve --bg --https=443 http://127.0.0.1:<app-port>` and `tailscale serve --bg --https=8443 http://127.0.0.1:<endpoint-port>`. The origins are `https://<machine>.<tailnet>.ts.net` and `https://<machine>.<tailnet>.ts.net:8443`.
-- **cloudflared** (quick tunnels, no account): `cloudflared tunnel --url http://localhost:<app-port>` and again for the endpoint port; each prints its own `https://<random>.trycloudflare.com` origin.
+- **cloudflared** (quick tunnels, no account): `cloudflared tunnel --url http://localhost:<app-port>` and again for the endpoint port; each prints its own `https://<random>.trycloudflare.com` origin. Quick tunnels sit behind a Cloudflare Worker that holds a streaming response until it completes, so an open SSE stream never reaches the page through them; the helper compensates by ending each `/stream` response shortly after a delivery (see the contract), which costs the page a reconnect per delivery but nothing else. A fresh quick-tunnel hostname can take a minute or more to resolve; probe it with `dig @1.1.1.1` before handing the URL over.
 - **ngrok**: `ngrok http <app-port>` and `ngrok http <endpoint-port>`; free accounts allow one agent session, so the second needs a paid plan or a second account.
 
 Read each tunnel's printed origin rather than predicting it; the app tunnel origin is `--app-origin` and the page URL, and the endpoint tunnel origin goes in the fragment.

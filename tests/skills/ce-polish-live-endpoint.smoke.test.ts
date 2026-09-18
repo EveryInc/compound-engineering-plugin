@@ -204,22 +204,37 @@ describe("ce-polish live endpoint smoke", () => {
     const unit = (id: string, seq: number) =>
       envelope(sessionId, seq, "unit", { id, statement: id, transcript_excerpt: id, anchors: [], evidence: { frame_ids: [], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } }, status: "initial" })
 
-    // The page's stream, read as the browser would: every unit_status frame in arrival order.
-    const streamResponse = await fetch(`${url}/stream`, { headers: { Authorization: `Bearer ${pageToken}`, "X-Riffrec-Session": sessionId } })
-    expect(streamResponse.status).toBe(200)
-    const reader = streamResponse.body!.getReader()
+    // The page's stream, read as riffrec's client does: reconnect after each
+    // response the helper ends (it ends one after every delivery so buffering
+    // proxies flush it), and note each unit's transitions once, in arrival
+    // order; the reconnect replay repeats the current status and is ignored.
     const statuses: string[] = []
-    let buffered = ""
+    let responses = 0
+    let streaming = true
     const pump = (async () => {
-      for (;;) {
-        const { value, done } = await reader.read()
-        if (done) return
-        buffered += new TextDecoder().decode(value)
-        for (const m of buffered.matchAll(/event: unit_status\ndata: (.*)\n\n/g)) {
-          const data = JSON.parse(m[1]) as { unit_id: string; status: string }
-          statuses.push(`${data.unit_id}:${data.status}`)
+      while (streaming) {
+        let streamResponse: Response
+        try {
+          streamResponse = await fetch(`${url}/stream`, { headers: { Authorization: `Bearer ${pageToken}`, "X-Riffrec-Session": sessionId } })
+        } catch {
+          return
         }
-        buffered = buffered.replace(/event: unit_status\ndata: .*\n\n/g, "")
+        expect(streamResponse.status).toBe(200)
+        responses += 1
+        const reader = streamResponse.body!.getReader()
+        let buffered = ""
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buffered += new TextDecoder().decode(value)
+          for (const m of buffered.matchAll(/event: unit_status\ndata: (.*)\n\n/g)) {
+            const data = JSON.parse(m[1]) as { unit_id: string; status: string }
+            const transition = `${data.unit_id}:${data.status}`
+            if (!statuses.includes(transition)) statuses.push(transition)
+          }
+          buffered = buffered.replace(/event: unit_status\ndata: .*\n\n/g, "")
+        }
+        await new Promise((r) => setTimeout(r, 50))
       }
     })()
     const untilStatuses = async (n: number) => {
@@ -266,7 +281,13 @@ describe("ce-polish live endpoint smoke", () => {
     expect(flushed.units.map((u: { id: string }) => u.id)).toEqual(["d"])
     await fetch(`${url}/checkpoints/${flushed.checkpoint_id}/ack`, { method: "POST", headers: agent, body: "{}" })
 
-    await reader.cancel()
+    // Each delivery ended its response (a buffering tunnel would have flushed
+    // it there) and the client reopened: the three deliveries above (a; the
+    // b+c burst as one; d) mean at least three responses were served.
+    await new Promise((r) => setTimeout(r, 600))
+    expect(responses).toBeGreaterThanOrEqual(3)
+    streaming = false
+    await fetch(`${url}/units/a/status`, { method: "POST", headers: agent, body: JSON.stringify({ status: "accepted" }) })
     await pump.catch(() => undefined)
   })
 })
