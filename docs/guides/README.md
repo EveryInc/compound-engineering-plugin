@@ -126,6 +126,7 @@ Invoked when a specific need arises, not part of any chain.
 | Skill | Description |
 |-------|-------------|
 | [`/ce-noslop`](./ce-noslop.md) | Rewrite, check, or draft prose with no AI tells that reads on the first read; every fact preserved. Sibling skills invoke it where they write. |
+| [`/wtf`](./wtf.md) | Explain the last message, or a supplied file, link, or passage, in plain language. Explains rather than rewrites; keeps caveats and adds no claims. Manual invoke only. |
 | [`/ce-promote`](./ce-promote.md) | Draft announcement copy for a shipped feature (X, changelog, LinkedIn, email, blog, demo). Drafts only; never posts. |
 | [`/ce-resolve-pr-feedback`](./ce-resolve-pr-feedback.md) | One pass to evaluate, fix, and reply to PR review comments, including nitpicks. Babysit is the watch that calls this. |
 | [`/ce-dogfood`](./ce-dogfood.md) | Hands-off browser QA of the branch: map flows, fix small breakages, write a report. Manual invoke only. |

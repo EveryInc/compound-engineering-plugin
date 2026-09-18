@@ -195,6 +195,9 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
   "ce-setup",
   "ce-sweep",
   "ce-test-xcode",
+  // wtf: answers a user who says they did not follow something. No skill or
+  // pipeline calls it, and model-routing it would re-explain replies unasked.
+  "wtf",
 ])
 
 const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
