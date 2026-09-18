@@ -1611,7 +1611,7 @@ async function serve(options) {
     logBytes = 0
     disarmPageLost()
     clearWatchForLoss()
-    logAgent({ kind: "session_opened", session_id: sessionId })
+    bestEffort(() => logAgent({ kind: "session_opened", session_id: sessionId }))
   }
 
   // --- auth and CORS -----------------------------------------------------------
@@ -2246,8 +2246,16 @@ async function serve(options) {
         // starts from the same state and emits one final checkpoint, not two.
         const undo = snapshotState()
         try {
-          if (!board.final_emitted && (heldUnits().length > 0 || heldAnnotations().length > 0 || backlogUnits().length > 0 || board.pending_withdrawn.length > 0)) {
+          // Nothing the page sent stays unreleased past the end: a unit that
+          // landed after the page's own final checkpoint goes out as a last
+          // ordinary batch, so it is the agent's to finish (and holds the
+          // board from draining) rather than an `initial` the next session
+          // would erase.
+          const held = heldUnits().length > 0 || heldAnnotations().length > 0 || board.pending_withdrawn.length > 0
+          if (!board.final_emitted && (held || backlogUnits().length > 0)) {
             releaseCheckpoint(`ck-final-${randomUUID()}`, "final", board.mode)
+          } else if (held) {
+            releaseCheckpoint(`ck-late-${randomUUID()}`, "send", board.mode)
           }
           endSession()
         } catch (error) {
@@ -2261,7 +2269,8 @@ async function serve(options) {
           }
           throw error
         }
-        logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size })
+        // The end is committed; the audit line must not turn it into a 500.
+        bestEffort(() => logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size }))
         endingInFlight = false
         sendJson(res, 200, { status: "session-ended", log_dir: options.logDir, archive_bytes: size }, corsHeaders())
       }
@@ -2369,7 +2378,7 @@ async function serve(options) {
       if (typeof parsed.guess === "string") unit.guess = parsed.guess
     }
     if (!commitUnit(res, unit, transition)) return
-    logAgent({ kind: "unit_status", unit_id: unitId, status: parsed.status, note: parsed.note ?? null, guess: parsed.guess ?? null })
+    bestEffort(() => logAgent({ kind: "unit_status", unit_id: unitId, status: parsed.status, note: parsed.note ?? null, guess: parsed.guess ?? null }))
     const notice = { unit_id: unitId, status: parsed.status, ...(parsed.note !== undefined ? { note: parsed.note } : {}), ...(parsed.guess !== undefined ? { guess: parsed.guess } : {}) }
     broadcast("unit_status", notice)
     if (parsed.status === "applied") {
@@ -2401,7 +2410,7 @@ async function serve(options) {
       unit.question = parsed.question
     }
     if (!commitUnit(res, unit, transition)) return
-    logAgent({ kind: "ask", unit_id: unitId, question: parsed.question })
+    bestEffort(() => logAgent({ kind: "ask", unit_id: unitId, question: parsed.question }))
     broadcast("unit_status", { unit_id: unitId, status: "needs_info" })
     broadcast("ask", { unit_id: unitId, question: parsed.question })
     touch()
