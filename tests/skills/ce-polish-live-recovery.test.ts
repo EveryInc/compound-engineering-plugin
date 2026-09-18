@@ -165,6 +165,26 @@ describe("live endpoint recovery: intake", () => {
     expect(wake.envelope!.units.map((unit) => unit.id).sort()).toEqual(["u1", "u2"])
   })
 
+  test("at the disk cap an image frame is refused with 507 while the page's byte-free dropped replacement advances the sequence", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_DISK_CAP_BYTES: "1024" } })
+    // The log is already over the cap when the helper (re)starts: nothing with image bytes fits any more.
+    await agent.killServer()
+    await fs.writeFile(path.join(agent.stateDir, "log", "frames", "earlier.jpg"), Buffer.alloc(2048, 1))
+    expect((await agent.restart()).status).toBe("resumed")
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    const jpeg = Buffer.alloc(64, 0x42).toString("base64")
+    const refused = await page.post(page.envelope("frame", { id: "frame_1", t: 1, route: "/", kind: "gesture", jpeg_base64: jpeg }, 2))
+    expect(refused.status).toBe(507)
+    expect(refused.body).toMatchObject({ reason: "disk_cap", acked_seq: 1 })
+    // The page keeps seq 2 and re-sends it without the image.
+    const replaced = await page.post(page.envelope("frame", { id: "frame_1", t: 1, route: "/", kind: "gesture", jpeg_base64: "", dropped: "quota" }, 2))
+    expectOk(replaced)
+    expect(replaced.body.acked_seq).toBe(2)
+    expectOk(await page.sendCheckpoint("ck1", "silence", "smart"))
+    expect((await agent.waitHttp()).envelope!.units.map((unit) => unit.id)).toEqual(["u1"])
+  })
+
   test("an archive upload the previous process did not finish is removed on start and no longer counts against the disk cap", async () => {
     // Cap small enough that a stale partial would refuse a complete archive that fits on its own.
     const agent = await startAgent({ env: { CE_LIVE_DISK_CAP_BYTES: "4096" } })

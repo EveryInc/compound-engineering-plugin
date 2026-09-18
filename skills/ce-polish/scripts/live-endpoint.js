@@ -677,6 +677,21 @@ function directorySize(dir) {
   return total
 }
 
+// Statuses at which the agent is finished with a unit. A released unit at
+// any other status (triaging, accepted, needs_info, working, or one a later
+// build adds) is close-out work the agent still owes: only its own
+// `applied`/`blocked` post retires it. Units never released to the agent
+// (`initial`) are not its work.
+const TERMINAL_UNIT_STATUSES = new Set(["applied", "blocked", "withdrawn"])
+
+function unitsPendingCloseOut(board) {
+  if (!isRecord(board) || !Array.isArray(board.unit_order) || !isRecord(board.units)) return false
+  return board.unit_order.some((id) => {
+    const unit = Object.hasOwn(board.units, id) ? board.units[id] : undefined
+    return isRecord(unit) && unit.released === true && !TERMINAL_UNIT_STATUSES.has(unit.status)
+  })
+}
+
 // A `.part` in state/log/ is an archive upload the previous process did not
 // finish: the page retries Done with the whole archive, so the partial holds
 // no evidence and must not count against the disk cap that retry is checked
@@ -892,22 +907,14 @@ function rotateLog(options) {
   ensureDirs(options)
 }
 
-// Statuses the agent still has to move before a session's close-out is
-// complete; `initial` units were never released to it.
-const CLOSE_OUT_PENDING_STATUSES = new Set(["triaging", "accepted", "needs_info"])
-
 // Work the agent still owes this root: a batch on disk (served or not, never
 // acknowledged), or a released unit the board holds at a status only the
 // agent's `applied`/`blocked` post can retire. An ended session that holds
-// work resumes on `start`, and `wait` sends the agent back to `start` for it.
+// work resumes on `start`, `wait` sends the agent back to `start` for it,
+// and the page cannot open a new session over it.
 function sessionHoldsWork(options) {
   if (loadBatches(options).length > 0) return true
-  const board = readJsonOrNull(options.boardFile)
-  if (!board || !Array.isArray(board.unit_order) || !isRecord(board.units)) return false
-  return board.unit_order.some((id) => {
-    const unit = Object.hasOwn(board.units, id) ? board.units[id] : undefined
-    return isRecord(unit) && CLOSE_OUT_PENDING_STATUSES.has(unit.status)
-  })
+  return unitsPendingCloseOut(readJsonOrNull(options.boardFile))
 }
 
 function endedAndDrained(options) {
@@ -1544,9 +1551,11 @@ async function serve(options) {
   }
 
   // Nothing of the ended session is still owed to the agent: every batch is
-  // acknowledged and no /session/end upload is in flight.
+  // acknowledged, every released unit is terminal, and no /session/end
+  // upload is in flight. Until then a new session id is refused rather than
+  // erasing a board the agent still has to reconcile.
   function drained() {
-    return batches.length === 0 && !endingInFlight
+    return batches.length === 0 && !endingInFlight && !unitsPendingCloseOut(board)
   }
 
   // A new session id on an ended, drained board: what a fresh `start` on an
@@ -1909,7 +1918,12 @@ async function serve(options) {
         return
       }
     }
-    if (loneFrame && logBytes + reservedBytes + body.size > DISK_CAP_BYTES) {
+    // The cap guards image bytes. A frame the page already dropped (`dropped`
+    // set, no image kept) stores only its metadata line, and it is how the
+    // page keeps the sequence moving once the cap is reached, so refusing it
+    // would hold every later event behind that seq.
+    const storesImage = loneFrame && !envelopes[0].payload.dropped
+    if (storesImage && logBytes + reservedBytes + body.size > DISK_CAP_BYTES) {
       sendJson(res, 507, { reason: "disk_cap", stream_state: "buffering", max_bytes: DISK_CAP_BYTES, acked_seq: board.acked_seq }, corsHeaders())
       return
     }

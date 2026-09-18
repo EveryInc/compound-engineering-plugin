@@ -597,6 +597,9 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     expect((await probe(pageAuth)).body).toEqual({ status: "ended", session_id: page.sessionId, accepts_new_session: false })
     const final = await agent.waitHttp()
     expectOk(await agent.ack(final.envelope!.checkpoint_id))
+    // Acknowledged, but u1 is still the agent's to finish: not drained until its status is terminal.
+    expect((await probe(pageAuth)).body).toEqual({ status: "ended", session_id: page.sessionId, accepts_new_session: false })
+    expectOk(await agent.postStatus("u1", "applied"))
     expect((await probe(pageAuth)).body).toEqual({ status: "ended", session_id: page.sessionId, accepts_new_session: true })
   })
 
@@ -619,6 +622,14 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     expect(final.envelope!.kind).toBe("final")
     expectOk(await agent.ack(final.envelope!.checkpoint_id))
     expect((await agent.waitCli()).exitCode).toBe(1)
+
+    // The ack alone does not drain the session: u1 is still triaging, so a new
+    // session id is refused until the agent's close-out has moved it.
+    const tooEarly = await pageFor(agent.url, agent.pageToken, "sess_second").sendUnit("u2", "make the footer blue")
+    expect(tooEarly.status).toBe(409)
+    expect(tooEarly.body).toEqual({ error: "previous_session_draining" })
+    expectOk(await agent.postStatus("u1", "blocked", { note: "session ended before apply" }))
+    expect(await agent.board()).toMatchObject({ session_id: "sess_first", ended: true })
 
     const second = pageFor(agent.url, agent.pageToken, "sess_second")
     await second.openStream()
@@ -677,10 +688,11 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
 
     expect(await agent.board()).toMatchObject({ session_id: "sess_first", ended: true })
     expect((await fs.readdir(agent.stateDir)).filter((name) => name.startsWith("log-ended-"))).toEqual([])
-    // The held batch is still served; once it is acked the new session opens.
+    // The held batch is still served; once it is acked and its unit is terminal the new session opens.
     const final = await agent.waitHttp()
     expect(final.envelope!.kind).toBe("final")
     expectOk(await agent.ack(final.envelope!.checkpoint_id))
+    expectOk(await agent.postStatus("u1", "applied"))
     expectOk(await second.sendUnit("u2", "make the footer blue"))
     expect(await agent.board()).toMatchObject({ session_id: "sess_second", ended: false })
   })
