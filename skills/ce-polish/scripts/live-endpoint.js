@@ -32,6 +32,10 @@ const STREAM_FLUSH_MS = Number(process.env.CE_LIVE_STREAM_FLUSH_MS) || 300
 const FRAME_BODY_LIMIT = 2 * 1024 * 1024
 const ARCHIVE_BODY_LIMIT = Number(process.env.CE_LIVE_ARCHIVE_LIMIT_BYTES) || 400 * 1024 * 1024
 const DISK_CAP_BYTES = Number(process.env.CE_LIVE_DISK_CAP_BYTES) || 500 * 1024 * 1024
+// An archive upload streams into `archive.<ext>.<uuid>.part` and is renamed
+// once complete; a `.part` found at startup is an upload the previous process
+// did not finish.
+const ARCHIVE_PART_SUFFIX = ".part"
 const BRIEF_MAX_CHARS = 3000
 // Envelopes held ahead of a sequence gap before early arrivals are dropped for replay.
 const OUT_OF_ORDER_CAP = 512
@@ -421,14 +425,33 @@ function processArgs(pid) {
   }
 }
 
-function ownsServerProcess(options, pid) {
+// Whether the process behind state/server.pid is this root's endpoint:
+// `owned`, `foreign` (the PID was reused by something else), or `unknown`
+// (the command line could not be inspected). The helper is matched by its
+// file name, not the path it was launched from: a session resumed from a
+// newer plugin checkout, or a foreground helper started as
+// `node live-endpoint.js`, is still the same endpoint for this root.
+function inspectServerProcess(options, pid) {
   const args = processArgs(pid)
-  // Process-command inspection is best-effort; when unavailable, fall back to
-  // PID-file behavior so stop still works on platforms without a compatible ps.
-  if (args === null) return true
-  if (!args.includes(scriptPath) || !args.includes(options.root)) return false
+  if (args === null) return "unknown"
   const tokens = args.split(/\s+/)
-  return tokens.includes("serve") || tokens.includes("start")
+  const isHelper = tokens.some((token) => path.basename(token) === path.basename(scriptPath))
+  const forThisRoot = args.includes(options.root)
+  const serving = tokens.includes("serve") || tokens.includes("start")
+  return isHelper && forThisRoot && serving ? "owned" : "foreign"
+}
+
+function ownsServerProcess(options, pid) {
+  return inspectServerProcess(options, pid) === "owned"
+}
+
+// A live PID whose ownership cannot be verified is never signalled and never
+// displaced: the caller stops with the PID named rather than risk killing an
+// unrelated process or launching a second writer beside the real endpoint.
+function requireInspectableProcess(options, pid) {
+  if (processAlive(pid) && inspectServerProcess(options, pid) === "unknown") {
+    throw new Error(`Cannot verify that process ${pid} (state/server.pid) is this root's endpoint: process inspection (ps) is unavailable. Stop it yourself if it is, then remove ${options.pidFile}`)
+  }
 }
 
 function resolveOwnerPid() {
@@ -623,6 +646,24 @@ function directorySize(dir) {
   return total
 }
 
+// A `.part` in state/log/ is an archive upload the previous process did not
+// finish: the page retries Done with the whole archive, so the partial holds
+// no evidence and must not count against the disk cap that retry is checked
+// against.
+function removeOrphanedArchiveParts(logDir) {
+  let entries
+  try {
+    entries = fs.readdirSync(logDir, { withFileTypes: true })
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name.startsWith("archive.") && entry.name.endsWith(ARCHIVE_PART_SUFFIX)) {
+      bestEffort(() => fs.rmSync(path.join(logDir, entry.name), { force: true }))
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Board: the persisted session state `GET /status` and the `status` CLI read.
 // ---------------------------------------------------------------------------
@@ -752,6 +793,7 @@ async function startLocked(options) {
     return
   }
   if (running) await stopServer(options)
+  requireInspectableProcess(options, readPid(options))
   fs.rmSync(options.pidFile, { force: true })
   const previous = readSession(options)
 
@@ -819,9 +861,31 @@ function rotateLog(options) {
   ensureDirs(options)
 }
 
+// Statuses the agent still has to move before a session's close-out is
+// complete; `initial` units were never released to it.
+const CLOSE_OUT_PENDING_STATUSES = new Set(["triaging", "accepted", "needs_info"])
+
+// Work the agent still owes this root: a batch on disk (served or not, never
+// acknowledged), or a released unit the board holds at a status only the
+// agent's `applied`/`blocked` post can retire. An ended session that holds
+// work resumes on `start`, and `wait` sends the agent back to `start` for it.
+function sessionHoldsWork(options) {
+  if (loadBatches(options).length > 0) return true
+  const board = readJsonOrNull(options.boardFile)
+  if (!board || !Array.isArray(board.unit_order) || !isRecord(board.units)) return false
+  return board.unit_order.some((id) => {
+    const unit = Object.hasOwn(board.units, id) ? board.units[id] : undefined
+    return isRecord(unit) && CLOSE_OUT_PENDING_STATUSES.has(unit.status)
+  })
+}
+
 function endedAndDrained(options) {
   const stopped = readSession(options)
-  return Boolean(stopped?.ended) && loadBatches(options).length === 0
+  if (!stopped?.ended) return false
+  // `stop` retired the tokens: nothing can be posted against this session
+  // any more, so whatever the board still holds is terminal as it stands.
+  if (!stopped.agent_token) return true
+  return !sessionHoldsWork(options)
 }
 
 function exitSessionEnded() {
@@ -883,6 +947,7 @@ async function wait(options) {
 
 async function stopServer(options) {
   const pid = readPid(options)
+  requireInspectableProcess(options, pid)
   if (processAlive(pid) && ownsServerProcess(options, pid)) {
     process.kill(pid)
     for (let i = 0; i < 20; i++) {
@@ -1067,9 +1132,12 @@ async function serve(options) {
   // Resume when a live session file exists for this root; otherwise mint a
   // fresh pair of credentials and start a new board.
   const previous = readSession(options)
-  // An ended session whose agent token is still retained is draining its
-  // final batch; it resumes too, so the batch survives a restart.
-  const draining = Boolean(previous?.ended && previous.agent_token && loadBatches(options).length > 0)
+  // An ended session whose agent token is still retained resumes while the
+  // agent still owes it close-out work: a batch not yet acknowledged, or a
+  // unit the board holds at triaging/accepted/needs_info that the resumed
+  // run must apply or mark blocked. Only a drained, reconciled ended root
+  // starts fresh.
+  const draining = Boolean(previous?.ended && previous.agent_token && sessionHoldsWork(options))
   const resuming = Boolean(previous && previous.agent_token && ((!previous.ended && previous.page_token) || draining))
   // A resume keeps the previous bind host unless the caller names a new one;
   // the documented recovery is a bare `start --root <dir>` again.
@@ -1084,13 +1152,23 @@ async function serve(options) {
     if (previous?.ended) rotateLog(options)
   }
   const board = resuming ? { ...emptyBoard(), ...(readJsonOrNull(options.boardFile) ?? {}) } : emptyBoard()
-  const batches = resuming ? loadBatches(options) : []
+  // A batch file whose checkpoint the board already records as acknowledged
+  // is the retirement half of an ack that did not finish; it is not served again.
+  const batches = []
+  for (const batch of resuming ? loadBatches(options) : []) {
+    if (board.acked_checkpoint_ids.includes(batch.envelope.checkpoint_id)) {
+      bestEffort(() => fs.rmSync(path.join(options.batchesDir, `${encodeURIComponent(batch.envelope.checkpoint_id)}.json`), { force: true }))
+    } else {
+      batches.push(batch)
+    }
+  }
   let batchOrder = batches.reduce((max, batch) => Math.max(max, batch.order), 0)
   const port = options.port ?? (resuming && Number.isInteger(previous.port) ? previous.port : 0)
 
   const eventsLog = path.join(options.logDir, "events.ndjson")
   const agentLog = path.join(options.logDir, "agent.ndjson")
   const framesDir = path.join(options.logDir, "frames")
+  removeOrphanedArchiveParts(options.logDir)
   let logBytes = directorySize(options.logDir)
   let session = null
   let waiter = null
@@ -1345,6 +1423,37 @@ async function serve(options) {
     }
   }
 
+  // The watch set by an applied notice is one-shot: it ends when the page
+  // reconnects, or once the grace window passes with the stream still up
+  // (the edit did not take the page down). Without that expiry, a stream
+  // that never dropped would carry the watch to the next ordinary disconnect.
+  let watchForLossTimer = null
+
+  function clearWatchForLoss() {
+    if (watchForLossTimer) {
+      clearTimeout(watchForLossTimer)
+      watchForLossTimer = null
+    }
+    if (board.watch_for_loss) board.watch_for_loss = false
+  }
+
+  function watchForLoss() {
+    board.watch_for_loss = true
+    saveBoard()
+    if (streamClients.size === 0) {
+      armPageLost()
+      return
+    }
+    if (watchForLossTimer) clearTimeout(watchForLossTimer)
+    watchForLossTimer = setTimeout(() => {
+      watchForLossTimer = null
+      if (streamClients.size === 0 || board.ended) return
+      clearWatchForLoss()
+      saveBoard()
+    }, PAGE_LOST_GRACE_MS)
+    watchForLossTimer.unref()
+  }
+
   // --- session end -----------------------------------------------------------
 
   // /session/end ends the board, not the tokens. The page token stays valid so
@@ -1398,6 +1507,7 @@ async function serve(options) {
     reservedBytes = 0
     logBytes = 0
     disarmPageLost()
+    clearWatchForLoss()
     saveBoard()
     saveSession({ ended: false })
     logAgent({ kind: "session_opened", session_id: sessionId })
@@ -1669,6 +1779,13 @@ async function serve(options) {
       } catch (error) {
         heldNotices = null
         undo()
+        // A buffered envelope that failed leaves the buffer: the page retries
+        // it from the returned acked_seq, and that retry must be admitted
+        // rather than skipped as a duplicate of the entry still held here.
+        if (outOfOrder.get(next.envelope.seq) === next) {
+          outOfOrder.delete(next.envelope.seq)
+          reservedBytes -= next.reserved
+        }
         throw error
       }
       const notices = heldNotices
@@ -1759,6 +1876,7 @@ async function serve(options) {
     // A page that just reloaded, or reconnected after a flushed response,
     // reconciles its board from these: every unit the endpoint has moved,
     // with the note or guess that moved it, and any question still open.
+    let replayed = false
     for (const id of board.unit_order) {
       const unit = unitById(id)
       if (!unit.released && unit.status !== "withdrawn") continue
@@ -1766,12 +1884,19 @@ async function serve(options) {
       if (typeof unit.note === "string") status.note = unit.note
       if (typeof unit.guess === "string") status.guess = unit.guess
       res.write(`event: unit_status\ndata: ${JSON.stringify(status)}\n\n`)
+      replayed = true
       if (unit.status === "needs_info" && typeof unit.question === "string") {
         res.write(`event: ask\ndata: ${JSON.stringify({ unit_id: id, question: unit.question })}\n\n`)
       }
     }
     streamClients.add(res)
+    // Replayed state is a delivery like any other: behind a buffering tunnel
+    // the page sees it only once this response completes.
+    if (replayed) scheduleStreamFlush()
     disarmPageLost()
+    // The page is back, so the edit it was watched for did not take it down;
+    // a later disconnect (closing the tab, navigating away) is not a loss.
+    clearWatchForLoss()
     board.page.stream = "connected"
     saveBoard()
     touch()
@@ -1907,20 +2032,32 @@ async function serve(options) {
       return
     }
     endingInFlight = true
-    const remaining = Math.max(0, Math.min(ARCHIVE_BODY_LIMIT, DISK_CAP_BYTES - logBytes))
+    // The cap counts what is on disk plus what is still landing: frames held
+    // ahead of a gap and this archive as it streams in. The archive's bytes
+    // are reserved chunk by chunk, so concurrent /events frames see the same
+    // shrinking budget instead of the free space the archive is filling.
+    const remaining = Math.max(0, Math.min(ARCHIVE_BODY_LIMIT, DISK_CAP_BYTES - logBytes - reservedBytes))
     const archivePath = path.join(options.logDir, `archive.${archiveExtension(req.headers["content-type"])}`)
-    const tmpPath = `${archivePath}.${randomUUID()}.part`
+    const tmpPath = `${archivePath}.${randomUUID()}${ARCHIVE_PART_SUFFIX}`
     const out = fs.createWriteStream(tmpPath, { mode: 0o600 })
     let size = 0
     let tooLarge = false
+    let archiveReserved = 0
+    const releaseArchiveReservation = () => {
+      reservedBytes -= archiveReserved
+      archiveReserved = 0
+    }
     req.on("data", (chunk) => {
       size += chunk.length
       if (tooLarge) return
       if (size > remaining) {
         tooLarge = true
+        releaseArchiveReservation()
         out.destroy()
         return
       }
+      reservedBytes += chunk.length
+      archiveReserved += chunk.length
       // Pause the upload while the disk catches up; a fast sender must not
       // park the archive in process memory.
       if (!out.write(chunk)) {
@@ -1935,6 +2072,7 @@ async function serve(options) {
       if (failed || tooLarge) return
       failed = true
       endingInFlight = false
+      releaseArchiveReservation()
       req.pause()
       // The response must not depend on another write to the disk that just failed.
       sendJson(res, 500, { error: "archive_write_failed", code: error.code ?? null }, corsHeaders())
@@ -1943,6 +2081,7 @@ async function serve(options) {
     })
     req.on("error", () => {
       endingInFlight = false
+      releaseArchiveReservation()
       out.destroy()
       bestEffort(() => fs.rmSync(tmpPath, { force: true }))
     })
@@ -1971,6 +2110,8 @@ async function serve(options) {
         } else {
           bestEffort(() => fs.rmSync(tmpPath, { force: true }))
         }
+        // Landed bytes are counted in logBytes now, not as a reservation.
+        releaseArchiveReservation()
         touch()
         // The overlay's Done control sends the `final` checkpoint before
         // /session/end; a page that ended without one still hands the agent
@@ -2022,10 +2163,20 @@ async function serve(options) {
       sendJson(res, 404, { error: "unknown checkpoint" })
       return
     }
-    batches.splice(index, 1)
-    fs.rmSync(batchFile(checkpointId), { force: true })
+    // The acknowledgment is durable before the batch file goes: a board save
+    // that fails leaves the batch in place and answers 500, so the agent
+    // retries the ack; a batch file that outlives its recorded ack is dropped
+    // at the next start instead of being served again.
     board.acked_checkpoint_ids.push(checkpointId)
-    bestEffort(() => saveBoard())
+    try {
+      saveBoard()
+    } catch (error) {
+      board.acked_checkpoint_ids.pop()
+      sendJson(res, 500, { error: "storage_failed", code: error.code ?? null, checkpoint_id: checkpointId })
+      return
+    }
+    batches.splice(index, 1)
+    bestEffort(() => fs.rmSync(batchFile(checkpointId), { force: true }))
     bestEffort(() => logAgent({ kind: "ack", checkpoint_id: checkpointId }))
     touch()
     sendJson(res, 200, { ok: true, checkpoint_id: checkpointId })
@@ -2057,9 +2208,7 @@ async function serve(options) {
     broadcast("unit_status", notice)
     if (parsed.status === "applied") {
       broadcast("applied", { checkpoint_id: unit.checkpoint_id ?? null, unit_ids: [unitId] })
-      board.watch_for_loss = true
-      saveBoard()
-      if (streamClients.size === 0) armPageLost()
+      watchForLoss()
     }
     touch()
     sendJson(res, 200, { ok: true, unit_id: unitId, status: parsed.status })
