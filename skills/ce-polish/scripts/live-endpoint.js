@@ -53,8 +53,9 @@ const ALWAYS_WAKE_KINDS = new Set(["answer", "mode_change", "final"])
 const EXECUTION_MODES = new Set(["instant", "smart", "collect"])
 const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 // Agent-postable unit statuses: riffrec's UnitStatus set minus `initial`.
-const AGENT_UNIT_STATUSES = new Set(["triaging", "accepted", "needs_info", "applied", "blocked", "withdrawn"])
+const AGENT_UNIT_STATUSES = new Set(["triaging", "accepted", "needs_info", "working", "applied", "blocked", "withdrawn"])
 const UNIT_STATUSES = new Set(["initial", ...AGENT_UNIT_STATUSES])
+const AGENT_AWAY_GRACE_MS = 15_000
 
 // Payload shapes, ported from riffrec's `isPayloadFor` (src/live/contract.ts)
 // so a malformed event is refused before it is acknowledged.
@@ -272,6 +273,7 @@ const INTERVIEWER_PERSONA = [
   "Never invent anchors. Use only the anchor ids the page announced or the element references the riffer named. When the riffer names no element and no anchor was announced, record the unit with an empty anchors list.",
   "When the riffer takes back a change, call withdraw_unit and acknowledge it aloud in a few words. When they refine a change already on the board, call update_unit; if it is rejected because the unit was already picked up, record the refinement as a new unit.",
   "When a note marked [ENDPOINT QUESTION] arrives, read the question to the riffer in your own words at the next pause and, once they answer, call relay_answer with their answer for that unit. Never answer such a question yourself.",
+  "When the riffer asks to compound, to capture what was learned, or to remember a decision for next time, record one unit whose statement starts with \"/ce-compound:\" followed by what to capture, with an empty anchors list, and say in a few words that it will be compounded.",
   "Keep every spoken turn under two sentences. Speak the riffer's language.",
   SCREEN_CONTEXT_SECTION,
 ].join("\n\n")
@@ -1094,6 +1096,28 @@ async function serve(options) {
   let logBytes = directorySize(options.logDir)
   let session = null
   let waiter = null
+  // What the agent is actually doing, for the page: "listening" while a wait is
+  // parked, "working" from the moment a batch is served until the next wait,
+  // "away" when no wait has parked for a while.
+  let agentState = { state: "away", since: Date.now() }
+  let agentAwayTimer = null
+  function setAgentState(state, extra = {}) {
+    if (state !== "away" && agentAwayTimer) {
+      clearTimeout(agentAwayTimer)
+      agentAwayTimer = null
+    }
+    if (agentState.state === state && !extra.checkpoint_id) return
+    agentState = { state, since: Date.now(), ...extra }
+    broadcast("agent", agentState)
+  }
+  function agentMaybeAway() {
+    if (agentAwayTimer || agentState.state === "working") return
+    agentAwayTimer = setTimeout(() => {
+      agentAwayTimer = null
+      if (!waiter) setAgentState("away")
+    }, AGENT_AWAY_GRACE_MS)
+    agentAwayTimer.unref?.()
+  }
   const streamClients = new Set()
   const outOfOrder = new Map()
   let endingInFlight = false
@@ -1146,7 +1170,8 @@ async function serve(options) {
     }
     // An ack rides every POST and the page already has it in that POST's
     // response; ending the stream for it would keep the page reconnecting.
-    if (event !== "ack") scheduleStreamFlush()
+    // The agent state changes on every wait; it rides the stream without forcing a reconnect.
+    if (event !== "ack" && event !== "agent") scheduleStreamFlush()
   }
 
   // A stream response is ended shortly after a delivery. Some TLS-terminating
@@ -1302,6 +1327,7 @@ async function serve(options) {
       batch.served = true
       persistBatch(batch)
       sendJson(takeWaiter(), 200, batch.envelope)
+      setAgentState("working", { checkpoint_id: batch.envelope.checkpoint_id })
       return
     }
     if (board.page_lost_pending) {
@@ -1773,6 +1799,7 @@ async function serve(options) {
     res.flushHeaders()
     res.write(":ok\n\n")
     res.write(`event: ack\ndata: ${JSON.stringify({ acked_seq: board.acked_seq })}\n\n`)
+    res.write(`event: agent\ndata: ${JSON.stringify(agentState)}\n\n`)
     // A page that just reloaded, or reconnected after a flushed response,
     // reconciles its board from these: every unit the endpoint has moved,
     // with the note or guess that moved it, and any question still open.
@@ -2018,12 +2045,17 @@ async function serve(options) {
         res.writeHead(204)
         res.end()
       }
+      agentMaybeAway()
     }, WAIT_TIMEOUT_MS)
     waiter = parked
     req.on("close", () => {
       clearTimeout(parked.timer)
-      if (waiter === parked) waiter = null
+      if (waiter === parked) {
+        waiter = null
+        agentMaybeAway()
+      }
     })
+    setAgentState("listening")
     fulfillWaiter()
   }
 
