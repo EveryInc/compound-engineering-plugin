@@ -23,6 +23,15 @@ describe("skill-eval pack CLI", () => {
     expect(r.stderr).toContain("unknown argument: --hlep")
   })
 
+  test("a value flag with no value is refused instead of taking its default", () => {
+    for (const args of [["--all", "--arm"], ["--all", "--hosts", "--arm", "post"]]) {
+      const r = pack(...args)
+      expect(r.status, args.join(" ")).toBe(2)
+      expect(r.stderr).toContain("needs a value")
+      expect(r.stdout).not.toContain("running ")
+    }
+  })
+
   test("no selector is refused; the whole catalog needs --all", () => {
     const r = pack("--arm", "post")
     expect(r.status).toBe(2)
