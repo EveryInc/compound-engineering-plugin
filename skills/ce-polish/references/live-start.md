@@ -8,7 +8,7 @@ The helper is `scripts/live-endpoint.js`, a Node program with the subcommands `s
 
 ## Preconditions
 
-- **OpenAI key.** The endpoint mints the voice interviewer's ephemeral secret from `OPENAI_API_KEY` in its own environment. Check that the variable is set without printing its value, for example `sh -c 'test -n "$OPENAI_API_KEY" && echo present || echo missing'`. Missing: name the variable, say live mode cannot start without it, and offer traditional. Do not read the key from any file or app configuration.
+- **OpenAI key.** The endpoint mints the voice interviewer's ephemeral secret from `OPENAI_API_KEY` in its own environment, or from a key the riffer pastes into the page (sent as `X-Riffrec-OpenAI-Key`, kept in that browser's `localStorage`). Check the variable in the same shell that will run `start`, without printing its value: `sh -c 'test -n "$OPENAI_API_KEY" && echo present || echo missing'`. Missing: say so before handing over any URL, in these words: "`OPENAI_API_KEY` is not set, so voice will be off. Either export it and I restart the endpoint, or paste your key into the panel's key box after you accept." Continue only when the riffer picks one; never hand over a link that will silently open with voice off. Do not read the key from any file or app configuration.
 - **React host.** Riffrec is a React package. Live mode runs on the React-hosting recipes of this skill (Vite with React, Next, Remix, Rails with Inertia React through the Procfile recipe). On a project whose classification is not one of those, say live mode needs a React app and offer traditional.
 - **Node.** The helper runs on Node; the dev-server recipes already assume it.
 
@@ -47,6 +47,16 @@ Add `--owner-pid <pid>` only when the harness exposes the process id of the agen
 `start` prints one JSON line: `url` (the endpoint origin), `port`, and `page_token`. That is the only place the page token appears; the agent token never prints and lives in `$LIVE_ROOT/state/session.json` for `wait` and your own posts. Do not echo that file. Add `--host <interface>` and `--port <n>` only for a remote session, per `references/live-remote.md`, where `--app-origin` is the tunnel or LAN origin.
 
 `status --root "$LIVE_ROOT"` prints the board summary at any time; `stop --root "$LIVE_ROOT"` retires both tokens (`/session/end` retires neither, so the same link can start another session) and keeps `state/log/`. Owner death and idle timeout stop the process but not the session. Recovery is a bare `start --root "$LIVE_ROOT"`: against a state file whose agent token has not been retired by `stop` (the session may already have ended on the page side) it is a resume that reuses the stored tokens, board, app origin, bind host, and trusted proxies, prefers the old port, and prints `status: "resumed"`. The riffer's URL and page keep working unless the old port was taken; `references/live-loop.md` (exit 2) says what to do then. Two starts on one root at the same time are refused by `state/start.lock`; wait for the first.
+
+## Restarting and reconnecting
+
+Every (re)start of live mode, including "restart the server", runs this whole checklist; a partial restart is the usual way a session ends up dead or voiceless:
+
+1. **Check what is still alive.** `status --root "$LIVE_ROOT"` for the endpoint and a reachability probe of the app URL. A dead endpoint with an unstopped root: resume with a bare `start --root "$LIVE_ROOT"` (same link keeps working when the port is unchanged). Only when that fails or the origin changed, start a fresh root, and say plainly: "The old link is dead; use this new one."
+2. **Re-check the OpenAI key** per Preconditions. A fresh shell may not carry `OPENAI_API_KEY`; say so before the handoff, never after the riffer finds voice off.
+3. **Restart the dev server** only through `references/run.md`, in the background, and confirm it answers before the handoff.
+4. **Hand off the (new) URL** per "Probe and hand off", then **park the wait loop** from `references/live-loop.md` immediately once the consent screen is confirmed. Starting the endpoint without a parked wait leaves checkpoints with nobody to act on them; "restart" always means endpoint, dev server, handoff, and wait.
+5. **Tell the riffer what changed** in one short block: which link to use, whether voice will be on, and that the loop is running.
 
 ## Session brief
 
