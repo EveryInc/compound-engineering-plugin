@@ -184,6 +184,41 @@ describe("live endpoint recovery: intake", () => {
   })
 })
 
+describe("live endpoint recovery: unit transitions", () => {
+  test("a status or ask whose board save fails answers 500 and leaves the unit as it was; the retry lands", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expectOk(await page.sendCheckpoint("ck1", "silence", "smart"))
+    const wake = await agent.waitHttp()
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
+    const unitStatus = async () => ((await agent.statusHttp()).body.units as { list: Array<{ id: string; status: string }> }).list.find((unit) => unit.id === "u1")!.status
+    expect(await unitStatus()).toBe("triaging")
+
+    const boardFile = path.join(agent.stateDir, "board.json")
+    const boardBackup = await fs.readFile(boardFile)
+    await fs.rm(boardFile)
+    await fs.mkdir(boardFile)
+    const failedStatus = await agent.postStatus("u1", "applied", { note: "done" })
+    expect(failedStatus.status).toBe(500)
+    expect(failedStatus.body).toMatchObject({ error: "storage_failed", unit_id: "u1" })
+    expect(await unitStatus()).toBe("triaging")
+    const failedAsk = await agent.ask("u1", "Which red?")
+    expect(failedAsk.status).toBe(500)
+    expect(await unitStatus()).toBe("triaging")
+
+    await fs.rmdir(boardFile)
+    await fs.writeFile(boardFile, boardBackup)
+    // The failed applied post armed no page-loss watch either.
+    expect((await agent.board()).watch_for_loss).toBe(false)
+    expectOk(await agent.postStatus("u1", "applied", { note: "done" }))
+    expect(await unitStatus()).toBe("applied")
+    const persisted = (await agent.board()).units as Record<string, { status: string; note?: string; question?: string }>
+    expect(persisted.u1).toMatchObject({ status: "applied", note: "done" })
+    expect(persisted.u1.question).toBeUndefined()
+  })
+})
+
 describe("live endpoint recovery: refusals under load", () => {
   test("a lone frame far past the hard ceiling still receives the contract's 413 instead of a connection reset", async () => {
     const agent = await startAgent()
@@ -286,6 +321,32 @@ describe("live endpoint recovery: process ownership", () => {
     const stopped = await runFrom(otherScript, ["stop", "--root", agent.root])
     expect(stopped.exitCode, stopped.stderr).toBe(0)
     await waitUntil(async () => !(await agent.listening()))
+  })
+
+  test("a pidfile pointing at a sibling root's helper whose --root merely extends this one is foreign: stop leaves that helper running", async () => {
+    const parent = await mkScratch("ce-polish-sibling-roots-")
+    const root = path.join(parent, "root")
+    const sibling = path.join(parent, "root-other")
+    await fs.mkdir(root)
+    await fs.mkdir(sibling)
+    const agent = await startAgent({ root })
+    const other = await startAgent({ root: sibling })
+    const ownPid = await agent.serverPid()
+    const otherPid = await other.serverPid()
+    expect(ownPid).not.toBeNull()
+    expect(otherPid).not.toBeNull()
+
+    // A reused PID: this root's pidfile names the sibling's live helper.
+    await fs.writeFile(path.join(agent.stateDir, "server.pid"), `${otherPid}\n`)
+    expect(await agent.statusCli()).toMatchObject({ status: "stopped" })
+    const stopped = await agent.stopCli()
+    expect(stopped.exitCode, stopped.stderr).toBe(0)
+    expect(await other.listening()).toBe(true)
+    expect(await other.statusCli()).toMatchObject({ status: "running" })
+
+    // Put the real PID back so the orphaned helper is stopped with its root.
+    await fs.writeFile(path.join(agent.stateDir, "server.pid"), `${ownPid}\n`)
+    expect(await agent.listening()).toBe(true)
   })
 
   test("without a usable ps, stop and start refuse to touch or displace the live PID instead of treating it as the endpoint", async () => {

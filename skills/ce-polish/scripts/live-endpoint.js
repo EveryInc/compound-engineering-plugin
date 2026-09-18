@@ -442,9 +442,16 @@ function inspectServerProcess(options, pid) {
   if (args === null) return "unknown"
   const tokens = args.split(/\s+/)
   const isHelper = tokens.some((token) => path.basename(token) === path.basename(scriptPath))
-  const forThisRoot = args.includes(options.root)
+  // The root is the exact `--root` argument, bounded on both sides, so a
+  // sibling root that merely extends this one (`.../root-other`) is foreign.
+  const rootArgument = new RegExp(`(^|\\s)--root\\s+${escapeRegExp(options.root)}(\\s|$)`)
+  const forThisRoot = rootArgument.test(args)
   const serving = tokens.includes("serve") || tokens.includes("start")
   return isHelper && forThisRoot && serving ? "owned" : "foreign"
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function ownsServerProcess(options, pid) {
@@ -2253,6 +2260,24 @@ async function serve(options) {
     sendJson(res, 200, { ok: true, checkpoint_id: checkpointId })
   }
 
+  // An agent's unit transition is visible (to /status, the stream, and a
+  // later board save) only once the board commit holds it. A save that
+  // fails restores the unit's prior fields and answers 500, so the agent
+  // retries against a board that still reads as it did before the post.
+  function commitUnit(res, unit, transition) {
+    const before = { ...unit }
+    transition()
+    try {
+      saveBoard()
+    } catch (error) {
+      for (const key of Object.keys(unit)) delete unit[key]
+      Object.assign(unit, before)
+      sendJson(res, 500, { error: "storage_failed", code: error.code ?? null, unit_id: unit.id })
+      return false
+    }
+    return true
+  }
+
   async function handleUnitStatus(req, res, unitId) {
     const body = await readBody(req, BODY_LIMIT)
     const parsed = body.tooLarge ? null : parseJsonObject(body.text)
@@ -2270,10 +2295,12 @@ async function serve(options) {
       sendJson(res, 409, { error: "unit withdrawn", unit_id: unitId, status: "withdrawn" })
       return
     }
-    unit.status = parsed.status
-    if (typeof parsed.note === "string") unit.note = parsed.note
-    if (typeof parsed.guess === "string") unit.guess = parsed.guess
-    saveBoard()
+    const transition = () => {
+      unit.status = parsed.status
+      if (typeof parsed.note === "string") unit.note = parsed.note
+      if (typeof parsed.guess === "string") unit.guess = parsed.guess
+    }
+    if (!commitUnit(res, unit, transition)) return
     logAgent({ kind: "unit_status", unit_id: unitId, status: parsed.status, note: parsed.note ?? null, guess: parsed.guess ?? null })
     const notice = { unit_id: unitId, status: parsed.status, ...(parsed.note !== undefined ? { note: parsed.note } : {}), ...(parsed.guess !== undefined ? { guess: parsed.guess } : {}) }
     broadcast("unit_status", notice)
@@ -2301,9 +2328,11 @@ async function serve(options) {
       sendJson(res, 409, { error: "unit withdrawn", unit_id: unitId, status: "withdrawn" })
       return
     }
-    unit.status = "needs_info"
-    unit.question = parsed.question
-    saveBoard()
+    const transition = () => {
+      unit.status = "needs_info"
+      unit.question = parsed.question
+    }
+    if (!commitUnit(res, unit, transition)) return
     logAgent({ kind: "ask", unit_id: unitId, question: parsed.question })
     broadcast("unit_status", { unit_id: unitId, status: "needs_info" })
     broadcast("ask", { unit_id: unitId, question: parsed.question })
