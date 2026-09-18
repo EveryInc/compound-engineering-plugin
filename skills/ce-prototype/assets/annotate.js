@@ -426,8 +426,10 @@
   }
 
   // Hit testing skips pointer-events:none, which is how labels and headlines
-  // laid over a canvas are usually styled. The smallest visible one painted
-  // above the hit element at the point is what was indicated.
+  // laid over a canvas are usually styled. What was indicated is the topmost
+  // painted element at the point with those counted, so every visible one
+  // smaller than the hit element joins a single hit test. One at a time would
+  // let a label win while another unhittable layer is painted over it.
   function unhittableElementAt(x, y, hit) {
     const hitBox = hit.getBoundingClientRect()
     const hitArea = hitBox.width * hitBox.height
@@ -442,25 +444,23 @@
       const visible = el.checkVisibility
         ? el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
         : getComputedStyle(el).visibility === "visible"
-      if (visible) candidates.push({ el, area })
+      if (visible) candidates.push(el)
     }
-    candidates.sort((a, b) => a.area - b.area)
-    const found = candidates.find(({ el }) => paintedOnTopAt(el, x, y))
-    return found ? found.el : null
-  }
-
-  // A box that contains the point can still sit behind the hit element. Made
-  // hittable for one synchronous hit test, an occluded element stays unhit.
-  function paintedOnTopAt(el, x, y) {
-    const value = el.style.getPropertyValue("pointer-events")
-    const priority = el.style.getPropertyPriority("pointer-events")
-    el.style.setProperty("pointer-events", "auto", "important")
+    if (candidates.length === 0) return null
+    const saved = candidates.map((el) => [
+      el,
+      el.style.getPropertyValue("pointer-events"),
+      el.style.getPropertyPriority("pointer-events"),
+    ])
+    for (const el of candidates) el.style.setProperty("pointer-events", "auto", "important")
     try {
       const top = pageElementFromPoint(x, y)
-      return top === el || el.contains(top)
+      return candidates.includes(top) ? top : null
     } finally {
-      if (value) el.style.setProperty("pointer-events", value, priority)
-      else el.style.removeProperty("pointer-events")
+      for (const [el, value, priority] of saved) {
+        if (value) el.style.setProperty("pointer-events", value, priority)
+        else el.style.removeProperty("pointer-events")
+      }
     }
   }
 

@@ -1300,8 +1300,8 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("elementsFromPoint")
     // Hit testing alone cannot see a pointer-events:none label over a canvas.
     expect(overlay).toContain('pointerEvents !== "none"')
-    // A box containing the click can still be painted behind the hit element.
-    expect(overlay).toContain("paintedOnTopAt(el, x, y)")
+    // The pick is the topmost painted candidate from one hit test, never a per-candidate or by-area guess.
+    expect(overlay).toContain("candidates.includes(top) ? top : null")
     expect(overlay).toContain("catcher.hidden = !on")
     const overlayCss = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
     expect(overlayCss).toContain("cursor: crosshair")
