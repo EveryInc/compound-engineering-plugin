@@ -83,7 +83,8 @@ emit() {
 # the start of the line or an ordinary JSX expression prefix (whitespace, `(`,
 # `{`, `=`, `>` of an arrow, `?`, `:`, `,`, `&`, `|`, or the `return` keyword),
 # is followed by whitespace, `>`, or end of line, and is not inside a `//`
-# remainder, a `/* */` or `{/* */}` block, or a quoted string on the same line.
+# remainder, a `/* */` or `{/* */}` block, or a string (a quote on the same
+# line, or a template literal opened on an earlier line).
 has_jsx_mount() {
   # $1 file
   awk '
@@ -100,11 +101,27 @@ has_jsx_mount() {
         line = substr(line, 1, start - 1) substr(line, start + 2 + stop + 1)
       }
       if ((c = index(line, "//")) > 0) line = substr(line, 1, c - 1)
-      if (match(line, /<RiffrecProvider([[:space:]>]|$)/)) {
-        before = substr(line, 1, RSTART - 1)
-        if (index(before, "\"") > 0 || index(before, "\047") > 0 || index(before, "`") > 0) next
-        if (before ~ /(^|[[:space:](){}=>?:,&|]|return)[[:space:]]*$/) { found = 1; exit }
+      # Walk the line as string state: a tag counts only when the scan is
+      # outside every quote at the point it starts, so a quoted sibling
+      # attribute before it (`<main className="app"><RiffrecProvider ...`)
+      # does not hide a real mount, while a tag inside a string does not
+      # count. A template literal (backtick) keeps its state across lines;
+      # a single or double quote does not survive the end of its line.
+      n = length(line)
+      for (i = 1; i <= n; i++) {
+        ch = substr(line, i, 1)
+        if (instr != "") {
+          if (ch == "\\") { i++; continue }
+          if (ch == instr) instr = ""
+          continue
+        }
+        if (ch == "\"" || ch == "\047" || ch == "`") { instr = ch; continue }
+        if (ch == "<" && match(substr(line, i), /^<RiffrecProvider([[:space:]>]|$)/)) {
+          before = substr(line, 1, i - 1)
+          if (before ~ /(^|[[:space:](){}=>?:,&|]|return)[[:space:]]*$/) { found = 1; exit }
+        }
       }
+      if (instr != "`") instr = ""
     }
     END { exit found ? 0 : 1 }
   ' "$1" 2>/dev/null

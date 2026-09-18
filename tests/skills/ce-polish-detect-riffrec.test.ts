@@ -81,6 +81,20 @@ describe("detect-riffrec.sh", () => {
     expect((await detect(root)).mount).toBe(false)
   })
 
+  test("a tag inside a template literal that spans lines is not a mount", async () => {
+    const root = await copyFixture("project-without-riffrec")
+    await fs.writeFile(path.join(root, "src", "snippet.ts"), "const example = `\n  <RiffrecProvider forceEnable live={{}}>\n`\nexport { example }\n")
+    expect((await detect(root)).mount).toBe(false)
+  })
+
+  test("a mount after a quoted sibling attribute on the same line is a mount; a quote inside another string type does not hide it", async () => {
+    const root = await copyFixture("project-without-riffrec")
+    await fs.writeFile(path.join(root, "src", "main.tsx"), '<main className="app"><RiffrecProvider forceEnable live={{}}><App /></RiffrecProvider></main>\n')
+    expect((await detect(root)).mount).toBe(true)
+    await fs.writeFile(path.join(root, "src", "main.tsx"), "<main title=\"it's\">{ok ? <RiffrecProvider forceEnable live={{}}><App /></RiffrecProvider> : null}</main>\n")
+    expect((await detect(root)).mount).toBe(true)
+  })
+
   test("a mount inside node_modules or dist alone is not a mount; an import without the JSX tag is not a mount", async () => {
     const root = await copyFixture("project-without-riffrec")
     await fs.mkdir(path.join(root, "node_modules", "riffrec", "dist"), { recursive: true })
