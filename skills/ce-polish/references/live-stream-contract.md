@@ -72,9 +72,10 @@ Nothing else is served: there is no file route, and every unknown path is 404.
 
 ## Checkpoints and the wake envelope
 
-A checkpoint releases every held unit and annotation plus any withdrawal that arrived after an earlier release. On release the endpoint marks each unit `triaging` and broadcasts `unit_status: "triaging"`; the page treats that event as the release marker. A withdrawal before release removes the unit from the batch; one after release is forwarded in the next batch with `status: "withdrawn"`.
+A checkpoint releases every held unit and annotation plus any withdrawal that arrived after an earlier release. On release (checkpoint, instant unit, or mode change) the endpoint marks each unit `triaging` and broadcasts `unit_status: "triaging"` on the stream in the same request, before any agent has seen or acknowledged the batch; the page treats that event as the release marker and the board leaves "Heard". A withdrawal before release removes the unit from the batch; one after release is forwarded in the next batch with `status: "withdrawn"`.
 
 - Page-emitted checkpoints: `silence`, `page_change`, `send`, and `final` (the overlay's Done control), each carrying the mode at emission. A `silence`, `page_change`, or `send` checkpoint that releases nothing does not wake the agent; `final` always wakes.
+- Instant mode is continuous pickup: while `mode` is `instant`, every accepted `unit` envelope is released as it lands (together with anything else held) as its own batch, `checkpoint_id: "instant-<unit id>"`, `kind: "instant"`, and wakes the agent at once; a `mode` event switching to `instant` releases what is held as a `mode_change` batch. Page checkpoints under Instant therefore usually release nothing and do not wake. Smart and Collect keep the checkpoint semantics.
 - Endpoint-emitted checkpoints: `answer`, created whenever an `answer` event arrives (carries `answers[]` only and releases no units), and `mode_change`, created the moment a `mode` event leaves Collect (KTD12). Both always wake. riffrec exports the always-wake set as `ALWAYS_WAKE_TRIGGERS = ["answer", "mode_change", "final"]` (KTD9).
 - **Accepted backlog.** Units the endpoint released, the agent posted `accepted` for, and no `applied` or `blocked` has followed. `mode_change` carries the whole backlog in `units[]` (status `accepted`) so a Collect session's work is applied under the new mode; `final` carries the backlog too, after anything newly released. A `mode_change` or `final` envelope may therefore carry units that were already served once, or nothing at all; treat it as work to apply, not a no-op.
 - A page checkpoint id that was already used gets a `-2`, `-3`, … suffix in `checkpoint_id`, so every batch has its own file and ack route.
@@ -86,7 +87,7 @@ A checkpoint releases every held unit and annotation plus any withdrawal that ar
 {
   "schema_version": "live/1",
   "checkpoint_id": "ck-…",
-  "kind": "silence" | "page_change" | "send" | "answer" | "mode_change" | "final",
+  "kind": "silence" | "page_change" | "send" | "instant" | "answer" | "mode_change" | "final",
   "mode_at_checkpoint": "instant" | "smart" | "collect",
   "session_status": "live" | "page_lost",
   "units": [ ], "annotations": [ ], "answers": [ ]

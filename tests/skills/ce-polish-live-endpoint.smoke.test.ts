@@ -194,4 +194,79 @@ describe("ce-polish live endpoint smoke", () => {
     expect(final.kind).toBe("final")
     expect(final.units.map((u: { id: string; status: string }) => `${u.id}:${u.status}`)).toEqual(["b:accepted"])
   })
+
+  test("Instant releases every unit as it lands, pushes triaging on the stream before any ack, and a switch to Instant flushes what Smart was holding", async () => {
+    const { url, pageToken, agentToken } = await startEndpoint()
+    const sessionId = "s3"
+    const page = { Authorization: `Bearer ${pageToken}`, "X-Riffrec-Session": sessionId, "Content-Type": "application/json" }
+    const agent = { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json" }
+    const post = (body: object) => fetch(`${url}/events`, { method: "POST", headers: page, body: JSON.stringify(body) })
+    const unit = (id: string, seq: number) =>
+      envelope(sessionId, seq, "unit", { id, statement: id, transcript_excerpt: id, anchors: [], evidence: { frame_ids: [], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } }, status: "initial" })
+
+    // The page's stream, read as the browser would: every unit_status frame in arrival order.
+    const streamResponse = await fetch(`${url}/stream`, { headers: { Authorization: `Bearer ${pageToken}`, "X-Riffrec-Session": sessionId } })
+    expect(streamResponse.status).toBe(200)
+    const reader = streamResponse.body!.getReader()
+    const statuses: string[] = []
+    let buffered = ""
+    const pump = (async () => {
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) return
+        buffered += new TextDecoder().decode(value)
+        for (const m of buffered.matchAll(/event: unit_status\ndata: (.*)\n\n/g)) {
+          const data = JSON.parse(m[1]) as { unit_id: string; status: string }
+          statuses.push(`${data.unit_id}:${data.status}`)
+        }
+        buffered = buffered.replace(/event: unit_status\ndata: .*\n\n/g, "")
+      }
+    })()
+    const untilStatuses = async (n: number) => {
+      const deadline = Date.now() + 5000
+      while (statuses.length < n && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20))
+      return statuses.slice()
+    }
+
+    // Instant: the unit alone, no checkpoint, is a wake, and the page saw triaging first.
+    await post([envelope(sessionId, 1, "mode", { mode: "instant" }), unit("a", 2)])
+    expect(await untilStatuses(1)).toEqual(["a:triaging"])
+    const first = await fetch(`${url}/wait`, { headers: agent })
+    expect(first.status).toBe(200)
+    const batchA = await first.json()
+    expect(batchA.kind).toBe("instant")
+    expect(batchA.checkpoint_id).toBe("instant-a")
+    expect(batchA.mode_at_checkpoint).toBe("instant")
+    expect(batchA.units.map((u: { id: string; status: string }) => `${u.id}:${u.status}`)).toEqual(["a:triaging"])
+    await fetch(`${url}/checkpoints/${batchA.checkpoint_id}/ack`, { method: "POST", headers: agent, body: "{}" })
+
+    // Two units in one body are two wakes, in order; a later send checkpoint has nothing left and does not wake.
+    await post([unit("b", 3), unit("c", 4), envelope(sessionId, 5, "checkpoint", { id: "ck-send", trigger: "send", mode: "instant" })])
+    expect(await untilStatuses(3)).toEqual(["a:triaging", "b:triaging", "c:triaging"])
+    const ids: string[] = []
+    for (let i = 0; i < 2; i++) {
+      const response = await fetch(`${url}/wait`, { headers: agent })
+      expect(response.status).toBe(200)
+      const batch = await response.json()
+      ids.push(`${batch.checkpoint_id}/${batch.kind}/${batch.units.map((u: { id: string }) => u.id).join(",")}`)
+      await fetch(`${url}/checkpoints/${batch.checkpoint_id}/ack`, { method: "POST", headers: agent, body: "{}" })
+    }
+    expect(ids).toEqual(["instant-b/instant/b", "instant-c/instant/c"])
+    expect((await fetch(`${url}/wait`, { headers: agent })).status).toBe(204)
+
+    // Smart holds; switching to Instant releases what was held, as a mode_change wake.
+    await post([envelope(sessionId, 6, "mode", { mode: "smart" }), unit("d", 7)])
+    expect((await fetch(`${url}/wait`, { headers: agent })).status).toBe(204)
+    expect(statuses).toHaveLength(3)
+    await post([envelope(sessionId, 8, "mode", { mode: "instant" })])
+    expect(await untilStatuses(4)).toEqual(["a:triaging", "b:triaging", "c:triaging", "d:triaging"])
+    const flushed = await (await fetch(`${url}/wait`, { headers: agent })).json()
+    expect(flushed.kind).toBe("mode_change")
+    expect(flushed.mode_at_checkpoint).toBe("instant")
+    expect(flushed.units.map((u: { id: string }) => u.id)).toEqual(["d"])
+    await fetch(`${url}/checkpoints/${flushed.checkpoint_id}/ack`, { method: "POST", headers: agent, body: "{}" })
+
+    await reader.cancel()
+    await pump.catch(() => undefined)
+  })
 })

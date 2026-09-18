@@ -160,10 +160,13 @@ describe("ce-polish live loop smoke", () => {
     expect((await agent.waitHttp()).status).toBe(204)
 
     // Instant mode applies again and this time the page crashes and never comes back.
+    // Under Instant the unit wakes by itself the moment it lands; the later checkpoint carries nothing.
     await page.sendUnit("u2", "invert the layout")
+    const instantWake = await agent.waitHttp()
+    expectOk(instantWake)
+    expect((instantWake.envelope as { kind: string; checkpoint_id: string }).kind).toBe("instant")
     await page.sendCheckpoint("ck2", "silence", "instant")
-    expectOk(await agent.waitHttp())
-    expectOk(await agent.ack("ck2"))
+    expectOk(await agent.ack((instantWake.envelope as { checkpoint_id: string }).checkpoint_id))
     expectOk(await agent.postStatus("u2", "applied"))
     await page.waitForEvent((event) => event.event === "applied" && (event.data.unit_ids as string[])?.includes("u2"))
     await page.closeStream()
@@ -173,7 +176,7 @@ describe("ce-polish live loop smoke", () => {
     const envelope = lost.envelope as { checkpoint_id: string; session_status: string; units: unknown[]; kind: string; lost_after_checkpoint_id: string }
     expect(envelope.session_status).toBe("page_lost")
     expect(envelope.units).toEqual([])
-    expect(envelope.lost_after_checkpoint_id).toBe("ck2")
+    expect(envelope.lost_after_checkpoint_id).toBe("instant-u2")
     // The session is not over: no archive, not ended, the page token still stands.
     const session = await agent.session()
     expect(session.ended).toBe(false)

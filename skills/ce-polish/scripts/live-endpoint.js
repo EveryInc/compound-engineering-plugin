@@ -1460,6 +1460,12 @@ async function serve(options) {
         released: Boolean(existing?.released),
       }
       if (!existing) board.unit_order.push(payload.id)
+      // Instant means continuous pickup: the unit is released the moment it
+      // lands, with whatever is held beside it, and the agent wakes now. The
+      // page sees `triaging` on the stream at once; no checkpoint is waited for.
+      if (board.mode === "instant" && !board.units[payload.id].released) {
+        releaseCheckpoint(`instant-${payload.id}`, "instant", "instant")
+      }
     } else if (type === "unit_update") {
       const unit = unitById(payload.unit_id)
       if (!unit) return
@@ -1506,6 +1512,12 @@ async function serve(options) {
       const leavingCollect = board.mode === "collect" && payload.mode !== "collect"
       board.mode = payload.mode
       if (leavingCollect) emitModeChange(payload.mode)
+      // Switching to Instant flushes what is held right away, since nothing
+      // will wait for a checkpoint from here on. (Leaving Collect woke the
+      // agent with the accepted backlog above; this carries the unreleased.)
+      if (payload.mode === "instant" && (heldUnits().length > 0 || heldAnnotations().length > 0)) {
+        releaseCheckpoint(`ck-instant-${randomUUID()}`, "mode_change", "instant")
+      }
     } else if (type === "stream_state") {
       board.page.last_stream_state = payload.state ?? null
     }
