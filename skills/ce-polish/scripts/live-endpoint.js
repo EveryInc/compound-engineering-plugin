@@ -40,6 +40,10 @@ const BRIEF_MAX_CHARS = 3000
 // Envelopes held ahead of a sequence gap before early arrivals are dropped for replay.
 const OUT_OF_ORDER_CAP = 512
 const MINTS_PER_MINUTE = 5
+// Refused requests logged to agent.ndjson per window; the last slot in a
+// window is the one line saying the rest of that window is suppressed.
+const REJECTION_LOG_PER_WINDOW = Number(process.env.CE_LIVE_REJECTION_LOG_PER_MINUTE) || 60
+const REJECTION_LOG_WINDOW_MS = 60 * 1000
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com").replace(/\/+$/, "")
 const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || "gpt-realtime"
 const REALTIME_VOICE = process.env.OPENAI_REALTIME_VOICE || "marin"
@@ -559,16 +563,30 @@ function rejectionReason(value) {
 // (so the 413 the caller writes is delivered) and the promise resolves with
 // `{ tooLarge: true }`; a hard ceiling destroys the socket so an attacker
 // cannot make the server read forever.
+// Reads a request body up to `limit`. Past the limit the body is discarded
+// but read to its end, so the caller's 413 travels on an orderly connection.
+// Past the hard ceiling the caller gets its answer at once (the page needs
+// the 413 to replace the frame with a `dropped` envelope, and a reset would
+// read as an outage) while the rest is discarded as it arrives; only an
+// upload that keeps going far beyond that is cut off.
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     const chunks = []
     let size = 0
     let tooLarge = false
+    let settled = false
+    const settle = (value) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
     const hardCeiling = Math.max(limit * 2, limit + 1024 * 1024)
+    const abuseCeiling = hardCeiling * 16
     req.on("data", (chunk) => {
       size += chunk.length
       if (tooLarge) {
-        if (size > hardCeiling) req.destroy()
+        if (size > hardCeiling) settle({ tooLarge: true, size })
+        if (size > abuseCeiling) req.destroy()
         return
       }
       if (size > limit) {
@@ -578,8 +596,12 @@ function readBody(req, limit) {
       }
       chunks.push(chunk)
     })
-    req.on("end", () => resolve(tooLarge ? { tooLarge: true, size } : { text: Buffer.concat(chunks).toString("utf8"), size }))
-    req.on("error", reject)
+    req.on("end", () => settle(tooLarge ? { tooLarge: true, size } : { text: Buffer.concat(chunks).toString("utf8"), size }))
+    req.on("error", (error) => {
+      if (settled) return
+      settled = true
+      reject(error)
+    })
   })
 }
 
@@ -2348,7 +2370,25 @@ async function serve(options) {
   // Every refusal (4xx/5xx) leaves one line in agent.ndjson: method, path,
   // status, and the reason this server gave. Never the credential, never the
   // request headers or body, so a session can be debugged from its log.
+  // Refusals need no credential to produce, so on a LAN or tunnel-exposed
+  // endpoint they are the one write an outsider can drive: the log takes a
+  // bounded number per minute, notes once that the rest of the minute is
+  // suppressed, and writes nothing once the session's disk cap is reached.
+  let rejectionWindowStart = 0
+  let rejectionWindowCount = 0
   function logRejection(req, res) {
+    const now = Date.now()
+    if (now - rejectionWindowStart >= REJECTION_LOG_WINDOW_MS) {
+      rejectionWindowStart = now
+      rejectionWindowCount = 0
+    }
+    if (logBytes >= DISK_CAP_BYTES) return
+    rejectionWindowCount += 1
+    if (rejectionWindowCount > REJECTION_LOG_PER_WINDOW) return
+    if (rejectionWindowCount === REJECTION_LOG_PER_WINDOW) {
+      bestEffort(() => logAgent({ kind: "rejected_suppressed", until: rejectionWindowStart + REJECTION_LOG_WINDOW_MS, per_window: REJECTION_LOG_PER_WINDOW }))
+      return
+    }
     const value = res.rejection
     const record = { kind: "rejected", method: req.method ?? null, route: loggedRoute(req), status: res.statusCode, reason: rejectionReason(value) }
     if (isRecord(value) && Number.isInteger(value.seq)) record.seq = value.seq

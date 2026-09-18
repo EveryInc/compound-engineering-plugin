@@ -184,6 +184,34 @@ describe("live endpoint recovery: intake", () => {
   })
 })
 
+describe("live endpoint recovery: refusals under load", () => {
+  test("a lone frame far past the hard ceiling still receives the contract's 413 instead of a connection reset", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent)
+    // 5 MiB of base64: past the 2 MiB frame cap and past the 4 MiB ceiling at which the socket used to be destroyed.
+    const jpeg = Buffer.alloc(5 * 1024 * 1024, 0x41).toString("base64").slice(0, 5 * 1024 * 1024)
+    const frame = page.envelope("frame", { id: "frame_oversize", t: 1, route: "/", kind: "gesture", jpeg_base64: jpeg })
+    const refused = await page.postRaw(JSON.stringify(frame))
+    expect(refused.status).toBe(413)
+    expect(refused.body).toMatchObject({ frame_max_bytes: 2 * 1024 * 1024 })
+    // The endpoint is still up and the sequence is not stuck behind the refused frame.
+    expectOk(await page.sendUnit("u1", "make the header red"))
+  })
+
+  test("unauthenticated refusals are logged a bounded number of times per minute, with one line noting the suppression", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_REJECTION_LOG_PER_MINUTE: "10" } })
+    for (let i = 0; i < 30; i += 1) {
+      const response = await fetch(`${agent.url}/wait`)
+      expect(response.status).toBe(401)
+    }
+    const lines = (await fs.readFile(path.join(agent.stateDir, "log", "agent.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { kind: string; route?: string })
+    const rejected = lines.filter((line) => line.kind === "rejected" && line.route === "/wait")
+    const suppressed = lines.filter((line) => line.kind === "rejected_suppressed")
+    expect(rejected).toHaveLength(9)
+    expect(suppressed).toHaveLength(1)
+  })
+})
+
 describe("live endpoint recovery: the page-loss watch and stream replay", () => {
   test("the watch set by an applied notice ends when the page reconnects, or when the grace window passes with the stream up; a later disconnect is not a loss", async () => {
     const agent = await startAgent({ env: { CE_LIVE_PAGE_LOST_GRACE_MS: "400" } })
