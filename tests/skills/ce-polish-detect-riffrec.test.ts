@@ -59,12 +59,20 @@ describe("detect-riffrec.sh", () => {
     expect(detection).toMatchObject({ installed: true, live_build: false })
   })
 
-  test("an installed build whose dist/index.d.ts names RiffrecLiveConfig is live-capable", async () => {
+  test("an installed build whose dist/index.d.ts names RiffrecLiveConfig and LOOK_AT_SCREEN_TOOL is live-capable", async () => {
     const root = await copyFixture("project-with-riffrec")
     await fs.mkdir(path.join(root, "node_modules", "riffrec", "dist"), { recursive: true })
     await fs.writeFile(path.join(root, "node_modules", "riffrec", "package.json"), JSON.stringify({ name: "riffrec", version: "0.7.0" }))
-    await fs.writeFile(path.join(root, "node_modules", "riffrec", "dist", "index.d.ts"), "export interface RiffrecLiveConfig {}\nexport declare function RiffrecProvider(props: { live?: RiffrecLiveConfig }): null\n")
+    await fs.writeFile(path.join(root, "node_modules", "riffrec", "dist", "index.d.ts"), "export interface RiffrecLiveConfig {}\nexport declare const LOOK_AT_SCREEN_TOOL: { name: 'look_at_screen' }\nexport declare function RiffrecProvider(props: { live?: RiffrecLiveConfig }): null\n")
     expect(await detect(root)).toMatchObject({ dependency: true, installed: true, live_build: true, version: "0.7.0", mount: true })
+  })
+
+  test("a live build that predates the screen tool (RiffrecLiveConfig without LOOK_AT_SCREEN_TOOL) is not live-capable for this endpoint", async () => {
+    const root = await copyFixture("project-with-riffrec")
+    await fs.mkdir(path.join(root, "node_modules", "riffrec", "dist"), { recursive: true })
+    await fs.writeFile(path.join(root, "node_modules", "riffrec", "package.json"), JSON.stringify({ name: "riffrec", version: "0.6.9" }))
+    await fs.writeFile(path.join(root, "node_modules", "riffrec", "dist", "index.d.ts"), "export interface RiffrecLiveConfig {}\nexport declare function RiffrecProvider(props: { live?: RiffrecLiveConfig }): null\n")
+    expect(await detect(root)).toMatchObject({ installed: true, live_build: false, version: "0.6.9" })
   })
 
   test("a RiffrecProvider tag only inside a comment or a string is not a mount", async () => {
