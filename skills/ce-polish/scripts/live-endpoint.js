@@ -1569,6 +1569,18 @@ async function serve(options) {
       sendJson(res, 400, { error: "missing X-Riffrec-Session" }, corsHeaders())
       return null
     }
+    // A closed tab ends its session: when the bound page said it was unloading
+    // (or went lost) and no stream is open, a new page takes over instead of
+    // being refused. A reload keeps its session id, so it never lands here.
+    if (board.session_id && board.session_id !== sessionId && pageClosed()) {
+      logAgent({ kind: "session_closed_by_page", session_id: board.session_id })
+      endSession()
+      if (!drained()) {
+        sendJson(res, 409, { error: "previous_session_draining" }, corsHeaders())
+        return null
+      }
+      openSession(sessionId)
+    }
     if (board.session_id && board.session_id !== sessionId) {
       sendJson(res, 409, { active_session_id: board.session_id }, corsHeaders())
       return null
@@ -1578,6 +1590,11 @@ async function serve(options) {
       saveBoard()
     }
     return sessionId
+  }
+
+  function pageClosed() {
+    if (board.ended || streamClients.size > 0) return false
+    return board.page.last_stream_state === "unloading" || board.page.stream === "lost"
   }
 
   // Agent routes: the agent token, no Origin header at all, no CORS.
