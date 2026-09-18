@@ -35,10 +35,11 @@ Gotchas baked in (see `docs/solutions/skill-design/size-driven-skill-restructure
 Cases live in `catalog.ts`, authored from the skill bodies **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433). The same prompt runs against that ref, then against the **working tree** (`POST_SWEEP_REF` = the `WORKTREE` sentinel, the default `--ref`). `git archive` only ever sees committed content, so the post arm copies `skills/<name>` off disk — that is what lets you grade a skill edit before committing it. Pass a real git ref to `--ref` for a committed arm. See `scenarios.md` for the inventory.
 
 ```bash
+bun run test:skill-eval-pack -- --help
 bun run test:skill-eval-pack -- --list
 bun run test:skill-eval-pack -- --wave1 --arm ab
 bun run test:skill-eval-pack -- --id ce-babysit-pr/refuse-unasked-update --arm ab
 bun run test:skill-eval-pack -- --id lfg/plan-first --arm ab
 ```
 
-`--arm ab` is pre+post for every catalog skill (the 8KB sweep is fully merged). `--wave1` is the cheap read-only decision set, not every scenario. Live mutation and oracle dispatch are separate ids. The pack exits non-zero when any arm failed, after writing `pack.json`, so it can be used as a check. `ok` is the only verdict: a listed `files_read_post` miss fails the cell; unlisted references are not graded. Not in default `bun test`.
+A run needs a selector (`--id`, `--skill`, `--cohort`, `--wave1`); the whole catalog needs `--all`, and an unknown flag is refused, because every cell is a billed host CLI run. `--arm ab` is pre+post for every catalog skill (the 8KB sweep is fully merged). `--wave1` is the cheap read-only decision set, not every scenario. Live mutation and oracle dispatch are separate ids. The pack exits non-zero when any arm failed, after writing `pack.json`, so it can be used as a check. `ok` is the only verdict: a listed `files_read_post` miss fails the cell; unlisted references are not graded. Not in default `bun test`.
