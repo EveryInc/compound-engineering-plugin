@@ -410,6 +410,15 @@ function readJsonOrNull(filePath) {
   }
 }
 
+function readableFile(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.R_OK)
+    return fs.statSync(filePath).isFile()
+  } catch {
+    return false
+  }
+}
+
 function processAlive(pid) {
   if (!pid || !Number.isInteger(pid)) return false
   try {
@@ -1082,13 +1091,17 @@ async function replay(options) {
   let batchBytes = 0
 
   // First pass: which frames the profile keeps, so evidence can be pruned to
-  // them on the second pass. Only ids are held.
+  // them on the second pass. Only ids are held, and only for frames the
+  // second pass will actually emit: one whose image file is missing is
+  // skipped there, so its id must not survive in a unit's evidence either.
   const retainedFrames = new Set()
   if (EVIDENCE_PROFILES[options.profile].frames === "composite") {
     const scan = readline.createInterface({ input: fs.createReadStream(eventsFile, "utf8"), crlfDelay: Infinity })
     for await (const line of scan) {
       const stored = line ? parseJsonObject(line) : null
-      if (stored?.type === "frame" && stored.payload?.kind === "composite" && typeof stored.payload.id === "string") retainedFrames.add(stored.payload.id)
+      if (stored?.type !== "frame" || stored.payload?.kind !== "composite" || typeof stored.payload.id !== "string") continue
+      const emittable = !stored.frame_file || readableFile(path.join(options.logDir, stored.frame_file))
+      if (emittable) retainedFrames.add(stored.payload.id)
     }
   }
 
@@ -1465,15 +1478,25 @@ async function serve(options) {
       pageLostTimer = null
       if (streamClients.size > 0 || board.ended) return
       const last = board.checkpoints[board.checkpoints.length - 1]
-      board.page.lost_episodes += 1
-      board.page.stream = "lost"
-      board.watch_for_loss = false
-      saveBoard()
       // Queued like any batch: persisted and re-served until acknowledged.
-      enqueueBatch(makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
-        session_status: "page_lost",
-        lost_after_checkpoint_id: last?.id ?? null,
-      }))
+      // The batch lands before the watch is cleared, so a failure at either
+      // step leaves the durable board still watching: a restart re-arms it
+      // and the loss is reported then, rather than lost with a crashed timer.
+      const undo = snapshotState()
+      try {
+        enqueueBatch(makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
+          session_status: "page_lost",
+          lost_after_checkpoint_id: last?.id ?? null,
+        }))
+        board.page.lost_episodes += 1
+        board.page.stream = "lost"
+        board.watch_for_loss = false
+        saveBoard()
+      } catch (error) {
+        undo()
+        bestEffort(() => logAgent({ kind: "page_lost_persist_failed", error: error.code ?? error.message }))
+        armPageLost()
+      }
     }, PAGE_LOST_GRACE_MS)
     pageLostTimer.unref()
   }
@@ -2145,6 +2168,7 @@ async function serve(options) {
       }
       reservedBytes += chunk.length
       archiveReserved += chunk.length
+      touch()
       // Pause the upload while the disk catches up; a fast sender must not
       // park the archive in process memory.
       if (!out.write(chunk)) {
@@ -2558,9 +2582,12 @@ async function serve(options) {
   process.on("SIGTERM", shutdown)
   process.on("SIGINT", shutdown)
 
+  // An archive still streaming in is work in progress even with no stream
+  // client attached: the idle timeout waits for it, and its chunks count
+  // as activity so a slow remote link is not cut off mid-upload.
   const idleTimer = setInterval(() => {
     if (options.ownerPid && !processAlive(options.ownerPid)) shutdown()
-    else if (Date.now() - lastActivity > IDLE_TIMEOUT_MS && streamClients.size === 0) shutdown()
+    else if (Date.now() - lastActivity > IDLE_TIMEOUT_MS && streamClients.size === 0 && !endingInFlight) shutdown()
   }, LIFECYCLE_CHECK_MS)
   idleTimer.unref()
 }

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { promises as fs } from "fs"
+import http from "http"
 import os from "os"
 import path from "path"
-import { FakeLivePage, unitPayload } from "../helpers/fakeLivePage"
+import { FakeLivePage, readFixture, unitPayload } from "../helpers/fakeLivePage"
 import { APP_ORIGIN, FakeLiveAgent, LIVE_ENDPOINT_SCRIPT, parseJsonLine, waitUntil } from "../helpers/fakeLiveAgent"
 
 setDefaultTimeout(30_000)
@@ -264,6 +265,89 @@ describe("live endpoint recovery: refusals under load", () => {
     const suppressed = lines.filter((line) => line.kind === "rejected_suppressed")
     expect(rejected).toHaveLength(9)
     expect(suppressed).toHaveLength(1)
+  })
+})
+
+describe("live endpoint recovery: replay and lifecycle", () => {
+  test("replay --profile strokes_composite prunes unit evidence to the composite frames it can actually emit", async () => {
+    const source = await startAgent()
+    const page = pageFor(source)
+    const frame = await readFixture("frame")
+    expectOk(await page.post(page.envelope("frame", { ...frame.payload, id: "comp_kept", kind: "composite" })))
+    expectOk(await page.post(page.envelope("frame", { ...frame.payload, id: "comp_missing", kind: "composite" })))
+    expectOk(await page.sendUnit("u1", "make the header red", { evidence: { frame_ids: ["comp_kept", "comp_missing"], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } } }))
+    expectOk(await page.sendCheckpoint("ck1", "silence", "smart"))
+    // The second composite's image file is gone from the log before replay.
+    const frames = await fs.readdir(path.join(source.stateDir, "log", "frames"))
+    const missing = frames.find((name) => name.includes("comp_missing"))
+    expect(missing).toBeDefined()
+    await fs.rm(path.join(source.stateDir, "log", "frames", missing!))
+
+    const target = await startAgent()
+    const replayed = await source.replayCli("strokes_composite", target.url, target.pageToken)
+    expect(replayed.exitCode, replayed.stderr).toBe(0)
+    const summary = parseJsonLine(replayed.stdout)
+    expect(summary.envelopes_skipped).toBe(1)
+    const targetBoard = (await target.board()) as { units: Record<string, { evidence: { frame_ids: string[] } }> }
+    expect(targetBoard.units.u1.evidence.frame_ids).toEqual(["comp_kept"])
+    expect((await target.statusHttp()).body.frame_count).toBe(1)
+  })
+
+  test("a page_lost batch that cannot be persisted leaves the watch armed and the helper up; the loss is reported once the disk allows", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_PAGE_LOST_GRACE_MS: "400" } })
+    const page = pageFor(agent)
+    await page.openStream()
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expectOk(await page.sendCheckpoint("ck1", "silence", "instant"))
+    const wake = await agent.waitHttp()
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
+    expectOk(await agent.postStatus("u1", "applied"))
+    await page.closeStream()
+    // A regular file where batches/ should be makes the page_lost batch write fail when the grace window ends.
+    const batchesDir = path.join(agent.stateDir, "batches")
+    await fs.rm(batchesDir, { recursive: true, force: true })
+    await fs.writeFile(batchesDir, "not a directory")
+    await Bun.sleep(700)
+    expect(await agent.listening()).toBe(true)
+    expect((await agent.board()).watch_for_loss).toBe(true)
+    expect(((await agent.statusHttp()).body.page as { lost_episodes: number }).lost_episodes).toBe(0)
+    const agentLog = (await fs.readFile(path.join(agent.stateDir, "log", "agent.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { kind: string })
+    expect(agentLog.some((line) => line.kind === "page_lost_persist_failed")).toBe(true)
+
+    await fs.rm(batchesDir, { force: true })
+    await fs.mkdir(batchesDir, { recursive: true })
+    const lost = await agent.waitCli()
+    expect(lost.exitCode, lost.stderr).toBe(0)
+    expect((lost.envelope as { session_status: string }).session_status).toBe("page_lost")
+    expect((await agent.board()).watch_for_loss).toBe(false)
+  })
+
+  test("an archive still uploading keeps the helper alive past the idle timeout with no stream attached", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_IDLE_TIMEOUT_MS: "600", CE_LIVE_LIFECYCLE_CHECK_MS: "100" } })
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    // Chunks arrive slowly over ~1.5 s, well past the idle window, with no stream client attached.
+    const upload = new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const request = http.request(`${agent.url}/session/end`, { method: "POST", headers: page.headers({ "Content-Type": "application/zip", "Transfer-Encoding": "chunked" }) }, (response) => {
+        const chunks: Buffer[] = []
+        response.on("data", (chunk: Buffer) => chunks.push(chunk))
+        response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }))
+      })
+      request.on("error", reject)
+      let sent = 0
+      const tick = setInterval(() => {
+        request.write(Buffer.alloc(1024, 7))
+        sent += 1
+        if (sent === 5) {
+          clearInterval(tick)
+          request.end()
+        }
+      }, 300)
+    })
+    const ended = await upload
+    expect(ended.status, ended.body).toBe(200)
+    expect(JSON.parse(ended.body)).toMatchObject({ status: "session-ended", archive_bytes: 5 * 1024 })
+    expect(await agent.listening()).toBe(true)
   })
 })
 
