@@ -803,6 +803,56 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
   })
 })
 
+describe("live endpoint: agent state, working status, closed tabs", () => {
+  test("the stream reports the agent listening while a wait is parked and working once a batch is served", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent.url, agent.pageToken)
+    await page.sendUnit("u1", "make the header red")
+    await page.openStream()
+
+    const parked = agent.waitHttp()
+    await page.waitForEvent((event) => event.event === "agent" && (event.data as { state: string }).state === "listening")
+    expectOk(await page.sendCheckpoint("cp_0001", "silence", "smart"))
+    const wake = await parked
+    expect(wake.status).toBe(200)
+    const working = await page.waitForEvent((event) => event.event === "agent" && (event.data as { state: string }).state === "working")
+    expect((working.data as { checkpoint_id: string }).checkpoint_id).toBe("cp_0001")
+  })
+
+  test("accepts working as a unit status and streams it to the page", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent.url, agent.pageToken)
+    await page.sendUnit("u1", "make the header red")
+    expectOk(await page.sendCheckpoint("cp_0001", "silence", "smart"))
+    const wake = await agent.waitHttp()
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
+    await page.openStream()
+
+    expectOk(await agent.postStatus("u1", "working"))
+    const event = await page.waitForEvent((e) => e.event === "unit_status" && (e.data as { status: string }).status === "working")
+    expect((event.data as { unit_id: string }).unit_id).toBe("u1")
+  })
+
+  test("a page whose tab closed gives way to a new session; a live page still refuses one", async () => {
+    const agent = await startAgent()
+    const first = pageFor(agent.url, agent.pageToken, "sess_first")
+    await first.sendUnit("u1", "make the header red")
+    await first.openStream()
+
+    const rival = pageFor(agent.url, agent.pageToken, "sess_second")
+    const refused = await rival.send("mic", { state: "unmuted" })
+    expect(refused.status).toBe(409)
+
+    expectOk(await first.send("stream_state", { state: "unloading" }))
+    await first.closeStream()
+    await waitUntil(async () => ((await agent.board()) as { page: { stream: string } }).page.stream !== "connected")
+
+    const takeover = await rival.send("mic", { state: "unmuted" })
+    expectOk(takeover)
+    expect(((await agent.board()) as { session_id: string }).session_id).toBe("sess_second")
+  })
+})
+
 async function collectFiles(dir: string): Promise<string[]> {
   const out: string[] = []
   for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
