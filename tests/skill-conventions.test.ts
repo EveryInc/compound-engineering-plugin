@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from "fs"
 import path from "path"
 import { describe, expect, test } from "bun:test"
+import { load } from "js-yaml"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
 const ROOT_AGENTS = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8")
@@ -195,6 +196,9 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
   "ce-setup",
   "ce-sweep",
   "ce-test-xcode",
+  // wtf: answers a user who says they did not follow something. No skill or
+  // pipeline calls it, and model-routing it would re-explain replies unasked.
+  "wtf",
 ])
 
 const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
@@ -863,6 +867,31 @@ describe("skill frontmatter limits (Anthropic skill spec)", () => {
     ).toEqual([])
   })
 
+  // Codex ignores the frontmatter flag; its opt-out is the skill's own
+  // agents/openai.yaml. The two must agree, or a manual-only skill stays
+  // implicitly invocable on Codex, or a callee vanishes from Codex's catalog.
+  test("Codex implicit-invocation policy mirrors disable-model-invocation", () => {
+    const mismatched: string[] = []
+    for (const skill of skillDirs) {
+      const skillMdPath = path.join(skill.absPath, "SKILL.md")
+      const { data } = parseFrontmatter(readFileSync(skillMdPath, "utf8"), skillMdPath)
+      const userInvoked = data["disable-model-invocation"] === true
+
+      const policyPath = path.join(skill.absPath, "agents", "openai.yaml")
+      const manifest = existsSync(policyPath)
+        ? (load(readFileSync(policyPath, "utf8")) as { policy?: { allow_implicit_invocation?: unknown } } | null)
+        : null
+      const codexOptedOut = manifest?.policy?.allow_implicit_invocation === false
+
+      if (userInvoked !== codexOptedOut) mismatched.push(path.basename(skill.absPath))
+    }
+
+    expect(
+      mismatched,
+      `disable-model-invocation: true and agents/openai.yaml policy.allow_implicit_invocation: false must be set together:\n${mismatched.join("\n")}`,
+    ).toEqual([])
+  })
+
   for (const skill of skillDirs) {
     const skillMdPath = path.join(skill.absPath, "SKILL.md")
     const raw = readFileSync(skillMdPath, "utf8")
@@ -1464,6 +1493,49 @@ describe("python interpreter resolution (no bare python3 invocations)", () => {
       findBarePython3Invocations(
         'Never write inline scripts (`python3 -c`, `node -e`) to process issue data.',
       ),
+    ).toEqual([])
+  })
+})
+
+describe("review coverage fallback wording (issue #1732)", () => {
+  const RECOVERY = path.join(
+    REPO_ROOT,
+    "skills/ce-code-review/references/cross-model-recovery.md",
+  )
+  const PINNED_WORDING = "adversarial lens: in-process fallback"
+
+  test("did-not-run fallback branch pins the exact in-process Coverage wording", () => {
+    const content = readFileSync(RECOVERY, "utf8")
+    const fullForm =
+      /adversarial lens: in-process fallback \(cross-model peer not run: [^)]+\)/.test(
+        content,
+      ) && content.includes("peer.outcome: in-process-fallback")
+    expect(
+      fullForm,
+      `cross-model-recovery.md must pin the exact Coverage wording \`${PINNED_WORDING} (cross-model peer not run: <reason>)\` so a complete review is never reported with ce-work's ship-gate skip phrase (issue #1732).`,
+    ).toBe(true)
+  })
+
+  test("ce-code-review Coverage guidance never uses the ship-gate skip phrase", () => {
+    const skill = skillDirs.find((s) => s.relPath === "skills/ce-code-review")
+    if (!skill) throw new Error("skills/ce-code-review not found")
+    const offenders: string[] = []
+    for (const filePath of listMarkdownFiles(skill.absPath)) {
+      const fileRel = path.relative(REPO_ROOT, filePath)
+      const lines = readFileSync(filePath, "utf8").split("\n")
+      for (const [index, line] of lines.entries()) {
+        // The one legitimate occurrence names the phrase to forbid it
+        // (cross-model-recovery.md's "Never write `harness-native fallback`"):
+        // strip exactly that clause so the rest of the line is still checked.
+        const checked = line.replace(/never write `harness-native fallback`/i, "")
+        if (/harness-native fallback/i.test(checked)) {
+          offenders.push(`${fileRel}:${index + 1}`)
+        }
+      }
+    }
+    expect(
+      offenders,
+      "`harness-native fallback` is ce-work's ship-gate signal for a review that ran without ce-code-review; ce-code-review Coverage guidance must not reuse it for the in-process fallback (issue #1732).",
     ).toEqual([])
   })
 })

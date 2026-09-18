@@ -44,7 +44,7 @@ printf 'proof\\nFILES_READ: SKILL.md\\nACTIONS: none\\nDELEGATES_DISPATCHED: non
     cwd: repo, encoding: "utf8", timeout: 20_000,
     env: { ...process.env, PATH: `${bin}${path.delimiter}${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ""}` },
   })
-  const collect = () => call("pack.ts", ["--hosts", "codex", "--arm", "post", "--out", out])
+  const collect = () => call("pack.ts", ["--all", "--hosts", "codex", "--arm", "post", "--out", out])
   const source = path.join(out, "pack.json")
   const readPack = () => JSON.parse(fs.readFileSync(source, "utf8"))
   const savePack = (pack: unknown) => fs.writeFileSync(source, JSON.stringify(pack))

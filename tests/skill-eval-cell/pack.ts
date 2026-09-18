@@ -108,7 +108,57 @@ function selectedScenarios(): Scenario[] {
   })
 }
 
+const USAGE = `usage: bun run test:skill-eval-pack -- <selector> [options]
+
+selectors (at least one, or --all for the whole catalog):
+  --id <scenario-id>      one scenario
+  --skill <name>          every scenario for a skill
+  --cohort <c>            resized | in-progress | untouched
+  --wave1                 the cheap read-only decision set
+  --all                   every scenario; each cell is a billed host CLI run
+
+options:
+  --list                  print the matching scenarios and exit; runs nothing
+  --arm pre|post|preview|ab   default ab
+  --hosts claude,codex,grok,opencode   default: the cell driver's default
+  --out <dir>             default: a new directory under OS temp
+  --help, -h              print this and exit`
+
+const VALUE_FLAGS = ["--id", "--skill", "--cohort", "--arm", "--hosts", "--out"]
+const BOOLEAN_FLAGS = ["--wave1", "--all", "--list", "--help", "-h"]
+
+// A flag this script does not know must not fall through to "no selector",
+// which used to mean the whole catalog: a mistyped flag became a billed full run.
+// A value flag with its value missing is refused too: `--all --arm` would
+// otherwise fall back to the default arm and start the whole catalog.
+function argErrors(): string[] {
+  const errors: string[] = []
+  const args = process.argv.slice(2)
+  for (let i = 0; i < args.length; i++) {
+    if (VALUE_FLAGS.includes(args[i])) {
+      const value = args[i + 1]
+      if (value === undefined || value.startsWith("-")) errors.push(`${args[i]} needs a value`)
+      else i++
+    } else if (!BOOLEAN_FLAGS.includes(args[i])) errors.push(`unknown argument: ${args[i]}`)
+  }
+  return errors
+}
+
 function main() {
+  if (flag("--help") || flag("-h")) {
+    console.log(USAGE)
+    return
+  }
+  const errors = argErrors()
+  if (errors.length > 0) {
+    console.error(`${errors.join("\n")}\n\n${USAGE}`)
+    process.exit(2)
+  }
+  const hasSelector = ["--id", "--skill", "--cohort"].some((name) => arg(name)) || flag("--wave1") || flag("--all")
+  if (!hasSelector && !flag("--list")) {
+    console.error(`no selector given; pass --all to run the whole catalog\n\n${USAGE}`)
+    process.exit(2)
+  }
   const cohort = arg("--cohort")
   if (cohort && !["resized", "in-progress", "untouched"].includes(cohort)) {
     console.error("usage: --cohort resized|in-progress|untouched")

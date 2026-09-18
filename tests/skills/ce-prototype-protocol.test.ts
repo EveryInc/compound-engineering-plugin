@@ -74,9 +74,13 @@ describe("ce-prototype protocol", () => {
     expect(ANNOTATION_LOOP_BODY).not.toContain("${CLAUDE_SKILL_DIR}")
     expect(SKILL_BODY).not.toContain("${CLAUDE_SKILL_DIR}")
     expect(ANNOTATION_LOOP_BODY).toMatch(/light-webserver\.js" wait --root/)
-    // A yielded or backgrounded wait is still outstanding; the turn must not end on it.
+    // Without a host wake-up on exit, a yielded or backgrounded wait is still outstanding; the turn must not end on it.
     expect(ANNOTATION_LOOP_BODY).toMatch(/do not end the turn while a wait is parked/)
-    expect(ANNOTATION_LOOP_BODY).toMatch(/Chat is valid only after wait has returned or cannot run/)
+    // Checking a running wait on a timer cost ~30 empty calls per idle half hour.
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Do not check a running wait on a timer/)
+    // Chat replaces the overlay only once the wait is over; a delivered message is still answered while it runs.
+    expect(ANNOTATION_LOOP_BODY).toMatch(/Chat becomes the feedback channel only after wait has returned session-ended or cannot run/)
+    expect(ANNOTATION_LOOP_BODY).toMatch(/theirs to answer, and the wait keeps running/)
     expect(ANNOTATION_LOOP_BODY).not.toMatch(/explorer writing in chat/)
     expect(PREVIEW_BODY).toMatch(/start --root "\$PROTO_DIR" --annotate/)
     expect(

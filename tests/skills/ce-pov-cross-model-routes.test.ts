@@ -154,6 +154,9 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("opencode")).toContain("--dir <read-root>")
     expect(emit("opencode")).toContain("--format json")
     expect(emit("opencode")).toContain("--file <prompt-file>")
+    // OpenCode's --file is variadic: a bare argument after it becomes another attachment.
+    expect(emit("opencode").indexOf("Follow the attached brief.")).toBeGreaterThan(-1)
+    expect(emit("opencode").indexOf("Follow the attached brief.")).toBeLessThan(emit("opencode").indexOf("--file <prompt-file>"))
     expect(emit("opencode")).not.toContain("--auto")
     const source = readFileSync(SCRIPT, "utf8")
     // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".

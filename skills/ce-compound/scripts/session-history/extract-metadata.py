@@ -16,7 +16,7 @@ import sys
 import json
 import os
 
-MAX_LINES = 25  # Only need first ~25 lines for metadata
+MAX_LINES = 200  # Resumed Claude sessions front-load dozens of non-message records before the first user record
 
 
 def try_claude(lines):
@@ -373,7 +373,10 @@ def count_keyword_matches(filepath, keywords):
 def process_file(filepath):
     """Extract metadata only. Keyword scanning is done separately so callers
     can apply cheap filters (e.g. --cwd-filter) before paying the full-file
-    content scan cost."""
+    content scan cost.
+
+    Returns (result, error): (dict, None) on success, (None, None) when the
+    file is readable but matches no platform, (None, filepath) on read error."""
     try:
         size = os.path.getsize(filepath)
         with open(filepath, "r", encoding="utf-8", errors="replace") as f:
@@ -388,7 +391,7 @@ def process_file(filepath):
             result["size"] = size
             return result, None
         else:
-            return None, filepath
+            return None, None
     except (OSError, IOError) as e:
         return None, filepath
 
@@ -473,6 +476,7 @@ if files:
     # Batch mode: process all files
     processed = 0
     parse_errors = 0
+    no_metadata = 0
     filtered = 0
     matched = 0
     for filepath in files:
@@ -507,8 +511,12 @@ if files:
             print(json.dumps(result))
         elif error:
             parse_errors += 1
+        else:
+            no_metadata += 1
 
     meta = {"_meta": True, "files_processed": processed, "parse_errors": parse_errors}
+    if no_metadata:
+        meta["files_without_metadata"] = no_metadata
     if filtered:
         meta["filtered_by_cwd"] = filtered
     if keywords:
@@ -535,6 +543,9 @@ else:
     else:
         # Genuine single-file stdin mode (backward compatible)
         result = extract_from_lines(lines)
+        meta = {"_meta": True, "files_processed": 1, "parse_errors": 0}
         if result:
             print(json.dumps(result))
-        print(json.dumps({"_meta": True, "files_processed": 1, "parse_errors": 0 if result else 1}))
+        else:
+            meta["files_without_metadata"] = 1
+        print(json.dumps(meta))

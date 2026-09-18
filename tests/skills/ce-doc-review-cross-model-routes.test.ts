@@ -314,14 +314,34 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
 
-  test("opencode run is --dir --format json without --auto", () => {
-    const cmd = emitAdapter("opencode")
+  test.each([
+    { label: "default", overrides: {} },
+    { label: "model", overrides: {
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "opencode",
+      CROSS_MODEL_MODEL_OVERRIDE: "openrouter/anthropic/test-model",
+    } },
+    { label: "model and effort", overrides: {
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "opencode",
+      CROSS_MODEL_MODEL_OVERRIDE: "openrouter/anthropic/test-model",
+      CROSS_MODEL_EFFORT_OVERRIDE: "high",
+    } },
+  ])("opencode keeps the prompt outside variadic --file ($label)", ({ overrides }) => {
+    const env = overrides as Record<string, string>
+    const cmd = emitAdapter("opencode", env)
     expect(cmd).toContain("opencode run")
     expect(cmd).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}')
     expect(cmd).toContain("OPENCODE_DISABLE_PROJECT_CONFIG=1")
     expect(cmd).toContain("--dir <peer-workdir>")
     expect(cmd).toContain("--format json")
     expect(cmd).toContain("--file <prompt-file>")
+    const prompt = "Follow the attached brief. Return only schema-shaped JSON."
+    expect(cmd).toContain(prompt)
+    // OpenCode's --file consumes following bare arguments as more attachments.
+    expect(cmd.indexOf(prompt)).toBeLessThan(cmd.indexOf("--file <prompt-file>"))
+    if (env.CROSS_MODEL_MODEL_OVERRIDE) expect(cmd).toContain(`--model ${env.CROSS_MODEL_MODEL_OVERRIDE}`)
+    else expect(cmd).not.toContain("--model")
+    if (env.CROSS_MODEL_EFFORT_OVERRIDE) expect(cmd).toContain(`--variant ${env.CROSS_MODEL_EFFORT_OVERRIDE}`)
+    else expect(cmd).not.toContain("--variant")
     expect(cmd).not.toContain("--auto")
   })
 

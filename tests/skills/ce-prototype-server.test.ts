@@ -541,7 +541,7 @@ describe("ce-prototype light-webserver.js", () => {
     const payload = JSON.parse(result.stdout.trim())
     expect(Array.isArray(payload)).toBe(true)
     expect(payload).toHaveLength(1)
-    expect(Object.keys(payload[0])).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect"])
+    expect(Object.keys(payload[0])).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect", "point"])
     expect(payload[0].screen).toBe("001-screen.html")
     expect(payload[0].comment).toBe(record.comment)
     expect(payload[0].selector).toBe(record.selector)
@@ -600,7 +600,7 @@ describe("ce-prototype light-webserver.js", () => {
 
     expect((await post({ page: "/details.html" })).status).toBe(200)
     const details = await nextRecord()
-    expect(Object.keys(details)).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect"])
+    expect(Object.keys(details)).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect", "point"])
     expect(details.screen).toBe("details.html")
     expect(details).not.toHaveProperty("page")
 
@@ -738,7 +738,7 @@ describe("ce-prototype light-webserver.js", () => {
 
     const waited = await runServerCommand(["wait", "--root", root])
     expect(waited.exitCode, waited.stderr).toBe(1)
-    expect(JSON.parse(waited.stdout.trim())).toEqual({ status: "session-ended" })
+    expect(JSON.parse(waited.stdout.trim())).toEqual({ status: "session-ended", reason: "user-ended" })
   })
 
   test("closing the last change stream ends the session after a reconnect grace", async () => {
@@ -753,7 +753,7 @@ describe("ce-prototype light-webserver.js", () => {
 
     const result = await runServerCommand(["wait", "--root", root])
     expect(result.exitCode, result.stderr).toBe(1)
-    expect(JSON.parse(result.stdout.trim()).status).toBe("session-ended")
+    expect(JSON.parse(result.stdout.trim())).toEqual({ status: "session-ended", reason: "tab-closed" })
   })
 
   test("a page load during the reconnect grace keeps the session live until the overlay reconnects", async () => {
@@ -1200,21 +1200,33 @@ describe("ce-prototype light-webserver.js", () => {
     expect(status.status).toBe("stopped")
   })
 
-  test("idle shutdown flushes a parked wait as session-ended", async () => {
+  test("a waiting agent keeps the session alive past the idle budget", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-idle-"))
     const info = await startServer(root, ["--annotate"], {
-      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "400",
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "1000",
       CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "30",
-      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "5000",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "100",
     })
     const origin = `http://localhost:${info.port}`
-    // Root GET is activity, so idle is measured from a parked waiter rather
-    // than from listen() racing a separate Node `wait` process.
-    await fetch(String(info.url))
-    const parked = fetch(`${origin}/wait?token=${info.token}`)
-    const ended = await parked
-    expect(ended.status).toBe(410)
-    expect(await ended.json()).toEqual({ status: "session-ended" })
+    // Direct requests, as the wait CLI makes them: spawning the CLI under a
+    // loaded suite can outlast a short idle budget before it first connects.
+    const deadline = Date.now() + 2500
+    while (Date.now() < deadline) {
+      expect((await fetch(`${origin}/wait?token=${info.token}`)).status).toBe(204)
+    }
+    const status = JSON.parse((await runServerCommand(["status", "--root", root])).stdout.trim())
+    expect(status.status).toBe("running")
+  })
+
+  test("one parked wait outlasts an idle budget shorter than the wait timeout", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-long-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "300",
+      CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "30",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "1500",
+    })
+    const parked = await fetch(`http://localhost:${info.port}/wait?token=${info.token}`)
+    expect(parked.status).toBe(204)
   })
 
   test("stop flushes a parked wait as session-ended", async () => {
@@ -1228,7 +1240,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(stopped.exitCode, stopped.stderr).toBe(0)
     const ended = await waiting
     expect(ended.exitCode, ended.stderr).toBe(1)
-    expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
+    expect(JSON.parse(ended.stdout.trim())).toEqual({ status: "session-ended", reason: "stopped" })
   })
 
   test("wait reports session-ended after idle already stopped the process", async () => {
@@ -1246,10 +1258,10 @@ describe("ce-prototype light-webserver.js", () => {
     expect(status.status).toBe("stopped")
     const ended = await runServerCommand(["wait", "--root", root])
     expect(ended.exitCode, ended.stderr).toBe(1)
-    expect(JSON.parse(ended.stdout.trim()).status).toBe("session-ended")
+    expect(JSON.parse(ended.stdout.trim())).toEqual({ status: "session-ended", reason: "idle" })
   })
 
-  test("annotation POST resets idle timeout while wait and /version do not", async () => {
+  test("annotation POST resets idle timeout while /version does not", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-annotate-idle-"))
     const info = await startServer(root, ["--annotate"], {
       CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "600",
@@ -1272,7 +1284,6 @@ describe("ce-prototype light-webserver.js", () => {
     while (Date.now() < deadline) {
       try {
         await fetch(`${origin}/version`)
-        await fetch(`${origin}/wait?token=${info.token}`)
       } catch {
         break
       }
@@ -1287,6 +1298,12 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("let commentToolOn = false")
     expect(overlay).toContain("ce-annotate-catcher")
     expect(overlay).toContain("elementsFromPoint")
+    // Hit testing alone cannot see a pointer-events:none label over a canvas.
+    expect(overlay).toContain('pointerEvents !== "none"')
+    // The pick is the topmost painted candidate from one hit test, never a per-candidate or by-area guess.
+    expect(overlay).toContain("while (top && !candidates.includes(top)) top = top.parentElement")
+    // A wrapper with a box and no pixels of its own at the click is not a target.
+    expect(overlay).toContain("visible && paintsAt(el, x, y)")
     expect(overlay).toContain("catcher.hidden = !on")
     const overlayCss = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
     expect(overlayCss).toContain("cursor: crosshair")

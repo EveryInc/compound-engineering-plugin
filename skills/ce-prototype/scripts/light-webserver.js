@@ -164,17 +164,19 @@ function getRunningInfo(options) {
   }
 }
 
-function sessionHasEnded(options) {
+// The recorded end of this root's session, or null while it is live or unknown.
+function sessionEnd(options) {
   try {
-    return Boolean(readJson(options.infoFile).session_ended)
+    const info = readJson(options.infoFile)
+    return info.session_ended ? { reason: info.session_end_reason || null } : null
   } catch {
-    return false
+    return null
   }
 }
 
-function exitSessionEnded() {
+function exitSessionEnded({ reason }) {
   process.exitCode = 1
-  jsonOut({ status: "session-ended" })
+  jsonOut({ status: "session-ended", ...(reason ? { reason } : {}) })
 }
 
 // Containment has to survive symlinks: path.resolve is lexical, so a link
@@ -509,7 +511,9 @@ function parseAnnotation(raw, options) {
   const screen = screenForPage(options, body.page)
   if (!screen) return null
   const textSnippet = typeof body.textSnippet === "string" ? body.textSnippet : null
-  const rect = body.rect && typeof body.rect === "object" && !Array.isArray(body.rect) ? body.rect : null
+  const plainObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : null)
+  const rect = plainObject(body.rect)
+  const point = plainObject(body.point)
   return {
     id: randomUUID(),
     screen,
@@ -517,6 +521,7 @@ function parseAnnotation(raw, options) {
     selector,
     textSnippet,
     rect,
+    point,
   }
 }
 
@@ -690,7 +695,8 @@ async function wait(options) {
   if (!info?.port) {
     // Idle/owner shutdown records session_ended and exits; wait must still
     // report that terminal status rather than "not running".
-    if (sessionHasEnded(options)) return exitSessionEnded()
+    const ended = sessionEnd(options)
+    if (ended) return exitSessionEnded(ended)
     console.error("Server is not running")
     process.exit(2)
   }
@@ -705,7 +711,8 @@ async function wait(options) {
     try {
       response = await fetch(url)
     } catch {
-      if (sessionHasEnded(options)) return exitSessionEnded()
+      const ended = sessionEnd(options)
+      if (ended) return exitSessionEnded(ended)
       process.exit(2)
     }
     if (response.status === 200 || response.status === 410) {
@@ -734,6 +741,7 @@ async function serve(options) {
   const waiters = []
   const sseClients = new Set()
   let sessionEnded = false
+  let sessionEndReason = null
   let publishedInfo = null
   let sawSseClient = false
   let sseGraceTimer = null
@@ -744,11 +752,17 @@ async function serve(options) {
     lastActivity = Date.now()
   }
 
-  function endSession() {
+  function endedBody() {
+    return { status: "session-ended", ...(sessionEndReason ? { reason: sessionEndReason } : {}) }
+  }
+
+  // reason: user-ended | tab-closed | idle | owner-exited | stopped
+  function endSession(reason) {
     if (sessionEnded) return
     sessionEnded = true
+    sessionEndReason = reason
     if (publishedInfo && options.infoFile) {
-      publishedInfo = { ...publishedInfo, session_ended: true }
+      publishedInfo = { ...publishedInfo, session_ended: true, session_end_reason: reason }
       try {
         fs.writeFileSync(options.infoFile, `${JSON.stringify(publishedInfo, null, 2)}\n`)
       } catch {
@@ -766,7 +780,7 @@ async function serve(options) {
     flushHeld()
     broadcastAnnotations()
     fulfillWaiters()
-    const body = `${JSON.stringify({ status: "session-ended" })}\n`
+    const body = `${JSON.stringify(endedBody())}\n`
     const draining = []
     while (waiters.length > 0) {
       const parked = waiters.shift()
@@ -865,7 +879,7 @@ async function serve(options) {
   function requireLiveAnnotate(req, res) {
     if (!requireAnnotateToken(req, res)) return false
     if (sessionEnded) {
-      sendJson(res, 410, { status: "session-ended" })
+      sendJson(res, 410, endedBody())
       return false
     }
     return true
@@ -957,7 +971,7 @@ async function serve(options) {
     if (pendingDocuments.size > 0 || sessionEnded) return
     if (sseGraceTimer) clearTimeout(sseGraceTimer)
     sseGraceTimer = setTimeout(() => {
-      if (sseClients.size === 0 && pendingDocuments.size === 0) endSession()
+      if (sseClients.size === 0 && pendingDocuments.size === 0) endSession("tab-closed")
     }, SSE_GRACE_MS)
     sseGraceTimer.unref()
   }
@@ -979,6 +993,8 @@ async function serve(options) {
       if (req.method === "GET" && urlPath === "/wait") {
         unbindPendingFromSocket(req.socket)
         if (!requireAnnotateToken(req, res)) return
+        // A waiting agent is attending the session; an open tab alone is not.
+        touch()
         broadcastIfChanged()
         completeWorking()
         if (annotationQueue.length > 0) {
@@ -986,7 +1002,7 @@ async function serve(options) {
           return
         }
         if (sessionEnded) {
-          sendJson(res, 410, { status: "session-ended" })
+          sendJson(res, 410, endedBody())
           return
         }
         const parked = { res, timer: null }
@@ -1019,7 +1035,7 @@ async function serve(options) {
         }
         // The session can end while the body is still arriving.
         if (sessionEnded) {
-          sendJson(res, 410, { status: "session-ended" })
+          sendJson(res, 410, endedBody())
           return
         }
         const record = parseAnnotation(raw, options)
@@ -1048,8 +1064,8 @@ async function serve(options) {
       if (req.method === "POST" && urlPath === "/session/end") {
         unbindPendingFromSocket(req.socket)
         if (!requireAnnotateToken(req, res)) return
-        endSession()
-        sendJson(res, 200, { status: "session-ended" })
+        endSession("user-ended")
+        sendJson(res, 200, endedBody())
         return
       }
 
@@ -1172,20 +1188,23 @@ async function serve(options) {
   // server.close waits for those forever; end the session so they drain.
   // CLI `stop` sends SIGTERM; without this handler the process exits before
   // waiters receive session-ended.
-  function shutdown() {
-    Promise.resolve(endSession()).finally(() => {
+  function shutdown(reason) {
+    Promise.resolve(endSession(reason)).finally(() => {
       server.close(() => process.exit(0))
       server.closeAllConnections()
     })
   }
-  process.on("SIGTERM", shutdown)
-  process.on("SIGINT", shutdown)
+  process.on("SIGTERM", () => shutdown("stopped"))
+  process.on("SIGINT", () => shutdown("stopped"))
 
   const idleTimer = setInterval(() => {
+    // A parked wait is ongoing activity for as long as it stays connected,
+    // however the wait timeout compares with the idle budget.
+    if (waiters.length > 0) touch()
     if (options.ownerPid && !processAlive(options.ownerPid)) {
-      shutdown()
+      shutdown("owner-exited")
     } else if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-      shutdown()
+      shutdown("idle")
     }
   }, LIFECYCLE_CHECK_MS)
   idleTimer.unref()

@@ -293,7 +293,7 @@ else:
 
   integrationTest("failed collection preserves partial pack and does not stop later bookkeeping", () => fixture(({ root, pack }) => {
     const out = path.join(root, "pack")
-    const result = pack(out)
+    const result = pack(out, ["--all"])
     expect(result.status, result.stderr).toBe(1)
     const recorded = JSON.parse(fs.readFileSync(path.join(out, "pack.json"), "utf8"))
     expect(recorded.scenarios["fixture/pass"].arms.post.status).toBe("graded")
