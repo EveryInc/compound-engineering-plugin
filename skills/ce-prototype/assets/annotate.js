@@ -426,27 +426,42 @@
   }
 
   // Hit testing skips pointer-events:none, which is how labels and headlines
-  // laid over a canvas are usually styled. The smallest visible one under the
-  // point, when it is smaller than the hit element, is what was indicated.
+  // laid over a canvas are usually styled. The smallest visible one painted
+  // above the hit element at the point is what was indicated.
   function unhittableElementAt(x, y, hit) {
     const hitBox = hit.getBoundingClientRect()
-    let best = null
-    let bestArea = hitBox.width * hitBox.height
+    const hitArea = hitBox.width * hitBox.height
+    const candidates = []
     for (const el of document.body.querySelectorAll("*")) {
       if (el === host || host.contains(el)) continue
       const box = el.getBoundingClientRect()
       const area = box.width * box.height
-      if (!area || area >= bestArea) continue
+      if (!area || area >= hitArea) continue
       if (x < box.left || x > box.right || y < box.top || y > box.bottom) continue
       if (getComputedStyle(el).pointerEvents !== "none") continue
       const visible = el.checkVisibility
         ? el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
         : getComputedStyle(el).visibility === "visible"
-      if (!visible) continue
-      best = el
-      bestArea = area
+      if (visible) candidates.push({ el, area })
     }
-    return best
+    candidates.sort((a, b) => a.area - b.area)
+    const found = candidates.find(({ el }) => paintedOnTopAt(el, x, y))
+    return found ? found.el : null
+  }
+
+  // A box that contains the point can still sit behind the hit element. Made
+  // hittable for one synchronous hit test, an occluded element stays unhit.
+  function paintedOnTopAt(el, x, y) {
+    const value = el.style.getPropertyValue("pointer-events")
+    const priority = el.style.getPropertyPriority("pointer-events")
+    el.style.setProperty("pointer-events", "auto", "important")
+    try {
+      const top = pageElementFromPoint(x, y)
+      return top === el || el.contains(top)
+    } finally {
+      if (value) el.style.setProperty("pointer-events", value, priority)
+      else el.style.removeProperty("pointer-events")
+    }
   }
 
   function targetFromCatcher(event) {
