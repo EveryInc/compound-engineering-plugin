@@ -87,34 +87,31 @@ emit() {
 # line, or a template literal opened on an earlier line).
 has_jsx_mount() {
   # $1 file
+  # One scan, one state: at each character the scanner is inside a string
+  # (which quote), inside a block comment, or in code. Comment delimiters
+  # count only in code, so `data-url="http://x"` does not end the line, and
+  # quotes count only in code, so a quote inside a comment does not open a
+  # string. A tag counts only when it starts in code. A template literal
+  # and a block comment keep their state across lines; a single or double
+  # quote does not survive the end of its line.
   awk '
     {
       line = $0
-      if (inblock) {
-        if (index(line, "*/") == 0) next
-        line = substr(line, index(line, "*/") + 2)
-        inblock = 0
-      }
-      while ((start = index(line, "/*")) > 0) {
-        stop = index(substr(line, start + 2), "*/")
-        if (stop == 0) { line = substr(line, 1, start - 1); inblock = 1; break }
-        line = substr(line, 1, start - 1) substr(line, start + 2 + stop + 1)
-      }
-      if ((c = index(line, "//")) > 0) line = substr(line, 1, c - 1)
-      # Walk the line as string state: a tag counts only when the scan is
-      # outside every quote at the point it starts, so a quoted sibling
-      # attribute before it (`<main className="app"><RiffrecProvider ...`)
-      # does not hide a real mount, while a tag inside a string does not
-      # count. A template literal (backtick) keeps its state across lines;
-      # a single or double quote does not survive the end of its line.
       n = length(line)
       for (i = 1; i <= n; i++) {
         ch = substr(line, i, 1)
+        two = substr(line, i, 2)
+        if (inblock) {
+          if (two == "*/") { inblock = 0; i++ }
+          continue
+        }
         if (instr != "") {
           if (ch == "\\") { i++; continue }
           if (ch == instr) instr = ""
           continue
         }
+        if (two == "//") break
+        if (two == "/*") { inblock = 1; i++; continue }
         if (ch == "\"" || ch == "\047" || ch == "`") { instr = ch; continue }
         if (ch == "<" && match(substr(line, i), /^<RiffrecProvider([[:space:]>]|$)/)) {
           before = substr(line, 1, i - 1)

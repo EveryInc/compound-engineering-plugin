@@ -93,6 +93,12 @@ describe("detect-riffrec.sh", () => {
     expect((await detect(root)).mount).toBe(true)
     await fs.writeFile(path.join(root, "src", "main.tsx"), "<main title=\"it's\">{ok ? <RiffrecProvider forceEnable live={{}}><App /></RiffrecProvider> : null}</main>\n")
     expect((await detect(root)).mount).toBe(true)
+    // Comment delimiters inside a string are text, not a comment.
+    await fs.writeFile(path.join(root, "src", "main.tsx"), '<main data-url="http://example.test" data-note="/* not a comment */"><RiffrecProvider forceEnable live={{}}><App /></RiffrecProvider></main>\n')
+    expect((await detect(root)).mount).toBe(true)
+    // And a quote inside a comment does not open a string.
+    await fs.writeFile(path.join(root, "src", "main.tsx"), '{/* it\'s */}<RiffrecProvider forceEnable live={{}}><App /></RiffrecProvider>\n')
+    expect((await detect(root)).mount).toBe(true)
   })
 
   test("a mount inside node_modules or dist alone is not a mount; an import without the JSX tag is not a mount", async () => {
