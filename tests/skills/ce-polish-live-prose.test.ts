@@ -16,7 +16,7 @@ const scriptsDir = path.join(skillDir, "scripts")
 const SKILL_MD_BYTE_CEILING = 8000
 
 // riffrec main commit the fixtures, contract mirror, and install pin all refer to (tests/fixtures/ce-polish-live/SOURCE.md).
-const RIFFREC_REFERENCE_SHA = "bff7ffe5febf686151f9edd517d2c7ac636d763c"
+const RIFFREC_REFERENCE_SHA = "1393c17082e3b6a5b04d219fc6ae9083018c96a2"
 
 const LIVE_FILES = ["live-start.md", "live-loop.md", "live-remote.md", "install-riffrec.md", "live-stream-contract.md"]
 
