@@ -250,8 +250,8 @@ adapter_argv() {
     opencode)
       printf '%s\0' env 'OPENCODE_DISABLE_PROJECT_CONFIG=1' \
         'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}' \
-        opencode run --dir "$READ_ROOT" --format json --file "$PROMPT_FILE"
-      printf '%s\0' "Follow the attached brief. Return only schema-shaped JSON."
+        opencode run --dir "$READ_ROOT" --format json \
+        "Follow the attached brief. Return only schema-shaped JSON." --file "$PROMPT_FILE"
       _oc_model="$(route_model opencode)"
       [ "$_oc_model" = "auto" ] || [ -z "$_oc_model" ] || printf '%s\0' --model "$_oc_model"
       ;;

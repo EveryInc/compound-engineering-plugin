@@ -158,8 +158,8 @@ adapter_argv() {
         --force --sandbox enabled --trust --workspace "$WORKSPACE" --model "$(route_model grok-cursor)"
       ;;
     opencode)
-      printf '%s\0' opencode run --dir "$WORKSPACE" --format json --auto --file "$PROMPT_FILE"
-      printf '%s\0' "Follow the attached unit packet. Return only the implementation result JSON."
+      printf '%s\0' opencode run --dir "$WORKSPACE" --format json --auto \
+        "Follow the attached unit packet. Return only the implementation result JSON." --file "$PROMPT_FILE"
       [ "$(route_model opencode)" = auto ] || printf '%s\0' --model "$(route_model opencode)"
       # OpenCode carries effort through --variant, same as the review adapters.
       [ -z "${CROSS_MODEL_EFFORT_OVERRIDE:-}" ] || printf '%s\0' --variant "$CROSS_MODEL_EFFORT_OVERRIDE"

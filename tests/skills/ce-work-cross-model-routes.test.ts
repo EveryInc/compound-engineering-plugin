@@ -275,6 +275,9 @@ describe("ce-work fixed write routes", () => {
     expect(opencode).toContain("--format json")
     expect(opencode).toContain("--auto")
     expect(opencode).toContain("--file <prompt-file>")
+    // OpenCode's --file is variadic: a bare argument after it becomes another attachment.
+    expect(opencode.indexOf("Follow the attached unit packet.")).toBeGreaterThan(-1)
+    expect(opencode.indexOf("Follow the attached unit packet.")).toBeLessThan(opencode.indexOf("--file <prompt-file>"))
     expect(opencode).not.toContain("--model")
   })
 
