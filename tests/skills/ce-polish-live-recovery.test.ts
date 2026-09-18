@@ -268,6 +268,49 @@ describe("live endpoint recovery: refusals under load", () => {
   })
 })
 
+describe("live endpoint recovery: session end", () => {
+  test("a unit that lands after the page's final checkpoint is released by /session/end as a last batch and holds the board from draining", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expectOk(await page.sendCheckpoint("ck-final", "final", "smart"))
+    const final = await agent.waitHttp()
+    expect(final.envelope!.kind).toBe("final")
+    expectOk(await agent.ack("ck-final"))
+    expectOk(await agent.postStatus("u1", "applied"))
+    // Late: the page still had a unit in flight when Done went out.
+    expectOk(await page.sendUnit("u2", "make the footer blue"))
+    expectOk(await page.endSession("{}", "application/json"))
+
+    const late = await agent.waitHttp()
+    expect(late.status).toBe(200)
+    expect(late.envelope!.kind).toBe("send")
+    expect(late.envelope!.units.map((unit) => unit.id)).toEqual(["u2"])
+    const probe = () => fetch(`${agent.url}/session`, { headers: { Authorization: `Bearer ${agent.pageToken}` } }).then((response) => response.json())
+    expect(await probe()).toMatchObject({ status: "ended", accepts_new_session: false })
+    expectOk(await agent.ack(late.envelope!.checkpoint_id))
+    expect(await probe()).toMatchObject({ status: "ended", accepts_new_session: false })
+    expectOk(await agent.postStatus("u2", "blocked", { note: "session ended before apply" }))
+    expect(await probe()).toMatchObject({ status: "ended", accepts_new_session: true })
+  })
+
+  test("a committed session end answers 200 even when the audit log cannot be appended", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    const agentLog = path.join(agent.stateDir, "log", "agent.ndjson")
+    await fs.rm(agentLog, { force: true })
+    await fs.mkdir(agentLog)
+    const ended = await page.endSession("{}", "application/json")
+    expectOk(ended)
+    expect(ended.body.status).toBe("session-ended")
+    expect((await agent.session()).ended).toBe(true)
+    expect((await agent.board()).ended).toBe(true)
+    // The retry of an already-ended session is the documented 410, not a second end.
+    expect((await page.endSession("{}", "application/json")).status).toBe(410)
+  })
+})
+
 describe("live endpoint recovery: session transitions", () => {
   test("a new-session opener whose board save fails leaves the ended session intact on disk and in memory; the retry opens it", async () => {
     const agent = await startAgent()
@@ -363,7 +406,9 @@ describe("live endpoint recovery: replay and lifecycle", () => {
   })
 
   test("a page_lost batch that cannot be persisted leaves the watch armed and the helper up; the loss is reported once the disk allows", async () => {
-    const agent = await startAgent({ env: { CE_LIVE_PAGE_LOST_GRACE_MS: "400" } })
+    // A long flush window: the `applied` delivery must not end the stream (and let the fake page's
+    // reconnect retire the watch) before this test closes the stream itself.
+    const agent = await startAgent({ env: { CE_LIVE_PAGE_LOST_GRACE_MS: "400", CE_LIVE_STREAM_FLUSH_MS: "10000" } })
     const page = pageFor(agent)
     await page.openStream()
     expectOk(await page.sendUnit("u1", "make the header red"))
@@ -425,7 +470,9 @@ describe("live endpoint recovery: replay and lifecycle", () => {
 
 describe("live endpoint recovery: the page-loss watch and stream replay", () => {
   test("the watch set by an applied notice ends when the page reconnects, or when the grace window passes with the stream up; a later disconnect is not a loss", async () => {
-    const agent = await startAgent({ env: { CE_LIVE_PAGE_LOST_GRACE_MS: "400" } })
+    // A long flush window keeps the fake page's automatic reconnect out of the picture: every
+    // disconnect and reconnect below is the test's own.
+    const agent = await startAgent({ env: { CE_LIVE_PAGE_LOST_GRACE_MS: "400", CE_LIVE_STREAM_FLUSH_MS: "10000" } })
     const page = pageFor(agent)
     await page.openStream()
     expectOk(await page.sendUnit("u1", "make the header red"))
