@@ -155,16 +155,24 @@ describe("ce-polish live-mode prose", () => {
     expect(remote).toMatch(/name the endpoint origin as the one that must become HTTPS/i)
   })
 
-  test("live-stream-contract.md and the helper agree on the four interviewer tools and the schema version", async () => {
+  test("live-stream-contract.md and the helper agree on the five interviewer tools and the schema version", async () => {
     const contract = await read("references/live-stream-contract.md")
     const helper = await read("scripts/live-endpoint.js")
-    const tools = ["record_unit", "update_unit", "withdraw_unit", "relay_answer"]
+    const tools = ["record_unit", "update_unit", "withdraw_unit", "relay_answer", "look_at_screen"]
     for (const tool of tools) {
       expect(contract).toContain(`\`${tool}\``)
       expect(helper).toMatch(new RegExp(`"?name"?: "${tool}"`))
     }
-    expect(helper.match(/"?name"?: "(record_unit|update_unit|withdraw_unit|relay_answer)"/g)).toHaveLength(4)
+    // Exactly riffrec's five: the interviewer sees on request through
+    // `look_at_screen` (R7 reversed); timing and state still never move through a tool.
+    expect(helper.match(/^    "name": "([a-z_]+)",$/gm)?.map((line) => line.match(/"name": "([a-z_]+)"/)?.[1])).toEqual(tools)
     expect(helper).not.toMatch(/"?name"?: "(emit_checkpoint|report_state|capture_frame)"/)
+    // The persona carries the [SCREEN CONTEXT] section the page checks for and
+    // never tells the interviewer it cannot see the screen.
+    expect(helper).toContain('"[SCREEN CONTEXT]"')
+    expect(helper).not.toMatch(/without claiming to see the screen|You do not watch the screen/)
+    // The handoff names what now goes to OpenAI beside audio and the brief.
+    expect(await read("references/live-start.md")).toMatch(/screenshots of the page when you point at something or ask the interviewer to look go to OpenAI/)
     expect(contract).toContain("live/1")
     expect(helper).toContain('const SCHEMA_VERSION = "live/1"')
     // Abandoned credential paths stay gone (Definition of Done).

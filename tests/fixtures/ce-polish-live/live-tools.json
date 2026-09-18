@@ -1,0 +1,123 @@
+[
+  {
+    "type": "function",
+    "name": "record_unit",
+    "description": "Record one requested change as a unit on the board. Call when the riffer has asked for exactly one concrete change to the app and you can state it in one sentence; call once per change, so a sentence that asks for three things becomes three calls. Never call for questions, thinking aloud, praise, or utterances shorter than three words without a change verb; ask a clarifying question instead when the target element or the intended change is ambiguous.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "statement": {
+          "type": "string",
+          "description": "Normalized imperative statement of the change, in the riffer's vocabulary, one sentence, no speculation."
+        },
+        "anchors": {
+          "type": "array",
+          "description": "Anchor references for the element(s) the change is about: an anchor id from a [PAGE] note announcing what the riffer clicked, drew on, or pinned (\"this\"/\"here\" means the most recent one), or the riffer's own words for the element (\"the sidebar toggle\", \"that red button\"). Empty only when the riffer named no element and no anchor was announced.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "transcript_excerpt": {
+          "type": "string",
+          "description": "The riffer's own words that carry this change, verbatim, trimmed to the relevant span."
+        }
+      },
+      "required": [
+        "statement",
+        "anchors",
+        "transcript_excerpt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "update_unit",
+    "description": "Refine a unit you recorded earlier. Call when the riffer adds detail, corrects wording, or names another element for a change already on the board, or when they answer a clarifying question you asked about it. Never call to change a unit into a different change; withdraw it and record a new one. The call is rejected once the unit has left the initial status; the result tells you so, and you must then record the refinement as a new unit.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "description": "Id returned by record_unit."
+        },
+        "statement": {
+          "type": "string",
+          "description": "Replacement statement, when the wording changes."
+        },
+        "anchors_add": {
+          "type": "array",
+          "description": "Additional anchor references to attach; existing anchors are kept.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "unit_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "withdraw_unit",
+    "description": "Retract a unit the riffer no longer wants. Call when the riffer says never mind, undo, scrap that, or otherwise takes back a change you recorded. Never call because you are unsure the unit was right; ask instead. Never call for units you did not record in this session.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "description": "Id returned by record_unit."
+        },
+        "reason": {
+          "type": "string",
+          "description": "The riffer's reason, in their words, when they gave one."
+        }
+      },
+      "required": [
+        "unit_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "relay_answer",
+    "description": "Relay the riffer's answer to a question the coding agent asked about a unit. Call when you voiced a question that arrived from the endpoint for a specific unit and the riffer has answered it. Never call for answers to your own clarifying questions; use update_unit for those. Never invent or summarize an answer the riffer did not give.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "unit_id": {
+          "type": "string",
+          "description": "Id of the unit the question was attached to."
+        },
+        "answer_text": {
+          "type": "string",
+          "description": "The riffer's answer, verbatim or lightly cleaned of filler."
+        }
+      },
+      "required": [
+        "unit_id",
+        "answer_text"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "type": "function",
+    "name": "look_at_screen",
+    "description": "See the riffer's screen right now. The page attaches a screenshot of the current view as an image in the conversation, then returns this call's result with the route and how old the frame is. Call when the riffer refers to how something looks (\"this\", \"here\", \"that color\", \"it looks off\") and the clicked or drawn anchors the page announced do not settle what they mean, when they ask whether you can see their screen, or when they ask you to look. Never call more than once per riffer turn, and never call to browse: only to answer what the riffer just said. If the result says no frame is available, ask the riffer to describe what they see.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Why you need to see the screen, in a few words."
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  }
+]

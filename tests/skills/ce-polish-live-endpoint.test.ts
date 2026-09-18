@@ -278,7 +278,14 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
     expect(openai.requests[0].url).toBe("/v1/realtime/client_secrets")
     expect(openai.requests[0].authorization).toBe(`Bearer ${stubKey}`)
     const session = openai.requests[0].body.session as { tools: Array<{ name: string }>; instructions: string; audio: unknown }
-    expect(session.tools.map((tool) => tool.name)).toEqual(["record_unit", "update_unit", "withdraw_unit", "relay_answer"])
+    expect(session.tools.map((tool) => tool.name)).toEqual(["record_unit", "update_unit", "withdraw_unit", "relay_answer", "look_at_screen"])
+    // Verbatim riffrec LIVE_TOOLS and DEFAULT_INTERVIEWER_INSTRUCTIONS: the page
+    // reconciles the minted session after connect and patches only what differs,
+    // so a byte-identical copy is what keeps it from touching the session.
+    expect(session.tools).toEqual(JSON.parse(await fs.readFile(path.join(FIXTURES_DIR, "live-tools.json"), "utf8")))
+    const persona = await fs.readFile(path.join(FIXTURES_DIR, "interviewer-instructions.txt"), "utf8")
+    expect(session.instructions).toBe(persona)
+    expect(session.instructions).toContain("[SCREEN CONTEXT]")
     expect(session.audio).toBeDefined()
 
     // Mint 2: upstream rejects the key; the body is not echoed.
@@ -299,9 +306,9 @@ describe("live endpoint: /mint (KTD4, I2)", () => {
     expect(limited.status).toBe(429)
     expect(typeof limited.body.retry_after).toBe("number")
     expect(openai.requests).toHaveLength(5)
-    // The brief rode along in the instructions after the persona.
+    // The brief rode along in the instructions after the persona, under riffrec's label.
     const withBrief = openai.requests[4].body.session as { instructions: string }
-    expect(withBrief.instructions).toContain("SidebarToggle")
+    expect(withBrief.instructions).toBe(`${persona}\n\n[SESSION BRIEF]\nRoutes: /, /settings\nComponents: SidebarToggle, SettingsPanel\n`)
 
     // Neither the API key nor the minted secret is persisted anywhere under state/.
     const files = await collectFiles(agent.stateDir)

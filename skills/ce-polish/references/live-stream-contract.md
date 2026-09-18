@@ -2,7 +2,7 @@
 
 The wire contract between a riffrec live page, the `scripts/live-endpoint.js` helper, and the coding agent. This is the skill's own copy of the contract; the page's copy ships with the riffrec package and the two are kept identical by that package's fixtures. When they disagree, the endpoint rejects the page's `schema_version` and the page shows its incompatible-endpoint state instead of parsing best-effort.
 
-Mirrors riffrec `docs/live-stream-contract.md` @ d4d8c5a (`src/live/contract.ts` and `src/live/tools.ts` are the typed source of truth). Adding an optional payload field or a new event type is not a breaking change; consumers ignore fields they do not know but reject event types they do not know.
+Mirrors riffrec `docs/live-stream-contract.md` @ 55be284 (PR #29; `src/live/contract.ts`, `src/live/tools.ts`, and `src/live/realtime/persona.ts` are the typed source of truth). Adding an optional payload field or a new event type is not a breaking change; consumers ignore fields they do not know but reject event types they do not know.
 
 ## Envelope
 
@@ -150,8 +150,8 @@ Dropping telemetry also drops the `click`/`navigation`/`network_request`/`consol
   "session": {
     "type": "realtime",
     "model": "gpt-realtime",
-    "instructions": "<persona>\n\nSession brief:\n<brief>",
-    "tools": [ "<the four tools below>" ],
+    "instructions": "<persona>\n\n[SESSION BRIEF]\n<brief>",
+    "tools": [ "<the five tools below>" ],
     "tool_choice": "auto",
     "audio": {
       "input": {
@@ -168,19 +168,73 @@ The endpoint never logs request headers or mint bodies and never persists the mi
 
 ## Interviewer tools
 
-Four flat function tools. No tool emits checkpoints or reports state: the page owns all timing and tells the interviewer about page-side facts as text conversation items.
+Five flat function tools, riffrec `LIVE_TOOLS` (`src/live/tools.ts`) copied verbatim into `INTERVIEWER_TOOLS` and pinned by `tests/fixtures/ce-polish-live/live-tools.json`. No tool emits checkpoints or reports state: the page owns all timing and tells the interviewer about page-side facts as text conversation items. No tool *parameter* carries image content: `look_at_screen` asks the page for a screenshot, and the page attaches it as an image conversation item before the tool result.
 
 | Tool | Parameters | Purpose |
 |---|---|---|
-| `record_unit` | `statement`, `anchors: string[]` (the riffer's words for the element or an anchor id the page announced), `transcript_excerpt` | Record one requested change; once per change; never for questions, thinking aloud, or short utterances without a change verb. |
+| `record_unit` | `statement`, `anchors: string[]` (an anchor id from a `[PAGE]` note, "this"/"here" meaning the most recent one, or the riffer's own words for the element), `transcript_excerpt` | Record one requested change; once per change; never for questions, thinking aloud, or short utterances without a change verb. |
 | `update_unit` | `unit_id`, `statement?`, `anchors_add?: string[]` | Refine a unit the interviewer recorded; rejected once it has left `initial`, in which case the refinement is recorded as a new unit. |
 | `withdraw_unit` | `unit_id`, `reason?` | Retract a unit the riffer took back; never because the interviewer is unsure. |
 | `relay_answer` | `unit_id`, `answer_text` | Relay the riffer's answer to a question that arrived from the endpoint; not for the interviewer's own clarifying questions. |
+| `look_at_screen` | `reason?` | See the riffer's screen right now: for how something looks when the announced anchors do not settle it, for "can you see my screen?", and when asked to look. Never more than once per riffer turn, never to browse. |
 
-Every parameter schema carries `additionalProperties: false`. The definitions in `scripts/live-endpoint.js` are a verbatim copy of riffrec's `LIVE_TOOLS` (`src/live/tools.ts`), which is the source of truth for wording.
+Every parameter schema carries `additionalProperties: false`.
+
+### `look_at_screen`
+
+When the model calls it, the page grabs the current view (or takes the latest buffered frame when it is under 500 ms old), sends a `conversation.item.create` with a `user` message whose content is `[{ type: "input_image", image_url: "data:image/jpeg;base64,…" }, { type: "input_text", text: "<caption>" }]`, then the `function_call_output`, then `response.create` (deferred until the calling response's `response.done` when one is active). Grabs are downscaled to 1280 px wide. Result shapes:
+
+| Result | Meaning |
+|---|---|
+| `{ ok: true, frame_id, route, age_ms, fresh }` | The screenshot precedes this result in the conversation. `fresh` is false when the latest buffered frame stood in. |
+| `{ ok: false, reason: "no_frame", detail }` | The screen is not shared or capture is paused. |
+| `{ ok: false, reason: "frames_disabled", detail }` | The evidence profile is `frames: "none"`; nothing visual leaves the page. |
+| `{ ok: false, reason: "send_failed", detail }` | The image item could not be sent. |
+
+The frame is buffered like a gesture frame (the next unit attaches to it) and released to this endpoint as an ordinary `frame` envelope even under `frames: "one"`. Nothing on the wire changes for frames the interviewer sees. Image input needs nothing in the session body the mint sends: the Realtime API takes `input_image` content parts on any user message and its session configuration carries only `output_modalities`.
+
+### Page → interviewer announcements
+
+Page-side facts reach the interviewer as `system`-role `input_text` items, never as tool calls, and are held while a response is active. The persona keys on these shapes:
+
+| Shape | When |
+|---|---|
+| `[PAGE] The riffer clicked <description> (anchor id: anchor_NNNN).` | Every click on the host page. `<description>` is `<accessible name or tag>[ with text "<visible text, ≤80 chars>"][ in component <Component>] (selector <css>, route </path>)`. Repeated clicks on the same selector inside 1 s refresh the anchor but send no second note. Clicks on riffrec's own panel are not announced. |
+| `[PAGE] The riffer drew on <description> (anchor id: anchor_NNNN).` | A completed stroke. |
+| `[PAGE] The riffer pinned <description> (anchor id: anchor_NNNN).` | A pin. |
+| `[PAGE] Screenshot of the riffer's current view on </path>, <attached because they just clicked there \| attached because they just drew there \| attached because they referred to something on screen \| captured just now \| captured N s ago> (frame id: frame_NNNN). The riffrec panel docked at the top right is not part of the app.` | The caption of an image item: proactive (first three) or `look_at_screen` (last two). Proactive frames are rate-limited to one per 5 s, a `look_at_screen` counts against the same limit, and speech triggers only when the transcript contains a deictic or visual word. |
+| `[PAGE] The riffer muted their microphone; expect silence.` / `… unmuted their microphone.` | Mute toggles. |
+| `[PAGE] The page lost its connection to the coding agent and is buffering; units still land on the board.` / `… reconnected …` | Stream state changes. |
+| `[ENDPOINT QUESTION] The coding agent asks about unit <id>: "<question>" …` | An `ask` from this endpoint, voiced at the next pause. |
+| `[RECONNECT] Your connection was replaced mid-session. …` | The re-seed on a replacement connection. |
+
+Anchor ids are `anchor_NNNN`, minted per connection in announcement order; the most recent one is what "this", "here", and "that" resolve to when a `record_unit` reference matches nothing else within 8 s.
+
+### Reconciliation after connect
+
+The page answers the tool calls and attaches the screenshots, so once the data channel opens it reads the session this endpoint minted (`session.created`) and sends one `session.update` only when something it must be able to answer is missing: tools in `LIVE_TOOLS` the mint did not carry are appended (tools the endpoint did define are kept verbatim, in the endpoint's order); a persona without the `[SCREEN CONTEXT]` section gets it appended; a session with no riffrec tool at all gets the default persona and all of `LIVE_TOOLS`. This helper copies both verbatim and is never patched. An endpoint persona must not tell the interviewer it cannot see the screen: the page contradicts that with notes and frames.
 
 ## Default persona
 
-> You are the interviewer in a live polish session. A person (the riffer) is using their own web app, talking about what they want changed, and pointing, clicking, or drawing on the page. A coding agent applies the changes; you never edit anything yourself. You do not watch the screen; the page tells you what happens on it. Facts about the page arrive as text items marked `[PAGE]`: what the riffer clicked or drew on, named by element and by anchor id, plus mutes and buffering. Those anchor ids are how you name elements. When the riffer says this, that, here, or otherwise points without naming the element, they mean the anchor announced nearest to those words: use its id, do not ask which element. Ask only when no anchor has been announced or two recent ones fit equally. If the riffer asks whether you can see what they clicked, answer with the element you were told about. Listen more than you speak. When the riffer describes a change, call `record_unit` once with a single normalized statement and the anchors you were told about. Refine a unit with `update_unit` while it is still initial; withdraw it with `withdraw_unit` if the riffer changes their mind. When you are handed a question from the coding agent, ask it in one short sentence after the riffer has finished speaking, and relay the answer with `relay_answer`. Do not confirm every unit aloud, do not summarize, and do not propose changes of your own.
+Verbatim riffrec `DEFAULT_INTERVIEWER_INSTRUCTIONS` (`src/live/realtime/persona.ts`), pinned by `tests/fixtures/ce-polish-live/interviewer-instructions.txt`; the mint appends `\n\n[SESSION BRIEF]\n<brief>` when `state/brief.md` exists. The closing `[SCREEN CONTEXT]` section is the marker the page checks for.
 
-The persona presumes the page announces clicks the way it announces drawings (`[PAGE] The riffer clicked <element> (anchor id: <id>).`); a page that keeps clicks silent leaves the interviewer with drawings only. The executable copies of the tools and persona live in `scripts/live-endpoint.js`; change both together.
+> You are the riffrec interviewer: a calm, terse product partner listening to a designer or developer (the riffer) talk through changes they want while they click and draw on their own running app. The page tells you what they click, draw on, and pin, and shows you the screen when you ask for it; the last section says how.
+> 
+> Your job is to turn what the riffer says into units of change on a shared board, one unit per requested change, using the record_unit tool. A sentence that asks for three things becomes three record_unit calls. Never call record_unit for questions, thinking aloud, praise, or utterances shorter than three words without a change verb.
+> 
+> Ask immediately, in one short sentence, when the target element or the intended value is ambiguous: which element, which side, what color, how much. Otherwise stay quiet and let the riffer keep talking. Do not narrate, summarize, or confirm each unit aloud; the board already shows it.
+> 
+> Never invent anchors. Use only the anchor ids the page announced or the element references the riffer named. When the riffer names no element and no anchor was announced, record the unit with an empty anchors list.
+> 
+> When the riffer takes back a change, call withdraw_unit and acknowledge it aloud in a few words. When they refine a change already on the board, call update_unit; if it is rejected because the unit was already picked up, record the refinement as a new unit.
+> 
+> When a note marked [ENDPOINT QUESTION] arrives, read the question to the riffer in your own words at the next pause and, once they answer, call relay_answer with their answer for that unit. Never answer such a question yourself.
+> 
+> Keep every spoken turn under two sentences. Speak the riffer's language.
+> 
+> [SCREEN CONTEXT]
+> The page keeps you informed about the screen, and this section is authoritative about it: it supersedes any earlier statement that you cannot see the page or must not claim to.
+> Every click the riffer makes arrives as a system note tagged [PAGE] that names the element (its component, visible text, selector, and route) and gives it an anchor id. Drawings and pins arrive the same way. The most recent note is what "this", "here", and "that" refer to: put its anchor id in record_unit's anchors, and never ask which element they mean when a note arrived within the last few seconds.
+> You can also see the screen. Call look_at_screen when the riffer refers to how something looks, asks whether you can see their screen, or asks you to look; the page attaches a screenshot of the current view and you may then describe or refer to what is in it. The riffrec panel docked at the top right is not part of the app. Never say you cannot see the screen: if no frame is available the tool result says so, and you ask the riffer to describe what they see instead.
+
+The executable copies of the tools and persona live in `scripts/live-endpoint.js`; change the script, this file, and the two fixtures together, from riffrec's source at the pinned commit.

@@ -121,7 +121,11 @@ const EVIDENCE_PROFILES = {
 
 // The executable copy of the interviewer's tools the mint sends to OpenAI:
 // verbatim riffrec `LIVE_TOOLS` (src/live/tools.ts). The human-readable copy
-// is references/live-stream-contract.md; change all three together.
+// is references/live-stream-contract.md and the pinned dump is
+// tests/fixtures/ce-polish-live/live-tools.json; change all three together.
+// After connecting, the page appends any tool it can answer that the mint
+// lacked (the endpoint's copies win), so a stale copy degrades rather than
+// breaks; a verbatim copy is never patched.
 const INTERVIEWER_TOOLS = [
   {
     "type": "function",
@@ -136,7 +140,7 @@ const INTERVIEWER_TOOLS = [
         },
         "anchors": {
           "type": "array",
-          "description": "Anchor references for the element(s) the change is about: the riffer's own words for the element (\"the sidebar toggle\", \"that red button\") or an anchor id the page announced in conversation. Empty only when the riffer named no element at all.",
+          "description": "Anchor references for the element(s) the change is about: an anchor id from a [PAGE] note announcing what the riffer clicked, drew on, or pinned (\"this\"/\"here\" means the most recent one), or the riffer's own words for the element (\"the sidebar toggle\", \"that red button\"). Empty only when the riffer named no element and no anchor was announced.",
           "items": {
             "type": "string"
           }
@@ -227,27 +231,47 @@ const INTERVIEWER_TOOLS = [
       ],
       "additionalProperties": false
     }
+  },
+  {
+    "type": "function",
+    "name": "look_at_screen",
+    "description": "See the riffer's screen right now. The page attaches a screenshot of the current view as an image in the conversation, then returns this call's result with the route and how old the frame is. Call when the riffer refers to how something looks (\"this\", \"here\", \"that color\", \"it looks off\") and the clicked or drawn anchors the page announced do not settle what they mean, when they ask whether you can see their screen, or when they ask you to look. Never call more than once per riffer turn, and never call to browse: only to answer what the riffer just said. If the result says no frame is available, ask the riffer to describe what they see.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Why you need to see the screen, in a few words."
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
   }
 ]
 
+// The interviewer's instructions: verbatim riffrec
+// `DEFAULT_INTERVIEWER_INSTRUCTIONS` (src/live/realtime/persona.ts), pinned by
+// tests/fixtures/ce-polish-live/interviewer-instructions.txt. The page checks
+// the minted persona for the [SCREEN CONTEXT] marker after connect and appends
+// the section when it is missing; keep it here, and keep it last.
+const SCREEN_CONTEXT_SECTION = [
+  "[SCREEN CONTEXT]",
+  "The page keeps you informed about the screen, and this section is authoritative about it: it supersedes any earlier statement that you cannot see the page or must not claim to.",
+  "Every click the riffer makes arrives as a system note tagged [PAGE] that names the element (its component, visible text, selector, and route) and gives it an anchor id. Drawings and pins arrive the same way. The most recent note is what \"this\", \"here\", and \"that\" refer to: put its anchor id in record_unit's anchors, and never ask which element they mean when a note arrived within the last few seconds.",
+  "You can also see the screen. Call look_at_screen when the riffer refers to how something looks, asks whether you can see their screen, or asks you to look; the page attaches a screenshot of the current view and you may then describe or refer to what is in it. The riffrec panel docked at the top right is not part of the app. Never say you cannot see the screen: if no frame is available the tool result says so, and you ask the riffer to describe what they see instead.",
+].join("\n")
+
 const INTERVIEWER_PERSONA = [
-  "You are the interviewer in a live polish session. A person (the riffer) is using their own web app,",
-  "talking about what they want changed, and pointing, clicking, or drawing on the page. A coding agent",
-  "applies the changes; you never edit anything yourself.",
-  "You do not watch the screen; the page tells you what happens on it. Facts about the page arrive as",
-  "text items marked [PAGE]: what the riffer clicked or drew on, named by element and by anchor id, plus",
-  "mutes and buffering. Those anchor ids are how you name elements. When the riffer says this, that, here,",
-  "or otherwise points without naming the element, they mean the anchor announced nearest to those words:",
-  "use its id, do not ask which element. Ask only when no anchor has been announced or two recent ones fit",
-  "equally. If the riffer asks whether you can see what they clicked, answer with the element you were",
-  "told about.",
-  "Listen more than you speak. When the riffer describes a change, call record_unit once with a single",
-  "normalized statement and the anchors you were told about. Refine a unit with update_unit while it is",
-  "still initial; withdraw it with withdraw_unit if the riffer changes their mind. When you are handed a",
-  "question from the coding agent, ask it in one short sentence after the riffer has finished speaking,",
-  "and relay the answer with relay_answer. Do not confirm every unit aloud, do not summarize, and do not",
-  "propose changes of your own.",
-].join(" ")
+  "You are the riffrec interviewer: a calm, terse product partner listening to a designer or developer (the riffer) talk through changes they want while they click and draw on their own running app. The page tells you what they click, draw on, and pin, and shows you the screen when you ask for it; the last section says how.",
+  "Your job is to turn what the riffer says into units of change on a shared board, one unit per requested change, using the record_unit tool. A sentence that asks for three things becomes three record_unit calls. Never call record_unit for questions, thinking aloud, praise, or utterances shorter than three words without a change verb.",
+  "Ask immediately, in one short sentence, when the target element or the intended value is ambiguous: which element, which side, what color, how much. Otherwise stay quiet and let the riffer keep talking. Do not narrate, summarize, or confirm each unit aloud; the board already shows it.",
+  "Never invent anchors. Use only the anchor ids the page announced or the element references the riffer named. When the riffer names no element and no anchor was announced, record the unit with an empty anchors list.",
+  "When the riffer takes back a change, call withdraw_unit and acknowledge it aloud in a few words. When they refine a change already on the board, call update_unit; if it is rejected because the unit was already picked up, record the refinement as a new unit.",
+  "When a note marked [ENDPOINT QUESTION] arrives, read the question to the riffer in your own words at the next pause and, once they answer, call relay_answer with their answer for that unit. Never answer such a question yourself.",
+  "Keep every spoken turn under two sentences. Speak the riffer's language.",
+  SCREEN_CONTEXT_SECTION,
+].join("\n\n")
 
 function usage() {
   return [
@@ -1710,7 +1734,7 @@ async function serve(options) {
     mintInFlight = true
     touch()
     try {
-      const instructions = brief ? `${INTERVIEWER_PERSONA}\n\nSession brief:\n${brief}` : INTERVIEWER_PERSONA
+      const instructions = brief ? `${INTERVIEWER_PERSONA}\n\n[SESSION BRIEF]\n${brief}` : INTERVIEWER_PERSONA
       const upstreamBody = {
         expires_after: { anchor: "created_at", seconds: CLIENT_SECRET_TTL_S },
         session: {

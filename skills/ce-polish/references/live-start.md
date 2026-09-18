@@ -68,7 +68,7 @@ Tell the riffer, in this shape:
 
 ```text
 Live polish is ready: <handoff-url>
-The page will ask for your microphone and show what gets shared: audio and the session brief go to OpenAI; transcript, screenshots, frames, and events go to the endpoint on this machine. Talk and draw; I act when you pause, change pages, or press Send. The mode switch on the board is Instant / Smart / Collect (Smart is on). Press Done on the board when you are finished.
+The page will ask for your microphone and show what gets shared: audio, the session brief, what you click, draw on, and pin, and screenshots of the page when you point at something or ask the interviewer to look go to OpenAI; transcript, screenshots, frames, and events go to the endpoint on this machine. Talk and draw; I act when you pause, change pages, or press Send. The mode switch on the board is Instant / Smart / Collect (Smart is on). Press Done on the board when you are finished.
 Setup commit: <hash or "none needed">.
 ```
 
