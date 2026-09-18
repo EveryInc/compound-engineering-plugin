@@ -1218,6 +1218,17 @@ describe("ce-prototype light-webserver.js", () => {
     expect(status.status).toBe("running")
   })
 
+  test("one parked wait outlasts an idle budget shorter than the wait timeout", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-long-"))
+    const info = await startServer(root, ["--annotate"], {
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "300",
+      CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "30",
+      CE_LIGHT_WEB_WAIT_TIMEOUT_MS: "1500",
+    })
+    const parked = await fetch(`http://localhost:${info.port}/wait?token=${info.token}`)
+    expect(parked.status).toBe(204)
+  })
+
   test("stop flushes a parked wait as session-ended", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-prototype-wait-stop-"))
     const info = await startServer(root, ["--annotate"], {

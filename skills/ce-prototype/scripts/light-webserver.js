@@ -1198,6 +1198,9 @@ async function serve(options) {
   process.on("SIGINT", () => shutdown("stopped"))
 
   const idleTimer = setInterval(() => {
+    // A parked wait is ongoing activity for as long as it stays connected,
+    // however the wait timeout compares with the idle budget.
+    if (waiters.length > 0) touch()
     if (options.ownerPid && !processAlive(options.ownerPid)) {
       shutdown("owner-exited")
     } else if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
