@@ -423,6 +423,21 @@ describe("live endpoint: wake ownership, credentials, and caps (KTD7, I3, I4)", 
     // Nothing is served from the run directory (R40).
     expect((await fetch(`${agent.url}/state/session.json`)).status).toBe(404)
     expect((await fetch(`${agent.url}/`)).status).toBe(404)
+
+    // Every refusal above left a line in agent.ndjson naming method, path,
+    // status, and reason; none of them carries a token or the query string.
+    const agentLog = await fs.readFile(path.join(agent.stateDir, "log", "agent.ndjson"), "utf8")
+    const rejected = agentLog.trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>).filter((r) => r.kind === "rejected")
+    expect(rejected.length).toBeGreaterThanOrEqual(routes.length * 3 + 1)
+    for (const record of rejected) expect(Object.keys(record).sort()).toEqual(["kind", "method", "reason", "route", "status", "t"])
+    expect(rejected.filter((r) => r.status === 401 && r.reason === "unauthorized" && r.route === "/wait").length).toBe(2)
+    expect(rejected).toContainEqual(expect.objectContaining({ method: "POST", route: "/events", status: 403, reason: "origin" }))
+    expect(rejected).toContainEqual(expect.objectContaining({ method: "GET", route: "/status", status: 403, reason: "wrong_credential" }))
+    expect(rejected).toContainEqual(expect.objectContaining({ method: "GET", route: "/status", status: 403, reason: "browser_origin" }))
+    expect(rejected).toContainEqual(expect.objectContaining({ method: "GET", route: "/state/session.json", status: 404, reason: "not found" }))
+    expect(agentLog).not.toContain(agent.pageToken)
+    expect(agentLog).not.toContain(agent.agentToken)
+    expect(agentLog).not.toContain("token=")
   })
 
   test("a 3 MB batch returns 413; a 100 KB non-frame batch returns 413 with the 64 KB cap; a lone 1.5 MB frame is accepted", async () => {

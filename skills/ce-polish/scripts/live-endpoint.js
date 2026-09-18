@@ -481,8 +481,28 @@ function bearerToken(req) {
 }
 
 function sendJson(res, status, value, headers = {}) {
+  // Kept for the server's finish hook, which logs refusals to agent.ndjson.
+  if (status >= 400) res.rejection = value
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers })
   res.end(`${JSON.stringify(value)}\n`)
+}
+
+// The path of a request for the rejection log: no query string (a caller may
+// put a token there), no fragment, bounded length. Never decoded, so a
+// malformed escape cannot throw here.
+function loggedRoute(req) {
+  const raw = typeof req.url === "string" ? req.url : ""
+  return raw.split("?")[0].split("#")[0].slice(0, 200) || null
+}
+
+// What a refusal says about itself, from the body this server wrote: the
+// contract's `reason`, else its `error`, else its `status` word.
+function rejectionReason(value) {
+  if (!isRecord(value)) return null
+  for (const key of ["reason", "error", "status"]) {
+    if (typeof value[key] === "string") return value[key]
+  }
+  return null
 }
 
 // Reads a body up to `limit` bytes. Past the limit the request is drained
@@ -2009,7 +2029,20 @@ async function serve(options) {
     sendJson(res, 404, { error: "not found" })
   }
 
+  // Every refusal (4xx/5xx) leaves one line in agent.ndjson: method, path,
+  // status, and the reason this server gave. Never the credential, never the
+  // request headers or body, so a session can be debugged from its log.
+  function logRejection(req, res) {
+    const value = res.rejection
+    const record = { kind: "rejected", method: req.method ?? null, route: loggedRoute(req), status: res.statusCode, reason: rejectionReason(value) }
+    if (isRecord(value) && Number.isInteger(value.seq)) record.seq = value.seq
+    bestEffort(() => logAgent(record))
+  }
+
   const server = http.createServer((req, res) => {
+    res.on("finish", () => {
+      if (res.statusCode >= 400) logRejection(req, res)
+    })
     Promise.resolve(handleRequest(req, res)).catch(() => {
       if (!res.headersSent) sendJson(res, 500, { error: "internal error" })
       else if (!res.writableEnded) res.end()

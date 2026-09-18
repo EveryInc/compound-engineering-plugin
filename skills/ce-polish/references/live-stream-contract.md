@@ -124,7 +124,9 @@ state/                  0700
   batches/<checkpoint>.json   un-acknowledged wake envelopes
   log/events.ndjson           every accepted envelope, in seq order (frames reference log/frames/<seq>-<id>.jpg; a dropped frame has frame_file null)
   log/frames/<seq>-<id>.jpg
-  log/agent.ndjson            acknowledgments, statuses, asks, mints (never secrets)
+  log/agent.ndjson            acknowledgments, statuses, asks, mints, and every refused request as
+                              { kind: "rejected", method, route, status, reason, seq? } (never secrets:
+                              no credential, no query string, no request header or body)
   log/archive.{zip,json,bin}  the page's archive from /session/end
 ```
 
