@@ -474,10 +474,16 @@
   function paintsAt(el, x, y) {
     if (REPLACED.has(el.tagName.toUpperCase())) return true
     const style = getComputedStyle(el)
-    const transparent = (color) => color === "transparent" || /,\s*0\)$/.test(color)
+    // Alpha is the fourth component; `rgb(255, 204, 0)` also ends in ", 0)".
+    const transparent = (color) => color === "transparent" || /^rgba\((?:[^,]+,){3}\s*0(?:\.0+)?\)$/.test(color)
     if (!transparent(style.backgroundColor) || style.backgroundImage !== "none") return true
+    // A border paints only its own band, not the interior it surrounds.
+    const box = el.getBoundingClientRect()
+    const depth = { Top: y - box.top, Right: box.right - x, Bottom: box.bottom - y, Left: x - box.left }
     for (const side of ["Top", "Right", "Bottom", "Left"]) {
-      if (parseFloat(style[`border${side}Width`]) > 0 && style[`border${side}Style`] !== "none" && !transparent(style[`border${side}Color`])) return true
+      const width = parseFloat(style[`border${side}Width`])
+      if (!(width > 0) || style[`border${side}Style`] === "none" || transparent(style[`border${side}Color`])) continue
+      if (depth[side] >= 0 && depth[side] <= width) return true
     }
     const range = document.createRange()
     for (const node of el.childNodes) {
