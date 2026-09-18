@@ -30,6 +30,8 @@ export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 export const HOLDABLE_OBJECTIVE_BASE_REF = "0e758b60b35cec165470443fde5acf60db8bdae9"
 const PLAN_CONTENT_BASE_REF = "5c32ef92339b95348d6a12000e814d4877902557"
 export const CE_OPTIMIZE_BASE_REF = "b159e1fa4c70efa995742269d38269bcc7524dd2"
+/** main before annotation waits became event-driven and symptom-only notes became a question. */
+const ANNOTATION_WAIT_BASE_REF = "d1734f7ed5341b6d0b683405da82895f0a0a25f7"
 export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68bf7"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
@@ -2881,6 +2883,65 @@ Units:
       files_read_post: ["references/annotation-loop.md"],
       must_include: ["chat"],
       must_include_field: "NEXT",
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-prototype/symptom-only-note-asks",
+    baseline_ref: ANNOTATION_WAIT_BASE_REF,
+    skill: "ce-prototype",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/prototype-annotation-batch`,
+    why: "From a real session: a note that only reported a symptom on a full-screen canvas was read as perspective distortion and the projection was changed without asking.",
+    pre_contract:
+      "Apply only the notes that are a clear screen edit; ask when a change would be a guess.",
+    task: `The isolated web preview is already up: a rotating 3D cube drawn on a full-screen canvas. Annotation wait just returned this JSON array. Handle the batch per ce-prototype, then stop. Do not start another wait. First line of your answer: NEXT: apply  or  NEXT: chat
+
+[{"id":"a1","screen":"001-home.html","comment":"the square distorts","selector":"#world","textSnippet":"","rect":{"x":0,"y":0,"width":1280,"height":720},"point":{"x":640,"y":380,"viewportWidth":1280,"viewportHeight":720}}]`,
+    grade: {
+      files_read_post: ["references/annotation-loop.md"],
+      must_include: ["chat"],
+      must_include_field: "NEXT",
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-prototype/wait-is-not-polled",
+    baseline_ref: ANNOTATION_WAIT_BASE_REF,
+    skill: "ce-prototype",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/prototype-annotation-batch`,
+    why: "From a real session: the wait was backgrounded and its output checked every 60 seconds, about 30 empty tool calls per idle half hour.",
+    pre_contract:
+      "A backgrounded wait is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked.",
+    task: `The isolated web preview is already up and you told the explorer how to annotate. They may take an hour before they send anything. Your shell tool ends a foreground command after 10 minutes. It can also run a command in the background, and this host starts a new turn for you on its own when a background command exits. Per ce-prototype, say how you run the annotation wait on this host, then stop; do not run anything. First line of your answer: WAIT: background-and-end-turn  or  WAIT: background-and-check-periodically  or  WAIT: foreground-only`,
+    grade: {
+      files_read_post: ["references/annotation-loop.md"],
+      must_include: ["background-and-end-turn"],
+      must_include_field: "WAIT",
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-prototype/wait-blocks-without-wake-up",
+    baseline_ref: ANNOTATION_WAIT_BASE_REF,
+    skill: "ce-prototype",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/prototype-annotation-batch`,
+    why: "A host with no wake-up on exit must stay blocked on the running wait for the longest block it allows, not end the turn and not check it on a short timer.",
+    pre_contract:
+      "A backgrounded wait is not a completed wait: re-enter or await it, and do not end the turn while a wait is parked.",
+    task: `The isolated web preview is already up and you told the explorer how to annotate. They may take an hour before they send anything. On this host a long command is handed back to you still running after a few seconds, and you can then block on that same running command for up to 5 minutes per call; the call returns at once if the command exits. Nothing on this host starts a new turn for you when a command exits. Per ce-prototype, say how you run the annotation wait on this host, then stop; do not run anything. First line of your answer: WAIT: end-turn-and-rely-on-wake-up  or  WAIT: check-every-minute  or  WAIT: block-five-minutes-and-repeat`,
+    grade: {
+      files_read_post: ["references/annotation-loop.md"],
+      must_include: ["block-five-minutes-and-repeat"],
+      must_include_field: "WAIT",
       actions: "none",
     },
   },

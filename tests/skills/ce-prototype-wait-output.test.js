@@ -75,7 +75,7 @@ async function queueBatch(post) {
   for (let i = 0; i < 40; i++) {
     const comment = `${i}: ${"한글🙂feedback".repeat(2048)}`
     const { id } = await post("/annotation", { comment, selector: "h1", page: "/index.html" })
-    records.push({ id, screen: "index.html", comment, selector: "h1", textSnippet: null, rect: null })
+    records.push({ id, screen: "index.html", comment, selector: "h1", textSnippet: null, rect: null, point: null })
   }
   await post("/session/flush")
   return Buffer.from(`${JSON.stringify(records)}\n`)
@@ -133,7 +133,7 @@ for (const skill of ["ce-prototype", "ce-brainstorm"]) {
         if (stopped) await stop(server)
         const result = await waitOutput(script, root)
         assert.equal(result.code, 1, result.stderr)
-        assert.equal(result.output.toString(), '{"status":"session-ended"}\n')
+        assert.equal(result.output.toString(), '{"status":"session-ended","reason":"user-ended"}\n')
         assert.equal(result.stderr, "")
       }
     })

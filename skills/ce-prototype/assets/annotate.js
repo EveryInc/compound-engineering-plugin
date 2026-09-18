@@ -179,11 +179,11 @@
     } catch {
       node = null
     }
-    draft = { selector: saved.selector, textSnippet: saved.textSnippet, rect: saved.rect, x: saved.x, y: saved.y }
+    draft = { selector: saved.selector, textSnippet: saved.textSnippet, rect: saved.rect, point: saved.point, x: saved.x, y: saved.y }
     composer.hidden = false
     if (node) {
       const rect = node.getBoundingClientRect()
-      Object.assign(draft, positionFromNode(node))
+      Object.assign(draft, positionFromNode(node, draft))
       placeComposer(rect.left, rect.top + rect.height)
     } else {
       composer.style.left = saved.left || ""
@@ -325,8 +325,16 @@
     }
   }
 
-  function positionFromNode(node) {
+  // A pin stays where it was dropped inside its target, so a note on a large
+  // element does not jump to that element's corner.
+  function positionFromNode(node, pin) {
     const rect = node.getBoundingClientRect()
+    const was = pin && pin.rect
+    if (was && pin.point && was.width > 0 && was.height > 0) {
+      const fx = Math.max(0, Math.min(1, (pin.point.x - was.x) / was.width))
+      const fy = Math.max(0, Math.min(1, (pin.point.y - was.y) / was.height))
+      return { x: rect.left + fx * rect.width, y: rect.top + fy * rect.height }
+    }
     return { x: rect.left + Math.min(12, rect.width / 2), y: rect.top + 4 }
   }
 
@@ -343,7 +351,7 @@
       const queued = pin.status === "pending" || pin.status === "working"
       if (node) {
         if (!queued) pin.status = "attached"
-        Object.assign(pin, positionFromNode(node))
+        Object.assign(pin, positionFromNode(node, pin))
       } else if (!queued) {
         pin.status = "target-gone"
       }
@@ -363,15 +371,20 @@
   function openComposer(target, event) {
     const selector = cssPath(target)
     if (!selector) return
+    const box = target.getBoundingClientRect()
     draft = {
-      ...positionFromNode(target),
+      x: event.clientX,
+      y: event.clientY,
       selector,
       textSnippet: (target.textContent || "").trim().slice(0, 240),
-      rect: {
+      rect: { x: box.left, y: box.top, width: box.width, height: box.height },
+      // On a canvas or empty space the target says little; the point is what
+      // the explorer indicated.
+      point: {
         x: event.clientX,
         y: event.clientY,
-        width: target.getBoundingClientRect().width,
-        height: target.getBoundingClientRect().height,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
       },
     }
     composer.hidden = false
@@ -412,10 +425,35 @@
     return node || prototypeRoot()
   }
 
+  // Hit testing skips pointer-events:none, which is how labels and headlines
+  // laid over a canvas are usually styled. The smallest visible one under the
+  // point, when it is smaller than the hit element, is what was indicated.
+  function unhittableElementAt(x, y, hit) {
+    const hitBox = hit.getBoundingClientRect()
+    let best = null
+    let bestArea = hitBox.width * hitBox.height
+    for (const el of document.body.querySelectorAll("*")) {
+      if (el === host || host.contains(el)) continue
+      const box = el.getBoundingClientRect()
+      const area = box.width * box.height
+      if (!area || area >= bestArea) continue
+      if (x < box.left || x > box.right || y < box.top || y > box.bottom) continue
+      if (getComputedStyle(el).pointerEvents !== "none") continue
+      const visible = el.checkVisibility
+        ? el.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+        : getComputedStyle(el).visibility === "visible"
+      if (!visible) continue
+      best = el
+      bestArea = area
+    }
+    return best
+  }
+
   function targetFromCatcher(event) {
     catcher.style.pointerEvents = "none"
     try {
-      return pageElementFromPoint(event.clientX, event.clientY)
+      const hit = pageElementFromPoint(event.clientX, event.clientY)
+      return unhittableElementAt(event.clientX, event.clientY, hit) || hit
     } finally {
       catcher.style.pointerEvents = ""
     }
@@ -522,6 +560,7 @@
       selector: draft.selector,
       textSnippet: draft.textSnippet,
       rect: draft.rect,
+      point: draft.point,
     }
     const submission = { ...payload, x: draft.x, y: draft.y }
     inFlight = true
