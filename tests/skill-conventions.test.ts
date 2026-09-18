@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from "fs"
 import path from "path"
 import { describe, expect, test } from "bun:test"
+import { load } from "js-yaml"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
 const ROOT_AGENTS = readFileSync(path.join(process.cwd(), "AGENTS.md"), "utf8")
@@ -860,6 +861,31 @@ describe("skill frontmatter limits (Anthropic skill spec)", () => {
     expect(
       disabledRequiredCallees,
       `These skills must remain model-invoked because pipelines or sibling skills call them:\n${disabledRequiredCallees.join("\n")}`,
+    ).toEqual([])
+  })
+
+  // Codex ignores the frontmatter flag; its opt-out is the skill's own
+  // agents/openai.yaml. The two must agree, or a manual-only skill stays
+  // implicitly invocable on Codex, or a callee vanishes from Codex's catalog.
+  test("Codex implicit-invocation policy mirrors disable-model-invocation", () => {
+    const mismatched: string[] = []
+    for (const skill of skillDirs) {
+      const skillMdPath = path.join(skill.absPath, "SKILL.md")
+      const { data } = parseFrontmatter(readFileSync(skillMdPath, "utf8"), skillMdPath)
+      const userInvoked = data["disable-model-invocation"] === true
+
+      const policyPath = path.join(skill.absPath, "agents", "openai.yaml")
+      const manifest = existsSync(policyPath)
+        ? (load(readFileSync(policyPath, "utf8")) as { policy?: { allow_implicit_invocation?: unknown } } | null)
+        : null
+      const codexOptedOut = manifest?.policy?.allow_implicit_invocation === false
+
+      if (userInvoked !== codexOptedOut) mismatched.push(path.basename(skill.absPath))
+    }
+
+    expect(
+      mismatched,
+      `disable-model-invocation: true and agents/openai.yaml policy.allow_implicit_invocation: false must be set together:\n${mismatched.join("\n")}`,
     ).toEqual([])
   })
 
