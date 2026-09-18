@@ -313,8 +313,15 @@ describe("live endpoint recovery: session transitions", () => {
     expect(failed.status).toBe(500)
     expect(failed.body).toMatchObject({ error: "archive_write_failed" })
     expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(false)
-    expect(Number((await agent.statusHttp()).body.log_bytes)).toBeLessThan(2000)
-    expect((await agent.statusHttp()).body.ended).toBe(false)
+    const status = (await agent.statusHttp()).body as { log_bytes: number; ended: boolean; batches: { unserved: number; unacked: number }; units: { list: Array<{ id: string; status: string }> } }
+    expect(status.log_bytes).toBeLessThan(2000)
+    expect(status.ended).toBe(false)
+    // The fallback final checkpoint the upload supplied rolled back with it: no batch is queued, u1 is
+    // still unreleased, and no wake is served for a session that did not end.
+    expect(status.batches).toEqual({ unserved: 0, unacked: 0 })
+    expect(status.units.list.find((unit) => unit.id === "u1")!.status).toBe("initial")
+    expect((await agent.board()).final_emitted).toBe(false)
+    expect(await fs.readdir(path.join(agent.stateDir, "batches"))).toEqual([])
 
     await fs.rmdir(sessionFile)
     await fs.writeFile(sessionFile, sessionBackup)
@@ -322,6 +329,11 @@ describe("live endpoint recovery: session transitions", () => {
     expectOk(retried)
     expect(retried.body.archive_bytes).toBe(2000)
     expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(true)
+    // Exactly one final checkpoint, carrying u1, comes out of the retry.
+    const final = await agent.waitHttp()
+    expect(final.envelope!.kind).toBe("final")
+    expect(final.envelope!.units.map((unit) => unit.id)).toEqual(["u1"])
+    expect(((await agent.board()).checkpoints as Array<{ kind: string }>).filter((checkpoint) => checkpoint.kind === "final")).toHaveLength(1)
   })
 })
 
@@ -380,10 +392,12 @@ describe("live endpoint recovery: replay and lifecycle", () => {
   })
 
   test("an archive still uploading keeps the helper alive past the idle timeout with no stream attached", async () => {
-    const agent = await startAgent({ env: { CE_LIVE_IDLE_TIMEOUT_MS: "600", CE_LIVE_LIFECYCLE_CHECK_MS: "100" } })
+    // The idle window is well above startup and scheduler jitter (the first chunk is written at once,
+    // later ones every 300 ms), while the whole upload (~2.1 s) outlasts it.
+    const agent = await startAgent({ env: { CE_LIVE_IDLE_TIMEOUT_MS: "1200", CE_LIVE_LIFECYCLE_CHECK_MS: "100" } })
     const page = pageFor(agent)
     expectOk(await page.sendUnit("u1", "make the header red"))
-    // Chunks arrive slowly over ~1.5 s, well past the idle window, with no stream client attached.
+    const chunkCount = 8
     const upload = new Promise<{ status: number; body: string }>((resolve, reject) => {
       const request = http.request(`${agent.url}/session/end`, { method: "POST", headers: page.headers({ "Content-Type": "application/zip", "Transfer-Encoding": "chunked" }) }, (response) => {
         const chunks: Buffer[] = []
@@ -391,11 +405,12 @@ describe("live endpoint recovery: replay and lifecycle", () => {
         response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }))
       })
       request.on("error", reject)
-      let sent = 0
+      request.write(Buffer.alloc(1024, 7))
+      let sent = 1
       const tick = setInterval(() => {
         request.write(Buffer.alloc(1024, 7))
         sent += 1
-        if (sent === 5) {
+        if (sent === chunkCount) {
           clearInterval(tick)
           request.end()
         }
@@ -403,7 +418,7 @@ describe("live endpoint recovery: replay and lifecycle", () => {
     })
     const ended = await upload
     expect(ended.status, ended.body).toBe(200)
-    expect(JSON.parse(ended.body)).toMatchObject({ status: "session-ended", archive_bytes: 5 * 1024 })
+    expect(JSON.parse(ended.body)).toMatchObject({ status: "session-ended", archive_bytes: chunkCount * 1024 })
     expect(await agent.listening()).toBe(true)
   })
 })

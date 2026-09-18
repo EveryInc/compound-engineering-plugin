@@ -2240,13 +2240,18 @@ async function serve(options) {
         touch()
         // The overlay's Done control sends the `final` checkpoint before
         // /session/end; a page that ended without one still hands the agent
-        // whatever is held or accepted.
+        // whatever is held or accepted. The fallback release and the end are
+        // one transition: if ending fails, the board, the queued batch, and
+        // the archive all go back to how they were, so the page's retry
+        // starts from the same state and emits one final checkpoint, not two.
+        const undo = snapshotState()
         try {
           if (!board.final_emitted && (heldUnits().length > 0 || heldAnnotations().length > 0 || backlogUnits().length > 0 || board.pending_withdrawn.length > 0)) {
             releaseCheckpoint(`ck-final-${randomUUID()}`, "final", board.mode)
           }
           endSession()
         } catch (error) {
+          undo()
           // The session did not end, so the page retries with the whole
           // archive: the copy just landed is a replacement-in-waiting, not
           // stored evidence, and must not be charged against that retry.
