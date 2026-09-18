@@ -87,7 +87,7 @@ describe("ce-polish live endpoint smoke", () => {
     const preflight = await fetch(`${url}/events`, { method: "OPTIONS", headers: { Origin: APP_ORIGIN } })
     expect(preflight.status).toBe(204)
     expect(preflight.headers.get("access-control-allow-origin")).toBe(APP_ORIGIN)
-    expect(preflight.headers.get("access-control-allow-headers")).toBe("Authorization, Content-Type, X-Riffrec-Session")
+    expect(preflight.headers.get("access-control-allow-headers")).toBe("Authorization, Content-Type, X-Riffrec-Session, X-Riffrec-OpenAI-Key")
     expect(preflight.headers.get("access-control-allow-credentials")).toBeNull()
     expect(preflight.headers.get("vary")).toBe("Origin")
     const notServed = await fetch(`${url}/state/session.json`)

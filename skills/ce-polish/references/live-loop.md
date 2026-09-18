@@ -38,7 +38,7 @@ URL="$(node -p 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).u
 curl -sS -X POST "$URL<route>" -H @"$HEADERS" -H "Content-Type: application/json" --data '<json>'
 ```
 
-A resume keeps the same tokens, so the header file stays valid across restarts. The agent token lives until `stop`: `/session/end` retires only the page token, so statuses, asks, and `status` keep working through close-out. `stop` retires it.
+A resume keeps the same tokens, so the header file stays valid across restarts. The agent token lives until `stop`, and so does the page token: `/session/end` retires no token, so statuses, asks, and `status` keep working through close-out, and the riffer's link stays good for another session. `stop` retires them.
 
 | Purpose | Route | Body |
 |---|---|---|
@@ -86,7 +86,7 @@ Close-out, in order:
 
 1. Invoke `ce-commit` for the polish edits on the current branch. The setup commit from install, if any, is already there.
 2. Write the residual list to `$LIVE_ROOT/residual.md`: every unit that ended `blocked` (including those the reconciliation step blocked as "session ended before apply"), still in needs-info, or beyond polish, each with its statement, anchors (route and element), status, and reason, so the riffer can hand the file to planning as is.
-3. Stop the endpoint: `stop --root "$LIVE_ROOT"`. This is what retires the agent token (the page token ended with the session); it keeps `state/log/`, which holds the full-evidence session log the page posted at the end (transcript, units with the riffer's confirmations, annotations, frames, the evidence profile used). The helper's `replay` can re-emit that log to another endpoint under a different profile later.
+3. Tell the riffer in one line that the endpoint is still up and they can start another session from the page with the same link. For another round, park `wait` again once the riffer has started it (`wait` exits 1 until then; `status` reads `session_ended: false` once it has): it serves the next session, whose log starts fresh in `state/log/` while this one moves to `state/log-ended-<stamp>/`. When the riffer is done, run `stop --root "$LIVE_ROOT"`, which retires both tokens; it keeps `state/log/`, which holds the full-evidence session log the page posted at the end (transcript, units with the riffer's confirmations, annotations, frames, the evidence profile used). The helper's `replay` can re-emit that log to another endpoint under a different profile later.
 4. Report: the commit(s), the still-running app URL, the residual list path, and the session log path `$LIVE_ROOT/state/log/`.
 
 Nothing is pushed and no PR is opened; that stays with the riffer.

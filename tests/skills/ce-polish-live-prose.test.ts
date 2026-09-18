@@ -110,9 +110,10 @@ describe("ce-polish live-mode prose", () => {
     expect(loop).toContain("/units/<unit_id>/status")
     expect(loop).toContain("/units/<unit_id>/ask")
     expect(loop).toMatch(/Acknowledge first/i)
-    // F1 (I4/KTD18): the agent token lives until stop; /session/end retires only the page token; page_lost is acked like any batch.
+    // F1 (I4/KTD18): the agent token lives until stop; /session/end retires no token, so the link can run another session; page_lost is acked like any batch.
     expect(loop).toMatch(/agent token lives until `stop`/i)
-    expect(loop).toMatch(/`\/session\/end` retires only the page token/i)
+    expect(loop).toMatch(/`\/session\/end` retires no token/i)
+    expect(loop).toMatch(/start another session from the page with the same link/i)
     expect(loop).not.toMatch(/acknowledge it last/i)
     expect(loop).not.toMatch(/returns 404/i)
     expect(loop).toMatch(/never send an `Origin` header/i)

@@ -807,6 +807,18 @@ async function waitForSession(options, pid, previous) {
   return null
 }
 
+// A new session after an ended one keeps the old log by rotating it.
+function rotateLog(options) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+  const rotated = path.join(options.stateDir, `log-ended-${stamp}`)
+  try {
+    fs.renameSync(options.logDir, rotated)
+  } catch {
+    // Nothing to rotate.
+  }
+  ensureDirs(options)
+}
+
 function endedAndDrained(options) {
   const stopped = readSession(options)
   return Boolean(stopped?.ended) && loadBatches(options).length === 0
@@ -1069,17 +1081,7 @@ async function serve(options) {
     fs.rmSync(options.batchesDir, { recursive: true, force: true })
     fs.rmSync(options.boardFile, { force: true })
     fs.mkdirSync(options.batchesDir, { recursive: true, mode: 0o700 })
-    if (previous?.ended) {
-      // A new session after an ended one keeps the old log by rotating it.
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-")
-      const rotated = path.join(options.stateDir, `log-ended-${stamp}`)
-      try {
-        fs.renameSync(options.logDir, rotated)
-      } catch {
-        // Nothing to rotate.
-      }
-      ensureDirs(options)
-    }
+    if (previous?.ended) rotateLog(options)
   }
   const board = resuming ? { ...emptyBoard(), ...(readJsonOrNull(options.boardFile) ?? {}) } : emptyBoard()
   const batches = resuming ? loadBatches(options) : []
@@ -1345,9 +1347,11 @@ async function serve(options) {
 
   // --- session end -----------------------------------------------------------
 
-  // The page token dies with /session/end. The agent token lives until `stop`
-  // (or a fresh start on the ended root), per I4/KTD18: an agent that crashes
-  // between the final ack and `stop` can still resume, `status`, and `stop`.
+  // /session/end ends the board, not the tokens. The page token stays valid so
+  // the same link can open another session once this one drains (see
+  // openSession); both tokens live until `stop` (or a fresh start on the ended
+  // root), per I4/KTD18: an agent that crashes between the final ack and
+  // `stop` can still resume, `status`, and `stop`.
   function endSession() {
     if (board.ended) return
     // Terminal state is committed before anything observable happens; if the
@@ -1357,7 +1361,7 @@ async function serve(options) {
     board.page.stream = streamClients.size > 0 ? "connected" : board.page.stream
     try {
       saveBoard()
-      saveSession({ page_token: null, ended: true })
+      saveSession({ ended: true })
     } catch (error) {
       board.ended = before.ended
       board.page.stream = before.stream
@@ -1375,6 +1379,30 @@ async function serve(options) {
     fulfillWaiter()
   }
 
+  // Nothing of the ended session is still owed to the agent: every batch is
+  // acknowledged and no /session/end upload is in flight.
+  function drained() {
+    return batches.length === 0 && !endingInFlight
+  }
+
+  // A new session id on an ended, drained board: what a fresh `start` on an
+  // ended root does, in-process and with the same tokens.
+  function openSession(sessionId) {
+    fs.rmSync(options.batchesDir, { recursive: true, force: true })
+    rotateLog(options)
+    for (const key of Object.keys(board)) delete board[key]
+    Object.assign(board, emptyBoard(), { session_id: sessionId })
+    batches.length = 0
+    batchOrder = 0
+    outOfOrder.clear()
+    reservedBytes = 0
+    logBytes = 0
+    disarmPageLost()
+    saveBoard()
+    saveSession({ ended: false })
+    logAgent({ kind: "session_opened", session_id: sessionId })
+  }
+
   // --- auth and CORS -----------------------------------------------------------
 
   function corsHeaders() {
@@ -1384,9 +1412,9 @@ async function serve(options) {
     }
   }
 
-  // Page routes: the page token, the session header, and an Origin that is
-  // either absent or exactly --app-origin.
-  function authorizePage(req, res) {
+  // The page credential: the page token and an Origin that is either absent
+  // or exactly --app-origin.
+  function authorizePageToken(req, res) {
     const origin = req.headers.origin
     if (typeof origin === "string" && origin !== options.appOrigin) {
       sendJson(res, 403, { reason: "origin" }, corsHeaders())
@@ -1405,12 +1433,29 @@ async function serve(options) {
       sendJson(res, 401, { error: "unauthorized" }, corsHeaders())
       return null
     }
-    if (board.ended || session.page_token === null) {
-      sendJson(res, 410, { status: "session-ended" }, corsHeaders())
-      return null
-    }
+    return true
+  }
+
+  // Page routes: the page credential plus the session header. On an ended
+  // board the ended id stays 410; any other id opens a fresh board once the
+  // ended session has drained, and is then handled as that session's first
+  // request.
+  function authorizePage(req, res) {
+    if (!authorizePageToken(req, res)) return null
     const sessionId = req.headers["x-riffrec-session"]
-    if (typeof sessionId !== "string" || !sessionId.trim()) {
+    const named = typeof sessionId === "string" && sessionId.trim() !== ""
+    if (board.ended) {
+      if (!named || sessionId === board.session_id) {
+        sendJson(res, 410, { status: "session-ended" }, corsHeaders())
+        return null
+      }
+      if (!drained()) {
+        sendJson(res, 409, { error: "previous_session_draining" }, corsHeaders())
+        return null
+      }
+      openSession(sessionId)
+    }
+    if (!named) {
       sendJson(res, 400, { error: "missing X-Riffrec-Session" }, corsHeaders())
       return null
     }
@@ -1641,7 +1686,7 @@ async function serve(options) {
   async function handleEvents(req, res, sessionId) {
     const body = await readBody(req, FRAME_BODY_LIMIT)
     // The session may have ended while this body was in flight.
-    if (board.ended || session.page_token === null) {
+    if (board.ended || board.session_id !== sessionId) {
       sendJson(res, 410, { status: "session-ended" }, corsHeaders())
       return
     }
@@ -1731,7 +1776,9 @@ async function serve(options) {
     saveBoard()
     touch()
     req.on("close", () => {
-      streamClients.delete(res)
+      // endSession already dropped every client; a late close must not touch
+      // a board that has since reopened for a new session.
+      if (!streamClients.delete(res)) return
       if (streamClients.size === 0 && !board.ended) {
         board.page.stream = "disconnected"
         saveBoard()
@@ -1762,7 +1809,10 @@ async function serve(options) {
       sendJson(res, 403, { reason: "tls_required" }, corsHeaders())
       return
     }
-    const apiKey = process.env.OPENAI_API_KEY
+    // A key the riffer pasted into the page wins over the environment's, so a
+    // missing or rejected OPENAI_API_KEY can be fixed from the browser.
+    const pastedKey = String(req.headers["x-riffrec-openai-key"] ?? "").trim()
+    const apiKey = pastedKey || process.env.OPENAI_API_KEY
     if (!apiKey) {
       sendJson(res, 503, { reason: "no_key" }, corsHeaders())
       return
@@ -1831,7 +1881,7 @@ async function serve(options) {
       }
       logAgent({ kind: "mint", session_id: sessionId, expires_at: expiresAt })
       // The session may have ended while the upstream call was in flight.
-      if (board.ended || session.page_token === null) {
+      if (board.ended || board.session_id !== sessionId) {
         sendJson(res, 410, { status: "session-ended" }, corsHeaders())
         return
       }
@@ -1849,8 +1899,8 @@ async function serve(options) {
   }
 
   // The page's full-evidence archive is streamed to state/log/ then the
-  // session ends: a final checkpoint releases anything still held, the page
-  // token is invalidated, and the stream announces session_ended.
+  // session ends: a final checkpoint releases anything still held and the
+  // stream announces session_ended. The page token stays valid.
   function handleSessionEnd(req, res) {
     if (endingInFlight) {
       sendJson(res, 409, { error: "session_end_in_progress" }, corsHeaders())
@@ -2045,6 +2095,18 @@ async function serve(options) {
     sendJson(res, 200, boardSummary(board, batches, logBytes))
   }
 
+  // GET /session: the page asks, with its token alone, whether the board is
+  // live or ended and whether a new session id would open a fresh board. It
+  // binds nothing and is not activity, so an abandoned endpoint still idles out.
+  function handleSessionProbe(req, res) {
+    if (!authorizePageToken(req, res)) return
+    sendJson(res, 200, {
+      status: board.ended ? "ended" : "live",
+      session_id: board.session_id,
+      accepts_new_session: board.ended && drained(),
+    }, corsHeaders())
+  }
+
   // --- dispatch ----------------------------------------------------------------
 
   const PAGE_ROUTES = new Set(["/events", "/stream", "/mint", "/session/end"])
@@ -2052,7 +2114,7 @@ async function serve(options) {
   function preflight(res) {
     res.writeHead(204, {
       ...corsHeaders(),
-      "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Riffrec-Session",
+      "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Riffrec-Session, X-Riffrec-OpenAI-Key",
       "Access-Control-Allow-Methods": "GET, POST",
       "Access-Control-Max-Age": "600",
     })
@@ -2066,6 +2128,18 @@ async function serve(options) {
     } catch {
       sendJson(res, 400, { error: "bad request" })
       return
+    }
+
+    if (urlPath === "/session") {
+      if (req.method === "OPTIONS") {
+        preflight(res)
+        return
+      }
+      if (req.method !== "GET") {
+        sendJson(res, 405, { error: "method not allowed" }, { ...corsHeaders(), Allow: "GET, OPTIONS" })
+        return
+      }
+      return handleSessionProbe(req, res)
     }
 
     if (PAGE_ROUTES.has(urlPath)) {

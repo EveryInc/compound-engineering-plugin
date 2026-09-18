@@ -423,7 +423,7 @@ describe("live endpoint: wake ownership, credentials, and caps (KTD7, I3, I4)", 
     const preflight = await fetch(`${agent.url}/events`, { method: "OPTIONS", headers: { Origin: APP_ORIGIN, "Access-Control-Request-Method": "POST" } })
     expect(preflight.status).toBe(204)
     expect(preflight.headers.get("access-control-allow-origin")).toBe(APP_ORIGIN)
-    expect(preflight.headers.get("access-control-allow-headers")).toBe("Authorization, Content-Type, X-Riffrec-Session")
+    expect(preflight.headers.get("access-control-allow-headers")).toBe("Authorization, Content-Type, X-Riffrec-Session, X-Riffrec-OpenAI-Key")
     expect(preflight.headers.get("access-control-allow-methods")).toBe("GET, POST")
     expect(preflight.headers.get("vary")).toBe("Origin")
     expect(preflight.headers.get("access-control-allow-credentials")).toBeNull()
@@ -494,7 +494,7 @@ describe("live endpoint: wake ownership, credentials, and caps (KTD7, I3, I4)", 
 })
 
 describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
-  test("I4 token lifecycle: /session/end retires the page token only; the agent token serves and acks final, wait then exits 1, status and re-ack still work, and stop retires it (KTD18)", async () => {
+  test("I4 token lifecycle: /session/end ends the board but retires no token; the ended session id is 410 on page routes; the agent token serves and acks final, wait then exits 1, status and re-ack still work, and stop retires it (KTD18)", async () => {
     const agent = await startAgent()
     const page = pageFor(agent.url, agent.pageToken)
     await page.openStream()
@@ -513,9 +513,9 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
 
     const session = await agent.session()
     expect(session.ended).toBe(true)
-    expect(session.page_token).toBeNull()
+    expect(session.page_token).toBe(agent.pageToken)
     expect(session.agent_token).toBe(agent.agentToken)
-    // The page token is dead on every page route...
+    // The ended session id is refused on every page route...
     expect((await page.send("mic", { state: "muted" })).status).toBe(410)
     expect((await page.mint()).status).toBe(410)
     // ...while the agent token serves the final batch.
@@ -563,6 +563,126 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     expect(fresh.page_token).not.toBe(session.page_token)
     expect(agent.agentToken).not.toBe(session.agent_token)
     expect((await agent.statusHttp()).body.ended).toBe(false)
+  })
+
+  test("GET /session reports live, then ended with accepts_new_session once drained; it binds no session id; 401 without the page token, 403 with the agent token", async () => {
+    const agent = await startAgent()
+    const probe = (headers: Record<string, string>) =>
+      fetch(`${agent.url}/session`, { headers: { Origin: APP_ORIGIN, ...headers } }).then(async (response) => ({ response, body: await response.json() }))
+    const pageAuth = { Authorization: `Bearer ${agent.pageToken}` }
+
+    const fresh = await probe(pageAuth)
+    expect(fresh.response.status).toBe(200)
+    expect(fresh.response.headers.get("access-control-allow-origin")).toBe(APP_ORIGIN)
+    expect(fresh.body).toEqual({ status: "live", session_id: null, accepts_new_session: false })
+    // No session header needed, and none is bound by one.
+    expect((await probe({ ...pageAuth, "X-Riffrec-Session": "sess_probe" })).body.session_id).toBeNull()
+    expect((await agent.board()).session_id).toBeNull()
+
+    const preflight = await fetch(`${agent.url}/session`, { method: "OPTIONS", headers: { Origin: APP_ORIGIN, "Access-Control-Request-Method": "GET" } })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(APP_ORIGIN)
+
+    expect((await probe({})).response.status).toBe(401)
+    expect((await probe({ Authorization: "Bearer not-a-token" })).response.status).toBe(401)
+    const wrong = await probe({ Authorization: `Bearer ${agent.agentToken}` })
+    expect(wrong.response.status).toBe(403)
+    expect(wrong.body).toMatchObject({ reason: "wrong_credential" })
+
+    const page = pageFor(agent.url, agent.pageToken)
+    await page.sendUnit("u1", "make the header red")
+    expect((await probe(pageAuth)).body).toEqual({ status: "live", session_id: page.sessionId, accepts_new_session: false })
+    expectOk(await page.endSession("{}", "application/json"))
+    // The final batch is still held: ended, but not yet open to a new session.
+    expect((await probe(pageAuth)).body).toEqual({ status: "ended", session_id: page.sessionId, accepts_new_session: false })
+    const final = await agent.waitHttp()
+    expectOk(await agent.ack(final.envelope!.checkpoint_id))
+    expect((await probe(pageAuth)).body).toEqual({ status: "ended", session_id: page.sessionId, accepts_new_session: true })
+  })
+
+  test("polling GET /session is not activity: the idle timeout still stops the endpoint", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_IDLE_TIMEOUT_MS: "1500", CE_LIVE_LIFECYCLE_CHECK_MS: "100" } })
+    const started = Date.now()
+    while (await agent.listening()) {
+      await fetch(`${agent.url}/session`, { headers: { Authorization: `Bearer ${agent.pageToken}` } }).catch(() => undefined)
+      expect(Date.now() - started).toBeLessThan(10_000)
+      await Bun.sleep(100)
+    }
+  })
+
+  test("a new session id on an ended, drained board opens a fresh board with the same link: 200, board reset, log rotated, and wait serves the new session", async () => {
+    const agent = await startAgent()
+    const first = pageFor(agent.url, agent.pageToken, "sess_first")
+    await first.sendUnit("u1", "make the header red")
+    expectOk(await first.endSession("PK\u0003\u0004first-archive", "application/zip"))
+    const final = await agent.waitHttp()
+    expect(final.envelope!.kind).toBe("final")
+    expectOk(await agent.ack(final.envelope!.checkpoint_id))
+    expect((await agent.waitCli()).exitCode).toBe(1)
+
+    const second = pageFor(agent.url, agent.pageToken, "sess_second")
+    await second.openStream()
+    expect(second.ackedSeq).toBe(0)
+    const opened = await second.sendUnit("u2", "make the footer blue")
+    expectOk(opened)
+    expect(opened.body.acked_seq).toBe(1)
+
+    const board = await agent.board()
+    expect(board).toMatchObject({ session_id: "sess_second", ended: false, acked_seq: 1, acked_checkpoint_ids: [] })
+    expect(Object.keys(board.units as Record<string, unknown>)).toEqual(["u2"])
+    const session = await agent.session()
+    expect(session).toMatchObject({ ended: false, page_token: agent.pageToken, agent_token: agent.agentToken })
+    expect(await agent.statusCli()).toMatchObject({ status: "running", session_ended: false })
+
+    // The ended session's log moved aside; the new log starts with the opening.
+    const rotated = (await fs.readdir(agent.stateDir)).filter((name) => name.startsWith("log-ended-"))
+    expect(rotated).toHaveLength(1)
+    expect(await fs.exists(path.join(agent.stateDir, rotated[0], "archive.zip"))).toBe(true)
+    expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(false)
+    const agentLog = (await fs.readFile(path.join(agent.stateDir, "log", "agent.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line))
+    expect(agentLog[0]).toMatchObject({ kind: "session_opened", session_id: "sess_second" })
+    const events = (await fs.readFile(path.join(agent.stateDir, "log", "events.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line))
+    expect(events.map((event) => [event.seq, event.payload.id])).toEqual([[1, "u2"]])
+
+    // wait parks for, and serves, the new session.
+    const parked = agent.waitCli()
+    await Bun.sleep(200)
+    expectOk(await second.sendCheckpoint("ck2", "silence", "smart"))
+    const served = await parked
+    expect(served.exitCode, served.stderr).toBe(0)
+    const envelope = served.envelope as { checkpoint_id: string; units: Array<{ id: string }> }
+    expect(envelope.checkpoint_id).toBe("ck2")
+    expect(envelope.units.map((unit) => unit.id)).toEqual(["u2"])
+
+    // The ended id stays refused, and the new session owns the board.
+    expect((await first.send("mic", { state: "muted" })).status).toBe(409)
+  })
+
+  test("a new session id while the ended session still holds a batch answers 409 previous_session_draining and changes nothing; the ended id stays 410", async () => {
+    const agent = await startAgent()
+    const first = pageFor(agent.url, agent.pageToken, "sess_first")
+    await first.sendUnit("u1", "make the header red")
+    expectOk(await first.endSession("{}", "application/json"))
+
+    const second = pageFor(agent.url, agent.pageToken, "sess_second")
+    for (const attempt of [() => second.sendUnit("u2", "make the footer blue"), () => second.mint(), () => second.endSession("{}", "application/json")]) {
+      const refused = await attempt()
+      expect(refused.status).toBe(409)
+      expect(refused.body).toEqual({ error: "previous_session_draining" })
+    }
+    const stream = await fetch(`${agent.url}/stream`, { headers: second.headers() })
+    expect(stream.status).toBe(409)
+    expect(await stream.json()).toEqual({ error: "previous_session_draining" })
+    expect((await first.send("mic", { state: "muted" })).status).toBe(410)
+
+    expect(await agent.board()).toMatchObject({ session_id: "sess_first", ended: true })
+    expect((await fs.readdir(agent.stateDir)).filter((name) => name.startsWith("log-ended-"))).toEqual([])
+    // The held batch is still served; once it is acked the new session opens.
+    const final = await agent.waitHttp()
+    expect(final.envelope!.kind).toBe("final")
+    expectOk(await agent.ack(final.envelope!.checkpoint_id))
+    expectOk(await second.sendUnit("u2", "make the footer blue"))
+    expect(await agent.board()).toMatchObject({ session_id: "sess_second", ended: false })
   })
 
   test("/mint that completes after /session/end answers 410 and mints nothing usable", async () => {
