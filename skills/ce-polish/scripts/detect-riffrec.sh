@@ -16,8 +16,10 @@
 #     "dependency": true|false,      riffrec listed in dependencies,
 #                                    devDependencies, or peerDependencies
 #     "installed": true|false,       node_modules/riffrec/package.json exists
-#     "live_build": true|false,      the installed dist/index.d.ts names
-#                                    RiffrecLiveConfig (a live-capable build)
+#     "live_build": true|false,      the installed dist/index.d.ts names both
+#                                    RiffrecLiveConfig and LOOK_AT_SCREEN_TOOL
+#                                    (a build that answers the endpoint's
+#                                    screen tool, not just any live build)
 #     "version": "1.2.3"|null,       installed node_modules/riffrec version,
 #                                    else the declared range with a leading
 #                                    ^ ~ = or v stripped; null when absent
@@ -169,11 +171,13 @@ if [ -f "$PACKAGE_JSON" ]; then
     if [ -f "$INSTALLED_PKG" ]; then
       INSTALLED=true
       VERSION=$(json_value "$INSTALLED_PKG" "version")
-      # The built entry types name the live provider config only in a build
-      # that carries live mode; a declared range or a stale committed dist
-      # proves nothing.
+      # The built entry types prove the build: RiffrecLiveConfig names the
+      # live provider config, and LOOK_AT_SCREEN_TOOL the page-side handler
+      # for the screen tool the endpoint advertises to the interviewer. An
+      # older live-capable build has the first without the second, and a
+      # declared range or a stale committed dist proves nothing.
       for dts in "$TARGET_PATH/node_modules/riffrec/dist/index.d.ts" "$TARGET_PATH/node_modules/riffrec/dist/index.d.cts"; do
-        if [ -f "$dts" ] && grep -q "RiffrecLiveConfig" "$dts" 2>/dev/null; then
+        if [ -f "$dts" ] && grep -q "RiffrecLiveConfig" "$dts" 2>/dev/null && grep -q "LOOK_AT_SCREEN_TOOL" "$dts" 2>/dev/null; then
           LIVE_BUILD=true
           break
         fi
