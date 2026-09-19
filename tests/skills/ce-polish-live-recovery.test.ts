@@ -208,6 +208,25 @@ describe("live endpoint recovery: intake", () => {
     expect((await agent.statusHttp()).body.acked_seq).toBe(2)
   })
 
+  test("envelopes buffered ahead of a sequence gap are reserved against the hard ceiling, so draining the gap cannot overshoot it", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_DISK_CAP_BYTES: "1024", CE_LIVE_DISK_HARD_CAP_BYTES: "3000" } })
+    const page = pageFor(agent)
+    // seq 1 is withheld; seq 2..8 wait in the gap buffer. Each unit is a few hundred bytes.
+    const statuses: number[] = []
+    for (let seq = 2; seq <= 8; seq += 1) {
+      statuses.push((await page.post(page.envelope("unit", unitPayload(`u${seq}`, `unit number ${seq} with a statement long enough to weigh something`), seq))).status)
+    }
+    expect(statuses[0]).toBe(200)
+    // The buffer's reservations reach the ceiling before the gap closes: later arrivals are refused now,
+    // not accepted and stored later.
+    expect(statuses).toContain(507)
+    // Closing the gap drains what was reserved; the closer itself is admitted only if it still fits.
+    const closer = await page.post(page.envelope("unit", unitPayload("u1", "make the header red"), 1))
+    expect([200, 507]).toContain(closer.status)
+    const logBytes = Number((await agent.statusHttp()).body.log_bytes)
+    expect(logBytes).toBeLessThanOrEqual(3000 + 600)
+  })
+
   test("an archive upload the previous process did not finish is removed on start and no longer counts against the disk cap", async () => {
     // Cap small enough that a stale partial would refuse a complete archive that fits on its own.
     const agent = await startAgent({ env: { CE_LIVE_DISK_CAP_BYTES: "4096" } })

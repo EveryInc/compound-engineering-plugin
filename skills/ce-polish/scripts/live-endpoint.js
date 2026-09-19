@@ -1941,7 +1941,10 @@ async function serve(options) {
     if (seq <= board.acked_seq || outOfOrder.has(seq)) return
     if (seq !== board.acked_seq + 1) {
       if (outOfOrder.size < OUT_OF_ORDER_CAP) {
-        const reserved = envelope.type === "frame" ? bodySize : 0
+        // Every buffered envelope is stored once the gap closes, so its bytes
+        // are reserved against the caps now: the frame's whole body (posted
+        // alone), or the envelope's own encoding out of a batch.
+        const reserved = envelope.type === "frame" ? bodySize : Buffer.byteLength(JSON.stringify(envelope))
         outOfOrder.set(seq, { envelope, reserved })
         reservedBytes += reserved
       }
