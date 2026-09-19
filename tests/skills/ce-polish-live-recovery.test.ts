@@ -604,6 +604,8 @@ describe("live endpoint recovery: replay and lifecycle", () => {
     expectOk(await agent.ack(wake.envelope!.checkpoint_id))
     expectOk(await agent.postStatus("u1", "applied"))
     await page.closeStream()
+    // The disconnect's own board save has landed before the board is made unwritable.
+    await waitUntil(async () => ((await agent.board()).page as { stream: string }).stream === "disconnected")
     // The batch file can be written, the board cannot: the transition must fail after enqueue.
     const boardFile = path.join(agent.stateDir, "board.json")
     const boardBackup = await fs.readFile(boardFile)
