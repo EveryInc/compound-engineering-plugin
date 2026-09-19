@@ -765,9 +765,22 @@ function boardSummary(board, batches, logBytes) {
     units: {
       total: board.unit_order.length,
       by_status: byStatus,
+      // Enough for a run resumed after an ack to pick a unit up from the
+      // board alone: what to change, where (anchors), and the evidence that
+      // grounds it, not just the status it was left at.
       list: board.unit_order.map((id) => {
         const unit = board.units[id]
-        return { id, statement: unit.statement, status: unit.status, confirmed: unit.confirmed ?? null }
+        return {
+          id,
+          statement: unit.statement,
+          status: unit.status,
+          confirmed: unit.confirmed ?? null,
+          anchors: Array.isArray(unit.anchors) ? unit.anchors : [],
+          evidence: isRecord(unit.evidence) ? unit.evidence : null,
+          ...(typeof unit.question === "string" ? { question: unit.question } : {}),
+          ...(typeof unit.note === "string" ? { note: unit.note } : {}),
+          ...(typeof unit.guess === "string" ? { guess: unit.guess } : {}),
+        }
       }),
     },
     annotations: board.annotation_order.length,
@@ -1183,6 +1196,13 @@ async function serve(options) {
   // Resume when a live session file exists for this root; otherwise mint a
   // fresh pair of credentials and start a new board.
   const previous = readSession(options)
+  // The end of a session is two writes (board, then session record). A
+  // process that died between them left one saying ended and the other
+  // not; either one saying so is the recorded intent, and both are brought
+  // to it here before anything is served, so a resume cannot answer 410 on
+  // page routes while `status` still reports the session live.
+  const storedBoard = readJsonOrNull(options.boardFile)
+  if (previous && storedBoard?.ended === true && !previous.ended) previous.ended = true
   // An ended session whose agent token is still retained resumes while the
   // agent still owes it close-out work: a batch not yet acknowledged, or a
   // unit the board holds at triaging/accepted/needs_info that the resumed
@@ -1202,7 +1222,8 @@ async function serve(options) {
     fs.mkdirSync(options.batchesDir, { recursive: true, mode: 0o700 })
     if (previous?.ended) rotateLog(options)
   }
-  const board = resuming ? { ...emptyBoard(), ...(readJsonOrNull(options.boardFile) ?? {}) } : emptyBoard()
+  const board = resuming ? { ...emptyBoard(), ...(storedBoard ?? {}) } : emptyBoard()
+  if (resuming && previous.ended) board.ended = true
   // A batch file whose checkpoint the board already records as acknowledged
   // is the retirement half of an ack that did not finish; it is not served again.
   const batches = []
@@ -1286,12 +1307,25 @@ async function serve(options) {
     logBytes += Buffer.byteLength(line)
   }
 
+  // Events a reconnecting stream cannot rebuild from the board (`applied`
+  // is a moment, not a state) wait here while no stream is attached: after
+  // a flushed response the page is between connections for a second or
+  // more, and a notice posted then would otherwise never reach it. Events
+  // the connect-time replay reconstructs are not kept; the replay is newer.
+  const REPLAYED_ON_CONNECT = new Set(["ack", "unit_status", "ask", "agent"])
+  const PENDING_DELIVERY_CAP = 256
+  const pendingDeliveries = []
+
   function broadcast(event, payload) {
     if (heldNotices) {
       heldNotices.push({ event, payload })
       return
     }
     const frame = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`
+    if (streamClients.size === 0 && !REPLAYED_ON_CONNECT.has(event) && !board.ended) {
+      pendingDeliveries.push(frame)
+      if (pendingDeliveries.length > PENDING_DELIVERY_CAP) pendingDeliveries.shift()
+    }
     for (const client of streamClients) {
       if (!client.writableEnded) client.write(frame)
     }
@@ -1607,6 +1641,7 @@ async function serve(options) {
     batches.length = 0
     batchOrder = 0
     outOfOrder.clear()
+    pendingDeliveries.length = 0
     reservedBytes = 0
     logBytes = 0
     disarmPageLost()
@@ -1841,6 +1876,31 @@ async function serve(options) {
     }
   }
 
+  // Where the event log stood before an envelope's transaction, so a failed
+  // commit can take back exactly what that envelope stored: the appended
+  // line, the frame file keyed by its seq, and the bytes counted for both.
+  function markLog() {
+    let eventsSize = 0
+    try {
+      eventsSize = fs.statSync(eventsLog).size
+    } catch {
+      eventsSize = 0
+    }
+    return { eventsSize, logBytes }
+  }
+
+  function unwindLog(mark, seq) {
+    bestEffort(() => {
+      if (fs.existsSync(eventsLog) && fs.statSync(eventsLog).size > mark.eventsSize) fs.truncateSync(eventsLog, mark.eventsSize)
+    })
+    bestEffort(() => {
+      for (const name of fs.readdirSync(framesDir)) {
+        if (name.startsWith(`${seq}-`)) fs.rmSync(path.join(framesDir, name), { force: true })
+      }
+    })
+    logBytes = mark.logBytes
+  }
+
   function storeEnvelope(envelope) {
     if (envelope.type === "frame") {
       const id = typeof envelope.payload.id === "string" && envelope.payload.id ? envelope.payload.id : randomUUID()
@@ -1888,6 +1948,7 @@ async function serve(options) {
       // unacknowledged, so the page retries it instead of discarding an event
       // the endpoint lost. Wakes and SSE notices are held until the commit.
       const undo = snapshotState()
+      const logMark = markLog()
       heldNotices = []
       try {
         applyEnvelope(next.envelope)
@@ -1897,6 +1958,10 @@ async function serve(options) {
       } catch (error) {
         heldNotices = null
         undo()
+        // The log is part of the transaction: a line or frame stored for a
+        // seq that was never acknowledged would be stored again on retry and
+        // replayed twice.
+        unwindLog(logMark, next.envelope.seq)
         // A buffered envelope that failed leaves the buffer: the page retries
         // it from the returned acked_seq, and that retry must be admitted
         // rather than skipped as a duplicate of the entry still held here.
@@ -2013,6 +2078,10 @@ async function serve(options) {
         res.write(`event: ask\ndata: ${JSON.stringify({ unit_id: id, question: unit.question })}\n\n`)
       }
     }
+    // Notices that fell in the gap between this connection and the last.
+    for (const frame of pendingDeliveries) res.write(frame)
+    if (pendingDeliveries.length > 0) replayed = true
+    pendingDeliveries.length = 0
     streamClients.add(res)
     // Replayed state is a delivery like any other: behind a buffering tunnel
     // the page sees it only once this response completes.
@@ -2128,7 +2197,8 @@ async function serve(options) {
         sendJson(res, 502, { reason: "openai_error", upstream_status: upstream.status }, corsHeaders())
         return
       }
-      logAgent({ kind: "mint", session_id: sessionId, expires_at: expiresAt })
+      // The secret is minted; the audit line must not cost the page its mint.
+      bestEffort(() => logAgent({ kind: "mint", session_id: sessionId, expires_at: expiresAt }))
       // The session may have ended while the upstream call was in flight.
       if (board.ended || board.session_id !== sessionId) {
         sendJson(res, 410, { status: "session-ended" }, corsHeaders())
@@ -2157,10 +2227,11 @@ async function serve(options) {
     }
     endingInFlight = true
     // The cap counts what is on disk plus what is still landing: frames held
-    // ahead of a gap and this archive as it streams in. The archive's bytes
-    // are reserved chunk by chunk, so concurrent /events frames see the same
-    // shrinking budget instead of the free space the archive is filling.
-    const remaining = Math.max(0, Math.min(ARCHIVE_BODY_LIMIT, DISK_CAP_BYTES - logBytes - reservedBytes))
+    // ahead of a gap, frames that land while this upload runs, and this
+    // archive as it streams in. The archive's bytes are reserved chunk by
+    // chunk and its budget is read again at every chunk, so the archive and
+    // concurrent /events frames both see one shrinking budget rather than the
+    // free space each of them is filling.
     const archivePath = path.join(options.logDir, `archive.${archiveExtension(req.headers["content-type"])}`)
     const tmpPath = `${archivePath}.${randomUUID()}${ARCHIVE_PART_SUFFIX}`
     const out = fs.createWriteStream(tmpPath, { mode: 0o600 })
@@ -2171,9 +2242,14 @@ async function serve(options) {
       reservedBytes -= archiveReserved
       archiveReserved = 0
     }
+    // What this archive may still grow to: the body cap, or what the disk
+    // cap leaves after everything stored and everything else reserved.
+    const archiveBudget = () => Math.max(0, Math.min(ARCHIVE_BODY_LIMIT, DISK_CAP_BYTES - logBytes - (reservedBytes - archiveReserved)))
+    let remaining = archiveBudget()
     req.on("data", (chunk) => {
       size += chunk.length
       if (tooLarge) return
+      remaining = archiveBudget()
       if (size > remaining) {
         tooLarge = true
         releaseArchiveReservation()

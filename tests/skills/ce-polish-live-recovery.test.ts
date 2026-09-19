@@ -268,6 +268,102 @@ describe("live endpoint recovery: refusals under load", () => {
   })
 })
 
+describe("live endpoint recovery: durable log and stream gaps", () => {
+  test("an envelope whose board save fails leaves no log line or frame behind, so the retry stores it once", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    const frame = await readFixture("frame")
+    const boardFile = path.join(agent.stateDir, "board.json")
+    const boardBackup = await fs.readFile(boardFile)
+    await fs.rm(boardFile)
+    await fs.mkdir(boardFile)
+    const stored = page.envelope("frame", { ...frame.payload, id: "frame_retry" })
+    const failed = await page.post(stored)
+    expect(failed.status).toBe(500)
+    expect(failed.body).toMatchObject({ error: "storage_failed", acked_seq: 1 })
+    await fs.rmdir(boardFile)
+    await fs.writeFile(boardFile, boardBackup)
+    expectOk(await page.post(stored))
+    const log = (await fs.readFile(path.join(agent.stateDir, "log", "events.ndjson"), "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { seq: number; type: string })
+    expect(log.map((line) => line.seq)).toEqual([1, 2])
+    const frames = await fs.readdir(path.join(agent.stateDir, "log", "frames"))
+    expect(frames.filter((name) => name.startsWith("2-"))).toHaveLength(1)
+    expect((await agent.statusHttp()).body.frame_count).toBe(1)
+  })
+
+  test("an applied notice posted while the page is between stream connections is delivered on the next connect", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_STREAM_FLUSH_MS: "10000" } })
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expectOk(await page.sendCheckpoint("ck1", "silence", "smart"))
+    const wake = await agent.waitHttp()
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
+    // No stream attached (a flushed response, page reconnecting later): the notice must wait for it.
+    expectOk(await agent.postStatus("u1", "applied", { note: "done" }))
+    await page.openStream()
+    const applied = await page.waitForEvent((event) => event.event === "applied")
+    expect(applied.data).toMatchObject({ checkpoint_id: "ck1", unit_ids: ["u1"] })
+    expect(page.eventsNamed("unit_status").some((event) => event.data.unit_id === "u1" && event.data.status === "applied")).toBe(true)
+    // Delivered once: a second connection replays state, not the moment.
+    await page.closeStream()
+    const second = pageFor(agent)
+    await second.openStream()
+    await second.waitForEvent((event) => event.event === "unit_status" && event.data.unit_id === "u1")
+    await Bun.sleep(100)
+    expect(second.eventsNamed("applied")).toHaveLength(0)
+  })
+
+  test("a board that says ended while the session record does not (a death between the two writes) comes back ended on both: resumed while work is owed, fresh once drained", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expectOk(await page.sendCheckpoint("ck1", "silence", "smart"))
+    const wake = await agent.waitHttp()
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
+    // Died after the board's terminal write, before the session record's.
+    await agent.killServer()
+    const boardFile = path.join(agent.stateDir, "board.json")
+    const board = JSON.parse(await fs.readFile(boardFile, "utf8")) as Record<string, unknown>
+    await fs.writeFile(boardFile, JSON.stringify({ ...board, ended: true }))
+    expect((await agent.session()).ended).toBe(false)
+
+    // u1 is still triaging, so the ended session resumes for its close-out, ended on both records.
+    expect((await agent.restart()).status).toBe("resumed")
+    expect((await agent.session()).ended).toBe(true)
+    expect((await agent.board()).ended).toBe(true)
+    expect(await agent.statusCli()).toMatchObject({ status: "running", session_ended: true })
+    expect((await page.send("mic", { state: "muted" })).status).toBe(410)
+    expect((await agent.waitCli()).exitCode).toBe(1)
+    expectOk(await agent.postStatus("u1", "blocked", { note: "session ended before apply" }))
+
+    // Reconciled and drained: the same split on disk now starts a fresh session with the log kept aside.
+    await agent.killServer()
+    const sessionFile = path.join(agent.stateDir, "session.json")
+    const session = JSON.parse(await fs.readFile(sessionFile, "utf8")) as Record<string, unknown>
+    await fs.writeFile(sessionFile, JSON.stringify({ ...session, ended: false }))
+    expect((await agent.restart()).status).toBe("started")
+    expect((await agent.board()).ended).toBe(false)
+    expect((await fs.readdir(agent.stateDir)).filter((name) => name.startsWith("log-ended-"))).toHaveLength(1)
+  })
+
+  test("the board summary's unit list carries anchors, evidence, and any open question, so a resumed run can pick a unit up from status alone", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expectOk(await page.sendCheckpoint("ck1", "silence", "smart"))
+    const wake = await agent.waitHttp()
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
+    expectOk(await agent.ask("u1", "Which red?"))
+    const list = ((await agent.statusHttp()).body.units as { list: Array<Record<string, unknown>> }).list
+    expect(list).toHaveLength(1)
+    expect(list[0]).toMatchObject({ id: "u1", status: "needs_info", question: "Which red?" })
+    expect(list[0].anchors).toEqual([{ route: "/", selector: '[data-unit="u1"]', rect: { x: 0, y: 0, width: 10, height: 10 }, t: 1 }])
+    expect(list[0].evidence).toMatchObject({ frame_ids: [], annotation_ids: [] })
+    expect((await agent.statusCli()).board).toMatchObject({ units: { list: [{ id: "u1", anchors: list[0].anchors }] } })
+  })
+})
+
 describe("live endpoint recovery: session end", () => {
   test("a unit that lands after the page's final checkpoint is released by /session/end as a last batch and holds the board from draining", async () => {
     const agent = await startAgent()
@@ -444,7 +540,8 @@ describe("live endpoint recovery: replay and lifecycle", () => {
     expectOk(await page.sendUnit("u1", "make the header red"))
     const chunkCount = 8
     const upload = new Promise<{ status: number; body: string }>((resolve, reject) => {
-      const request = http.request(`${agent.url}/session/end`, { method: "POST", headers: page.headers({ "Content-Type": "application/zip", "Transfer-Encoding": "chunked" }) }, (response) => {
+      // No Content-Length and no explicit Transfer-Encoding: the client frames the body as chunks itself.
+      const request = http.request(`${agent.url}/session/end`, { method: "POST", headers: page.headers({ "Content-Type": "application/zip" }) }, (response) => {
         const chunks: Buffer[] = []
         response.on("data", (chunk: Buffer) => chunks.push(chunk))
         response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }))
@@ -465,6 +562,39 @@ describe("live endpoint recovery: replay and lifecycle", () => {
     expect(ended.status, ended.body).toBe(200)
     expect(JSON.parse(ended.body)).toMatchObject({ status: "session-ended", archive_bytes: chunkCount * 1024 })
     expect(await agent.listening()).toBe(true)
+  })
+
+  test("the archive budget is read at every chunk, so frames landing during a slow upload shrink what the archive may still take", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_DISK_CAP_BYTES: "8192" } })
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    const upload = new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const request = http.request(`${agent.url}/session/end`, { method: "POST", headers: page.headers({ "Content-Type": "application/zip" }) }, (response) => {
+        const chunks: Buffer[] = []
+        response.on("data", (chunk: Buffer) => chunks.push(chunk))
+        response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }))
+      })
+      request.on("error", reject)
+      let sent = 0
+      const tick = setInterval(async () => {
+        if (sent === 2) {
+          // Mid-upload, a frame lands and takes ~3 KB of the cap for itself.
+          const jpeg = Buffer.alloc(2200, 0x42).toString("base64")
+          await page.post(page.envelope("frame", { id: "frame_mid", t: 1, route: "/", kind: "gesture", jpeg_base64: jpeg }))
+        }
+        request.write(Buffer.alloc(1024, 7))
+        sent += 1
+        if (sent === 6) {
+          clearInterval(tick)
+          request.end()
+        }
+      }, 150)
+    })
+    const ended = await upload
+    // 6 KB of archive plus ~3 KB of frame do not fit in 8 KB: the upload is refused once the frame has landed.
+    expect(ended.status, ended.body).toBe(413)
+    expect(await fs.exists(path.join(agent.stateDir, "log", "archive.zip"))).toBe(false)
+    expect(Number((await agent.statusHttp()).body.log_bytes)).toBeLessThanOrEqual(8192)
   })
 })
 
