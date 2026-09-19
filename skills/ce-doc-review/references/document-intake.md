@@ -36,9 +36,11 @@ Pass the result to each persona via the `{document_type}` slot — personas adap
 
 ## Extract once, here, for the dispatch payload
 
-Personas never re-parse the document for these, so Phase 1 (this step) extracts both and passes them in the dispatch payload:
+Personas never re-parse the document for these, so Phase 1 (this step) extracts these values and passes them in the dispatch payload:
 
 - `{origin_path}` — upstream Product Contract provenance: the document's `origin:` frontmatter when present, else `product_contract_source:<value>` when present, else `none`.
 - `{settled_ktds}` — any Key Technical Decision **or Product Contract Key Decision** carrying a `session-settled:` annotation, listed as decision name, class (`user-directed` / `user-approved`), and rejected alternative; else the literal `none`.
 
 The product-lens, adversarial, and scope-guardian personas use these slots to decide whether to suppress their premise-level techniques. An unfilled slot silently disables that suppression, so pass both even when the value is `none`.
+
+Read `references/origin-provenance.md` before persona selection. Resolve `{origin_provenance}`, `{provenance_evidence}`, and `{scope_extension}` there and pass them alongside the raw `{origin_path}`. A marker or readable source alone never proves acceptance.

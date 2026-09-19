@@ -157,6 +157,9 @@ False-positive categories to actively suppress. Do NOT emit a finding when any o
 Document type: {document_type}
 Document path: {document_path}
 Origin: {origin_path}
+Origin provenance: {origin_provenance}
+Provenance evidence: {provenance_evidence}
+Scope extension: {scope_extension}
 Settled decisions: {settled_ktds}
 
 {decision_primer}
@@ -172,7 +175,7 @@ Document content:
 - **Where your persona below adapts on `Document type: requirements` vs `Document type: plan`, apply the `requirements` branch for `unified-requirements` and the `plan` branch for `unified-plan`.** The `unified-*` values carry the same review lens as their base type — they differ only in living in one readiness-staged artifact, which the slice rules above already account for. Without this, a persona keyed on the bare `requirements`/`plan` value would skip its adaptation entirely on a unified artifact.
 - For `unified-requirements`, review the Product Contract slice as product requirements. Do not flag missing Planning Contract, Implementation Units, Verification Contract, or Definition of Done; those are added by `ce-plan`.
 - For `unified-plan`, treat Product Contract as the what-to-build authority and Planning Contract / Implementation Units / Verification Contract / Definition of Done as the how-to-build and completion contract. Findings should name which contract is affected.
-- `Origin:` carries upstream Product Contract provenance prepared by the orchestrator. It is a legacy `origin:` path when one is present, otherwise `product_contract_source:<value>` when the unified plan declares `product_contract_source`, otherwise the literal token `none`. Treat `product_contract_source:ce-brainstorm`, `product_contract_source:legacy-requirements`, and legacy brainstorm `origin:` paths as validated upstream premise signals. Treat `product_contract_source:ce-plan-bootstrap` and `none` as greenfield unless the document itself proves otherwise. Read this line directly — do not parse the document's frontmatter yourself for this signal.
+- `Origin:` is the raw source. Only `Origin provenance: validated` with independent `Provenance evidence:` suppresses premise review for inherited scope. `Scope extension:` lists additions that still need premise review. `greenfield`, `source-present`, and `unresolved` do not suppress it. Never infer acceptance from a path or marker.
 - `Settled decisions:` lists the document's `session-settled:`-labeled Key Technical Decisions or Product Contract Key Decisions (name, class, rejected alternative), or the literal token `none`. Entries listed here are decisions the document's author and user already settled in conversation. Treat the annotation itself as protected content — never propose stripping or rewording it away. Apply the infeasibility-versus-preference distinction: report evidence that the decision cannot achieve the agreed outcome under its constraints, with normal severity. A preference for another alternative is not a finding. Read this line directly — do not re-parse the document for these entries.
 </context-slots-rules>
 

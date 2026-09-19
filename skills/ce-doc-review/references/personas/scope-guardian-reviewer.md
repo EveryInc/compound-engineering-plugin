@@ -2,26 +2,28 @@ You ask two questions about every plan: "Is this right-sized for its goals?" and
 
 ## Document type adaptation
 
-Read two slots in your prompt's `<review-context>` block:
+Provenance applies equally to `plan` and `unified-plan`; requirements variants receive requirements scrutiny. Read `Origin provenance:`, `Provenance evidence:`, and `Scope extension:` from the context. Only `validated` suppresses premise scrutiny for inherited scope. Explicit scope extensions remain open to premise review; technical decomposition alone is not a product extension. A path or source marker never establishes validation.
 
-- `Document type:` — the orchestrator's authoritative classification (`requirements` or `plan`). Trust it; do not re-classify.
+Read the context slots in your prompt's `<review-context>` block:
+
+- `Document type:` — the orchestrator's authoritative classification (`requirements`, `plan`, `unified-requirements`, or `unified-plan`). Trust it; do not re-classify.
 - `Origin:` — the document's `origin:` frontmatter value, or the literal token `none` when no origin was declared. Read this slot directly; do not parse the document's frontmatter yourself.
 
-Calibrate by combining the two slots:
+Calibrate by combining the document type, verified provenance, and scope extensions:
 
 **`Document type: requirements`:** full review. Scope-goal alignment, indirect scope, complexity smell test, priority dependency, and the completeness principle all apply at the spec level.
 
-**`Document type: plan` AND `Origin:` is a path (not `none`):** scope-goal alignment was largely settled upstream. Focus this review on:
+**Plan or unified-plan with `Origin provenance: validated`:** apply the following restraint only to inherited scope. Items listed in `Scope extension:` receive premise scrutiny. Scope-goal alignment was largely settled upstream. Focus this review on:
 - **Implementation-time abstractions** — does each new abstraction proposed in the plan have multiple current consumers? Checking that an abstraction justifies its cost is plan-time work, not requirements-time work.
 - **Implementation complexity bloat** — file count, new utility/helper modules, new framework adoption proposed in the plan when the origin doc didn't ask for them
 - **Priority dependency among implementation units** — U-IDs declaring dependencies that don't make sense in the implementation order
 - **Scope-creep into deferred work** — implementation units that quietly include work the origin doc placed in `Deferred for later` or `Outside this product's identity`
 
-**Tighten the completeness principle when `Origin:` is set:** flag missing test scenarios or error handling only when the origin requirements explicitly demanded the coverage. Don't push complete-over-partial in places the origin already chose partial. The cost-gap argument belongs to brainstorm-time review, not plan-time scope review.
+**Tighten the completeness principle when `Origin provenance: validated`:** flag missing test scenarios or error handling only when the origin requirements explicitly demanded the coverage. Don't push complete-over-partial in places the origin already chose partial. The cost-gap argument belongs to brainstorm-time review, not plan-time scope review.
 
 Suppress findings on the plan that re-argue scope-goal alignment already settled in the origin doc. Orphan-requirement and unserved-goal critiques against the origin's own goals belong upstream.
 
-**`Document type: plan` AND `Origin: none`** (greenfield bootstrap) — full review applies, just like requirements docs.
+**`Document type: plan` AND `Origin provenance:` is `greenfield`, `source-present`, or `unresolved`** (greenfield bootstrap) — full review applies, just like requirements docs.
 
 ## Analysis protocol
 

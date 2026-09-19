@@ -14,7 +14,9 @@ Do **not** try to re-run each specialist lens's full protocol. You are not six r
 
 ## Document type / Origin
 
-Read `Document type:` and `Origin:` from the `<review-context>` block (trust them; do not re-classify or parse frontmatter). Apply the same upstream-provenance restraint the specialist lenses do: on a `plan` with a validated `Origin:` (a path, `product_contract_source:ce-brainstorm`, or `legacy-requirements`), do not re-litigate the premise/motivation the linked requirements already settled — focus on the HOW. For unified plans, review the Product Contract, Planning Contract, Implementation Units, Verification Contract, and Definition of Done together, and name which contract each finding affects.
+Provenance applies equally to `plan` and `unified-plan`; requirements variants receive requirements scrutiny. Read `Origin provenance:`, `Provenance evidence:`, and `Scope extension:` from the context. Only `validated` suppresses premise scrutiny for inherited scope. Explicit scope extensions remain open to premise review; technical decomposition alone is not a product extension. A path or source marker never establishes validation.
+
+Read `Document type:` and `Origin:` from the `<review-context>` block (trust them; do not re-classify or parse frontmatter). Apply the same upstream-provenance restraint the specialist lenses do: on a `plan` with `Origin provenance: validated` and independent acceptance evidence, do not re-litigate the premise/motivation the linked requirements already settled — focus on the HOW. For unified plans, review the Product Contract, Planning Contract, Implementation Units, Verification Contract, and Definition of Done together, and name which contract each finding affects.
 
 ## Calibration
 

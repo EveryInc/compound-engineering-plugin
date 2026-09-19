@@ -1031,7 +1031,11 @@ describe("ce-code-review contract", () => {
     expect(skill).toContain("<branch-head-ref>")
     expect(skill).toMatch(/local-aligned.*local tree diff/i)
     expect(skill).not.toMatch(/append.*`DIFF:`.*unpushed/i)
-    expect(skill).toMatch(/Do \*\*not\*\* call `gh pr diff` or append remote hunks/)
+    expect(skill).toMatch(/Do \*\*not\*\* append remote hunks/)
+    expect(skill).toContain("equals `headRefOid` exactly")
+    expect(skill).toContain("`git diff --cached --quiet`")
+    const alignment = skill.split("**PR scope mode.**")[1].split("**Diff by scope mode**")[0]
+    expect(alignment).toContain("`git ls-files --others --exclude-standard` produces no paths")
     expect(stage2c).toMatch(
       /pr-remote.*branch-remote.*targeted probe.*`git show`.*reviewed head ref.*supplied diff hunks.*never inspect workspace paths/is,
     )
@@ -1206,11 +1210,11 @@ describe("ce-code-review contract", () => {
   test("PR mode uses gh pr diff without checkout; branch/standalone fail closed on missing base", async () => {
     const content = await readCodeReviewRuntimeContract()
 
-    // No scope path should fall back to `git diff HEAD` or `git diff --cached` — those only
+    // No scope path should use HEAD-only or staged-only output as the review diff; those only
     // show uncommitted changes and silently produce empty diffs on clean feature branches.
     expect(content).not.toContain("git diff --name-only HEAD")
     expect(content).not.toContain("git diff -U10 HEAD")
-    expect(content).not.toContain("git diff --cached")
+    expect(content.replaceAll("git diff --cached --quiet", "index-cleanliness-check")).not.toContain("git diff --cached")
 
     // PR mode uses remote diff API, not checkout
     expect(content).toContain("gh pr diff")

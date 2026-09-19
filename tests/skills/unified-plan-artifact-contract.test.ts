@@ -418,8 +418,10 @@ describe("unified plan artifact contract", () => {
     expect(docReviewDispatch).toContain("section slice")
     expect(docReviewIntake).toContain("product_contract_source: ce-brainstorm")
     expect(docReviewDispatch).toContain("product_contract_source:<value>")
-    expect(docReviewTemplate).toContain("product_contract_source:ce-brainstorm")
-    expect(docReviewTemplate).toContain("product_contract_source:ce-plan-bootstrap")
+    expect(docReviewTemplate).toContain("Origin provenance: {origin_provenance}")
+    expect(docReviewTemplate).toContain("Provenance evidence: {provenance_evidence}")
+    expect(docReviewTemplate).toContain("Scope extension: {scope_extension}")
+    expect(docReviewTemplate).toContain("Never infer acceptance from a path or marker")
 
     expect(codeReviewIntent).toContain("<root>/plans/*.{md,html}")
     expect(codeReviewIntent).toContain("Product Contract` -> `### Requirements")

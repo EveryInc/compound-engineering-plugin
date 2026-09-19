@@ -20,11 +20,11 @@ Activate a conditional persona when the document shows its signals:
 - A **requirements document** with 2+ challengeable claims (problem framing, solution selection, prioritization, predicted outcomes) — premise scrutiny is core to the brainstorm phase
 - A **high-stakes domain** — auth, payments, billing, data migrations, privacy/compliance, external integrations, cryptography — regardless of doc type or size
 - A **new abstraction, framework, or significant architectural pattern**, regardless of doc type
-- A **plan with no validated upstream Product Contract signal** (no legacy `origin:` requirements doc and no `product_contract_source: ce-brainstorm` or `legacy-requirements`) — the premise wasn't validated upstream
+- A **plan whose `Origin provenance:` is `greenfield`, `source-present`, or `unresolved`** — the premise wasn't validated upstream
 - A **plan that explicitly extends scope** beyond its origin requirements doc (new actors, new flows, deferred-then-restored features)
 - An **explicit alternatives section** or unresolved tradeoffs — adversarial helps stress-test the chosen direction
 
-Do NOT activate adversarial on a routine plan that derives from a validated upstream Product Contract, stays in scope, and introduces no high-stakes domain or new abstraction. Validated provenance includes legacy `origin: docs/brainstorms/...`, `product_contract_source: ce-brainstorm`, and `product_contract_source: legacy-requirements`; a direct `product_contract_source: ce-plan-bootstrap` plan is greenfield and does not suppress premise-level techniques by itself. A well-structured plan with stated rationale is the plan doing its job, not adversarial signal — activating on that alone re-litigates settled questions.
+Do NOT activate adversarial on a routine plan that derives from a validated upstream Product Contract, stays in scope, and introduces no high-stakes domain or new abstraction. Only `Origin provenance: validated` with independent acceptance evidence establishes validated provenance. A path or metadata marker alone does not. A well-structured plan with stated rationale is the plan doing its job, not adversarial signal — activating on that alone re-litigates settled questions.
 
 ## Announce the review team
 

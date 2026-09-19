@@ -36,7 +36,10 @@ gh pr view <number-or-url> --json state,title,body,files
 Apply skip rules in order:
 
 - `state` is `CLOSED` or `MERGED` -> stop with reason `PR is closed/merged; not reviewing.`
-- **Trivial-PR judgment**: spawn a lightweight sub-agent on the platform's cheapest capable model when a known override exists; otherwise omit the model override and inherit. Give it the PR title, body, and changed file paths. The agent's task: "Is this an automated or trivial PR that does not warrant a code review? Consider: dependency lock-file or manifest-only bumps, automated release commits, chore version increments with no substantive code changes. When in doubt, answer no — false negatives (skipped reviews that should have run) are more costly than false positives (unnecessary reviews)." If the judgment returns yes: stop with reason `PR appears to be a trivial automated PR; not reviewing. Run without a PR argument to review the current branch, or pass base:<ref> if review is intended.`
+- **Trivial-PR judgment (evidence gate):** title/body/path metadata can nominate a candidate but can never prove it trivial. First obtain the exact patch with `gh pr diff <number-or-url> --color=never`; if that fails or any relevant hunk is unavailable, fail closed into review. Spawn a lightweight sub-agent on the platform's cheapest capable model when a known override exists; otherwise omit the model override and inherit. Give it the title, body, changed paths, and exact patch, and require a short evidence record naming every changed file and the substantive delta. It may answer `yes` only when every hunk is generated or administrative churn with no executable, build, packaging, deployment, permission, API, schema, or runtime-behavior change. Automated authorship, a `chore` title, or a small diff is not sufficient evidence.
+- **Dependency updates are fail-closed.** Never skip a manifest change from title/body/path metadata alone. Inspect the exact old/new dependency declarations and lockfile resolutions. A major-version change; a changed direct dependency declaration; a git/source/integrity, install-script, toolchain, platform, build, or executable configuration change; or any release-note/compatibility uncertainty is reviewable. The only dependency case eligible for automatic skipping is generated **lockfile-only** churn for which the evidence record proves that direct dependency declarations and executable/build configuration are unchanged and no behavior-affecting resolution changed. If versions, dependency kind, compatibility, or generated status cannot be established from the patch and repository evidence, answer `no` and review.
+
+If the evidence-gated judgment returns yes, stop with reason `PR appears to be a trivial automated PR; not reviewing. Run without a PR argument to review the current branch, or pass base:<ref> if review is intended.` Preserve the evidence record in Coverage/run metadata so the skip is auditable.
 
 When any skip rule applies, stop without dispatching reviewers. **Default mode:** emit the reason as plain text. **`mode:agent`:** emit JSON only — `{"status":"skipped","reason":"<same message>"}` — so programmatic callers can parse the outcome. **Standalone**, **`base:`**, and **branch-remote** paths are unaffected. **Draft PRs are reviewed normally.**
 
@@ -52,20 +55,22 @@ Set `BASE:` to `pr:<number-or-url>` (logical marker — not a git SHA). Set `UNT
 
 1. `git rev-parse --abbrev-ref HEAD` equals `headRefName`.
 2. The PR is **not** cross-repository (`isCrossRepository` is false).
-3. The PR head commit is contained in the local checkout: `git merge-base --is-ancestor <headRefOid> HEAD` exits 0. This confirms the working tree actually carries the PR head (allowing unpushed local fixes layered on top) rather than an unrelated same-named branch.
+3. `git rev-parse HEAD` equals `headRefOid` exactly. An ancestor match does not authorize reviewing unpushed commits.
+4. Both `git diff --quiet` and `git diff --cached --quiet` exit 0.
+5. `git ls-files --others --exclude-standard` produces no paths. Tracked edits and untracked files are local overlays, not part of the requested PR. Ignored/generated files are not PR evidence; inspect only content tracked at the verified PR head.
 
-- **`local-aligned`** — all three checks pass. Local Read/Grep/git blame against workspace files are valid for PR changed paths.
+- **`local-aligned`** — all five checks pass. Local Read/Grep/git blame against workspace files are valid for PR changed paths.
 - **`pr-remote`** — any check fails. The working tree is **not** the PR head; workspace file contents for changed paths may be stale or unrelated.
 
 **Diff by scope mode** (do not mix remote and local diffs — contradictory hunks cause false positives):
 
-- **`local-aligned`:** Resolve `<resolved-base-ref>` from `baseRefName` (fetch if needed). Compute `BASE=$(git merge-base HEAD <resolved-base-ref>)`, then set `FILES:` from `git diff --name-only $BASE` and `DIFF:` from `git diff -U10 $BASE` (includes committed, staged, and unstaged changes on the PR branch). Do **not** call `gh pr diff` or append remote hunks — when unpushed fixes exist, the local tree is canonical. Note in Coverage: `scope: local-aligned (PR; local tree diff)`.
+- **`local-aligned`:** Resolve `<resolved-base-ref>` from `baseRefName` (fetch if needed). Compute `BASE=$(git merge-base HEAD <resolved-base-ref>)`, then set `FILES:` from `git diff --name-only $BASE` and `DIFF:` from `git diff -U10 $BASE` (the clean checkout is exactly the PR head). Do **not** append remote hunks. If HEAD, tracked state, or untracked paths changed since the alignment check, reclassify as `pr-remote` before inspection or apply. Note in Coverage: `scope: local-aligned (PR; local tree diff)`.
 - **`pr-remote`:** Set `FILES:` from the PR `files` array. Set `DIFF:` from `gh pr diff <number-or-url> --color=never`. If `gh pr diff` fails, stop with an actionable error — do not fall back to checkout.
 
 When **`pr-remote`**, before Stage 4:
 
 1. Best-effort fetch PR head without checkout: `git fetch --no-tags origin <headRefName>:refs/review/pr-<number>-head` (substitute PR number from metadata).
-2. When fetch succeeds, set `PR_HEAD_REF=refs/review/pr-<number>-head` for reviewers and validators. When fetch fails, omit `PR_HEAD_REF` and note in Coverage — reviewers must rely on diff hunks only.
+2. After fetch succeeds, compare `git rev-parse refs/review/pr-<number>-head` with the metadata `headRefOid`. Set `PR_HEAD_REF=refs/review/pr-<number>-head` only on an exact match. A failed fetch or mismatched OID leaves `PR_HEAD_REF` unset; name the gap in Coverage and use diff hunks only. A successful fetch alone does not establish PR identity.
 3. Best-effort fetch the PR base without checkout: `git fetch --no-tags origin <baseRefName>`. When it succeeds, resolve a concrete ref with `git rev-parse FETCH_HEAD` and set `PR_BASE_REF` to that SHA — a **real git base ref** reviewers and validators use for file-level git diffs (e.g. `data-migration-reviewer` runs `git diff <PR_BASE_REF> -- db/schema.rb`/`structure.sql`). The `pr:<number-or-url>` logical marker in `BASE:` stays the scope marker; `PR_BASE_REF` is the diffable base. When the fetch fails, omit `PR_BASE_REF` and note in Coverage — schema-drift and other git-diff checks fall back to diff hunks only and must **not** assume `main`.
 4. Include `<pr-scope-mode>pr-remote</pr-scope-mode>` and, when set, `<pr-head-ref>...</pr-head-ref>` and `<pr-base-ref>...</pr-base-ref>` in the Stage 4 review context bundle.
 

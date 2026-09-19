@@ -365,6 +365,21 @@ RUN_DIR="${7:-}"
 [ -n "$DOC_PATH" ] && [ -f "$DOC_PATH" ] || skip "document '${DOC_PATH:-<empty>}' not readable on disk; skipping"
 : "${DOC_TYPE:=unified-plan}"
 : "${ORIGIN:=none}"
+ORIGIN_PROVENANCE_CONTEXT="${ORIGIN_PROVENANCE:-unresolved}"
+PROVENANCE_EVIDENCE_CONTEXT="${PROVENANCE_EVIDENCE:-none}"
+SCOPE_EXTENSION_CONTEXT="${SCOPE_EXTENSION:-none}"
+case "$ORIGIN_PROVENANCE_CONTEXT" in
+  validated)
+    case "$PROVENANCE_EVIDENCE_CONTEXT" in
+      session-handoff:?*|requirements-revision:?*|trusted-attestation:?*) ;;
+      *) skip "validated provenance requires independent acceptance evidence" ;;
+    esac
+    [ "${PROVENANCE_EVIDENCE_VERIFIED:-0}" = "1" ] || skip "provenance evidence was not independently verified"
+    ;;
+  greenfield|source-present|unresolved) ;;
+  *) skip "invalid origin provenance state" ;;
+esac
+
 [ -n "$RUN_DIR" ] || skip "run-dir not given; skipping"
 # Create the scratch run-dir rather than skipping when it doesn't exist yet:
 # ce-doc-review (unlike ce-code-review) has no pre-existing run-artifact dir, and
@@ -559,6 +574,9 @@ DOC_BASENAME="$(basename "$DOC_PATH")"
   printf 'Document type: %s\n' "$DOC_TYPE"
   printf 'Document path: %s\n' "$DOC_BASENAME"
   printf 'Origin: %s\n\n' "$ORIGIN"
+  printf 'Origin provenance: %s\n' "$ORIGIN_PROVENANCE_CONTEXT"
+  printf 'Provenance evidence: %s\n' "$PROVENANCE_EVIDENCE_CONTEXT"
+  printf 'Scope extension: %s\n\n' "$SCOPE_EXTENSION_CONTEXT"
   printf '<prior-decisions>\nRound 1 — no prior decisions.\n</prior-decisions>\n\n'
   printf 'Document content:\n'
   cat "$DOC_PATH"
