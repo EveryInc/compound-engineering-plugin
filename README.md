@@ -319,15 +319,15 @@ Qwen Code installs Claude Code-compatible plugins directly from GitHub and conve
 
 ### OpenCode
 
-Add Compound Engineering to the `plugin` array in your global or project `opencode.json`:
+Add Compound Engineering to the `plugins` array in your global or project `opencode.json`:
 
 ```json
 {
-  "plugin": ["compound-engineering@git+https://github.com/EveryInc/compound-engineering-plugin.git"]
+  "plugins": ["compound-engineering@git+https://github.com/EveryInc/compound-engineering-plugin.git"]
 }
 ```
 
-Restart OpenCode after changing the config. The OpenCode plugin registers the Compound Engineering skills directory directly; no Bun installer or generated skill copy is required. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for pinning examples.
+On OpenCode 1.x, the config key is `plugin` (singular). Restart OpenCode after changing the config. The plugin registers the Compound Engineering skills and `/commands` directly; no Bun installer or generated skill copy is required. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for pinning examples.
 
 ### Pi
 
