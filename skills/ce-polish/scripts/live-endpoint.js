@@ -1574,7 +1574,7 @@ async function serve(options) {
       watchForLossTimer = null
       if (streamClients.size === 0 || board.ended) return
       clearWatchForLoss()
-      saveBoard()
+      bestEffort(() => saveBoard())
     }, PAGE_LOST_GRACE_MS)
     watchForLossTimer.unref()
   }
@@ -2110,7 +2110,9 @@ async function serve(options) {
       if (!streamClients.delete(res)) return
       if (streamClients.size === 0 && !board.ended) {
         board.page.stream = "disconnected"
-        saveBoard()
+        // A socket close runs outside any request's error handling; a disk
+        // that refuses this bookkeeping write must not take the session down.
+        bestEffort(() => saveBoard())
         if (board.watch_for_loss) armPageLost()
       }
     })

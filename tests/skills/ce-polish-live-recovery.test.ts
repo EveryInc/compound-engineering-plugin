@@ -290,6 +290,27 @@ describe("live endpoint recovery: refusals under load", () => {
   })
 })
 
+describe("live endpoint recovery: background writes", () => {
+  test("a stream disconnect while the board cannot be written does not take the endpoint down", async () => {
+    const agent = await startAgent()
+    const page = pageFor(agent)
+    await page.openStream()
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    const boardFile = path.join(agent.stateDir, "board.json")
+    const boardBackup = await fs.readFile(boardFile)
+    await fs.rm(boardFile)
+    await fs.mkdir(boardFile)
+    await page.closeStream()
+    await Bun.sleep(200)
+    expect(await agent.listening()).toBe(true)
+    await fs.rmdir(boardFile)
+    await fs.writeFile(boardFile, boardBackup)
+    await page.openStream()
+    await waitUntil(async () => ((await agent.statusHttp()).body.page as { stream: string }).stream === "connected")
+    expectOk(await page.sendUnit("u2", "make the footer blue"))
+  })
+})
+
 describe("live endpoint recovery: durable log and stream gaps", () => {
   test("an envelope whose board save fails leaves no log line or frame behind, so the retry stores it once", async () => {
     const agent = await startAgent()
