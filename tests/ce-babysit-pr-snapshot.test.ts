@@ -1814,6 +1814,94 @@ print(json.dumps(m.fetch(7, "o/r")["checks"][0]))
     })
   })
 
+  test("live fetch normalizes an impossible CheckRun status only with same-head parent corroboration", () => {
+    const python = `
+import json
+from importlib.machinery import SourceFileLoader
+
+m = SourceFileLoader("prs_terminal_check", ${JSON.stringify(SCRIPT)}).load_module()
+head = "a" * 40
+cases = {
+  "corroborated": {},
+  "workflow-head-mismatch": {"workflow_head": "b" * 40},
+  "suite-conclusion-mismatch": {"suite_conclusion": "failure"},
+  "check-head-mismatch": {"check_head": "c" * 40},
+  "job-id-mismatch": {"database_id": 124},
+  "job-record-mismatch": {"job_id": 124},
+  "queued-with-terminal-fields": {"graphql_status": "QUEUED"},
+}
+
+class Result:
+    pass
+
+def run_case(overrides):
+    calls = []
+    def checked(cmd, label):
+        result = Result()
+        result.returncode = 0
+        result.stderr = ""
+        result.stdout = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+            "reviewDecision": None, "headRefOid": head, "baseRefOid": "b" * 40,
+            "baseRefName": "main", "headRefName": "feature", "number": 7,
+            "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
+            "comments": [], "reviews": [],
+            "statusCheckRollup": [{"__typename": "CheckRun", "databaseId": overrides.get("database_id", 123),
+                "workflowName": "CI", "name": "unit", "status": overrides.get("graphql_status", "IN_PROGRESS"),
+                "conclusion": "SUCCESS", "completedAt": "2026-09-18T20:30:31Z",
+                "startedAt": "2026-09-18T20:00:00Z",
+                "detailsUrl": "https://github.com/o/r/actions/runs/456/job/123"}],
+        })
+        return result
+    def run(cmd):
+        calls.append(cmd)
+        result = Result()
+        result.returncode = 0
+        result.stderr = ""
+        route = cmd[-1]
+        if route.endswith("check-runs/123"):
+            payload = {"head_sha": overrides.get("check_head", head), "conclusion": "success",
+                       "completed_at": "2026-09-18T20:30:31Z", "check_suite": {"id": 789}}
+        elif route.endswith("actions/jobs/123"):
+            payload = {"id": overrides.get("job_id", 123), "head_sha": head,
+                       "conclusion": "success", "completed_at": "2026-09-18T20:30:31Z"}
+        elif route.endswith("check-suites/789"):
+            payload = {"head_sha": head, "status": "completed",
+                       "conclusion": overrides.get("suite_conclusion", "success")}
+        elif route.endswith("actions/runs/456"):
+            payload = {"head_sha": overrides.get("workflow_head", head), "status": "completed",
+                       "conclusion": overrides.get("workflow_conclusion", "success")}
+        else:
+            raise AssertionError("unexpected command: " + repr(cmd))
+        result.stdout = json.dumps(payload)
+        return result
+    m._run_checked = checked
+    m._run = run
+    m.fetch_pr_merge_identity = lambda *args: None
+    m.fetch_base_ref = lambda *args: {"identity": "current", "oid": "b" * 40}
+    m.fetch_eyes_reactors = lambda *args: []
+    m.fetch_threads = lambda *args: []
+    m.fetch_awaiting_approval = lambda *args: 0
+    m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
+                                      "default_branch": "main", "parent_prs": [], "dependent_prs": []}
+    return {"check": m.fetch(7, "o/r")["checks"][0], "calls": calls}
+
+print(json.dumps({name: run_case(overrides) for name, overrides in cases.items()}))
+`
+    const result = spawnSync("python3", ["-c", python], { encoding: "utf8" })
+    expect(result.status, result.stderr).toBe(0)
+    const cases = JSON.parse(result.stdout)
+    expect(cases.corroborated.check.status).toBe("COMPLETED")
+    expect(cases.corroborated.check.conclusion).toBe("SUCCESS")
+    expect(cases.corroborated.calls.map((call: string[]) => call.at(-1))).toEqual([
+      "repos/o/r/check-runs/123", "repos/o/r/actions/jobs/123", "repos/o/r/check-suites/789", "repos/o/r/actions/runs/456",
+    ])
+    for (const name of ["workflow-head-mismatch", "suite-conclusion-mismatch", "check-head-mismatch", "job-id-mismatch", "job-record-mismatch"]) {
+      expect(cases[name].check.status, name).toBe("IN_PROGRESS")
+    }
+    expect(cases["queued-with-terminal-fields"].check.status).toBe("QUEUED")
+  })
+
   test("base-ref freshness blocks readiness, resets quiet on current-to-stale, and fails closed on probe error", () => {
     const clean = {
       ...FAILING,
