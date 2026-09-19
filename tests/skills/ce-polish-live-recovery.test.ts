@@ -186,6 +186,28 @@ describe("live endpoint recovery: intake", () => {
     expect((await agent.waitHttp()).envelope!.units.map((unit) => unit.id)).toEqual(["u1"])
   })
 
+  test("past the hard ceiling above the image cap every envelope is refused 507 disk_cap, dropped frames included", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_DISK_CAP_BYTES: "1024", CE_LIVE_DISK_HARD_CAP_BYTES: "4096" } })
+    // Between the two caps: images are refused, everything else flows.
+    await agent.killServer()
+    await fs.writeFile(path.join(agent.stateDir, "log", "frames", "earlier.jpg"), Buffer.alloc(2048, 1))
+    expect((await agent.restart()).status).toBe("resumed")
+    const page = pageFor(agent)
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expect((await page.post(page.envelope("frame", { id: "f1", t: 1, route: "/", kind: "gesture", jpeg_base64: Buffer.alloc(64, 0x42).toString("base64") }, 2))).status).toBe(507)
+    expectOk(await page.post(page.envelope("frame", { id: "f1", t: 1, route: "/", kind: "gesture", jpeg_base64: "", dropped: "quota" }, 2)))
+    // Past the ceiling: nothing is accepted any more, and the refusal names the ceiling.
+    await agent.killServer()
+    await fs.writeFile(path.join(agent.stateDir, "log", "frames", "later.jpg"), Buffer.alloc(3000, 2))
+    expect((await agent.restart()).status).toBe("resumed")
+    const refusedUnit = await page.sendUnit("u2", "make the footer blue")
+    expect(refusedUnit.status).toBe(507)
+    expect(refusedUnit.body).toMatchObject({ reason: "disk_cap", stream_state: "buffering", max_bytes: 4096 })
+    const refusedDropped = await page.post(page.envelope("frame", { id: "f2", t: 2, route: "/", kind: "gesture", jpeg_base64: "", dropped: "quota" }))
+    expect(refusedDropped.status).toBe(507)
+    expect((await agent.statusHttp()).body.acked_seq).toBe(2)
+  })
+
   test("an archive upload the previous process did not finish is removed on start and no longer counts against the disk cap", async () => {
     // Cap small enough that a stale partial would refuse a complete archive that fits on its own.
     const agent = await startAgent({ env: { CE_LIVE_DISK_CAP_BYTES: "4096" } })

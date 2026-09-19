@@ -32,6 +32,12 @@ const STREAM_FLUSH_MS = Number(process.env.CE_LIVE_STREAM_FLUSH_MS) || 300
 const FRAME_BODY_LIMIT = 2 * 1024 * 1024
 const ARCHIVE_BODY_LIMIT = Number(process.env.CE_LIVE_ARCHIVE_LIMIT_BYTES) || 400 * 1024 * 1024
 const DISK_CAP_BYTES = Number(process.env.CE_LIVE_DISK_CAP_BYTES) || 500 * 1024 * 1024
+// Above the image cap, a ceiling on the whole session log: past it every
+// envelope is refused, not only frames, so a session that keeps sending
+// small events (or a page that keeps posting) cannot grow the log without
+// bound. Normal sessions never reach it; the page treats the refusal as
+// buffering and replays once accepted again.
+const DISK_HARD_CAP_BYTES = Math.max(DISK_CAP_BYTES, Number(process.env.CE_LIVE_DISK_HARD_CAP_BYTES) || DISK_CAP_BYTES + 64 * 1024 * 1024)
 // An archive upload streams into `archive.<ext>.<uuid>.part` and is renamed
 // once complete; a `.part` found at startup is an upload the previous process
 // did not finish.
@@ -2027,6 +2033,11 @@ async function serve(options) {
     const storesImage = loneFrame && !envelopes[0].payload.dropped
     if (storesImage && logBytes + reservedBytes + body.size > DISK_CAP_BYTES) {
       sendJson(res, 507, { reason: "disk_cap", stream_state: "buffering", max_bytes: DISK_CAP_BYTES, acked_seq: board.acked_seq }, corsHeaders())
+      return
+    }
+    // The hard ceiling applies to every envelope, dropped frames included.
+    if (logBytes + reservedBytes + body.size > DISK_HARD_CAP_BYTES) {
+      sendJson(res, 507, { reason: "disk_cap", stream_state: "buffering", max_bytes: DISK_HARD_CAP_BYTES, acked_seq: board.acked_seq }, corsHeaders())
       return
     }
     touch()
