@@ -13,7 +13,7 @@ const DEFAULT_URL_HOST = "localhost"
 const IDLE_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_IDLE_TIMEOUT_MS) || 30 * 60 * 1000
 const LIFECYCLE_CHECK_MS = Number(process.env.CE_LIGHT_WEB_LIFECYCLE_CHECK_MS) || 60 * 1000
 const WAIT_TIMEOUT_MS = Number(process.env.CE_LIGHT_WEB_WAIT_TIMEOUT_MS) || 30 * 1000
-const SSE_GRACE_MS = Number(process.env.CE_LIGHT_WEB_SSE_GRACE_MS) || 5000
+const SSE_GRACE_MS = Number(process.env.CE_LIGHT_WEB_SSE_GRACE_MS) || 30000
 const BODY_LIMIT = 64 * 1024
 // Reserved URL namespace for the overlay, so a screen's own /annotate.js or
 // /annotate.css under screens/ is never shadowed.
