@@ -70,8 +70,7 @@ function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): AntigravityAg
 function convertCommand(command: ClaudeCommand, usedNames: Set<string>): AntigravityCommand {
   // Preserve namespace structure: workflows:plan -> workflows/plan
   const commandPath = resolveCommandPath(command.name)
-  const pathKey = commandPath.join("/")
-  uniqueName(pathKey, usedNames) // Track for dedup
+  const pathKey = uniqueName(commandPath.join("/"), usedNames)
 
   const description = command.description ?? `Converted from Claude command ${command.name}`
   const transformedBody = transformContentForAntigravity(command.body.trim())
