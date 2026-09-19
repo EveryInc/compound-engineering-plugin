@@ -8,11 +8,15 @@ Respect the harness's active-subagent limit: dispatch only as many selected revi
 
 For each selected reviewer, read `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.
 
-**Model tiering lives here, not in prompt assets.** Local prompt files have no frontmatter and carry no model metadata. Apply these dispatch-time preferences when the platform exposes a known model override; otherwise omit the override and inherit the parent model rather than guessing a platform-specific model name:
+**Model tiering lives here, not in prompt assets.** Local prompt files have no frontmatter and carry no model metadata. Apply these dispatch-time preferences when the platform exposes a known model override; otherwise omit the override and inherit the parent model rather than guessing a platform-specific model name.
 
-- `coherence-reviewer`: cheapest capable extraction/reasoning tier.
-- `security-lens-reviewer`, `feasibility-reviewer`, `product-lens-reviewer`, `adversarial-document-reviewer`: inherit the parent model unless the harness has an established high-capability review tier.
-- `design-lens-reviewer`, `scope-guardian-reviewer`: platform mid-tier model.
+<!-- ce-cursor-role-models:start -->
+**When a host-specific role table is already in context** and this host exposes a known model override, that table supplies the model for the dispatch role named here. `inherit-parent` and `auto` omit the override. A missing or deleted role line uses the portable default on this page. A model named in this conversation still wins. If more than one table names the role, a project or user rule wins over the plugin default. Hosts with no such table keep the portable rule below.
+<!-- ce-cursor-role-models:end -->
+
+- `coherence-reviewer`: cheapest capable extraction/reasoning tier. Dispatch role: `doc-review cheap`.
+- `security-lens-reviewer`, `feasibility-reviewer`, `product-lens-reviewer`, `adversarial-document-reviewer`: inherit the parent model unless the harness has an established high-capability review tier. Dispatch role: `doc-review high`.
+- `design-lens-reviewer`, `scope-guardian-reviewer`: platform mid-tier model. Dispatch role: `doc-review mid`.
 
 Each subagent receives the prompt built from the subagent template included below, with these variables filled:
 
