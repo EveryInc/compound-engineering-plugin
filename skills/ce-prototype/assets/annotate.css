@@ -136,8 +136,14 @@
   border-radius: 50%;
   border: 2px solid #1f2328;
   background: #ffe08a;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: help;
   font: 11px/20px system-ui, sans-serif;
+}
+
+/* While annotating, a click on a pin belongs to the catcher beneath it. */
+.ce-annotate-layer.is-annotating .ce-annotate-pin {
+  pointer-events: none;
 }
 
 .ce-annotate-pin.is-working {
