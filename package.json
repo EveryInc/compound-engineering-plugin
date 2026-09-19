@@ -4,7 +4,7 @@
   "description": "Official Compound Engineering skills plugin for coding agents",
   "type": "module",
   "private": true,
-  "main": ".opencode/plugins/compound-engineering.js",
+  "main": "index.js",
   "pi": {
     "extensions": [
       "./.pi/extensions/compound-engineering.ts"
