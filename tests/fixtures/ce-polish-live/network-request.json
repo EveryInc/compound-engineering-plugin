@@ -1,0 +1,15 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 2,
+  "t": 1420,
+  "type": "network_request",
+  "payload": {
+    "t": 1420,
+    "type": "network_request",
+    "url": "https://app.example.test/api/settings",
+    "method": "GET",
+    "status": 200,
+    "duration_ms": 184
+  }
+}

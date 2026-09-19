@@ -1,0 +1,57 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 6,
+  "t": 14300,
+  "type": "unit",
+  "payload": {
+    "id": "unit_0001",
+    "statement": "Move the sidebar toggle to the right of the header, next to the avatar.",
+    "transcript_excerpt": "The sidebar toggle should sit on the right, next to the avatar.",
+    "anchors": [
+      {
+        "route": "/settings",
+        "selector": "button[aria-label=\"Toggle sidebar\"]",
+        "component": "SidebarToggle",
+        "rect": {
+          "x": 24,
+          "y": 96,
+          "width": 40,
+          "height": 40
+        },
+        "t": 12120
+      }
+    ],
+    "evidence": {
+      "frame_ids": [
+        "frame_0007"
+      ],
+      "annotation_ids": [
+        "ann_0001"
+      ],
+      "transcript_span": {
+        "t_start": 11800,
+        "t_end": 14200
+      },
+      "telemetry_window": {
+        "t_start": 1800,
+        "t_end": 21800,
+        "events": [
+          {
+            "t": 2010,
+            "type": "console_error",
+            "message": "Cannot read properties of undefined (reading \"theme\")",
+            "stack": null,
+            "component": "SettingsPanel"
+          }
+        ]
+      },
+      "audio_clip_id": "clip_0001"
+    },
+    "status": "initial",
+    "confirmed": {
+      "element": true,
+      "change": true
+    }
+  }
+}

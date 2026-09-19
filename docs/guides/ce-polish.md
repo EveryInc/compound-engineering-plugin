@@ -4,6 +4,8 @@
 
 `ce-polish` is live UX polish for a feature that already works. It starts the project's dev server, opens the verified URL through the active harness when it can, and then waits. You use the page and name what is off. It edits, hot reload updates the page, and you keep going until you say you are done. Then it commits on the current branch and stops. No PR.
 
+It asks one question first: **traditional** or **live**. Traditional is the typed loop above. Live puts a voice interviewer and a drawing layer into the page through [riffrec](https://github.com/kieranklaassen/riffrec): you talk and draw, units appear on a board as you speak, and the agent acts on them in batches at checkpoints. See [Live mode](#live-mode).
+
 It is not `ce-prototype` (decide how something should feel before it exists), not `ce-simplify-code` (trim recently changed code), and not `ce-dogfood` or `ce-test-browser` (autonomous QA or a test pass). Polish is a conversation with a running app.
 
 Manual invocation only. It starts a server and runs the checked-out branch, so it waits for you to type it.
@@ -64,6 +66,28 @@ There is no scoring rubric and no checklist. You name what is wrong; it changes 
 
 ---
 
+## Live mode
+
+Live mode is the same loop with your voice and your cursor as the input. It needs three things: `OPENAI_API_KEY` in the environment (the interviewer runs on OpenAI Realtime, from the browser, on a short-lived secret the skill's local endpoint mints), a React app (Vite, Next, Remix, or Rails with Inertia React), and riffrec in that app. When riffrec is missing, the skill says so up front and adds it as one setup commit on your current branch: the dependency (installed from riffrec's GitHub repository, pinned to a known-good commit, until riffrec publishes a release with live mode; the skill then switches to the npm range in a later setup commit) and a `<RiffrecProvider forceEnable live={{}}>` mount at the app root. The consent step opens only on a page opened from the session URL; ordinary visits see nothing. That commit stays after the session; riffrec is meant to remain in the app.
+
+**What runs.** A small Node endpoint bundled with the skill receives the session stream, mints the interviewer's secret, and wakes the agent at checkpoints. The dev server runs as in traditional mode. You open the app URL with a fragment carrying a per-session token and the endpoint origin; the page strips it before it can land in history. A consent screen names what goes where: microphone audio, a short session brief (routes, component names, design tokens, recent changes; never file contents or secrets), what you click, draw on, and pin, and a screenshot of the page whenever you point at something or ask the interviewer to look go to OpenAI; transcript, screenshots, frames, and events go to the endpoint on your machine. Decline, and nothing starts; the skill offers traditional and names the setup commit that remains.
+
+**The loop.** Speak a change while pointing at or drawing on the element. The interviewer extracts a unit, asks right away when the instruction is ambiguous, and shows it on the board. Units are released to the agent as a batch when you pause, change pages, or press Send. The agent acknowledges the batch, then acts by the mode switch on the board:
+
+| Mode | Clear bounded edit | Ambiguous unit | Beyond polish |
+|------|--------------------|----------------|---------------|
+| **Instant** | applied now | best reading applied, guess noted on the unit | residual list |
+| **Smart** (default) | applied now | question voiced by the interviewer; unit waits | residual list |
+| **Collect** | held | question voiced; held | residual list |
+
+A mode change takes effect at the next checkpoint; moving the switch off Collect releases the held, accepted units to the agent right away under the new mode. Questions come back through the interviewer at your next pause, and your spoken answer resumes the unit. If an edit breaks the page and it does not come back, the agent fixes or reverts before it waits again. Nothing is acted on before a checkpoint, however fast it appears on the board.
+
+**Session end.** Press Done on the board; it asks you to confirm each unit's intended element and change, then sends the final batch. Collect applies its held batch in one pass. The agent commits through `ce-commit`, writes a residual list (units that were blocked, still waiting on an answer, or beyond polish, with their anchors) next to the session, and reports the commits, the app URL, the residual path, and the session log path. The log holds the full session with your per-unit confirmations and can be replayed later under a different evidence profile.
+
+**Remote sessions.** The browser can be on another machine. Direct LAN or tailnet URLs over plain HTTP work for drawing and the board, but browsers refuse the microphone and screen capture on an insecure page, so voice needs HTTPS for both the app and the endpoint, which means two tunnels (Tailscale serve, cloudflared, or ngrok). The skill refuses to pair an HTTPS page with a plain-HTTP endpoint and tells you which origin has to change.
+
+---
+
 ## Quick Example
 
 The notification settings page works. Spacing is tight, the off toggle is easy to miss, and the empty-state copy is dry. You run `/ce-polish` on the feature branch.
@@ -116,6 +140,8 @@ Nothing in the core loop calls this. `ce-explain` may suggest it; you still type
 
 Required: a startable local dev server. Browser opening and inspection come from the active harness; with neither, it prints the URL and you describe what you see. Every form stops on a requested branch that cannot be reached without moving user changes or creating a worktree behind the harness.
 
+Live mode additionally requires `OPENAI_API_KEY` in the environment, Node, and a React app. Without the key it names the variable and offers traditional; on a non-React project it says live mode needs a React app.
+
 ---
 
 ## FAQ
@@ -132,6 +158,12 @@ Same answer. Framework detection and server start do not depend on the browser h
 **Why no PR at the end?**
 Polish is often more than one sitting. Commit-and-PR is `/ce-commit-push-pr`.
 
+**Does live mode send my code to OpenAI?**
+No source code. OpenAI receives microphone audio, the session brief (route names, component names, design token names, a paragraph on recent changes), what you click, draw on, and pin, and a screenshot of the page when you point at something or ask the interviewer to look, so whatever your app shows on screen at that moment goes with it. The continuous frames, transcript, and events go only to the endpoint running on your machine. The consent screen lists exactly this before anything starts.
+
+**What if I decline the consent screen?**
+No session starts. The endpoint stops, the skill offers traditional polish, and it names the riffrec setup commit if it made one. That commit is not reverted.
+
 ---
 
 ## See Also
@@ -143,3 +175,4 @@ Polish is often more than one sitting. Commit-and-PR is `/ce-commit-push-pr`.
 - [`ce-dogfood`](./ce-dogfood.md): autonomous browser QA of the branch, with fixes
 - [`ce-commit-push-pr`](./ce-commit-push-pr.md): open the PR after polish
 - [`ce-debug`](./ce-debug.md): a bug you find during polish that needs a causal chain
+- [`ce-riffrec-feedback-analysis`](./ce-riffrec-feedback-analysis.md): analyze a recorded riffrec zip after the fact instead of live

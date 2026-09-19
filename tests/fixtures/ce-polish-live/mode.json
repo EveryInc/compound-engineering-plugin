@@ -1,0 +1,10 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 14,
+  "t": 18000,
+  "type": "mode",
+  "payload": {
+    "mode": "collect"
+  }
+}

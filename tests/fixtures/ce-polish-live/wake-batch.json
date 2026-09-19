@@ -1,0 +1,85 @@
+{
+  "schema_version": "live/1",
+  "checkpoint_id": "cp_0001",
+  "kind": "silence",
+  "mode_at_checkpoint": "smart",
+  "session_status": "live",
+  "units": [
+    {
+      "id": "unit_0001",
+      "statement": "Move the sidebar toggle to the right of the header, next to the avatar.",
+      "transcript_excerpt": "The sidebar toggle should sit on the right, next to the avatar.",
+      "anchors": [
+        {
+          "route": "/settings",
+          "selector": "button[aria-label=\"Toggle sidebar\"]",
+          "component": "SidebarToggle",
+          "rect": {
+            "x": 24,
+            "y": 96,
+            "width": 40,
+            "height": 40
+          },
+          "t": 12120
+        }
+      ],
+      "evidence": {
+        "frame_ids": [
+          "frame_0007"
+        ],
+        "annotation_ids": [
+          "ann_0001"
+        ],
+        "transcript_span": {
+          "t_start": 11800,
+          "t_end": 14200
+        }
+      },
+      "status": "triaging"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "ann_0001",
+      "kind": "stroke",
+      "points": [
+        {
+          "x": 20,
+          "y": 92,
+          "pressure": 0.5
+        },
+        {
+          "x": 44,
+          "y": 90,
+          "pressure": 0.6
+        },
+        {
+          "x": 68,
+          "y": 96,
+          "pressure": 0.5
+        }
+      ],
+      "bbox": {
+        "x": 20,
+        "y": 90,
+        "width": 48,
+        "height": 6
+      },
+      "anchor": {
+        "route": "/settings",
+        "selector": "button[aria-label=\"Toggle sidebar\"]",
+        "component": "SidebarToggle",
+        "rect": {
+          "x": 24,
+          "y": 96,
+          "width": 40,
+          "height": 40
+        },
+        "t": 12120
+      },
+      "unit_id": "unit_0001",
+      "composite_frame_id": "frame_0008"
+    }
+  ],
+  "answers": []
+}
