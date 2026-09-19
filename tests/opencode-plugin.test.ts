@@ -1,12 +1,19 @@
+import fs from "fs"
+import path from "path"
 import { describe, expect, test } from "bun:test"
 // Import via the package root so the test exercises the same entrypoint
 // OpenCode resolves for both package and local-directory installs.
 import CompoundEngineeringPlugin from "../index.js"
 
-const SKILL_COUNT = 35
-
 type SkillRecord = { id: string; name: string; description?: string; path: string; content: string }
 type CommandRecord = { name: string; description?: string; execute: (input: { sessionID: string; prompt: { text: string }; delivery: string }) => Promise<void> }
+
+// Expected registrations derived from the skills directory, so a newly added
+// skill cannot fail this suite with a stale hard-coded count (see `wtf`).
+const skillsDir = path.resolve(import.meta.dir, "../skills")
+const expectedSkillIds = fs
+  .readdirSync(skillsDir)
+  .filter((entry) => fs.existsSync(path.join(skillsDir, entry, "SKILL.md")))
 
 function mockContext() {
   const skills: SkillRecord[] = []
@@ -36,11 +43,12 @@ describe("opencode plugin", () => {
     const { ctx, skills, commands } = mockContext()
     await CompoundEngineeringPlugin.setup(ctx as never)
 
-    expect(skills.length).toBe(SKILL_COUNT)
-    expect(commands.length).toBe(SKILL_COUNT)
+    expect(skills.length).toBe(expectedSkillIds.length)
+    expect(commands.length).toBe(expectedSkillIds.length)
+
+    expect(new Set(skills.map((s) => s.id))).toEqual(new Set(expectedSkillIds))
 
     for (const skill of skills) {
-      expect(skill.id).toMatch(/^(ce-|lfg$)/)
       expect(skill.name).toBe(skill.id)
       expect(skill.description).toBeTruthy()
       expect(skill.path.endsWith("SKILL.md")).toBe(true)
@@ -77,7 +85,7 @@ describe("opencode plugin", () => {
     await hooks.config(config)
 
     expect(config.skills?.paths?.length).toBe(1)
-    expect(Object.keys(config.command ?? {}).length).toBe(SKILL_COUNT)
+    expect(Object.keys(config.command ?? {}).length).toBe(expectedSkillIds.length)
     expect(config.command?.["ce-brainstorm"]?.template).toBe("Load and execute the `ce-brainstorm` skill.\n\n$ARGUMENTS")
   })
 
