@@ -435,6 +435,30 @@ function readableFile(filePath) {
   }
 }
 
+// A frame file named by a session log, admitted only as a regular file that
+// really sits under that log's frames/ directory: the log may be a copy from
+// elsewhere, so a `frame_file` of `../x` or a symlink out of the directory
+// must not make replay read and transmit an arbitrary local file.
+function frameFileWithin(logDir, frameFile) {
+  if (typeof frameFile !== "string" || !frameFile) return null
+  let framesDir
+  try {
+    framesDir = fs.realpathSync(path.join(logDir, "frames"))
+  } catch {
+    return null
+  }
+  const candidate = path.resolve(logDir, frameFile)
+  try {
+    if (fs.lstatSync(candidate).isSymbolicLink()) return null
+    const real = fs.realpathSync(candidate)
+    if (path.dirname(real) !== framesDir || !fs.statSync(real).isFile()) return null
+    fs.accessSync(real, fs.constants.R_OK)
+    return real
+  } catch {
+    return null
+  }
+}
+
 function processAlive(pid) {
   if (!pid || !Number.isInteger(pid)) return false
   try {
@@ -1158,7 +1182,7 @@ async function replay(options) {
       const stored = line ? parseJsonObject(line) : null
       if (stored?.type !== "frame" || typeof stored.payload?.id !== "string") continue
       if (frameRule === "composite" && stored.payload.kind !== "composite") continue
-      const emittable = !stored.frame_file || readableFile(path.join(options.logDir, stored.frame_file))
+      const emittable = !stored.frame_file || frameFileWithin(options.logDir, stored.frame_file) !== null
       if (emittable) retainedFrames.add(stored.payload.id)
     }
   }
@@ -1198,7 +1222,9 @@ async function replay(options) {
       envelope = { ...envelope, payload: { ...stored.payload, jpeg_base64: "" } }
     } else if (stored.type === "frame") {
       try {
-        const jpeg = fs.readFileSync(path.join(options.logDir, stored.frame_file))
+        const frameFile = frameFileWithin(options.logDir, stored.frame_file)
+        if (frameFile === null) throw new Error("frame file outside the selected log")
+        const jpeg = fs.readFileSync(frameFile)
         envelope = { ...envelope, payload: { ...stored.payload, jpeg_base64: jpeg.toString("base64") } }
       } catch {
         skipped += 1
@@ -1791,8 +1817,16 @@ async function serve(options) {
       return null
     }
     if (!board.session_id) {
+      // The first request binds the board to its session id; a bind that
+      // does not persist is not a bind, so a later legitimate id is not
+      // refused as foreign against an in-memory value the disk never held.
       board.session_id = sessionId
-      saveBoard()
+      try {
+        saveBoard()
+      } catch (error) {
+        board.session_id = null
+        throw error
+      }
     }
     return sessionId
   }

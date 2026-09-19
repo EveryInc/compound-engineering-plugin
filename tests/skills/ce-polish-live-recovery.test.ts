@@ -609,8 +609,57 @@ describe("live endpoint recovery: replay and lifecycle", () => {
     const second = pageFor(agent, "sess_second")
     expectOk(await second.sendUnit("u2", "make the footer blue"))
     await second.openStream()
-    const presence = await second.waitForEvent((event) => event.event === "agent")
+    // Load headroom: the connect-time replay is immediate, but the parallel suite can delay the reader well past the 5 s default.
+    const presence = await second.waitForEvent((event) => event.event === "agent", 20_000)
     expect(presence.data).toMatchObject({ state: "away" })
+  })
+
+  test("a first request whose session bind cannot be persisted binds nothing, so the next legitimate session is not refused as foreign", async () => {
+    const agent = await startAgent()
+    const boardFile = path.join(agent.stateDir, "board.json")
+    const boardBackup = await fs.readFile(boardFile)
+    await fs.rm(boardFile)
+    await fs.mkdir(boardFile)
+    const refused = await pageFor(agent, "sess_rejected").sendUnit("u1", "make the header red")
+    expect(refused.status).toBe(500)
+    expect((await agent.statusHttp()).body.session_id).toBeNull()
+    await fs.rmdir(boardFile)
+    await fs.writeFile(boardFile, boardBackup)
+    const real = pageFor(agent, "sess_real")
+    expectOk(await real.sendUnit("u1", "make the header red"))
+    expect((await agent.board()).session_id).toBe("sess_real")
+  })
+
+  test("replay reads frame files only from inside the selected log's frames directory: a traversing frame_file or a symlink out is skipped, never transmitted", async () => {
+    const source = await startAgent()
+    const page = pageFor(source)
+    const frame = await readFixture("frame")
+    expectOk(await page.post(page.envelope("frame", { ...frame.payload, id: "f_ok" })))
+    expectOk(await page.post(page.envelope("frame", { ...frame.payload, id: "f_traverse" })))
+    expectOk(await page.post(page.envelope("frame", { ...frame.payload, id: "f_link" })))
+    expectOk(await page.sendUnit("u1", "make the header red", { evidence: { frame_ids: ["f_ok", "f_traverse", "f_link"], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } } }))
+    await source.killServer()
+    // Tamper with the log the way a copied, untrusted log could be: one record points outside, one at a symlink out.
+    const secret = path.join(source.root, "secret.txt")
+    await fs.writeFile(secret, "not for the target")
+    const framesDir = path.join(source.stateDir, "log", "frames")
+    const linkName = (await fs.readdir(framesDir)).find((name) => name.includes("f_link"))!
+    await fs.rm(path.join(framesDir, linkName))
+    await fs.symlink(secret, path.join(framesDir, linkName))
+    const eventsFile = path.join(source.stateDir, "log", "events.ndjson")
+    const lines = (await fs.readFile(eventsFile, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { type: string; payload: { id?: string }; frame_file?: string | null })
+    for (const line of lines) if (line.type === "frame" && line.payload.id === "f_traverse") line.frame_file = "../../secret.txt"
+    await fs.writeFile(eventsFile, `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`)
+
+    const target = await startAgent()
+    const replayed = await source.replayCli("everything", target.url, target.pageToken)
+    expect(replayed.exitCode, replayed.stderr).toBe(0)
+    expect(parseJsonLine(replayed.stdout)).toMatchObject({ envelopes_skipped: 2 })
+    const targetBoard = (await target.board()) as { units: Record<string, { evidence: { frame_ids: string[] } }> }
+    expect(targetBoard.units.u1.evidence.frame_ids).toEqual(["f_ok"])
+    const targetLog = await fs.readFile(path.join(target.stateDir, "log", "events.ndjson"), "utf8")
+    expect(targetLog).not.toContain(Buffer.from("not for the target").toString("base64"))
+    expect((await target.statusHttp()).body.frame_count).toBe(1)
   })
 
   test("a closed tab's takeover by a new session survives an unwritable audit log", async () => {
