@@ -108,6 +108,8 @@ Both a preference and a requirement fall back to the current harness/session mod
 
 On string-only hosts the implementation seam is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`. The `plan_model:<alias>` carrier rides beside, never inside, `ce-plan`'s request. Neither carrier becomes plan content, a settled product decision, or review input.
 
+`lfg` does not own Cursor native role models. Nested `ce-code-review` and Bake-off invocations resolve that table themselves. See [Cursor native role models](./configuration.md#cursor-native-role-models).
+
 ### Residuals and CI leftovers outlive the session
 
 Unapplied review findings sit in the PR body as a checklist, since `lfg` does not merge by default and the reviewer makes the call on each. With no PR they are filed as tickets. Unfixable CI is reported on the PR. `needs-human` leftovers (a product or design call) are deferred, not guessed. The run can reach `DONE` with those records in place.

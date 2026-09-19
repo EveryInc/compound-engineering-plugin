@@ -83,6 +83,30 @@ Config is a default, not another agent-instructions file:
 
 Committed `config.yaml` is shared across worktrees of the same project. `config.local.yaml` is per-checkout. CE Work resolves delegation before it creates detached worker worktrees, so an already-selected route is carried into that run.
 
+## Cursor native role models
+
+This is not a checkout yaml key. It is a Cursor-only overlay for native subagent dispatch.
+
+On Cursor, the plugin ships `rules/ce-cursor-models.mdc` as an always-applied table: one line per dispatch role, with the model slug (and its reasoning token) as the value. `ce-code-review`, `ce-doc-review`, and `ce-bakeoff` read that table when the host exposes a known model override. Claude Code, Codex, and CLI peer routes do not.
+
+| Role | What it covers | Shipped default |
+|---|---|---|
+| `bakeoff bakers` | Native baker panel. A comma list assigns models in launch order and does not change baker count. | `cursor-grok-4.6-high, gemini-3.7-flash-high, composer-2.5-fast` |
+| `bakeoff judge` | Native independent judge | `claude-fable-5-1-thinking-medium` |
+| `code-review session` | Highest-stakes code-review personas | `inherit-parent` |
+| `code-review mid` | Other code-review personas and local prompt assets | `cursor-grok-4.6-high` |
+| `code-review cheap` | Trivial-PR skip judgment | `composer-2.5-fast` |
+| `code-review finish` | Finish-path merge and report leaves | `inherit-parent` |
+| `doc-review cheap` | Coherence reviewer | `composer-2.5-fast` |
+| `doc-review high` | Security, feasibility, product, and adversarial doc reviewers | `inherit-parent` |
+| `doc-review mid` | Design-lens and scope-guardian | `cursor-grok-4.6-high` |
+
+`inherit-parent` and `auto` omit the override so the subagent stays on the parent chat model. A model named in the conversation still wins. `lfg` owns none of these roles; nested review and Bake-off invocations resolve the table themselves.
+
+To override, add a project or user Cursor rule that uses the same role labels. That overlay wins over the plugin default. Do not put these slugs in `.compound-engineering/config.yaml`: a map there would load on every host, and the ordinary key cascade replaces maps wholesale.
+
+Shipped values omit OpenAI slugs. A user overlay may still name them.
+
 ## Options
 
 All settings are optional. Commented examples are documentation, not active values.

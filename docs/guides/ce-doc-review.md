@@ -163,6 +163,10 @@ The pass needs a peer *agent* CLI (`codex`, `claude`, `grok`, `cursor-agent`, or
 
 The pass embeds the document into the peer prompt and sends it to an external provider. `CROSS_MODEL_PEERS` restricts which providers may receive content. Peers are strictly read-only. Failures never block the review; an exact provider-overload 529 gets one same-route retry, never an unbounded retry loop. A second target remains opt-in (`CROSS_MODEL_MAX_PEERS=2`).
 
+### Cursor native reviewer models
+
+On Cursor, native persona dispatch uses the plugin's always-applied role table (`rules/ce-cursor-models.mdc`) instead of the portable cheap/high/mid mapping. The CLI peer pass above is a separate route and is unchanged. Override with a project or user Cursor rule that uses the same role labels; see [Cursor native role models](./configuration.md#cursor-native-role-models).
+
 ---
 
 ## Quick Example
