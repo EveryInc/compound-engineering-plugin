@@ -136,13 +136,21 @@
   border-radius: 50%;
   border: 2px solid #1f2328;
   background: #ffe08a;
-  pointer-events: auto;
-  cursor: help;
+  pointer-events: none;
   font: 11px/20px system-ui, sans-serif;
 }
 
-/* While annotating, a click on a pin belongs to the catcher beneath it. */
-.ce-annotate-layer.is-annotating .ce-annotate-pin {
+.ce-annotate-pin-tip {
+  position: fixed;
+  z-index: 2147483646;
+  box-sizing: border-box;
+  max-width: 260px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #1f2328;
+  color: #fff;
+  font: 12px/1.4 system-ui, sans-serif;
+  white-space: pre-wrap;
   pointer-events: none;
 }
 

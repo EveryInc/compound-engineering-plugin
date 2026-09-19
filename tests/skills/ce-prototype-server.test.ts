@@ -1350,10 +1350,11 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("Could not send to agent — retry")
     expect(overlay).toContain("Could not end session — retry")
     expect(overlay).toContain('pin.status === "pending" || pin.status === "working"')
-    // An applied note's pin leaves the page, and the pins that remain can be read on hover.
+    // An applied note's pin leaves the page.
     expect(overlay).toContain('if (annotationStates[pins[i].id] === "done") pins.splice(i, 1)')
-    expect(overlayCss).toMatch(/\.ce-annotate-pin \{[^}]*pointer-events: auto;/)
-    expect(overlayCss).toMatch(/\.is-annotating \.ce-annotate-pin \{\s*pointer-events: none;/)
+    // Pins never take the click meant for the control under them; the comment shows by pointer position.
+    expect(overlayCss).toMatch(/\.ce-annotate-pin \{[^}]*pointer-events: none;/)
+    expect(overlay).toContain("showPinTipAt(event.clientX, event.clientY)")
     expect(overlay).toContain('addEventListener("scroll", reattachPins')
     expect(overlay).toContain("new ResizeObserver(reattachPins)")
     expect(overlay).toContain("new MutationObserver(reattachPins)")

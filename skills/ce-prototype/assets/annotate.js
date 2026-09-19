@@ -56,6 +56,11 @@
   layer.className = "ce-annotate-layer"
   shadow.appendChild(layer)
 
+  const pinTip = document.createElement("div")
+  pinTip.className = "ce-annotate-pin-tip"
+  pinTip.hidden = true
+  shadow.appendChild(pinTip)
+
   const composer = document.createElement("form")
   composer.className = "ce-annotate-composer"
   composer.hidden = true
@@ -320,7 +325,22 @@
     syncSubmit()
   }
 
+  // Pins stay click-through so a note on a control never blocks that control;
+  // the comment shows by pointer position instead of a hover target.
+  const PIN_SIZE = 22
+  function showPinTipAt(x, y) {
+    const pin = pins.findLast(
+      (p) => pinOnThisPage(p) && x >= p.x && x <= p.x + PIN_SIZE && y >= p.y && y <= p.y + PIN_SIZE,
+    )
+    pinTip.hidden = !pin
+    if (!pin) return
+    pinTip.textContent = pin.comment
+    pinTip.style.left = `${Math.max(0, Math.min(pin.x + PIN_SIZE + 4, window.innerWidth - 260))}px`
+    pinTip.style.top = `${pin.y}px`
+  }
+
   function renderPins() {
+    pinTip.hidden = true
     layer.replaceChildren()
     for (const pin of pins) {
       if (!pinOnThisPage(pin)) continue
@@ -419,7 +439,6 @@
     toggle.classList.toggle("is-on", on)
     toggleLabel.textContent = on ? "Annotating" : "Annotate"
     catcher.hidden = !on
-    layer.classList.toggle("is-annotating", on)
     if (!on) {
       unfreezeHover()
       closeComposer(inFlight)
@@ -717,6 +736,7 @@
     sawPointer = true
     lastPointer.x = event.clientX
     lastPointer.y = event.clientY
+    showPinTipAt(event.clientX, event.clientY)
   }, { capture: true, passive: true })
 
   document.addEventListener("keydown", (event) => {
