@@ -4,7 +4,7 @@ import http from "http"
 import os from "os"
 import path from "path"
 import { FakeLivePage, readFixture, unitPayload } from "../helpers/fakeLivePage"
-import { APP_ORIGIN, FakeLiveAgent, LIVE_ENDPOINT_SCRIPT, parseJsonLine, waitUntil } from "../helpers/fakeLiveAgent"
+import { APP_ORIGIN, FakeLiveAgent, LIVE_ENDPOINT_SCRIPT, parseJsonLine, runHelper, waitUntil } from "../helpers/fakeLiveAgent"
 
 setDefaultTimeout(30_000)
 
@@ -561,6 +561,71 @@ describe("live endpoint recovery: replay and lifecycle", () => {
     const targetBoard = (await target.board()) as { units: Record<string, { evidence: { frame_ids: string[] } }> }
     expect(targetBoard.units.u1.evidence.frame_ids).toEqual(["comp_kept"])
     expect((await target.statusHttp()).body.frame_count).toBe(1)
+  })
+
+  test("replay --profile everything prunes a unit's evidence to the frames it could emit, and --log replays a rotated earlier session", async () => {
+    const source = await startAgent()
+    const first = pageFor(source, "sess_first")
+    const frame = await readFixture("frame")
+    expectOk(await first.post(first.envelope("frame", { ...frame.payload, id: "g_kept" })))
+    expectOk(await first.post(first.envelope("frame", { ...frame.payload, id: "g_missing" })))
+    expectOk(await first.sendUnit("u1", "make the header red", { evidence: { frame_ids: ["g_kept", "g_missing"], annotation_ids: [], transcript_span: { t_start: 0, t_end: 1 } } }))
+    expectOk(await first.sendCheckpoint("ck1", "silence", "smart"))
+    const frames = await fs.readdir(path.join(source.stateDir, "log", "frames"))
+    await fs.rm(path.join(source.stateDir, "log", "frames", frames.find((name) => name.includes("g_missing"))!))
+    // End the first session and open a second one so the first log rotates aside.
+    expectOk(await first.endSession("{}", "application/json"))
+    const wake = await source.waitHttp()
+    expectOk(await source.ack(wake.envelope!.checkpoint_id))
+    expectOk(await source.postStatus("u1", "applied"))
+    const second = pageFor(source, "sess_second")
+    expectOk(await second.sendUnit("u2", "make the footer blue"))
+    const rotated = (await fs.readdir(source.stateDir)).find((name) => name.startsWith("log-ended-"))!
+    expect(rotated).toBeDefined()
+
+    const target = await startAgent()
+    const replayed = await runHelper(["replay", "--root", source.root, "--profile", "everything", "--to", target.url, "--token", target.pageToken, "--log", rotated])
+    expect(replayed.exitCode, replayed.stderr).toBe(0)
+    expect(parseJsonLine(replayed.stdout)).toMatchObject({ status: "replayed", envelopes_skipped: 1 })
+    const targetBoard = (await target.board()) as { units: Record<string, { evidence: { frame_ids: string[] } }> }
+    expect(Object.keys(targetBoard.units)).toEqual(["u1"])
+    expect(targetBoard.units.u1.evidence.frame_ids).toEqual(["g_kept"])
+    // Without --log the current (second) session is what replays.
+    const current = await startAgent()
+    expect((await source.replayCli("everything", current.url, current.pageToken)).exitCode).toBe(0)
+    expect(Object.keys(((await current.board()) as { units: Record<string, unknown> }).units)).toEqual(["u2"])
+  })
+
+  test("a new session opens with the agent away, even when a wait was parked on the drained one", async () => {
+    const agent = await startAgent()
+    const first = pageFor(agent, "sess_first")
+    expectOk(await first.sendUnit("u1", "make the header red"))
+    expectOk(await first.endSession("{}", "application/json"))
+    const wake = await agent.waitHttp()
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
+    expectOk(await agent.postStatus("u1", "applied"))
+    // A wait on the drained session is released with 410; presence must not stay at listening.
+    expect((await agent.waitHttp()).status).toBe(410)
+    const second = pageFor(agent, "sess_second")
+    expectOk(await second.sendUnit("u2", "make the footer blue"))
+    await second.openStream()
+    const presence = await second.waitForEvent((event) => event.event === "agent")
+    expect(presence.data).toMatchObject({ state: "away" })
+  })
+
+  test("a closed tab's takeover by a new session survives an unwritable audit log", async () => {
+    const agent = await startAgent()
+    const first = pageFor(agent, "sess_first")
+    expectOk(await first.sendUnit("u1", "make the header red"))
+    // The old page said it was unloading and holds no stream: the next session may take over.
+    expectOk(await first.send("stream_state", { state: "unloading" }))
+    const agentLog = path.join(agent.stateDir, "log", "agent.ndjson")
+    await fs.rm(agentLog, { force: true })
+    await fs.mkdir(agentLog)
+    const second = pageFor(agent, "sess_second")
+    const opened = await second.sendUnit("u2", "make the footer blue")
+    expectOk(opened)
+    expect(await agent.board()).toMatchObject({ session_id: "sess_second", ended: false })
   })
 
   test("a page_lost batch that cannot be persisted leaves the watch armed and the helper up; the loss is reported once the disk allows", async () => {

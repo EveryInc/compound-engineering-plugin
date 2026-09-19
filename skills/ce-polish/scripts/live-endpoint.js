@@ -299,7 +299,7 @@ function usage() {
     "  node live-endpoint.js status --root <dir>",
     "  node live-endpoint.js stop --root <dir>",
     "  node live-endpoint.js wait --root <dir>",
-    "  node live-endpoint.js replay --root <dir> --profile <anchors_transcript_only|strokes_composite|everything> --to <endpoint> --token <page token>",
+    "  node live-endpoint.js replay --root <dir> --profile <anchors_transcript_only|strokes_composite|everything> --to <endpoint> --token <page token> [--log <log-ended-<stamp>|dir>]",
   ].join("\n")
 }
 
@@ -318,6 +318,7 @@ function parseArgs(argv) {
     else if (arg === "--profile") options.profile = argv[++i]
     else if (arg === "--to") options.to = argv[++i]
     else if (arg === "--token") options.token = argv[++i]
+    else if (arg === "--log") options.log = argv[++i]
     else if (arg === "--trust-proxy") options.trustProxy = [...(options.trustProxy ?? []), ...String(argv[++i] ?? "").split(",").map((ip) => ip.trim()).filter(Boolean)]
     else throw new Error(`Unknown argument: ${arg}`)
   }
@@ -364,6 +365,15 @@ function parseArgs(argv) {
   options.logFile = path.join(options.stateDir, "server.log")
   options.batchesDir = path.join(options.stateDir, "batches")
   options.logDir = path.join(options.stateDir, "log")
+  // `replay --log` addresses an earlier session on this root: a rotated
+  // `state/log-ended-<stamp>` by name, or any log directory by path.
+  if (options.log !== undefined) {
+    if (command !== "replay") throw new Error("--log applies to replay only")
+    const named = path.join(options.stateDir, path.basename(options.log))
+    const candidate = fs.existsSync(path.join(named, "events.ndjson")) ? named : path.resolve(options.log)
+    if (!fs.existsSync(path.join(candidate, "events.ndjson"))) throw new Error(`No session log at ${path.join(candidate, "events.ndjson")}`)
+    options.logDir = candidate
+  }
   return options
 }
 
@@ -1107,7 +1117,7 @@ function applyProfile(envelope, profile, retainedFrames) {
     if (next.evidence && typeof next.evidence === "object") {
       const evidence = { ...next.evidence }
       if (rules.frames === "none") evidence.frame_ids = []
-      else if (rules.frames === "composite" && Array.isArray(evidence.frame_ids)) evidence.frame_ids = evidence.frame_ids.filter((id) => retainedFrames.has(id))
+      else if (Array.isArray(evidence.frame_ids)) evidence.frame_ids = evidence.frame_ids.filter((id) => retainedFrames.has(id))
       if (!rules.annotations) evidence.annotation_ids = []
       if (!rules.clips) delete evidence.audio_clip_id
       if (!rules.telemetry) delete evidence.telemetry_window
@@ -1141,11 +1151,13 @@ async function replay(options) {
   // second pass will actually emit: one whose image file is missing is
   // skipped there, so its id must not survive in a unit's evidence either.
   const retainedFrames = new Set()
-  if (EVIDENCE_PROFILES[options.profile].frames === "composite") {
+  const frameRule = EVIDENCE_PROFILES[options.profile].frames
+  if (frameRule !== "none") {
     const scan = readline.createInterface({ input: fs.createReadStream(eventsFile, "utf8"), crlfDelay: Infinity })
     for await (const line of scan) {
       const stored = line ? parseJsonObject(line) : null
-      if (stored?.type !== "frame" || stored.payload?.kind !== "composite" || typeof stored.payload.id !== "string") continue
+      if (stored?.type !== "frame" || typeof stored.payload?.id !== "string") continue
+      if (frameRule === "composite" && stored.payload.kind !== "composite") continue
       const emittable = !stored.frame_file || readableFile(path.join(options.logDir, stored.frame_file))
       if (emittable) retainedFrames.add(stored.payload.id)
     }
@@ -1701,6 +1713,8 @@ async function serve(options) {
     logBytes = 0
     disarmPageLost()
     clearWatchForLoss()
+    // Presence is per session: the wait that drained the old one is gone.
+    setAgentState("away")
     bestEffort(() => logAgent({ kind: "session_opened", session_id: sessionId }))
   }
 
@@ -1764,7 +1778,7 @@ async function serve(options) {
     // (or went lost) and no stream is open, a new page takes over instead of
     // being refused. A reload keeps its session id, so it never lands here.
     if (board.session_id && board.session_id !== sessionId && pageClosed()) {
-      logAgent({ kind: "session_closed_by_page", session_id: board.session_id })
+      bestEffort(() => logAgent({ kind: "session_closed_by_page", session_id: board.session_id }))
       endSession()
       if (!drained()) {
         sendJson(res, 409, { error: "previous_session_draining" }, corsHeaders())
