@@ -453,16 +453,43 @@ function processArgs(pid) {
 // newer plugin checkout, or a foreground helper started as
 // `node live-endpoint.js`, is still the same endpoint for this root.
 function inspectServerProcess(options, pid) {
+  // Exact argv when the platform exposes it (Linux /proc): the `--root`
+  // argument is compared whole, so a root containing spaces or one that is
+  // a prefix of another cannot be confused with it.
+  const argv = processArgv(pid)
+  if (argv) {
+    const isHelper = argv.some((token) => path.basename(token) === path.basename(scriptPath))
+    const rootIndex = argv.indexOf("--root")
+    const forThisRoot = rootIndex !== -1 && argv[rootIndex + 1] === options.root
+    const serving = argv.includes("serve") || argv.includes("start")
+    return isHelper && forThisRoot && serving ? "owned" : "foreign"
+  }
   const args = processArgs(pid)
   if (args === null) return "unknown"
   const tokens = args.split(/\s+/)
   const isHelper = tokens.some((token) => path.basename(token) === path.basename(scriptPath))
-  // The root is the exact `--root` argument, bounded on both sides, so a
-  // sibling root that merely extends this one (`.../root-other`) is foreign.
-  const rootArgument = new RegExp(`(^|\\s)--root\\s+${escapeRegExp(options.root)}(\\s|$)`)
+  // Flattened command line (`ps`): argv boundaries are gone, so the root must
+  // be followed by the next flag or the end of the line. A root that is this
+  // one plus more words (`--root /tmp/root other`) is ambiguous and reads as
+  // foreign rather than owned.
+  const rootArgument = new RegExp(`(^|\\s)--root\\s+${escapeRegExp(options.root)}(\\s+--|\\s*$)`)
   const forThisRoot = rootArgument.test(args)
   const serving = tokens.includes("serve") || tokens.includes("start")
   return isHelper && forThisRoot && serving ? "owned" : "foreign"
+}
+
+// The process's argv with its boundaries intact, or null where the platform
+// does not expose it (no /proc, or a PID this user may not read).
+function processArgv(pid) {
+  try {
+    const raw = fs.readFileSync(`/proc/${pid}/cmdline`)
+    if (raw.length === 0) return null
+    const parts = raw.toString("utf8").split("\0")
+    if (parts[parts.length - 1] === "") parts.pop()
+    return parts
+  } catch {
+    return null
+  }
 }
 
 function escapeRegExp(text) {
@@ -1341,6 +1368,18 @@ async function serve(options) {
     if (event !== "ack" && event !== "agent") scheduleStreamFlush()
   }
 
+  // Delivers what a transaction held once it has committed: wakes to the
+  // parked agent, notices to the stream. A no-op when nothing is held.
+  function releaseHeldNotices() {
+    const notices = heldNotices
+    heldNotices = null
+    if (!notices) return
+    for (const notice of notices) {
+      if (notice.wake) fulfillWaiter()
+      else broadcast(notice.event, notice.payload)
+    }
+  }
+
   // A stream response is ended shortly after a delivery. Some TLS-terminating
   // intermediaries (cloudflared quick tunnels, fronted by a Worker) hold a
   // streaming body until the response completes, so an open SSE stream never
@@ -1522,7 +1561,11 @@ async function serve(options) {
       // The batch lands before the watch is cleared, so a failure at either
       // step leaves the durable board still watching: a restart re-arms it
       // and the loss is reported then, rather than lost with a crashed timer.
+      // The wake is held until the whole transition has committed, so a
+      // parked agent never receives a batch that a failed board save then
+      // takes back from under its acknowledgment.
       const undo = snapshotState()
+      heldNotices = []
       try {
         enqueueBatch(makeEnvelope(`page-lost-${randomUUID()}`, last?.kind ?? "send", board.mode, {
           session_status: "page_lost",
@@ -1533,10 +1576,13 @@ async function serve(options) {
         board.watch_for_loss = false
         saveBoard()
       } catch (error) {
+        heldNotices = null
         undo()
         bestEffort(() => logAgent({ kind: "page_lost_persist_failed", error: error.code ?? error.message }))
         armPageLost()
+        return
       }
+      releaseHeldNotices()
     }, PAGE_LOST_GRACE_MS)
     pageLostTimer.unref()
   }
@@ -1605,6 +1651,9 @@ async function serve(options) {
       throw error
     }
     disarmPageLost()
+    // A transition that released a final batch before ending held its wake
+    // and notices until this commit; they go out now, ahead of the end.
+    releaseHeldNotices()
     broadcast("session_ended", { reason: "session_end", session_id: board.session_id, log_dir: options.logDir })
     for (const client of streamClients) {
       if (!client.writableEnded) client.end()
@@ -1980,14 +2029,9 @@ async function serve(options) {
         }
         throw error
       }
-      const notices = heldNotices
-      heldNotices = null
       outOfOrder.delete(next.envelope.seq)
       reservedBytes -= next.reserved
-      for (const notice of notices) {
-        if (notice.wake) fulfillWaiter()
-        else broadcast(notice.event, notice.payload)
-      }
+      releaseHeldNotices()
       next = outOfOrder.get(board.acked_seq + 1)
     }
   }
@@ -2337,6 +2381,7 @@ async function serve(options) {
         // the archive all go back to how they were, so the page's retry
         // starts from the same state and emits one final checkpoint, not two.
         const undo = snapshotState()
+        heldNotices = []
         try {
           // Nothing the page sent stays unreleased past the end: a unit that
           // landed after the page's own final checkpoint goes out as a last
@@ -2351,6 +2396,7 @@ async function serve(options) {
           }
           endSession()
         } catch (error) {
+          heldNotices = null
           undo()
           // The session did not end, so the page retries with the whole
           // archive: the copy just landed is a replacement-in-waiting, not
@@ -2361,6 +2407,9 @@ async function serve(options) {
           }
           throw error
         }
+        // endSession delivered the held wake and notices as it committed; if
+        // the board was already ended it did nothing, and they go out here.
+        releaseHeldNotices()
         // The end is committed; the audit line must not turn it into a 500.
         bestEffort(() => logAgent({ kind: "session_end", archive: size > 0 ? path.basename(archivePath) : null, bytes: size }))
         endingInFlight = false

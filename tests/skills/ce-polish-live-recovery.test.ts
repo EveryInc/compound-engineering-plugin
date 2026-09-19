@@ -594,6 +594,35 @@ describe("live endpoint recovery: replay and lifecycle", () => {
     expect((await agent.board()).watch_for_loss).toBe(false)
   })
 
+  test("a parked wait is not handed a page_lost batch whose board commit then fails; it receives the loss once the commit lands", async () => {
+    const agent = await startAgent({ env: { CE_LIVE_PAGE_LOST_GRACE_MS: "400", CE_LIVE_STREAM_FLUSH_MS: "10000", CE_LIVE_WAIT_TIMEOUT_MS: "4000" } })
+    const page = pageFor(agent)
+    await page.openStream()
+    expectOk(await page.sendUnit("u1", "make the header red"))
+    expectOk(await page.sendCheckpoint("ck1", "silence", "instant"))
+    const wake = await agent.waitHttp()
+    expectOk(await agent.ack(wake.envelope!.checkpoint_id))
+    expectOk(await agent.postStatus("u1", "applied"))
+    await page.closeStream()
+    // The batch file can be written, the board cannot: the transition must fail after enqueue.
+    const boardFile = path.join(agent.stateDir, "board.json")
+    const boardBackup = await fs.readFile(boardFile)
+    await fs.rm(boardFile)
+    await fs.mkdir(boardFile)
+    const parked = agent.waitHttp()
+    await Bun.sleep(900)
+    // Still parked: nothing was delivered for a transition that did not commit.
+    const raced = await Promise.race([parked.then(() => "delivered"), Bun.sleep(50).then(() => "parked")])
+    expect(raced).toBe("parked")
+    await fs.rmdir(boardFile)
+    await fs.writeFile(boardFile, boardBackup)
+    const delivered = await parked
+    expect(delivered.status).toBe(200)
+    expect(delivered.envelope!.session_status).toBe("page_lost")
+    // The batch it received is real: the ack lands.
+    expectOk(await agent.ack(delivered.envelope!.checkpoint_id))
+  })
+
   test("an archive still uploading keeps the helper alive past the idle timeout with no stream attached", async () => {
     // The idle window is well above startup and scheduler jitter (the first chunk is written at once,
     // later ones every 300 ms), while the whole upload (~2.1 s) outlasts it.
@@ -764,15 +793,41 @@ describe("live endpoint recovery: process ownership", () => {
     expect(await agent.listening()).toBe(true)
   })
 
+  test("a sibling root that is this root plus a space and more words is foreign too", async () => {
+    const parent = await mkScratch("ce-polish-spaced-roots-")
+    const root = path.join(parent, "root")
+    const sibling = path.join(parent, "root other")
+    await fs.mkdir(root)
+    await fs.mkdir(sibling)
+    const agent = await startAgent({ root })
+    const other = await startAgent({ root: sibling })
+    const ownPid = await agent.serverPid()
+    const otherPid = await other.serverPid()
+    await fs.writeFile(path.join(agent.stateDir, "server.pid"), `${otherPid}\n`)
+    expect(await agent.statusCli()).toMatchObject({ status: "stopped" })
+    expect((await agent.stopCli()).exitCode).toBe(0)
+    expect(await other.listening()).toBe(true)
+    expect(await other.statusCli()).toMatchObject({ status: "running" })
+    await fs.writeFile(path.join(agent.stateDir, "server.pid"), `${ownPid}\n`)
+  })
+
   test("without a usable ps, stop and start refuse to touch or displace the live PID instead of treating it as the endpoint", async () => {
     const agent = await startAgent()
-    // A PATH with nothing on it: `ps` cannot be found, so ownership is unknown.
+    // A PATH with nothing on it: `ps` cannot be found, so ownership is unknown
+    // unless the platform exposes exact argv (Linux /proc), which is positive evidence on its own.
     const emptyBin = await mkScratch("ce-polish-empty-bin-")
     const noPs = { PATH: emptyBin }
     const pid = await agent.serverPid()
     expect(pid).not.toBeNull()
+    const procArgv = await fs.readFile(`/proc/${pid}/cmdline`).then((raw) => raw.length > 0).catch(() => false)
 
     const stopped = await runFrom(LIVE_ENDPOINT_SCRIPT, ["stop", "--root", agent.root], noPs)
+    if (procArgv) {
+      // Ownership was read from /proc; stop proceeds exactly as with ps.
+      expect(stopped.exitCode, stopped.stderr).toBe(0)
+      await waitUntil(async () => !(await agent.listening()))
+      return
+    }
     expect(stopped.exitCode).toBe(1)
     expect(stopped.stderr).toMatch(/Cannot verify that process \d+ .* is this root's endpoint/)
     expect(await agent.listening()).toBe(true)
