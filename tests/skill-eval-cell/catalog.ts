@@ -837,6 +837,90 @@ Required lower-is-better objectives: latency (ms), memory (MB). Workload checkou
     grade: { files_read_post: ["references/wrap-up.md"], must_include: ["3.6"], actions: "none", delegates: "none" },
   },
   {
+    id: "ce-optimize/resume-recorded-approval",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A resume whose approval record still matches must not ask the user to approve the baseline again; an unattended wake depends on it.",
+    pre_contract: "The log held no record of approval, so every resume presented the Phase 1 gate again.",
+    task: `Use ce-optimize to resume this run. Decide only whether the Phase 1 user approval gate is presented again; do not execute work or write files.
+I ran the resume invocation for the run myself. experiment-log.yaml holds a baseline, three finished experiments, a hypothesis backlog, run_state.status waiting with no pending waits, and an approval record: approved_at yesterday, spec_sha256 9f2c..e1, caps max_iterations 8, max_hours 2, max_wall_hours 72, max_concurrent 1. The SHA-256 of spec.yaml on disk is 9f2c..e1 and its caps are those same values. The primary is a hard metric.
+Include exactly one line \`GATE: present\` or \`GATE: skip\` in your answer.`,
+    grade: { declared: { GATE: "skip" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/resume-changed-cap",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A cap the user never approved needs a new approval, but it does not invalidate measurements taken under the same metric and harness.",
+    pre_contract: "Every resume presented the Phase 1 gate again; the spec was fixed once anything derived from it was on file.",
+    task: `Use ce-optimize to resume this run. Decide only what happens to the approval gate and to the measurements already in the log; do not execute work or write files.
+experiment-log.yaml holds a baseline, three finished experiments, a hypothesis backlog, and an approval record with caps max_iterations 4, max_hours 1, max_wall_hours 72, max_concurrent 1. Since then I edited spec.yaml and changed only stopping.max_iterations from 4 to 12, so its SHA-256 no longer matches the record. Nothing else in the spec differs. The primary is a hard metric.
+Include exactly one line \`GATE: present\` or \`GATE: skip\`, and exactly one line \`MEASUREMENTS: stand\` or \`MEASUREMENTS: invalid\`.`,
+    grade: { declared: { GATE: "present", MEASUREMENTS: "stand" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/resume-changed-metric",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A baseline and experiments measured under one metric must not be carried into a run whose spec now names another.",
+    pre_contract: "Adjusting the spec was available only while the log held nothing derived from it; afterwards the spec was fixed for the run.",
+    task: `Use ce-optimize to resume this run. Decide only how the run proceeds; do not execute work or write files.
+experiment-log.yaml holds a baseline, six finished experiments (two kept), a hypothesis backlog, and an approval record. Since then I edited spec.yaml: metric.primary.name changed from p95_ms to p50_ms and measurement.command now prints p50_ms. The caps are unchanged. The SHA-256 of spec.yaml no longer matches the approval record.
+Include exactly one line from: \`RUN: continue\` (approve again and keep going from the log), \`RUN: rebaseline\` (keep the log, re-measure the baseline, keep going), \`RUN: restore-or-fresh\` (the logged run stands only under the approved spec; otherwise start fresh).`,
+    grade: { declared: { RUN: "restore-or-fresh" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/tick-boundary-without-wake",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "Work may outlive the turn only on a registered wake; without one the loop must hand back a checkpoint, not poll, sleep, or end silently.",
+    pre_contract: "Do not end a turn while in-scope work remains merely described.",
+    task: `Use ce-optimize at the end of a Phase 3 tick. Decide only what this turn does next; do not execute work or write files.
+Two experiments were dispatched to detached workers and each returned a receipt; their results will arrive later as pushed branches, in roughly forty minutes. Both receipts are recorded and verified in run_state.pending_waits. No stopping criterion holds. Your tool list has no scheduling, timer, subscription, or wake tool, and no running process or subagent in this session is attached to those workers. The state root is .context/compound-engineering/ce-optimize/checkout-latency/.
+Include exactly one line from: \`TURN: wait\` (hold this turn open until results land), \`TURN: poll\` (sleep and re-check in a loop), \`TURN: checkpoint\` (end the turn with the run parked for a later resume). If you choose checkpoint, write the message you would send the user.`,
+    grade: { declared: { TURN: "checkpoint" }, must_include: ["ce-optimize .context/compound-engineering/ce-optimize/checkout-latency/spec.yaml"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/judge-spec-without-holdout",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A judge run selected and confirmed on one sample learns the sample; the spec must not pass load without a held-out set.",
+    pre_contract: "A judge spec needed a rubric, sampling, and a disclosed spend cap; no held-out set existed.",
+    task: `Use ce-optimize with this reviewed spec. Decide only whether the spec passes validation as written; do not execute work or write files.
+name: cluster-quality. metric.primary: type judge, name mean_score, direction maximize. metric.judge: rubric present, scoring.primary mean_score, model cheap, sample_size 10, batch_size 5, sample_seed 42, max_total_cost_usd 5, calibration.waived true with my explicit waiver. measurement.command prints the clusters; measurement has no other keys. scope, execution (serial, worktree, max_concurrent 1), and stopping are complete and valid.
+Include exactly one line \`SPEC: valid\` or \`SPEC: invalid\`, and name what is missing if invalid.`,
+    grade: { declared: { SPEC: "invalid" }, must_include_any: [["holdout", "held-out", "confirmation_seed"]], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/remote-without-detached-worker",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A missing capability takes its stated fallback without a question; asking stalls an approved run.",
+    pre_contract: "execution.backend was worktree or codex; codex fell back to subagents without asking.",
+    task: `Use ce-optimize at Phase 3 dispatch. Decide only where the experiments run; do not execute work or write files.
+The approved spec sets execution.backend: remote with a paired comparison. Your tool list offers local subagent dispatch and a shell. Nothing in the tool list or in context launches a worker on another machine or returns a receipt for work that lands as a pushed branch.
+Include exactly one line from: \`BACKEND: remote\`, \`BACKEND: worktree\`, \`BACKEND: ask\` (ask the user which to use).`,
+    grade: { declared: { BACKEND: "worktree" }, actions: "none", delegates: "none" },
+  },
+  {
     id: "ce-babysit-pr/refuse-unasked-update",
     skill: "ce-babysit-pr",
     cohort: "resized",
