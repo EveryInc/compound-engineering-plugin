@@ -32,7 +32,7 @@ Gotchas baked in (see `docs/solutions/skill-design/size-driven-skill-restructure
 
 ## Hand-run eval packs
 
-`packs/` holds the evaluator-owned behavioral eval specs for the cross-model paths of `ce-work`, `ce-code-review`, and `ce-doc-review`. They live here, not under `skills/`, so they do not ship inside the plugin package and an agent running the skill cannot open its own expected answers. Never inject a pack into the agent under test.
+`packs/` holds the evaluator-owned behavioral eval specs for the cross-model paths of `ce-work`, `ce-code-review`, and `ce-doc-review`. They live here, not under `skills/`, so they are absent from everything that copies a skill directory as a unit: the converter's output for other harnesses, and the skill this driver extracts for a cell. A Claude marketplace install is different: its plugin root is the whole repository, so `tests/` is present there. Run a pack's scenarios against an extracted skill (this driver), never against a repo-root plugin load, and never inject a pack into the agent under test.
 
 ## Sweep A/B pack
 
