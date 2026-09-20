@@ -327,7 +327,7 @@ def process_evidence(job_dir: str) -> dict:
 
 HOST_RECEIPT_FIELDS = (
     "requested_route", "actual_route", "target", "harness", "intermediaries",
-    "model_requested", "model_actual", "model_receipt_status", "activity_posture",
+    "model_requested", "model_actual", "model_receipt_status", "effort_requested", "activity_posture",
     "restriction_posture", "failure_reason", "raw_log", "packet_digest",
 )
 MAX_RESULT_BYTES = 5 * 1024 * 1024
@@ -490,6 +490,7 @@ def terminal_receipt(
         "harness": authorization["harness"],
         "intermediaries": authorization["intermediaries"],
         "model_requested": authorization["model_requested"],
+        "effort_requested": authorization.get("effort_requested"),
         "restriction_posture": authorization["restriction_posture"],
         "packet_digest": unit["packet_digest"],
     }

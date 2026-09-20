@@ -429,6 +429,73 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     expect(JSON.parse(readFileSync(path.join(runs, "fixed-sanction", "manifest.json"), "utf8")).egress.restrictions).toEqual([])
   })
 
+  test("records a requested effort at init, carries it into every authorization, and compares it on receipts", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const binding = JSON.stringify({ mode: "require", target: "codex", model: null, source: "test" })
+    const initEffort = (runId: string, extra: Record<string, unknown>) => ctl(
+      runs, "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
+      "--plan-digest", f.digest, "--binding-json", binding,
+      "--egress-json", JSON.stringify({ route: "codex", intermediaries: [], restrictions: [], ...extra }),
+    )
+
+    for (const [index, effort] of ["", "x high", "xhigh\n", "a".repeat(33), 5, ["xhigh"]].entries()) {
+      const refused = initEffort(`bad-effort-${index}`, { effort })
+      expect(refused.word).toBe("REFUSED")
+      expect(refused.stderr).toContain("egress effort must be a short plain token")
+      expect(existsSync(path.join(runs, `bad-effort-${index}`))).toBe(false)
+    }
+    // Ladder validation belongs to the adapter; the controller only bounds the token.
+    expect(initEffort("off-ladder", { effort: "ultra" }).word).toBe("READY")
+
+    expect(initEffort("run-effort", { effort: "xhigh" }).word).toBe("READY")
+    expect(initEffort("run-effort", { effort: "xhigh" })).toMatchObject({ word: "READY", body: { resumed: true } })
+    for (const changed of [{ effort: "low" }, {}]) {
+      const conflicting = initEffort("run-effort", changed)
+      expect(conflicting.word).toBe("BLOCKED")
+      expect(conflicting.stderr).toContain("binding or egress sanction differs")
+    }
+    expect(JSON.parse(readFileSync(path.join(runs, "run-effort", "manifest.json"), "utf8")).egress.effort).toBe("xhigh")
+
+    const authorizations = ["U", "U2"].map((unitId) => {
+      const prepared = ctl(
+        runs, "prepare", "--run-id", "run-effort", "--unit-id", unitId, "--base", f.base,
+        "--packet", packetFile(`packet ${unitId}`),
+      )
+      expect(prepared.word).toBe("PREPARED")
+      return JSON.parse(readFileSync(prepared.body.authorization_path, "utf8"))
+    })
+    for (const authorization of authorizations) {
+      expect(authorization.effort_requested).toBe("xhigh")
+      expect(Object.keys(authorization)).toHaveLength(14)
+    }
+
+    const resultPath = (unitId: string) => path.join(runs, "run-effort", "units", unitId, "result", "implementation-result.json")
+    const rewriteReceipt = (unitId: string, effort: string) => {
+      const receipt = JSON.parse(readFileSync(resultPath(unitId), "utf8"))
+      writeFileSync(resultPath(unitId), `${JSON.stringify({ ...receipt, effort_requested: effort })}\n`, { mode: 0o600 })
+      chmodSync(resultPath(unitId), 0o600)
+    }
+    const mismatchedJob = fakeDoneJob(runs, "run-effort", "U", "packet U", "job-effort-mismatch")
+    rewriteReceipt("U", "high")
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-effort", "--unit-id", "U", "--attempt-id", "attempt-1", "--job-id", mismatchedJob,
+    ).word).toBe("AUTHORING")
+    const blocked = ctl(runs, "terminalize", "--run-id", "run-effort", "--unit-id", "U")
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.body.mismatches).toEqual({ effort_requested: { expected: "xhigh", actual: "high" } })
+
+    const matchingJob = fakeDoneJob(runs, "run-effort", "U2", "packet U2", "job-effort-match")
+    rewriteReceipt("U2", "xhigh")
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-effort", "--unit-id", "U2", "--attempt-id", "attempt-1", "--job-id", matchingJob,
+    ).word).toBe("AUTHORING")
+    expect(ctl(runs, "terminalize", "--run-id", "run-effort", "--unit-id", "U2").word).not.toBe("BLOCKED")
+    const accepted = ctl(runs, "status", "--run-id", "run-effort", "--unit-id", "U2").body.unit.attempts[0]
+    expect(accepted.terminal_receipt).toMatchObject({ effort_requested: "xhigh", model_requested: "auto" })
+    expect(accepted.terminal_receipt).not.toHaveProperty("effort_actual")
+  })
+
   test("owns packet bytes and rejects route or receipt substitution", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

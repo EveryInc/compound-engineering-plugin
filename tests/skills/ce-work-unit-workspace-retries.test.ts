@@ -134,6 +134,49 @@ describe("ce-work unit workspace controller: abandoned-unit retries and reconcil
     })
   })
 
+  test("a retried attempt and a resumed run keep the effort recorded at init", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const initArgs = (effort: string) => [
+      "init", "--run-id", "run-effort-retry", "--repo", f.repo, "--plan", f.plan, "--plan-digest", f.digest,
+      "--binding-json", JSON.stringify({ mode: "require", target: "codex", model: null, source: "test" }),
+      "--egress-json", JSON.stringify({ route: "codex", intermediaries: [], restrictions: [], effort }),
+    ]
+    expect(ctl(runs, ...initArgs("xhigh")).word).toBe("READY")
+    const first = ctl(
+      runs, "prepare", "--run-id", "run-effort-retry", "--unit-id", "U", "--base", f.base,
+      "--packet", packetFile("first packet"), "--attempt-id", "attempt-1",
+    )
+    expect(JSON.parse(readFileSync(first.body.authorization_path, "utf8")).effort_requested).toBe("xhigh")
+
+    // fakeDoneJob's receipt names no effort, so the attempt fails validation and is abandoned.
+    const job = fakeDoneJob(runs, "run-effort-retry", "U", "first packet", "job-effort-first")
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-effort-retry", "--unit-id", "U", "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+    const blocked = ctl(runs, "terminalize", "--run-id", "run-effort-retry", "--unit-id", "U")
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.body.mismatches.effort_requested).toEqual({ expected: "xhigh", actual: null })
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-effort-retry", "--unit-id", "U", "--abandon", "--expect-job", job,
+    ).word).toBe("CLEANED")
+
+    // A changed config reaches the controller only as a different init effort or ambient variable.
+    expect(ctl(runs, ...initArgs("low")).word).toBe("BLOCKED")
+    expect(ctl(runs, ...initArgs("xhigh"))).toMatchObject({ word: "READY", body: { resumed: true } })
+    const second = ctlWithEnv(
+      runs, { CROSS_MODEL_EFFORT_OVERRIDE: "low" },
+      "prepare", "--run-id", "run-effort-retry", "--unit-id", "U", "--base", f.base,
+      "--packet", packetFile("corrected packet"), "--attempt-id", "attempt-2",
+    )
+    expect(second.word).toBe("PREPARED")
+    expect(JSON.parse(readFileSync(second.body.authorization_path, "utf8"))).toMatchObject({
+      attempt_id: "attempt-2",
+      effort_requested: "xhigh",
+    })
+    expect(JSON.parse(readFileSync(path.join(runs, "run-effort-retry", "manifest.json"), "utf8")).egress.effort).toBe("xhigh")
+  })
+
   test("retries an abandoned wave unit from the latest controller-accepted head only", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

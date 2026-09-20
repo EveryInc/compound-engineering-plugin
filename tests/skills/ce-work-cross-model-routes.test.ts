@@ -178,7 +178,10 @@ function run(
     invoke(
       "init", "--run-id", runId, "--repo", f.canonical, "--plan", plan, "--plan-digest", planDigest,
       "--binding-json", JSON.stringify({ mode: "prefer", target: contract.target, model: forgedAuthorization ? null : authorizationOverrides.model_requested ?? null, source: "test" }),
-      "--egress-json", JSON.stringify({ sanction_source: "test", route, intermediaries: [...contract.intermediaries], exposed_material: [unitId], restrictions: [] }),
+      "--egress-json", JSON.stringify({
+        sanction_source: "test", route, intermediaries: [...contract.intermediaries], exposed_material: [unitId], restrictions: [],
+        ...(!forgedAuthorization && authorizationOverrides.effort_requested ? { effort: authorizationOverrides.effort_requested } : {}),
+      }),
     )
     const base = spawnSync("git", ["-C", f.canonical, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim()
     f.prepared = invoke(
@@ -533,6 +536,87 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.model_requested).toBe("composer-next-fast")
   })
 
+  test("an authorization without effort keeps the 13-key schema and each route's default effort argv", () => {
+    const expectedEffort: Record<typeof ROUTES[number], string | null> = {
+      codex: "model_reasoning_effort=high", claude: "--effort\nhigh", "grok-cli": "--effort\nhigh",
+      cursor: null, composer: null, "grok-cursor": null, opencode: null,
+    }
+    for (const route of ROUTES) {
+      const f = fixture()
+      const bin = fakeBin(route, f.capture)
+      const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}` })
+      expect(result.code).toBe(0)
+      const authorization = JSON.parse(readFileSync(f.prepared!.authorization_path, "utf8"))
+      expect(Object.keys(authorization).sort()).toEqual([
+        "activity_posture", "attempt_id", "harness", "intermediaries", "model_requested", "packet_digest",
+        "restriction_posture", "restrictions", "route", "run_id", "schema_version", "target", "unit_id",
+      ])
+      const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
+      const effort = expectedEffort[route]
+      if (effort) expect(argv).toContain(effort)
+      else {
+        expect(argv).not.toContain("--effort")
+        expect(argv).not.toContain("--variant")
+        expect(argv).not.toContain("model_reasoning_effort")
+      }
+      expect(result.result.effort_requested).toBeNull()
+    }
+  })
+
+  test.each([
+    ["codex", "xhigh", "model_reasoning_effort=xhigh"],
+    ["claude", "max", "--effort\nmax"],
+    ["grok-cli", "low", "--effort\nlow"],
+    ["opencode", "max", "--variant\nmax"],
+  ] as const)("%s builds its effort argument from the authorized effort %s", (route, effort, expected) => {
+    const f = fixture()
+    const bin = fakeBin(route, f.capture)
+    const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
+    const result = run(
+      route, f,
+      { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, CROSS_MODEL_EFFORT_OVERRIDE: "medium" },
+      digest, { effort_requested: effort },
+    )
+    expect(result.code).toBe(0)
+    expect(JSON.parse(readFileSync(f.prepared!.authorization_path, "utf8")).effort_requested).toBe(effort)
+    const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
+    expect(argv).toContain(expected)
+    expect(argv).not.toContain("medium")
+    expect(result.result.effort_requested).toBe(effort)
+    expect(result.result).not.toHaveProperty("effort_actual")
+  })
+
+  test("a production start ignores an ambient effort override when no effort is authorized", () => {
+    for (const [route, ambient, fragment] of [
+      ["codex", "xhigh", "model_reasoning_effort=high"],
+      ["cursor", "high", "--sandbox"],
+    ] as const) {
+      const f = fixture()
+      const bin = fakeBin(route, f.capture)
+      const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, CROSS_MODEL_EFFORT_OVERRIDE: ambient })
+      expect(result.code).toBe(0)
+      const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
+      expect(argv).toContain(fragment)
+      expect(argv).not.toContain("xhigh")
+      expect(result.result.effort_requested).toBeNull()
+    }
+  })
+
+  test.each([
+    ["cursor", "high"],
+    ["grok-cli", "xhigh"],
+  ] as const)("an authorized effort the %s route cannot honor publishes an unavailable receipt", (route, effort) => {
+    const f = fixture()
+    const bin = fakeBin(route, f.capture)
+    const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
+    const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}` }, digest, { effort_requested: effort })
+    expect(result.code).toBe(2)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.failure_reason).toContain(`'${effort}' not compatible with route '${route}'`)
+    expect(result.result.effort_requested).toBe(effort)
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+  })
+
   test.each([
     ["route mismatch", "codex", { route: "claude" }],
     ["Composer family mismatch", "composer", { model_requested: "gpt-5.6-sol" }],
@@ -540,6 +624,10 @@ describe("ce-work fixed write routes", () => {
     ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.6" }],
     ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.6-high" }],
     ["adapter-unsafe model token", "cursor", { model_requested: "model@beta" }],
+    ["unknown extra key", "codex", { effort: "xhigh" }],
+    ["extra key beside an effort", "codex", { effort_requested: "xhigh", effort_actual: "xhigh" }],
+    ["non-token effort", "codex", { effort_requested: "x high" }],
+    ["empty effort", "codex", { effort_requested: "" }],
   ] as const)("forged %s authorization is rejected before CLI invocation", (_name, route, overrides) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)

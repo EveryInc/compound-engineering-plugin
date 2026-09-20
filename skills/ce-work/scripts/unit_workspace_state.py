@@ -655,6 +655,9 @@ def route_model_allowed(route: str, model: str) -> bool:
     return False
 
 
+EFFORT_TOKEN = re.compile(r"[A-Za-z0-9_-]{1,32}")
+
+
 def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> dict:
     if not isinstance(binding, dict) or not isinstance(egress, dict):
         raise Operational(word, "run binding or egress sanction is malformed")
@@ -685,6 +688,9 @@ def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> 
     restrictions = egress.get("restrictions", [])
     if not isinstance(restrictions, list) or not all(isinstance(item, str) for item in restrictions):
         raise Operational(word, "egress restrictions must be a string list")
+    effort = egress.get("effort")
+    if effort is not None and (not isinstance(effort, str) or not EFFORT_TOKEN.fullmatch(effort)):
+        raise Operational(word, "egress effort must be a short plain token")
     return contract
 
 
@@ -702,7 +708,7 @@ def attempt_authorization(
     intermediaries = egress.get("intermediaries")
     model = binding.get("model")
     restrictions = egress.get("restrictions", [])
-    return {
+    authorization = {
         "schema_version": 1,
         "run_id": doc["run_id"],
         "unit_id": unit_id,
@@ -717,6 +723,10 @@ def attempt_authorization(
         "activity_posture": activity_posture,
         "packet_digest": packet_digest,
     }
+    # Present only when requested, so an unset run keeps the original key set.
+    if egress.get("effort") is not None:
+        authorization["effort_requested"] = egress["effort"]
+    return authorization
 
 
 def read_external_packet(path: str, label: str = "unit packet") -> bytes:

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -469,6 +470,87 @@ printf '%s\n' '${JSON.stringify({
     expect(control(
       runs, "claim-fallback", "--run-id", "unavailable-run", "--unit-id", "U-spoofed", "--caller-mode", "headless",
     ).body.reason).toBe("failed")
+  }, 30_000)
+
+  test("an effort recorded at init survives a resume and makes a route that cannot honor it unavailable", () => {
+    const root = temp("ce-work-effort-")
+    const repo = path.join(root, "repo")
+    const peerRoot = path.join(root, "jobs")
+    const runs = path.join(peerRoot, "ce-work")
+    const bin = path.join(root, "bin")
+    const invoked = path.join(root, "codex-invoked")
+    mkdirSync(repo)
+    mkdirSync(bin)
+    writeFileSync(path.join(bin, "codex"), `#!/bin/sh\n: > '${invoked}'\n`, { mode: 0o755 })
+    chmodSync(path.join(bin, "codex"), 0o755)
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.name", "CE Work Host")
+    git(repo, "config", "user.email", "host@example.test")
+    mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
+    const plan = path.join(repo, "docs", "plans", "plan.md")
+    writeFileSync(plan, "# Plan\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "seed")
+    const base = git(repo, "rev-parse", "HEAD")
+    const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+    const initArgs = (effort: string) => [
+      "init", "--run-id", "effort-run", "--repo", repo, "--plan", plan, "--plan-digest", planDigest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", JSON.stringify({ sanction_source: "test", route: "codex", intermediaries: [], exposed_material: ["U"], restrictions: [], effort }),
+    ]
+
+    expect(control(runs, ...initArgs("max")).word).toBe("READY")
+    expect(controlFailure(runs, ...initArgs("high")).word).toBe("BLOCKED")
+    expect(control(runs, ...initArgs("max")).body.resumed).toBe(true)
+    const prepared = control(
+      runs, "prepare", "--run-id", "effort-run", "--unit-id", "U",
+      "--base", base, "--packet", packetFile("effort packet"),
+    ).body
+    expect(JSON.parse(readFileSync(prepared.authorization_path, "utf8")).effort_requested).toBe("max")
+
+    const runnerEnv = {
+      ...process.env,
+      CE_PEER_JOBS_ROOT: peerRoot,
+      CE_WORK_RUNS_ROOT: runs,
+      PATH: `${bin}:/usr/bin:/bin`,
+      CROSS_MODEL_EFFORT_OVERRIDE: "high",
+      CE_PEER_POLL_SECS: "0.1",
+      CE_PEER_IDLE_SECS: "10",
+      CE_PEER_HARD_SECS: "30",
+    }
+    const jobId = run(repo, [
+      "python3", RUNNER, "start",
+      "--skill", "ce-work",
+      "--run-id", "effort-run",
+      "--label", "U",
+      "--input-digest", prepared.packet_digest,
+      "--result-path", path.join(prepared.result_dir, "implementation-result.json"),
+      "--no-sweep",
+      "--", ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
+      prepared.packet_digest, prepared.result_dir,
+    ], runnerEnv)
+    expect(control(
+      runs, "record-job", "--run-id", "effort-run", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", jobId,
+    ).word).toBe("AUTHORING")
+    expect(run(repo, [
+      "python3", RUNNER, "wait", "--skill", "ce-work", "--max-secs", "30", jobId,
+    ], runnerEnv)).toBe("failed")
+
+    expect(control(runs, "sync-job", "--run-id", "effort-run", "--unit-id", "U").body.process_state).toBe("failed")
+    const status = control(runs, "status", "--run-id", "effort-run", "--unit-id", "U").body.unit
+    expect(status.attempts[0].terminal_receipt).toMatchObject({
+      terminal_status: "unavailable",
+      requested_route: "codex",
+      actual_route: null,
+      effort_requested: "max",
+      model_actual: "unverified",
+      failure_reason: "effort override 'max' not compatible with route 'codex'",
+    })
+    expect(existsSync(invoked)).toBe(false)
+    expect(control(
+      runs, "claim-fallback", "--run-id", "effort-run", "--unit-id", "U", "--caller-mode", "headless",
+    ).body.reason).toBe("effort override 'max' not compatible with route 'codex'")
   }, 30_000)
 
   test("controller-owned integration fail-stops verification and canonical commit", () => {
