@@ -286,6 +286,8 @@ describe("skill-eval-cell catalog", () => {
       "ce-noslop/two-devices-stay-unchanged",
       "ce-noslop/workflow-jargon-keeps-technical-detail",
       "ce-optimize/attended-judge-proceeds-uncalibrated",
+      "ce-optimize/judge-check-accepted-agent-does-the-work",
+      "ce-optimize/judge-check-offered-once-automated-by-default",
       "ce-optimize/judge-spec-without-holdout",
       "ce-optimize/objective-target-asks-no-exemplars",
       "ce-optimize/remote-without-detached-worker",

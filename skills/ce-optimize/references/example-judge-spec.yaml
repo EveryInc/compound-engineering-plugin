@@ -38,7 +38,7 @@ metric:
     sample_seed: 42
     confirmation_seed: 7       # held-out sample, scored only before a keep and at final confirmation
     calibration:
-      labels: "tools/eval/judge-labels.yaml"   # optional: 20-50 items with a score and the reasoning; omit the block to run uncalibrated
+      labels: "tools/eval/judge-labels.yaml"   # optional: your own scores for some outputs; omit the block and Phase 1 offers a guided check
       min_agreement: 0.8
     minimum_improvement: 0.2
     max_total_cost_usd: 5

@@ -197,7 +197,7 @@ required_fields:
               labels:
                 type: string
                 default: null
-                description: "Path (relative to the repo root) to a human-labeled sample: 20-50 items, each with the rubric score and the reasoning behind it. Reusable across runs, so it belongs in the repo, not in scratch space."
+                description: "Path to a human-labeled sample: items with the user's rubric score and, when given, the reason. Phase 1 writes it for the user during the guided check (default <state-root>/judge-labels.yaml); a sample kept in the repo is reusable across runs. Around ten items shows a pattern; 20-50 makes the agreement figure dependable."
               min_agreement:
                 type: number
                 default: 0.8

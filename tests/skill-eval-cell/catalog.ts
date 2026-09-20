@@ -927,12 +927,39 @@ Include exactly one line \`ASK_EXEMPLARS: yes\` or \`ASK_EXEMPLARS: no\`, where 
     key_behavior: "judgment",
     read_only: true,
     post_only: true,
-    why: "Hand-labeling is optional evidence for an attended run; its absence is disclosed at approval, not turned into a stop.",
+    why: "Hand-labeling is optional evidence for an attended run; its absence is disclosed at approval, not turned into a stop. Manually inspect that the sentence is understandable to someone who has never heard of calibration.",
     pre_contract: "A judge run needed a rubric, sampling, and a disclosed spend cap; no human labels were involved.",
     task: `Use ce-optimize at the Phase 1 validity gate. Decide only whether this run may go on to the baseline and the approval gate; do not execute work or write files.
 The primary is type judge (mean_score on a 1-5 clarity rubric for generated release notes). A holdout is configured through confirmation_seed. I have no hand-labeled sample and I have not said anything about waiving one. The shortcut probe ran: an empty output scored 1.0 and real output scored 3.4. I am at the keyboard; this session runs the loop itself and no wake after turn end is in use.
 Include exactly one line \`PHASE1: proceed\` or \`PHASE1: blocked\`. If proceed, write the one sentence the approval message must carry about the judge.`,
-    grade: { declared: { PHASE1: "proceed" }, must_include_any: [["person", "human"]], actions: "none", delegates: "none" },
+    // The disclosure sentence is a manual read: a needle on it pins wording, and the skill asks for the agent's own everyday words.
+    grade: { declared: { PHASE1: "proceed" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/judge-check-offered-once-automated-by-default",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "The user is assumed to want automation; the check against their own scores is one plain offer with its reason, not a requirement or a lecture. Manually inspect the message for everyday language: no 'calibration', 'validity gate', or 'harness'.",
+    pre_contract: "A judge run needed a rubric, sampling, and a disclosed spend cap; the user was never asked to score anything.",
+    task: `Use ce-optimize in Phase 1. The baseline has just been judged: ten generated release notes scored a mean of 3.4 on my 1-5 clarity rubric. I supplied no scores of my own. I am at the keyboard and this session runs the loop itself. Write the message you send me next about checking the judge, exactly as I would see it; do not execute work or write files.
+Include exactly one line \`OFFER: yes\` or \`OFFER: no\` (whether you offer me the check), and exactly one line \`IF_I_SAY_NOTHING_MORE_THAN_GO: automated\` or \`IF_I_SAY_NOTHING_MORE_THAN_GO: blocked\`.`,
+    grade: { declared: { OFFER: "yes", IF_I_SAY_NOTHING_MORE_THAN_GO: "automated" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/judge-check-accepted-agent-does-the-work",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A user who agrees to help must not be handed a YAML file to author; the agent shows outputs, takes scores, and writes the file. Manually inspect that the user's score is asked before the judge's is shown.",
+    pre_contract: "No guided scoring existed.",
+    task: `Use ce-optimize in Phase 1. The baseline has been judged: ten generated release notes, each with the judge's 1-5 clarity score. You offered to check the judge against my own scores and I said yes, let's do it. Describe exactly what happens next from my side, and write the first thing you show me; do not execute work or write files.
+Include exactly one line \`LABELS_FILE_WRITTEN_BY: agent\` or \`LABELS_FILE_WRITTEN_BY: user\`, and exactly one line \`JUDGE_SCORE_SHOWN: before\` or \`JUDGE_SCORE_SHOWN: after\` (relative to my own score for that item).`,
+    grade: { declared: { LABELS_FILE_WRITTEN_BY: "agent", JUDGE_SCORE_SHOWN: "after" }, actions: "none", delegates: "none" },
   },
   {
     id: "ce-optimize/unattended-judge-needs-calibration",
