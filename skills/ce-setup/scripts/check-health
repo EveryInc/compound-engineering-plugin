@@ -320,7 +320,10 @@ read_work_engine_effort_keys() {
       line = substr(line, 2, length(line) - 2)
       count = split(line, pairs, ",")
       for (i = 1; i <= count; i++) {
-        if (pairs[i] ~ /^[[:space:]]*$/) continue
+        if (pairs[i] ~ /^[[:space:]]*$/) {
+          if (i < count) not_a_map()
+          continue
+        }
         if (pairs[i] !~ /:/) not_a_map()
         sub(/:.*$/, "", pairs[i])
         emit_key(pairs[i])
