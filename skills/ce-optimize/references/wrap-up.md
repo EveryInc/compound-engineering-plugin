@@ -46,7 +46,9 @@ Option 4 (continue) re-enters Phase 3 with the current state, state re-read from
 
 ### 4.4 Cleanup
 
-Delete nothing under `<state-root>`. The log, the digest, and the markers are the run's audit trail and what a later resume reads; they are small, they sit outside version control, and the user removes the directory when they are done with the run. Remove experiment worktrees only through `scripts/experiment-worktree.sh cleanup`, which checks what it removes.
+Once CP-5 is written the run is over, so leave behind only what someone will still read. Remove the working files this run created under `<state-root>`: the strategy digest, the judge cache, result markers, and any scratch payloads or decision files you wrote there. Keep `experiment-log.yaml` and `spec.yaml`, tell the user where they are, and remove them too only if the user asks. A run that is not final (`waiting` or `blocked`) keeps everything, because a resume reads it.
+
+Remove files the way this host and the user's own rules prefer, such as moving them to the trash rather than deleting them permanently when that is available. Remove only files you can name that this run created inside `<state-root>`; never compose a path to delete from a pattern or an unresolved placeholder, and leave anything you are unsure about in place and name it in the final message. Remove experiment worktrees only through `scripts/experiment-worktree.sh cleanup`, which checks what it removes.
 
 Do NOT delete the experiment log if the user may resume or wants an audit trail. The exported report in 4.3 is the durable shared artifact; the ledger is not. Unregister any wake still registered for this run.
 Do NOT delete experiment worktrees that are still being referenced.
