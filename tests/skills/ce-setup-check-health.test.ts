@@ -740,6 +740,8 @@ describe("ce-setup check-health", () => {
     ["cursor in an inline map", 'work_engine_effort: {codex: high, "cursor": high}  # inline\n', "work_engine_effort in config.local.yaml names 'cursor', which takes no effort"],
     ["an unknown harness in an inline map", "work_engine_effort: {codex: high, mystery: low}\n", "work_engine_effort in config.local.yaml names unknown harness 'mystery'; ce-work ignores that entry"],
     ["an inline pair with no value", "work_engine_effort: {codex}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
+    ["a key with no entries", "work_engine_effort:\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
+    ["a key whose entries are all commented out", "work_engine_effort:\n  # codex: xhigh\ndocs_root_unused: x\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
   ])("work_engine_effort with %s warns and the engine stays available", async (_label, effort, warning) => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 

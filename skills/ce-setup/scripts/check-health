@@ -295,14 +295,22 @@ read_work_engine_effort_keys() {
     function emit_key(key) {
       gsub(/^[[:space:]"\047]+|[[:space:]"\047]+$/, "", key)
       print "KEY\t" key
+      entries++
     }
     function not_a_map() {
       print "ERROR"
+      reported = 1
       exit
     }
-    /^[^[:space:]#-][^:]*[[:space:]]*:/ { active = 0 }
+    # A block that ends with no entries is a null value, not the explicit empty map {}.
+    function close_block() {
+      if (active && !entries) not_a_map()
+      active = 0
+    }
+    /^[^[:space:]#-][^:]*[[:space:]]*:/ { close_block() }
     /^work_engine_effort[[:space:]]*:/ {
       active = 1
+      entries = 0
       line = $0
       sub(/^work_engine_effort[[:space:]]*:/, "", line)
       sub(/[[:space:]]+#.*$/, "", line)
@@ -327,6 +335,7 @@ read_work_engine_effort_keys() {
       sub(/:.*$/, "", line)
       emit_key(line)
     }
+    END { if (!reported) close_block() }
   ' "$config_file"
 }
 
