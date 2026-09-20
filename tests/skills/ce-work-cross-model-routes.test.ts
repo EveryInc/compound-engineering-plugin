@@ -536,31 +536,33 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.model_requested).toBe("composer-next-fast")
   })
 
-  test("an authorization without effort keeps the 13-key schema and each route's default effort argv", () => {
-    const expectedEffort: Record<typeof ROUTES[number], string | null> = {
-      codex: "model_reasoning_effort=high", claude: "--effort\nhigh", "grok-cli": "--effort\nhigh",
-      cursor: null, composer: null, "grok-cursor": null, opencode: null,
+  // One route per test: each run spawns the controller and adapter, and seven in one body can outlast the per-test timeout.
+  test.each([
+    ["codex", "model_reasoning_effort=high"],
+    ["claude", "--effort\nhigh"],
+    ["grok-cli", "--effort\nhigh"],
+    ["cursor", null],
+    ["composer", null],
+    ["grok-cursor", null],
+    ["opencode", null],
+  ] as const)("%s without an authorized effort keeps the 13-key schema and its default effort argv", (route, effort) => {
+    const f = fixture()
+    const bin = fakeBin(route, f.capture)
+    const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}` })
+    expect(result.code).toBe(0)
+    const authorization = JSON.parse(readFileSync(f.prepared!.authorization_path, "utf8"))
+    expect(Object.keys(authorization).sort()).toEqual([
+      "activity_posture", "attempt_id", "harness", "intermediaries", "model_requested", "packet_digest",
+      "restriction_posture", "restrictions", "route", "run_id", "schema_version", "target", "unit_id",
+    ])
+    const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
+    if (effort) expect(argv).toContain(effort)
+    else {
+      expect(argv).not.toContain("--effort")
+      expect(argv).not.toContain("--variant")
+      expect(argv).not.toContain("model_reasoning_effort")
     }
-    for (const route of ROUTES) {
-      const f = fixture()
-      const bin = fakeBin(route, f.capture)
-      const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}` })
-      expect(result.code).toBe(0)
-      const authorization = JSON.parse(readFileSync(f.prepared!.authorization_path, "utf8"))
-      expect(Object.keys(authorization).sort()).toEqual([
-        "activity_posture", "attempt_id", "harness", "intermediaries", "model_requested", "packet_digest",
-        "restriction_posture", "restrictions", "route", "run_id", "schema_version", "target", "unit_id",
-      ])
-      const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
-      const effort = expectedEffort[route]
-      if (effort) expect(argv).toContain(effort)
-      else {
-        expect(argv).not.toContain("--effort")
-        expect(argv).not.toContain("--variant")
-        expect(argv).not.toContain("model_reasoning_effort")
-      }
-      expect(result.result.effort_requested).toBeNull()
-    }
+    expect(result.result.effort_requested).toBeNull()
   })
 
   test.each([
@@ -586,20 +588,18 @@ describe("ce-work fixed write routes", () => {
     expect(result.result).not.toHaveProperty("effort_actual")
   })
 
-  test("a production start ignores an ambient effort override when no effort is authorized", () => {
-    for (const [route, ambient, fragment] of [
-      ["codex", "xhigh", "model_reasoning_effort=high"],
-      ["cursor", "high", "--sandbox"],
-    ] as const) {
-      const f = fixture()
-      const bin = fakeBin(route, f.capture)
-      const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, CROSS_MODEL_EFFORT_OVERRIDE: ambient })
-      expect(result.code).toBe(0)
-      const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
-      expect(argv).toContain(fragment)
-      expect(argv).not.toContain("xhigh")
-      expect(result.result.effort_requested).toBeNull()
-    }
+  test.each([
+    ["codex", "xhigh", "model_reasoning_effort=high"],
+    ["cursor", "high", "--sandbox"],
+  ] as const)("a %s production start ignores an ambient effort override when no effort is authorized", (route, ambient, fragment) => {
+    const f = fixture()
+    const bin = fakeBin(route, f.capture)
+    const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, CROSS_MODEL_EFFORT_OVERRIDE: ambient })
+    expect(result.code).toBe(0)
+    const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
+    expect(argv).toContain(fragment)
+    expect(argv).not.toContain("xhigh")
+    expect(result.result.effort_requested).toBeNull()
   })
 
   test.each([
