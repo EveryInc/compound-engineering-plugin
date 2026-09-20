@@ -714,6 +714,83 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  const enabledEngine = "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: codex\n"
+
+  test("a valid work_engine_effort map adds no warning and leaves the engine status unchanged", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, `${enabledEngine}work_engine_effort:\n  codex: xhigh\n  claude: "max"\n`)
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
+      expect(result.stdout).not.toContain("work_engine_effort")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["a scalar value", "work_engine_effort: xhigh\n", "work_engine_effort in config.local.yaml is not a map of harness to effort"],
+    ["a list value", "work_engine_effort:\n  - codex\n", "work_engine_effort in config.local.yaml is not a map of harness to effort"],
+    ["an unknown harness", "work_engine_effort:\n  mystery: high\n", "work_engine_effort in config.local.yaml names unknown harness 'mystery'"],
+    ["cursor", "work_engine_effort:\n  codex: high\n  cursor: high\n", "work_engine_effort in config.local.yaml names 'cursor', which takes no effort"],
+  ])("work_engine_effort with %s warns and the engine stays available", async (_label, effort, warning) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, `${enabledEngine}${effort}`)
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain(warning)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
+      expect(result.stdout).not.toContain("engine unavailable")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("a local work_engine_effort map replaces the team map", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, "work_engine_effort: {}\n")
+      await writeFile(
+        path.join(root, ".compound-engineering", "config.yaml"),
+        `${enabledEngine}work_engine_effort:\n  mystery: high\n`,
+      )
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
+      expect(result.stdout).not.toContain("work_engine_effort")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("an effort line inside a preferences entry is still an unsupported entry", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: codex\n    effort: xhigh\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain(
+        "CE Work implementation engine unavailable: unsupported work_engine_preferences entry: effort: xhigh",
+      )
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("setup skill offers create config.yaml and never creates the override", async () => {
     // Corpus grep: these are Phase 2 mechanics, which the body requires the reference for
     // before any repo-local write, so they may live in either file.

@@ -153,6 +153,14 @@
 #     model: "gpt-5.6"
 #   - harness: claude             # configured default model
 
+# Reasoning effort for the external worker, per harness. Each value is one of
+# that harness's own effort levels. An unset harness keeps its own default.
+# Cursor routes take no effort. A map in config.local.yaml replaces this one.
+
+# work_engine_effort:
+#   codex: xhigh
+#   claude: max
+
 # --- ce-promote ---
 # Written automatically when you decline the Spiral setup offer in /ce-promote.
 # Suppresses that one-time setup nudge in this project. Remove the key to re-enable.
