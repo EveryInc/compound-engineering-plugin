@@ -409,10 +409,21 @@ function compareRequired({
   return { comparisons, improved, violated, missing, incompleteBaselines, candidateBundles, baselineBundles }
 }
 
-// The held-out pair is scored with the same objectives and thresholds as the
-// selection pair. It confirms a keep; it never selects. A holdout that is not
+// The held-out pair is scored with the same gates, objectives, and thresholds
+// as the selection pair. It confirms a keep; it never selects. A holdout that is not
 // itself an eligible improvement withholds the keep.
-function confirmHoldout({ holdout, required, comparison, aggregation }) {
+function confirmHoldout({ spec, holdout, required, comparison, aggregation }) {
+  const gateFailures = evaluateGates(spec, holdout.candidate)
+  if (gateFailures.length) {
+    return {
+      comparisons: {},
+      improved_objectives: [],
+      violated_objectives: gateFailures,
+      agrees: false,
+      decision: "degenerate",
+      reason: `holdout degenerate gate failed: ${gateFailures.join(", ")}`,
+    }
+  }
   const compared = compareRequired({
     required,
     comparison,
@@ -607,7 +618,7 @@ export function decide(input) {
       nextMeasurement = "holdout"
       reason = "selection comparison would keep; held-out confirmation still missing"
     } else {
-      holdout = confirmHoldout({ holdout: input.holdout, required, comparison, aggregation })
+      holdout = confirmHoldout({ spec, holdout: input.holdout, required, comparison, aggregation })
       if (!holdout.agrees) {
         decision = holdout.decision
         keepEligible = false

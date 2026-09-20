@@ -28,7 +28,7 @@ Examples of what the three capabilities look like on some harnesses. This table 
 |---|---|---|---|
 | A coordinator harness with a persistent agent store (for example Cursor Projects' Agent Store) | The store path named in your context | Event subscriptions or a timer subscription that re-invokes the agent | A cloud-agent launch that returns a receipt and lands its work as a pushed branch or a store file |
 | Grok (CLI/TUI) | None named; `.context/` | `scheduler_create --durable` | None; `worktree` |
-| Claude Code, Codex, Cursor CLI sessions | None named; `.context/` | None (session-bound); cron running the resume invocation is the user's escalation | None; `worktree` (or `codex` when the spec says so) |
+| Claude Code, Codex, Cursor CLI sessions | None named; `.context/` | Whatever scheduling or wake tool the session lists; when it lists none, cron running the resume invocation is the user's escalation | None; `worktree` (or `codex` when the spec says so) |
 
 When the harness shows the user a status surface for this run, write a one-line run status there at CP-4 and at each stop, in addition to the log.
 
@@ -66,7 +66,9 @@ Anything the branch's readers need durably must be exported to a tracked path; t
 
 ### The Approval Record
 
-The Phase 1 approval is a user decision the log records so that a resume, including an unattended wake, does not re-ask it. Write `approval` the moment the user approves, before Phase 2 starts, with the fields the log schema names: the time, the SHA-256 of the saved `spec.yaml` bytes, and the caps in force (`stopping.*`, `metric.judge.max_total_cost_usd`, `execution.max_concurrent`). The record is valid while the spec digest and every recorded cap match the spec on disk. A record that is absent or no longer matches means the Phase 1 gate is presented again; the answer is a new record. Adjusting the spec after approval is a new approval.
+The Phase 1 approval is a user decision the log records so that a resume, including an unattended wake, does not re-ask it. Write `approval` the moment the user approves, before Phase 2 starts, with the fields the log schema names: the time, the SHA-256 of the saved `spec.yaml` bytes, and the caps in force (`stopping.*`, `metric.judge.max_total_cost_usd`, `execution.max_concurrent`). The record is valid while the spec digest and every recorded cap match the spec on disk. A record that is absent or no longer matches means the Phase 1 gate is presented again; the answer is a new record.
+
+The baseline and every logged experiment were measured under the spec that was approved, so what changed decides what still stands. When only the recorded caps differ, the measurements stand and approving the new caps continues the run. When anything else in the spec differs, the measurements no longer describe this spec: while the log holds no hypothesis backlog and no experiments, go back through Phase 1 so the baseline matches the new spec; once it holds either, the spec is fixed for the run, so restore the approved spec or take Fresh start (Phase 0.4). Say which of the two applies when presenting the gate.
 
 ### The Wait Record and Ticks
 

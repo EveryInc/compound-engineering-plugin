@@ -36,7 +36,7 @@ The backlog contains the credible opportunities supported by current evidence, n
 
 ### 2.3 Dependency Pre-Approval
 
-The SKILL.md body states this gate. Record its outcome on each hypothesis as `dep_status: approved` or `needs_approval`, which is what batch selection reads.
+The SKILL.md body states this gate. A dependency the user does not approve stays in the backlog, is skipped in batch selection, and comes back at wrap-up. Record its outcome on each hypothesis as `dep_status: approved` or `needs_approval`, which is what batch selection reads.
 
 ### 2.4 Record Hypothesis Backlog (CP-2)
 
@@ -170,7 +170,7 @@ For each completed experiment, **immediately**:
    ```
    If that probe finds no runtime, do not invoke an empty command. Mark the experiment `error` with that reason and continue the batch. Use `decision` and `next_measurement`. Collect the requested measurement and repeat this sequence whenever `next_measurement` is not `none`. Do not keep a candidate until `next_measurement` is `none`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`. Each extra sample belongs to this same experiment: write it onto the existing entry at CP-3, then decide again.
 
-   **Held-out confirmation.** When the spec configures a holdout, `decide.mjs` answers a would-be keep with `next_measurement: holdout` until the payload carries a `holdout` snapshot pair. Collect it then: run `measurement.holdout.command` (or, for a judge primary, the judge sample under `metric.judge.confirmation_seed`) on the reference and on the candidate, persist the pairing as `kind: holdout` in `comparisons`, and decide again. The holdout result decides keep or not; it does not enter the digest, the rolling window summaries, or hypothesis generation. A holdout that disagrees returns `revert` or `inconclusive`; record that outcome as the script returned it.
+   **Held-out confirmation.** When the spec configures a holdout, `decide.mjs` answers a would-be keep with `next_measurement: holdout` until the payload carries a `holdout` snapshot pair. Collect it then: run `measurement.holdout.command` (or, for a judge primary, the judge sample under `metric.judge.confirmation_seed`) on the reference and on the candidate, persist the pairing as `kind: holdout` in `comparisons`, and decide again. The holdout result decides keep or not; it does not enter the digest, the rolling window summaries, or hypothesis generation. A holdout that does not confirm the gain withholds the keep; record the outcome the script returned.
 
    **Per-experiment diagnostics.** When the harness or the judge dispatch reports cost, tokens, or latency, record them under the entry's `cost`. When `measurement.per_case` is true, record the script's `regressions` on the entry. Neither changes the decision.
 

@@ -1537,6 +1537,18 @@ describe("held-out confirmation", () => {
     expect(result.holdout?.violated_objectives).toEqual(["mean_score"])
   })
 
+  test("a holdout candidate that fails a degenerate gate withholds the keep", () => {
+    const result = decide({
+      spec: judgeSpec,
+      baseline,
+      candidate,
+      holdout: { baseline, candidate: { gates: { result_count: 0 }, judge: { mean_score: 4.9 } } },
+    })
+    expect(result.decision).toBe("degenerate")
+    expect(result.eligible).toBe(false)
+    expect(result.holdout?.violated_objectives).toEqual(["result_count"])
+  })
+
   test("a confirmation_seed equal to sample_seed is not a holdout", () => {
     const spec = {
       metric: {
