@@ -754,6 +754,7 @@ describe("ce-setup check-health", () => {
       expect(result.stdout).toContain(warning)
       expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
       expect(result.stdout).not.toContain("engine unavailable")
+      expect(result.stdout).not.toContain("Project config healthy")
     } finally {
       await rm(root, { recursive: true, force: true })
     }

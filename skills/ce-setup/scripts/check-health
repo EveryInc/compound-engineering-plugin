@@ -686,6 +686,7 @@ if [ "$in_repo" = "yes" ]; then
   [ -n "$work_engine_migration_note" ] && warn "$work_engine_migration_note"
   for effort_note in ${work_engine_effort_notes[@]+"${work_engine_effort_notes[@]}"}; do
     warn "$effort_note"
+    project_issues=$((project_issues + 1))
   done
 
   if [ "$example_cfg" = "ok" ]; then
