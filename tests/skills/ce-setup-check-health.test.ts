@@ -745,6 +745,9 @@ describe("ce-setup check-health", () => {
     ["an inline map missing a comma between pairs", "work_engine_effort: {codex: xhigh claude: max}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
     ["a block entry whose value holds a second pair", "work_engine_effort:\n  codex: xhigh claude: max\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
     ["a block entry with no value", "work_engine_effort:\n  codex:\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
+    ["a key whose quotes do not match", "work_engine_effort:\n  \"codex': xhigh\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
+    ["a value whose quotes do not match", "work_engine_effort: {codex: 'xhigh\"}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
+    ["a key with only an opening quote", "work_engine_effort:\n  \"codex: xhigh\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
     ["a key with no entries", "work_engine_effort:\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
     ["a key whose entries are all commented out", "work_engine_effort:\n  # codex: xhigh\ndocs_root_unused: x\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
   ])("work_engine_effort with %s warns and the engine stays available", async (_label, effort, warning) => {

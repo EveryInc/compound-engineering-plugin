@@ -296,7 +296,10 @@ read_work_engine_effort_keys() {
     function emit_entry(entry) {
       sub(/[[:space:]]+#.*$/, "", entry)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", entry)
-      if (entry !~ /^["\047]?[A-Za-z0-9][A-Za-z0-9_-]*["\047]?[[:space:]]*:[[:space:]]*["\047]?[A-Za-z0-9][A-Za-z0-9_-]*["\047]?$/) not_a_map()
+      # A key or value is a bare token or one wrapped in a matching quote pair.
+      token = "[A-Za-z0-9][A-Za-z0-9_-]*"
+      quoted = "(" token "|\"" token "\"|\047" token "\047)"
+      if (entry !~ ("^" quoted "[[:space:]]*:[[:space:]]*" quoted "$")) not_a_map()
       sub(/[[:space:]]*:.*$/, "", entry)
       gsub(/["\047]/, "", entry)
       print "KEY\t" entry
