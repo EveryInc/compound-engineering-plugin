@@ -106,7 +106,10 @@ function seedTemplateOnce(objectFormat: "sha1" | "sha256"): { repo: string; dige
 
 function seedTemplate(objectFormat: "sha1" | "sha256"): { repo: string; digest: string; base: string } {
   const cached = seedTemplates.get(objectFormat)
-  if (cached) return cached
+  // CI has lost this directory mid-file after a timed-out test. Reseed rather than
+  // throw ENOENT from every later makeRepo: a non-TimeoutError failure blocks the
+  // suite's TimeoutError-only re-run (scripts/run-tests.ts).
+  if (cached && existsSync(cached.repo)) return cached
   let lastError: unknown
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {

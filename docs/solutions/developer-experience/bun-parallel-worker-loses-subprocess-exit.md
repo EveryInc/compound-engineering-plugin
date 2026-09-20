@@ -58,6 +58,7 @@ Two consequences shape the fix. The wedge lives in the worker's event loop state
 
 - When a subprocess-heavy file shows one or more failures at exactly the timeout with empty child output, read it as a lost child-exit notification, not as a slow child. Later tests in the same file may still pass.
 - The workspace harness uses a 20s `spawnSync` timeout. If that fires first, `ctl()` used to return `word: ""` and the test failed as an assertion, which blocked the TimeoutError-only re-run. CI has also returned that empty-stdio shape with no signal, and the babysit takeover spawn as `status: 120`. Those paths now throw `TimeoutError` via `tests/helpers/lost-child-exit.ts`.
+- Keep every failure in an affected file a `TimeoutError`. On 2026-09-18 (`main`) and 2026-09-20 (PR 1748) the red runs carried 19 `TimeoutError`s plus about ten `ENOENT: ... lstat '/tmp/ce-work-repo-template-*/repo'`: the workspace harness's cached repo template had gone missing mid-file, every later `makeRepo` threw `ENOENT`, and that one non-timeout error kind blocked the re-run. `seedTemplate` now reseeds when the cached directory is gone. What removes the directory is not established.
 - Do not raise timeouts or add `retry` for this signature; both re-run inside the same wedged worker.
 - Keep the re-run inside the package `test` script so CI and local runs stay the same command, as `AGENTS.md` already requires for `--parallel`.
 - Check the bun issue before touching this: when it is fixed and CI runs a bun with the fix, the re-run pass becomes dead weight and can be removed.
