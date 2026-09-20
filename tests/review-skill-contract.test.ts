@@ -1032,6 +1032,9 @@ describe("ce-code-review contract", () => {
     expect(skill).toMatch(/local-aligned.*local tree diff/i)
     expect(skill).not.toMatch(/append.*`DIFF:`.*unpushed/i)
     expect(skill).toMatch(/Do \*\*not\*\* call `gh pr diff` or append remote hunks/)
+    // A same-named origin branch can satisfy the fetch for a fork PR, so the ref is
+    // trusted only when it resolves to the PR's head commit.
+    expect(skill).toMatch(/`PR_HEAD_REF=[^`]+` [^.]*only when `git rev-parse [^`]+` equals the metadata `headRefOid`/)
     expect(stage2c).toMatch(
       /pr-remote.*branch-remote.*targeted probe.*`git show`.*reviewed head ref.*supplied diff hunks.*never inspect workspace paths/is,
     )
