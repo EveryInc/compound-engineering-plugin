@@ -46,12 +46,7 @@ Option 4 (continue) re-enters Phase 3 with the current state, state re-read from
 
 ### 4.4 Cleanup
 
-Clean up scratch space:
-```bash
-# Keep the experiment log for resume/audit
-# Remove temporary batch artifacts
-rm -f "<state-root>/strategy-digest.md"
-```
+Delete nothing under `<state-root>`. The log, the digest, and the markers are the run's audit trail and what a later resume reads; they are small, they sit outside version control, and the user removes the directory when they are done with the run. Remove experiment worktrees only through `scripts/experiment-worktree.sh cleanup`, which checks what it removes.
 
 Do NOT delete the experiment log if the user may resume or wants an audit trail. The exported report in 4.3 is the durable shared artifact; the ledger is not. Unregister any wake still registered for this run.
 Do NOT delete experiment worktrees that are still being referenced.

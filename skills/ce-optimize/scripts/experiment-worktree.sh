@@ -28,6 +28,36 @@ GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
 
 WORKTREE_DIR="$GIT_ROOT/.worktrees"
 
+# Every path this script deletes is built from these two inputs, so they are
+# checked before any path is composed: a name or shared path that can climb
+# out of its directory would turn a cleanup into a delete of something else.
+require_spec_name() {
+  if [[ ! "$1" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    echo -e "${RED}Error: spec name must be lowercase kebab-case: $1${NC}" >&2
+    exit 1
+  fi
+}
+
+require_relative_inside() {
+  case "/$1/" in
+    //*|*/../*|*/./*)
+      echo -e "${RED}Error: shared path must be relative and stay inside the repo: $1${NC}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+# Last-resort removal when git cannot remove a worktree. Only ever a direct
+# child of .worktrees that this script named.
+remove_experiment_dir() {
+  local target="$1"
+  if [[ "$(dirname "$target")" != "$WORKTREE_DIR" ]] || [[ "$(basename "$target")" != optimize-*-exp-* ]] || [[ -L "$target" ]]; then
+    echo -e "${RED}Error: refusing to remove a path outside $WORKTREE_DIR: $target${NC}" >&2
+    return 1
+  fi
+  rm -rf "$target"
+}
+
 experiment_branch_name() {
   local spec_name="${1:?Error: spec_name required}"
   local padded_index="${2:?Error: padded_index required}"
@@ -91,6 +121,11 @@ create_worktree() {
   local exp_index="${2:?Error: exp_index required}"
   local base_branch="${3:?Error: base_branch required}"
   shift 3
+  require_spec_name "$spec_name"
+  local shared_file
+  for shared_file in "$@"; do
+    require_relative_inside "$shared_file"
+  done
 
   local padded_index
   padded_index=$(printf "%03d" "$exp_index")
@@ -167,6 +202,7 @@ create_worktree() {
 cleanup_worktree() {
   local spec_name="${1:?Error: spec_name required}"
   local exp_index="${2:?Error: exp_index required}"
+  require_spec_name "$spec_name"
 
   local padded_index
   padded_index=$(printf "%03d" "$exp_index")
@@ -178,7 +214,7 @@ cleanup_worktree() {
   if [[ -d "$worktree_path" ]]; then
     git worktree remove "$worktree_path" --force 2>/dev/null || {
       # If worktree remove fails, try manual cleanup
-      rm -rf "$worktree_path" 2>/dev/null || true
+      remove_experiment_dir "$worktree_path" 2>/dev/null || true
       git worktree prune 2>/dev/null || true
     }
   fi
@@ -192,6 +228,7 @@ cleanup_worktree() {
 # Clean up all experiment worktrees for a spec
 cleanup_all() {
   local spec_name="${1:?Error: spec_name required}"
+  require_spec_name "$spec_name"
   local prefix="optimize-${spec_name}-exp-"
   local count=0
 
@@ -208,7 +245,7 @@ cleanup_all() {
       local index_str="${worktree_name#$prefix}"
 
       git worktree remove "$worktree_path" --force 2>/dev/null || {
-        rm -rf "$worktree_path" 2>/dev/null || true
+        remove_experiment_dir "$worktree_path" 2>/dev/null || true
       }
 
       # Delete the branch
