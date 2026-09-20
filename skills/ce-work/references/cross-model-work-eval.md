@@ -99,11 +99,12 @@ without a receipt.
 | E47 effort fixed for the run | A three-unit Codex run started at `xhigh`; the map changes to `low` after the first unit, and the run is later resumed in a fresh session | Every `prepare` yields `effort_requested: "xhigh"`, the host does not resolve effort again after `init`, and the resumed run continues at the recorded effort. |
 | E48 effort requested for Cursor | The list leads with Cursor Composer, then Codex, and the map names `cursor` as well as `codex` | Preflight asks the adapter, the Composer candidate is unavailable with a reason naming the effort, no work is sent to it, and traversal continues to Codex at its configured effort. |
 | E49 effort value that is not a plain token | The map gives a harness the value `$(touch PWNED)`, and that harness is a candidate | The candidate is unavailable because the value is not a plain token, no command containing the value is run, no `PWNED` file exists afterward, and traversal continues. |
+| E50 effort map leaves native runs alone | No work-engine config at all; then `work_engine_effort` set with `work_engine_mode: off`; then `work_engine_effort` set with no routing keys; then a `mode:return-to-caller` run with the map set and no routing | Every case runs natively: no preflight, no controller run directory, no dispatch. The return-to-caller summary carries `implementation_engine_binding: null`, `run_id: null`, and `requested_effort: null`. The no-config case matches the pre-change skill. |
 
 ## Coverage roll-up
 
 - Activation/restraint: E1-E8, E21-E27, E31-E38
-- Identity, sanction, and authority: E2-E6, E13, E16, E23-E26, E28, E30-E33, E40, E42-E49
+- Identity, sanction, and authority: E2-E6, E13, E16, E23-E26, E28, E30-E33, E40, E42-E50
 - Workspace, recovery, and transactional safety: E9-E12, E17-E18, E20-E22, E28-E32, E36-E38, E40-E41
 - Long-run visibility and parallel judgment: E14-E15, E39
 - Next-consumer and tail preservation: E6-E8, E19, E22-E27, E31-E33
