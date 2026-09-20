@@ -907,6 +907,62 @@ Include exactly one line \`SPEC: valid\` or \`SPEC: invalid\`, and name what is 
     grade: { declared: { SPEC: "invalid" }, must_include_any: [["holdout", "held-out", "confirmation_seed"]], actions: "none", delegates: "none" },
   },
   {
+    id: "ce-optimize/objective-target-asks-no-exemplars",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A measured target is its own ground truth; asking a person for good and bad outputs there is tedium that stops runs from starting.",
+    pre_contract: "Spec creation asked for the metric, scope, and limits; it never asked the user for example outputs.",
+    task: `Use ce-optimize to build a spec with me. Decide only what you still need to ask me before the spec can be saved; do not execute work or write files.
+Goal: cut CI time for this repo. The metric is total wall-clock seconds of \`bun run test\`, lower is better, measured by a script that times the run and prints JSON. The correctness gate is that every test still passes. Mutable scope is tests/ and scripts/run-tests.ts. I accept the recommended first-run limits.
+Include exactly one line \`ASK_EXEMPLARS: yes\` or \`ASK_EXEMPLARS: no\`, where yes means you will ask me for example outputs I would rate good or bad.`,
+    grade: { declared: { ASK_EXEMPLARS: "no" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/attended-judge-proceeds-uncalibrated",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "Hand-labeling is optional evidence for an attended run; its absence is disclosed at approval, not turned into a stop.",
+    pre_contract: "A judge run needed a rubric, sampling, and a disclosed spend cap; no human labels were involved.",
+    task: `Use ce-optimize at the Phase 1 validity gate. Decide only whether this run may go on to the baseline and the approval gate; do not execute work or write files.
+The primary is type judge (mean_score on a 1-5 clarity rubric for generated release notes). A holdout is configured through confirmation_seed. I have no hand-labeled sample and I have not said anything about waiving one. The shortcut probe ran: an empty output scored 1.0 and real output scored 3.4. I am at the keyboard; this session runs the loop itself and no wake after turn end is in use.
+Include exactly one line \`PHASE1: proceed\` or \`PHASE1: blocked\`. If proceed, write the one sentence the approval message must carry about the judge.`,
+    grade: { declared: { PHASE1: "proceed" }, must_include_any: [["person", "human"]], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/unattended-judge-needs-calibration",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "Nobody watches the judge on an unattended run, so an unchecked judge there needs the labels or an explicit waiver.",
+    pre_contract: "Runs were session-bound; there was no unattended path.",
+    task: `Use ce-optimize at the Phase 1 validity gate. Decide only whether this run may go on to the baseline and the approval gate; do not execute work or write files.
+The primary is type judge (mean_score on a 1-5 clarity rubric for generated release notes). A holdout is configured through confirmation_seed and max_total_cost_usd is 20. I have no hand-labeled sample and I have not said anything about waiving one. The shortcut probe passed. The harness has a registered timer wake, and the plan is for the run to park between ticks and continue overnight without me.
+Include exactly one line \`PHASE1: proceed\` or \`PHASE1: blocked\`.`,
+    grade: { declared: { PHASE1: "blocked" }, must_include_any: [["waive", "waiver", "label"]], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/resume-added-holdout",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "Adding a confirmation sample does not change how the logged measurements were produced, so an in-flight run must survive it.",
+    pre_contract: "No held-out set existed; the spec was fixed once anything derived from it was on file.",
+    task: `Use ce-optimize to resume this run. Decide only what happens to the approval gate and to the measurements already in the log; do not execute work or write files.
+experiment-log.yaml holds a baseline, four finished experiments, a hypothesis backlog, and an approval record. The primary is type judge. The spec failed validation on this resume because it had no holdout, so I added metric.judge.confirmation_seed: 7 (sample_seed is 42). Nothing else in spec.yaml changed, and its SHA-256 no longer matches the record.
+Include exactly one line \`GATE: present\` or \`GATE: skip\`, and exactly one line \`MEASUREMENTS: stand\` or \`MEASUREMENTS: invalid\`.`,
+    grade: { declared: { GATE: "present", MEASUREMENTS: "stand" }, actions: "none", delegates: "none" },
+  },
+  {
     id: "ce-optimize/remote-without-detached-worker",
     skill: "ce-optimize",
     cohort: "untouched",

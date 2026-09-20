@@ -192,7 +192,7 @@ required_fields:
           calibration:
             type: object
             default: null
-            description: "Judge-validity evidence gathered in Phase 1. A judge run does not leave Phase 1 without labels that meet min_agreement or an explicit waiver."
+            description: "Optional evidence that the judge scores the way a person would, checked in Phase 1 when labels are set. Without it the approval gate states that the judge is unchecked. Required (labels or an explicit waiver) only when the run waits between ticks through a wake after turn end."
             optional_children:
               labels:
                 type: string
@@ -205,7 +205,7 @@ required_fields:
               waived:
                 type: boolean
                 default: false
-                description: "True only when the user explicitly waived calibration. Record who waived and when in the experiment log's harness_validation."
+                description: "True only when the user explicitly waived calibration for a run that would otherwise require it. Record who waived and when in the experiment log's harness_validation."
           sample_size:
             type: integer
             default: 10
@@ -560,5 +560,6 @@ validation_rules:
   - "If metric.primary.type is 'judge', a holdout must be configured"
   - "If the run waits between ticks through a wake after turn end, a holdout must be configured; an unattended keep is never confirmed on the selection sample alone"
   - "When a holdout is configured, a keep requires the holdout comparison to agree with the selection comparison; the holdout is never used to select or generate hypotheses"
-  - "If metric.primary.type is 'judge', the harness is accepted only when metric.judge.calibration.labels meets min_agreement or metric.judge.calibration.waived is true with the user's explicit waiver"
+  - "When metric.judge.calibration.labels is set, the harness is accepted only when the judge meets min_agreement against them"
+  - "If metric.primary.type is 'judge' and the run waits between ticks through a wake after turn end, calibration labels must meet min_agreement or metric.judge.calibration.waived must be true with the user's explicit waiver; an attended judge run may proceed uncalibrated, stated at approval"
   - "If measurement.per_case is true, the measurement JSON must carry a `cases` object"

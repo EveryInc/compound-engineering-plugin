@@ -1866,7 +1866,8 @@ describe("eval discipline pins", () => {
     expect(SCHEMA).toContain("If metric.primary.type is 'judge', a holdout must be configured")
     expect(SCHEMA).toContain("waits between ticks through a wake after turn end, a holdout must be configured")
     expect(SCHEMA).toContain("the holdout is never used to select or generate hypotheses")
-    expect(SCHEMA).toContain("calibration.waived is true with the user's explicit waiver")
+    // Calibration is human work, so it is required only where nobody is watching the judge.
+    expect(SCHEMA).toContain("an attended judge run may proceed uncalibrated, stated at approval")
   })
 
   test("the judge model is a capability tier, not a vendor model name", () => {
@@ -1899,7 +1900,8 @@ describe("eval discipline pins", () => {
   test("Phase 1 gates on harness validity and states the holdout limitation at approval", () => {
     expect(MEASUREMENT).toContain("Validity gate (before the baseline)")
     expect(MEASUREMENT).toContain("does not reward a trivial shortcut")
-    expect(MEASUREMENT).toContain("A judge run with neither labels nor a waiver does not leave Phase 1")
+    expect(MEASUREMENT).toContain("a probe with no inputs is recorded as not run and stated at approval, never asked for here")
+    expect(SPEC).toContain("ask the user for nothing here")
     expect(MEASUREMENT).toContain("selection and reporting will share one sample")
     expect(SPEC).toContain("Exemplars for the validity gate")
     expect(SPEC).toContain("references/text-targets.md")

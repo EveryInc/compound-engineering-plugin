@@ -87,7 +87,7 @@ structure:
         format: "ISO 8601 timestamp"
       separates_known_good_from_bad:
         type: boolean
-        description: "The harness scored every known-good exemplar above every known-bad one in the metric's direction"
+        description: "The harness scored every known-good exemplar above every known-bad one in the metric's direction; null when no exemplars existed and the probe was not run"
       rejects_trivial_shortcut:
         type: boolean
         description: "An empty, constant, or copied output did not score at or above the known-good exemplars"
@@ -96,7 +96,7 @@ structure:
         description: "Fraction of calibration labels the judge agreed with (judge primary only; null when waived or not applicable)"
       calibration:
         type: enum
-        values: [passed, waived, not_applicable]
+        values: [passed, waived, not_run, not_applicable]
       waiver:
         type: string
         description: "Who waived calibration and when, verbatim from the user's message (only when calibration is waived)"
