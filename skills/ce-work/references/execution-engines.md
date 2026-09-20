@@ -57,18 +57,24 @@ work_engine_preferences:
   - harness: codex
     model: gpt-5.6
   - harness: claude
+work_engine_effort:
+  codex: xhigh
+  claude: max
 ```
 
 - `work_engine_mode`: `off | prefer | require`
 - `work_engine_preferences`: one or more ordered candidate objects
 - `harness`: `codex | claude | grok | cursor | opencode`
 - optional `model`: a model id or family understood by that harness; omission means its configured default
+- optional `work_engine_effort`: a map from harness to the reasoning effort its external worker runs at, written in that harness's own levels; a harness left out keeps its default
 
 Do not put CLI commands or flags in configuration. The list expresses implementation intent; the skill's adapter recipes and local inspection determine how to invoke it. Composer is therefore `{ harness: cursor, model: composer }`, while `{ harness: cursor }` means Cursor's configured default.
 
 Normalize a qualified candidate to the controller's fixed route: Codex -> `codex`, Claude -> `claude`, native Grok -> `grok-cli`, Cursor with no model -> `cursor`, a Composer-family Cursor model -> `composer`, a Grok-family Cursor model -> `grok-cursor`, another explicit Cursor model -> `cursor` with that controller-authorized model selector, and OpenCode -> `opencode`. A model selector is data, never shell syntax; if it cannot be represented by the fixed adapter's safe model token, the candidate is unavailable.
 
 Traverse each ordered candidate during preflight. If a candidate is equivalent to the current host and its current/default model, continue to the next candidate rather than shelling out to self; an explicit different model in the same harness is still a distinct candidate. If a candidate is unavailable before any work is sent out, record why and continue to the next candidate. The first qualified candidate becomes the fixed recipient. After dispatch begins, the recipient is locked by the cross-model contract and list traversal stops.
+
+`work_engine_effort` resolves on its own under the same two-file rule, and a present local map replaces the team map. It requests an effort for every candidate of that harness, including a candidate a caller binding or live intent selected, and it applies whatever `work_engine_mode` says. A candidate that cannot run at the effort requested for it is unavailable before any work is sent, the same as any other unavailable candidate, and nothing runs at a different effort than the one requested. The adapter script owns which levels each route accepts; ask it at preflight rather than judging the value yourself. A candidate that collapses to native execution runs at the session's own effort, so say that the configured effort was not applied. A value that is not a harness map requests nothing: say once that it was ignored and continue with each route's default.
 
 `off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding. An enabled mode without a valid candidate list is unavailable rather than guessed. When the list is exhausted, both `prefer` and `require` disclose every attempted route and reason once, then continue natively on the current harness and session model. A required route is never replaced by another unrequested external recipient. Standing configuration supplies defaults, not permission to change recipient or broaden authority.
 

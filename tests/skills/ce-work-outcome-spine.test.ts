@@ -225,6 +225,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(engines).toContain("work_engine_preferences")
     expect(engines).toContain("`harness`")
     expect(engines).toContain("optional `model`")
+    expect(engines).toContain("work_engine_effort")
     expect(engines).toContain("configured default")
     expect(engines).toContain("ordered candidate")
     expect(engines).toContain("continue to the next candidate")
