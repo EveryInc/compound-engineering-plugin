@@ -289,6 +289,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-optimize/judge-check-accepted-agent-does-the-work",
       "ce-optimize/judge-check-offered-once-automated-by-default",
       "ce-optimize/judge-spec-without-holdout",
+      "ce-optimize/live-run-records-approval-and-report",
       "ce-optimize/objective-target-asks-no-exemplars",
       "ce-optimize/remote-without-detached-worker",
       "ce-optimize/resume-added-holdout",
