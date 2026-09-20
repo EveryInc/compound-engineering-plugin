@@ -1950,6 +1950,10 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
       expect(emitAdapter("claude", script, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).not.toContain("--effort high")
       expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "medium" })).toContain('model_reasoning_effort="medium"')
       expect(emitAdapter("grok-cli", script, { CROSS_MODEL_EFFORT_OVERRIDE: "medium" })).toContain("--effort medium")
+      // Levels the installed CLIs accept: codex lists max (and ultra on some models); grok accepts xhigh.
+      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "max" })).toContain('model_reasoning_effort="max"')
+      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "ultra" })).toContain('model_reasoning_effort="ultra"')
+      expect(emitAdapter("grok-cli", script, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).toContain("--effort xhigh")
       // unset -> editorial defaults unchanged
       expect(emitAdapter("claude", script)).toContain("--effort high")
       expect(emitAdapter("codex", script)).toContain('model_reasoning_effort="xhigh"')
@@ -1959,8 +1963,8 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
   test("an effort override the route cannot honor fails closed in both skills", () => {
     const cases: Array<[string, string]> = [
       ["claude", "minimal"],       // not a claude CLI level
-      ["codex", "max"],            // not a codex reasoning level
-      ["grok-cli", "xhigh"],       // not a grok level
+      ["codex", "minimal"],        // the API rejects it on every current codex model
+      ["grok-cli", "max"],         // not a grok level
       ["grok-cursor", "high"],     // cursor-agent routes imply effort in the model id
       ["composer", "high"],
       ["cursor", "high"],

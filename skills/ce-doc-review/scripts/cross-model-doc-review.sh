@@ -319,8 +319,11 @@ validate_model_override() {
 }
 
 # Accept an effort override only where the route exposes an effort flag and the
-# value is one that CLI documents (claude: low|medium|high|xhigh|max; codex
-# model_reasoning_effort: minimal|low|medium|high|xhigh; grok: low|medium|high).
+# value is one that CLI accepts (claude: low|medium|high|xhigh|max; codex
+# model_reasoning_effort: low|medium|high|xhigh|max|ultra; grok: low|medium|high|xhigh).
+# Checked 2026-09-19 against claude and grok CLI help and codex 0.155.0's model
+# list. Codex levels vary per model, so a listed level can still fail after
+# launch on a model that lacks it.
 # cursor-agent routes imply effort in the model id, so any override there is
 # invalid for the route rather than silently dropped. Empty means "no override".
 validate_effort_override() {
@@ -328,8 +331,8 @@ validate_effort_override() {
   [ -n "$effort" ] || return 0
   case "$route:$effort" in
     claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
-    codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
-    grok-cli:low|grok-cli:medium|grok-cli:high) ;;
+    codex:low|codex:medium|codex:high|codex:xhigh|codex:max|codex:ultra) ;;
+    grok-cli:low|grok-cli:medium|grok-cli:high|grok-cli:xhigh) ;;
     opencode:none|opencode:minimal|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max|opencode:default) ;;
     *) return 1 ;;
   esac
