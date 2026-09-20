@@ -286,21 +286,18 @@ read_work_engine_preferences() {
   ' "$config_file"
 }
 
-# Shape check only: effort levels belong to the ce-work adapter, which this
-# skill cannot call. Prints one problem per line; nothing when the map is fine.
-read_work_engine_effort_problems() {
+# Emits KEY<TAB>harness per map entry, or ERROR when the value is not a map.
+# Effort levels are not checked: they belong to the ce-work adapter, which this
+# skill cannot call.
+read_work_engine_effort_keys() {
   local config_file="$1"
   awk '
-    function check_key(key) {
+    function emit_key(key) {
       gsub(/^[[:space:]"\047]+|[[:space:]"\047]+$/, "", key)
-      if (key == "cursor") {
-        print "names \047cursor\047, which takes no effort"
-      } else if (key !~ /^(codex|claude|grok|opencode)$/) {
-        print "names unknown harness \047" key "\047"
-      }
+      print "KEY\t" key
     }
     function not_a_map() {
-      print "is not a map of harness to effort"
+      print "ERROR"
       exit
     }
     /^[^[:space:]#-][^:]*[[:space:]]*:/ { active = 0 }
@@ -318,7 +315,7 @@ read_work_engine_effort_problems() {
         if (pairs[i] ~ /^[[:space:]]*$/) continue
         if (pairs[i] !~ /:/) not_a_map()
         sub(/:.*$/, "", pairs[i])
-        check_key(pairs[i])
+        emit_key(pairs[i])
       }
       active = 0
       next
@@ -328,7 +325,7 @@ read_work_engine_effort_problems() {
       if (line ~ /^[[:space:]]*($|#)/) next
       if (line !~ /^[[:space:]]+[^-[:space:]][^:]*:/) not_a_map()
       sub(/:.*$/, "", line)
-      check_key(line)
+      emit_key(line)
     }
   ' "$config_file"
 }
@@ -502,9 +499,16 @@ if [ "$in_repo" = "yes" ]; then
   work_engine_effort_notes=()
   resolve_structured_layer "$local_config_path" "$tracked_config_path" "work_engine_effort"
   if [ -n "$structured_file" ]; then
-    while IFS= read -r effort_problem; do
-      [ -n "$effort_problem" ] && work_engine_effort_notes+=("work_engine_effort in $(basename "$structured_file") ${effort_problem}; ce-work ignores what it cannot use and keeps the harness default")
-    done < <(read_work_engine_effort_problems "$structured_file")
+    while IFS=$'\t' read -r effort_kind effort_harness; do
+      case "$effort_kind:$effort_harness" in
+        ERROR:*) effort_problem="is not a map of harness to effort" ;;
+        KEY:cursor) effort_problem="names 'cursor', which takes no effort" ;;
+        KEY:codex|KEY:claude|KEY:grok|KEY:opencode) continue ;;
+        KEY:*) effort_problem="names unknown harness '${effort_harness}'" ;;
+        *) continue ;;
+      esac
+      work_engine_effort_notes+=("work_engine_effort in $(basename "$structured_file") ${effort_problem}; ce-work ignores what it cannot use and keeps the harness default")
+    done < <(read_work_engine_effort_keys "$structured_file")
   fi
 
   case "$work_engine_mode" in
