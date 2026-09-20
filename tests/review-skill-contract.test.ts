@@ -1879,8 +1879,8 @@ describe("cross-model peer skip legibility", () => {
 
   test("review-skill behavioral eval specs exercise the fixed-route U8 contract", async () => {
     const evalPaths = [
-      "skills/ce-code-review/references/cross-model-eval.md",
-      "skills/ce-doc-review/references/cross-model-eval.md",
+      "tests/skill-eval-cell/packs/ce-code-review-cross-model.md",
+      "tests/skill-eval-cell/packs/ce-doc-review-cross-model.md",
     ]
 
     for (const evalPath of evalPaths) {
@@ -1891,7 +1891,7 @@ describe("cross-model peer skip legibility", () => {
       expect(src).toMatch(/never changes? recipients? internally|no worker-internal recipient fallback/i)
     }
 
-    const docReviewEval = await readRepoFile("skills/ce-doc-review/references/cross-model-eval.md")
+    const docReviewEval = await readRepoFile("tests/skill-eval-cell/packs/ce-doc-review-cross-model.md")
     const wholeDocCase = docReviewEval.match(/10\. \*\*Whole-document sweep[\s\S]*?(?=\n11\. \*\*)/)?.[0]
     expect(wholeDocCase).toContain("`independence_verified: true`")
     expect(wholeDocCase).toMatch(/false or\s+absent independence[\s\S]*without promotion/)

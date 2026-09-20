@@ -1,5 +1,7 @@
 # Cross-Model CE Work Behavioral Eval
 
+Paths in this pack are relative to `skills/ce-work/`.
+
 Use this evaluator-owned pack after a material change to CE Work's cross-model
 execution contract. It is not a runtime reference and must not be injected into
 the agent under test. Inject the current `SKILL.md` plus only the runtime

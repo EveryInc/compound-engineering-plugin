@@ -627,9 +627,9 @@ describe("ce-work cross-model engine contract", () => {
     expect(wave).toContain("never blind-merge")
   })
 
-  test("ships an evaluator-owned fresh-context fixture pack for the weakest seams", async () => {
+  test("keeps an evaluator-owned fresh-context fixture pack for the weakest seams", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
-    const evalPack = await readRepoFile("skills/ce-work/references/cross-model-work-eval.md")
+    const evalPack = await readRepoFile("tests/skill-eval-cell/packs/ce-work-cross-model.md")
 
     expect(evalPack).toMatch(/must not be injected into\s+the agent under test/)
     expect(evalPack).toContain("weakest practical installed model tier")

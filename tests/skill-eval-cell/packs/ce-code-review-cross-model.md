@@ -1,5 +1,7 @@
 # Cross-Model Adversarial Pass — Skill-Creator Eval Spec
 
+Paths in this pack are relative to `skills/ce-code-review/`.
+
 This is the required behavioral eval for ce-code-review's cross-model
 adversarial pass. Deterministic route tests cover the worker; these cases cover
 the SKILL.md/reference orchestration that only a fresh agent can execute. Inject

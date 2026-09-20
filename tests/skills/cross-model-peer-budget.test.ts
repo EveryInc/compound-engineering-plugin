@@ -241,7 +241,7 @@ describe("cross-model peer budget", () => {
       ...Object.values(DISPATCH_REFS),
       POV_REF,
       "skills/ce-code-review/SKILL.md",
-      "skills/ce-doc-review/references/cross-model-eval.md",
+      "tests/skill-eval-cell/packs/ce-doc-review-cross-model.md",
       "skills/ce-pov/references/cross-model-panel.md",
     ]
     // A bare "<n>s deadline" / "<n> seconds have elapsed" / "backstop <n>s" is the

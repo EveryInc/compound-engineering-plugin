@@ -30,6 +30,10 @@ partial collection outcomes, legacy-pack compatibility, and snapshot limits.
 
 Gotchas baked in (see `docs/solutions/skill-design/size-driven-skill-restructure.md`): Codex stdin `/dev/null`, `CLAUDECODE` unset, `NO_COLOR=1`.
 
+## Hand-run eval packs
+
+`packs/` holds the evaluator-owned behavioral eval specs for the cross-model paths of `ce-work`, `ce-code-review`, and `ce-doc-review`. They live here, not under `skills/`, so they do not ship inside the plugin package and an agent running the skill cannot open its own expected answers. Never inject a pack into the agent under test.
+
 ## Sweep A/B pack
 
 Cases live in `catalog.ts`, authored from the skill bodies **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433). The same prompt runs against that ref, then against the **working tree** (`POST_SWEEP_REF` = the `WORKTREE` sentinel, the default `--ref`). `git archive` only ever sees committed content, so the post arm copies `skills/<name>` off disk — that is what lets you grade a skill edit before committing it. Pass a real git ref to `--ref` for a committed arm. See `scenarios.md` for the inventory.

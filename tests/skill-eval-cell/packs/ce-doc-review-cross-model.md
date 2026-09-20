@@ -1,5 +1,7 @@
 # Cross-Model Judgment Pass — Skill-Creator Eval Spec
 
+Paths in this pack are relative to `skills/ce-doc-review/`.
+
 This is the eval-case specification for the cross-model judgment pass. It is the
 **only check that proves the behavior**: `bun test` does
 not exercise SKILL.md/reference prose, and plugin skill definitions cache at

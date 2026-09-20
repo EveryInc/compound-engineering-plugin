@@ -55,4 +55,4 @@ Validation: a cross-model panel (Codex and Grok, independent) both chose the con
 
 - `skills/ce-work/references/execution-strategy.md` -- the contract and shared-workspace integration flow.
 - `skills/ce-work/references/cross-model-execution.md` -- native worktree-creation prohibition.
-- `skills/ce-work/references/cross-model-work-eval.md` -- eval E1.
+- `tests/skill-eval-cell/packs/ce-work-cross-model.md` -- eval E1.
