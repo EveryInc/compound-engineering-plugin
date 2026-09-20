@@ -499,14 +499,14 @@ printf '%s\n' '${JSON.stringify({
       "--egress-json", JSON.stringify({ sanction_source: "test", route: "codex", intermediaries: [], exposed_material: ["U"], restrictions: [], effort }),
     ]
 
-    expect(control(runs, ...initArgs("max")).word).toBe("READY")
+    expect(control(runs, ...initArgs("minimal")).word).toBe("READY")
     expect(controlFailure(runs, ...initArgs("high")).word).toBe("BLOCKED")
-    expect(control(runs, ...initArgs("max")).body.resumed).toBe(true)
+    expect(control(runs, ...initArgs("minimal")).body.resumed).toBe(true)
     const prepared = control(
       runs, "prepare", "--run-id", "effort-run", "--unit-id", "U",
       "--base", base, "--packet", packetFile("effort packet"),
     ).body
-    expect(JSON.parse(readFileSync(prepared.authorization_path, "utf8")).effort_requested).toBe("max")
+    expect(JSON.parse(readFileSync(prepared.authorization_path, "utf8")).effort_requested).toBe("minimal")
 
     const runnerEnv = {
       ...process.env,
@@ -543,14 +543,14 @@ printf '%s\n' '${JSON.stringify({
       terminal_status: "unavailable",
       requested_route: "codex",
       actual_route: null,
-      effort_requested: "max",
+      effort_requested: "minimal",
       model_actual: "unverified",
-      failure_reason: "effort override 'max' not compatible with route 'codex'",
+      failure_reason: "effort override 'minimal' not compatible with route 'codex'",
     })
     expect(existsSync(invoked)).toBe(false)
     expect(control(
       runs, "claim-fallback", "--run-id", "effort-run", "--unit-id", "U", "--caller-mode", "headless",
-    ).body.reason).toBe("effort override 'max' not compatible with route 'codex'")
+    ).body.reason).toBe("effort override 'minimal' not compatible with route 'codex'")
   }, 30_000)
 
   test("controller-owned integration fail-stops verification and canonical commit", () => {

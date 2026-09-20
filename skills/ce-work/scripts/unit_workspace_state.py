@@ -655,7 +655,7 @@ def route_model_allowed(route: str, model: str) -> bool:
     return False
 
 
-EFFORT_TOKEN = re.compile(r"[A-Za-z0-9_-]{1,32}")
+EFFORT_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}")
 
 
 def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> dict:

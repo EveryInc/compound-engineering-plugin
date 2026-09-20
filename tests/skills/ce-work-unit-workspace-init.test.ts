@@ -439,7 +439,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       "--egress-json", JSON.stringify({ route: "codex", intermediaries: [], restrictions: [], ...extra }),
     )
 
-    for (const [index, effort] of ["", "x high", "xhigh\n", "a".repeat(33), 5, ["xhigh"]].entries()) {
+    for (const [index, effort] of ["", "x high", "xhigh\n", "a".repeat(33), "-rf", "--model", 5, ["xhigh"]].entries()) {
       const refused = initEffort(`bad-effort-${index}`, { effort })
       expect(refused.word).toBe("REFUSED")
       expect(refused.stderr).toContain("egress effort must be a short plain token")

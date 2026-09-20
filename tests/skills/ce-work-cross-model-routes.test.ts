@@ -290,7 +290,9 @@ describe("ce-work fixed write routes", () => {
 
     expect(emit("codex", cleanEnv()).stdout).toContain("-c model_reasoning_effort=high")
     expect(withOverride("codex", "xhigh").stdout).toContain("-c model_reasoning_effort=xhigh")
-    expect(withOverride("codex", "minimal").stdout).toContain("-c model_reasoning_effort=minimal")
+    expect(withOverride("codex", "max").stdout).toContain("-c model_reasoning_effort=max")
+    expect(withOverride("codex", "ultra").stdout).toContain("-c model_reasoning_effort=ultra")
+    expect(withOverride("grok-cli", "xhigh").stdout).toContain("--effort xhigh")
 
     expect(emit("claude", cleanEnv()).stdout).toContain("--effort high")
     expect(withOverride("claude", "low").stdout).toContain("--effort low")
@@ -307,10 +309,9 @@ describe("ce-work fixed write routes", () => {
       expect(proc.stderr).toContain(`effort override '${value}' not compatible with route '${route}'`)
     }
 
-    rejected("codex", "max") // codex tops out at xhigh
+    rejected("codex", "minimal") // the API rejects it on every current codex model
     rejected("codex", "none")
     rejected("claude", "minimal")
-    rejected("grok-cli", "xhigh")
     rejected("grok-cli", "max")
     // routes with no effort knob reject any override rather than silently ignoring it
     rejected("cursor", "high")
@@ -604,7 +605,7 @@ describe("ce-work fixed write routes", () => {
 
   test.each([
     ["cursor", "high"],
-    ["grok-cli", "xhigh"],
+    ["grok-cli", "max"],
   ] as const)("an authorized effort the %s route cannot honor publishes an unavailable receipt", (route, effort) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)
@@ -627,6 +628,7 @@ describe("ce-work fixed write routes", () => {
     ["unknown extra key", "codex", { effort: "xhigh" }],
     ["extra key beside an effort", "codex", { effort_requested: "xhigh", effort_actual: "xhigh" }],
     ["non-token effort", "codex", { effort_requested: "x high" }],
+    ["effort that starts with a dash", "codex", { effort_requested: "--model" }],
     ["empty effort", "codex", { effort_requested: "" }],
   ] as const)("forged %s authorization is rejected before CLI invocation", (_name, route, overrides) => {
     const f = fixture()

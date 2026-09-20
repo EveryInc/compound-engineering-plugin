@@ -96,16 +96,18 @@ validate_model_override() {
 }
 
 validate_effort_override() {
-  # Same per-route allowlists as the ce-code-review / ce-doc-review peer paths:
-  # reject a tier the selected route cannot honor instead of forwarding it to a
+  # Reject a tier the selected route cannot honor instead of forwarding it to a
   # CLI that will fail the attempt after controller authorization. Routes with
   # no effort knob (cursor, composer, grok-cursor) reject any override.
+  # Levels checked 2026-09-19 against claude and grok CLI help and codex 0.155.0's
+  # model list; codex levels vary per model, so a listed level can still fail
+  # after launch on a model that lacks it.
   local route="$1" effort="${EFFORT_REQUESTED:-}"
   [ -n "$effort" ] || return 0
   case "$route:$effort" in
     claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
-    codex:minimal|codex:low|codex:medium|codex:high|codex:xhigh) ;;
-    grok-cli:low|grok-cli:medium|grok-cli:high) ;;
+    codex:low|codex:medium|codex:high|codex:xhigh|codex:max|codex:ultra) ;;
+    grok-cli:low|grok-cli:medium|grok-cli:high|grok-cli:xhigh) ;;
     opencode:none|opencode:minimal|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max|opencode:default) ;;
     *) return 1 ;;
   esac
@@ -330,7 +332,7 @@ try:
     if not model_allowed(route, value["model_requested"]):
         fail("authorization model is incompatible with the fixed route")
     effort = value.get("effort_requested", "")
-    if "effort_requested" in value and (not isinstance(effort, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", effort)):
+    if "effort_requested" in value and (not isinstance(effort, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}", effort)):
         fail("authorization effort_requested is not a short plain token")
     packet_digest = value["packet_digest"]
     if not isinstance(packet_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", packet_digest):
