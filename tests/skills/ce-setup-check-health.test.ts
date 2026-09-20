@@ -736,7 +736,10 @@ describe("ce-setup check-health", () => {
     ["a scalar value", "work_engine_effort: xhigh\n", "work_engine_effort in config.local.yaml is not a map of harness to effort"],
     ["a list value", "work_engine_effort:\n  - codex\n", "work_engine_effort in config.local.yaml is not a map of harness to effort"],
     ["an unknown harness", "work_engine_effort:\n  mystery: high\n", "work_engine_effort in config.local.yaml names unknown harness 'mystery'"],
-    ["cursor", "work_engine_effort:\n  codex: high\n  cursor: high\n", "work_engine_effort in config.local.yaml names 'cursor', which takes no effort"],
+    ["cursor", "work_engine_effort:\n  codex: high\n  cursor: high\n", "work_engine_effort in config.local.yaml names 'cursor', which takes no effort; ce-work treats Cursor entries as unavailable while it is set"],
+    ["cursor in an inline map", 'work_engine_effort: {codex: high, "cursor": high}  # inline\n', "work_engine_effort in config.local.yaml names 'cursor', which takes no effort"],
+    ["an unknown harness in an inline map", "work_engine_effort: {codex: high, mystery: low}\n", "work_engine_effort in config.local.yaml names unknown harness 'mystery'; ce-work ignores that entry"],
+    ["an inline pair with no value", "work_engine_effort: {codex}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
   ])("work_engine_effort with %s warns and the engine stays available", async (_label, effort, warning) => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
@@ -749,6 +752,22 @@ describe("ce-setup check-health", () => {
       expect(result.stdout).toContain(warning)
       expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
       expect(result.stdout).not.toContain("engine unavailable")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("a populated inline work_engine_effort map with quoted keys and values adds no warning", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, `${enabledEngine}work_engine_effort: {"codex": "xhigh", claude: max}  # inline\n`)
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
+      expect(result.stdout).not.toContain("work_engine_effort")
     } finally {
       await rm(root, { recursive: true, force: true })
     }

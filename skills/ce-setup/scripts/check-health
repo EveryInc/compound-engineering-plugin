@@ -501,13 +501,13 @@ if [ "$in_repo" = "yes" ]; then
   if [ -n "$structured_file" ]; then
     while IFS=$'\t' read -r effort_kind effort_harness; do
       case "$effort_kind:$effort_harness" in
-        ERROR:*) effort_problem="is not a map of harness to effort" ;;
-        KEY:cursor) effort_problem="names 'cursor', which takes no effort" ;;
+        ERROR:*) effort_problem="is not a map of harness to effort; ce-work ignores the value and keeps each harness default" ;;
+        KEY:cursor) effort_problem="names 'cursor', which takes no effort; ce-work treats Cursor entries as unavailable while it is set" ;;
         KEY:codex|KEY:claude|KEY:grok|KEY:opencode) continue ;;
-        KEY:*) effort_problem="names unknown harness '${effort_harness}'" ;;
+        KEY:*) effort_problem="names unknown harness '${effort_harness}'; ce-work ignores that entry" ;;
         *) continue ;;
       esac
-      work_engine_effort_notes+=("work_engine_effort in $(basename "$structured_file") ${effort_problem}; ce-work ignores what it cannot use and keeps the harness default")
+      work_engine_effort_notes+=("work_engine_effort in $(basename "$structured_file") ${effort_problem}")
     done < <(read_work_engine_effort_keys "$structured_file")
   fi
 
