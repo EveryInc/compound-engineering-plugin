@@ -287,14 +287,19 @@ read_work_engine_preferences() {
 }
 
 # Emits KEY<TAB>harness per map entry, or ERROR when the value is not a map.
-# Effort levels are not checked: they belong to the ce-work adapter, which this
-# skill cannot call.
+# An entry is exactly `harness: token`, optionally quoted, because an effort must
+# be a plain token; this is the data contract, not a YAML parser. Effort levels
+# are not checked: they belong to the ce-work adapter, which this skill cannot call.
 read_work_engine_effort_keys() {
   local config_file="$1"
   awk '
-    function emit_key(key) {
-      gsub(/^[[:space:]"\047]+|[[:space:]"\047]+$/, "", key)
-      print "KEY\t" key
+    function emit_entry(entry) {
+      sub(/[[:space:]]+#.*$/, "", entry)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", entry)
+      if (entry !~ /^["\047]?[A-Za-z0-9][A-Za-z0-9_-]*["\047]?[[:space:]]*:[[:space:]]*["\047]?[A-Za-z0-9][A-Za-z0-9_-]*["\047]?$/) not_a_map()
+      sub(/[[:space:]]*:.*$/, "", entry)
+      gsub(/["\047]/, "", entry)
+      print "KEY\t" entry
       entries++
     }
     function not_a_map() {
@@ -324,9 +329,7 @@ read_work_engine_effort_keys() {
           if (i < count) not_a_map()
           continue
         }
-        if (pairs[i] !~ /:/) not_a_map()
-        sub(/:.*$/, "", pairs[i])
-        emit_key(pairs[i])
+        emit_entry(pairs[i])
       }
       active = 0
       next
@@ -334,9 +337,8 @@ read_work_engine_effort_keys() {
     active {
       line = $0
       if (line ~ /^[[:space:]]*($|#)/) next
-      if (line !~ /^[[:space:]]+[^-[:space:]][^:]*:/) not_a_map()
-      sub(/:.*$/, "", line)
-      emit_key(line)
+      if (line !~ /^[[:space:]]/) not_a_map()
+      emit_entry(line)
     }
     END { if (!reported) close_block() }
   ' "$config_file"

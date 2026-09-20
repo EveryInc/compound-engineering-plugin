@@ -720,7 +720,7 @@ describe("ce-setup check-health", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
-      await initConfiguredRepo(root, `${enabledEngine}work_engine_effort:\n  codex: xhigh\n  claude: "max"\n`)
+      await initConfiguredRepo(root, `${enabledEngine}work_engine_effort:\n  codex: xhigh  # team default\n  claude: "max"\n  'grok': high\n`)
 
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
@@ -742,6 +742,9 @@ describe("ce-setup check-health", () => {
     ["an inline pair with no value", "work_engine_effort: {codex}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
     ["an inline map with a leading comma", "work_engine_effort: {,}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
     ["an inline map with a repeated comma", "work_engine_effort: {codex: xhigh,, claude: max}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
+    ["an inline map missing a comma between pairs", "work_engine_effort: {codex: xhigh claude: max}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
+    ["a block entry whose value holds a second pair", "work_engine_effort:\n  codex: xhigh claude: max\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
+    ["a block entry with no value", "work_engine_effort:\n  codex:\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
     ["a key with no entries", "work_engine_effort:\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
     ["a key whose entries are all commented out", "work_engine_effort:\n  # codex: xhigh\ndocs_root_unused: x\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
   ])("work_engine_effort with %s warns and the engine stays available", async (_label, effort, warning) => {
