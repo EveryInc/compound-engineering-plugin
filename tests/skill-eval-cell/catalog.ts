@@ -949,6 +949,19 @@ Include exactly one line \`RUBRIC_LEVELS_IN: message\` or \`RUBRIC_LEVELS_IN: qu
     grade: { declared: { RUBRIC_LEVELS_IN: "message", QUESTION_TEXT_SENTENCES: "1" }, actions: "none", delegates: "none" },
   },
   {
+    id: "ce-optimize/holdout-waits-for-selection-decision",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "In a real session the agent dispatched the held-out judging in the same batch as the selection judging, because the body says independent calls go together. The holdout depends on the selection decision: scored early, it spends on rejected candidates and shows held-out feedback to the agent before its next hypothesis.",
+    pre_contract: "No held-out set existed.",
+    task: `Use ce-optimize in Phase 3. Experiment 1 just finished in its worktree and passes every automatic check. The primary is a judge score; the spec has a selection command and a separate holdout command. Nothing about experiment 1 has been judged yet. You can dispatch several judge sub-agents at once. Decide only what you dispatch right now; do not execute work or write files.
+Include exactly one line from: \`DISPATCH_NOW: selection-only\` (judge the selection set, then decide whether the holdout is needed), \`DISPATCH_NOW: selection-and-holdout\` (judge both together to save time).`,
+    grade: { declared: { DISPATCH_NOW: "selection-only" }, actions: "none", delegates: "none" },
+  },
+  {
     id: "ce-optimize/judge-check-offered-once-automated-by-default",
     skill: "ce-optimize",
     cohort: "untouched",

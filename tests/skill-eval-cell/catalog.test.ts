@@ -287,6 +287,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-noslop/workflow-jargon-keeps-technical-detail",
       "ce-optimize/approval-material-in-message-not-question",
       "ce-optimize/attended-judge-proceeds-uncalibrated",
+      "ce-optimize/holdout-waits-for-selection-decision",
       "ce-optimize/judge-check-accepted-agent-does-the-work",
       "ce-optimize/judge-check-offered-once-automated-by-default",
       "ce-optimize/judge-spec-without-holdout",
