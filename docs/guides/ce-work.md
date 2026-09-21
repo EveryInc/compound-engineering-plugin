@@ -269,7 +269,7 @@ work_engine_effort:
   claude: max
 ```
 
-A harness left out keeps its default, and Cursor routes have no effort setting. A level the harness cannot run makes that entry unavailable, and `ce-work` moves to the next one. Effort is set in config only. The run fixes it at the start and reports it as requested; no harness confirms the effort it served. See the [central configuration reference](./configuration.md#implementation-routing) for levels, timeouts, and layering.
+A harness left out keeps its default (Codex and Claude at high, native Grok at xhigh), and Cursor routes have no effort setting. A level the harness cannot run makes that entry unavailable, and `ce-work` moves to the next one. Effort is set in config only. The run fixes it at the start and reports it as requested; no harness confirms the effort it served. See the [central configuration reference](./configuration.md#implementation-routing) for levels, timeouts, and layering.
 
 `off`, a commented or missing mode, and an invalid mode preserve the native default. `off` affects only standing config; it does not cancel applicable live intent or a caller binding. Both `prefer` and `require` try ordered candidates, then fall back natively on the current harness and session model with one disclosure. `require` keeps the requested external identity fixed while viable and never substitutes an unrequested external recipient.
 
