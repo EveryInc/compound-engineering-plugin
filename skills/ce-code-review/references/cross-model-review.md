@@ -68,7 +68,7 @@ Preferred mappings run first. Only after an observed unavailable, obsolete, or i
 
 ## Step 2 — Provider model + reasoning tier (defined in the script)
 
-The peer runs on **one editorially selected model and reasoning tier per provider**. The concrete model IDs and route effort flags live in one mapping in `scripts/cross-model-adversarial-review.sh`; this reference does not repeat them. Claude Opus and native Grok currently use high, Codex uses extra-high; cursor-agent routes use their model-implied tier or ceiling. Users choose the peer target, and may pin that target's model and effort through `cross_model_model` / `cross_model_effort` (Step 1); the script validates and never substitutes. Never inherit a harness-configured default model. A lower tier is adopted only after an eval shows it finds the same issues, never from cost alone.
+The peer runs on **one editorially selected model and reasoning tier per provider**. The concrete model IDs and route effort flags live in one mapping in `scripts/cross-model-adversarial-review.sh`; this reference does not repeat them. Claude Opus currently uses high; Codex and native Grok use extra-high; cursor-agent routes use their model-implied tier or ceiling. Users choose the peer target, and may pin that target's model and effort through `cross_model_model` / `cross_model_effort` (Step 1); the script validates and never substitutes. Never inherit a harness-configured default model. A lower tier is adopted only after an eval shows it finds the same issues, never from cost alone.
 
 The script always uses the adversarial persona brief; fold-in forces `reviewer` to `adversarial-<provider>`.
 

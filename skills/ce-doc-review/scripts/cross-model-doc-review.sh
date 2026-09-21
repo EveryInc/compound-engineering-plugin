@@ -96,8 +96,8 @@ case "$TRANSIENT_RETRY_DELAY_SECS" in ''|*[!0-9]*) skip "transient retry delay m
 # detection, slower tail) -- docs/solutions/skill-design/benchmark-review-peer-model-and-reasoning-tier.md
 M_CODEX="gpt-5.6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
 M_CLAUDE="claude-opus-5"       # claude CLI, Opus 5   (--effort high)
-M_GROK="grok-4.6"              # grok CLI             (--effort high)
-M_GROK_CURSOR="cursor-grok-4.6-high"  # fixed cursor-agent Grok route (current id)
+M_GROK="grok-4.7"              # grok CLI             (--effort xhigh)
+M_GROK_CURSOR="grok-4.7-xhigh" # cursor-agent --list-models; 4.7 has no cursor- prefix, effort is in the id
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
 route_effort() {   # <route> -> requested effort: the override where the route takes one, else editorial
@@ -112,9 +112,9 @@ route_effort() {   # <route> -> requested effort: the override where the route t
     esac
   fi
   case "$1" in
-    codex) printf 'xhigh' ;;
-    claude|grok-cli) printf 'high' ;;
-    grok-cursor) printf 'model-implied-high' ;;
+    codex|grok-cli) printf 'xhigh' ;;
+    claude) printf 'high' ;;
+    grok-cursor) printf 'model-implied-xhigh' ;;
     composer) printf 'fast' ;;
     cursor) printf 'unverified' ;;
     opencode) printf 'unverified' ;;
@@ -235,7 +235,7 @@ extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODE
 # --- adapter argv (single source of truth for route flags) -----------------
 # Emits the CLI + flags one token per line. Read-only, no-prompt, least-privilege
 # (tool-less on claude/grok; read-only residual on codex/cursor-agent), and
-# codex xhigh + others high reasoning per R17. PEER_WORKDIR / RAW_OUT / PROMPT_FILE / SCHEMA_REF are
+# codex and grok xhigh; claude high. PEER_WORKDIR / RAW_OUT / PROMPT_FILE / SCHEMA_REF are
 # resolved by the caller (placeholders in --emit-adapter mode); PEER_WORKDIR is the
 # per-peer empty cwd/workspace, kept separate from the shared fold-in dir RUN_DIR.
 # Peer routes write to RAW_OUT only; the final fold-in file (OUT) is published after normalize so an orphaned
@@ -313,7 +313,7 @@ validate_model_override() {
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*|opencode:*/*) ;;
+    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
     *) return 1 ;;
   esac
 }

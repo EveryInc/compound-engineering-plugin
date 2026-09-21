@@ -36,7 +36,7 @@ const ROUTE_CONTRACTS = {
   "grok-cli": { target: "grok", harness: "grok", intermediaries: [], model: "auto", restriction: "cooperative" },
   cursor: { target: "cursor", harness: "cursor-agent", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
   composer: { target: "composer", harness: "cursor-agent", intermediaries: ["cursor"], model: "composer-2.5-fast", restriction: "adapter-enforced" },
-  "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "cursor-grok-4.6-high", restriction: "adapter-enforced" },
+  "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "grok-4.7-xhigh", restriction: "adapter-enforced" },
   opencode: { target: "opencode", harness: "opencode", intermediaries: [], model: "auto", restriction: "cooperative" },
 } as const
 const roots: string[] = []
@@ -105,6 +105,7 @@ if [ "\${1:-}" = "--list-models" ]; then
   cat <<'MODELS'
 composer-2.5-fast - Composer 2.5 Fast
 composer-next-fast - Composer Next Fast
+grok-4.7-xhigh - Grok 4.7 Extra High
 cursor-grok-4.6-high - Cursor Grok 4.6
 claude-sonnet-5-low - Sonnet 5 1M Low
 MODELS
@@ -133,6 +134,7 @@ case '${route}' in
   cursor|composer|grok-cursor)
     model='Cursor Grok 4.6'
     [ '${route}' = composer ] && model='Composer 2.5 Fast'
+    [ '${route}' = grok-cursor ] && model='Grok 4.7 Extra High'
     printf '%s\\n' "{\\"type\\":\\"system\\",\\"subtype\\":\\"init\\",\\"model\\":\\"$model\\"}"
     printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
     ;;
@@ -271,7 +273,7 @@ describe("ce-work fixed write routes", () => {
     }
     expect(emit("cursor", cleanEnv()).stdout).not.toContain("--model")
     expect(emit("composer", cleanEnv()).stdout).toContain("--model composer-2.5-fast")
-    expect(emit("grok-cursor", cleanEnv()).stdout).toContain("--model cursor-grok-4.6-high")
+    expect(emit("grok-cursor", cleanEnv()).stdout).toContain("--model grok-4.7-xhigh")
     const opencode = emit("opencode", cleanEnv()).stdout
     expect(opencode).toContain("opencode run")
     expect(opencode).toContain("--dir <workspace>")
@@ -298,7 +300,7 @@ describe("ce-work fixed write routes", () => {
     expect(withOverride("claude", "low").stdout).toContain("--effort low")
     expect(withOverride("claude", "max").stdout).toContain("--effort max")
 
-    expect(emit("grok-cli", cleanEnv()).stdout).toContain("--effort high")
+    expect(emit("grok-cli", cleanEnv()).stdout).toContain("--effort xhigh")
     expect(withOverride("grok-cli", "medium").stdout).toContain("--effort medium")
   })
 
@@ -383,7 +385,7 @@ describe("ce-work fixed write routes", () => {
     expect(cursor.status).toBe(0)
     expect(cursor.stdout).toContain("--model claude-sonnet-5-low")
 
-    for (const reserved of ["composer", "composer-2.5-fast", "grok-4.6", "cursor-grok-4.6-high"]) {
+    for (const reserved of ["composer", "composer-2.5-fast", "grok-4.6", "cursor-grok-4.6-high", "grok-4.7-xhigh"]) {
       const rejected = emit("cursor", {
         ...process.env,
         CE_WORK_MODEL_OVERRIDE_TARGET: "cursor",
@@ -541,7 +543,7 @@ describe("ce-work fixed write routes", () => {
   test.each([
     ["codex", "model_reasoning_effort=high"],
     ["claude", "--effort\nhigh"],
-    ["grok-cli", "--effort\nhigh"],
+    ["grok-cli", "--effort\nxhigh"],
     ["cursor", null],
     ["composer", null],
     ["grok-cursor", null],

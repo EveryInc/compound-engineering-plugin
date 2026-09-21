@@ -25,7 +25,7 @@ if [ -z "$PY" ]; then
 fi
 [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; }
 
-M_GROK_CURSOR="cursor-grok-4.6-high"
+M_GROK_CURSOR="grok-4.7-xhigh"
 M_COMPOSER="composer-2.5-fast"
 
 log() { printf '[cross-model-work] %s\n' "$*" >&2; }
@@ -90,7 +90,7 @@ validate_model_override() {
     esac
   fi
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*|opencode:*/*) ;;
+    codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
     *) return 1 ;;
   esac
 }
@@ -117,7 +117,7 @@ adapter_argv() {
   case "$1" in
     codex)
       # --ignore-user-config drops the user's model_reasoning_effort, so pin the
-      # editorial tier explicitly, matching the claude/grok routes' --effort high.
+      # editorial tier explicitly. Claude stays high; native Grok defaults to xhigh.
       # EFFORT_REQUESTED retunes all three effort-taking routes. Production
       # starts take it only from the controller authorization; the ambient
       # CROSS_MODEL_EFFORT_OVERRIDE feeds it in --emit-adapter mode alone.
@@ -140,7 +140,7 @@ adapter_argv() {
       local grok_model
       grok_model="$(route_model grok-cli)"
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --cwd "$WORKSPACE" \
-        --effort "${EFFORT_REQUESTED:-high}" --permission-mode acceptEdits \
+        --effort "${EFFORT_REQUESTED:-xhigh}" --permission-mode acceptEdits \
         --tools Read,Write,Edit --disable-web-search --no-memory --no-subagents \
         --no-plan --max-turns 50 --output-format streaming-json --verbatim
       [ "$grok_model" = auto ] || printf '%s\0' --model "$grok_model"
@@ -272,7 +272,7 @@ def model_allowed(route, model):
     if route == "composer":
         return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", model))
     if route == "grok-cursor":
-        return bool(re.fullmatch(r"cursor-grok-[A-Za-z0-9._-]+", model))
+        return bool(re.fullmatch(r"(?:cursor-grok-[A-Za-z0-9._-]+|grok-4\.7-[A-Za-z0-9._-]+)", model))
     if route == "opencode":
         return model == "auto" or bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+", model))
     return False
