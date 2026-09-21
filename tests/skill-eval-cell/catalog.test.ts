@@ -285,6 +285,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-noslop/protected-spans-stay-byte-identical",
       "ce-noslop/two-devices-stay-unchanged",
       "ce-noslop/workflow-jargon-keeps-technical-detail",
+      "ce-optimize/approval-material-in-message-not-question",
       "ce-optimize/attended-judge-proceeds-uncalibrated",
       "ce-optimize/judge-check-accepted-agent-does-the-work",
       "ce-optimize/judge-check-offered-once-automated-by-default",
