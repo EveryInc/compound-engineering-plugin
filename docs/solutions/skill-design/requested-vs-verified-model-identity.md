@@ -21,7 +21,7 @@ tags: [cross-model, delegation, model-identity, verification, receipts, subagent
 
 - **verified** -- the backend's own identity report matches the requested model (alias resolution to a dated full ID counts as a match).
 - **mismatch** -- the receipt disagrees with the request. Warn prominently, do not label the output with the requested model, void independence assumptions for this run.
-- **unverified** -- the backend exposes no authoritative identity report. Label output "requested <model>, unverified". This is honest labeling, not an error state.
+- **unverified** -- the backend exposes no authoritative identity report. The record keeps `model_actual: unverified`; user-facing prose names the peer by target and requested model, and adds a serving caveat only on a mismatch or when no model was requested (Cursor default/Auto). "Unknown model" is wrong: the requested model is always known, and rendering the missing receipt as unknown identity confused users (2026-09-21). This is honest labeling, not an error state.
 
 Any logic that weights cross-model agreement more than same-model agreement (promotion bonuses, consensus gates, "strongest corroboration" wording) must either require a verified receipt or downgrade its weight and wording to match. Agreement between two unverified runs is agreement between two processes, not necessarily two model families.
 

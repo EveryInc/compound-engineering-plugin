@@ -22,6 +22,15 @@ Keep four identities separate for the host and every peer:
 - **served model** — the model the worker's receipt (its record of the route
   and model that actually answered) confirms, otherwise `unverified`.
 
+The requested model is a fact about the request and is always known; the served
+model is a claim about the backend and is known only from a receipt. `unverified`
+means no receipt exists, not that the model is unknown. In anything the user
+reads, name a peer by its target and requested model. Add a serving caveat only
+when a receipt disagrees with the request, or when the route requested no model
+(Cursor default/Auto, OpenCode auto). A receipt-less route with a requested model
+carries `model_actual: unverified` in the panel record and needs no caveat in
+the chat note.
+
 Attest the host from host-provided markers and serving evidence, never from
 another installed CLI or home directory. Set `independence_verified: true` only
 when the peer's served model family is attestably different from the host's.
@@ -64,8 +73,8 @@ job and produce no artifact.
 `Cursor` and `Composer` are distinct targets:
 
 - `cursor` uses `cursor-agent` with no forced model, allowing Cursor's configured
-  default/Auto choice. Unless a receipt identifies it, report
-  `Cursor default/Auto; serving model unverified` and
+  default/Auto choice. No model was requested, so unless a receipt identifies it,
+  report `Cursor default/Auto; serving model unverified` and
   `independence_verified: false`.
 - `composer` requests the current compatible Composer model through
   `cursor-agent`.
@@ -380,10 +389,11 @@ peer voice. Initial responses require `movement: initial`; reconcile
 responses require `moved` or `held` plus what changed or why the new evidence
 was insufficient.
 
-Attribute from the receipt, never expectation. Record target, actual
-harness/intermediary route, requested model, served model, and
-`independence_verified` separately. A served model of `unverified` remains
-unverified. If a job yields no usable artifact, use bounded `peer skip evidence`
+Attribute a served model only from a receipt, never from the request. Record
+target, actual harness/intermediary route, requested model, served model, and
+`independence_verified` separately. A served model of `unverified` stays
+`unverified` in the record; it does not become "unknown model" in the note,
+because the requested model is known. If a job yields no usable artifact, use bounded `peer skip evidence`
 from its log to state an observed quota, authentication, or route failure; never
 invent a cause. Attribute an account authentication failure only after
 provider-capable dispatch is positively established by the launch context or
@@ -471,8 +481,9 @@ note:
 
 Retain target, route, requested model, served model, and independence receipts in
 the panel record, but keep the default chat note decision-relevant: name the
-peer, its position and movement, any observed failure, and an independence caveat
-when it affects credibility. Do not dump route or model diagnostics unless they
+peer by target and requested model, its position and movement, any observed
+failure, and a serving or independence caveat only where a receipt disagreed, no
+model was requested, or independence affects credibility. Do not dump route or model diagnostics unless they
 materially change the conclusion or the user asks. Never attribute a position to
 a model that did not run.
 
