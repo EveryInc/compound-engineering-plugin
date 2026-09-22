@@ -108,7 +108,7 @@ describe("ce-pov cross-model route safety", () => {
       env: {
         ...process.env,
         CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
-        CROSS_MODEL_MODEL_OVERRIDE: "bedrock.claude-opus-5",
+        CROSS_MODEL_MODEL_OVERRIDE: "bedrock.claude-opus-5-5",
       },
     })
     expect(crossFamily.status).toBe(2)
@@ -213,7 +213,7 @@ describe("ce-pov cross-model route safety", () => {
 })
 
 describe("ce-pov output gate and receipts", () => {
-  const valid = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":["https://example.com"],"external_check":"ran","mode":"independent","movement":"initial","final":true},"modelUsage":{"claude-opus-5-20260801":{"inputTokens":10}}}'
+  const valid = '{"structured_output":{"voice":"peer","position":"Choose A","reasoning":"Lower correction cost","evidence":["https://example.com"],"external_check":"ran","mode":"independent","movement":"initial","final":true},"modelUsage":{"claude-opus-5-5-20260801":{"inputTokens":10}}}'
 
   test.each([
     ["missing position", '{"structured_output":{"reasoning":"why"}}'],
@@ -252,7 +252,7 @@ describe("ce-pov output gate and receipts", () => {
   })
 
   test("accepts the fable alias as a claude override and verifies its receipt", () => {
-    const fable = valid.replace("claude-opus-5-20260801", "claude-fable-5")
+    const fable = valid.replace("claude-opus-5-5-20260801", "claude-fable-5")
     const { env } = sandbox(["claude"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${fable}'\n`)
     const dir = runDir()
     const result = run(["codex", "claude", payload(), dir], dir, {
@@ -427,8 +427,8 @@ printf '%s' '${placeholder}'
     expect(out.cross_model_target).toBe("claude")
     expect(out.cross_model_harness).toBe("claude")
     expect(out.serving_family).toBe("claude")
-    expect(out.model_requested).toBe("claude-opus-5")
-    expect(out.model_actual).toBe("claude-opus-5-20260801")
+    expect(out.model_requested).toBe("claude-opus-5-5")
+    expect(out.model_actual).toBe("claude-opus-5-5-20260801")
     expect(out.movement).toBe("initial")
     expect(out.independence_verified).toBe(true)
   })

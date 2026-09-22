@@ -446,7 +446,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(cmd).toContain("WebSearch")
     expect(cmd).toContain("Skill")
     expect(cmd).toContain("--effort high")
-    expect(cmd).toContain("--model claude-opus-5")
+    expect(cmd).toContain("--model claude-opus-5-5")
     // stream-json + --verbose: PEERLOG grows mid-run for run_timeout_cmd idle (#1270).
     expect(cmd).toContain("--output-format stream-json")
     expect(cmd).toContain("--verbose")
@@ -526,7 +526,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     // live on the terminal type=result event (#1270 Bugbot).
     const ndjson =
       '{"type":"assistant","message":{"content":[{"type":"text","text":"thinking"}]}}\n' +
-      '{"type":"result","subtype":"success","structured_output":{"reviewer":"adversarial","findings":[{"title":"from-stream"}],"residual_risks":[],"testing_gaps":[]},"modelUsage":{"claude-opus-5-20260801":{"inputTokens":10}}}\n'
+      '{"type":"result","subtype":"success","structured_output":{"reviewer":"adversarial","findings":[{"title":"from-stream"}],"residual_risks":[],"testing_gaps":[]},"modelUsage":{"claude-opus-5-5-20260801":{"inputTokens":10}}}\n'
     const stub = `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${ndjson.replace(/'/g, `'\\''`)}'\n`
     const { env } = sandbox(["claude"], stub)
     const runDir = makeRunDir()
@@ -534,7 +534,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     expect(r.files).toContain("adversarial-claude.json")
     const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
     expect(out.findings[0].title).toBe("from-stream")
-    expect(out.model_actual).toBe("claude-opus-5-20260801")
+    expect(out.model_actual).toBe("claude-opus-5-5-20260801")
   }, 20_000)
 
   test("silent PEERLOG on a streaming route is reaped by idle before the hard cap", () => {
@@ -1421,10 +1421,10 @@ describe("cross-model-adversarial-review normalization", () => {
 
   test("records model_requested and the dated model_actual when the claude receipt matches (R7)", () => {
     // Real claude CLI envelope shape: modelUsage at the envelope top level, keyed
-    // by the full dated id that actually served the run. Requested id "claude-opus-5"
-    // expects a served id starting claude-opus-5 (undated or dated).
+    // by the full dated id that actually served the run. Requested id "claude-opus-5-5"
+    // expects a served id starting claude-opus-5-5 (undated or dated).
     const receiptStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-opus-5-20260801":{"inputTokens":10}}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-opus-5-5-20260801":{"inputTokens":10}}}'\n`
     const { env } = sandbox(["claude"], receiptStub)
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
@@ -1433,8 +1433,8 @@ describe("cross-model-adversarial-review normalization", () => {
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
     expect(out.cross_model_route).toBe("claude")
-    expect(out.model_requested).toBe("claude-opus-5")
-    expect(out.model_actual).toBe("claude-opus-5-20260801")
+    expect(out.model_requested).toBe("claude-opus-5-5")
+    expect(out.model_actual).toBe("claude-opus-5-5-20260801")
     expect(r.stderr).not.toContain("model mismatch")
   })
 
@@ -1444,7 +1444,7 @@ describe("cross-model-adversarial-review normalization", () => {
     // pick) would choose haiku; the prefix match must select the opus key and
     // raise no mismatch warning.
     const multiKeyStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":2},"claude-opus-5-20260801":{"inputTokens":10}}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":2},"claude-opus-5-5-20260801":{"inputTokens":10}}}'\n`
     const { env } = sandbox(["claude"], multiKeyStub)
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
@@ -1452,8 +1452,8 @@ describe("cross-model-adversarial-review normalization", () => {
     const out = JSON.parse(
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
-    expect(out.model_requested).toBe("claude-opus-5")
-    expect(out.model_actual).toBe("claude-opus-5-20260801")
+    expect(out.model_requested).toBe("claude-opus-5-5")
+    expect(out.model_actual).toBe("claude-opus-5-5-20260801")
     expect(r.stderr).not.toContain("model mismatch")
   })
 
@@ -1468,9 +1468,9 @@ describe("cross-model-adversarial-review normalization", () => {
     const out = JSON.parse(
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
-    expect(out.model_requested).toBe("claude-opus-5")
+    expect(out.model_requested).toBe("claude-opus-5-5")
     expect(out.model_actual).toBe("claude-haiku-4-5-20251001")
-    expect(r.stderr).toContain("WARNING: model mismatch - requested claude-opus-5, backend served claude-haiku-4-5-20251001")
+    expect(r.stderr).toContain("WARNING: model mismatch - requested claude-opus-5-5, backend served claude-haiku-4-5-20251001")
   })
 
   test("verifies a fable-alias override against a served claude-fable-* id without a mismatch warning (R7)", () => {
@@ -1516,20 +1516,20 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(r.stderr).not.toContain("model mismatch")
   })
 
-  test("a full-id request rejects a longer sibling served id (claude-opus-5 vs claude-opus-50-*) with a mismatch warning (R7)", () => {
-    // Bare startswith would accept claude-opus-50-... for a requested claude-opus-5;
+  test("a full-id request rejects a longer sibling served id (claude-opus-5-5 vs claude-opus-5-50-*) with a mismatch warning (R7)", () => {
+    // Bare startswith would accept claude-opus-5-50-... for a requested claude-opus-5-5;
     // the match must be exact or delimited by "-" so a sibling generation warns.
     const siblingStub =
-      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-opus-50-20260801":{"inputTokens":10}}}'\n`
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-opus-5-50-20260801":{"inputTokens":10}}}'\n`
     const { env } = sandbox(["claude"], siblingStub)
     const runDir = makeRunDir()
     const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
     const out = JSON.parse(
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
-    expect(out.model_requested).toBe("claude-opus-5")
-    expect(out.model_actual).toBe("claude-opus-50-20260801")
-    expect(r.stderr).toContain("WARNING: model mismatch - requested claude-opus-5, backend served claude-opus-50-20260801")
+    expect(out.model_requested).toBe("claude-opus-5-5")
+    expect(out.model_actual).toBe("claude-opus-5-50-20260801")
+    expect(r.stderr).toContain("WARNING: model mismatch - requested claude-opus-5-5, backend served claude-opus-5-50-20260801")
   })
 
   test("a valid effort override is recorded as effort_requested and an invalid one skips the pass", () => {
@@ -1557,7 +1557,7 @@ describe("cross-model-adversarial-review normalization", () => {
     const out = JSON.parse(
       readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
     )
-    expect(out.model_requested).toBe("claude-opus-5")
+    expect(out.model_requested).toBe("claude-opus-5-5")
     expect(out.model_actual).toBe("unverified")
     expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
   })
@@ -1928,8 +1928,8 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
   test("model IDs match across both skills' --emit-adapter output", () => {
     expect(emitAdapter("codex")).toContain("gpt-5.6-luna")
     expect(emitAdapter("codex", DOC_SCRIPT)).toContain("gpt-5.6-luna")
-    expect(emitAdapter("claude")).toContain("--model claude-opus-5")
-    expect(emitAdapter("claude", DOC_SCRIPT)).toContain("--model claude-opus-5")
+    expect(emitAdapter("claude")).toContain("--model claude-opus-5-5")
+    expect(emitAdapter("claude", DOC_SCRIPT)).toContain("--model claude-opus-5-5")
     expect(emitAdapter("grok-cli")).toContain("grok-4.7")
     expect(emitAdapter("grok-cli", DOC_SCRIPT)).toContain("grok-4.7")
     expect(emitAdapter("grok-cursor")).toContain("grok-4.7-xhigh")
@@ -2021,7 +2021,7 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
       env: {
         ...process.env,
         CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
-        CROSS_MODEL_MODEL_OVERRIDE: "bedrock.claude-opus-5",
+        CROSS_MODEL_MODEL_OVERRIDE: "bedrock.claude-opus-5-5",
       },
     })
     expect(crossFamily.status).toBe(2)

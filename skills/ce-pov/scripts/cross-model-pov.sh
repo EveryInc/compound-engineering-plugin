@@ -83,7 +83,7 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 # ONE model per provider at its editorial tier (native Grok is xhigh; Codex and Claude stay high). Concrete IDs are the CURRENT instance of the tier principle
 # and the single maintenance point when model families change.
 M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort="high")
-M_CLAUDE="claude-opus-5"       # claude CLI, Opus 5   (--effort high)
+M_CLAUDE="claude-opus-5-5"     # claude CLI, Opus 5.5 (--effort high)
 M_GROK="grok-4.7"              # grok CLI             (--effort xhigh)
 M_GROK_CURSOR="grok-4.7-xhigh" # cursor-agent --list-models; 4.7 has no cursor- prefix, effort is in the id
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)

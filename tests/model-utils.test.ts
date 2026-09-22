@@ -11,7 +11,7 @@ describe("resolveClaudeFamilyAlias", () => {
   test("resolves bare aliases to full Claude model names", () => {
     expect(resolveClaudeFamilyAlias("haiku")).toBe("claude-haiku-4-5")
     expect(resolveClaudeFamilyAlias("sonnet")).toBe("claude-sonnet-5")
-    expect(resolveClaudeFamilyAlias("opus")).toBe("claude-opus-4-8")
+    expect(resolveClaudeFamilyAlias("opus")).toBe("claude-opus-5-5")
   })
 
   test("passes through non-alias model names unchanged", () => {
@@ -67,7 +67,7 @@ describe("normalizeModelWithProvider", () => {
   test("resolves bare aliases and adds provider prefix", () => {
     expect(normalizeModelWithProvider("sonnet")).toBe("anthropic/claude-sonnet-5")
     expect(normalizeModelWithProvider("haiku")).toBe("anthropic/claude-haiku-4-5")
-    expect(normalizeModelWithProvider("opus")).toBe("anthropic/claude-opus-4-8")
+    expect(normalizeModelWithProvider("opus")).toBe("anthropic/claude-opus-5-5")
   })
 
   test("adds provider prefix to full Claude model names", () => {
@@ -85,6 +85,7 @@ describe("rejectsSamplingParams", () => {
     expect(rejectsSamplingParams("sonnet")).toBe(true)
     expect(rejectsSamplingParams("opus")).toBe(true)
     expect(rejectsSamplingParams("claude-sonnet-5")).toBe(true)
+    expect(rejectsSamplingParams("claude-opus-5-5")).toBe(true)
     expect(rejectsSamplingParams("claude-opus-4-8")).toBe(true)
     expect(rejectsSamplingParams("claude-opus-4-7")).toBe(true)
     expect(rejectsSamplingParams("anthropic/claude-sonnet-5")).toBe(true)
