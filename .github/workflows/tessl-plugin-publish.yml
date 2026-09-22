@@ -1,0 +1,59 @@
+name: Publish Tessl Plugin
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Run publish checks without publishing"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tessl-plugin-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate release metadata
+        run: bun run release:validate
+
+      - name: Run tests
+        run: bun run test
+        env:
+          GIT_CONFIG_GLOBAL: /dev/null
+
+      - name: Install Tessl CLI
+        uses: tesslio/setup-tessl@v2
+        with:
+          token: ${{ secrets.TESSL_TOKEN }}
+
+      - name: Lint Tessl plugin
+        run: tessl plugin lint .
+
+      - name: Dry-run Tessl publish
+        if: ${{ inputs.dry-run }}
+        run: tessl plugin publish . --dry-run
+
+      - name: Publish Tessl plugin
+        if: ${{ !inputs.dry-run }}
+        run: tessl plugin publish . --skip-evals

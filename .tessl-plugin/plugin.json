@@ -1,0 +1,22 @@
+{
+  "name": "shortrib-labs/compound-engineering",
+  "version": "3.27.0",
+  "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+  "author": {
+    "name": "Kieran Klaassen and Trevin Chow"
+  },
+  "homepage": "https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it",
+  "repository": "https://github.com/crdant/compound-engineering-plugin",
+  "license": "MIT",
+  "private": true,
+  "keywords": [
+    "brainstorming",
+    "code-review",
+    "compound-engineering",
+    "debugging",
+    "ideation",
+    "workflows",
+    "workflow-automation"
+  ],
+  "skills": "./skills/"
+}
