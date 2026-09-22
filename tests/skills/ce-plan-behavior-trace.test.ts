@@ -25,6 +25,7 @@ describe("ce-plan traces behavior before a dependent choice", () => {
     expect(trace).toContain("Invoke `ce-explain`")
     expect(trace).toContain("no teaching artifact")
     expect(trace).toContain("Requirements and the choice of approach stay here")
+    expect(trace).toContain("It does not complete the run")
     expect(trace).toContain("label the result a single-pass trace")
     expect(trace).toContain("A Lightweight plan does not dispatch it")
     expect(research.indexOf("#### 1.4c")).toBeLessThan(research.indexOf("#### 1.6"))
