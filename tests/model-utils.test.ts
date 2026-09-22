@@ -87,6 +87,7 @@ describe("rejectsSamplingParams", () => {
     expect(rejectsSamplingParams("claude-sonnet-5")).toBe(true)
     expect(rejectsSamplingParams("claude-opus-5-5")).toBe(true)
     expect(rejectsSamplingParams("claude-opus-4-8")).toBe(true)
+    expect(rejectsSamplingParams("claude-opus-5")).toBe(true)
     expect(rejectsSamplingParams("claude-opus-4-7")).toBe(true)
     expect(rejectsSamplingParams("anthropic/claude-sonnet-5")).toBe(true)
   })
