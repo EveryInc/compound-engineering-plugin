@@ -36,8 +36,15 @@ Pass the project's active instructions and the planning context summary to `repo
 When this phase dispatches a researcher, create one scratch directory first and reuse that absolute path for every researcher this run. Pass each researcher the absolute path of its own file. It writes its document there and returns a gist plus that path. Read a dossier when its gist can change a decision. Do not load every dossier into context. Later dispatches in this phase reuse the directory. If a later dispatch is the first one, create the directory then.
 
 ```bash
-SCRATCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ce-plan-research-XXXXXX")"
-echo "$SCRATCH_DIR"
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
+if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
+(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
+if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
+chmod 700 "$SCRATCH_ROOT" || exit 1;
+SCRATCH_DIR="$SCRATCH_ROOT/ce-plan-research/$(openssl rand -hex 4)";
+(umask 077; mkdir -p "$SCRATCH_DIR") || exit 1; chmod 700 "$SCRATCH_DIR" || exit 1;
+echo "$SCRATCH_DIR";
 ```
 
 Run these agents in parallel:

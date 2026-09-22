@@ -39,7 +39,9 @@ describe("ce-plan research dossiers stay out of the planning context", () => {
   const research = read("references/research.md")
 
   test("phase 1 creates one scratch directory and names each researcher's file", () => {
-    expect(research).toContain('SCRATCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ce-plan-research-XXXXXX")"')
+    expect(research).toContain('SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)"')
+    expect(research).toContain('SCRATCH_DIR="$SCRATCH_ROOT/ce-plan-research/')
+    expect(research).not.toContain("mktemp")
     expect(research).toContain("Do not load every dossier into context")
     for (const file of [
       "$SCRATCH_DIR/repo-research.md",
