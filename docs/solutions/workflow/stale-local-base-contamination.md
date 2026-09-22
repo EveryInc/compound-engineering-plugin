@@ -1,6 +1,7 @@
 ---
 title: "Stale local base contamination in multi-session branch creation"
 category: workflow
+module: skills/ce-commit-push-pr
 date: 2026-04-27
 created: 2026-04-27
 severity: medium

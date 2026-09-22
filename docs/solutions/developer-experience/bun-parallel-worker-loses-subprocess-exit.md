@@ -11,7 +11,7 @@ symptoms:
   - "The harness spawnSync of python3 unit-workspace.py returns status null (code -1) with empty stdout and stderr; a bare git add in the same file fails the same way"
   - "bun prints 'killed 1 dangling process' at the first timeout"
 root_cause: dependency_bug
-resolution_type: workaround
+resolution_type: tooling_addition
 severity: medium
 tags:
   - bun
