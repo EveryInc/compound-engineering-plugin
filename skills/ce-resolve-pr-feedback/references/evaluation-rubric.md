@@ -54,7 +54,7 @@ Divert from fixing only on a concrete signal:
   1. **Positive evidence of intent** -- a concrete artifact showing the current behavior is a choice, not an accident: a comment/docstring stating it, a test asserting it, a PR/commit rationale, or a sentinel/guard that only makes sense as a decision. "The code currently does X" is **not** evidence (all code does something). If you cannot point to a specific artifact, there is no deliberate choice to protect -> **fix it**.
   2. **Genuine disagreement** -- a competent reviewer could reasonably have chosen the other way; it is a judgment/product call, not a clear improvement the author simply missed.
 
-  When both hold -> `needs-human` with `decision_context` contrasting the reviewer's ask, the intent artifact, and the tradeoff. When they don't, it is an ordinary fix. **Still fix these (they do NOT meet this condition):** renames, a guard the reviewer pinpoints, dead-code removal, an off-by-one, a missing null check, style, semantics-preserving perf, or correcting a choice that the evidence shows was a *mistake* rather than a decision. This guard exists so an autonomous caller (`ce-babysit-pr`) never silently reverses an intended behavior -- it is **not** a license to escalate ordinary feedback. Default remains to fix; "this might be intentional" is not evidence, and uncertainty resolves to fixing (or a brief `replied` question), not escalating.
+  When both hold -> compose `decision_context` contrasting the reviewer's ask, the intent artifact, and the tradeoff, then adjudicate it (see "Adjudicate before escalating" below) before it becomes `needs-human`. When they don't, it is an ordinary fix. **Still fix these (they do NOT meet this condition):** renames, a guard the reviewer pinpoints, dead-code removal, an off-by-one, a missing null check, style, semantics-preserving perf, or correcting a choice that the evidence shows was a *mistake* rather than a decision. This guard exists so an autonomous caller (`ce-babysit-pr`) never silently reverses an intended behavior -- it is **not** a license to escalate ordinary feedback. Default remains to fix; "this might be intentional" is not evidence, and uncertainty resolves to fixing (or a brief `replied` question), not escalating.
 - **It's a question, not a change request** ("why X?", "is this intentional?") -- answerable from the code -> `replied`; depends on a product/business call you can't determine -> `needs-human`.
 
 ## Outdated threads (`isOutdated=true`)
@@ -70,6 +70,20 @@ The diff hunk shifted, so the reported line may no longer be where the concern l
 Beyond the risk and question cases above: architectural changes that affect other systems, security-sensitive decisions, ambiguous business logic, or conflicting reviewer feedback. Rare -- most feedback just gets fixed.
 
 Do the investigation work before escalating. Don't punt with "this is complex." The user should be able to read your analysis and decide in under 30 seconds.
+
+## Adjudicate before escalating
+
+An item that met a divert above still splits by what the decision needs, and only one kind reaches the human.
+
+- **Authority-bound** -- the decision needs authority or knowledge this run does not hold: it touches security, auth, billing, data retention, a migration, or another system; it is a product or business call; the action it would take is outside the inherited envelope (merge, rebase, force-push, approving CI); or only the user knows the intent. This is `needs-human` as composed. Do not adjudicate it.
+- **Judgment-bound** -- competent engineers could reasonably disagree, and every fact the decision turns on is in the repository, the PR, and the review thread: a deliberate choice a reviewer wants reversed, two reviewers asking for opposite things, an unbounded-risk read that more evidence could bound, or a non-convergence root under pipeline mode. Invoke `ce-pov` on this item before it becomes `needs-human`.
+
+Pass `ce-pov` the composed `decision_context` as an approach set: the reviewer's ask, the intent artifact, and the options with their tradeoffs. Ask for its cross-model panel with `oracle` so that, when other models are reachable, the verdict rests on more than one model's judgment. `ce-pov` grounds the question and owns the verdict; it degrades to a solo take when no peer is reachable and returns blocked when the evidence is missing. Adjudicate once per root decision, not once per thread, and never for an item that met no divert; "unsure" still resolves to fixing.
+
+The verdict decides the item:
+
+- A positioned verdict whose action is inside the inherited envelope becomes the ordinary verdict it names (`fixed`, `fixed-differently`, `declined`, or `replied`). The reply on the thread carries the reasoning, names the peers that concurred or differed, and says the call was made autonomously, so the author can reverse it after the fact.
+- A blocked result, a verdict with no lean, a verdict whose action is outside the envelope, or `ce-pov` unavailable in this harness -> `needs-human`. Fold the adjudication into `decision_context` (its findings into `investigation`, its lean into `recommendation`) so the parked item is richer than the one you started with.
 
 ## Reply text for reply-list and human-list items
 

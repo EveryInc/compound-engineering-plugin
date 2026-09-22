@@ -637,6 +637,28 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(pipelineDelta).toMatch(/open\/claimed\/parked current currency item[^.]{0,240}residual/i)
   })
 
+  test("judgment-bound escalations are adjudicated through ce-pov before they become needs-human", async () => {
+    // The stalemate: the resolver's only exits for a contested item were fix or needs-human, so a
+    // judgment call parked forever. Adjudication runs only after a divert already fired, and an
+    // authority-bound item (security, billing, product, out-of-envelope action) never enters it.
+    const [rubric, pipeline, fullMode, targeted] = await Promise.all([
+      readRepoFile(CERESOLVE_RUBRIC),
+      readRepoFile(CERESOLVE_PIPELINE),
+      readRepoFile(CERESOLVE_FULL_MODE),
+      readRepoFile("skills/ce-resolve-pr-feedback/references/targeted-mode.md"),
+    ])
+    const section = rubric.match(/## Adjudicate before escalating[\s\S]+?(?=\n## )/)?.[0]
+    expect(section).toBeDefined()
+    expect(section).toMatch(/Authority-bound[\s\S]{0,600}Do not adjudicate/)
+    expect(section).toMatch(/Judgment-bound[\s\S]{0,600}Invoke `ce-pov`/)
+    expect(section).toMatch(/never for an item that met no divert/)
+    expect(section).toMatch(/`ce-pov` unavailable[^.]{0,80}`needs-human`/)
+    // Every judgment step that can emit needs-human routes through the section.
+    for (const [name, text] of [["pipeline", pipeline], ["full-mode", fullMode], ["targeted-mode", targeted]] as const) {
+      expect(text, `${name} must route judgment-bound escalations through adjudication`).toContain("Adjudicate before escalating")
+    }
+  })
+
   test("needs-human cannot become a successful handoff before its decision payload reaches the coordinator", async () => {
     const [resolverRubric, resolverPipeline, debugPipeline, babysitPipeline, babysitWatch, babysitTick, babysitSettle, babysitReport, commitPush, lfg] =
       await Promise.all([

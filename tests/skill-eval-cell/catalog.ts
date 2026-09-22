@@ -33,6 +33,8 @@ export const CE_OPTIMIZE_BASE_REF = "b159e1fa4c70efa995742269d38269bcc7524dd2"
 /** main before annotation waits became event-driven and symptom-only notes became a question. */
 const ANNOTATION_WAIT_BASE_REF = "d1734f7ed5341b6d0b683405da82895f0a0a25f7"
 export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68bf7"
+/** main before judgment-bound escalations were adjudicated through ce-pov instead of parking as needs-human. */
+export const ADJUDICATE_BASE_REF = "020c5e10d49aed19ee9354917780e94e665f5977"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -1263,6 +1265,45 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     grade: {
       files_read_post: ["references/cross-model-panel.md"],
       delegates: "some",
+    },
+  },
+  {
+    id: "ce-resolve-pr-feedback/judgment-bound-adjudicates",
+    baseline_ref: ADJUDICATE_BASE_REF,
+    skill: "ce-resolve-pr-feedback",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/resolve-feedback-adjudicate`,
+    timeout_secs: 240,
+    why: "A contested-but-judgment-only item parked as needs-human forever; an authority-bound one must still park; a cosmetic nit must still get its ordinary reply, not an adjudication.",
+    pre_contract: "A deliberate choice with positive intent evidence plus genuine disagreement is needs-human. Product or permission calls are needs-human. A cosmetic preference is replied to.",
+    task: "Use ce-resolve-pr-feedback on PR #12. The unresolved review threads are already on disk at threads.json and the code is in this workspace; do not call gh or git, and do not invoke any other skill, dispatch, or edit anything. Apply the evaluation rubric to each thread in your own context and stop after judging. For each thread declare exactly one line `T<id>: <verdict>` where the verdict is one of fix, reply, declined, needs-human, or adjudicate (adjudicate meaning you would hand the decision to ce-pov before escalating).",
+    grade: {
+      files_read_post: ["references/evaluation-rubric.md"],
+      workspace_read: ["threads.json"],
+      declared: { T1: "adjudicate", T2: "needs-human", T3: "reply" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-resolve-pr-feedback/pipeline-root-adjudicates-first",
+    baseline_ref: ADJUDICATE_BASE_REF,
+    skill: "ce-resolve-pr-feedback",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/resolve-feedback-adjudicate`,
+    timeout_secs: 240,
+    why: "Under a non-converging trajectory the approach-level root escalated straight to needs-human, which is the babysit stalemate in its most common shape.",
+    pre_contract: "A root whose next fix would begin its third round is escalated as one approach-level needs-human before any fix.",
+    task: "Use ce-resolve-pr-feedback with mode:pipeline on PR #12. The caller passed trajectory: invariant_rounds [{ key: \"retry-cap\", rounds: 2 }], new_threads_this_tick 1, unresolved_trend rising. The unresolved threads are on disk at threads.json and the code is in this workspace; do not call gh or git, and do not invoke any other skill, dispatch, or edit anything. Decide what happens to the retry-cap root before any fix and stop. Declare exactly one line `ROOT: <adjudicate | needs-human | fix>` (adjudicate meaning you would hand the root decision to ce-pov before escalating).",
+    grade: {
+      files_read_post: ["references/pipeline-mode.md", "references/evaluation-rubric.md"],
+      declared: { ROOT: "adjudicate" },
+      actions: "none",
+      delegates: "none",
     },
   },
   {

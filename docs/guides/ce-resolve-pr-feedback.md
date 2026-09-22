@@ -74,7 +74,9 @@ Most feedback, nitpicks included, is correct. Validation is not a separate analy
 - The change buys nothing real (the bar is "no benefit," not "minor") -> `replied`
 - Risk cannot be bounded -> de-risk with a test if possible, else `needs-human`
 - It is a question -> `replied`, or `needs-human` for a product call
-- The fix would reverse a *deliberate* design choice (positive evidence of intent, plus a real disagreement) -> `needs-human`. "The code currently does X" is not evidence of intent
+- The fix would reverse a *deliberate* design choice (positive evidence of intent, plus a real disagreement) -> adjudicated, then `needs-human` only if that cannot decide it. "The code currently does X" is not evidence of intent
+
+A divert that only needs judgment, not authority the run lacks, is adjudicated before it escalates: the agent hands the composed decision (the ask, the intent evidence, the options) to `ce-pov`, asking for its cross-model panel, and applies a positioned verdict as an ordinary fix, decline, or reply with the reasoning and the concurring peers on the thread. Security, billing, data, product calls, and anything outside the inherited envelope skip adjudication and go straight to `needs-human`, as does a blocked or unavailable `ce-pov`.
 
 "I'm uneasy" is not a tripwire. Source does not matter. A bot can be right; a human can be wrong.
 
@@ -99,7 +101,7 @@ When the same invariant applies to other sites this PR introduced, those sites b
 | `declined` | Suggested fix would make the code worse | Reply citing harm + resolve |
 | `needs-human` | Cannot determine the right action | Reply with `decision_context`, leave open |
 
-`needs-human` is rare. It includes what the reviewer said, what was investigated, why a decision is needed, and options with tradeoffs. Escalations never block the rest of the run. That is what lets `/ce-babysit-pr` call this skill unattended.
+`needs-human` is rare, and rarer now that judgment-only diverts are adjudicated first. It includes what the reviewer said, what was investigated, why a decision is needed, and options with tradeoffs. Escalations never block the rest of the run. That is what lets `/ce-babysit-pr` call this skill unattended.
 
 ---
 
@@ -180,7 +182,7 @@ No. Reading the code is the same work either way. An "it's a bot, so ignore it" 
 Overlapping files serialize before dispatch. If a fix expands to callers in another file, combined validation and the verify pass catch the breakage, and those agents re-run sequentially.
 
 **What does `needs-human` mean?**
-The agent investigated and still cannot choose. The thread stays open. The summary includes `decision_context`: quoted feedback, findings, options, and a lean if any.
+The agent investigated, adjudicated through `ce-pov` where the call only needed judgment, and still cannot choose, or the call needs authority the run lacks. The thread stays open. The summary includes `decision_context`: quoted feedback, findings, options, and a lean if any.
 
 **What if the loop never converges?**
 After two fix-verify cycles, it stops and escalates the recurring pattern as `needs-human`. It does not retry forever.

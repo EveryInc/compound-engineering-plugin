@@ -82,7 +82,7 @@ Produce a verdict per item and sort into three lists:
 
 - **fix-list** — `fixed` / `fixed-differently`. These get dispatched to fixers in step 4. For each, note the file/location (and for outdated threads, the resolved location or anchor) and a one-line "what to change." **Class fix:** when the cross-item pass (rubric: "A validated finding can span sites this PR itself introduced") found equivalent same-invariant sites this PR touched, record them as **one** fix-list item that enumerates every concrete location (`file:line`) and lists every feedback ID it covers — one class item → one fixer (step 4), so the sites are edited coherently and every covered thread/comment is replied-to and resolved from that single result. Enumerate only sites whose treatment is unambiguous; a site needing its own judgment stays a separate item.
 - **reply-list** — `replied` / `not-addressing` / `declined`. No code change. Compose the reply text now per the rubric (you have the evidence) and carry it to step 7.
-- **human-list** — `needs-human`. Compose `decision_context` now; carry to steps 7 and 9.
+- **human-list** — `needs-human`. Compose `decision_context` now and run the rubric's "Adjudicate before escalating" step on each judgment-bound item; an adjudicated verdict moves the item to the list it names, and the rest carry to steps 7 and 9.
 
 Create a task list of all new items (e.g., `TaskCreate` in Claude Code, `update_plan` in Codex) tagged with their verdict, so progress is visible.
 
