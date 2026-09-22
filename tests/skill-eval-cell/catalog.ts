@@ -131,6 +131,8 @@ export type Scenario = {
 }
 
 const UNDERSTANDING_BASE_REF = "8df67793b9733d2220fa9a7fc37139931471af62"
+/** main before Standard/Deep choices that depend on existing behavior were traced through ce-explain (the optional-sentence contract). */
+const BEHAVIOR_TRACE_BASE_REF = "c152896f1cda13548fc1a05b2aff88caf8ae8dba"
 
 const FIX = "tests/skill-eval-cell/fixtures"
 
@@ -2339,6 +2341,62 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
       actions: "none",
       delegates: "none",
     },
+  },
+  {
+    id: "ce-plan/trace-standard-behavior-dependent",
+    baseline_ref: BEHAVIOR_TRACE_BASE_REF,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/understanding-queue`,
+    timeout_secs: 600,
+    why: "A Standard choice that depends on how claim and its lease already behave is traced through ce-explain before the choice is fixed; the pattern pass does not establish behavior. The old sentence left the trace optional, so a capable model could fix the choice from the research summary alone.",
+    pre_contract: "When an unanswered question about system behavior or design rationale would materially change the work, ce-explain may be used.",
+    task: "Use ce-plan at the end of research for a Standard Durable plan. Product scope is settled: the worker should stop polling claim() every second and rely on notifications, with a backstop for missed ones. The research pass reported the queue's file layout and that claim() is called from the worker loop; it did not trace what claim() and the lease guarantee under a missed or duplicate notification, which is what the backstop design depends on. Decide whether the choice needs a behavior trace before it is fixed. State TRACE: <ce-explain|none> on its own line and explain why; stop before dispatch or writing.",
+    grade: { files_read_post: ["references/research.md"], declared: { TRACE: "ce-explain" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-plan/trace-skipped-rationale-established",
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    fixture: `${FIX}/understanding-queue`,
+    timeout_secs: 600,
+    why: "When research already established the behavior and rationale the choice depends on, the trace is skipped; the gate must not become a mandatory stage.",
+    pre_contract: "When an unanswered question about system behavior or design rationale would materially change the work, ce-explain may be used.",
+    task: "Use ce-plan at the end of research for a Standard Durable plan. Product scope is settled: make the lease duration a configuration value instead of the literal in claim(). Research already traced the relevant behavior: claim() runs in one transaction that takes the first ready job and leases it until now plus the literal, DECISION.md records that the 30-second duration was never justified and that polling stays as recovery for missed notifications, and no other code reads the lease. Decide whether the choice still needs a behavior trace before it is fixed. State TRACE: <ce-explain|none> on its own line and explain why; stop before dispatch or writing.",
+    grade: { files_read_post: ["references/research.md"], declared: { TRACE: "none" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-plan/trace-lightweight-own-reads",
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    fixture: `${FIX}/understanding-queue`,
+    timeout_secs: 600,
+    why: "A Lightweight plan does not dispatch the trace; its bounded reads of the named files are the trace unless the plan is reclassified to Standard.",
+    pre_contract: "A Lightweight plan grounds itself from bounded inline reads and does not dispatch research agents.",
+    task: "Use ce-plan for a Lightweight Durable plan: add 0-200ms of random jitter to the worker's one-second poll interval so several workers do not call claim() in lockstep. Nothing about claim() or the lease changes. Decide whether this needs a behavior trace through ce-explain before the plan is written. State TRACE: <ce-explain|none> on its own line and explain why; stop before dispatch or writing.",
+    grade: { files_read_post: ["references/research.md"], declared: { TRACE: "none" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-plan/trace-degrades-to-single-pass",
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    fixture: `${FIX}/understanding-queue`,
+    timeout_secs: 600,
+    why: "When ce-explain cannot be invoked, the gate still fires as one extraction pass labeled a single-pass trace rather than being skipped.",
+    pre_contract: "When an unanswered question about system behavior or design rationale would materially change the work, ce-explain may be used.",
+    task: "Use ce-plan at the end of research for a Standard Durable plan. Product scope is settled: the worker should stop polling claim() every second and rely on notifications, with a backstop for missed ones. The research pass reported the queue's file layout and that claim() is called from the worker loop; it did not trace what claim() and the lease guarantee under a missed or duplicate notification, which is what the backstop design depends on. The ce-explain skill cannot be invoked in this session. Decide how the choice gets its behavior trace before it is fixed. State TRACE: <ce-explain|single-pass|none> on its own line and explain why; stop before dispatch or writing.",
+    grade: { files_read_post: ["references/research.md"], declared: { TRACE: "single-pass" }, actions: "none", delegates: "none" },
   },
   {
     id: "ce-plan/direct-trivial-stays-in-chat",

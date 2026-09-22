@@ -253,6 +253,10 @@ Structure your findings as:
 - Pay attention to both explicit rules and implicit conventions
 - Consider the project's maturity and size when interpreting patterns
 - Note any tools or automation mentioned in documentation
-- Return only findings that change the plan
+- Include only findings that change the plan
 
 Your research should enable someone to quickly understand and align with the project's established patterns and practices. Be systematic, thorough, and always provide evidence for your findings.
+
+## Return
+
+When the caller supplies a path, write the document there and return 3-5 lines naming what would change the caller's decision, plus the absolute path of the file. Do not include the document in the return. If the caller names a different document, write that. Otherwise write this output. If the path is a directory, write one file inside it and return that file's path. When the caller supplies no path, return this output directly. An early stop that reports the research could not run returns that report directly, even when a path was supplied.

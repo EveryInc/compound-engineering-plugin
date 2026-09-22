@@ -99,7 +99,7 @@ Return findings organized by topic or theme. For each finding:
 
 After individual findings, write a short **Cross-cutting analysis** that reasons across the full set -- patterns, evolving positions, contradictions, or convergence that no single finding reveals on its own. Skip when findings are sparse or all from a single thread.
 
-**Token budget:** This digest is carried in the caller's context window alongside other research. Target ~500 tokens for sparse results (1-2 findings), ~1000 for typical (3-5 findings with cross-cutting analysis), and cap at ~1500 even for rich results. Compress by tightening summaries, not by dropping findings.
+**Token budget:** Keep the digest inside these bounds whether it is returned or written to the caller's file. Target ~500 tokens for sparse results (1-2 findings), ~1000 for typical (3-5 findings with cross-cutting analysis), and cap at ~1500 even for rich results. Compress by tightening summaries, not by dropping findings.
 
 When no relevant Slack discussions are found, return:
 
@@ -125,3 +125,7 @@ Conversations are informal. People express things in Slack threads they would no
 - Use Slack MCP tools only (`slack_search_public_and_private`, `slack_read_thread`, `slack_read_channel`). If a Slack tool call fails mid-workflow (auth expiry, transport error, renamed tool), report the failure and stop. Do not substitute non-Slack tools.
 - Do not write to Slack -- no sending messages, creating canvases, or any write actions.
 - Process and summarize data directly. Do not pass raw message dumps to callers.
+
+## Return
+
+When the caller supplies a path, write the document there and return 3-5 lines naming what would change the caller's decision, plus the absolute path of the file. Do not include the document in the return. If the caller names a different document, write that. Otherwise write this output. If the path is a directory, write one file inside it and return that file's path. When the caller supplies no path, return this output directly. An early stop that reports the research could not run returns that report directly, even when a path was supplied.

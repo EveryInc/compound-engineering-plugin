@@ -33,12 +33,19 @@ For Standard and Deep, prepare a concise planning context summary (a paragraph o
 
 Pass the project's active instructions and the planning context summary to `repo-research-analyst`, and send it directly to the requested current scopes. If the feature cannot be scoped from that context, allow one targeted root or workspace probe. Read an exact dependency or runtime version when the plan or an external-doc query materially depends on it.
 
+When this phase dispatches a researcher, create one scratch directory first and reuse that absolute path for every researcher this run. Pass each researcher the absolute path of its own file. It writes its document there and returns a gist plus that path. Read a dossier when its gist can change a decision. Do not load every dossier into context. Later dispatches in this phase reuse the directory. If a later dispatch is the first one, create the directory then.
+
+```bash
+SCRATCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ce-plan-research-XXXXXX")"
+echo "$SCRATCH_DIR"
+```
+
 Run these agents in parallel:
 
-- `references/agents/repo-research-analyst.md` — scope: **patterns**. Pass the planning context summary so it can go directly to current feature patterns and the code that implements them.
-- `references/agents/learnings-researcher.md` — pass the planning context summary and the search-root list from **Pack discovery**. When the origin document already carries `(pack: …)` citations, pass those pack ids and file paths too so the researcher skips re-reading cited files and searches only for gaps (the same pass-through shape as the Slack context section below).
+- `references/agents/repo-research-analyst.md` — scope: **patterns**. Pass the planning context summary and `$SCRATCH_DIR/repo-research.md` so it can go directly to current feature patterns and the code that implements them.
+- `references/agents/learnings-researcher.md` — pass the planning context summary, the search-root list from **Pack discovery**, and `$SCRATCH_DIR/learnings.md`. When the origin document already carries `(pack: …)` citations, pass those pack ids and file paths too so the researcher skips re-reading cited files and searches only for gaps (the same pass-through shape as the Slack context section below).
 
-**Agent-native planning triage** (conditional) — consider broadly, dispatch selectively. Dispatch a generic subagent with `references/agents/agent-native-planning-strategist.md` in parallel with the local research agents when the request, origin document, or repo research indicates any of:
+**Agent-native planning triage** (conditional) — consider broadly, dispatch selectively. Dispatch a generic subagent with `references/agents/agent-native-planning-strategist.md` and `$SCRATCH_DIR/agent-native.md` in parallel with the local research agents when the request, origin document, or repo research indicates any of:
 
 - agent, assistant, chat, workflow automation, MCP, plugin, skill, tool registry, prompt, or autonomous-loop work
 - a codebase with an existing agent surface where this feature changes user-visible capabilities
@@ -57,11 +64,9 @@ Collect:
 
 **Slack context** (opt-in) — never auto-dispatch. Route by condition:
 
-- **Tools available + user asked**: Dispatch a generic subagent with `references/agents/slack-researcher.md` and the planning context summary in parallel with other Phase 1.1 agents. If the origin document has a Slack context section, pass it verbatim so the researcher focuses on gaps. Include findings in consolidation.
+- **Tools available + user asked**: Dispatch a generic subagent with `references/agents/slack-researcher.md`, the planning context summary, and `$SCRATCH_DIR/slack.md` in parallel with other Phase 1.1 agents. If the origin document has a Slack context section, pass it verbatim so the researcher focuses on gaps. Include findings in consolidation.
 - **Tools available + user didn't ask**: Note in output: "Slack tools detected. Ask me to search Slack for organizational context at any point, or include it in your next prompt."
 - **No tools + user asked**: Note in output: "Slack context was requested but no Slack tools are available. Install and authenticate the Slack plugin to enable organizational context search."
-
-When an unanswered question about system behavior or design rationale would materially change this work, use `ce-explain`. Pass the question, its scope, its intended use, and pointers to existing evidence. Reuse adequate current research rather than repeating it. Use the explanation’s evidence, constraints, and unanswered questions in this work. Requirements and design decisions remain this skill’s responsibility. The existing source restrictions still apply, including the opt-in rule for Slack research.
 
 #### 1.1b Detect Execution Direction Signals
 
@@ -132,14 +137,16 @@ Announce the decision and the intent briefly before continuing. Examples:
 If Step 1.2 indicates external research is useful, dispatch by the **intent** classified in Stage 2, using the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Read the selected prompt asset from `references/agents/` and seed a generic subagent with it. For `web-researcher.md`, pass a focus hint plus the planning context summary and do **not** pass codebase content — it operates externally.
 
 - **Implementation-guidance** — run in parallel:
-  - `references/agents/best-practices-researcher.md` with the planning context summary.
-  - `references/agents/framework-docs-researcher.md` with the planning context summary and exact frameworks/versions from Phase 1.1 where available.
-- **Landscape / option-discovery** — `references/agents/web-researcher.md` with the focus hint and planning context summary. When the request targets projects on a code host (e.g., "competitors on GitHub"), name the discovery dimensions in the focus hint: project names and URLs, release recency and activity, CLI/UX shape, install path, docs and examples, plugin/extension surfaces, recurring issue themes, and license — treating star counts as a weak signal only.
-- **Mixed** — **sequential, not parallel**: run the `web-researcher` local prompt first to map the landscape and produce a shortlist; then run the `framework-docs-researcher` and/or `best-practices-researcher` local prompts against the shortlisted technologies only when their details materially shape the plan.
+  - `references/agents/best-practices-researcher.md` with the planning context summary and `$SCRATCH_DIR/best-practices.md`.
+  - `references/agents/framework-docs-researcher.md` with the planning context summary, `$SCRATCH_DIR/framework-docs.md`, and exact frameworks/versions from Phase 1.1 where available.
+- **Landscape / option-discovery** — `references/agents/web-researcher.md` with the focus hint, the planning context summary, and `$SCRATCH_DIR/web.md`. When the request targets projects on a code host (e.g., "competitors on GitHub"), name the discovery dimensions in the focus hint: project names and URLs, release recency and activity, CLI/UX shape, install path, docs and examples, plugin/extension surfaces, recurring issue themes, and license — treating star counts as a weak signal only.
+- **Mixed** — **sequential, not parallel**: run the `web-researcher` local prompt first, writing `$SCRATCH_DIR/web.md`, to map the landscape and produce a shortlist; then run the `framework-docs-researcher` and/or `best-practices-researcher` local prompts, writing `$SCRATCH_DIR/framework-docs.md` and `$SCRATCH_DIR/best-practices.md`, against the shortlisted technologies only when their details materially shape the plan.
 
 **Tool-unavailable handling.** `web-researcher` self-checks for web tools and stops if they are missing. Never block on this: if it reports research unavailable, or any researcher fails, warn and proceed, and carry the gap into Phase 1.4 so the plan records it honestly — especially when the user explicitly requested external research, where a silent skip would leave the plan looking evidence-based when it is not.
 
 #### 1.4 Consolidate Research
+
+Read a dossier when its gist can change a decision. Open `$SCRATCH_DIR/learnings.md` when that dispatch ran, and show the user any `Skipped pack files` line once. Do not load every dossier into context.
 
 Summarize:
 - Relevant codebase patterns and file paths
@@ -169,11 +176,19 @@ If the current classification is **Lightweight** and Phase 1 research found that
 
 This ensures flow analysis (Phase 1.5) runs and the confidence check (Phase 5.3) applies critical-section bonuses. Announce the reclassification briefly: "Reclassifying to Standard — this change touches [environment variables / exported APIs / CI config] with external consumers."
 
+#### 1.4c Trace behavior the decision depends on
+
+A Standard or Deep choice that depends on existing system behavior, or on a design rationale the research already gathered does not establish, needs that question traced before the choice is fixed. The pattern pass does not establish behavior. Invoke `ce-explain` with the question, the scope, the intended use as a planning input with no teaching artifact, and pointers to the evidence already gathered. Reuse adequate current research rather than repeating it. Use the explanation's evidence, the constraints that still apply, and the unanswered questions. Requirements and the choice of approach stay here. The existing source restrictions still apply, including the opt-in rule for Slack research.
+
+Skip the trace when no existing behavior or missing rationale would change a choice. A Lightweight plan does not dispatch it. Its bounded reads of the named files and their tests are the trace, unless Phase 1.4b reclassified the plan to Standard.
+
+When `ce-explain` cannot be invoked, run one extraction pass that answers the same questions — trigger, state changes, ownership, failure paths, and what could not be traced — and label the result a single-pass trace.
+
 #### 1.5 Flow and Edge-Case Analysis (Conditional)
 
 For **Standard** or **Deep** plans, or when user flow completeness is still unclear, run:
 
-- `references/agents/spec-flow-analyzer.md` with the planning context summary and research findings.
+- `references/agents/spec-flow-analyzer.md` with the planning context summary, the research findings, the behavior trace when one exists, and `$SCRATCH_DIR/spec-flow.md`. Create the scratch directory with the Phase 1.1 command first when this run does not already have one.
 
 Use the output to:
 - Identify missing edge cases, state transitions, or handoff gaps

@@ -292,7 +292,7 @@ This works on any harness. The host serves the chosen model natively where it ca
 
 ## Understanding existing behavior and rationale
 
-When an unanswered question about behavior or rationale would materially change the work, this skill can use `ce-explain`. It passes the question, its scope, and its intended use, then uses the resulting evidence, constraints, and unknowns. The calling skill remains responsible for the plan or requirements. It reuses sufficient existing research and follows the same source restrictions. Explanation is not a mandatory extra stage.
+On a Standard or Deep plan, a choice that depends on existing behavior, or on a rationale the research did not establish, is traced with `ce-explain` before that choice is fixed. The skill passes the question, its scope, and its intended use as planning input, then uses the resulting evidence, constraints, and unknowns. It stays responsible for the plan. It reuses research it already has and follows the same source restrictions. A Lightweight plan uses its reads of the named files and their tests instead, unless research reclassifies the plan to Standard. Patterns and past learnings do not substitute for the trace.
 
 ## Bake-off
 

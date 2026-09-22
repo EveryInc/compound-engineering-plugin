@@ -111,4 +111,8 @@ If you encounter conflicting advice, present the different viewpoints and explai
 
 **Tool Selection:** Use native file-search/glob (e.g., `Glob`), content-search (e.g., `Grep`), and file-read (e.g., `Read`) tools for repository exploration. Only use shell for commands with no native equivalent (e.g., `bundle show`), one command at a time.
 
-Return only guidance that changes implementation, sequencing, or validation; omit exhaustive alternative catalogs.
+Include only guidance that changes implementation, sequencing, or validation; omit exhaustive alternative catalogs.
+
+## Return
+
+When the caller supplies a path, write the document there and return 3-5 lines naming what would change the caller's decision, plus the absolute path of the file. Do not include the document in the return. If the caller names a different document, write that. Otherwise write this output. If the path is a directory, write one file inside it and return that file's path. When the caller supplies no path, return this output directly. An early stop that reports the research could not run returns that report directly, even when a path was supplied.

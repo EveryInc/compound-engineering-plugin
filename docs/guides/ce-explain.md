@@ -28,7 +28,7 @@ Plain language is the ordinary path. `diff:` and `since:` select the subject, `a
 
 The skill establishes the question and intended use before researching or creating files. It reuses adequate current evidence and investigates missing or disputed claims.
 
-For **how**, it follows the relevant trigger, state changes, ownership boundaries, and effect. For **why**, it follows decision records, comments, history, PRs, and linked issues within the allowed sources. It does not search every available service by default, and it preserves a calling workflow's opt-in restrictions on team chat.
+For **how**, it follows the relevant trigger, state changes, ownership boundaries, and effect. One pass is enough when that trace can name the boundaries. When one pass cannot, the question is split across read-only scouts, one slice each, and the caller reconciles their dossiers against the source. For **why**, it follows decision records, comments, history, PRs, and linked issues within the allowed sources. It does not search every available service by default, and it preserves a calling workflow's opt-in restrictions on team chat.
 
 Code demonstrates behavior, not necessarily the author's motivation. A missing historical reason stays unknown. Historical constraints are checked before being treated as current requirements. When the explanation informs a change, it identifies the relevant constraints and risks without choosing the implementation.
 
@@ -46,7 +46,7 @@ A local artifact is delivered with a summary and its path. There is no mandatory
 
 ## In a workflow
 
-`ce-plan`, `ce-brainstorm`, and `ce-pov` can use `ce-explain` when an unresolved behavior or rationale question materially affects their work. The skill reuses existing research when it is sufficient. The caller gets evidence, constraints, and unanswered questions, then continues under its own authority. No return flag is required.
+`ce-brainstorm` and `ce-pov` can use `ce-explain` when an unresolved behavior or rationale question materially affects their work. `ce-plan` uses it before a Standard or Deep choice that depends on existing behavior or on a rationale the research did not establish. The skill reuses existing research when it is sufficient. The caller gets evidence, constraints, and unanswered questions, then continues under its own authority. No return flag is required.
 
 `ce-commit-push-pr` continues composing its own `New concepts` section and offering `ce-explain` for deeper learning. This skill can also supply an explanation for a surrounding document without taking over placement or publication.
 

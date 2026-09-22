@@ -262,3 +262,7 @@ When no relevant learnings are found, say so explicitly, include the search cont
 ## Consumption Contract
 
 Output is consumed as prose. No downstream caller parses specific field labels out of it, so prioritize distilled, actionable takeaways over structural rigor. Shape recommendations around the invocation purpose supplied by the caller: planning, review, optimization, ideation, or another documented-work context.
+
+## Return
+
+When the caller supplies a path, write the document there and return 3-5 lines naming what would change the caller's decision, plus the absolute path of the file. Do not include the document in the return. If the caller names a different document, write that. Otherwise write this output. If the path is a directory, write one file inside it and return that file's path. When the caller supplies no path, return this output directly. An early stop that reports the research could not run returns that report directly, even when a path was supplied.
