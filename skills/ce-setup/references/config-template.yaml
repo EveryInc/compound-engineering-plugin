@@ -121,7 +121,7 @@
 # effort of whichever peer target runs; unset keeps the skills' editorial
 # mapping. The model must belong to that target's family (an alias such as
 # `fable` or a full id such as `claude-opus-5-5` for claude; `gpt-*` for codex,
-# optionally namespace-qualified such as `openai.gpt-5.6-sol` when the codex CLI
+# optionally namespace-qualified such as `openai.gpt-6-sol` when the codex CLI
 # routes through a non-default `model_provider`).
 # Effort levels: claude low|medium|high|xhigh|max, codex low|medium|high|
 # xhigh plus max and ultra on the models that list them, grok low|medium|high|
@@ -151,7 +151,7 @@
 #   - harness: cursor
 #     model: composer
 #   - harness: codex
-#     model: "gpt-5.6-sol"
+#     model: "gpt-6-sol"
 #   - harness: claude             # configured default model
 
 # Reasoning effort for the external worker, per harness. Each value is one of

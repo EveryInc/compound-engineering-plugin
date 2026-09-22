@@ -47,7 +47,7 @@ export function resolveClaudeFamilyAlias(model: string): string {
  * Returns the input unchanged if already prefixed (contains "/").
  *
  * "claude-sonnet-5" -> "anthropic/claude-sonnet-5"
- * "gpt-5.6-sol"       -> "openai/gpt-5.6-sol"
+ * "gpt-6-sol"       -> "openai/gpt-6-sol"
  * "gemini-2.0"        -> "google/gemini-2.0"
  * "minimax-m3"        -> "minimax/minimax-m3"
  * "anthropic/foo"     -> "anthropic/foo" (unchanged)

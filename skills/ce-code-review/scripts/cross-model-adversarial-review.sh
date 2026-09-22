@@ -83,7 +83,7 @@ case "$TRANSIENT_RETRY_DELAY_SECS" in ''|*[!0-9]*) skip "transient retry delay m
 # Keep these in sync with ce-doc-review's script (parity-tested in CI).
 # codex: luna/xhigh is the benchmarked pick on API dollars (~0.30x sol-medium, tied
 # detection, slower tail) -- docs/solutions/skill-design/benchmark-review-peer-model-and-reasoning-tier.md
-M_CODEX="gpt-5.6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
+M_CODEX="gpt-6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
 M_CLAUDE="claude-opus-5-5"     # claude CLI, Opus 5.5 (--effort high)
 M_GROK="grok-4.7"              # grok CLI             (--effort xhigh)
 M_GROK_CURSOR="grok-4.7-xhigh" # cursor-agent --list-models; 4.7 has no cursor- prefix, effort is in the id

@@ -615,7 +615,7 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     grade: {
       files_read_post: ["references/cross-model-panel.md"],
       workspace_read: ["panel/peer-codex.json", "panel/peer-cursor.json"],
-      declared: { CODEX_PEER: "Codex (gpt-5.6-sol)", CODEX_CAVEAT: "none", CURSOR_CAVEAT: "serving-unverified" },
+      declared: { CODEX_PEER: "Codex (gpt-6-sol)", CODEX_CAVEAT: "none", CURSOR_CAVEAT: "serving-unverified" },
       actions: "none",
       delegates: "none",
     },

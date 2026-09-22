@@ -253,7 +253,7 @@ work_engine_preferences:
   - harness: cursor
     model: composer
   - harness: codex
-    model: "gpt-5.6-sol"
+    model: "gpt-6-sol"
   - harness: claude
 ```
 

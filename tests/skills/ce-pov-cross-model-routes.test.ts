@@ -93,15 +93,15 @@ describe("ce-pov cross-model route safety", () => {
     const accepted = emit("codex", {
       ...process.env,
       CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
-      CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-5.6-sol",
+      CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-6-sol",
     })
-    expect(accepted).toContain("openai.gpt-5.6-sol")
+    expect(accepted).toContain("openai.gpt-6-sol")
     const acceptedSlash = emit("codex", {
       ...process.env,
       CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
-      CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-5.6-sol",
+      CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-6-sol",
     })
-    expect(acceptedSlash).toContain("openai/gpt-5.6-sol")
+    expect(acceptedSlash).toContain("openai/gpt-6-sol")
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "codex"], {
       encoding: "utf8",

@@ -916,7 +916,7 @@ describe("ce-doc-review contract", () => {
     expect(dispatch).toContain("queue the remainder")
   })
 
-  // Reproduced on Codex (gpt-5.6-sol), 4/4 runs: a plan whose only storage-related
+  // Reproduced on Codex (gpt-6-sol), 4/4 runs: a plan whose only storage-related
   // content was an internal schema migration activated security-lens, justified as
   // "changes data-store entries ... with deployment-ordering risks". The bare
   // "data handling" trigger matches every plan. security-lens is one of the

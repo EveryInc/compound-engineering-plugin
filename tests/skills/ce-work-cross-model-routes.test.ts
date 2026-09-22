@@ -398,7 +398,7 @@ describe("ce-work fixed write routes", () => {
     const composer = emit("composer", {
       ...process.env,
       CE_WORK_MODEL_OVERRIDE_TARGET: "composer",
-      CE_WORK_MODEL_OVERRIDE: "gpt-5.6-sol",
+      CE_WORK_MODEL_OVERRIDE: "gpt-6-sol",
     })
     expect(composer.status).toBe(2)
     expect(composer.stderr).toContain("not compatible")
@@ -622,7 +622,7 @@ describe("ce-work fixed write routes", () => {
 
   test.each([
     ["route mismatch", "codex", { route: "claude" }],
-    ["Composer family mismatch", "composer", { model_requested: "gpt-5.6-sol" }],
+    ["Composer family mismatch", "composer", { model_requested: "gpt-6-sol" }],
     ["Cursor Composer model", "cursor", { model_requested: "composer-2.5-fast" }],
     ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.6" }],
     ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.6-high" }],

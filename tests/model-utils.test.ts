@@ -30,9 +30,9 @@ describe("addProviderPrefix", () => {
   test("prefixes OpenAI models with openai/", () => {
     expect(addProviderPrefix("gpt-5.4")).toBe("openai/gpt-5.4")
     expect(addProviderPrefix("gpt-5.6")).toBe("openai/gpt-5.6")
-    expect(addProviderPrefix("gpt-5.6-sol")).toBe("openai/gpt-5.6-sol")
+    expect(addProviderPrefix("gpt-6-sol")).toBe("openai/gpt-6-sol")
     expect(addProviderPrefix("gpt-5.6-terra")).toBe("openai/gpt-5.6-terra")
-    expect(addProviderPrefix("gpt-5.6-luna")).toBe("openai/gpt-5.6-luna")
+    expect(addProviderPrefix("gpt-6-luna")).toBe("openai/gpt-6-luna")
     expect(addProviderPrefix("o3-mini")).toBe("openai/o3-mini")
   })
 
