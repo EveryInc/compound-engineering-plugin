@@ -265,63 +265,81 @@ def main(argv: list[str]) -> int:
     # --- Repo context -----------------------------------------------------
     code, repo_root = git(["rev-parse", "--show-toplevel"], doc_dir)
     in_git = code == 0 and bool(repo_root)
+
+    def resolve_upstream(root: str):
+        code, ref = git(["rev-parse", "--abbrev-ref", "origin/HEAD"], root)
+        if code == 0 and ref:
+            return ref
+        for candidate in ("origin/main", "origin/master"):
+            code, _ = git(
+                ["rev-parse", "--verify", "--quiet", candidate], root
+            )
+            if code == 0:
+                return candidate
+        return None
+
     upstream: str | None = None
     if in_git:
-        code, ref = git(["rev-parse", "--abbrev-ref", "origin/HEAD"], repo_root)
-        if code == 0 and ref:
-            upstream = ref
-        else:
-            for candidate in ("origin/main", "origin/master"):
-                code, _ = git(
-                    ["rev-parse", "--verify", "--quiet", candidate], repo_root
-                )
-                if code == 0:
-                    upstream = candidate
-                    break
-        if upstream:
-            code, behind = git(
-                ["rev-list", "--count", f"HEAD..{upstream}"], repo_root
-            )
-            if code == 0 and behind.isdigit() and int(behind) > 0:
-                infos.append(
-                    f"INFO: worktree is {behind} commits behind {upstream} — "
-                    "verify merge-state claims against remote truth (gh pr view), "
-                    "not this checkout"
-                )
-        else:
-            infos.append(
-                "INFO: no upstream default branch found — "
-                "path/SHA classification limited to HEAD"
-            )
+        upstream = resolve_upstream(repo_root)
     else:
         infos.append(
             "INFO: not a git repository — path and SHA classification skipped "
             "(scaffold and link checks still apply)"
         )
 
-    def upstream_has_path(path: str) -> bool:
-        if not (in_git and upstream):
-            return False
-        code, _ = git(["cat-file", "-e", f"{upstream}:{path}"], repo_root)
-        return code == 0
+    repository_roots = [repo_root] if in_git else []
+    if in_git:
+        code, superproject_root = git(
+            ["rev-parse", "--show-superproject-working-tree"], repo_root
+        )
+        if (
+            code == 0
+            and superproject_root
+            and os.path.realpath(superproject_root) != os.path.realpath(repo_root)
+        ):
+            repository_roots.append(superproject_root)
 
-    def head_has_path(path: str) -> bool:
-        if not in_git:
-            return False
-        code, _ = git(["cat-file", "-e", f"HEAD:{path}"], repo_root)
-        return code == 0
+    repository_upstreams = {repo_root: upstream} if in_git else {}
+    if len(repository_roots) > 1:
+        superproject_root = repository_roots[-1]
+        repository_upstreams[superproject_root] = resolve_upstream(superproject_root)
+
+    if in_git:
+        if not any(repository_upstreams.values()):
+            infos.append(
+                "INFO: no upstream default branch found — "
+                "path/SHA classification limited to HEAD"
+            )
+        for root, root_upstream in repository_upstreams.items():
+            if root_upstream:
+                code, behind = git(
+                    ["rev-list", "--count", f"HEAD..{root_upstream}"], root
+                )
+                if code == 0 and behind.isdigit() and int(behind) > 0:
+                    label = "worktree" if root == repo_root else "superproject"
+                    infos.append(
+                        f"INFO: {label} is {behind} commits behind {root_upstream} — "
+                        "verify merge-state claims against remote truth (gh pr view), "
+                        "not this checkout"
+                    )
 
     # --- 1. Cited repo paths ----------------------------------------------
     checked_paths = 0
-    seen_paths: set[str] = set()
+    seen_paths: set[tuple[tuple[str, ...], str]] = set()
     base = repo_root if in_git else os.getcwd()
+    path_roots = repository_roots if in_git else [base]
     for raw in BACKTICK_RE.findall(body):
         token = normalize_path(raw)
         rewritten_abs = False
+        check_roots = path_roots
         if in_git:
             before = token
-            token = strip_repo_prefix(token, base)
-            rewritten_abs = token != before
+            for root in repository_roots:
+                token = strip_repo_prefix(before, root)
+                if token != before:
+                    rewritten_abs = True
+                    check_roots = [root]
+                    break
         if not is_path_candidate(token, known_path=rewritten_abs):
             continue
         check = token
@@ -331,19 +349,46 @@ def main(argv: list[str]) -> int:
             if not in_git:
                 continue
             resolved = os.path.realpath(os.path.join(doc_dir, token))
-            check = os.path.relpath(resolved, os.path.realpath(base))
-            if check.startswith(".."):
+            containing_root = next(
+                (
+                    root
+                    for root in repository_roots
+                    if os.path.commonpath(
+                        [resolved, os.path.realpath(root)]
+                    ) == os.path.realpath(root)
+                ),
+                None,
+            )
+            if containing_root is None:
                 continue  # escapes the repo — not checkable as a repo path
-        if check in seen_paths:
+            check_roots = [containing_root]
+            check = os.path.relpath(resolved, os.path.realpath(containing_root))
+        seen_key = (tuple(os.path.realpath(root) for root in check_roots), check)
+        if seen_key in seen_paths:
             continue
-        seen_paths.add(check)
-        if os.path.exists(os.path.join(base, check)):
+        seen_paths.add(seen_key)
+        if any(os.path.exists(os.path.join(root, check)) for root in check_roots):
             checked_paths += 1
             continue
-        tracked_head = head_has_path(check)
-        tracked_upstream = upstream_has_path(check)
-        if not (tracked_head or tracked_upstream) and not is_path_shaped(
-            check, base
+        tracked_head = any(
+            git(["cat-file", "-e", f"HEAD:{check}"], root)[0] == 0
+            for root in check_roots
+        )
+        tracked_upstream = None
+        if not tracked_head:
+            tracked_upstream = next(
+                (
+                    root_upstream
+                    for root, root_upstream in repository_upstreams.items()
+                    if root in check_roots
+                    and root_upstream
+                    and git(["cat-file", "-e", f"{root_upstream}:{check}"], root)[0]
+                    == 0
+                ),
+                None,
+            )
+        if not (tracked_head or tracked_upstream) and not any(
+            is_path_shaped(check, root) for root in check_roots
         ):
             continue  # branch name / provider ID, not a path citation
         checked_paths += 1
@@ -357,11 +402,20 @@ def main(argv: list[str]) -> int:
         elif tracked_upstream:
             flags.append(
                 f"FLAG path `{token}`{loc} — not in working tree but exists at "
-                f"{upstream}: stale checkout? Annotate or verify against upstream."
+                f"{tracked_upstream}: stale checkout? Annotate or verify against upstream."
             )
         else:
+            upstream_refs = list(
+                dict.fromkeys(
+                    repository_upstreams[root]
+                    for root in check_roots
+                    if repository_upstreams.get(root)
+                )
+            )
             where = (
-                f"working tree or {upstream}" if upstream else "working tree"
+                f"working tree or {' / '.join(upstream_refs)}"
+                if upstream_refs
+                else "working tree"
             )
             flags.append(
                 f"FLAG path `{token}`{loc} — not found in {where}. Fix the "
@@ -391,8 +445,34 @@ def main(argv: list[str]) -> int:
                 seen_shas[sha] = (line_no, True)
         for sha in order:
             line_no, cited = seen_shas[sha]
-            code, _ = git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root)
-            resolved = code == 0
+            sha_states = []
+            # A submodule can share commit objects with its superproject while
+            # its HEAD tracks a different branch. Prefer the outer repository
+            # when it can classify the commit in the code checkout's context.
+            for root in reversed(repository_roots):
+                if git(["cat-file", "-e", f"{sha}^{{commit}}"], root)[0] != 0:
+                    continue
+                root_upstream = repository_upstreams.get(root)
+                in_head = (
+                    git(["merge-base", "--is-ancestor", sha, "HEAD"], root)[0]
+                    == 0
+                )
+                in_up = (
+                    root_upstream is not None
+                    and git(
+                        ["merge-base", "--is-ancestor", sha, root_upstream], root
+                    )[0]
+                    == 0
+                )
+                sha_states.append((root, root_upstream, in_head, in_up))
+            sha_state = next(
+                (state for state in sha_states if state[2]),
+                next((state for state in sha_states if state[3]), None),
+            )
+            if sha_state is None and sha_states:
+                sha_state = sha_states[0]
+            sha_root = sha_state[0] if sha_state else None
+            resolved = sha_root is not None
             loc = f" (line {line_no})"
             if not resolved:
                 if not cited:
@@ -413,32 +493,25 @@ def main(argv: list[str]) -> int:
                 )
                 continue
             checked_shas += 1
-            in_head = (
-                git(["merge-base", "--is-ancestor", sha, "HEAD"], repo_root)[0] == 0
-            )
-            in_up = (
-                upstream is not None
-                and git(["merge-base", "--is-ancestor", sha, upstream], repo_root)[0]
-                == 0
-            )
-            if in_head and (in_up or upstream is None):
+            _, sha_upstream, in_head, in_up = sha_state
+            if in_head and (in_up or sha_upstream is None):
                 continue
             if in_head and not in_up:
                 flags.append(
-                    f"FLAG sha {sha}{loc} — reachable from HEAD but not {upstream}: "
+                    f"FLAG sha {sha}{loc} — reachable from HEAD but not {sha_upstream}: "
                     "local-only commit whose SHA may be rewritten on merge "
                     "(rebase/squash). Prefer citing the PR number."
                 )
             elif in_up:
                 flags.append(
                     f"FLAG sha {sha}{loc} — not reachable from HEAD but reachable "
-                    f"from {upstream}: this checkout predates the merge. Add a "
+                    f"from {sha_upstream}: this checkout predates the merge. Add a "
                     "temporal qualifier or verify the claim via gh."
                 )
             else:
                 flags.append(
                     f"FLAG sha {sha}{loc} — exists but unreachable from HEAD"
-                    + (f" or {upstream}" if upstream else "")
+                    + (f" or {sha_upstream}" if sha_upstream else "")
                     + ": likely a rebased-away commit. Prefer citing the PR number."
                 )
 

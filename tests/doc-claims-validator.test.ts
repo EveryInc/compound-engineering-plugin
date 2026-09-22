@@ -121,6 +121,72 @@ function writeBareDoc(body: string): string {
   return filePath
 }
 
+function writeSubmoduleDoc(body: string): string {
+  const parentRepo = mkdtempSync(path.join(tmpdir(), "doc-claims-parent-"))
+  const docsRepo = mkdtempSync(path.join(tmpdir(), "doc-claims-submodule-"))
+  sh(parentRepo, "git", ["init", "-b", "main"])
+  sh(parentRepo, "git", ["config", "user.email", "test@example.com"])
+  sh(parentRepo, "git", ["config", "user.name", "Test"])
+  mkdirSync(path.join(parentRepo, "src/lib"), { recursive: true })
+  writeFileSync(path.join(parentRepo, "src/lib/foo.ts"), "export const x = 1\n")
+  sh(parentRepo, "git", ["add", "-A"])
+  sh(parentRepo, "git", ["commit", "-m", "parent code"])
+  const parentSha = sh(parentRepo, "git", ["rev-parse", "HEAD"])
+
+  sh(parentRepo, "git", ["checkout", "-b", "upstream-work"])
+  writeFileSync(
+    path.join(parentRepo, "src/lib/upstream.ts"),
+    "export const upstream = true\n",
+  )
+  sh(parentRepo, "git", ["add", "-A"])
+  sh(parentRepo, "git", ["commit", "-m", "parent upstream only"])
+  const parentUpstreamSha = sh(parentRepo, "git", ["rev-parse", "HEAD"])
+  sh(parentRepo, "git", ["update-ref", "refs/remotes/origin/main", parentUpstreamSha])
+  sh(parentRepo, "git", ["checkout", "main"])
+  writeFileSync(
+    path.join(parentRepo, "src/lib/local-only.ts"),
+    "export const localOnly = true\n",
+  )
+  sh(parentRepo, "git", ["add", "-A"])
+  sh(parentRepo, "git", ["commit", "-m", "parent local only"])
+  const parentLocalSha = sh(parentRepo, "git", ["rev-parse", "HEAD"])
+
+  sh(docsRepo, "git", ["init", "-b", "main"])
+  sh(docsRepo, "git", ["config", "user.email", "test@example.com"])
+  sh(docsRepo, "git", ["config", "user.name", "Test"])
+  mkdirSync(path.join(docsRepo, "src/lib"), { recursive: true })
+  writeFileSync(
+    path.join(docsRepo, "src/lib/doc-only.ts"),
+    "export const docOnly = true\n",
+  )
+  sh(docsRepo, "git", ["add", "-A"])
+  sh(docsRepo, "git", ["commit", "--allow-empty", "-m", "docs store"])
+  sh(parentRepo, "git", ["-c", "protocol.file.allow=always", "submodule", "add", docsRepo, "docs"])
+  sh(path.join(parentRepo, "docs"), "git", ["fetch", "--quiet", parentRepo, "main"])
+  sh(path.join(parentRepo, "docs"), "git", ["update-ref", "refs/remotes/origin/main", parentSha])
+  sh(parentRepo, "git", ["add", "docs"])
+  sh(parentRepo, "git", ["commit", "-m", "add docs submodule"])
+
+  const docPath = path.join(parentRepo, "docs/solutions/x.md")
+  mkdirSync(path.dirname(docPath), { recursive: true })
+  writeFileSync(
+    docPath,
+    FRONTMATTER +
+      "\n" +
+      body
+        .replace("PARENT_SHA", mixedShaPrefix(parentSha))
+        .replace("PARENT_UPSTREAM_SHA", mixedShaPrefix(parentUpstreamSha))
+        .replace("PARENT_LOCAL_SHA", mixedShaPrefix(parentLocalSha))
+        .replace("PARENT_ABS_PATH", path.join(parentRepo, "src/lib/foo.ts"))
+        .replace(
+          "PARENT_DOC_ONLY_ABS_PATH",
+          path.join(parentRepo, "src/lib/doc-only.ts"),
+        ),
+    "utf8",
+  )
+  return docPath
+}
+
 describe("validate-doc-claims script", () => {
   // Run every test against both skill copies — they must behave
   // identically since AGENTS.md requires duplication, not sharing.
@@ -128,6 +194,71 @@ describe("validate-doc-claims script", () => {
     const skillName = path.basename(skillDir)
 
     describe(`in ${skillName}`, () => {
+      test("checks cited paths and SHAs in the superproject of a docs submodule", () => {
+        const docPath = writeSubmoduleDoc(
+          "The fix lives in `src/lib/foo.ts` and landed in commit PARENT_SHA.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code, result.stdout).toBe(0)
+        expect(result.stdout).toContain("checked 1 paths, 1 SHAs")
+        expect(result.stdout).not.toContain("FLAG")
+      })
+
+      test("checks absolute paths in the superproject of a docs submodule", () => {
+        const docPath = writeSubmoduleDoc("See `PARENT_ABS_PATH`.\n")
+        const result = runValidator(skillDir, docPath)
+        expect(result.code, result.stdout).toBe(0)
+        expect(result.stdout).toContain("checked 1 paths")
+        expect(result.stdout).not.toContain("FLAG")
+      })
+
+      test("does not match an absolute parent path against a docs-only collision", () => {
+        const docPath = writeSubmoduleDoc(
+          "The docs file is `src/lib/doc-only.ts`; parent path is `PARENT_DOC_ONLY_ABS_PATH`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG path")
+        expect(result.stdout).toContain("src/lib/doc-only.ts")
+      })
+
+      test("checks a doc-relative path that reaches into the superproject", () => {
+        const docPath = writeSubmoduleDoc(
+          "The fix lives in `../../src/lib/foo.ts`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code, result.stdout).toBe(0)
+        expect(result.stdout).toContain("checked 1 paths")
+        expect(result.stdout).not.toContain("FLAG")
+      })
+
+      test("does not match a broken doc-relative path against the superproject", () => {
+        const docPath = writeSubmoduleDoc(
+          "The fix lives in `../src/lib/foo.ts`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG path")
+      })
+
+      test("classifies superproject paths and SHAs against its upstream", () => {
+        const docPath = writeSubmoduleDoc(
+          "The upstream file is `src/lib/upstream.ts` from commit PARENT_UPSTREAM_SHA.\n" +
+            "The local change is commit PARENT_LOCAL_SHA.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain(
+          "not in working tree but exists at origin/main",
+        )
+        expect(result.stdout).toContain(
+          "not reachable from HEAD but reachable from origin/main",
+        )
+        expect(result.stdout).toContain(
+          "reachable from HEAD but not origin/main",
+        )
+      })
+
       test("passes a clean doc citing an existing path and a shared SHA", () => {
         const docPath = writeRepoDoc(
           "The fix lives in `src/real-file.ts` and landed in commit " +
