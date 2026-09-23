@@ -11,7 +11,7 @@ applies_when:
   - "Writing or reviewing a scratch-root, lock, or temp-dir preamble an agent will execute"
   - "Supporting native Windows contributors (Git Bash, not WSL)"
   - "A skill works on macOS/Linux and fails on one host before doing any work"
-tags: [windows, git-bash, portability, shell, coreutils, testing, silent-failure, install, umask]
+tags: [windows, git-bash, portability, shell, coreutils, testing, silent-failure, install]
 ---
 
 # A shape assertion cannot prove a shell primitive exists — execute the documented block

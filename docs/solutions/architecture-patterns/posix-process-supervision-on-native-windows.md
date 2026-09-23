@@ -15,7 +15,7 @@ applies_when:
   - "Replacing fcntl.flock with a Windows file lock, or relying on a shared/read lock"
   - "Replacing a `ps`-based process-identity or start-time probe used as a PID-reuse guard"
   - "os.replace raises PermissionError on Windows but never on macOS/Linux"
-tags: [windows, cross-platform, process-supervision, job-objects, taskkill, ctypes, file-ownership, o-binary, detached-jobs, file-locking, msvcrt, pid-reuse, atomic-rename]
+tags: [windows, cross-platform, process-supervision, job-objects, taskkill, ctypes, file-ownership, o-binary]
 ---
 
 # Porting POSIX process supervision to native Windows: the primitives that fail silently

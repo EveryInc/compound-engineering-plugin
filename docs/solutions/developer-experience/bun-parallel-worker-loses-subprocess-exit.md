@@ -16,7 +16,7 @@ severity: medium
 tags:
   - bun
   - bun-test-parallel
-  - spawnSync
+  - spawnsync
   - flaky-tests
   - ci
 ---
