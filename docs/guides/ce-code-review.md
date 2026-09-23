@@ -166,7 +166,7 @@ Before confidence filtering, synthesis supplies evidence from matching reviewer 
 
 When findings span distinct concerns, related ones are grouped under a short theme (`grouping:auto`, the default). Groups are a triage lens, not a restructure: findings keep their stable `#`s, and groups reference them (`#2, #3`). Pass `grouping:off` for a flat report or `grouping:always` to group even small reviews.
 
-When the diff has an associated plan (`docs/plans/*.md` or `.html`), the skill discovers it (`plan:` argument, PR body link, or auto-discovery from branch name) and verifies the diff against Product Contract Requirements and Implementation Units on an implementation-ready artifact.
+When the diff has an associated plan (`docs/plans/*.md` or `.html`), the skill discovers it (`plan:` argument, PR body link, or auto-discovery from branch name) and verifies the diff against Product Contract Requirements and Implementation Units on an implementation-ready artifact. It also checks the reverse direction: a behavior rule the diff introduces that nothing in the plan asks for, such as silently dropping repeated requests, is reported as a P3 advisory finding for you to keep or remove. That finding never changes the verdict.
 
 Pipeline artifacts under `plans/`, `solutions/`, and legacy `brainstorms/` are protected. Findings to delete or gitignore them are discarded.
 

@@ -275,10 +275,12 @@ describe("ce-code-review contract", () => {
     expect(reverse).toContain("P3")
     expect(reverse).toContain("`autofix_class: advisory`")
     expect(reverse).toContain("`owner: human`")
+    expect(reverse).not.toMatch(/\bP[0-2]\b|downstream-resolver/)
 
     const finishReview = await readRepoFile("skills/ce-code-review/references/finish-review.md")
     const requirementsItem = finishReview.split("4. **Requirements Completeness.**")[1].split(/\n\d+\. \*\*/)[0]
     expect(requirementsItem).toMatch(/unrequested behavior rule/i)
+    expect(requirementsItem).toContain("plan.path")
   })
 
   test("documents agent mode contract for programmatic callers", async () => {
