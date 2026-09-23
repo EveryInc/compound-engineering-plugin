@@ -143,6 +143,41 @@ describe("ce-compound YAML safety rule presence", () => {
   })
 })
 
+// A learning whose guidance holds only while something outside the repo holds
+// names what would retire it, and the refresh checks that condition. The field
+// stays optional so existing learnings remain valid; the drift test above covers
+// the refresh copies of the schema and template.
+describe("learning retirement condition", () => {
+  test("schema.yaml offers retire_when as an optional field on both tracks", async () => {
+    const parsed = load(
+      await readFile(path.join(PLUGIN_ROOT, "ce-compound", "references/schema.yaml"), "utf8"),
+    ) as {
+      required_fields?: Record<string, unknown>
+      optional_fields?: Record<string, { description?: string }>
+    } | null
+    expect(parsed?.optional_fields?.retire_when?.description).toBeTruthy()
+    expect(parsed?.required_fields?.retire_when).toBeUndefined()
+  })
+
+  test("each resolution template track carries a retire_when line", async () => {
+    const raw = await readFile(
+      path.join(PLUGIN_ROOT, "ce-compound", "assets/resolution-template.md"),
+      "utf8",
+    )
+    expect(raw.match(/^retire_when:/gm)?.length).toBe(2)
+  })
+
+  test("ce-compound-refresh checks and classifies by retire_when", async () => {
+    for (const name of ["investigate.md", "classify.md"]) {
+      const raw = await readFile(
+        path.join(PLUGIN_ROOT, "ce-compound-refresh", "references", name),
+        "utf8",
+      )
+      expect(raw, `${name} lost the retire_when rule`).toContain("`retire_when`")
+    }
+  })
+})
+
 // The body carries the conditions and one pointer per step; the detail moved into
 // references the body names at that step. Split the guard the same way: the body
 // pins the mandatory reads (a lost pointer silently drops the whole reference),

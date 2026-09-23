@@ -23,6 +23,7 @@ symptoms:
 root_cause: [corpus value, else schema suggested default]
 resolution_type: [schema enum]
 severity: [schema enum]
+retire_when: [optional; the outside change that would retire this doc and how to check for it, else omit this line]
 tags: [keyword-one, keyword-two]
 ---
 
@@ -69,6 +70,7 @@ component: [corpus value, else schema suggested default]
 severity: [schema enum]
 applies_when:
   - [Condition where this applies]
+retire_when: [optional; the outside change that would retire this doc and how to check for it, else omit this line]
 tags: [keyword-one, keyword-two]
 ---
 

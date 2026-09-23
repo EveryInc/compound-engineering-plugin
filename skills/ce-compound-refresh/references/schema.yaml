@@ -192,6 +192,10 @@ optional_fields:
     max_items: 8
     description: "Search keywords, lowercase and hyphen-separated"
 
+  retire_when:
+    type: string
+    description: "The change outside the repo that would retire this learning, and how a refresh can check for it without changing the repo, e.g. \"example-org/sdk#1234 closed as fixed in a released sdk version; check the issue and the sdk release notes\". Set it only when the guidance holds just while something outside the repo holds: an open upstream bug, a tool or platform version, a dependency's behavior. Omit it otherwise. A verification that needs a repo change, such as removing a workaround and rerunning CI, belongs in the body as the step before removal."
+
 # --- Fields optional for bug track only -------------------------------------
 bug_optional_fields:
   framework_version:
@@ -223,5 +227,6 @@ validation_rules:
   - "Array fields must respect min_items/max_items when specified"
   - "date must match YYYY-MM-DD format"
   - "framework_version, if provided, only applies to bug-track docs"
+  - "retire_when is optional on both tracks; when present it is one string, and a doc without it stays valid"
   - "tags should be lowercase and hyphen-separated"
   - "Array-of-strings frontmatter items (symptoms, applies_when, tags, related_components, or any future array field) must be wrapped in double quotes when the value starts with a YAML reserved indicator (`, [, *, &, !, |, >, %, @, ?) or contains the substring `: ` — otherwise strict YAML parsers reject the file"
