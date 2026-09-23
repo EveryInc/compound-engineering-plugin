@@ -29,7 +29,7 @@ The `problem_type` determines which **track** applies. Each track has different 
 - **module**: Module or area affected
 - **date**: ISO date in `YYYY-MM-DD`
 - **problem_type**: One of the values listed in the Tracks table above
-- **component**: Component or area involved — open vocabulary (see Corpus-First Vocabulary). Suggested defaults when the corpus has no value for the area: `data_model`, `api_layer`, `service_layer`, `background_job`, `database`, `frontend`, `frontend_react`, `messaging`, `infrastructure`, `observability`, `authentication`, `payments`, `development_workflow`, `testing_framework`, `documentation`, `tooling`
+- **component**: Component or area involved — open vocabulary (see Corpus-First Vocabulary). Suggested defaults when the corpus has no value for the area: `data_model`, `api_layer`, `service_layer`, `background_job`, `database`, `frontend`, `messaging`, `infrastructure`, `observability`, `authentication`, `payments`, `development_workflow`, `testing_framework`, `documentation`, `tooling`
 - **severity**: One of `critical`, `high`, `medium`, `low`
 
 ## Bug Track Fields

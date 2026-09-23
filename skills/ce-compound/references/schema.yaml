@@ -80,7 +80,6 @@ required_fields:
       - background_job
       - database
       - frontend
-      - frontend_react
       - messaging
       - infrastructure
       - observability
