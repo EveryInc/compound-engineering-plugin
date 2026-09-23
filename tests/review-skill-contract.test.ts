@@ -262,10 +262,11 @@ describe("ce-code-review contract", () => {
   })
 
   test("checks plan alignment in reverse: an unrequested behavior rule is an advisory, human-owned finding", async () => {
-    // The lite and focused paths read only the Plan Requirements Completeness section by name,
-    // so the reverse check must sit inside it, which ends at the next heading of any level. The
-    // forward rule in the same section already carries the advisory/human route tokens, so the
-    // locator phrase is what makes this pin fail when the reverse paragraph goes missing.
+    // The lite and focused paths read intent-and-plan.md by section name, and finish-review item 4
+    // runs "that section's reverse check", so the reverse paragraph must sit inside Plan
+    // Requirements Completeness, which ends at the next heading of any level. The forward rule in
+    // the same section already carries the advisory/human route tokens, so the locator phrase is
+    // what makes this pin fail when the reverse paragraph goes missing.
     const intentAndPlan = await readRepoFile("skills/ce-code-review/references/intent-and-plan.md")
     const section = intentAndPlan.split("## Plan Requirements Completeness")[1].split(/\n#{2,6} /)[0]
     const reverse = section.split(/\n\s*\n/).find((paragraph) => /unrequested behavior rule/i.test(paragraph))
