@@ -1,6 +1,7 @@
 ---
 title: "A bun test worker that loses one subprocess exit turns the rest of its file into exact-timeout failures"
 date: 2026-09-11
+last_updated: 2026-09-23
 category: developer-experience
 module: test-suite
 problem_type: test_failure
@@ -13,6 +14,7 @@ symptoms:
 root_cause: dependency_bug
 resolution_type: workaround
 severity: medium
+retire_when: "oven-sh/bun#34069 and oven-sh/bun#41024 are closed as fixed in a released bun, which CI installs through bun-version: latest; check both issues and bun's release notes"
 tags:
   - bun
   - bun-test-parallel
@@ -61,4 +63,4 @@ Two consequences shape the fix. The wedge lives in the worker's event loop state
 - Keep every failure in an affected file a `TimeoutError`. On 2026-09-18 (`main`) and 2026-09-20 (PR 1748) the red runs carried 19 `TimeoutError`s plus about ten `ENOENT: ... lstat '/tmp/ce-work-repo-template-*/repo'`: the workspace harness's cached repo template had gone missing mid-file, every later `makeRepo` threw `ENOENT`, and that one non-timeout error kind blocked the re-run. `seedTemplate` now reseeds when the cached directory is gone. What removes the directory is not established.
 - Do not raise timeouts or add `retry` for this signature; both re-run inside the same wedged worker.
 - Keep the re-run inside the package `test` script so CI and local runs stay the same command, as `AGENTS.md` already requires for `--parallel`.
-- Check the bun issue before touching this: when it is fixed and CI runs a bun with the fix, the re-run pass becomes dead weight and can be removed.
+- The re-run pass retires under this doc's `retire_when` condition. A closed issue is not proof on its own: bun 1.4.0 fixed the common case while this wedge persisted. Before removing the re-run from `scripts/run-tests.ts`, confirm that repeated CI runs of `bun run test` stay green without it. Remove what exists only to feed it in the same change: `tests/helpers/lost-child-exit.ts` and the `AGENTS.md` sentence that explains the re-run.
