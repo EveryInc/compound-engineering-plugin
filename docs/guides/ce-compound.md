@@ -109,6 +109,8 @@ The track determines section order and frontmatter fields.
 
 `problem_type`, `severity`, and `resolution_type` are closed enums. `component` and `root_cause` are open vocabulary, and the category directories are a default layout, not a mandate. When `docs/solutions/` already holds learnings, the classifier samples their frontmatter and directory names and reuses what the corpus already uses for the area. It falls back to the schema's suggested values only for an empty corpus or an uncovered area. Repos with their own documentation vocabulary keep it, so their existing retrieval still finds the new doc.
 
+Some guidance holds only while something outside the repo holds: an open upstream bug, a tool or platform version, a dependency's behavior. Such a learning also records `retire_when`, which names the change that would retire it and how to check for it without changing the repo, so `ce-compound-refresh` can tell when it stops applying. Most learnings have no such condition and omit the field.
+
 ### Overlap, discoverability, and grounding
 
 The Related Docs Finder scores overlap with existing `docs/solutions/` content across five dimensions: problem statement, root cause, solution approach, referenced files, prevention rules.

@@ -76,6 +76,7 @@ With no hint, the skill clusters the store and recommends a starting area. Inter
 - A learning still names `app/models/auth_token.rb` after the file became `session_token.rb`
 - The recommended fix is now an anti-pattern
 - Two learnings describe the same problem from different months and have started to disagree
+- A workaround learning whose upstream bug was fixed, with nothing saying the workaround can go
 - A pattern doc whose supporting learnings no longer back the rule
 - Code that disappeared quarters ago, with the learning still sitting there
 - `_archived/` folders that pollute search and nobody reads
@@ -101,6 +102,8 @@ The skill investigates each doc against the tree, then looks at the set (overlap
 ### Five outcomes, not "is this still right?"
 
 Each doc gets a specific action and an evidence bar. Age alone is not staleness, and typos are not a reason to edit. When a doc's claims about current mechanics disagree with the code, the doc changes. Guidance with independent support is different: if the implementation stops satisfying it, the skill preserves the guidance and reports the conflict as a potential product regression. It never edits or adjudicates product code.
+
+A learning can declare a `retire_when` condition: the outside change, such as an upstream bug fix, that would retire it. The skill checks a declared condition and treats a met one as contradicting evidence, not age. When repo code still carries the workaround the learning explains, the learning stays and the report recommends removing that code. A condition the skill cannot check, for example because the tracker is unreachable, is noted in the report and does not change the learning on its own.
 
 ### Two modes
 
