@@ -143,8 +143,8 @@ describe("ce-compound YAML safety rule presence", () => {
   })
 })
 
-// A learning whose guidance holds only while something outside the repo holds
-// names what would retire it, and the refresh checks that condition. The field
+// A learning whose guidance depends on something outside the repo can name what
+// would retire it, and the refresh checks that condition. The field
 // stays optional so existing learnings remain valid; the drift test above covers
 // the refresh copies of the schema and template.
 describe("learning retirement condition", () => {
@@ -164,16 +164,26 @@ describe("learning retirement condition", () => {
       path.join(PLUGIN_ROOT, "ce-compound", "assets/resolution-template.md"),
       "utf8",
     )
-    expect(raw.match(/^retire_when:/gm)?.length).toBe(2)
+    const tracks = raw.split(/^## Knowledge Track Template$/m)
+    expect(tracks).toHaveLength(2)
+    for (const track of tracks) {
+      expect(track.match(/^retire_when:/gm)).toHaveLength(1)
+    }
   })
 
   test("ce-compound-refresh checks and classifies by retire_when", async () => {
-    for (const name of ["investigate.md", "classify.md"]) {
+    // Pin each rule's own paragraph with its ownership or safe direction, so the
+    // token surviving elsewhere in the file cannot mask a deleted rule.
+    const rules: Array<[string, RegExp]> = [
+      ["investigate.md", /^[^\n]*`retire_when`[^\n]*orchestrator[^\n]*$/m],
+      ["classify.md", /^[^\n]*`retire_when`[^\n]*recommended action[^\n]*$/m],
+    ]
+    for (const [name, rule] of rules) {
       const raw = await readFile(
         path.join(PLUGIN_ROOT, "ce-compound-refresh", "references", name),
         "utf8",
       )
-      expect(raw, `${name} lost the retire_when rule`).toContain("`retire_when`")
+      expect(raw, `${name} lost the retire_when rule`).toMatch(rule)
     }
   })
 })
