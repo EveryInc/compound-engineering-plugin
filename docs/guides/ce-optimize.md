@@ -121,6 +121,8 @@ Before the baseline, Phase 1 checks that the harness does not reward a trivial s
 
 A held-out set (`measurement.holdout.command`, or a second judge seed via `metric.judge.confirmation_seed`) is scored only before a keep and at final confirmation. The loop never selects from it or generates hypotheses from it, so a gain that only exists on the selection sample does not get kept. It is required for judge runs and for runs that wait between ticks on a wake after the turn ends; elsewhere it is optional and the approval message says plainly when it is missing.
 
+A kept change must also have earned its gain by doing the work the metric stands for. An immutable harness stops the metric from being changed, not from being gamed: a candidate can score by skipping work the harness never observes, or by breaking a spec `constraints` entry the harness does not check. Before committing a winner the agent reads its diff against the metric and the constraints (a gain well beyond the hypothesis's own estimate is the cue to read slowly), reverts a gain of that kind, and names in the log and the report what the harness could not see, so you can add that check to the harness for the next run.
+
 Judge output carries a `feedback` line per item saying what is wrong and what would fix it. The strategy digest groups that feedback into failure themes, and the next hypotheses come from the themes rather than from a rule per failing item. Identical outputs are judged once per run (a content-hash cache), and cost, tokens, and latency are logged per experiment when the harness reports them.
 
 ### Optimizing instruction text

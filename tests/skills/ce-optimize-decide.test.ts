@@ -1771,6 +1771,20 @@ describe("schema and skill pins", () => {
     expect(PERSISTENCE).toContain("| Detached worker |")
   })
 
+  test("a keep earns its gain by doing the work the metric stands for; immutability is not anti-gaming", () => {
+    // arXiv 2609.12039: a candidate can score by exploiting what the harness does not
+    // observe without touching it (the optimize-live fixture's count()-skipping dedupe).
+    // The keep step states the condition once; the template no longer claims immutability
+    // prevents gaming.
+    expect(LOOP).toContain("A keep has also earned its gain by doing the work the metric stands for.")
+    expect(LOOP).toContain("or from breaking a `constraints` entry the harness does not check, is not a keep")
+    expect(LOOP).toContain("Closing the gap is a harness or spec change for a new run")
+    expect(TEMPLATE).toContain("which means the metric cannot be changed, not that it cannot be gamed")
+    expect(TEMPLATE).not.toContain("cannot game the metric")
+    expect(LOG_SCHEMA).toContain("its gain did not come from doing the work the metric stands for")
+    expect(WRAP_UP).toContain("a revert found the harness does not check")
+  })
+
   test("the expensive-benchmark example declares three required hard targets and a ladder", () => {
     expect(EXAMPLE).toContain("name: reduce-test-suite-wall-time")
     expect(EXAMPLE).toContain("local_wall_seconds")

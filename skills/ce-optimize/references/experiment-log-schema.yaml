@@ -270,7 +270,7 @@ experiment_entry:
         - promising               # eligible on current samples but the ladder still needs confirmation before keep
         - kept                    # eligible, confirmed, and integrated onto the optimization branch
         - not_selected            # eligible after comparison but not integrated (not the winner, overlapping, or past the runner-up cap)
-        - reverted                # compared and not eligible (regressed a required objective, or none improved)
+        - reverted                # compared and not eligible (regressed a required objective, or none improved), or eligible but its gain did not come from doing the work the metric stands for (loop 3.4)
         - inconclusive            # delta inside the comparison threshold; not a keep and not a demonstrated regression
         - censored                # aborted as noncompetitive under the predeclared futility bound
         - degenerate              # degenerate gate or smoke test failed -> immediately reverted, no judge evaluation
@@ -424,7 +424,7 @@ experiment_entry:
 
     learnings:
       type: string
-      description: "What was learned from this experiment. The agent reads these to avoid re-trying similar approaches and to inform new hypothesis generation."
+      description: "What was learned from this experiment. The agent reads these to avoid re-trying similar approaches and to inform new hypothesis generation. For a revert whose gain did not come from doing the work, this names the observation or constraint the harness lacks."
 
     commit:
       type: string

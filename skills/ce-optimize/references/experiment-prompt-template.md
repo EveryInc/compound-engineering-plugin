@@ -30,7 +30,7 @@ You MAY modify files in these paths:
 You MUST NOT modify files in these paths:
 {scope_immutable}
 
-CRITICAL: Do not modify any file outside the mutable scope. The measurement harness and evaluation data are immutable by design -- the agent cannot game the metric by changing how it is measured.
+CRITICAL: Do not modify any file outside the mutable scope. The measurement harness and evaluation data are immutable, which means the metric cannot be changed, not that it cannot be gamed: a gain from anything other than doing the work the metric stands for, or one that breaks a constraint below, is reverted by the orchestrator however well it scores.
 </scope-rules>
 
 <constraints>
