@@ -1,0 +1,39 @@
+name: Docs solutions audit
+
+# Audits the frontmatter of every learning under docs/solutions/ with compound-cli's
+# `compound audit`: schema and parser-safety errors fail the job; findability
+# warnings (such as a missing applies_when) are printed but do not fail it until
+# the job moves to --strict. The audit is dev tooling for this repository only;
+# no skill depends on compound-cli.
+#
+# The pull_request trigger is not path-filtered: a path-filtered workflow stays
+# "Expected" on PRs that do not touch docs, which blocks merges once the check is
+# required. The job takes a few seconds.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Pinned to the compound-cli commit that shipped `compound audit` (PR #21).
+      # Switch to `bunx compound-cli@<version> audit` once the package is published
+      # to npm. `--bun` runs the TypeScript source, since a git checkout has no build.
+      - name: Audit learning frontmatter
+        run: bunx --bun github:kieranklaassen/compound-cli#36becb90361d656e5f52360949aa9dab39346943 audit
