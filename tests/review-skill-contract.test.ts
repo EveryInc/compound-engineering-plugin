@@ -261,6 +261,25 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("unaddressed requirements or implementation units")
   })
 
+  test("checks plan alignment in reverse: an unrequested behavior rule is an advisory, human-owned finding", async () => {
+    // The lite and focused paths read only the Plan Requirements Completeness section by name,
+    // so the reverse check must sit inside it, which ends at the next heading of any level. The
+    // forward rule in the same section already carries the advisory/human route tokens, so the
+    // locator phrase is what makes this pin fail when the reverse paragraph goes missing.
+    const intentAndPlan = await readRepoFile("skills/ce-code-review/references/intent-and-plan.md")
+    const section = intentAndPlan.split("## Plan Requirements Completeness")[1].split(/\n#{2,6} /)[0]
+    const reverse = section.split(/\n\s*\n/).find((paragraph) => /unrequested behavior rule/i.test(paragraph))
+
+    expect(reverse, "reverse check missing from Plan Requirements Completeness").toBeDefined()
+    expect(reverse).toContain("P3")
+    expect(reverse).toContain("`autofix_class: advisory`")
+    expect(reverse).toContain("`owner: human`")
+
+    const finishReview = await readRepoFile("skills/ce-code-review/references/finish-review.md")
+    const requirementsItem = finishReview.split("4. **Requirements Completeness.**")[1].split(/\n\d+\. \*\*/)[0]
+    expect(requirementsItem).toMatch(/unrequested behavior rule/i)
+  })
+
   test("documents agent mode contract for programmatic callers", async () => {
     const content = await readCodeReviewRuntimeContract()
 
