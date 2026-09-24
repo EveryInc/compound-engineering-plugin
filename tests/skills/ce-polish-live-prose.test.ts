@@ -15,8 +15,10 @@ const referencesDir = path.join(skillDir, "references")
 const scriptsDir = path.join(skillDir, "scripts")
 const SKILL_MD_BYTE_CEILING = 8000
 
-// riffrec main commit the fixtures, contract mirror, and install pin all refer to (tests/fixtures/ce-polish-live/SOURCE.md).
+// riffrec main commit the fixtures and contract mirror refer to (tests/fixtures/ce-polish-live/SOURCE.md).
 const RIFFREC_REFERENCE_SHA = "1393c17082e3b6a5b04d219fc6ae9083018c96a2"
+// First npm release of riffrec that carries live mode; install-riffrec.md installs `riffrec@^` this.
+const RIFFREC_MIN_VERSION = "2.2.1"
 
 const LIVE_FILES = ["live-start.md", "live-loop.md", "live-remote.md", "install-riffrec.md", "live-stream-contract.md"]
 
@@ -129,17 +131,19 @@ describe("ce-polish live-mode prose", () => {
     expect(loop).toContain("ce-commit")
   })
 
-  test("install-riffrec.md mounts live={{}} with forceEnable, pins the GitHub install to the reference commit, and keeps the registry range as the future switch (I5, KTD20)", async () => {
+  test("install-riffrec.md mounts live={{}} with forceEnable and installs the npm release that carries live mode (I5, KTD20)", async () => {
     const install = await read("references/install-riffrec.md")
     expect(install).toContain("<RiffrecProvider forceEnable live={{}}>")
-    expect(install).toContain("RIFFREC_MIN_VERSION")
-    expect(install).toContain("RIFFREC_MIN_COMMIT")
-    expect(install).toContain(RIFFREC_REFERENCE_SHA)
-    expect(install).toMatch(/kieranklaassen\/riffrec#/)
+    expect(install).toContain(`\`RIFFREC_MIN_VERSION\` = \`${RIFFREC_MIN_VERSION}\``)
+    expect(install).toContain(`<add verb> riffrec@^${RIFFREC_MIN_VERSION}`)
+    // The git pin is gone; a leftover git spec in the host app is replaced, not installed.
+    expect(install).not.toContain("RIFFREC_MIN_COMMIT")
+    expect(install).not.toContain(RIFFREC_REFERENCE_SHA)
+    expect(install).not.toMatch(/<add verb> kieranklaassen\/riffrec#/)
+    // The detect step still proves the installed build, not the declared range.
     expect(install).toMatch(/dist\/index\.d\.ts/)
-    // The registry range is the documented future switch, not a gate on today's git install.
-    expect(install).toMatch(/riffrec@\^<min>/)
-    expect(install).toMatch(/future switch/i)
+    expect(install).toContain("RiffrecLiveConfig")
+    expect(install).toContain("LOOK_AT_SCREEN_TOOL")
     expect(install).toMatch(/`installed` and `live_build` must both be true/)
     expect(install).toMatch(/setup commit/i)
     // The endpoint origin is never written into source or config (KTD20).
