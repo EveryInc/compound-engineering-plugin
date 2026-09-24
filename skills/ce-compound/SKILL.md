@@ -1,16 +1,16 @@
 ---
 name: ce-compound
 description: Document a solved problem as a durable repo learning. Use when verified work produced non-obvious reasoning absent from its final code, tests, or existing docs; avoid routine fixes whose artifacts already explain the lesson.
-argument-hint: "[optional: brief context] [mode:non-interactive] [depth:lightweight|full]"
+argument-hint: "[optional: brief context] [ticket:ABC-123] [mode:non-interactive] [depth:lightweight|full]"
 ---
 
 # /ce-compound
 
 **Outcome:** one qualifying solved problem is written as a durable learning under `<root>/solutions/`, grounded against the current tree, discoverable by the next agent.
 
-**Done:** a qualifying doc is written or updated, its frontmatter and claims validated, vocabulary capture recorded, and the mode's completion report emitted; when no learning qualifies, nothing is written and the report says why.
+**Done:** a qualifying doc is written or updated, frontmatter and claims validated, vocabulary recorded, and completion reported; otherwise the report explains why.
 
-**One learning per run.** A session that produced several gets several sequential runs, never one batched run. Read `references/research.md`; it explains what batching breaks.
+**One learning per run.** Capture several lessons in sequential runs; `references/research.md` explains why.
 
 
 ## Preconditions
@@ -35,11 +35,15 @@ An existing learning that became materially inaccurate or incomplete qualifies b
 /ce-compound mode:non-interactive depth:full [context]
 ```
 
-Enter non-interactive mode when **either** holds: the arguments you were invoked with contain the `mode:non-interactive` token or its deprecated alias `mode:headless`, **or** the invocation makes non-interactive intent unmistakable, such as a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". Both tokens together is not a conflict. Bare "automatically" or "auto-run" is **not** on its own a non-interactive signal: it speaks to *invoking* the skill, not to suppressing its prompts. An ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` or `depth:` are flags, not context: strip them before treating the remainder as the brief context hint. Once detected, non-interactive mode applies for the entire run.
+Enter non-interactive mode when **either** holds: the arguments you were invoked with contain the `mode:non-interactive` token or its deprecated alias `mode:headless`, **or** the invocation makes non-interactive intent unmistakable, such as a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". Both tokens together is not a conflict. Bare "automatically" or "auto-run" is **not** on its own a non-interactive signal: it speaks to *invoking* the skill, not to suppressing its prompts. An ambiguous or absent signal defaults to interactive. Tokens starting with `mode:`, `depth:`, or `ticket:` are flags, not context: strip them before treating the remainder as the brief context hint. Once detected, non-interactive mode applies for the entire run.
 
 Depth is chosen only by an explicit token, only in non-interactive mode, and at most one depth token is accepted. `depth:lightweight` routes directly to Lightweight Mode. `depth:full` or no depth token enters Full Mode, including its automatic session-history probe. A non-interactive call carrying no depth token therefore behaves as it always has. Non-interactive lightweight asks no blocking questions and launches no subagents. If the invocation carries an unknown `depth:` token, multiple `depth:` tokens, or a `depth:` token without non-interactive intent, do not guess: emit the non-interactive failure report with the reason and end with `Documentation skipped`.
 
 **Non-interactive mode asks nothing.** It asks no blocking question of any kind, in any phase, because a caller reaching this path has no human to answer one. Every non-interactive exit, including one taken before any phase runs, ends on a terminal signal a caller parses: `Documentation complete`, or `Documentation skipped` with the reason when no doc was written. Interactive mode asks only where the step's own reference says to, which is the Discoverability Check consent and, when several stale docs are in play, which refresh to run.
+
+## Worktree preflight
+
+Read `references/worktree-preflight.md` before Artifact Root or writing.
 
 ## Artifact Root
 
@@ -55,9 +59,9 @@ Resolve `<root>` when you first compose a `<root>/solutions/` path, and pass a s
 
 ## Write boundary
 
-**Only the orchestrator writes product files.** Phase 1 subagents write to per-run scratch only, and never touch `<root>/`, project instruction files, or any other tracked path.
+**Only the orchestrator writes product files through preflight.** Phase 1 subagents write to scratch only, never to tracked paths.
 
-The orchestrator writes the one learning under `<root>/solutions/`, plus two maintenance side effects that its own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. Creating `CONCEPTS.md` when it is absent is expected rather than a violation. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to `ce-compound-refresh`, which this skill recommends or invokes with a narrow scope but never stands in for.
+The orchestrator writes the one learning under `<root>/solutions/`, plus two maintenance side effects that its own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. Creating `CONCEPTS.md` when it is absent is expected rather than a violation. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to `ce-compound-refresh`, which this skill recommends with a narrow scope but never stands in for.
 
 ## Choosing the path
 

@@ -24,7 +24,7 @@ It does **not** make sense to invoke `ce-compound-refresh` when:
 
 Use these rules:
 
-- If there is **one obvious stale candidate**, invoke `ce-compound-refresh` with a narrow scope hint after the new learning is written
+- If there is **one obvious stale candidate**, recommend `ce-compound-refresh` with a narrow scope hint after the new learning is written. That skill establishes its own write destination when run separately; do not invoke it automatically from this isolated capture.
 - If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set
 - If context is already tight or you are in lightweight mode, do not expand into a broad refresh automatically; instead recommend `ce-compound-refresh` as the next step with a scope hint
 - **In non-interactive mode**, never invoke `ce-compound-refresh` and never ask the user. Put the recommended scope hint in the terminal report's "Refresh recommendation" line and let the caller decide

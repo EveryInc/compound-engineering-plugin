@@ -42,11 +42,11 @@ RUN_DIR="$SCRATCH_ROOT/ce-compound/$RUN_ID";
 echo "$RUN_DIR";
 ```
 
-**Resolve current vocabulary and conventions before dispatching subagents.** Use the project's active instructions and conventions already in your context. If `CONCEPTS.md` exists, read its relevant terms and pass them to the Context Analyzer.
+**Resolve current vocabulary and conventions before dispatching subagents.** Use the project's active instructions and conventions already in your context. Read `CONCEPTS.md` from the preflight's `worktree` when it exists, then pass relevant terms to the Context Analyzer.
 
 **CRITICAL: glob `<root>/solutions/` fresh every run.** The current vocabulary and conventions above do not substitute for the live-tree search in step 3.
 
-Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagent prompt. Each subagent **writes its full structured output** to its own file under `{run_dir}/`, **confirms the write succeeded** (the file exists and is non-empty), and then **returns only a one-line confirmation containing the artifact path**, not the prose body inline. Artifact filenames by subagent:
+Pass `{run_id}`, the resolved absolute `{run_dir}`, and the preflight's absolute `worktree` into every Phase 1 subagent prompt. Direct every repository and corpus read to that `worktree`, including when a subagent uses a shell tool whose working directory defaults to the original checkout. Only Session History uses `source_root`. Each subagent **writes its full structured output** to its own file under `{run_dir}/`, **confirms the write succeeded** (the file exists and is non-empty), and then **returns only a one-line confirmation containing the artifact path**, not the prose body inline. Artifact filenames by subagent:
 
 - **Context Analyzer** → `{run_dir}/context.json` (frontmatter skeleton, category path, filename, track)
 - **Solution Extractor** → `{run_dir}/solution.md` (the full doc-body prose sections)
@@ -55,7 +55,7 @@ Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagen
 
 **Return the full output inline whenever the artifact write did not succeed.** This covers both cases where the orchestrator's Phase 2 inline fallback would otherwise have nothing to read: (a) `{run_id}` is empty or did not resolve (non-Claude-Code platforms where the pre-resolution failed), so there is no path to write to; and (b) `{run_id}` resolved but the write itself failed (tool permission denied, absolute-path writes unavailable, disk error, or the post-write existence check came back empty). In either case the subagent must return its complete structured output inline instead of a path, because the path would point at a file that does not exist. Return only the bare path when, and only when, the write is confirmed on disk. The artifact pattern is a reliability improvement, not a hard requirement; the orchestrator handles a missing artifact in Phase 2 by using the inline return.
 
-**Resolve declared Compound Packs before dispatch** by running this skill's resolver as one command:
+**Resolve declared Compound Packs before dispatch** by running this skill's resolver as one command with the shell tool's working directory set to the preflight's `worktree`:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";

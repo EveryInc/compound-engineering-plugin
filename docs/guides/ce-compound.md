@@ -66,9 +66,18 @@ An empty invoke evaluates the most recent verified fix from this conversation an
 
 # Unattended Full capture, including the automatic session-history probe
 /ce-compound mode:non-interactive depth:full the verified caching fix
+
+# Bind a capture and its resumable worktree to a specific issue
+/ce-compound ticket:RM-1520 the verified worktree safety fix
 ```
 
 One learning per run. If the session produced several distinct qualifying learnings, invoke the skill once per learning. A standalone "bootstrap CONCEPTS.md" request gets redirected to `ce-compound-refresh`. Use non-interactive mode only when the caller should own any follow-up decisions. Ordinary interactive capture can still ask before changing project guidance.
+
+### Worktree isolation
+
+Before writing, `ce-compound` prepares a clean, task-owned Git worktree. It leaves the original checkout, index, and untracked files untouched. Pass `ticket:ABC-123` when an issue identifies the work; without a ticket, the original branch and commit provide a stable task identity. A repeated run reuses the same owned worktree, including after an interrupted write. The helper records expected output content and writes it atomically; later edits or unrelated changes block reuse with recovery guidance. The skill keeps the worktree after completion, so cleanup is an explicit repository action.
+
+The capture is grounded against committed code in the prepared worktree. If the verified fix exists only in uncommitted source changes, commit the fix and ensure the owned branch contains that commit before retrying; the skill will not move those changes into the learning branch. An interactive pack destination must also live inside the isolated worktree. External pack roots remain readable for overlap checks but are not write destinations for that run.
 
 ---
 
@@ -221,6 +230,7 @@ In interactive Full mode, the skill may also make a small edit to `AGENTS.md`/`C
 |----------|--------|
 | _(empty)_ | Evaluate the most recent verified fix using conversation context and document it when it qualifies |
 | `<brief context>` | Focuses the capture (for example, "the email digest race condition we fixed") |
+| `ticket:ABC-123` | Binds worktree creation and resume to an issue ID. |
 | `mode:non-interactive` | Unattended run: no blocking questions. Defaults to Full. Deprecated alias: `mode:headless`. |
 | `depth:lightweight` | Non-interactive only. Single-pass workflow: no subagents, no overlap research, no session-history probe. |
 | `depth:full` | Non-interactive only. Complete workflow, including the automatic session-history probe. |
