@@ -1,0 +1,20 @@
+---
+description: Compound Engineering Cursor per-role model choices. Overrides portable skill defaults on Cursor only.
+alwaysApply: true
+---
+# Compound Engineering Cursor model configuration. One line per role.
+# A project or user rule with the same role label overrides this plugin default.
+# `inherit-parent` or `auto` omits the subagent model override (the role runs on the parent chat model).
+# On Cursor this table supersedes the skill's portable tier mapping for native subagent dispatch. It does not change Claude Code, Codex, or CLI peer routes.
+# A model named in the conversation still wins.
+# Shipped defaults omit OpenAI slugs.
+
+bakeoff bakers: cursor-grok-4.6-high, gemini-3.7-flash-high, composer-2.5-fast
+bakeoff judge: claude-fable-5-1-thinking-medium
+code-review session: inherit-parent
+code-review mid: cursor-grok-4.6-high
+code-review cheap: composer-2.5-fast
+code-review finish: inherit-parent
+doc-review cheap: composer-2.5-fast
+doc-review high: inherit-parent
+doc-review mid: cursor-grok-4.6-high

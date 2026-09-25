@@ -21,6 +21,8 @@ Do not feed `fast-pass` candidates into the persona or validator prompts. Those 
 
 #### Model tiering
 
+Session-model personas use the `code-review session` role. Every other persona and CE local prompt asset uses `code-review mid`.
+
 Three reviewers inherit the session model with no override: `correctness-reviewer`, `security-reviewer`, and `adversarial-reviewer`. These perform the highest-stakes analysis (logic bugs, security vulnerabilities, adversarial failure scenarios) and should run at whatever capability level the user has configured. If the user is on Opus, these get Opus.
 
 All other persona subagents and CE local prompt assets use the platform's mid-tier model to reduce cost and latency. See the Spawning subsection below for the exact dispatch-time override.
@@ -43,8 +45,12 @@ Omit the `mode` parameter when dispatching sub-agents so the user's configured p
 
 **Model override at dispatch time: this is a correctness guarantee, not cosmetics.** Omitting the override on a top-tier parent session (e.g. Opus) silently runs that reviewer at the expensive tier, which is the regression this prevents. The tier is a deterministic function of the persona. So as you select reviewers in Stage 3 (select reviewers), **record each reviewer's tier in an internal working list**. That list is your external memory (the role the old printed `[session model]`/`[mid-tier]` labels served), and it must exist and be honored even though it is no longer rendered in the user-facing announce:
 
-- **Session model** (no override; inherits the session model): `correctness-reviewer`, `security-reviewer`, and `adversarial-reviewer` only.
-- **Mid-tier**: every other persona and CE agent. Pass the platform's balanced mid-tier model. In Claude Code, that is the Sonnet class. In Codex, apply this tier only when the active dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. Otherwise omit the override and inherit the parent model: a working review on the parent model beats a broken dispatch on an unrecognized name.
+<!-- ce-cursor-role-models:start -->
+**When a host-specific role table is already in context** and this host exposes a known model override, that table supplies the model for the dispatch role named here. `inherit-parent` and `auto` omit the override. A missing or deleted role line uses the portable default on this page. A model named in this conversation still wins. If more than one table names the role, a project or user rule wins over the plugin default. Hosts with no such table keep the portable rule below.
+<!-- ce-cursor-role-models:end -->
+
+- **Session model** (no override; inherits the session model): `correctness-reviewer`, `security-reviewer`, and `adversarial-reviewer` only. Dispatch role: `code-review session`.
+- **Mid-tier**: every other persona and CE agent. Pass the platform's balanced mid-tier model. In Claude Code, that is the Sonnet class. In Codex, apply this tier only when the active dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. Otherwise omit the override and inherit the parent model: a working review on the parent model beats a broken dispatch on an unrecognized name. Dispatch role: `code-review mid`.
 
 Apply this on **every** Agent / `spawn_agent` / subagent call. A missed override is a silent cost-and-quality regression, so treat the internal tier list as required. Moving it out of the user-facing output removed the *display*, not the requirement to keep and follow it.
 

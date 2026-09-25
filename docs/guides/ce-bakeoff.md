@@ -42,6 +42,8 @@ Bakers prefer different model families through native host access, then availabl
 
 A fresh subagent running `ce-pov` as a guest is required before selection. A different model family is preferred: use native host model access when suitable, otherwise an available authorized model CLI or adapter. A fresh same-family judge is a disclosed fallback; no independent judge means incomplete. The coordinator reconciles the assessment with its own comparison and verifies consequential premises against source evidence before returning the winner. An explicitly requested oracle, or a consequential disagreement that survives source checking and warrants consultation within budget, uses `ce-pov`'s existing panel. All judging and verification fit within the Bake-off budget.
 
+On Cursor, native baker and judge dispatch uses the plugin's always-applied role table (`rules/ce-cursor-models.mdc`). A baker panel assigns models in launch order and does not change how many bakers this run launches. Conversation mixes still win. CLI fallback routes are unchanged. Override with a project or user Cursor rule that uses the same role labels; see [Cursor native role models](./configuration.md#cursor-native-role-models).
+
 ## Position in the workflow
 
 - **In planning:** automatic on Standard/Deep Durable plans when research leaves a consequential, costly-to-reverse HOW open whose alternatives need development, or on request; it runs after research and before fixing that decision. A settled HOW, alternatives already concrete enough to judge, a budget the competition cannot fit, or an instruction to just pick one keeps planning on the ordinary path. The selected approach informs the normal plan; final authoring, confidence, review, and handoff remain in planning.

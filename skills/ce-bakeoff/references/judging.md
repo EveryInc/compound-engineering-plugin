@@ -2,6 +2,11 @@
 
 A completed Bake-off includes a fresh subagent running `ce-pov` in warm/guest mode that authored no candidate, alongside the coordinator's own comparison. The judge follows POV's grounding and verdict contract; Bake-off owns its independent context and the comparison inputs. Prefer a different model family from the coordinator when available within the authorized access and budget. Independent context is required; model diversity is preferred. A fresh same-family judge is a disclosed fallback, not cross-model evidence.
 
+The native judge dispatch role is `bakeoff judge`.
+<!-- ce-cursor-role-models:start -->
+**When a host-specific role table is already in context** and this host exposes a known model override, that table supplies the model for the dispatch role named here. `inherit-parent` and `auto` omit the override. A missing or deleted role line uses the portable default on this page. A model named in this conversation still wins. If more than one table names the role, a project or user rule wins over the plugin default. Hosts with no such table keep the portable rule below.
+<!-- ce-cursor-role-models:end -->
+
 ## Choose available model access
 
 Use the active host's actual delegation and model-selection capabilities. Prefer native fresh-context dispatch when it can serve the desired judge; a host with multiple model families needs no external process. Otherwise use an available authenticated model CLI or established model-access adapter within the existing authority. Discover supported invocation, model selection, read scope, result collection, and cancellation from the available capability or its current help. Do not guess model IDs or flags, install tools, change credentials, or create a new dispatch framework for one assessment. An existing caller adapter owns its mechanics when used. Before external judge dispatch, the dispatch owner briefly names the recipient and the material it will inspect, unless that recipient and scope are already disclosed. Keep this to who reviews what; omit operational detail.

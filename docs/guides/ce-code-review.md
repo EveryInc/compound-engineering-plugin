@@ -134,6 +134,10 @@ The prerequisite is a peer agent CLI. The pass drives a read-only agent CLI (`co
 
 This shares the provider/route kernel with `ce-doc-review` but keeps a narrower scope: adversarial-only, diff/work-tree delivery, not doc-review's judgment trio or whole-doc sweep.
 
+## Cursor native reviewer models
+
+On Cursor, native reviewer and finish-leaf dispatch uses the plugin's always-applied role table (`rules/ce-cursor-models.mdc`) instead of the portable session/mid/cheap mapping. The cross-model CLI peer above is a separate route and is unchanged. Override with a project or user Cursor rule that uses the same role labels; see [Cursor native role models](./configuration.md#cursor-native-role-models).
+
 ## Severity and autofix class are orthogonal
 
 Severity answers urgency (P0 = critical breakage, P3 = user discretion). Autofix class describes follow-up shape, not apply permission:

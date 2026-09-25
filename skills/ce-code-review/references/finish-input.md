@@ -69,7 +69,11 @@ Each leaf reads, from `skill_dir`, `references/finish-review.md` and every refer
 
 ## How the dispatch context launches a leaf
 
-Put the full contents of `finish-input.json` inline in the leaf's prompt, together with the absolute paths of the run directory, this reference, and `references/finish-review.md`, and tell it which stages it owns, to read those two references first, and to record its own stage in the stage log with `scripts/run-log.py` under `skill_dir` (the recipe is in `references/scope.md`, Stage log). Inline the file rather than only naming it: the facts it carries are small, and a subagent that has them in its prompt cannot skip the read. Everything larger (the diff, the per-reviewer artifacts, the compact returns) stays on disk and is read by path. No override on the model: both leaves inherit the session model. Tell each leaf plainly that it launches no subagents.
+Put the full contents of `finish-input.json` inline in the leaf's prompt, together with the absolute paths of the run directory, this reference, and `references/finish-review.md`, and tell it which stages it owns, to read those two references first, and to record its own stage in the stage log with `scripts/run-log.py` under `skill_dir` (the recipe is in `references/scope.md`, Stage log). Inline the file rather than only naming it: the facts it carries are small, and a subagent that has them in its prompt cannot skip the read. Everything larger (the diff, the per-reviewer artifacts, the compact returns) stays on disk and is read by path. No override on the model: both leaves inherit the session model. The dispatch role is `code-review finish`.
+<!-- ce-cursor-role-models:start -->
+**When a host-specific role table is already in context** and this host exposes a known model override, that table supplies the model for the dispatch role named here. `inherit-parent` and `auto` omit the override. A missing or deleted role line uses the portable default on this page. A model named in this conversation still wins. If more than one table names the role, a project or user rule wins over the plugin default. Hosts with no such table keep the portable rule below.
+<!-- ce-cursor-role-models:end -->
+Tell each leaf plainly that it launches no subagents.
 
 Apply the agent lifecycle rule in `references/dispatch-reviewers.md` (Agent lifecycle) to each leaf and to the validator.
 
