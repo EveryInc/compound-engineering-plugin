@@ -2,7 +2,10 @@
 # This is the canonical schema for the experiment log file that accumulates
 # across an optimization run.
 #
-# Location: .context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml
+# Location: <state-root>/experiment-log.yaml, where <state-root> is the durable
+# state root resolved in Phase 0 (references/persistence.md): the harness's
+# durable store when it names one, otherwise
+# .context/compound-engineering/ce-optimize/<spec-name>/
 #
 # PERSISTENCE MODEL:
 # The experiment log on disk is the SINGLE SOURCE OF TRUTH. The agent's
@@ -15,6 +18,9 @@
 # - Outcome fields may also be updated in-place after batch evaluation (step 3.5)
 # - The `best` section is updated after each batch if a new best is found
 # - The `hypothesis_backlog` is updated after each batch
+# - `approval` is written once, the moment the Phase 1 gate is cleared
+# - `run_state` is written at CP-4 and whenever a pending wait is registered
+#   or cleared
 # - The agent re-reads this file from disk at every phase boundary
 #
 # The orchestrator does NOT read the full log each iteration -- it uses a
@@ -71,6 +77,36 @@ structure:
           judge_cost_usd:
             type: number
 
+  harness_validation:
+    type: object
+    required: false
+    description: "Result of the Phase 1 metric validity gate, written at CP-1 before the baseline. Absent in legacy logs means the gate was not run, not that it passed."
+    children:
+      timestamp:
+        type: string
+        format: "ISO 8601 timestamp"
+      separates_known_good_from_bad:
+        type: boolean
+        description: "The harness scored every known-good exemplar above every known-bad one in the metric's direction; null when no exemplars existed and the probe was not run"
+      rejects_trivial_shortcut:
+        type: boolean
+        description: "An empty, constant, or copied output did not score at or above the known-good exemplars"
+      judge_agreement:
+        type: number
+        description: "Fraction of calibration labels the judge agreed with (judge primary only; null when waived or not applicable)"
+      calibration:
+        type: enum
+        values: [passed, waived, not_run, not_applicable]
+      waiver:
+        type: string
+        description: "Who waived calibration and when, verbatim from the user's message (only when calibration is waived)"
+      holdout_configured:
+        type: boolean
+        description: "Whether a held-out confirmation set was configured for this run"
+      probes:
+        type: array
+        description: "One record per probe run: name, inputs used, observed values, and pass/fail"
+
   experiments:
     type: array
     required: true
@@ -96,6 +132,68 @@ structure:
       total_judge_cost_usd:
         type: number
         description: "Running total of all judge costs across all experiments"
+
+  approval:
+    type: object
+    required: false
+    description: >
+      The Phase 1 user approval, recorded so a resume (including an unattended
+      wake) does not re-ask it. Valid while spec_sha256 matches the SHA-256 of
+      the spec.yaml bytes on disk and every cap below matches the spec. Absent,
+      or no longer matching, means the gate is presented again. Missing in
+      legacy logs means the gate is presented again on resume, as before.
+    children:
+      approved_at:
+        type: string
+        format: "ISO 8601 timestamp"
+      spec_sha256:
+        type: string
+        description: "SHA-256 hex digest of the saved spec.yaml bytes at approval time"
+      caps:
+        type: object
+        description: "The limits the user approved: stopping.* as in force, metric.judge.max_total_cost_usd (null only with the explicit uncapped-spend yes), execution.max_concurrent"
+
+  run_state:
+    type: object
+    required: false
+    description: >
+      Tick-level loop state for resume across turns. Written at CP-4 and
+      whenever a pending wait is registered or cleared. Absent in a log that
+      has not reached Phase 3 or in a legacy log; treat absent clocks as zero
+      and absent pending_waits as none.
+    children:
+      status:
+        type: string
+        enum: [running, waiting, blocked, final]
+        description: "running inside a tick; waiting between ticks on recorded pending waits or on the user's wrap-up choice; blocked on something outside the loop (report it, do not spin); final after CP-5"
+      tick:
+        type: integer
+        description: "Completed ticks (batches) so far"
+      phase3_started_at:
+        type: string
+        format: "ISO 8601 timestamp"
+        description: "Wall-clock anchor for stopping.max_wall_hours"
+      active_seconds:
+        type: number
+        description: "Time spent inside ticks since Phase 3 started, summed across ticks; the clock stopping.max_hours reads"
+      pending_waits:
+        type: array
+        description: "Work outstanding across the turn boundary. Empty when nothing is outstanding. A turn may end with entries here only when each waits on an event a registered wake will deliver."
+        items:
+          type: object
+          children:
+            item:
+              type: string
+              description: "What is outstanding: an experiment iteration, a judge batch, a timer"
+            arrives_as:
+              type: string
+              description: "The observable the wake delivers: a store file, a pushed ref, a host message naming the launch, a timer fire"
+            wake:
+              type: string
+              description: "The registered wake that will deliver it (identifier or description)"
+            on_arrival:
+              type: string
+              description: "The action to take: collect through 3.3, evaluate, re-check stopping"
 
   hypothesis_backlog:
     type: array
@@ -172,7 +270,7 @@ experiment_entry:
         - promising               # eligible on current samples but the ladder still needs confirmation before keep
         - kept                    # eligible, confirmed, and integrated onto the optimization branch
         - not_selected            # eligible after comparison but not integrated (not the winner, overlapping, or past the runner-up cap)
-        - reverted                # compared and not eligible (regressed a required objective, or none improved)
+        - reverted                # compared and not eligible (regressed a required objective, or none improved), or eligible but its gain did not come from doing the work the metric stands for (loop 3.4)
         - inconclusive            # delta inside the comparison threshold; not a keep and not a demonstrated regression
         - censored                # aborted as noncompetitive under the predeclared futility bound
         - degenerate              # degenerate gate or smoke test failed -> immediately reverted, no judge evaluation
@@ -206,7 +304,8 @@ experiment_entry:
         children:
           kind:
             type: string
-            enum: [standalone, integrated]
+            enum: [standalone, integrated, holdout]
+            description: "holdout pairings are scored on the held-out set before a keep and at final confirmation; they never feed selection or hypothesis generation"
           reference_revision:
             type: string
             description: "Identity that uniquely identifies the measured reference bytes. A revision is enough when it names those bytes; a HEAD shared by different uncommitted trees is not."
@@ -215,6 +314,13 @@ experiment_entry:
             description: "Identity that uniquely identifies the measured candidate bytes. A revision is enough when it names those bytes; a HEAD shared by different uncommitted trees is not."
           workload:
             type: string
+          machine:
+            type: string
+            description: "Stable identifier of the machine or worker that produced both sides of this pairing, on every kind including holdout. Present for remote-backend results; absent means this checkout. Pairings from different machines are never compared to each other's absolute numbers."
+          measured_by:
+            type: string
+            enum: [orchestrator, worker, confirmation_worker]
+            description: "Who produced this pairing, on every kind including holdout. A remote winner needs one worker pairing and one pairing not produced by the candidate's author before keep; a remote holdout pairing is always orchestrator or confirmation_worker, never worker."
           reference:
             type: object
             description: "Existing snapshot shape: metrics and judge, with aggregates and samples where available"
@@ -264,6 +370,40 @@ experiment_entry:
         judge_cost_usd:
           type: number
           description: "Cost of judge calls for this experiment"
+        items:
+          type: array
+          description: "Per-item judge results. Feedback is what hypothesis generation reads; scores alone cannot say what to change."
+          items:
+            type: object
+            children:
+              item_id:
+                type: string
+              content_hash:
+                type: string
+                description: "Hash of the judged item bytes; the key for the run's judge cache, so identical output is not re-judged"
+              feedback:
+                type: string
+                description: "What is wrong with this item and what change would fix it, from the judge"
+              ambiguous:
+                type: boolean
+              # Plus every scoring field the rubric requests
+
+    cost:
+      type: object
+      description: "Per-experiment diagnostics recorded when the harness or judge reports them; absent otherwise. Never gated on."
+      children:
+        usd:
+          type: number
+        tokens:
+          type: integer
+        latency_seconds:
+          type: number
+
+    regressions:
+      type: array
+      description: "Case ids the reference passed and this candidate fails, from decide.mjs when measurement.per_case is true. Report only."
+      items:
+        type: string
 
     primary_delta:
       type: string
@@ -279,12 +419,12 @@ experiment_entry:
 
     next_measurement:
       type: string
-      enum: [none, smoke, exploratory, add_sample, confirm]
-      description: "Ladder next step from decide.mjs; none when the decision is terminal"
+      enum: [none, smoke, exploratory, add_sample, confirm, holdout]
+      description: "Ladder next step from decide.mjs; none when the decision is terminal. holdout means the selection comparison would keep, and the held-out comparison is still missing."
 
     learnings:
       type: string
-      description: "What was learned from this experiment. The agent reads these to avoid re-trying similar approaches and to inform new hypothesis generation."
+      description: "What was learned from this experiment. The agent reads these to avoid re-trying similar approaches and to inform new hypothesis generation. For a revert whose gain did not come from doing the work, this names the observation or constraint the harness lacks."
 
     commit:
       type: string
@@ -301,6 +441,41 @@ experiment_entry:
     merged_with:
       type: integer
       description: "Iteration number of the experiment this was merged with (only for 'runner_up_kept' and 'runner_up_reverted')"
+
+# ============================================================================
+# RESULT MARKER (result.yaml)
+# ============================================================================
+#
+# Written by the measuring party immediately after measurement, before CP-3.
+# Local backends write it at the experiment worktree root with metrics only.
+# A remote worker writes it at its checkout root, commits it on the result ref,
+# and the orchestrator copies it to <state-root>/exp-<NNN>-result.yaml.
+
+result_marker:
+  children:
+    experiment:
+      type: integer
+    base_sha:
+      type: string
+      description: "Commit the worker started from and measured as baseline; must equal the dispatched base_sha or the result is an error"
+    head_sha:
+      type: string
+      description: "Final commit on the result ref (remote only)"
+    machine:
+      type: string
+      description: "Stable identifier of the measuring machine or worker (remote only)"
+    measured_at:
+      type: string
+      format: "ISO 8601 timestamp"
+    baseline:
+      type: object
+      description: "Paired snapshot of base_sha on the same machine: gates, metrics { name: { aggregate, samples } }, diagnostics (remote only)"
+    candidate:
+      type: object
+      description: "Snapshot of head_sha; local backends write only this side's raw metrics"
+    correctness:
+      type: string
+      description: "Checks the measuring party ran and their results, or none"
 
 # ============================================================================
 # OUTCOME STATE TRANSITIONS
@@ -336,13 +511,28 @@ experiment_entry:
 # ============================================================================
 #
 # Written after each batch to:
-#   .context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md
+#   <state-root>/strategy-digest.md
 #
 # Contains a compressed summary of:
 # - What hypothesis categories have been tried
 # - Which approaches succeeded (kept) and which failed (reverted)
 # - The exploration frontier: what hasn't been tried yet
 # - Key learnings that should inform next hypotheses
+# - Failure themes: recurring judge `feedback` (or failing `cases`) on the
+#   current best, grouped, with counts. Built from selection-sample items
+#   only; holdout items never appear here.
 #
 # The orchestrator reads the strategy digest (not the full experiment log)
 # when generating new hypotheses between batches.
+
+# ============================================================================
+# JUDGE CACHE (separate file)
+# ============================================================================
+#
+# Written as judge results land, to:
+#   <state-root>/judge-cache.yaml
+#
+# Maps content_hash -> the judge's item result (scores, feedback, ambiguous).
+# Scoped to one run and one rubric: identical item bytes are scored once and
+# reused, so a long run does not pay to re-judge output that did not change.
+# A rubric change is a new run and a new cache.

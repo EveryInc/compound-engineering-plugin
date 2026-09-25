@@ -181,10 +181,31 @@ required_fields:
           model:
             type: enum
             values:
-              - haiku
-              - sonnet
-            default: haiku
-            description: "Model to use for judge evaluation. Haiku is cheaper and faster; Sonnet is more nuanced."
+              - cheap    # the host's fastest, lowest-cost tier
+              - strong   # the host's most capable tier
+            default: cheap
+            description: "Capability tier for the judge. The active harness resolves the tier to a concrete model; the spec never names one. Legacy values haiku and sonnet read as cheap and strong."
+          confirmation_seed:
+            type: integer
+            default: null
+            description: "Seed for a second, held-out judge sample scored only before a keep and at final confirmation. Must differ from sample_seed. This is the judge-type holdout when measurement.holdout is unset; see the holdout validation rules."
+          calibration:
+            type: object
+            default: null
+            description: "Optional evidence that the judge scores the way a person would, checked in Phase 1 when labels are set. Without it the approval gate states that the judge is unchecked. Required (labels or an explicit waiver) only when the run waits between ticks through a wake after turn end."
+            optional_children:
+              labels:
+                type: string
+                default: null
+                description: "Path to a human-labeled sample: items with the user's rubric score and, when given, the reason. Phase 1 writes it for the user during the guided check (default <state-root>/judge-labels.yaml); a sample kept in the repo is reusable across runs. Around ten items shows a pattern; 20-50 makes the agreement figure dependable."
+              min_agreement:
+                type: number
+                default: 0.8
+                description: "Fraction of labeled items on which the judge's score must agree with the human label for the harness to be accepted."
+              waived:
+                type: boolean
+                default: false
+                description: "True only when the user explicitly waived calibration for a run that would otherwise require it. Record who waived and when in the experiment log's harness_validation."
           sample_size:
             type: integer
             default: 10
@@ -250,6 +271,28 @@ required_fields:
         type: string
         default: "."
         description: "Working directory for the measurement command, relative to the repo root"
+      holdout:
+        type: object
+        default: null
+        description: >
+          A held-out confirmation set the loop never selects or generates
+          hypotheses from. Scored only before a keep and at final
+          confirmation. When configured, a keep requires the holdout comparison
+          to agree with the selection comparison (decide.mjs takes the second
+          snapshot pair as `holdout` and returns `next_measurement: holdout`
+          when it is still missing). Required when metric.primary.type is
+          'judge' and when the run waits between ticks through a wake after
+          turn end; otherwise optional, and its absence is stated in the
+          Phase 1 approval presentation.
+        optional_children:
+          command:
+            type: string
+            default: null
+            description: "Shell command that runs the harness on the held-out set and prints the same JSON shape as measurement.command. For a judge primary, metric.judge.confirmation_seed may stand in for this command."
+      per_case:
+        type: boolean
+        default: false
+        description: "When true, the measurement JSON also carries a `cases` object mapping a stable case id to a boolean pass/fail (1/0 accepted). decide.mjs then reports `regressions`: cases the reference passed and the candidate fails. Report only; it does not change the decision."
       stability:
         type: object
         default: { mode: "stable" }
@@ -373,12 +416,19 @@ optional_fields:
         values:
           - worktree  # git worktrees for isolation (default)
           - codex     # Codex sandboxes for isolation
+          - remote    # detached workers with their own checkout; results arrive as a pushed ref or store file
         default: worktree
+        description: "Where experiments run. remote needs a detached-worker capability (SKILL.md Execution Surface); without one the run falls back to worktree. remote workers measure paired on their own machine, so it requires a relative or paired comparison."
       max_concurrent:
         type: integer
         default: 4
         minimum: 1
-        description: "Maximum experiments to run in parallel. Capped at 6 for worktree backend. 8+ only valid for Codex backend."
+        description: "Maximum experiments to run in parallel. Capped at 6 for worktree backend. 8+ only valid for Codex or remote backends. For remote this caps dispatched workers, not local worktrees."
+      max_experiments_per_tick:
+        type: integer
+        default: null
+        minimum: 1
+        description: "Optional cap on experiments dispatched in one tick (one batch) of the loop. Bounds how much a single wake or session does before it checkpoints. Unset means max_concurrent alone bounds the batch."
       codex_security:
         type: enum
         values:
@@ -444,7 +494,7 @@ optional_fields:
 
   stopping:
     type: object
-    default: { max_iterations: 100, max_hours: 8, plateau_iterations: 10, target_reached: true }
+    default: { max_iterations: 100, max_hours: 8, max_wall_hours: 72, plateau_iterations: 10, target_reached: true }
     description: "When the optimization loop should stop. Any criterion can trigger a stop."
     optional_children:
       max_iterations:
@@ -454,7 +504,11 @@ optional_fields:
       max_hours:
         type: number
         default: 8
-        description: "Stop after this many hours of wall-clock time"
+        description: "Stop after this many active hours: time spent inside loop ticks since Phase 3 started, summed across ticks. Time spent waiting between ticks does not count. In one uninterrupted session this equals wall-clock time."
+      max_wall_hours:
+        type: number
+        default: 72
+        description: "Calendar backstop: stop once this many hours have passed since Phase 3 started, whether or not the run was active. No wake or resume extends it. Must be >= max_hours."
       plateau_iterations:
         type: integer
         default: 10
@@ -485,6 +539,8 @@ validation_rules:
   - "Gate check operators must be one of: >=, <=, >, <, ==, !="
   - "execution.max_concurrent must be >= 1"
   - "execution.max_concurrent must not exceed 6 when execution.backend is 'worktree'"
+  - "execution.backend must be one of: worktree, codex, remote"
+  - "If execution.backend is 'remote', measurement.stability.comparison.method must be 'paired' or 'relative'; absolute numbers from different machines are not comparable"
   - "If parallel.exclusive_resources is non-empty, execution.mode should be 'serial'"
   - "If metric.judge.singleton_sample > 0, metric.judge.singleton_rubric must be present"
   - "If metric.primary.type is 'judge' and metric.judge.max_total_cost_usd is null, the user should explicitly approve uncapped spend"
@@ -496,3 +552,14 @@ validation_rules:
   - "comparison.method, when set, must be one of: absolute, relative, paired"
   - "If measurement.stability.mode is 'ladder', exploratory_pairs and confirmation_repeats (or repeat_count) must be positive integers, and confirmation must be at least exploratory_pairs"
   - "futility.after_elapsed_seconds, when set, must be a positive number"
+  - "stopping.max_wall_hours must be a positive number and at least stopping.max_hours"
+  - "execution.max_experiments_per_tick, when set, must be a positive integer"
+  - "If the run waits between ticks through a wake after turn end and metric.primary.type is 'judge', metric.judge.max_total_cost_usd must be set; unattended spend is never uncapped"
+  - "metric.judge.model, when set, must be cheap or strong (legacy haiku and sonnet read as cheap and strong)"
+  - "A holdout is configured when measurement.holdout.command is set, or when metric.primary.type is 'judge' and metric.judge.confirmation_seed is set and differs from sample_seed"
+  - "If metric.primary.type is 'judge', a holdout must be configured"
+  - "If the run waits between ticks through a wake after turn end, a holdout must be configured; an unattended keep is never confirmed on the selection sample alone"
+  - "When a holdout is configured, a keep requires the holdout comparison to agree with the selection comparison; the holdout is never used to select or generate hypotheses"
+  - "When metric.judge.calibration.labels is set, the harness is accepted only when the judge meets min_agreement against them"
+  - "If metric.primary.type is 'judge' and the run waits between ticks through a wake after turn end, calibration labels must meet min_agreement or metric.judge.calibration.waived must be true with the user's explicit waiver; an attended judge run may proceed uncalibrated, stated at approval"
+  - "If measurement.per_case is true, the measurement JSON must carry a `cases` object"

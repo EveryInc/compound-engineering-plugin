@@ -43,6 +43,8 @@ Check whether the input is:
 
    If the user insists on `type: hard` for a qualitative target, proceed but warn that the results may optimize a misleading proxy.
 
+   **Exemplars for the validity gate.** A person's input is needed only where the score is itself a judgment. When the primary is measured objectively (a duration, a size, a count, a pass rate over fixed cases), ask the user for nothing here: the measurement is its own ground truth, and Phase 1 builds the shortcut probe itself. When the primary is a judgment (`type: judge`, or a hard metric standing in for a quality the user would otherwise rate), use the known-good and known-bad outputs the project already has (recorded failures, fixtures, the cases of a text target) and ask the user only for what is missing: a few outputs they would score at the top and a few at the bottom. A user who has none to give is not blocked; Phase 1 runs the probes it can and states the rest as a limitation at approval. When the target is instruction text (a skill, an agent-instructions file, a persona, a tool description), read `references/text-targets.md` before going further: the eval set and the hypothesis moves differ from a code target.
+
 3. **Design the sampling strategy** (for `type: judge`):
 
    Guide the user through defining stratified sampling. The key question is: "What parts of the output space do you need to check quality on?"
@@ -76,6 +78,7 @@ Check whether the input is:
    - Includes supplementary fields that help diagnose issues (e.g., `distinct_topics`, `outlier_count`)
    - Is specific enough that two judges would give similar scores
    - Does NOT assume bigger/more is better. "3 items per cluster average" is not inherently good or bad
+   - Asks for a per-item `feedback` string (what is wrong, what would fix it); the judge template requires it and Phase 3 generates hypotheses from it
 
    Example for clustering:
    ```yaml
@@ -97,5 +100,8 @@ Check whether the input is:
    - If this is the first run: recommend `execution.mode: serial`, `execution.max_concurrent: 1`, `stopping.max_iterations: 4`, and `stopping.max_hours: 1`
    - If the user named multiple required hard targets or an expensive harness: recommend `metric.objectives` plus `stability.mode: ladder` as above, and show `references/example-expensive-benchmark-spec.yaml`
    - If `type: judge`: recommend `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5` until the rubric and harness are trusted
-6. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
-7. Present the proposed scope, behavior constraints, measurement approach, and limits for approval before proceeding, with a link to the saved spec. Apply the SKILL.md body's user-facing reporting rule.
+   - Holdout: a held-out set the loop confirms against but never selects from. `measurement.holdout.command` (same JSON shape as the measurement command), or for a judge primary `metric.judge.confirmation_seed` distinct from `sample_seed`. Required for `type: judge` and when the run waits between ticks through a wake after turn end (`references/persistence.md`, The Wait Record and Ticks); otherwise recommended, and its absence is stated at the approval gate
+   - If `type: judge`: do not ask for hand-scored examples here. When the user already has a labeled sample, name it in `metric.judge.calibration.labels`; otherwise leave it unset, and Phase 1 offers a short guided check once the baseline has been judged (`references/measurement.md` 1.3)
+   - Per-case results: when the harness can emit a `cases` map (case id to pass/fail), set `measurement.per_case: true` so keeps and the wrap-up report which cases the baseline passed and the candidate fails
+6. Write the spec to `<state-root>/spec.yaml`, with `<state-root>` resolved by `references/persistence.md` (The State Root)
+7. Present the proposed scope, behavior constraints, measurement approach, and limits for approval before proceeding, with a link to the saved spec. Apply the SKILL.md body's user-facing reporting rule. Put whatever the user is being asked to judge in front of them: for a judge primary that is the rubric's scale, level by level, because it is their definition of better and they cannot approve it from a link to a file. Send all of that as an ordinary message, laid out so it is easy to read (the scale as a list, scope and limits on their own lines), and only then ask. The question itself is one short sentence and its options: a question picker shows long text as a single cramped block.
