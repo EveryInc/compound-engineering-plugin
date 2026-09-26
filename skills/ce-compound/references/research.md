@@ -65,6 +65,13 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 
 Pass the JSON's `roots` (pack `id` + absolute `dir`, plus `url`/`ref` when git-sourced) into the Related Docs Finder's prompt; report `errors`/`warnings` once in the completion report and nowhere else. With no `packs:` key the result is empty and nothing changes. When the command yields no JSON (no interpreter, script not found, non-zero exit), packs are unresolved for this run: the finder searches `<root>/solutions/` alone, say so once in the completion report, and never stop the run for it.
 
+**Model tiers.** This skill, not the prompt assets, picks each subagent's model. It picks by what the output becomes, never by a hardcoded model name:
+
+- **Mid tier:** work that finds, classifies, or summarizes evidence for the orchestrator to judge. That covers the Context Analyzer, the Related Docs Finder, and the session-history synthesis subagent. Use the platform's mid-tier model when the current harness exposes a known override. In Claude Code, that is the Sonnet class.
+- **Inherited model:** the Solution Extractor, because its prose becomes the permanent doc body. Omit the model parameter.
+
+In Codex, apply the mid tier only when the active dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. If model names are unknown, omit the override and inherit rather than guessing. When the platform has no per-agent model selection, dispatch on the inherited model with the same contracts.
+
 **Dispatch.** Launch `Context Analyzer`, `Solution Extractor`, and `Related Docs Finder` in parallel, in the background, and do not wait on them here. They keep running underneath the session-history step the body starts next, so the two overlap and the wall-clock cost is `max(session-history, slowest background subagent)` rather than their sum.
 
 Classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and if another launch failure survives correction, run that role in the parent context with the same contract and artifact path rather than dropping it.
