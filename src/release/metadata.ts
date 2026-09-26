@@ -45,6 +45,13 @@ type AntigravityManifest = {
   version: string
 }
 
+type TesslPluginManifest = {
+  name: string
+  version: string
+  description?: string
+  skills?: string
+}
+
 type MarketplaceManifest = {
   metadata: {
     version: string
@@ -263,6 +270,7 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   const compoundClaudePath = path.join(root, ".claude-plugin", "plugin.json")
   const compoundCursorPath = path.join(root, ".cursor-plugin", "plugin.json")
   const compoundAntigravityPath = path.join(root, "plugin.json")
+  const compoundTesslPath = path.join(root, ".tessl-plugin", "plugin.json")
   const compoundKimiPath = path.join(root, ".kimi-plugin", "plugin.json")
   const compoundDevinPath = path.join(root, ".devin-plugin", "plugin.json")
   const marketplaceClaudePath = path.join(root, ".claude-plugin", "marketplace.json")
@@ -319,6 +327,30 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       errors.push(`${compoundAntigravityPath} is missing but ${compoundClaudePath} exists. Antigravity plugin.json parity required.`)
       updates.push({ path: compoundAntigravityPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  // Tessl registry manifest version sync is detect-only. release-please owns the
+  // write via extra-files, same as other native plugin manifests.
+  try {
+    const compoundTessl = await readJson<TesslPluginManifest>(compoundTesslPath)
+    if (compoundTessl.name !== "shortrib-labs/compound-engineering") {
+      errors.push(`${compoundTesslPath}: name "${compoundTessl.name}" does not match expected "shortrib-labs/compound-engineering"`)
+    }
+    if (compoundClaude.description !== undefined && compoundTessl.description !== compoundClaude.description) {
+      errors.push(`${compoundTesslPath}: description "${compoundTessl.description}" does not match expected "${compoundClaude.description}"`)
+    }
+    await validateDeclaredSkillsPath(compoundTesslPath, "shortrib-labs/compound-engineering", "Tessl", compoundTessl.skills, errors)
+    updates.push({
+      path: compoundTesslPath,
+      changed: compoundTessl.version !== expectedCompoundVersion,
+    })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${compoundTesslPath} is missing but ${compoundClaudePath} exists. Tessl plugin manifest parity required.`)
+      updates.push({ path: compoundTesslPath, changed: false })
     } else {
       throw err
     }
