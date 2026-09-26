@@ -1,6 +1,7 @@
 ---
 title: "Pass paths, not content, when dispatching sub-agents"
 category: skill-design
+module: skills
 problem_type: design_pattern
 component: tooling
 root_cause: inadequate_documentation

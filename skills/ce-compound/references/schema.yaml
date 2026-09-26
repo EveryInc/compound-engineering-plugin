@@ -8,6 +8,10 @@
 # Both tracks share the same required core fields. The tracks differ in which
 # additional fields are required vs optional (see track_rules below).
 
+# Contract version for tools that load this file at a pinned ref (compound-cli).
+# Bump only when the file's shape changes, not when values are added.
+schema_version: 1
+
 # --- Track classification ---------------------------------------------------
 tracks:
   bug:

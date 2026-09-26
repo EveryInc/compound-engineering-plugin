@@ -28,10 +28,6 @@ tags:
   - frontier-model
   - named-fields
   - fake-cli
-  - fixture-design
-  - variance
-  - cross-host
-  - eval-methodology
 ---
 
 # Prove a skill prose change moved behavior with paired old-vs-new blind injection

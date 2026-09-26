@@ -32,6 +32,29 @@ jobs:
             perf
             revert
 
+  docs-audit:
+    # compound-cli's `compound audit` over docs/solutions/: schema and parser-safety
+    # errors fail the job; findability warnings are printed only (non-strict).
+    # Its own job, not part of `bun run test` or `release:validate`: the local test
+    # lane and the plugin must never need compound-cli or network access, and no
+    # skill depends on compound-cli.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Pinned to the compound-cli commit that shipped `compound audit` (PR #21).
+      # Switch to `bunx compound-cli@<version> audit` once the package is published
+      # to npm. `--bun` runs the TypeScript source, since a git checkout has no build.
+      - name: Audit docs/solutions frontmatter
+        run: bunx --bun github:kieranklaassen/compound-cli#36becb90361d656e5f52360949aa9dab39346943 audit
+
   test:
     runs-on: ubuntu-latest
     # A wedged bun --parallel worker (oven-sh/bun#34069) can sit with no output

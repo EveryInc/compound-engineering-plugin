@@ -12,13 +12,13 @@ symptoms:
   - "The harness spawnSync of python3 unit-workspace.py returns status null (code -1) with empty stdout and stderr; a bare git add in the same file fails the same way"
   - "bun prints 'killed 1 dangling process' at the first timeout"
 root_cause: dependency_bug
-resolution_type: workaround
+resolution_type: tooling_addition
 severity: medium
 retire_when: "oven-sh/bun#34069 and oven-sh/bun#41024 are closed as fixed in a released bun, which CI installs through bun-version: latest; check both issues and bun's release notes"
 tags:
   - bun
   - bun-test-parallel
-  - spawnSync
+  - spawnsync
   - flaky-tests
   - ci
 ---
