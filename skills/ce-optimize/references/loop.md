@@ -15,7 +15,7 @@ The next action is the cheapest executable step that would change what gets impl
 
 Do not treat the implementation backlog as empty, and do not proceed to wrap-up, while a cheaper locating measurement can still be taken and would change whether a hypothesis is kept or skipped. If such a measurement would change that decision but cannot be obtained, wrap up and say what blocked it. Do not implement without that measurement.
 
-Optionally read `references/agents/repo-research-analyst.md` and dispatch a generic subagent seeded with that local prompt for deeper codebase analysis if the scope is large or unfamiliar. Do not dispatch a standalone agent by type/name. Pass the active project and optimization context, request only question-specific scopes such as `patterns`, and go directly to current owning code. If the optimization cannot be scoped, allow one targeted root or workspace probe.
+Optionally read `references/agents/repo-research-analyst.md` and dispatch a generic subagent seeded with that local prompt for deeper codebase analysis if the scope is large or unfamiliar. Do not dispatch a standalone agent by type/name. The analysis feeds hypotheses this skill judges, so it takes the same mid-tier model as the Phase 0.3 learnings search when the harness exposes a known override; otherwise omit the override and inherit. Pass the active project and optimization context, request only question-specific scopes such as `patterns`, and go directly to current owning code. If the optimization cannot be scoped, allow one targeted root or workspace probe.
 
 ### 2.2 Generate Hypothesis List
 

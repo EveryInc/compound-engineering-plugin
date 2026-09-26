@@ -6,7 +6,12 @@ Phase 1 of `ce-plan`. Read this before dispatching any research subagent.
 
 All specialist research and deepening prompts used in this phase are skill-local prompt assets under `references/agents/`. When dispatching one, read the matching file and seed a generic subagent with that prompt content plus the task-specific context below. Do not dispatch standalone agents by type/name.
 
-This skill, not the prompt assets, decides which model tier each subagent uses. Local prompt files have no frontmatter. Use the platform's mid-tier model for external/organizational research prompts such as `slack-researcher` and `web-researcher` when the current harness exposes a known override; otherwise omit the override and inherit. Use inherited model for high-judgment architecture, migration, and planning-deepening prompts unless the harness has an established cheaper capable tier.
+This skill, not the prompt assets, decides which model tier each subagent uses. Local prompt files have no frontmatter. The tier follows what the output becomes:
+
+- **Mid tier:** prompts that retrieve and summarize evidence for this skill to judge. That covers the local, git-history, learnings, external, and organizational research prompts: `repo-research-analyst`, `learnings-researcher`, `git-history-analyzer`, `best-practices-researcher`, `framework-docs-researcher`, `slack-researcher`, and `web-researcher`. Use the platform's mid-tier model when the current harness exposes a known override. In Claude Code, that is the Sonnet class.
+- **Inherited model:** prompts whose output is itself a judgment the plan adopts, such as flow analysis, architecture, migration, and planning-deepening reviews. Omit the model parameter unless the harness has an established cheaper capable tier.
+
+In Codex, apply the mid tier only when the active dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. If model names are unknown, omit the override and inherit rather than guessing.
 
 #### 1.1 Local Research
 

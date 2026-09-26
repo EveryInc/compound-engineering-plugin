@@ -59,7 +59,7 @@ Resolve two values at runtime with the shell tool before Phase 1 session-history
 
    Use `extract-errors.py` selectively when dead ends or recurring errors are likely useful. Pass only the scratch file paths and metadata to the synthesis subagent.
 
-   **Synthesis dispatch.** Build a generic subagent prompt containing:
+   **Synthesis dispatch.** Dispatch on the mid tier per the model-tier rule in `references/research.md`. Build a generic subagent prompt containing:
    - the full content of `references/agents/session-historian.md`
    - `problem_topic`
    - `scratch_dir`
