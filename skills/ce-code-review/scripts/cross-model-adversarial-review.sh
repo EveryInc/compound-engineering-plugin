@@ -1276,7 +1276,11 @@ bounded_failure_evidence() {   # <logfile>
   # Ancillary fields describe the exit but are not the diagnostic itself. If
   # no recognized human-readable field exists, retain bounded raw output so a
   # CLI's newer or provider-specific error field is still visible.
-  [ -n "$human" ] && evidence="$human" || evidence="$(cat "$path")"
+  # Bound the raw fallback: bash 3.2 rewrites newlines in a large string
+  # superlinearly, so a full stream log would stall the worker for minutes.
+  if [ -n "$human" ]; then evidence="$human"
+  elif [ "$(wc -c <"$path")" -le 600 ]; then evidence="$(cat "$path")"
+  else IFS= read -r -d '' -n 300 evidence <"$path"; evidence="$evidence ... $(tail -c 300 "$path")"; fi
   [ -n "$ancillary" ] && evidence="${evidence:+$evidence | }$ancillary"
   evidence="${evidence//$'\n'/ }"
   if [ "${#evidence}" -gt 300 ]; then
