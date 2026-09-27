@@ -190,3 +190,34 @@ jobs:
       # on Windows. Shell out via bun so the same file also runs in the ubuntu suite.
       - name: Scratch-root preamble executes under Git Bash
         run: bun test tests/scratch-root-preamble-executes.test.ts
+
+  # The cross-model workers' skip-evidence helper once stalled for minutes on macOS
+  # /bin/bash 3.2 (#1785). Ubuntu's bash 5 cannot reproduce that, so this job runs the
+  # guard under the real 3.2 and fails if the image stops shipping it.
+  macos-bash32:
+    runs-on: macos-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      # Call /bin/bash explicitly: the runner's PATH bash is Homebrew bash 5.
+      - name: Require bash 3.x at /bin/bash
+        run: |
+          /bin/bash -c 'echo "/bin/bash is $BASH_VERSION"; case "$BASH_VERSION" in 3.*) ;; *) echo "::error::/bin/bash is not bash 3.x, so this job cannot observe the bash 3.2 regression"; exit 1 ;; esac'
+
+      # bun exits 0 when the named test is skipped, so the summary must show it ran.
+      - name: Failure-evidence guard under bash 3.2
+        run: |
+          log="$RUNNER_TEMP/guard.log"
+          bun test tests/skills/cross-model-peer-budget.test.ts -t "cross-model failure evidence" 2>&1 | tee "$log"
+          grep -Eq '^ *[1-9][0-9]* pass$' "$log" || { echo "::error::the failure-evidence guard did not run"; exit 1; }
+          if grep -Eq '^ *[1-9][0-9]* (skip|todo)$' "$log"; then echo "::error::the failure-evidence guard was skipped"; exit 1; fi
