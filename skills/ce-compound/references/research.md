@@ -67,8 +67,8 @@ Pass the JSON's `roots` (pack `id` + absolute `dir`, plus `url`/`ref` when git-s
 
 **Model tiers.** This skill, not the prompt assets, picks each subagent's model. It picks by what the output becomes, never by a hardcoded model name:
 
-- **Mid tier:** work that finds, classifies, or summarizes evidence for the orchestrator to judge. That covers the Context Analyzer, the Related Docs Finder, and the session-history synthesis subagent. Use the platform's mid-tier model when the current harness exposes a known override. In Claude Code, that is the Sonnet class.
-- **Inherited model:** the Solution Extractor, because its prose becomes the permanent doc body. Omit the model parameter.
+- **Mid tier:** work that finds, classifies, or summarizes evidence for the orchestrator to judge. That covers the Context Analyzer and the session-history synthesis subagent. Use the platform's mid-tier model when the current harness exposes a known override. In Claude Code, that is the Sonnet class.
+- **Inherited model:** the Solution Extractor, because its prose becomes the permanent doc body, and the Related Docs Finder, because assembly acts on its overlap verdict without re-deriving it (High updates an existing doc; pack-covered writes nothing on a non-interactive run). Omit the model parameter.
 
 In Codex, apply the mid tier only when the active dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. If model names are unknown, omit the override and inherit rather than guessing. When the platform has no per-agent model selection, dispatch on the inherited model with the same contracts.
 

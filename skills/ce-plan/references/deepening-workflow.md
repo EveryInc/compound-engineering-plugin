@@ -189,6 +189,8 @@ Refer to the echoed absolute path as `<scratch-dir>` throughout the rest of this
 
 Launch the selected local prompt assets as generic subagents in parallel using the execution mode chosen above. If the current platform does not support parallel dispatch, run them sequentially instead. Omit the `mode` parameter when dispatching so the user's configured permission settings apply.
 
+Pick each subagent's model tier by the rule in `references/research.md`: the research prompts it lists run on the mid tier, and every other prompt inherits the model.
+
 Prefer local repo and institutional evidence first. Use external research only when the gap cannot be closed responsibly from repo context or already-cited sources.
 
 If a selected section can be improved by reading the origin document more carefully, do that before dispatching external agents.
