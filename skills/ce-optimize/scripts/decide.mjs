@@ -410,9 +410,9 @@ function compareRequired({
 }
 
 // The held-out pair is scored with the same gates, objectives, and thresholds
-// as the selection pair. It confirms a keep; it never selects. A holdout that is not
-// itself an eligible improvement withholds the keep.
-function confirmHoldout({ spec, holdout, required, comparison, aggregation }) {
+// as the selection pair. It confirms a keep; it never selects. A holdout that
+// does not improve an objective the selection improved withholds the keep.
+function confirmHoldout({ spec, holdout, required, comparison, aggregation, selectionImproved }) {
   const gateFailures = evaluateGates(spec, holdout.candidate)
   if (gateFailures.length) {
     return {
@@ -462,12 +462,12 @@ function confirmHoldout({ spec, holdout, required, comparison, aggregation }) {
       reason: `holdout regressed ${compared.violated.join(", ")}`,
     }
   }
-  if (!compared.improved.length) {
+  if (!compared.improved.some((item) => selectionImproved.includes(item.name))) {
     return {
       ...summary,
       agrees: false,
       decision: "inconclusive",
-      reason: "holdout did not confirm the selection gain",
+      reason: `holdout did not confirm the selection gain in ${selectionImproved.join(", ")}`,
     }
   }
   return { ...summary, agrees: true, decision: "keep", reason: null }
@@ -544,6 +544,7 @@ export function decide(input) {
     baselineBundles[primary.name] ?? metricBundle(baseline, primary.name, aggregation, primary.type)
   const primaryComparison = comparisons[primary.name] ?? null
   const eligible = improved.length > 0 && violated.length === 0
+  const improvedNames = improved.map((item) => item.name)
   const stillContending = required.some(
     (objective) => comparisons[objective.name]?.verdict === "inconclusive",
   )
@@ -570,7 +571,7 @@ export function decide(input) {
   ) {
     return closedResult({
       decision: "censored",
-      improved_objectives: improved.map((item) => item.name),
+      improved_objectives: improvedNames,
       violated_objectives: violated,
       comparisons,
       primary_delta: primaryComparison?.delta ?? null,
@@ -610,7 +611,7 @@ export function decide(input) {
 
   let reason = "no required objective improved"
   if (eligible) {
-    reason = `improved ${improved.map((item) => item.name).join(", ")} without violating other required objectives`
+    reason = `improved ${improvedNames.join(", ")} without violating other required objectives`
   } else if (decision === "inconclusive") {
     reason = "delta inside the comparison threshold"
   } else if (violated.length) {
@@ -626,7 +627,14 @@ export function decide(input) {
       nextMeasurement = "holdout"
       reason = "selection comparison would keep; held-out confirmation still missing"
     } else {
-      holdout = confirmHoldout({ spec, holdout: input.holdout, required, comparison, aggregation })
+      holdout = confirmHoldout({
+        spec,
+        holdout: input.holdout,
+        required,
+        comparison,
+        aggregation,
+        selectionImproved: improvedNames,
+      })
       if (!holdout.agrees) {
         decision = holdout.decision
         keepEligible = false
@@ -640,7 +648,7 @@ export function decide(input) {
     eligible: keepEligible,
     next_measurement: nextMeasurement,
     target_reached: targetReached,
-    improved_objectives: improved.map((item) => item.name),
+    improved_objectives: improvedNames,
     violated_objectives: violated,
     comparisons,
     primary_delta: primaryComparison?.delta ?? null,

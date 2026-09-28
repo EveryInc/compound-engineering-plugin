@@ -13,7 +13,7 @@ If any hypotheses were deferred due to unapproved dependencies:
 
 ### 4.2 Summarize Results
 
-Report from the persisted forecasts and measurements, with the final state confirmed using the configured measurement protocol. If confirmation is unavailable, label the final values unconfirmed and state why. A legacy log remains reportable: missing forecasts, comparison baselines, or uncertainty stay unrecorded rather than being reconstructed from the final result.
+Report from the persisted forecasts and measurements, with the final state confirmed using the configured measurement protocol. The confirmation measures the original baseline revision (the commit the optimization branch started from) and the final state as one pairing, and repeats that pairing on the holdout when one is configured; the per-keep holdout pairs compare successive states and do not stand in for it. Persist both pairings in `comparisons` (the held-out one as `kind: holdout`). If confirmation is unavailable, label the final values unconfirmed and state why. A legacy log remains reportable: missing forecasts, comparison baselines, or uncertainty stay unrecorded rather than being reconstructed from the final result.
 
 The summary must contain:
 

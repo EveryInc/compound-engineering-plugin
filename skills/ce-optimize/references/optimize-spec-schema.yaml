@@ -188,7 +188,7 @@ required_fields:
           confirmation_seed:
             type: integer
             default: null
-            description: "Seed for a second, held-out judge sample scored only before a keep and at final confirmation. Must differ from sample_seed. This is the judge-type holdout when measurement.holdout is unset; see the holdout validation rules."
+            description: "Seed for a second, held-out judge sample scored only before a keep and at final confirmation. Must differ from sample_seed. A different seed alone does not make the sample held out: draw it only from items of that same output the selection sample did not draw, so the two share no item. An output with no item left outside the selection sample cannot be confirmed this way, so its candidate is not kept; a spec whose outputs are that small needs measurement.holdout.command instead. This is the judge-type holdout when measurement.holdout is unset; see the holdout validation rules."
           calibration:
             type: object
             default: null

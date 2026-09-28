@@ -1612,6 +1612,32 @@ describe("held-out confirmation", () => {
     )
   })
 
+  test("a holdout gain only in an objective the selection did not improve withholds the keep", () => {
+    const spec = hardSpec({
+      objectives: [
+        { name: "wall_seconds", direction: "minimize", role: "required" },
+        { name: "memory_mb", direction: "minimize", role: "required" },
+      ],
+      comparison: { method: "relative", relative_threshold: 0.05 },
+      measurement: { holdout: { command: "python evaluate.py --holdout" } },
+    })
+    const snap = (wall: number, memory: number) => ({
+      gates: { suite_passed: 1 },
+      metrics: { wall_seconds: wall, memory_mb: memory },
+    })
+    const result = decide({
+      spec,
+      baseline: snap(10, 100),
+      candidate: snap(8, 100),
+      holdout: { baseline: snap(10, 100), candidate: snap(10, 80) },
+    })
+    expect(result.improved_objectives).toEqual(["wall_seconds"])
+    expect(result.holdout?.improved_objectives).toEqual(["memory_mb"])
+    expect(result.holdout?.agrees).toBe(false)
+    expect(result.decision).toBe("inconclusive")
+    expect(result.eligible).toBe(false)
+  })
+
   test("a spec without a holdout keeps exactly as before", () => {
     const result = decide({ spec: hardSpec(), baseline: snapshot(10), candidate: snapshot(9.97) })
     expect(result.decision).toBe("keep")

@@ -79,17 +79,19 @@ After implementing the hypothesis, measure PAIRED on this machine, using the imm
 2. Candidate: restore your change, run the same command the same number of times, record every sample.
 Alternate baseline and candidate runs when {sample_count} > 1. Never edit the measurement command, its working directory, or any file in the immutable scope; a changed harness makes your result unusable.
 
-Write `result.yaml` at the repo root of your checkout with exactly this shape:
+Commit your mutable-scope changes, and nothing else, with the message `optimize({spec_name}): exp-{iteration} <hypothesis, short>`. That commit is the candidate; its SHA is `head_sha`.
+
+Then write `result.yaml` at the repo root of your checkout with exactly this shape:
   experiment: {iteration}
   base_sha: {base_sha}
-  head_sha: <your final commit>
+  head_sha: <the candidate commit's SHA>
   machine: <a stable identifier for this machine or worker>
   measured_at: <ISO 8601>
   baseline:  { gates: {...}, metrics: { <name>: { aggregate: <n>, samples: [...] } }, diagnostics: {...} }
   candidate: { gates: {...}, metrics: { <name>: { aggregate: <n>, samples: [...] } }, diagnostics: {...} }
   correctness: <checks you ran and their results, or "none">
 Include the harness's per-case `cases` object and any cost, tokens, or latency fields in each snapshot only when the harness emits them; do not compute them yourself.
-Commit your mutable-scope changes plus `result.yaml` with the message `optimize({spec_name}): exp-{iteration} <hypothesis, short>`, and push to `{result_ref}`. Do not push to {optimization_branch} or any other branch.
+Commit `result.yaml` alone on top of the candidate commit, so the pushed tip's parent is `head_sha`, and push to `{result_ref}`. Do not push to {optimization_branch} or any other branch.
 
 Your final message is the structured result: the pushed ref, head_sha, machine, and the two aggregates. Report an unapproved dependency, a base mismatch, or a harness you could not run as a blocker instead of a result.
 </remote-worker>

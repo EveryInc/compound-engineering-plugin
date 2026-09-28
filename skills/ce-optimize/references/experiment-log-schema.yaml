@@ -460,7 +460,7 @@ result_marker:
       description: "Commit the worker started from and measured as baseline; must equal the dispatched base_sha or the result is an error"
     head_sha:
       type: string
-      description: "Final commit on the result ref (remote only)"
+      description: "The candidate commit (mutable-scope changes only); result.yaml is committed alone on top of it, so the result ref's tip has head_sha as its parent (remote only)"
     machine:
       type: string
       description: "Stable identifier of the measuring machine or worker (remote only)"
