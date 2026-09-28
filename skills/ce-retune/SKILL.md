@@ -32,6 +32,8 @@ State the target model and the harness you found before continuing.
 
 They run in order, and each names the reference it cannot start without. Read `references/workflow-shapes.md` before dispatching any phase: the wrong orchestration shape is the common failure. Fan out by disjoint file ownership, never by item. Items cross files, and agents that share a file lose each other's edits.
 
+Before assessing whether the registered bar is met or interpreting its results, read `references/noise-floor.md`.
+
 1. **Mine the archive** before spending a run — `references/baseline-mining.md`. Historical runs are a free baseline, usually larger than any experiment affordable now.
 2. **Establish the noise floor** — `references/noise-floor.md`. Run the harness against **two identical copies** of the corpus, same commit on both sides; whatever difference appears is the floor every later claim must clear. **Register the bar now, in writing, before any change exists.** A bar chosen after seeing results is not a bar.
 3. **Audit the corpus adversarially** — `references/corpus-audit.md`. One agent per skill proposes cuts; a second per skill does the opposite and defends the existing prose. **The two passes require independent contexts.** If the host exposes no way to run them as separate agents, report that as a blocker and stop the audit — do not argue both sides in one context and present the result as an audit.

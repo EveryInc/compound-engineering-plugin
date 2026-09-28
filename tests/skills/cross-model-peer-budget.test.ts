@@ -1,5 +1,7 @@
-import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
+import { afterAll, describe, expect, test } from "bun:test"
+import { spawnSync } from "node:child_process"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import path from "node:path"
 
 // The cross-model peer wall-clock budget is expressed in three nested windows:
@@ -254,4 +256,48 @@ describe("cross-model peer budget", () => {
       }
     }
   })
+})
+
+// A failed peer's skip evidence must not spend the budget. NDJSON logs carry no
+// top-level diagnostic field, so the evidence helper falls back to the raw log;
+// macOS /bin/bash 3.2 rewrites newlines in a large string superlinearly (a 60KB
+// log took ~50s), stalling the worker before scratch cleanup. Linux bash 5 is
+// fast either way, so only macOS runs can observe a regression here.
+const evidenceRoots: string[] = []
+afterAll(() => evidenceRoots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+
+function evidenceFunction(rel: string): string {
+  const src = read(rel)
+  const start = src.indexOf("bounded_failure_evidence() {")
+  const end = src.indexOf("\n}\n", start)
+  if (start < 0 || end < 0) throw new Error(`bounded_failure_evidence not found in ${rel}`)
+  return src.slice(start, end + 3)
+}
+
+describe("cross-model failure evidence", () => {
+  test.skipIf(!existsSync("/bin/bash"))(
+    "a large NDJSON peer log yields bounded skip evidence without stalling the worker",
+    () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "xmodel-evidence-"))
+      evidenceRoots.push(dir)
+      const log = path.join(dir, "stdout.log")
+      const lines: string[] = []
+      for (let i = 0; lines.join("\n").length < 120_000; i++) {
+        lines.push(JSON.stringify({ jsonrpc: "2.0", method: "session/update", params: { update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: `thinking ${i}` } } } }))
+      }
+      writeFileSync(log, `${lines.join("\n")}\n`)
+
+      for (const [skill, rel] of Object.entries(SCRIPTS)) {
+        const result = spawnSync("/bin/bash", ["-c", `${evidenceFunction(rel)}\nbounded_failure_evidence "$1"`, "_", log], {
+          encoding: "utf8",
+          timeout: 10_000,
+        })
+        expect(result.signal, `${skill} evidence helper stalled on a large log`).toBeNull()
+        expect(result.status, `${skill} evidence helper exit`).toBe(0)
+        expect(result.stdout.length, `${skill} evidence stays bounded`).toBeLessThanOrEqual(300)
+        expect(result.stdout, `${skill} evidence keeps the log head`).toStartWith('{"jsonrpc":"2.0"')
+      }
+    },
+    60_000,
+  )
 })

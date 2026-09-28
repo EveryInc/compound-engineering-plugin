@@ -38,6 +38,8 @@ Guardrails for execution evidence:
 - Do not skip verifying that a new or changed test fails for the expected reason before implementing the fix or feature
 - Do not over-implement beyond the current behavior slice when working proof-first
 - Do not add a duplicate regression test when an existing test is the right home; update or strengthen that test instead, then observe the failure before changing code
+- A new or changed test must fail when the behavior it names breaks, and keep passing when only the implementation changes. It fails that bar when its expected value comes from the code under test, when a mock or fixture supplies the result the code should produce, or when it asserts calls between internal parts instead of what the code returns, stores, or sends across its boundary
+- Do not add a production export, flag, wrapper, or hook that only tests use when the real entry point can drive the behavior; test through that entry point instead
 - Skip proof-first discipline for trivial renames, pure configuration, pure styling, generated artifacts, and manual-only surfaces, but record the reason and replacement verification while continuing execution
 
 **Test Discovery** — Before implementing changes to a file, find its existing test files (search for test/spec files that import, reference, or share naming patterns with the implementation file). When a plan specifies test scenarios or test files, start there, then check for additional test coverage the plan may not have enumerated. Changes to implementation files should be accompanied by corresponding test updates — new tests for new behavior, modified tests for changed behavior, removed or updated tests for deleted behavior.

@@ -15,9 +15,12 @@ hero:
       link: /guides/
 ---
 
-<section class="ce-section ce-demo">
-  <img src="{{ '/assets/demo/compound-loop.gif' | relative_url }}" alt="Terminal recording of the compound engineering loop running in a coding agent: plan, work, review, compound" width="1200" height="675">
-  <p class="ce-muted ce-caption">A learning gets captured after a fix. Eighteen days later a plan for a different feature reads it back before writing a line.</p>
+{%- assign ce_skill_count = 0 -%}
+{%- for group in site.data.ce.groups -%}{%- assign ce_skill_count = ce_skill_count | plus: group.guides.size -%}{%- endfor %}
+<section class="ce-section ce-explainer-section">
+  <div class="ce-explainer" data-skills="{{ ce_skill_count }}" data-hosts="{{ site.data.ce.hosts.size }}"></div>
+  <p class="ce-visually-hidden">Animated explainer. In traditional development, effort per change climbs with every feature. Compound engineering inverts the curve through a six-step loop: brainstorm, plan, work, simplify, review, and compound. The compound step writes a learning to docs/solutions/, and a later, unrelated plan finds and uses it. Most of the effort goes to planning and review, not execution.</p>
+  <script defer src="{{ '/assets/explainer/ce-explainer.js' | relative_url }}"></script>
 </section>
 
 <section class="ce-section ce-install">
