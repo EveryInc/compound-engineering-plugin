@@ -1,5 +1,5 @@
 import { afterAll, afterEach } from "bun:test"
-import { spawnSync } from "node:child_process"
+import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from "node:child_process"
 import {
   chmodSync,
   cpSync,
@@ -46,6 +46,22 @@ const isolatedGitEnv = {
   GIT_CONFIG_NOSYSTEM: "1",
   GIT_TERMINAL_PROMPT: "0",
   GIT_OPTIONAL_LOCKS: "0",
+}
+
+const RUN_IN_GROUP = path.join(__dirname, "run-in-group.py")
+const GROUP_TIMEOUT_STATUS = 124
+
+// A spawnSync timeout kills only the direct child; what the Python controller
+// started (git) survives and can hold the output pipes open (#1784). Plain git
+// calls start no lasting children, so they skip the extra interpreter startup.
+function spawnInGroup(argv: string[], options: SpawnSyncOptionsWithStringEncoding, label = argv) {
+  const r = spawnSync("python3", [RUN_IN_GROUP, String(CTL_TIMEOUT_MS / 1000), ...argv], {
+    ...options,
+    timeout: CTL_TIMEOUT_MS + 10_000,
+    killSignal: "SIGKILL",
+  })
+  if (r.status === GROUP_TIMEOUT_STATUS || isLostChildExit(r)) throwLostChildExit(label)
+  return r
 }
 
 afterAll(() => {
@@ -159,10 +175,8 @@ export function ctlWithScript(script: string, runsRoot: string, ...args: string[
 }
 
 export function ctlWithScriptAndEnv(script: string, runsRoot: string, extraEnv: Record<string, string>, ...args: string[]) {
-  const r = spawnSync("python3", [script, ...args], {
+  const r = spawnInGroup(["python3", script, ...args], {
     encoding: "utf8",
-    timeout: CTL_TIMEOUT_MS,
-    killSignal: "SIGKILL",
     env: {
       ...process.env,
       ...isolatedGitEnv,
@@ -171,7 +185,6 @@ export function ctlWithScriptAndEnv(script: string, runsRoot: string, extraEnv: 
       ...extraEnv,
     },
   })
-  if (isLostChildExit(r)) throwLostChildExit(["python3", script, ...args])
   const lines = r.stdout.trim().split("\n")
   let body: any = null
   if (lines.length > 1) body = JSON.parse(lines.slice(1).join("\n"))
@@ -187,18 +200,15 @@ export function ownerRootProbe(ownerRoot: string, runsRoot: string, foreignLike 
     foreignLike ? "state._EFFECTIVE_UID = os.geteuid() + 1" : "",
     "print(state.ensure_root())",
   ].filter(Boolean).join("; ")
-  const r = spawnSync("python3", ["-c", source, ownerRoot], {
+  const r = spawnInGroup(["python3", "-c", source, ownerRoot], {
     encoding: "utf8",
-    timeout: CTL_TIMEOUT_MS,
-    killSignal: "SIGKILL",
     env: {
       ...process.env,
       ...isolatedGitEnv,
       CE_WORK_RUNS_ROOT: runsRoot,
       CE_PEER_JOBS_ROOT: "",
     },
-  })
-  if (isLostChildExit(r)) throwLostChildExit(["python3", "-c", "ownerRootProbe", ownerRoot])
+  }, ["python3", "-c", "ownerRootProbe", ownerRoot])
   return r
 }
 

@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import { existsSync, readdirSync, rmSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { isLostChildExit, makeRepo, throwLostChildExit } from "./ce-work-workspace-harness"
+import { ctlWithScript, isLostChildExit, makeRepo, throwLostChildExit, tmp } from "./ce-work-workspace-harness"
 
 describe("ce-work workspace harness: lost child-exit", () => {
   test("detects the spawnSync timeout signature and throws TimeoutError", () => {
@@ -37,4 +38,55 @@ describe("ce-work workspace harness: repo template", () => {
     expect(existsSync(path.join(second.repo, "docs", "plans", "plan.md"))).toBe(true)
     expect(second.base).toMatch(/^[0-9a-f]{40}$/)
   })
+})
+
+const RUN_IN_GROUP = path.join(__dirname, "run-in-group.py")
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+describe("ce-work workspace harness: process-group timeout", () => {
+  test("a timeout kills the command's whole group, including a grandchild holding its output", () => {
+    const dir = tmp("ce-work-group-")
+    const started = Date.now()
+    const r = spawnSync(
+      "python3",
+      [RUN_IN_GROUP, "1", "bash", "-c", "sleep 300 & echo $! > grandchild.pid; echo started; sleep 300"],
+      { cwd: dir, encoding: "utf8", timeout: 30_000, killSignal: "SIGKILL" },
+    )
+    const grandchild = Number(readFileSync(path.join(dir, "grandchild.pid"), "utf8"))
+    try {
+      expect(Date.now() - started).toBeLessThan(15_000)
+      expect(r.status).toBe(124)
+      expect(r.stdout).toContain("started")
+      expect(alive(grandchild)).toBe(false)
+    } finally {
+      if (alive(grandchild)) process.kill(grandchild, "SIGKILL")
+    }
+  })
+
+  test("a command that finishes passes its status, output, and signal through unchanged", () => {
+    const done = spawnSync("python3", [RUN_IN_GROUP, "10", "bash", "-c", "echo out; echo err >&2; exit 3"], { encoding: "utf8" })
+    expect([done.status, done.stdout, done.stderr]).toEqual([3, "out\n", "err\n"])
+    const killed = spawnSync("python3", [RUN_IN_GROUP, "10", "bash", "-c", "kill -TERM $$"], { encoding: "utf8" })
+    expect(killed.signal).toBe("SIGTERM")
+  })
+
+  test("a controller that prints and then hangs still surfaces as a lost child exit", () => {
+    const script = path.join(tmp("ce-work-hang-"), "hang.py")
+    writeFileSync(script, "import sys, time\nprint('PARTIAL', flush=True)\ntime.sleep(300)\n")
+    let thrown: unknown
+    try {
+      ctlWithScript(script, tmp("ce-work-hang-runs-"))
+    } catch (error) {
+      thrown = error
+    }
+    expect((thrown as Error | undefined)?.name).toBe("TimeoutError")
+  }, 60_000)
 })
