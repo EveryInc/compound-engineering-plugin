@@ -1,0 +1,52 @@
+{
+  "pr": 41,
+  "title": "feat(ops): add one-off grant-credits backfill script",
+  "body": "One-off script to grant goodwill credits to users affected by the September outage. Ops runs it once: dry run first, compare the total with the finance-approved amount, then --apply. Summary lands in #ops. See docs/runbooks/grant-credits.md.",
+  "threads": [
+    {
+      "id": "T1",
+      "path": "src/slack.ts",
+      "line": 2,
+      "author": "review-bot[bot]",
+      "body": "postToSlack ignores the HTTP response. If the Slack webhook returns an error, the summary is silently dropped. Check `res.ok` and throw so the failure is visible.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T2",
+      "path": "scripts/grant-credits.ts",
+      "line": 40,
+      "author": "review-bot[bot]",
+      "body": "Rows are not deduplicated by userId. If the export lists a user twice, --apply grants that user two credits. Deduplicate by userId before granting.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T3",
+      "path": "scripts/grant-credits.ts",
+      "line": 42,
+      "author": "ops-lead",
+      "body": "If the --apply run dies halfway (laptop sleeps, VPN drops), on-call has no way to tell which rows were already processed. Please log progress as it goes (row number and userId for each grant) so they can see exactly where it stopped.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T4",
+      "path": "scripts/grant-credits.ts",
+      "line": 27,
+      "author": "review-bot[bot]",
+      "body": "The MAX_ROWS guard runs after readFileSync has already loaded the whole file into memory, so an oversized file can still exhaust memory before the guard fires. Count lines with a stream before reading the file.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T5",
+      "path": "scripts/grant-credits.ts",
+      "line": 40,
+      "author": "review-bot[bot]",
+      "body": "`--only` filters the dry-run plan, but the apply loop iterates `rows`, not `planned`. `--only u1 --apply` shows one user in the plan and then grants credits to every user in the file.",
+      "isOutdated": false,
+      "isResolved": false
+    }
+  ]
+}

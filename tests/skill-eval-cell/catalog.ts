@@ -37,6 +37,8 @@ const RETUNE_STREAK_BASE_REF = "53af1a2eab6415be9881c1987dbc986dcb54465c"
 export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68bf7"
 /** main before judgment-bound escalations were adjudicated through ce-pov instead of parking as needs-human. */
 export const ADJUDICATE_BASE_REF = "020c5e10d49aed19ee9354917780e94e665f5977"
+/** main before the resolver weighed whether an existing signal already bounds a true finding's failure. */
+export const PROPORTIONALITY_BASE_REF = "e80c5c40440b90672d78f032f6dfaedc0daeb292"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -1392,6 +1394,26 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     grade: {
       files_read_post: ["references/pipeline-mode.md", "references/evaluation-rubric.md"],
       declared: { ROOT: "adjudicate" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-resolve-pr-feedback/bounded-failure-gets-no-more-code",
+    baseline_ref: PROPORTIONALITY_BASE_REF,
+    skill: "ce-resolve-pr-feedback",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/resolve-feedback-proportionality`,
+    timeout_secs: 300,
+    why: "A babysit run fixed every true, cheap bot edge case on a run-once, dry-run-first ops script, including ones the dry run or the next morning's #ops check already surfaces, and each fix added code the bots flagged again. Silent double-crediting, a human's consequence-backed ask for progress logging, and a real defect in an earlier review fix on the same script must still be fixed.",
+    pre_contract: "Default to fixing; a small real improvement is fixed because the skip bar is no benefit, not minor.",
+    task: "Use ce-resolve-pr-feedback on PR #41. The unresolved review threads are on disk at threads.json, the code is in this workspace, and git is unavailable, so the branch history is in history.txt; do not call gh or git, and do not invoke any other skill, dispatch, or edit anything. Apply the evaluation rubric to each thread in your own context and stop after judging. For each thread declare exactly one line `T<id>: <more-code | no-more-code | escalate>`, where more-code means the resolution adds or changes program logic, no-more-code means a reply or a change to docs, usage text, or message text only, and escalate means needs-human or a hand-off to ce-pov.",
+    grade: {
+      files_read_post: ["references/evaluation-rubric.md"],
+      workspace_read: ["threads.json"],
+      declared: { T1: "no-more-code", T2: "more-code", T3: "more-code", T4: "no-more-code", T5: "more-code" },
       actions: "none",
       delegates: "none",
     },

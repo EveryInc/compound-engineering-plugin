@@ -72,6 +72,7 @@ Most feedback, nitpicks included, is correct. Validation is not a separate analy
 - The finding does not hold -> `not-addressing` with evidence
 - The fix would make the code worse -> `declined`, citing the harm
 - The change buys nothing real (the bar is "no benefit," not "minor") -> `replied`
+- The finding is true, but something the agent can name already surfaces the failure before it costs anything (a dry run the operator reads, a loud error, a result someone checks) -> `replied`, or `fixed-differently` when a usage line or clearer message makes that signal better. It never applies when the cost lands before anyone would see it (data lost, money or access granted wrongly), or to security, auth, billing, data retention, migrations, or irreversible effects
 - Risk cannot be bounded -> de-risk with a test if possible, else `needs-human`
 - It is a question -> `replied`, or `needs-human` for a product call
 - The fix would reverse a *deliberate* design choice (positive evidence of intent, plus a real disagreement) -> adjudicated, then `needs-human` only if that cannot decide it. "The code currently does X" is not evidence of intent
@@ -173,7 +174,7 @@ Scripts (from this skill's directory): `get-pr-comments`, `get-thread-for-commen
 ## FAQ
 
 **Does it still fix nitpicks?**
-Yes, by default. A correct nit that improves the code gets fixed. A purely cosmetic one with no benefit gets a brief reply. The skip bar is "no benefit," not "minor."
+Yes, by default. A correct nit that improves the code gets fixed. A purely cosmetic one with no benefit gets a brief reply. The skip bar is "no benefit," not "minor." A true edge case that something already surfaces, such as a dry run the operator reads first, gets a reply or a small non-code fix instead of more code. When a finding lands on code an earlier review fix added, the agent first asks whether that earlier fix was the right layer.
 
 **Does it treat bot feedback differently from human feedback?**
 No. Reading the code is the same work either way. An "it's a bot, so ignore it" rule would drop real bugs. Form only changes the reply mechanic: inline threads resolve via GraphQL; review bodies and top-level comments get a top-level reply.
