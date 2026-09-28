@@ -44,8 +44,8 @@ def main() -> int:
         kill_group(child)
         die_of(signum)
 
-    signal.signal(signal.SIGINT, on_interrupt)
-    signal.signal(signal.SIGTERM, on_interrupt)
+    for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT):
+        signal.signal(signum, on_interrupt)
     child = subprocess.Popen(sys.argv[2:], start_new_session=True)
     if pending:
         kill_group(child)

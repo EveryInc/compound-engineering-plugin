@@ -63,7 +63,8 @@ describe("ce-work workspace harness: process-group timeout", () => {
     }
   })
 
-  test("interrupting the helper kills the command's whole group too", async () => {
+  // The same signals scripts/run-tests.ts forwards to the pass this helper runs inside.
+  test.each(["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"] as const)("%s to the helper kills the command's whole group too", async (signal) => {
     const dir = tmp("ce-work-group-int-")
     const helper = spawn("python3", [RUN_IN_GROUP, "60", "bash", "-c", "sleep 300 & echo $! > grandchild.pid; echo $$ > child.pid; sleep 300"], {
       cwd: dir,
@@ -76,7 +77,7 @@ describe("ce-work workspace harness: process-group timeout", () => {
     }
     const pids = ["child.pid", "grandchild.pid"].map((name) => Number(readFileSync(path.join(dir, name), "utf8")))
     try {
-      helper.kill("SIGTERM")
+      helper.kill(signal)
       await exited
       await Bun.sleep(200)
       for (const pid of pids) expect(alive(pid)).toBe(false)
