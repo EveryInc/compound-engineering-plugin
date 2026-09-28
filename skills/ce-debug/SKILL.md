@@ -90,7 +90,7 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 **Root Cause**: [Full causal chain, with file:line references]
 **Recommended Tests**: [Tests to add/modify to prevent recurrence, with specific file and assertion guidance]
 **Fix**: [What was changed — or "diagnosis only" if Phase 3 was skipped]
-**Prevention**: [Test coverage added; defense-in-depth if applicable]
+**Prevention**: [Test coverage added; structural fix or defense-in-depth if applicable, or the structural fix left as follow-up]
 **Confidence**: [High/Medium/Low]
 ```
 

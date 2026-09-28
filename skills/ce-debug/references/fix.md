@@ -14,7 +14,7 @@ Read this before editing any file in Phase 3. SKILL.md runs the branch check and
 
 **On a failed fix:** return to Phase 2 and *explicitly invalidate the current hypothesis* before forming a new one. State what evidence ruled it out, then form a new hypothesis with its own grounding observation and prediction. Do not retry variants of the same theory ("maybe it was the other branch", "let me also catch this case"); that is the rationalization spiral, not iteration. **3 failed attempts = smart escalation** (same table as Phase 2): if fixes keep failing, the root cause identification was likely wrong.
 
-**Conditional defense-in-depth** (trigger: grep found the root-cause pattern in 3+ other files, OR the bug would have been catastrophic in production): read `references/defense-in-depth.md` and choose which of its four layers apply. Skip for a one-off error with no realistic recurrence path.
+**Conditional defense-in-depth** (trigger: grep found the root-cause pattern in 3+ other files, OR the bug would have been catastrophic in production): read `references/defense-in-depth.md` and apply the defense it describes. Skip for a one-off error with no realistic recurrence path.
 
 **Conditional post-mortem** (trigger: the bug was in production, OR the pattern appears in 3+ locations): analyze how it was introduced and what let it survive. Any systemic gap found informs Phase 4's learning-capture decision.
 

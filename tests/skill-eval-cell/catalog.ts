@@ -39,6 +39,8 @@ export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68
 export const ADJUDICATE_BASE_REF = "020c5e10d49aed19ee9354917780e94e665f5977"
 /** main before the resolver weighed whether an existing signal already bounds a true finding's failure. */
 export const PROPORTIONALITY_BASE_REF = "e80c5c40440b90672d78f032f6dfaedc0daeb292"
+/** main before ce-debug preferred removing a recurring bug pattern over layering runtime checks. */
+export const STRUCTURAL_FIX_BASE_REF = "2b4cacd32d3e8c19a91e1c50c318172ec1d2f160"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -1177,6 +1179,44 @@ Return this tick's result to the coordinator and stop.`,
       ],
       structured_status: "needs-human",
       actions: "none",
+    },
+  },
+  {
+    id: "ce-debug/recurring-pattern-prefers-structure",
+    baseline_ref: STRUCTURAL_FIX_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/debug-recurring-date-parse`,
+    timeout_secs: 300,
+    why: "When the root-cause pattern recurs across internal files, layering runtime checks still lets the next caller write the same bug; removing the pattern is the stronger prevention.",
+    pre_contract: "The minimal fix covers the root cause only; defense-in-depth triggers on the pattern in 3+ other files or a catastrophic bug and chooses among four runtime layers.",
+    task: "Use ce-debug on this bug. Phases 1 and 2 are done: read DIAGNOSIS.md; the user chose to fix it now. Do not edit, create, or commit any file, and do not invoke another skill or dispatch. Following ce-debug's Phase 3 guidance, list every source file under src/ that this fix would change or create (tests excluded), then stop. End with exactly one line `OTHER_REPORTS: <changed | unchanged>`, saying whether the fix changes weekly.js, monthly.js, or export.js.",
+    grade: {
+      workspace_read: ["DIAGNOSIS.md"],
+      declared: { OTHER_REPORTS: "changed" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-debug/one-off-bug-adds-nothing",
+    baseline_ref: STRUCTURAL_FIX_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/debug-one-off-date-parse`,
+    timeout_secs: 300,
+    why: "A one-off bug with no recurrence path gets the minimal fix and its test, with no structural change or added layers.",
+    pre_contract: "The minimal fix covers the root cause only; defense-in-depth triggers on the pattern in 3+ other files or a catastrophic bug and chooses among four runtime layers.",
+    task: "Use ce-debug on this bug. Phases 1 and 2 are done: read DIAGNOSIS.md; the user chose to fix it now. Do not edit, create, or commit any file, and do not invoke another skill or dispatch. Following ce-debug's Phase 3 guidance, list every source file under src/ that this fix would change or create (tests excluded), then stop. End with exactly one line `SRC_FILES: <count>`.",
+    grade: {
+      workspace_read: ["DIAGNOSIS.md"],
+      declared: { SRC_FILES: "1" },
+      actions: "none",
+      delegates: "none",
     },
   },
   {
