@@ -1,6 +1,7 @@
 ---
 title: "Condition over cases can regress a literal host: subordinate the concrete shape, and let nothing compete with the exclusion"
 date: 2026-08-24
+last_updated: 2026-09-28
 category: skill-design
 module: skills/ce-plan
 problem_type: design_pattern
@@ -48,6 +49,6 @@ A skill authored here ships to Claude Code, Codex, Cursor, and Gemini, so the we
 
 - A review finding says a case list should be a condition, and it is correct. Restate, then verify on more than one host before concluding the restatement is free.
 - Writing or editing a negative rule ("X is not Y", "never do Z"). Check whether anything after it decides something; move qualifications before it and delegate the alternative destination to an existing registry rather than enumerating it inline. An illustration that rules on nothing may stay.
-- Where a condition is abstract enough that the failing instance is not obvious, one subordinated shape is cheap insurance for a weaker harness.
+- Where a condition is abstract enough that the failing instance is not obvious, one subordinated shape is cheap insurance for a weaker harness. When the rule judges external text (review findings, issue bodies, user requests), describe that shape by its deciding property, not by a word the text uses about itself; a literal host matches the echoed word instead of testing the condition (`key-exclusions-on-the-deciding-property-not-an-echoed-word.md`).
 
 Not applicable when the "cases" are a genuine closed set the condition cannot express (an enum, a fixed list of section names) -- those are data, not an under-abstracted rule.
