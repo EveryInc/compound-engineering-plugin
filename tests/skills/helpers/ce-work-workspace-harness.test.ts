@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -60,6 +60,28 @@ describe("ce-work workspace harness: process-group timeout", () => {
       expect(alive(grandchild)).toBe(false)
     } finally {
       if (alive(grandchild)) process.kill(grandchild, "SIGKILL")
+    }
+  })
+
+  test("interrupting the helper kills the command's whole group too", async () => {
+    const dir = tmp("ce-work-group-int-")
+    const helper = spawn("python3", [RUN_IN_GROUP, "60", "bash", "-c", "sleep 300 & echo $! > grandchild.pid; echo $$ > child.pid; sleep 300"], {
+      cwd: dir,
+      stdio: "ignore",
+    })
+    const exited = new Promise<void>((resolve) => helper.on("exit", () => resolve()))
+    const deadline = Date.now() + 15_000
+    while (!(existsSync(path.join(dir, "grandchild.pid")) && existsSync(path.join(dir, "child.pid"))) && Date.now() < deadline) {
+      await Bun.sleep(50)
+    }
+    const pids = ["child.pid", "grandchild.pid"].map((name) => Number(readFileSync(path.join(dir, name), "utf8")))
+    try {
+      helper.kill("SIGTERM")
+      await exited
+      await Bun.sleep(200)
+      for (const pid of pids) expect(alive(pid)).toBe(false)
+    } finally {
+      for (const pid of pids) if (alive(pid)) process.kill(pid, "SIGKILL")
     }
   })
 

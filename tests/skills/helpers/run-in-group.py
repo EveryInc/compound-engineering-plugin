@@ -16,17 +16,31 @@ import sys
 TIMEOUT_STATUS = 124
 
 
+def kill_group(child: subprocess.Popen) -> None:
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    child.wait()
+
+
 def main() -> int:
     timeout = float(sys.argv[1])
     child = subprocess.Popen(sys.argv[2:], start_new_session=True)
+
+    # The command's new session does not receive signals sent to ours, so an
+    # interrupt of this helper must take the command's group down with it.
+    def on_interrupt(signum, _frame):
+        kill_group(child)
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+    signal.signal(signal.SIGINT, on_interrupt)
+    signal.signal(signal.SIGTERM, on_interrupt)
     try:
         code = child.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        child.wait()
+        kill_group(child)
         return TIMEOUT_STATUS
     if code < 0:
         signal.signal(-code, signal.SIG_DFL)
