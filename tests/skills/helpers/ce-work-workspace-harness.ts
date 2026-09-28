@@ -277,7 +277,7 @@ export function authorizeDispatch(
     adapter: ADAPTER,
     ...overrides,
   }
-  const jobId = values.jobId ?? `job-auth-${Math.random().toString(16).slice(2)}`
+  const jobId = overrides.jobId ?? `job-auth-${Math.random().toString(16).slice(2)}`
   const jobDir = path.join(runsRoot, runId, "jobs", jobId)
   mkdirSync(jobDir, { recursive: true, mode: 0o700 })
   chmodSync(jobDir, 0o700)
