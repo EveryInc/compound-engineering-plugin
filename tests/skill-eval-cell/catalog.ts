@@ -41,6 +41,8 @@ export const ADJUDICATE_BASE_REF = "020c5e10d49aed19ee9354917780e94e665f5977"
 export const PROPORTIONALITY_BASE_REF = "e80c5c40440b90672d78f032f6dfaedc0daeb292"
 /** main before ce-debug preferred removing a recurring bug pattern over layering runtime checks. */
 export const STRUCTURAL_FIX_BASE_REF = "2b4cacd32d3e8c19a91e1c50c318172ec1d2f160"
+/** main before the reliability reviewer judged a missing guard by how the code runs. */
+export const RELIABILITY_CONTEXT_BASE_REF = "8d9a236dc91b17e114562bd65e9e137d171f39ab"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -1917,6 +1919,44 @@ Include exactly one line \`ROUTE: verdict\` or \`ROUTE: brainstorm\` in your ans
       workspace_read: ["src/greet.js"],
       // workspace_read only sees FILES_READ; the looked-up fact, in any phrasing, is that greet.js has no retry logic.
       must_include_any: [["does not retry", "no retry", "no retries", "no existing retries", "doesn't retry", "not retry"]],
+    },
+  },
+  {
+    id: "ce-code-review/reliability-run-once-script-no-timeout-finding",
+    baseline_ref: RELIABILITY_CONTEXT_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/review-reliability-oneoff`,
+    timeout_secs: 300,
+    why: "A run-once script an on-call engineer runs from a laptop after a dry run, printing progress per ticket, with a rerun-safe PUT, still drew an actionable timeout finding that lfg can auto-apply. The context is only what a typical one-off PR states; a runbook spelling out the hang recovery made the case too easy to discriminate.",
+    pre_contract: "Every I/O operation can fail; an HTTP call with no timeout is anchor 100.",
+    task: "Use ce-code-review's reliability reviewer on the change described in PR.md. The changed file is scripts/relabel-tickets.ts, entirely new in this PR. Read the skill's references/subagent-template.md and references/personas/reliability-reviewer.md and review the change as that persona would. Do not dispatch, edit anything, or invoke another skill. Return the persona's findings JSON, then exactly one line `TIMEOUT: <flagged | not-flagged>`, saying whether any finding at confidence 75 or higher asks for a timeout on the fetch call.",
+    grade: {
+      workspace_read: ["PR.md"],
+      declared: { TIMEOUT: "not-flagged" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/reliability-service-handler-keeps-timeout-finding",
+    baseline_ref: RELIABILITY_CONTEXT_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/review-reliability-service`,
+    timeout_secs: 300,
+    why: "The same fetch with no timeout in a request handler on a shared worker pool must still be flagged.",
+    pre_contract: "Every I/O operation can fail; an HTTP call with no timeout is anchor 100.",
+    task: "Use ce-code-review's reliability reviewer on the change described in PR.md. The changed file is src/ticket-labels-handler.ts, entirely new in this PR. Read the skill's references/subagent-template.md and references/personas/reliability-reviewer.md and review the change as that persona would. Do not dispatch, edit anything, or invoke another skill. Return the persona's findings JSON, then exactly one line `TIMEOUT: <flagged | not-flagged>`, saying whether any finding at confidence 75 or higher asks for a timeout on the fetch call.",
+    grade: {
+      workspace_read: ["PR.md"],
+      declared: { TIMEOUT: "flagged" },
+      actions: "none",
+      delegates: "none",
     },
   },
   {
