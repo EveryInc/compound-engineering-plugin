@@ -8,7 +8,7 @@
 // exactly the per-test timeout. The same files pass in a fresh process. Any
 // assertion failure or error anywhere keeps the first result with no re-run,
 // so a defect that only shows under parallel load is not retried away.
-import { spawnSync } from "node:child_process"
+import { type ChildProcess, spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -74,17 +74,113 @@ export function passthroughArgs(argv: string[]): string[] {
   return out
 }
 
+const DEFAULT_PASS_TIMEOUT_MS = 20 * 60_000
+
+/** First-pass wall-clock limit: CE_TEST_PASS_TIMEOUT_SECONDS when it is a positive number, else 20 minutes. */
+export function passTimeoutMs(env: Record<string, string | undefined>): number {
+  const seconds = Number(env.CE_TEST_PASS_TIMEOUT_SECONDS)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_PASS_TIMEOUT_MS
+}
+
 function run(args: string[]): number {
   const result = spawnSync(process.execPath, ["test", ...args], { stdio: "inherit" })
   if (result.error) throw result.error
   return result.status ?? 1
 }
 
-function main(argv: string[]): number {
+type PassResult = { status: number; stalled: boolean }
+
+/** Every live process that belongs to the pass: its descendants plus anything left in its process group. */
+function passProcesses(root: number): string[] {
+  const listing = spawnSync("ps", ["-eo", "pid,ppid,pgid,etime,args"], { encoding: "utf8" })
+  if (listing.status !== 0) return []
+  const rows = listing.stdout.trim().split("\n").slice(1).map((line) => {
+    const [pid, ppid, pgid] = line.trim().split(/\s+/, 3).map(Number)
+    return { pid, ppid, pgid, line }
+  })
+  const members = new Set([root])
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const row of rows) {
+      if (!members.has(row.pid) && (members.has(row.ppid) || row.pgid === root)) {
+        members.add(row.pid)
+        grew = true
+      }
+    }
+  }
+  return rows.filter((row) => members.has(row.pid)).map((row) => row.line)
+}
+
+function killPass(child: ChildProcess, signal: NodeJS.Signals, extra: number[] = []): void {
+  const pid = child.pid
+  if (pid === undefined) return
+  try {
+    if (process.platform === "win32") child.kill(signal)
+    else process.kill(-pid, signal)
+  } catch {
+    // The group may already be gone.
+  }
+  for (const other of extra) {
+    try {
+      process.kill(other, signal)
+    } catch {
+      // Already exited.
+    }
+  }
+}
+
+/**
+ * The first pass, bounded by wall-clock time. A wedged bun worker (#1784) never
+ * exits, so without a limit GitHub cancels the job and nothing is reported.
+ * The pass runs in its own process group so a stall or an interrupt can take
+ * down every process it started.
+ */
+function runFirstPass(args: string[], limitMs: number): Promise<PassResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["test", ...args], { stdio: "inherit", detached: process.platform !== "win32" })
+    let stalled = false
+    let interrupted = false
+    const forward = (signal: NodeJS.Signals) => {
+      interrupted = true
+      killPass(child, signal)
+    }
+    const onInt = () => forward("SIGINT")
+    const onTerm = () => forward("SIGTERM")
+    process.on("SIGINT", onInt)
+    process.on("SIGTERM", onTerm)
+    const timer = setTimeout(() => {
+      stalled = true
+      const members = child.pid === undefined ? [] : passProcesses(child.pid)
+      console.error(
+        `\nThe first test pass stalled: it was still running after ${Math.round(limitMs / 1000)}s` +
+          ` (CE_TEST_PASS_TIMEOUT_SECONDS overrides the limit). Its processes, before they were killed:` +
+          `\n  PID  PPID  PGID ELAPSED ARGS\n  ${members.join("\n  ")}\n`,
+      )
+      killPass(child, "SIGKILL", members.map((line) => Number(line.trim().split(/\s+/, 1)[0])))
+    }, limitMs)
+    child.on("error", (error) => {
+      clearTimeout(timer)
+      reject(error)
+    })
+    child.on("exit", (code, signal) => {
+      clearTimeout(timer)
+      process.off("SIGINT", onInt)
+      process.off("SIGTERM", onTerm)
+      // Anything still in the group outlived the pass; do not leave it running.
+      if (stalled || interrupted || code !== 0) killPass(child, "SIGKILL")
+      resolve({ status: stalled ? 1 : code ?? (signal ? 1 : 0), stalled })
+    })
+  })
+}
+
+async function main(argv: string[]): Promise<number> {
   const reportDir = mkdtempSync(path.join(tmpdir(), "bun-test-report-"))
   const report = path.join(reportDir, "junit.xml")
   try {
-    const first = run(["--parallel", "--reporter=junit", `--reporter-outfile=${report}`, ...argv])
+    const pass = await runFirstPass(["--parallel", "--reporter=junit", `--reporter-outfile=${report}`, ...argv], passTimeoutMs(process.env))
+    // A stall is never re-run into a green result: its cause is not the lost-exit shape the re-run recovers.
+    if (pass.stalled) return 1
+    const first = pass.status
     if (first === 0) return 0
 
     const failed = existsSync(report) ? rerunCandidates(junitCases(readFileSync(report, "utf8"))) : []
@@ -109,5 +205,5 @@ function main(argv: string[]): number {
 }
 
 if (import.meta.main) {
-  process.exitCode = main(process.argv.slice(2))
+  process.exitCode = await main(process.argv.slice(2))
 }
