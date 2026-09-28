@@ -516,6 +516,21 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.model_requested).toBe(model)
   })
 
+  // bun 1.4's spawnSync waits for every holder of the child's output pipe. The
+  // activity poller's sleep must not outlive the route, or each caller waits it out.
+  test("a finished route returns without waiting out the activity poll interval", () => {
+    const f = fixture()
+    const bin = fakeBin("codex", f.capture)
+    const slow = temp("ce-work-slow-bin-")
+    writeFileSync(path.join(slow, "codex"), `#!/bin/sh\nsleep 1\nexec '${path.join(bin, "codex")}' "$@"\n`)
+    chmodSync(path.join(slow, "codex"), 0o755)
+    const started = Date.now()
+    const result = run("codex", f, { ...process.env, PATH: `${slow}:${process.env.PATH}`, CE_WORK_ACTIVITY_POLL_SECS: "120" })
+    expect(result.code).toBe(0)
+    // Far under the 120s poll interval, with room for a loaded machine.
+    expect(Date.now() - started).toBeLessThan(60_000)
+  }, 180_000)
+
   test("production dispatch derives the model from controller authorization, not ambient overrides", () => {
     const f = fixture()
     const bin = fakeBin("composer", f.capture)
