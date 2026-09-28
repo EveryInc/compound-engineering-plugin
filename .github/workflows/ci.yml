@@ -121,10 +121,10 @@ jobs:
     # Green runs finish in about 90 seconds. The Windows smoke step has hung
     # (2026-09-14, PR #1711 run 34909130752: 25+ minutes stuck, unresponsive to
     # cancel and force-cancel; #1794). Fail well before GitHub's 6-hour default
-    # so the babysit loop can see it and rerun. The smoke step keeps its own
-    # shorter deadline so a hang reports itself before this cap kills the job
-    # and loses the log.
-    timeout-minutes: 10
+    # so the babysit loop can see it and rerun. The smoke step's own 6-minute
+    # deadline must fire before this cap kills the job and loses the log, so the
+    # cap leaves room for the setup steps ahead of it as well.
+    timeout-minutes: 15
 
     steps:
       # Keep LF in the working tree so newline-anchored parity regexes match.
@@ -174,7 +174,9 @@ jobs:
           $deadline = $stepStart.AddMinutes(6)
           function Stop-StepProcesses {
             # Descendants of this shell, plus orphans whose parent already exited
-            # (detached supervisors); a start-time match alone also catches services.
+            # (detached supervisors) running an executable the smoke launches; a
+            # start-time match alone also catches services.
+            $smokeExes = 'python.exe', 'bash.exe', 'sh.exe', 'env.exe'
             $all = @(Get-CimInstance Win32_Process)
             $alive = @{}
             foreach ($proc in $all) { $alive[$proc.ProcessId] = $true }
@@ -184,7 +186,7 @@ jobs:
               $added = 0
               foreach ($proc in $recent) {
                 $parent = $proc.ParentProcessId
-                if (-not $ours[$proc.ProcessId] -and ($parent -eq $PID -or $ours[$parent] -or -not $alive[$parent])) {
+                if (-not $ours[$proc.ProcessId] -and ($parent -eq $PID -or $ours[$parent] -or (-not $alive[$parent] -and $smokeExes -contains $proc.Name))) {
                   $ours[$proc.ProcessId] = $true
                   $added++
                 }
