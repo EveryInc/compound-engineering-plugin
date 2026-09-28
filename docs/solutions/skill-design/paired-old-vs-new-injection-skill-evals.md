@@ -1,7 +1,7 @@
 ---
 title: "Prove a skill prose change moved behavior with paired old-vs-new blind injection"
 date: 2026-07-01
-last_updated: 2026-09-02
+last_updated: 2026-09-28
 category: skill-design
 module: compound-engineering-plugin skill evaluation
 problem_type: design_pattern
@@ -9,7 +9,7 @@ component: testing_framework
 severity: medium
 applies_when:
   - Validating a prose/behavior edit to a SKILL.md, agent persona, or prompt
-  - Needing to tell "demonstrated improvement" apart from "no regression"
+  - Needing to tell "demonstrated improvement" apart from "no regression", including when a task menu names the target behavior
   - One skill's output is consumed or gated by another skill or a test
   - Adding or renaming a field in a cross-skill output contract
   - Changing the judgment of a skill that calls an external CLI (gh, git, a peer model CLI)
@@ -82,15 +82,17 @@ for (const [token, prose] of Object.entries(EVIDENCE_FACTS)) {
 
 ### 5. Seal the injection — the excerpt must be the only source
 
-Three leaks produce a **falsely green** result because the agent found the answer somewhere other than the prose under test.
+Four leaks produce a **falsely green** result because the agent found the answer somewhere other than the prose under test.
 
 **Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access; in one run, agents given an excerpt read the *installed* plugin's `SKILL.md` instead. Run with a read-only sandbox *and* state the constraint in the prompt, then **verify compliance** by grepping each transcript for paths outside the eval directory before grading. This bites harder in a plugin repo because the installed skill is usually a different checkout: measured once, installed `ce-doc-review` was 3,746 words against the worktree's 2,886. Inject the file; never invoke the installed skill.
 
 **Leak B — the fixture carries the answer key.** Stripping HTML comments is not enough: `ce-doc-review` fixtures also carried inline `(Seeded gated_auto: …)` markers in body prose. Grep the *stripped* fixture for the vocabulary you grade on. (Closed for this repo's fixtures 2026-08-13: answer keys live in sibling `tests/fixtures/ce-doc-review/<name>.expectations.md`; keep the grep for new fixtures, since nothing enforces the separation.)
 
-A leak identical across arms still permits an old-vs-new comparison — it is a constant, not a confound — but invalidates any *absolute* measurement. Say which you are claiming.
+A leak identical across arms still permits an old-vs-new comparison — it is a constant, not a confound — but invalidates any *absolute* measurement, unless the leak alone is enough to produce the right answer: then both arms hit the ceiling and the comparison is erased too (Leak D). Say which you are claiming.
 
 **Leak C — the harness froze the layer you changed.** Evaluating `ce-doc-review`'s synthesis layer meant fighting reviewer variance, so reviewer output was captured once and replayed into every trial. It worked for synthesis. Two later reviewer-facing changes (identifier glossing — `U1 (the load gate)` rather than bare `U1`; the report-versus-question grammar) were then measured on the same harness and appeared to do nothing, because the frozen set was captured from reviewers that never saw them. Freezing removes reviewer *variance* by removing reviewer *execution*; those are the same act, and the harness is structurally blind to everything upstream of the freeze point. The trap is that it reports normally: no error, trials complete, no effect — indistinguishable from a change that does not work. So: locate your change relative to the freeze point *before* running; record which shipped changes a run does not cover where the results are written (silence becomes a false "we tested it"); re-capture the frozen set when the emitting layer changes — it is an artifact with a provenance, not a fixture; and measure emission-layer changes against real output (grep captured runs for the shape you are eliminating — bare identifiers, questions with one option). General form: a harness that controls a variable (frozen output, pinned model, fixed seed, stubbed service) cannot measure a change to the thing it controls.
+
+**Leak D — the answer menu names the behavior under test.** Evaluating a `ce-debug` change that prefers removing a recurring bug pattern over adding runtime checks (`skills/ce-debug/references/defense-in-depth.md`), the first cell asked for `PREVENTION: <structural | runtime-checks | follow-up | none>` with definitions. The old skill answered `structural` 4/4 on Claude and Codex, the same as the new one, which read as "already covered" (a cross-model oracle had predicted as much). Re-asked neutrally, to list every source file under `src/` the fix would change, the old skill changed only the one buggy report in 3/4 runs while the new skill changed all four reports plus a shared helper 4/4 (`ce-debug/recurring-pattern-prefers-structure`, with `ce-debug/one-off-bug-adds-nothing` as the control). A strong model picks the obviously best named option whatever the skill says, so the pre arm measured the menu, not the prose. Grade an observable the behavior produces (files it would change, sites it touches, commands it would run), and label declared fields by outcome rather than by the behavior under test (`OTHER_REPORTS: changed|unchanged`, not `PREVENTION: structural`). A menu is fine when every option is plausible and none names the change.
 
 **And the fixtures may be too easy.** Sealing guarantees the agent answered from your prose; it says nothing about whether the prose was tested against anything hard. See [[authored-eval-corpora-contain-the-happy-path]].
 
