@@ -1055,6 +1055,36 @@ Include exactly one line from: \`BACKEND: remote\`, \`BACKEND: worktree\`, \`BAC
     grade: { declared: { BACKEND: "worktree" }, actions: "none", delegates: "none" },
   },
   {
+    id: "ce-optimize/receipts-park-before-evaluation",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A batch that is all receipts could not reach the tick boundary, because evaluation needs every result first; a wake-backed run then had to hold the turn open instead of parking (PR #1708 review).",
+    pre_contract: "The tick boundary after 3.6 was the only place work could stay outstanding, and 3.4 ran only after every experiment was measured.",
+    task: `Use ce-optimize mid-tick in Phase 3. Decide only what this turn does next and where the run picks up afterwards; do not execute work or write files.
+execution.backend is remote. Both experiments in this tick's batch were dispatched to detached workers, and each returned a receipt. Their results will arrive in roughly forty minutes as pushed result refs. Neither experiment has been measured or evaluated yet. Both receipts are recorded and verified in run_state.pending_waits. An event subscription is registered that re-invokes you when either result ref is pushed. Nothing else in this tick can proceed until a result arrives.
+Include exactly one line from: \`TURN: end\` (park the run and end this turn), \`TURN: wait\` (hold this turn open until the results land), \`TURN: evaluate\` (run batch evaluation now).
+Include exactly one line from: \`RESUME: same-batch\` (the next turn collects these results and continues this batch), \`RESUME: new-batch\` (the next turn selects a new batch).`,
+    grade: { declared: { TURN: "end", RESUME: "same-batch" }, actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/remote-holdout-before-keep",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    why: "A remote winner that still needs its holdout never reached the independent confirmation, because that confirmation sat inside the keep branch (PR #1708 review).",
+    pre_contract: "Step 3.4 ran the remote independent confirmation only after decide.mjs had already returned keep.",
+    task: `Use ce-optimize at Phase 3 batch evaluation. Decide only the next step for this experiment; do not execute work or write files.
+execution.backend is remote with a paired comparison. The primary is type judge, and metric.judge.confirmation_seed configures the holdout. The worker's result.yaml passed every acceptance check. decide.mjs on the worker's paired snapshots returned decision promising, eligible true, next_measurement holdout, and rank_score 0.12. It is the only eligible experiment in the batch.
+Include exactly one line from: \`NEXT: keep\` (merge it now), \`NEXT: confirm\` (take an independent measurement that includes the holdout, then run decide.mjs again), \`NEXT: close\` (it is not a keep; close it without integrating).
+Include exactly one line from: \`HOLDOUT_BY: worker\` (the worker that wrote the candidate scores the holdout), \`HOLDOUT_BY: independent\` (a measurement the candidate's author did not produce).`,
+    grade: { declared: { NEXT: "confirm", HOLDOUT_BY: "independent" }, actions: "none", delegates: "none" },
+  },
+  {
     id: "ce-optimize/keep-earns-its-gain",
     skill: "ce-optimize",
     cohort: "untouched",

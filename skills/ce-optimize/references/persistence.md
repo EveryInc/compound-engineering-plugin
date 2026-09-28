@@ -72,7 +72,7 @@ The baseline and every logged experiment were measured under the spec that was a
 
 ### The Wait Record and Ticks
 
-Phase 3 runs as ticks (`references/loop.md`). Between ticks the run may be waiting on work that will finish later: a dispatched experiment or judge batch that returned a receipt instead of a result, or a timer. The body allows a turn to end with such work outstanding only under two conditions, and `run_state` is where the second one is met:
+Phase 3 runs as ticks (`references/loop.md`). The run may be waiting on work that will finish later: a dispatched experiment or judge batch that returned a receipt instead of a result, or a timer. The body allows a turn to end with such work outstanding only under two conditions, and `run_state` is where the second one is met:
 
 - every outstanding item waits on an event a registered wake will deliver, and
 - `run_state.pending_waits` records each item: what is outstanding, how its result will arrive (the observable the wake delivers: a store file, a pushed ref, a host message naming the launch, a timer), the registered wake, and the action to take when it arrives.

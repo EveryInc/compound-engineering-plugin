@@ -73,7 +73,7 @@ hypothesis_backlog:
 
 ## Phase 3: Optimization Loop
 
-This phase runs in ticks until a stopping criterion is met. One tick is one batch: select (3.1), dispatch (3.2), collect and persist each result as it lands (3.3), evaluate (3.4), update state (3.5), check the stopping criteria (3.6). The tick boundary after 3.6 is the only place the loop may leave work outstanding; what that requires is stated there. In a session with no wake capability, ticks follow one another in this session exactly as batches did before, and nothing in this file asks you to do anything else.
+This phase runs in ticks until a stopping criterion is met. One tick is one batch: select (3.1), dispatch (3.2), collect and persist each result as it lands (3.3), evaluate (3.4), update state (3.5), check the stopping criteria (3.6). The tick boundary is the only place a turn may end with work outstanding; what that requires is stated there. A tick reaches the tick boundary after 3.6, or earlier at any step that cannot go further until results arrive for receipts recorded in `run_state.pending_waits` and has nothing else it can do first. An early crossing leaves the rest of the tick undone. It writes `run_state` with the in-tick time not yet counted added to `active_seconds`, and it leaves `tick` unchanged. When the awaited results land, the resumed turn continues the same batch at the step that was waiting. It does not select a new batch at 3.1. In a session with no wake capability, ticks follow one another in this session exactly as batches did before, and nothing in this file asks you to do anything else.
 
 ### 3.1 Batch Selection
 
@@ -188,9 +188,11 @@ After all experiments in the batch have been measured:
 
 2. **Rank** the eligible experiments in the batch by the script's `rank_score` (primary relative gain when the primary moved; otherwise the strongest required-objective relative gain). Identify that winner as the experiment to keep. An eligible experiment may be kept even if the ranking primary did not move.
 
-3. **If `decide.mjs` returns `keep` for that winner: KEEP**
+3. **Confirm a `remote` winner independently before the keep test.** A `remote` winner enters this step when the decision on the worker's pair is eligible and asks for nothing more than the holdout: `keep` with `next_measurement: none`, or `promising` with `next_measurement: holdout`. For that winner, one independent measurement owns both the confirmation and the holdout: obtain a pairing the candidate's author did not produce by fetching `head_sha`, inspecting the diff against `base_sha`, and measuring it paired on this checkout or through a fresh confirmation worker that did not implement it, at the full configured protocol. When the worker's decision asked for `holdout`, that same measurement also runs the holdout on the reference and the candidate. Persist each pairing in `comparisons` (`kind: standalone` for the confirmation pair, `kind: holdout` for the holdout pair), every one with the `machine` and `measured_by` that produced it. Run `decide.mjs` on the payload built from those independent snapshots, never from the worker's. When that decision is not `keep` with `next_measurement: none`, the experiment takes that decide terminal and the worker's own claim is recorded as unconfirmed. The same independence that makes judge scores usable makes a self-measured keep usable.
+
+4. **If the winner's deciding result is `keep` with `next_measurement: none`: KEEP**
+   - For a `remote` winner, the deciding result is the independent decision from step 3. For any other winner, it is the last `decide.mjs` result from 3.3.
    - A `keep` has already passed held-out confirmation when the spec configures one; an entry whose last decision is `promising` with `next_measurement: holdout` is not a keep until the holdout pair is collected and the script decides again
-   - For a `remote` winner, one independent measurement owns both the confirmation and the holdout: obtain a pairing the candidate's author did not produce by fetching `head_sha`, inspecting the diff against `base_sha`, and measuring it paired on this checkout or through a fresh confirmation worker that did not implement it, at the full configured protocol; when the last decision asked for `holdout`, that same measurement also runs the holdout on the reference and the candidate. Persist each pairing in `comparisons` (`kind: standalone` for the confirmation pair, `kind: holdout` for the holdout pair), every one with the `machine` and `measured_by` that produced it, and run `decide.mjs` on the payload built from those independent snapshots, never from the worker's. Keep only when it is eligible and `next_measurement` is `none`; otherwise the experiment takes that decide terminal and the worker's own claim is recorded as unconfirmed. The same independence that makes judge scores usable makes a self-measured keep usable.
    - A keep has also earned its gain by doing the work the metric stands for. Before committing the winner, read its diff against the spec's `description` and `constraints`; a gain beyond the hypothesis's recorded opportunity upper bound calls for a slower read. A gain that comes from what the harness does not observe, or from breaking a `constraints` entry the harness does not check, is not a keep even though the gates, the ladder, and the holdout passed: revert it, record in the entry's `learnings` which observation or constraint the harness lacks, and carry that gap into the report. Closing the gap is a harness or spec change for a new run, not something this run patches.
    - Commit the experiment branch first so the winning diff exists as a real commit before any merge or cherry-pick (a `remote` winner is already a commit at `head_sha`; strip `result.yaml` from what gets merged)
    - Include only mutable-scope changes in that commit; if no eligible diff remains, treat the experiment as non-improving and revert it
@@ -199,7 +201,7 @@ After all experiments in the batch have been measured:
    - After the merge succeeds, clean up the winner's experiment worktree and branch; the integrated commit on the optimization branch is the durable artifact
    - This is now the new baseline for subsequent batches
 
-4. **Check file-disjoint runners-up** (up to `max_runner_up_merges_per_batch`):
+5. **Check file-disjoint runners-up** (up to `max_runner_up_merges_per_batch`):
    - For each runner-up that also improved, check file-level disjointness with the kept experiment
    - **File-level disjointness**: two experiments are disjoint if they modified completely different files. Same file = overlapping, even if different lines.
    - If disjoint, cherry-pick the runner-up onto the new baseline and run the same decide loop as step 3.3 against a fresh sample set for that combined snapshot. Do not reuse the standalone experiment's accumulated samples; they were measured against the previous baseline. Collect further measurement whenever `next_measurement` is not `none`. Persist the combined pairing as `kind: integrated` on that same log entry without replacing the standalone comparison. Keep the original standalone log entry for audit.
@@ -207,9 +209,9 @@ After all experiments in the batch have been measured:
    - Otherwise revert the cherry-pick, log it as "promising alone but neutral/harmful in combination" (outcome: `runner_up_reverted`), then clean up the runner-up's experiment worktree and branch
    - Stop after first failed combination
 
-5. **Handle deferred dependencies.** Experiments that need unapproved dependencies get outcome `deferred_needs_approval`
+6. **Handle deferred dependencies.** Experiments that need unapproved dependencies get outcome `deferred_needs_approval`
 
-6. **Close the rest.** Cleanup worktrees; a `remote` result ref may be deleted once its entry is verified in the log and its `result.yaml` copy is in `<state-root>`. `kept` and `runner_up_kept` are only for diffs on the optimization branch. Eligible candidates that were not integrated become `not_selected`. Leave `inconclusive`, `censored`, and `degenerate` as `decide.mjs` returned them.
+7. **Close the rest.** Cleanup worktrees; a `remote` result ref may be deleted once its entry is verified in the log and its `result.yaml` copy is in `<state-root>`. `kept` and `runner_up_kept` are only for diffs on the optimization branch. Eligible candidates that were not integrated become `not_selected`. Leave `inconclusive`, `censored`, and `degenerate` as `decide.mjs` returned them.
 
 ### 3.5 Update State (CP-4)
 
@@ -238,7 +240,7 @@ After all experiments in the batch have been measured:
 
 6. **Write the updated hypothesis backlog to disk.** The backlog section of the experiment log must reflect newly added hypotheses and removed (tested) ones.
 
-7. **Write `run_state`.** Add this tick's in-tick time to `active_seconds`, increment `tick`, set `status`, and leave `pending_waits` holding exactly the receipts not yet collected (`references/persistence.md`).
+7. **Write `run_state`.** Add the in-tick time not yet counted to `active_seconds`, increment `tick`, set `status`, and leave `pending_waits` holding exactly the receipts not yet collected (`references/persistence.md`).
 
 **CP-4 Verification:** Read the experiment log back from disk. Confirm: (a) all experiment outcomes from this batch are finalized, (b) the `best` section reflects the current best, (c) the hypothesis backlog is updated, (d) `run_state` reflects this tick. Read `strategy-digest.md` back and confirm it exists. Only THEN proceed to the stopping criteria check.
 
@@ -246,7 +248,7 @@ After all experiments in the batch have been measured:
 
 ### 3.6 Check Stopping Criteria
 
-Stop the loop as soon as any one of these holds. Two clocks are involved: `run_state.active_seconds` counts time spent inside ticks since Phase 3 started, summed across ticks and excluding time spent waiting between them; `run_state.phase3_started_at` anchors calendar time. In a single uninterrupted session the two clocks read the same.
+Stop the loop as soon as any one of these holds. Two clocks are involved: `run_state.active_seconds` counts time spent inside ticks since Phase 3 started, summed across ticks and excluding time spent waiting; `run_state.phase3_started_at` anchors calendar time. In a single uninterrupted session the two clocks read the same.
 
 - **Target reached**: `stopping.target_reached` is true and the current best meets every declared required target (`decide.mjs` `target_reached` on the current-best snapshot). When `metric.objectives` is absent, that is the single `metric.primary.target` if set. Do not stop for a primary-only hit while another required target is still unmet.
 - **Max iterations**: total experiments run >= `stopping.max_iterations`
@@ -259,7 +261,7 @@ Stop the loop as soon as any one of these holds. Two clocks are involved: `run_s
 
 If none is met, cross the tick boundary.
 
-**Tick boundary.** With no receipts pending, the next tick starts at 3.1 in this session. With receipts pending, the SKILL.md body's rule decides whether this turn may end: it may only when every pending item waits on an event a registered wake will deliver and `run_state.pending_waits` records each wait and its on-arrival action. When that holds, write `run_state.status: waiting`, verify it, register any wake not yet registered, and end the turn; the wake re-enters through Phase 0.4 and `references/persistence.md` On Resume. When it does not hold and this session can wait for the result (a subagent still running, a process still attached), wait here and continue at 3.3 as results land. When it does not hold and this session cannot hold the wait, take the checkpoint hand-back that `references/persistence.md` states: verified ledger, `status: waiting`, the user told monitoring is paused, and the resume invocation printed.
+**Tick boundary.** With no receipts pending, the next tick starts at 3.1 in this session. With receipts pending, the SKILL.md body's rule decides whether this turn may end: it may only when every pending item waits on an event a registered wake will deliver and `run_state.pending_waits` records each wait and its on-arrival action. When that holds, write `run_state.status: waiting`, verify it, register any wake not yet registered, and end the turn; the wake re-enters through Phase 0.4 and `references/persistence.md` On Resume. When it does not hold and this session can wait for the result (a subagent still running, a process still attached), wait here and continue the same batch at the step that was waiting as results land. When it does not hold and this session cannot hold the wait, take the checkpoint hand-back that `references/persistence.md` states: verified ledger, `status: waiting`, the user told monitoring is paused, and the resume invocation printed.
 
 ### 3.7 Cross-Cutting Concerns
 

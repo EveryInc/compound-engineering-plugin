@@ -298,6 +298,8 @@ describe("skill-eval-cell catalog", () => {
       "ce-optimize/keep-earns-its-gain",
       "ce-optimize/live-run-records-approval-and-report",
       "ce-optimize/objective-target-asks-no-exemplars",
+      "ce-optimize/receipts-park-before-evaluation",
+      "ce-optimize/remote-holdout-before-keep",
       "ce-optimize/remote-without-detached-worker",
       "ce-optimize/resume-added-holdout",
       "ce-optimize/resume-changed-cap",

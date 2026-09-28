@@ -165,7 +165,7 @@ structure:
       status:
         type: string
         enum: [running, waiting, blocked, final]
-        description: "running inside a tick; waiting between ticks on recorded pending waits or on the user's wrap-up choice; blocked on something outside the loop (report it, do not spin); final after CP-5"
+        description: "running inside a tick; waiting on recorded pending waits or on the user's wrap-up choice; blocked on something outside the loop (report it, do not spin); final after CP-5"
       tick:
         type: integer
         description: "Completed ticks (batches) so far"

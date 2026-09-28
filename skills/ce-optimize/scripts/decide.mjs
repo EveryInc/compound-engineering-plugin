@@ -446,6 +446,14 @@ function confirmHoldout({ spec, holdout, required, comparison, aggregation }) {
       reason: `holdout missing required metric: ${compared.missing.join(", ")}`,
     }
   }
+  if (compared.incompleteBaselines.length) {
+    return {
+      ...summary,
+      agrees: false,
+      decision: "error",
+      reason: `holdout has insufficient paired baseline samples: ${compared.incompleteBaselines.join(", ")}`,
+    }
+  }
   if (compared.violated.length) {
     return {
       ...summary,

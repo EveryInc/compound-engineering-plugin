@@ -1585,6 +1585,33 @@ describe("held-out confirmation", () => {
     expect(confirmed.next_measurement).toBe("none")
   })
 
+  test("a holdout with an incomplete paired baseline withholds the keep", () => {
+    const spec = hardSpec({
+      objectives: [
+        { name: "wall_seconds", direction: "minimize", role: "required" },
+        { name: "ci_seconds", direction: "minimize", role: "required" },
+      ],
+      comparison: { method: "paired", relative_threshold: 0.05, noise_threshold: 1 },
+      measurement: { holdout: { command: "python evaluate.py --holdout" } },
+    })
+    const pair = (wall: number[], ci: number[]) => ({
+      gates: { suite_passed: 1 },
+      metrics: { wall_seconds: { samples: wall }, ci_seconds: { samples: ci } },
+    })
+    const result = decide({
+      spec,
+      baseline: pair([10, 10], [20, 20]),
+      candidate: pair([8, 8], [16, 16]),
+      holdout: { baseline: pair([10], [20, 20]), candidate: pair([8, 8], [16, 16]) },
+    })
+    expect(result.decision).toBe("error")
+    expect(result.eligible).toBe(false)
+    expect(result.holdout?.agrees).toBe(false)
+    expect(result.reason).toBe(
+      "holdout has insufficient paired baseline samples: wall_seconds (1 observed, 2 required)",
+    )
+  })
+
   test("a spec without a holdout keeps exactly as before", () => {
     const result = decide({ spec: hardSpec(), baseline: snapshot(10), candidate: snapshot(9.97) })
     expect(result.decision).toBe("keep")
