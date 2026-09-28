@@ -49,7 +49,7 @@ const isolatedGitEnv = {
 }
 
 const RUN_IN_GROUP = path.join(__dirname, "run-in-group.py")
-const GROUP_TIMEOUT_STATUS = 124
+const GROUP_TIMEOUT_STATUS = 124 // must match TIMEOUT_STATUS in run-in-group.py
 
 // A spawnSync timeout kills only the direct child; what the Python controller
 // started (git) survives and can hold the output pipes open (#1784). Plain git

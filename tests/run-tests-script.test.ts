@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { junitCases, passTimeoutMs, passthroughArgs, rerunCandidates } from "../scripts/run-tests"
+import { alive } from "./helpers/process"
 
 const junit = (suites: string) => `<?xml version="1.0"?>\n<testsuites name="bun test">\n${suites}\n</testsuites>`
 const ok = (file: string, n: number) => `<testcase name="t${n}" classname="g" time="0" file="${file}" line="${n}" />`
@@ -117,15 +118,6 @@ function fixture(body: string): string {
   fixtureRoots.push(dir)
   writeFileSync(path.join(dir, "fixture.test.ts"), body)
   return dir
-}
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
 }
 
 function readPid(file: string): number {

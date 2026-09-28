@@ -88,10 +88,10 @@ function run(args: string[]): number {
   return result.status ?? 1
 }
 
-type PassResult = { status: number; stalled: boolean }
+type PassResult = { status: number; stalled: boolean; interrupted: boolean }
 
 /** Every live process that belongs to the pass: its descendants plus anything left in its process group. */
-function passProcesses(root: number): string[] {
+function passProcesses(root: number): { pid: number; line: string }[] {
   const listing = spawnSync("ps", ["-eo", "pid,ppid,pgid,etime,args"], { encoding: "utf8" })
   if (listing.status !== 0) return []
   const rows = listing.stdout.trim().split("\n").slice(1).map((line) => {
@@ -108,7 +108,7 @@ function passProcesses(root: number): string[] {
       }
     }
   }
-  return rows.filter((row) => members.has(row.pid)).map((row) => row.line)
+  return rows.filter((row) => members.has(row.pid)).map(({ pid, line }) => ({ pid, line }))
 }
 
 function killPass(child: ChildProcess, signal: NodeJS.Signals, extra: number[] = []): void {
@@ -148,27 +148,31 @@ function runFirstPass(args: string[], limitMs: number): Promise<PassResult> {
     const onTerm = () => forward("SIGTERM")
     process.on("SIGINT", onInt)
     process.on("SIGTERM", onTerm)
+    const stopForwarding = () => {
+      process.off("SIGINT", onInt)
+      process.off("SIGTERM", onTerm)
+    }
     const timer = setTimeout(() => {
       stalled = true
       const members = child.pid === undefined ? [] : passProcesses(child.pid)
       console.error(
         `\nThe first test pass stalled: it was still running after ${Math.round(limitMs / 1000)}s` +
           ` (CE_TEST_PASS_TIMEOUT_SECONDS overrides the limit). Its processes, before they were killed:` +
-          `\n  PID  PPID  PGID ELAPSED ARGS\n  ${members.join("\n  ")}\n`,
+          `\n  PID  PPID  PGID ELAPSED ARGS\n  ${members.map((m) => m.line).join("\n  ")}\n`,
       )
-      killPass(child, "SIGKILL", members.map((line) => Number(line.trim().split(/\s+/, 1)[0])))
+      killPass(child, "SIGKILL", members.map((m) => m.pid))
     }, limitMs)
     child.on("error", (error) => {
       clearTimeout(timer)
+      stopForwarding()
       reject(error)
     })
     child.on("exit", (code, signal) => {
       clearTimeout(timer)
-      process.off("SIGINT", onInt)
-      process.off("SIGTERM", onTerm)
+      stopForwarding()
       // Anything still in the group outlived the pass; do not leave it running.
       if (stalled || interrupted || code !== 0) killPass(child, "SIGKILL")
-      resolve({ status: stalled ? 1 : code ?? (signal ? 1 : 0), stalled })
+      resolve({ status: stalled ? 1 : code ?? (signal ? 1 : 0), stalled, interrupted })
     })
   })
 }
@@ -180,6 +184,7 @@ async function main(argv: string[]): Promise<number> {
     const pass = await runFirstPass(["--parallel", "--reporter=junit", `--reporter-outfile=${report}`, ...argv], passTimeoutMs(process.env))
     // A stall is never re-run into a green result: its cause is not the lost-exit shape the re-run recovers.
     if (pass.stalled) return 1
+    if (pass.interrupted) return pass.status || 130
     const first = pass.status
     if (first === 0) return 0
 

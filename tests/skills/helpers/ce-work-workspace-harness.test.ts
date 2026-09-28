@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process"
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { alive } from "../../helpers/process"
 import { ctlWithScript, isLostChildExit, makeRepo, throwLostChildExit, tmp } from "./ce-work-workspace-harness"
 
 describe("ce-work workspace harness: lost child-exit", () => {
@@ -41,15 +42,6 @@ describe("ce-work workspace harness: repo template", () => {
 })
 
 const RUN_IN_GROUP = path.join(__dirname, "run-in-group.py")
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
-}
 
 describe("ce-work workspace harness: process-group timeout", () => {
   test("a timeout kills the command's whole group, including a grandchild holding its output", () => {
