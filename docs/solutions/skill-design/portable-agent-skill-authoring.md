@@ -225,6 +225,8 @@ More literal models often lose a distant qualifier. Keep scope beside the action
 
 Prefer a local quantifier or threshold over a general reminder elsewhere in the skill.
 
+When a skill judges external text (review findings, issue bodies, user requests), do not key an exclusion on a word that text uses about itself, such as "silent" or "breaking". A literal model matches the word instead of testing the condition, so state the property that decides (`key-exclusions-on-the-deciding-property-not-an-echoed-word.md`).
+
 ## Define completion, not effort
 
 Avoid open-ended instructions such as "continue until good" or "be thorough." Define observable completion instead:
