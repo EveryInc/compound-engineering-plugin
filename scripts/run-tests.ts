@@ -175,7 +175,7 @@ function runFirstPass(args: string[], limitMs: number | null): Promise<PassResul
       clearTimeout(timer)
       stopForwarding()
       // Anything still in the group outlived the pass; do not leave it running.
-      if (stalled || interrupted || code !== 0) killPass(child, "SIGKILL")
+      killPass(child, "SIGKILL")
       resolve({ status: stalled ? 1 : code ?? (signal ? 1 : 0), stalled, interrupted })
     })
   })

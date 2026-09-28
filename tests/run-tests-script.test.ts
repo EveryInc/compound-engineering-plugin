@@ -176,6 +176,21 @@ describe("run-tests: stall watchdog", () => {
     expect(r.stderr).not.toContain("stalled")
   }, 90_000)
 
+  test("a passing run leaves nothing from its pass running", () => {
+    const dir = fixture(`import { test } from "bun:test"
+import { spawnSync } from "node:child_process"
+test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/null 2>&1 & echo $! > orphan.pid"]) })
+`)
+    const r = spawnSync(process.execPath, [RUNNER, "./fixture.test.ts"], { cwd: dir, encoding: "utf8", timeout: 60_000 })
+    const orphan = readPid(path.join(dir, "orphan.pid"))
+    try {
+      expect(r.status).toBe(0)
+      expect(alive(orphan)).toBe(false)
+    } finally {
+      if (alive(orphan)) process.kill(orphan, "SIGKILL")
+    }
+  }, 90_000)
+
   test("interrupting the runner stops the pass it started", async () => {
     const dir = fixture(HANG)
     const runner = spawn(process.execPath, [RUNNER, "./fixture.test.ts"], {
