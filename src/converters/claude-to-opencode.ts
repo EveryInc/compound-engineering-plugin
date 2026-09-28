@@ -142,7 +142,7 @@ function convertAgent(agent: ClaudeAgent, options: ClaudeToOpenCodeOptions) {
 
   if (options.inferTemperature) {
     const temperature = inferTemperature(agent)
-    // A written model that rejects non-default sampling params (Sonnet 5, Opus
+    // A written model that rejects non-default sampling params (Sonnet 5+, Opus
     // 4.7+) returns HTTP 400 if paired with a temperature. We only write model
     // for primary agents, so suppression only applies there; subagents inherit
     // the parent session's model and are out of scope.

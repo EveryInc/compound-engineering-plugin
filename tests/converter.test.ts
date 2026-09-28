@@ -278,10 +278,10 @@ describe("convertClaudeToOpenCode", () => {
       permissions: "none",
     })
 
-    // Sonnet 5 rejects non-default temperature with HTTP 400, so the converter
+    // Sonnet 5.5 rejects non-default temperature with HTTP 400, so the converter
     // must write the model but omit the inferred temperature.
     const sonnetAgent = parseFrontmatter(bundle.agents.find((a) => a.name === "security-guardian")!.content)
-    expect(sonnetAgent.data.model).toBe("anthropic/claude-sonnet-5")
+    expect(sonnetAgent.data.model).toBe("anthropic/claude-sonnet-5-5")
     expect(sonnetAgent.data.temperature).toBeUndefined()
 
     // Haiku still accepts sampling params, so temperature is inferred as usual.
