@@ -35,6 +35,7 @@ About 25 CI `test` jobs have stalled since 2026-09-09, roughly 8% of recent runs
 - R3. A pass that finishes within the limit behaves exactly as today: output passes through unchanged, and the TimeoutError-only re-run still applies.
 - R4. The limit leaves headroom under the CI job's 30-minute cap for the diagnostics to print.
 - R5. When a ce-work workspace harness subprocess times out, every process it started is killed, and the harness still reports the timeout as a lost child exit (`TimeoutError`).
+- R6. When `cross-model-work.sh` finishes a route, no process it started keeps its output open, so a caller waiting on that output returns when the script exits.
 
 ### Scope Boundaries
 
@@ -54,6 +55,7 @@ About 25 CI `test` jobs have stalled since 2026-09-09, roughly 8% of recent runs
 - KTD2. **A 20-minute default, overridable by `CE_TEST_PASS_TIMEOUT_SECONDS`.** The limit must clear the slowest first pass that still ends green, not just typical green runs (2.5-4 minutes): run 34883444242 recovered through the TimeoutError-only re-run after a 911-second (15.2-minute) first pass, and run 35032378390 after 541 seconds. Twenty minutes clears that with margin, and the job budget still fits under 30: pre-test steps up to about 5 minutes on a validator-cache miss, plus the 20-minute pass, plus the dump and teardown in seconds. The environment variable lets a slow local machine raise the limit, and lets the regression test use a short one through the real entry point.
 - KTD3. **A stalled pass fails; it is never re-run.** (session-settled: user-approved — chosen over re-running a stall like a TimeoutError-only pass: the mechanism is unproven and a silent green would hide it.) The watchdog path returns before the JUnit re-run logic.
 - KTD4. **Run the harness's timed subprocesses through a small process-group helper.** (session-settled: user-approved — chosen over keeping the direct-child SIGKILL only: `git` grandchildren of the Python controller survive it.) Node's `spawnSync` cannot start a process group and macOS has no `setsid` command, so a bundled Python helper under `tests/skills/helpers/` starts the command in a new session, enforces the timeout, kills the whole group with SIGKILL, and then kills itself with SIGKILL. The harness keeps calling `spawnSync` (its synchronous API is unchanged) with an outer timeout a little longer than the helper's as a backstop. On timeout the helper exits with a dedicated status, and the harness checks that status before parsing any output and throws its existing lost-child-exit `TimeoutError`. That keeps the classification independent of whether the command printed something before it hung, which a bare SIGKILL signature would not (`isLostChildExit` treats a signal with output attached as a real failure). Python is already a harness dependency; its startup cost per call is measured in verification.
+- KTD6. **Stop the activity poller's `sleep` with the poller.** (session-settled: user-directed — chosen over filing it separately or pinning bun to 1.3.x in CI: it is a user-facing delay and the main local slowdown, found mid-implementation.) bun 1.4 `spawnSync` waits until every holder of the child's stdout/stderr pipe exits (verified: 6.0s vs 0.0s on bun 1.3.14 for `bash -c "sleep 6 & echo done"`). `cross-model-work.sh` kills its activity-poll subshell after the route, but the subshell's foreground `sleep "$ACTIVITY_POLL_SECS"` (15s by default) survives as an orphan holding the script's output, so every caller waits up to 15 more seconds; locally `tests/skills/ce-work-cross-model-routes.test.ts` took over 280s on bun 1.4.2 against 44s on 1.3.14, and 93s with a 1-second poll. The poller sleeps in the background and waits on it, and a TERM trap in the subshell kills that sleep before exiting.
 - KTD5. **Reference #1784 as Related.** (session-settled: user-approved — chosen over closing it: the mechanism is unproven.) After the PR is open, comment the findings on #1784.
 
 ### Assumptions
@@ -93,6 +95,20 @@ About 25 CI `test` jobs have stalled since 2026-09-09, roughly 8% of recent runs
   - Pass-through: a command that exits normally returns the same status, stdout, and stderr as a direct `spawnSync`.
   - Existing coverage: `tests/skills/ce-work-unit-workspace-*.test.ts` keep passing.
 - **Verification:** the harness test file and the ce-work unit-workspace test files pass; the added per-call cost is measured and stays small (report the before/after wall time of `ce-work-unit-workspace-init.test.ts`).
+
+### U3. Stop the activity poller's sleep with the poller
+
+- **Goal:** A finished route leaves no process holding the worker's output, so callers are not delayed by the poll interval.
+- **Requirements:** R6; KTD6.
+- **Files:** `skills/ce-work/scripts/cross-model-work.sh`, `tests/skills/ce-work-cross-model-routes.test.ts`.
+- **Patterns:** the heartbeat in the peer workers (`skills/ce-pov/scripts/cross-model-pov.sh` `start_heartbeat`), which already sleeps in the background, waits on it, and kills it from a trap.
+- **Approach:** In the activity-poll subshell, run the sleep in the background, wait on it, and install a TERM trap that kills the sleep and exits. Keep the loop's behavior otherwise.
+- **Execution note:** Write the delay regression test first and see it fail on bun 1.4 before changing the script.
+- **Test scenarios:**
+  - Delay: a route run through the existing test path with `CE_WORK_ACTIVITY_POLL_SECS=10` and a fast fake route returns in well under 10 seconds.
+  - No orphan: after that run, no `sleep 10` started by the run is still alive.
+  - Existing coverage: the rest of `ce-work-cross-model-routes.test.ts` keeps passing.
+- **Verification:** the routes test file passes and its wall time on bun 1.4.2 drops back near the 1.3.14 figure.
 
 ## Verification Contract
 
