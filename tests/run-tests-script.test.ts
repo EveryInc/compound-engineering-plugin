@@ -207,5 +207,9 @@ describe("run-tests: stall watchdog", () => {
     for (const bad of ["", "abc", "0", "-5"]) {
       expect(passTimeoutMs({ CE_TEST_PASS_TIMEOUT_SECONDS: bad })).toBe(20 * 60_000)
     }
+    // Watch and hot modes stay alive on purpose; a limit would kill a healthy session.
+    for (const flag of ["--watch", "--hot"]) {
+      expect(passTimeoutMs({ CE_TEST_PASS_TIMEOUT_SECONDS: "5" }, ["tests/a.test.ts", flag])).toBeNull()
+    }
   })
 })

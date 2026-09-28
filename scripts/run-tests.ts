@@ -76,8 +76,12 @@ export function passthroughArgs(argv: string[]): string[] {
 
 const DEFAULT_PASS_TIMEOUT_MS = 20 * 60_000
 
-/** First-pass wall-clock limit: CE_TEST_PASS_TIMEOUT_SECONDS when it is a positive number, else 20 minutes. */
-export function passTimeoutMs(env: Record<string, string | undefined>): number {
+/**
+ * First-pass wall-clock limit: CE_TEST_PASS_TIMEOUT_SECONDS when it is a positive
+ * number, else 20 minutes. None for --watch or --hot, which stay alive on purpose.
+ */
+export function passTimeoutMs(env: Record<string, string | undefined>, argv: string[] = []): number | null {
+  if (argv.includes("--watch") || argv.includes("--hot")) return null
   const seconds = Number(env.CE_TEST_PASS_TIMEOUT_SECONDS)
   return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_PASS_TIMEOUT_MS
 }
@@ -135,7 +139,7 @@ function killPass(child: ChildProcess, signal: NodeJS.Signals, extra: number[] =
  * The pass runs in its own process group so a stall or an interrupt can take
  * down every process it started.
  */
-function runFirstPass(args: string[], limitMs: number): Promise<PassResult> {
+function runFirstPass(args: string[], limitMs: number | null): Promise<PassResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["test", ...args], { stdio: "inherit", detached: process.platform !== "win32" })
     let stalled = false
@@ -152,7 +156,7 @@ function runFirstPass(args: string[], limitMs: number): Promise<PassResult> {
       process.off("SIGINT", onInt)
       process.off("SIGTERM", onTerm)
     }
-    const timer = setTimeout(() => {
+    const timer = limitMs === null ? undefined : setTimeout(() => {
       stalled = true
       const members = child.pid === undefined ? [] : passProcesses(child.pid)
       console.error(
@@ -181,7 +185,7 @@ async function main(argv: string[]): Promise<number> {
   const reportDir = mkdtempSync(path.join(tmpdir(), "bun-test-report-"))
   const report = path.join(reportDir, "junit.xml")
   try {
-    const pass = await runFirstPass(["--parallel", "--reporter=junit", `--reporter-outfile=${report}`, ...argv], passTimeoutMs(process.env))
+    const pass = await runFirstPass(["--parallel", "--reporter=junit", `--reporter-outfile=${report}`, ...argv], passTimeoutMs(process.env, argv))
     // A stall is never re-run into a green result: its cause is not the lost-exit shape the re-run recovers.
     if (pass.stalled) return 1
     if (pass.interrupted) return pass.status || 130
