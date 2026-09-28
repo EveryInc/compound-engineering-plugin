@@ -1412,7 +1412,7 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     task: "Use ce-resolve-pr-feedback on PR #41. The unresolved review threads are on disk at threads.json, the code is in this workspace, and git is unavailable, so the branch history is in history.txt; do not call gh or git, and do not invoke any other skill, dispatch, or edit anything. Apply the evaluation rubric to each thread in your own context and stop after judging. For each thread declare exactly one line `T<id>: <more-code | no-more-code | escalate>`, where more-code means the resolution adds or changes program logic, no-more-code means a reply or a change to docs, usage text, or message text only, and escalate means needs-human or a hand-off to ce-pov.",
     grade: {
       files_read_post: ["references/evaluation-rubric.md"],
-      workspace_read: ["threads.json"],
+      workspace_read: ["threads.json", "history.txt", "docs/runbooks/grant-credits.md"],
       declared: { T1: "no-more-code", T2: "more-code", T3: "more-code", T4: "no-more-code", T5: "more-code" },
       actions: "none",
       delegates: "none",
