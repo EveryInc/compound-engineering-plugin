@@ -24,27 +24,41 @@ def kill_group(child: subprocess.Popen) -> None:
     child.wait()
 
 
+def die_of(signum: int) -> None:
+    signal.signal(signum, signal.SIG_DFL)
+    os.kill(os.getpid(), signum)
+
+
 def main() -> int:
     timeout = float(sys.argv[1])
-    child = subprocess.Popen(sys.argv[2:], start_new_session=True)
+    child = None
+    pending = []
 
     # The command's new session does not receive signals sent to ours, so an
-    # interrupt of this helper must take the command's group down with it.
+    # interrupt must take its group down too. Installed before the spawn so an
+    # interrupt that lands mid-spawn is held and acted on once the child exists.
     def on_interrupt(signum, _frame):
+        if child is None:
+            pending.append(signum)
+            return
         kill_group(child)
-        signal.signal(signum, signal.SIG_DFL)
-        os.kill(os.getpid(), signum)
+        die_of(signum)
 
     signal.signal(signal.SIGINT, on_interrupt)
     signal.signal(signal.SIGTERM, on_interrupt)
+    child = subprocess.Popen(sys.argv[2:], start_new_session=True)
+    if pending:
+        kill_group(child)
+        die_of(pending[0])
     try:
         code = child.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         kill_group(child)
         return TIMEOUT_STATUS
+    # A background process the command left behind would still hold our output.
+    kill_group(child)
     if code < 0:
-        signal.signal(-code, signal.SIG_DFL)
-        os.kill(os.getpid(), -code)
+        die_of(-code)
     return code
 
 

@@ -85,6 +85,25 @@ describe("ce-work workspace harness: process-group timeout", () => {
     }
   })
 
+  test("a command that exits normally takes its leftover background processes with it", () => {
+    const dir = tmp("ce-work-group-exit-")
+    const started = Date.now()
+    const r = spawnSync("python3", [RUN_IN_GROUP, "60", "bash", "-c", "sleep 300 & echo $! > leftover.pid; exit 0"], {
+      cwd: dir,
+      encoding: "utf8",
+      timeout: 30_000,
+      killSignal: "SIGKILL",
+    })
+    const leftover = Number(readFileSync(path.join(dir, "leftover.pid"), "utf8"))
+    try {
+      expect(r.status).toBe(0)
+      expect(Date.now() - started).toBeLessThan(10_000)
+      expect(alive(leftover)).toBe(false)
+    } finally {
+      if (alive(leftover)) process.kill(leftover, "SIGKILL")
+    }
+  })
+
   test("a command that finishes passes its status, output, and signal through unchanged", () => {
     const done = spawnSync("python3", [RUN_IN_GROUP, "10", "bash", "-c", "echo out; echo err >&2; exit 3"], { encoding: "utf8" })
     expect([done.status, done.stdout, done.stderr]).toEqual([3, "out\n", "err\n"])
