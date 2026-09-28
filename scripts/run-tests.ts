@@ -10,7 +10,7 @@
 // so a defect that only shows under parallel load is not retried away.
 import { type ChildProcess, spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { constants, tmpdir } from "node:os"
 import path from "node:path"
 
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
@@ -141,17 +141,21 @@ function killPass(child: ChildProcess, signal: NodeJS.Signals, extra: number[] =
  */
 function runFirstPass(args: string[], limitMs: number | null): Promise<PassResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["test", ...args], { stdio: "inherit", detached: process.platform !== "win32" })
+    let child: ChildProcess | undefined
     let stalled = false
-    let interrupted = false
+    let interrupted: NodeJS.Signals | null = null
+    // Registered before the spawn: an interrupt that lands before the pass exists is
+    // held and forwarded once it does, so the detached pass cannot outlive the runner.
     const forward = (signal: NodeJS.Signals) => {
-      interrupted = true
-      killPass(child, signal)
+      interrupted = signal
+      if (child) killPass(child, signal)
     }
     const onInt = () => forward("SIGINT")
     const onTerm = () => forward("SIGTERM")
     process.on("SIGINT", onInt)
     process.on("SIGTERM", onTerm)
+    child = spawn(process.execPath, ["test", ...args], { stdio: "inherit", detached: process.platform !== "win32" })
+    if (interrupted) killPass(child, interrupted)
     const stopForwarding = () => {
       process.off("SIGINT", onInt)
       process.off("SIGTERM", onTerm)
@@ -176,7 +180,10 @@ function runFirstPass(args: string[], limitMs: number | null): Promise<PassResul
       stopForwarding()
       // Anything still in the group outlived the pass; do not leave it running.
       killPass(child, "SIGKILL")
-      resolve({ status: stalled ? 1 : code ?? (signal ? 1 : 0), stalled, interrupted })
+      // A signal death keeps its conventional status (130 for SIGINT), so Ctrl-C is not a test failure.
+      const signalled = signal ?? interrupted
+      const status = stalled ? 1 : code ?? (signalled ? 128 + (constants.signals[signalled] ?? 0) : 0)
+      resolve({ status, stalled, interrupted: interrupted !== null })
     })
   })
 }
@@ -188,7 +195,7 @@ async function main(argv: string[]): Promise<number> {
     const pass = await runFirstPass(["--parallel", "--reporter=junit", `--reporter-outfile=${report}`, ...argv], passTimeoutMs(process.env, argv))
     // A stall is never re-run into a green result: its cause is not the lost-exit shape the re-run recovers.
     if (pass.stalled) return 1
-    if (pass.interrupted) return pass.status || 130
+    if (pass.interrupted) return pass.status
     const first = pass.status
     if (first === 0) return 0
 

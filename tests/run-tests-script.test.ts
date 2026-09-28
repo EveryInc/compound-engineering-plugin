@@ -132,7 +132,7 @@ import { spawnSync } from "node:child_process"
 import { writeFileSync } from "node:fs"
 test("never finishes", async () => {
   writeFileSync("worker.pid", String(process.pid))
-  spawnSync("sh", ["-c", "sleep 300 & echo $! > orphan.pid"])
+  spawnSync("sh", ["-c", "sleep 300 >/dev/null 2>&1 & echo $! > orphan.pid"])
   writeFileSync("started", "")
   await new Promise(() => {})
 }, 600_000)
@@ -198,14 +198,15 @@ test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/
       env: { ...process.env, CE_TEST_PASS_TIMEOUT_SECONDS: "120" },
       stdio: "ignore",
     })
-    const exited = new Promise<void>((resolve) => runner.on("exit", () => resolve()))
+    const exited = new Promise<number | null>((resolve) => runner.on("exit", (code) => resolve(code)))
     const deadline = Date.now() + 30_000
     while (!existsSync(path.join(dir, "started")) && Date.now() < deadline) await Bun.sleep(100)
     const worker = readPid(path.join(dir, "worker.pid"))
     const orphan = readPid(path.join(dir, "orphan.pid"))
     try {
       runner.kill("SIGINT")
-      await exited
+      // The conventional status for SIGINT, so Ctrl-C is not mistaken for a test failure.
+      expect(await exited).toBe(130)
       const settle = Date.now() + 5_000
       while (alive(worker) && Date.now() < settle) await Bun.sleep(100)
       expect(alive(worker)).toBe(false)
