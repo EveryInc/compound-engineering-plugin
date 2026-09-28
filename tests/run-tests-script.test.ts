@@ -191,7 +191,13 @@ test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/
     }
   }, 90_000)
 
-  test("interrupting the runner stops the pass it started", async () => {
+  // Every signal a terminal or a tool sends the runner; the detached pass gets none of them directly.
+  test.each([
+    ["SIGINT", 130],
+    ["SIGTERM", 143],
+    ["SIGHUP", 129],
+    ["SIGQUIT", 131],
+  ] as const)("%s to the runner stops the pass it started", async (signal, status) => {
     const dir = fixture(HANG)
     const runner = spawn(process.execPath, [RUNNER, "./fixture.test.ts"], {
       cwd: dir,
@@ -204,9 +210,9 @@ test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/
     const worker = readPid(path.join(dir, "worker.pid"))
     const orphan = readPid(path.join(dir, "orphan.pid"))
     try {
-      runner.kill("SIGINT")
-      // The conventional status for SIGINT, so Ctrl-C is not mistaken for a test failure.
-      expect(await exited).toBe(130)
+      runner.kill(signal)
+      // The signal's conventional status, so an interrupt is not mistaken for a test failure.
+      expect(await exited).toBe(status)
       const settle = Date.now() + 5_000
       while (alive(worker) && Date.now() < settle) await Bun.sleep(100)
       expect(alive(worker)).toBe(false)

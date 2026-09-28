@@ -150,15 +150,14 @@ function runFirstPass(args: string[], limitMs: number | null): Promise<PassResul
       interrupted = signal
       if (child) killPass(child, signal)
     }
-    const onInt = () => forward("SIGINT")
-    const onTerm = () => forward("SIGTERM")
-    process.on("SIGINT", onInt)
-    process.on("SIGTERM", onTerm)
+    // The detached pass receives none of the signals a terminal sends the runner.
+    const forwarded: NodeJS.Signals[] = process.platform === "win32" ? ["SIGINT", "SIGTERM"] : ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT"]
+    const handlers = forwarded.map((signal) => [signal, () => forward(signal)] as const)
+    for (const [signal, handler] of handlers) process.on(signal, handler)
     child = spawn(process.execPath, ["test", ...args], { stdio: "inherit", detached: process.platform !== "win32" })
     if (interrupted) killPass(child, interrupted)
     const stopForwarding = () => {
-      process.off("SIGINT", onInt)
-      process.off("SIGTERM", onTerm)
+      for (const [signal, handler] of handlers) process.off(signal, handler)
     }
     const timer = limitMs === null ? undefined : setTimeout(() => {
       stalled = true
