@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { aggregate, gradingBundle, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
+import { aggregate, cellComplete, gradingBundle, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
 import { JUDGED_SCENARIOS, type JudgedScenario } from "./judged/scenarios"
 
 const scenario: JudgedScenario = {
@@ -64,6 +64,17 @@ describe("aggregate", () => {
     expect(report).toContain("| overbuilt | 3 | 0 |")
     expect(report).toContain("claude base (n=2)")
   })
+
+  test("a metric a grade leaves out, or gives the wrong type, is shown as missing, not as zero", () => {
+    const rows = aggregate([
+      { cell: cell("pre", "claude"), grade: { metrics: { overbuilt: 2 } } },
+      { cell: cell("pre", "claude"), grade: { metrics: { overbuilt: "two" as unknown as number } } },
+      { cell: cell("post", "claude"), grade: { metrics: { narrowed: 1 } } },
+    ])
+    const report = renderReport(rows)
+    expect(report).toContain("| overbuilt | 2 (1 missing) | 0 (1 missing) |")
+    expect(report).toContain("| narrowed | 0 (2 missing) | 1 |")
+  })
 })
 
 describe("scenario files an agent writes", () => {
@@ -96,5 +107,21 @@ test("every library scenario points at a persona, rubric and fixture that exist"
     expect(fs.existsSync(path.join(import.meta.dir, "judged", "rubrics", s.rubric))).toBe(true)
     expect(fs.existsSync(path.join(root, s.fixture))).toBe(true)
     expect(s.task).toContain("{opening}")
+  }
+})
+
+test("a cell counts as complete only once its evidence is sealed and its conversation completed", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "judge-cell-"))
+  try {
+    const summary = (outcome: string) => fs.writeFileSync(path.join(dir, "summary.json"), JSON.stringify({ cells: { claude: { process_outcome: outcome } } }))
+    summary("completed")
+    expect(cellComplete(dir, "claude")).toBe(false)
+    fs.writeFileSync(path.join(dir, "evidence-manifest.json"), "{}")
+    expect(cellComplete(dir, "claude")).toBe(true)
+    summary("nonzero-or-spawn-error")
+    expect(cellComplete(dir, "claude")).toBe(false)
+    expect(cellComplete(dir, "codex")).toBe(false)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
   }
 })

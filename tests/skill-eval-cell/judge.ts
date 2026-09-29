@@ -108,20 +108,31 @@ export function parseGrade(raw: string): Grade | null {
   }
 }
 
-export type ReportRow = { scenario: string; host: Host; arm: Arm; graded: number; totals: Record<string, number> }
+export type ReportRow = {
+  scenario: string; host: Host; arm: Arm; graded: number
+  totals: Record<string, number>
+  /** How many grades reported each metric; fewer than `graded` means some grades left it out. */
+  reported: Record<string, number>
+}
 
-/** Numeric metrics are summed; boolean metrics count their true and false answers. */
+/**
+ * Numeric metrics are summed; boolean metrics count their true and false answers, and a
+ * null boolean means "not applicable". A metric a grade omits or gives the wrong type is
+ * counted as missing rather than as zero.
+ */
 export function aggregate(graded: { cell: Cell; grade: Grade }[]): ReportRow[] {
   const rows = new Map<string, ReportRow>()
   for (const { cell, grade } of graded) {
     const key = `${cell.scenario.id}|${cell.host}|${cell.arm}`
-    const row = rows.get(key) ?? { scenario: cell.scenario.id, host: cell.host, arm: cell.arm, graded: 0, totals: {} }
+    const row = rows.get(key) ?? { scenario: cell.scenario.id, host: cell.host, arm: cell.arm, graded: 0, totals: {}, reported: {} }
     row.graded++
     for (const [name, value] of Object.entries(grade.metrics)) {
-      if (typeof value === "number") row.totals[name] = (row.totals[name] ?? 0) + value
-      else if (typeof value === "boolean") {
-        const bucket = `${name}_${value}`
-        row.totals[bucket] = (row.totals[bucket] ?? 0) + 1
+      if (typeof value === "number" && Number.isFinite(value)) {
+        row.totals[name] = (row.totals[name] ?? 0) + value
+        row.reported[name] = (row.reported[name] ?? 0) + 1
+      } else if (typeof value === "boolean" || value === null) {
+        if (value !== null) row.totals[`${name}_${value}`] = (row.totals[`${name}_${value}`] ?? 0) + 1
+        row.reported[name] = (row.reported[name] ?? 0) + 1
       }
     }
     rows.set(key, row)
@@ -131,6 +142,14 @@ export function aggregate(graded: { cell: Cell; grade: Grade }[]): ReportRow[] {
   )
 }
 
+/** A boolean bucket (`name_true`) inherits its metric's reported count. */
+function cellValue(row: ReportRow, metric: string): string {
+  const base = metric.replace(/_(true|false)$/, "")
+  const reported = row.reported[metric] ?? row.reported[base] ?? 0
+  const value = row.totals[metric] ?? 0
+  return reported < row.graded ? `${value} (${row.graded - reported} missing)` : String(value)
+}
+
 export function renderReport(rows: ReportRow[]): string {
   const lines: string[] = ["# Judged eval report", ""]
   for (const scenario of [...new Set(rows.map((r) => r.scenario))]) {
@@ -138,7 +157,7 @@ export function renderReport(rows: ReportRow[]): string {
     const metrics = [...new Set(group.flatMap((r) => Object.keys(r.totals)))].sort()
     const columns = group.map((r) => `${r.host} ${r.arm === "pre" ? "base" : "tree"} (n=${r.graded})`)
     lines.push(`## ${scenario}`, "", `| metric | ${columns.join(" | ")} |`, `|---|${columns.map(() => "---").join("|")}|`)
-    for (const metric of metrics) lines.push(`| ${metric} | ${group.map((r) => r.totals[metric] ?? 0).join(" | ")} |`)
+    for (const metric of metrics) lines.push(`| ${metric} | ${group.map((r) => cellValue(r, metric)).join(" | ")} |`)
     lines.push("")
   }
   return lines.join("\n")
@@ -158,8 +177,14 @@ function exec(argv: string[], opts: { cwd: string; input?: string; timeoutMs: nu
     let stderr = ""
     child.stdout.on("data", (c) => { stdout += c })
     child.stderr.on("data", (c) => { stderr += c })
-    const timer = setTimeout(() => child.kill("SIGKILL"), opts.timeoutMs)
-    child.on("close", (status) => { clearTimeout(timer); resolve({ status, stdout, stderr }) })
+    // SIGTERM first: run.ts kills the host process groups it started on SIGTERM, and a
+    // SIGKILL would skip that and leave billing host CLIs running.
+    let force: ReturnType<typeof setTimeout> | undefined
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM")
+      force = setTimeout(() => child.kill("SIGKILL"), 15_000)
+    }, opts.timeoutMs)
+    child.on("close", (status) => { clearTimeout(timer); if (force) clearTimeout(force); resolve({ status, stdout, stderr }) })
     child.stdin.end(opts.input ?? "")
   })
 }
@@ -182,7 +207,22 @@ function cellArgv(cell: Cell): string[] {
   return argv
 }
 
+/**
+ * A cell counts only once its evidence is sealed and its conversation completed:
+ * run.ts writes summary.json before the host starts, so that file alone proves nothing.
+ */
+export function cellComplete(dir: string, host: Host): boolean {
+  try {
+    if (!fs.existsSync(path.join(dir, "evidence-manifest.json"))) return false
+    const summary = JSON.parse(fs.readFileSync(path.join(dir, "summary.json"), "utf8"))
+    return summary.cells?.[host]?.process_outcome === "completed"
+  } catch {
+    return false
+  }
+}
+
 function readCell(cell: Cell): { conversation: string; result: string | null } | null {
+  if (!cellComplete(cell.dir, cell.host)) return null
   const hostDir = path.join(cell.dir, "hosts", cell.host)
   const stdoutFile = path.join(hostDir, "stdout.txt")
   if (!fs.existsSync(stdoutFile)) return null
@@ -226,7 +266,11 @@ async function main() {
   const cells = planCells(scenarios, path.resolve(out), { arms, hosts, trials })
 
   if (!flag("--grade-only")) {
-    const pending = cells.filter((c) => !fs.existsSync(path.join(c.dir, "summary.json")))
+    const pending = cells.filter((c) => !cellComplete(c.dir, c.host))
+    for (const cell of pending) {
+      // run.ts needs an empty output directory; keep an interrupted attempt for inspection.
+      if (fs.existsSync(cell.dir)) fs.renameSync(cell.dir, `${cell.dir}.incomplete-${Date.now()}`)
+    }
     console.error(`running ${pending.length} of ${cells.length} cells, ${concurrency} at a time`)
     await pool(pending, concurrency, async (cell) => {
       fs.mkdirSync(path.dirname(cell.dir), { recursive: true })
@@ -263,7 +307,7 @@ async function main() {
   const report = renderReport(rows)
   fs.writeFileSync(path.join(out, "report.md"), report)
   console.log(report)
-  console.error(`graded ${graded.length} of ${readable.length} cells; ${cells.length - readable.length} produced no transcript`)
+  console.error(`graded ${graded.length} of ${readable.length} completed cells; ${cells.length - readable.length} did not complete and are not graded`)
 }
 
 if (import.meta.main) {
