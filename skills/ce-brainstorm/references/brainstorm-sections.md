@@ -200,6 +200,12 @@ When a requirements-only unified plan is warranted, these are present inside
   a long flat list is a smell that subgroups were missed. R-IDs stay
   continuous across groups (R1, R2 in the first group; R3, R4 in the
   second; never restart at R1 per group).
+  A requirement, key decision, or success criterion commits only what
+  the user asked for or chose, what those need in order to work, or what
+  passes Interaction Rule 9's test. Something you would add beyond that,
+  such as an audit trail, an operator switch, an alert, or another
+  safeguard nobody raised, goes in Scope Boundaries as deferred or in
+  Outstanding Questions, not into a committed section.
 
 ## Include when material
 

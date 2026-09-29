@@ -19,7 +19,7 @@ function make(root: string) {
   const dir = path.join(repo, "tests", "skill-eval-cell")
   const bin = path.join(root, "bin")
   fs.mkdirSync(dir, { recursive: true }); fs.mkdirSync(bin)
-  for (const name of ["run.ts", "pack.ts", "regrade.ts", "provenance.ts", "grade.ts", "hosts.ts", "extract.ts", "cli.ts", "path-shim.ts"]) {
+  for (const name of ["run.ts", "pack.ts", "regrade.ts", "provenance.ts", "grade.ts", "hosts.ts", "extract.ts", "cli.ts", "path-shim.ts", "converse.ts"]) {
     fs.copyFileSync(path.join(import.meta.dir, name), path.join(dir, name))
   }
   fs.mkdirSync(path.join(repo, "skills", "fixture"), { recursive: true })

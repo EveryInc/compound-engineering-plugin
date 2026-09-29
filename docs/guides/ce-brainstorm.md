@@ -113,6 +113,8 @@ These probes fire as prose, not menus. A 4-option menu would tell you which kind
 
 Phase 2 then surfaces 2-3 concrete approaches, including at least one non-obvious angle (inversion, constraint removal, or cross-domain analogy). Approaches sit at mechanism or product-shape granularity, not architecture. Architecture on thin research belongs in `ce-plan`. You see the alternatives before the recommendation.
 
+Offering ideas you did not ask for is part of the job; recommending them is where scope grows, because whatever the skill recommends is what gets built when you say "your call." So its recommendations add scope, a safeguard, or a process you did not name only when your goal is not met without it, when leaving it out lets harm land before anyone would catch it, or when adding it later would be expensive or hard to undo. Other ideas come as non-default options or deferred items, and a recommendation never narrows something you asked for. The requirements commit only what you asked for or chose, what that needs to work, and what passes that test.
+
 ### 4. Visual probes, then prototype when a sketch is not enough
 
 When a decision is spatial, behavioral, or visual, the skill can offer a rough local visual probe. Probes are disposable, display-only sketches; you respond in chat. A decision a rough sketch cannot settle (finish or motion), or one a sketch was built for and failed to settle, routes to `ce-prototype` instead.

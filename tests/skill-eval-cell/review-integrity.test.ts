@@ -16,7 +16,7 @@ function setup(root: string) {
   const repo = path.join(root, "repo"), dir = path.join(repo, "tests/skill-eval-cell")
   const bin = path.join(root, "bin"), out = path.join(root, "pack")
   fs.mkdirSync(dir, { recursive: true }); fs.mkdirSync(bin)
-  for (const file of ["run.ts", "pack.ts", "regrade.ts", "provenance.ts", "grade.ts", "hosts.ts", "extract.ts", "cli.ts", "path-shim.ts"]) {
+  for (const file of ["run.ts", "pack.ts", "regrade.ts", "provenance.ts", "grade.ts", "hosts.ts", "extract.ts", "cli.ts", "path-shim.ts", "converse.ts"]) {
     fs.copyFileSync(path.join(import.meta.dir, file), path.join(dir, file))
   }
   fs.mkdirSync(path.join(repo, "skills/fixture"), { recursive: true })
