@@ -32,10 +32,14 @@ metric:
       primary: mean_score
       secondary:
         - ambiguous_rate
-    model: haiku
+    model: cheap               # capability tier; the harness picks the concrete model
     sample_size: 10
     batch_size: 5
     sample_seed: 42
+    confirmation_seed: 7       # held-out sample, scored only before a keep and at final confirmation
+    calibration:
+      labels: "tools/eval/judge-labels.yaml"   # optional: your own scores for some outputs; omit the block and Phase 1 offers a guided check
+      min_agreement: 0.8
     minimum_improvement: 0.2
     max_total_cost_usd: 5
 
@@ -50,6 +54,7 @@ scope:
     - "config/search.yaml"
   immutable:
     - "tools/eval/eval_search.py"
+    - "tools/eval/judge-labels.yaml"
     - "tests/fixtures/"
     - "docs/"
 
