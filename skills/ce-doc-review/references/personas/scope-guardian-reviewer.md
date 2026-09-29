@@ -60,7 +60,7 @@ Any design has one more way to fail, so a plan can always grow by one more guard
 
 Apply this in both directions and emit each result as a finding:
 
-- **A committed mechanism that fails it** — recommend moving it to the plan's considered-and-not-built list (usually `Deferred to Follow-Up Work`), quoting the mechanism and naming why neither condition holds. Something built around a needed mechanism that covers nothing the first one does not also fails.
+- **A committed mechanism that fails it** — recommend moving it to the plan's considered-and-not-built list (usually a non-goal in Scope Boundaries), quoting the mechanism and naming why neither condition holds. Something built around a needed mechanism that covers nothing the first one does not also fails.
 - **A left-out item that passes it** — for everything the plan defers, excludes, or lists as considered and not built, ask what happens when that failure occurs and who finds out. Recommend building it when the answer is harm that lands before anyone catches it, such as money moved twice or an unattended job whose failures reach no one.
 - **A requested behavior the plan narrows** — a safeguard or a narrow reading that delays, gates, caps, or skips part of something the request asked for. Recommend planning the behavior as requested, with any real conflict with a needed safeguard recorded as an open question for the requester.
 

@@ -141,7 +141,7 @@ A mechanism that passes gets the smallest form that closes its gap. Anything bui
 
 This test sizes what the request did not ask for; it never trims what it did. A safeguard may not narrow a requested behavior by delaying, gating, capping, or skipping any part of it, and where the request's words cover a case, the plan covers it. When a needed safeguard and a requested behavior truly conflict, plan the behavior as requested and record the conflict under Open Questions for the requester.
 
-A concern that fails the test is not dropped silently. List it under `### Deferred to Follow-Up Work` as considered and not built, with one line on why and on what evidence would change the call. When you cannot tell whether leaving a mechanism out lets harm land before anyone catches it, or whether it keeps an existing contract or stored data working, build it.
+A concern that fails the test is not dropped silently. List it among the non-goals in Scope Boundaries as considered and not built, with one line on why and on what evidence would change the call. It is not planned work, so it never goes under `Deferred to Follow-Up Work`. When you cannot tell whether leaving a mechanism out lets harm land before anyone catches it, or whether it keeps an existing contract or stored data working, build it.
 
 ### Phase 4: Write the Plan
 
