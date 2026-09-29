@@ -187,8 +187,17 @@ async function converse(
     fs.appendFileSync(log, `${JSON.stringify({ role: "agent", text: agentText, exitCode: last.exitCode })}\n`)
     if (last.timedOut) { ended = "timeout"; break }
     if (last.exitCode !== 0) { ended = "host-error"; break }
-    const { reply, failed } = runUserSim(opts.persona, turns, hostDir, plan.env)
-    if (reply === null) { ended = failed ? "user-sim-error" : "user-done"; break }
+    const sim = runUserSim(opts.persona, turns, hostDir, plan.env, deadline - Date.now())
+    if (sim.timedOut) { ended = "timeout"; last.timedOut = true; break }
+    if (sim.failed) {
+      // An unanswered question is not usable evidence, so the cell must not read as completed.
+      ended = "user-sim-error"
+      last.exitCode = last.exitCode === 0 ? 1 : last.exitCode
+      stderr += `\nsimulated user failed: ${sim.error}\n`
+      break
+    }
+    if (sim.reply === null) { ended = "user-done"; break }
+    const reply = sim.reply
     turns.push({ role: "user", text: reply })
     fs.appendFileSync(log, `${JSON.stringify({ role: "user", text: reply })}\n`)
     message = reply
@@ -220,12 +229,21 @@ async function main() {
   const resolution = resolveRunHosts({ explicit: parseHosts() })
   for (const line of resolution.warnings) console.error(line)
   const hosts = resolution.run
-  if (arg("--persona")) {
+  const personaFile = arg("--persona")
+  const personaText = personaFile ? fs.readFileSync(personaFile, "utf8") : null
+  const maxTurns = Number(arg("--max-turns", "20"))
+  if (personaText !== null) {
     const unsupported = hosts.filter((h) => !CONVERSE_HOSTS.includes(h))
     if (unsupported.length > 0 || readOnly) {
       console.error(`--persona runs only on ${CONVERSE_HOSTS.join(", ")} and not with --read-only`)
       process.exit(2)
     }
+    // The simulated user is a claude call even when the host under test is codex.
+    if (!Bun.which("claude")) {
+      console.error("--persona needs the claude CLI on PATH for the simulated user")
+      process.exit(2)
+    }
+    if (!Number.isInteger(maxTurns) || maxTurns <= 0) throw new Error("--max-turns must be a positive integer")
   }
   if (hosts.length === 0) {
     console.error(`error: no harness CLIs on PATH (wanted ${resolution.wanted.join(", ")})`)
@@ -234,6 +252,7 @@ async function main() {
 
   const out = prepareOutput(arg("--out") ?? mintCellDir())
   fs.writeFileSync(path.join(out, "task.md"), taskText, { flag: "wx" })
+  if (personaText !== null) fs.writeFileSync(path.join(out, "persona.md"), personaText, { flag: "wx" })
   const sourceRev = spawnSync("git", ["rev-parse", "--verify", `${ref === WORKTREE_REF ? "HEAD" : ref}^{commit}`], {
     cwd: REPO_ROOT, encoding: "utf8",
   })
@@ -293,6 +312,8 @@ async function main() {
     skill: fingerprint(skillDir),
     initial_workspace: fingerprint(workspace),
     task_sha256: sha256(taskText),
+    persona_sha256: personaText === null ? null : sha256(personaText),
+    max_turns: personaText === null ? null : maxTurns,
     harness: fingerprint(import.meta.dir, fs.readdirSync(import.meta.dir).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))),
     runtime: { bun: Bun.version, node: process.version, platform: process.platform, arch: process.arch },
     timeout_ms: timeoutMs,
@@ -393,14 +414,8 @@ async function main() {
       requested_model: null,
       observed_model: null,
     }, true)
-    const personaFile = arg("--persona")
-    const conversation = personaFile
-      ? await converse(host, plan, hostWorkspace, hostDir, {
-          prompt: hostPrompt,
-          persona: fs.readFileSync(personaFile, "utf8"),
-          timeoutMs,
-          maxTurns: Number(arg("--max-turns", "20")),
-        })
+    const conversation = personaText !== null
+      ? await converse(host, plan, hostWorkspace, hostDir, { prompt: hostPrompt, persona: personaText, timeoutMs, maxTurns })
       : null
     const result = conversation ?? (await runPlan(plan, hostWorkspace, timeoutMs))
     fs.writeFileSync(path.join(hostDir, "stdout.txt"), result.stdout)

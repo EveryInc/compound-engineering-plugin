@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { USER_DONE, hostTurnArgv, simReplyOrDone, userSimPrompt } from "./converse"
+import { USER_DONE, hostTurnArgv, runUserSim, simReplyOrDone, userSimPrompt } from "./converse"
 
 const base = { sessionId: "11111111-1111-4111-8111-111111111111", message: "hi", cwd: "/w", lastMessageFile: "/h/last.txt" }
 
@@ -38,5 +38,9 @@ describe("conversation control", () => {
     const prompt = userSimPrompt("I run billing.", [{ role: "agent", text: "Which option?" }])
     expect(prompt).toContain("I run billing.")
     expect(prompt).toContain("ASSISTANT:\nWhich option?")
+  })
+
+  test("a spent cell deadline ends the conversation as a timeout without calling the simulated user", () => {
+    expect(runUserSim("p", [], "/nonexistent", {}, 0)).toEqual({ reply: null, failed: false, timedOut: true, error: "" })
   })
 })

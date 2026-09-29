@@ -69,11 +69,20 @@ export function simReplyOrDone(raw: string): string | null {
   return text
 }
 
-/** Returns the simulated user's reply, or null when it has nothing to say or the call failed. */
-export function runUserSim(persona: string, turns: Turn[], cwd: string, env: NodeJS.ProcessEnv): { reply: string | null; failed: boolean } {
+/** The simulated user's reply (null when it has nothing to say), bounded by what is left of the cell deadline. */
+export function runUserSim(
+  persona: string, turns: Turn[], cwd: string, env: NodeJS.ProcessEnv, remainingMs: number,
+): { reply: string | null; failed: boolean; timedOut: boolean; error: string } {
+  const timeout = Math.min(300_000, remainingMs)
+  if (timeout <= 0) return { reply: null, failed: false, timedOut: true, error: "" }
   const sim = spawnSync("claude", ["-p", userSimPrompt(persona, turns), "--model", "sonnet", "--output-format", "text"], {
-    cwd, env, encoding: "utf8", timeout: 300_000, maxBuffer: 1 << 20, stdio: ["ignore", "pipe", "pipe"],
+    cwd, env, encoding: "utf8", timeout, maxBuffer: 1 << 20, stdio: ["ignore", "pipe", "pipe"],
   })
-  if (sim.status !== 0) return { reply: null, failed: true }
-  return { reply: simReplyOrDone(sim.stdout), failed: false }
+  if (sim.error && (sim.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
+    return { reply: null, failed: false, timedOut: true, error: "" }
+  }
+  if (sim.status !== 0) {
+    return { reply: null, failed: true, timedOut: false, error: String(sim.error ?? sim.stderr).slice(0, 500) }
+  }
+  return { reply: simReplyOrDone(sim.stdout), failed: false, timedOut: false, error: "" }
 }
