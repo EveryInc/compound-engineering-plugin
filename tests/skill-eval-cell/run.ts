@@ -202,6 +202,11 @@ async function converse(
     fs.appendFileSync(log, `${JSON.stringify({ role: "user", text: reply })}\n`)
     message = reply
   }
+  if (ended === "max-turns") {
+    // The cap cut off an exchange in progress, so the transcript is not a finished conversation.
+    last.exitCode = last.exitCode === 0 ? 1 : last.exitCode
+    stderr += `\nconversation stopped at --max-turns ${opts.maxTurns} with a reply unsent\n`
+  }
   const stdout = formatTranscript(turns, "USER")
   return { ...last, stdout, stderr, turns: turns.filter((t) => t.role === "agent").length, ended }
 }

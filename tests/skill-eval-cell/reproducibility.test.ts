@@ -297,3 +297,17 @@ if (process.platform !== "win32") {
     expect(() => regradePack(packPath, "original")).toThrow(/symlink/)
   }))
 }
+
+test("a conversation persona is sealed with the evidence and checked against the recorded hash", () => fixture(({ out, reseal }) => {
+  const inputPath = path.join(out, "input-manifest.json")
+  const input = JSON.parse(fs.readFileSync(inputPath, "utf8"))
+  fs.writeFileSync(path.join(out, "persona.md"), "You run billing.")
+  writeJSON(inputPath, { ...input, persona_sha256: sha256("You run billing.") })
+  reseal()
+  verifyEvidence(out)
+  fs.writeFileSync(path.join(out, "persona.md"), "You run billing and want everything.")
+  expect(() => verifyEvidence(out)).toThrow(/changed/)
+  fs.rmSync(path.join(out, "persona.md"))
+  reseal()
+  expect(() => verifyEvidence(out)).toThrow(/persona/)
+}))

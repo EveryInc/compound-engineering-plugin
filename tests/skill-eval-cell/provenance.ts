@@ -8,6 +8,12 @@ export const PACK_SCHEMA_VERSION = 2
 // snapshotted. Include the entry point and evidence/root helpers, not just scoring.
 export const GRADER_FILES = ["extract.ts", "grade.ts", "hosts.ts", "path-shim.ts", "provenance.ts", "regrade.ts"]
 const EVIDENCE_ROOTS = ["extract", "workspace", "hosts", "summary.json", "input-manifest.json", "task.md"]
+// Only conversation cells have a persona; the seal covers it when present.
+const PERSONA_ROOT = "persona.md"
+
+function evidenceRoots(out: string): string[] {
+  return fs.existsSync(path.join(out, PERSONA_ROOT)) ? [...EVIDENCE_ROOTS, PERSONA_ROOT] : EVIDENCE_ROOTS
+}
 
 type Entry = { path: string; kind: "file" | "directory" | "symlink"; sha256?: string; executable?: boolean }
 export type Fingerprint = { sha256: string; entries: Entry[] }
@@ -107,8 +113,8 @@ export function writeJSON(file: string, value: unknown, exclusive = false): void
 export function sealEvidence(out: string): string {
   const manifest = {
     schema_version: 1,
-    roots: EVIDENCE_ROOTS,
-    fingerprint: fingerprint(out, EVIDENCE_ROOTS),
+    roots: evidenceRoots(out),
+    fingerprint: fingerprint(out, evidenceRoots(out)),
     exclusions: [".git internals", "symlink target contents", "provider state", "user configuration and credentials"],
   }
   writeJSON(path.join(out, "evidence-manifest.json"), manifest, true)
@@ -119,13 +125,14 @@ export function verifyEvidence(out: string, expectedManifestHash?: string): void
   const file = path.join(out, "evidence-manifest.json")
   if (!fs.lstatSync(file).isFile()) throw new Error("evidence manifest must be a regular file")
   const manifest = JSON.parse(fs.readFileSync(file, "utf8"))
-  if (manifest.schema_version !== 1 || canonicalJSON(manifest.roots) !== canonicalJSON(EVIDENCE_ROOTS)) {
+  const sealedPersona = canonicalJSON(manifest.roots) === canonicalJSON([...EVIDENCE_ROOTS, PERSONA_ROOT])
+  if (manifest.schema_version !== 1 || (!sealedPersona && canonicalJSON(manifest.roots) !== canonicalJSON(EVIDENCE_ROOTS))) {
     throw new Error("unsupported evidence manifest")
   }
   if ((expectedManifestHash && valueHash(manifest) !== expectedManifestHash) ||
       !Array.isArray(manifest.fingerprint?.entries) ||
       valueHash(manifest.fingerprint.entries) !== manifest.fingerprint.sha256 ||
-      fingerprint(out, EVIDENCE_ROOTS).sha256 !== manifest.fingerprint.sha256) {
+      fingerprint(out, manifest.roots).sha256 !== manifest.fingerprint.sha256) {
     throw new Error(`evidence changed or is incomplete: ${out}`)
   }
   // grade.ts can read paths. Links would let it read target bytes we did not seal.
@@ -139,6 +146,11 @@ export function verifyEvidence(out: string, expectedManifestHash?: string): void
       input.skill?.sha256 !== fingerprint(skillDir).sha256 ||
       input.initial_workspace?.sha256 !== fingerprint(path.join(out, "workspace")).sha256) {
     throw new Error("recorded inputs differ from collected bytes")
+  }
+  const recordedPersona = input.persona_sha256 ?? null
+  if (sealedPersona !== (recordedPersona !== null) ||
+      (recordedPersona !== null && recordedPersona !== sha256(fs.readFileSync(path.join(out, PERSONA_ROOT))))) {
+    throw new Error("recorded persona differs from collected bytes")
   }
   if (!Array.isArray(summary.hosts_run) || summary.hosts_run.length === 0 ||
       new Set(summary.hosts_run).size !== summary.hosts_run.length) {
