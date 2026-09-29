@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { junitCases, passTimeoutMs, passthroughArgs, rerunCandidates } from "../scripts/run-tests"
+import { junitCases, lostExitMs, lostExitZombies, parsePs, passTimeoutMs, passthroughArgs, rerunCandidates } from "../scripts/run-tests"
 import { alive } from "./helpers/process"
 
 const junit = (suites: string) => `<?xml version="1.0"?>\n<testsuites name="bun test">\n${suites}\n</testsuites>`
@@ -224,6 +224,9 @@ test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/
   }, 90_000)
 
   test("reads the limit override in seconds and ignores unusable values", () => {
+    expect(lostExitMs({ CE_TEST_LOST_EXIT_SECONDS: "2" })).toBe(2_000)
+    expect(lostExitMs({ CE_TEST_LOST_EXIT_SECONDS: "abc" })).toBe(60_000)
+
     expect(passTimeoutMs({ CE_TEST_PASS_TIMEOUT_SECONDS: "90" })).toBe(90_000)
     expect(passTimeoutMs({})).toBe(20 * 60_000)
     for (const bad of ["", "abc", "0", "-5"]) {
@@ -233,5 +236,58 @@ test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/
     for (const flag of ["--watch", "--hot"]) {
       expect(passTimeoutMs({ CE_TEST_PASS_TIMEOUT_SECONDS: "5" }, ["tests/a.test.ts", flag])).toBeNull()
     }
+  })
+})
+
+// The first attempt leaves an exited child unreaped under a process named like a
+// bun test worker: bash backgrounds a short sleep, then execs into a sleep that
+// never reaps it. The later attempt passes, unless ALWAYS is set.
+const LOST_EXIT = (always: boolean) => `
+import { test } from "bun:test"
+import { spawn } from "node:child_process"
+import { existsSync, writeFileSync } from "node:fs"
+test("loses a child exit on the first attempt", async () => {
+  if (${always} || !existsSync("attempted")) {
+    writeFileSync("attempted", "")
+    spawn("bash", ["-c", "sleep 1 & exec -a 'bun test --test-worker' sleep 300"], { stdio: "ignore" })
+    await new Promise(() => {})
+  }
+}, 600_000)
+`
+
+describe.skipIf(process.platform === "win32")("run-tests: lost child-exit", () => {
+  const runLostExit = (always: boolean) =>
+    spawnSync(process.execPath, [RUNNER, "./fixture.test.ts"], {
+      cwd: fixture(LOST_EXIT(always)),
+      encoding: "utf8",
+      env: { ...process.env, CE_TEST_PASS_TIMEOUT_SECONDS: "60", CE_TEST_LOST_EXIT_SECONDS: "2" },
+      timeout: 60_000,
+      killSignal: "SIGKILL",
+    })
+
+  test("a worker's unreaped child stops the pass and one fresh pass recovers it", () => {
+    const r = runLostExit(false)
+    expect(r.signal).toBeNull()
+    expect(r.stderr).toContain("unreaped")
+    expect(r.stderr).toContain("Re-running the whole first pass")
+    expect(r.status).toBe(0)
+  }, 90_000)
+
+  test("a second lost child-exit fails the run", () => {
+    const r = runLostExit(true)
+    expect(r.signal).toBeNull()
+    expect(r.stderr.match(/unreaped/g)).toHaveLength(2)
+    expect(r.status).not.toBe(0)
+  }, 90_000)
+
+  test("only a zombie under a bun test process counts", () => {
+    const rows = parsePs(`  PID  PPID  PGID STAT ELAPSED ARGS
+  100     1   100 Sl      20:00 /home/runner/.bun/bin/bun test --parallel
+  101   100   100 Sl      19:59 /home/runner/.bun/bin/bun test --test-worker --isolate
+  102   101   100 Z       19:19 [python3] <defunct>
+  103   101   100 S       00:01 python3 script.py
+  104   103   100 Z       00:30 [git] <defunct>
+`)
+    expect(lostExitZombies(rows).map((r) => r.pid)).toEqual([102])
   })
 })

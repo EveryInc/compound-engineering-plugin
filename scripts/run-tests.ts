@@ -75,6 +75,12 @@ export function passthroughArgs(argv: string[]): string[] {
 }
 
 const DEFAULT_PASS_TIMEOUT_MS = 20 * 60_000
+const DEFAULT_LOST_EXIT_MS = 60_000
+
+function positiveSecondsMs(value: string | undefined, fallback: number): number {
+  const seconds = Number(value)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : fallback
+}
 
 /**
  * First-pass wall-clock limit: CE_TEST_PASS_TIMEOUT_SECONDS when it is a positive
@@ -82,8 +88,32 @@ const DEFAULT_PASS_TIMEOUT_MS = 20 * 60_000
  */
 export function passTimeoutMs(env: Record<string, string | undefined>, argv: string[] = []): number | null {
   if (argv.includes("--watch") || argv.includes("--hot")) return null
-  const seconds = Number(env.CE_TEST_PASS_TIMEOUT_SECONDS)
-  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : DEFAULT_PASS_TIMEOUT_MS
+  return positiveSecondsMs(env.CE_TEST_PASS_TIMEOUT_SECONDS, DEFAULT_PASS_TIMEOUT_MS)
+}
+
+/** How long a bun test process may leave a child unreaped: CE_TEST_LOST_EXIT_SECONDS, else 60 seconds. */
+export function lostExitMs(env: Record<string, string | undefined>): number {
+  return positiveSecondsMs(env.CE_TEST_LOST_EXIT_SECONDS, DEFAULT_LOST_EXIT_MS)
+}
+
+export type PsRow = { pid: number; ppid: number; pgid: number; stat: string; args: string; line: string }
+
+/** Rows of `ps -eo pid,ppid,pgid,stat,etime,args`, header excluded. */
+export function parsePs(stdout: string): PsRow[] {
+  return stdout.trim().split("\n").slice(1).flatMap((line) => {
+    const m = line.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+\S+\s+(.*)$/)
+    return m ? [{ pid: Number(m[1]), ppid: Number(m[2]), pgid: Number(m[3]), stat: m[4], args: m[5], line }] : []
+  })
+}
+
+/**
+ * Zombie children of a bun test process: the child exited and bun never took
+ * its exit (oven-sh/bun#34069). A wedged worker is blocked in that spawn and
+ * no timeout frees it.
+ */
+export function lostExitZombies(rows: PsRow[]): PsRow[] {
+  const bunTest = new Set(rows.filter((r) => /(^|\/)bun\s+test\b/.test(r.args)).map((r) => r.pid))
+  return rows.filter((r) => r.stat.startsWith("Z") && bunTest.has(r.ppid))
 }
 
 function run(args: string[]): number {
@@ -92,16 +122,13 @@ function run(args: string[]): number {
   return result.status ?? 1
 }
 
-type PassResult = { status: number; stalled: boolean; interrupted: boolean }
+type PassResult = { status: number; stalled: boolean; lostExit: boolean; interrupted: boolean }
 
 /** Every live process that belongs to the pass: its descendants plus anything left in its process group. */
-function passProcesses(root: number): { pid: number; line: string }[] {
-  const listing = spawnSync("ps", ["-eo", "pid,ppid,pgid,etime,args"], { encoding: "utf8" })
+function passProcesses(root: number): PsRow[] {
+  const listing = spawnSync("ps", ["-eo", "pid,ppid,pgid,stat,etime,args"], { encoding: "utf8" })
   if (listing.status !== 0) return []
-  const rows = listing.stdout.trim().split("\n").slice(1).map((line) => {
-    const [pid, ppid, pgid] = line.trim().split(/\s+/, 3).map(Number)
-    return { pid, ppid, pgid, line }
-  })
+  const rows = parsePs(listing.stdout)
   const members = new Set([root])
   for (let grew = true; grew; ) {
     grew = false
@@ -112,7 +139,7 @@ function passProcesses(root: number): { pid: number; line: string }[] {
       }
     }
   }
-  return rows.filter((row) => members.has(row.pid)).map(({ pid, line }) => ({ pid, line }))
+  return rows.filter((row) => members.has(row.pid))
 }
 
 function killPass(child: ChildProcess, signal: NodeJS.Signals, extra: number[] = []): void {
@@ -134,15 +161,16 @@ function killPass(child: ChildProcess, signal: NodeJS.Signals, extra: number[] =
 }
 
 /**
- * The first pass, bounded by wall-clock time. A wedged bun worker (#1784) never
- * exits, so without a limit GitHub cancels the job and nothing is reported.
- * The pass runs in its own process group so a stall or an interrupt can take
- * down every process it started.
+ * One test pass, bounded by wall-clock time and by the lost-exit check. A
+ * wedged bun worker (#1784) never exits, so without a limit GitHub cancels the
+ * job and nothing is reported. The pass runs in its own process group so a
+ * stall or an interrupt can take down every process it started.
  */
-function runFirstPass(args: string[], limitMs: number | null): Promise<PassResult> {
+function runPass(args: string[], limitMs: number | null, lostMs: number): Promise<PassResult> {
   return new Promise((resolve, reject) => {
     let child: ChildProcess | undefined
     let stalled = false
+    let lostExit = false
     let interrupted: NodeJS.Signals | null = null
     // Registered before the spawn: an interrupt that lands before the pass exists is
     // held and forwarded once it does, so the detached pass cannot outlive the runner.
@@ -156,33 +184,50 @@ function runFirstPass(args: string[], limitMs: number | null): Promise<PassResul
     for (const [signal, handler] of handlers) process.on(signal, handler)
     child = spawn(process.execPath, ["test", ...args], { stdio: "inherit", detached: process.platform !== "win32" })
     if (interrupted) killPass(child, interrupted)
-    const stopForwarding = () => {
-      for (const [signal, handler] of handlers) process.off(signal, handler)
+    const stop = (reason: string) => {
+      const members = child.pid === undefined ? [] : passProcesses(child.pid)
+      console.error(
+        `\n${reason} Its processes, before they were killed:` +
+          `\n  PID  PPID  PGID STAT ELAPSED ARGS\n  ${members.map((m) => m.line).join("\n  ")}\n`,
+      )
+      killPass(child, "SIGKILL", members.map((m) => m.pid))
     }
     const timer = limitMs === null ? undefined : setTimeout(() => {
       stalled = true
-      const members = child.pid === undefined ? [] : passProcesses(child.pid)
-      console.error(
-        `\nThe first test pass stalled: it was still running after ${Math.round(limitMs / 1000)}s` +
-          ` (CE_TEST_PASS_TIMEOUT_SECONDS overrides the limit). Its processes, before they were killed:` +
-          `\n  PID  PPID  PGID ELAPSED ARGS\n  ${members.map((m) => m.line).join("\n  ")}\n`,
-      )
-      killPass(child, "SIGKILL", members.map((m) => m.pid))
+      stop(`The test pass stalled: it was still running after ${Math.round(limitMs / 1000)}s (CE_TEST_PASS_TIMEOUT_SECONDS overrides the limit).`)
     }, limitMs)
-    child.on("error", (error) => {
+    const firstSeen = new Map<number, number>()
+    const poller = setInterval(() => {
+      if (child.pid === undefined || stalled || lostExit) return
+      const now = Date.now()
+      const zombies = lostExitZombies(passProcesses(child.pid))
+      for (const pid of firstSeen.keys()) if (!zombies.some((z) => z.pid === pid)) firstSeen.delete(pid)
+      for (const z of zombies) if (!firstSeen.has(z.pid)) firstSeen.set(z.pid, now)
+      if ([...firstSeen.values()].some((seen) => now - seen >= lostMs)) {
+        lostExit = true
+        stop(
+          `A bun test process left an exited child unreaped for ${Math.round(lostMs / 1000)}s: a lost child-exit` +
+            ` (oven-sh/bun#34069) that wedges its worker (CE_TEST_LOST_EXIT_SECONDS overrides the limit).`,
+        )
+      }
+    }, Math.min(15_000, lostMs / 4))
+    const clearTimers = () => {
       clearTimeout(timer)
-      stopForwarding()
+      clearInterval(poller)
+      for (const [signal, handler] of handlers) process.off(signal, handler)
+    }
+    child.on("error", (error) => {
+      clearTimers()
       reject(error)
     })
     child.on("exit", (code, signal) => {
-      clearTimeout(timer)
-      stopForwarding()
+      clearTimers()
       // Anything still in the group outlived the pass; do not leave it running.
       killPass(child, "SIGKILL")
       // A signal death keeps its conventional status (130 for SIGINT), so Ctrl-C is not a test failure.
       const signalled = signal ?? interrupted
-      const status = stalled ? 1 : code ?? (signalled ? 128 + (constants.signals[signalled] ?? 0) : 0)
-      resolve({ status, stalled, interrupted: interrupted !== null })
+      const status = stalled || lostExit ? 1 : code ?? (signalled ? 128 + (constants.signals[signalled] ?? 0) : 0)
+      resolve({ status, stalled, lostExit, interrupted: interrupted !== null })
     })
   })
 }
@@ -191,9 +236,17 @@ async function main(argv: string[]): Promise<number> {
   const reportDir = mkdtempSync(path.join(tmpdir(), "bun-test-report-"))
   const report = path.join(reportDir, "junit.xml")
   try {
-    const pass = await runFirstPass(["--parallel", "--reporter=junit", `--reporter-outfile=${report}`, ...argv], passTimeoutMs(process.env, argv))
-    // A stall is never re-run into a green result: its cause is not the lost-exit shape the re-run recovers.
-    if (pass.stalled) return 1
+    const passArgs = ["--parallel", "--reporter=junit", `--reporter-outfile=${report}`, ...argv]
+    const limitMs = passTimeoutMs(process.env, argv)
+    const lostMs = lostExitMs(process.env)
+    let pass = await runPass(passArgs, limitMs, lostMs)
+    // A killed pass writes no junit report, so the whole pass is repeated, once, in a fresh process.
+    if (pass.lostExit) {
+      console.error("Re-running the whole first pass once in a fresh process.\n")
+      pass = await runPass(passArgs, limitMs, lostMs)
+    }
+    // A stall is never re-run into a green result: without a lost-exit zombie its cause is unknown.
+    if (pass.stalled || pass.lostExit) return 1
     if (pass.interrupted) return pass.status
     const first = pass.status
     if (first === 0) return 0

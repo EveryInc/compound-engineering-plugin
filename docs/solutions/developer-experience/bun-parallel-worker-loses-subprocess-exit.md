@@ -1,7 +1,7 @@
 ---
 title: "A bun test worker that loses one subprocess exit turns the rest of its file into exact-timeout failures"
 date: 2026-09-11
-last_updated: 2026-09-27
+last_updated: 2026-09-29
 category: developer-experience
 module: test-suite
 problem_type: test_failure
@@ -12,6 +12,7 @@ symptoms:
   - "The harness spawnSync of python3 unit-workspace.py returns status null (code -1) with empty stdout and stderr; a bare git add in the same file fails the same way"
   - "bun prints 'killed 1 dangling process' at the first timeout"
   - "The whole first `bun test --parallel` pass never exits: no 'Ran N tests' line, and GitHub cancels the job at timeout-minutes 30"
+  - "The stall watchdog's process listing shows a `bun test --test-worker` whose only child is `[python3] <defunct>` or `[git] <defunct>`"
 root_cause: dependency_bug
 resolution_type: workaround
 severity: medium
@@ -80,3 +81,10 @@ A second failure shape ran alongside the timeouts above: about 25 `test` jobs fr
 
 **Before trusting a local timing, check `uptime`.** During this investigation other sessions drove the load average to 700-960, and one test went from about 0.6s to 10s on the same bun. Compare only runs made under similar load.
 
+## 2026-09-29: the stall is a lost exit, and a fresh pass recovers it
+
+The watchdog's process listing answered the open question above. On 2026-09-29, five of six red `test` jobs (including `main` and release PR #1781) stalled the same way. One `bun test --test-worker` was left alive with a single child, `[python3] <defunct>` in four runs and `[git] <defunct>` in one, which had exited about 40 seconds into the pass. The child had exited and bun never took its exit. The worker stayed blocked in that `spawnSync` for the remaining 19 minutes while every other file finished. The hung file differed per run (`doc-claims-validator`, `ce-babysit-pr-snapshot`, `ce-work-unit-workspace-fallback` three times), and the workspace harness's 20s `spawnSync` timeout did not fire either. So once a worker wedges this way, neither the per-test timeout nor a `spawnSync` timeout frees it. Adding timeouts to test spawns does not help, and only a process outside the worker can recover.
+
+To find the hung file in a stalled log, compare each file's printed result count with the tests it defines, on the commit CI checked out (for a PR, the merge ref). The file that printed fewer is the stuck one, and the test after its last printed result is the hung call.
+
+`scripts/run-tests.ts` now polls the pass's processes. When a zombie whose parent is a bun test process stays for 60 seconds (`CE_TEST_LOST_EXIT_SECONDS` overrides), it prints the listing, kills the pass, and runs the whole first pass once more in a fresh process. A killed pass writes no junit report, so the runner cannot tell which files finished and re-runs all of them. A second lost exit fails the run. A stall with no such zombie still fails at the 20-minute limit with no re-run, because its cause is unknown. A bun worker takes its children's exits within milliseconds, so a zombie that lasts a minute under one is this defect, not a slow test.
