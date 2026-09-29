@@ -18,7 +18,7 @@ Idea: <the persona's opening request>" \
   --out <run-dir>
 ```
 
-Fixtures: `csv`, `job`, and `ambitious` from `packs/ce-plan-sizing.md`; the `vague` persona uses the `job` fixture. Grade `stdout.txt` (the readable conversation) plus the written document with the conversation rubric, blind to host and ref. Compare a pre-change ref against the working tree on Claude and Codex.
+Fixtures: `csv`, `job`, and `ambitious` from `packs/ce-plan-sizing.md` (the `vague` persona uses `job`), and `webapp` below for the `conversion` and `animation` personas. `conversion` and `animation` are the best tests of exploration: one is a goal with no solution attached, the other a narrow request whose natural implementation touches shared code the user did not mention. For the unattended path, also run `ce-plan` in pipeline mode on the animation request and check that it stays on the sign-up page or names the shared-loader choice as an assumption. Grade `stdout.txt` (the readable conversation) plus the written document with the conversation rubric, blind to host and ref. Compare a pre-change ref against the working tree on Claude and Codex.
 
 A cheaper single-turn variant gives the user's answers up front and has them reply "your call, go with your recommendation" to everything else. It isolates what the brainstorm recommends when the user delegates, which is where scope grows, but it overstates growth relative to a real conversation. Use the delegated rubric for it.
 
@@ -67,6 +67,114 @@ What you know if asked: about 8% of invoices fail on the first charge attempt; c
 Needs you will not volunteer but will confirm if the assistant raises them: most failures are expired or replaced cards, and customers often don't know their card failed. You would like customers to be able to fix their card themselves.
 What you would call overkill if proposed: machine-learning retry timing, payment plans, collections-agency integration, a full analytics dashboard.
 Style: thoughtful but busy. You are open to ideas you had not considered. For technical choices you say it's the assistant's call.
+```
+
+### conversion (fixture `webapp`)
+
+```markdown
+You are the product manager for a B2B SaaS web app.
+Opening request: we need to improve sign-up conversion.
+Why: sign-up conversion has dropped over the last quarter and leadership wants it back up.
+What you know if asked: about 40% of people who start sign-up finish it; the flow is account details, then email verification, then workspace setup.
+Needs you will not volunteer but will confirm if the assistant raises them: most of the drop-off happens at the email verification step, where people leave to check their inbox and don't come back. About 70% of sign-up traffic is on mobile.
+What you would call overkill if proposed: a full redesign of the sign-up flow, building an A/B testing platform, a new analytics dashboard, social login with many providers.
+Style: short, practical answers. For technical choices you say it's the assistant's call.
+```
+
+### animation (fixture `webapp`)
+
+```markdown
+You are the founder of a small SaaS company and care about how the product feels.
+Opening request: let's add a better animation on the transition when our sign-up page is loading.
+Why: the sign-up page shows a spinner that pops in and out abruptly, and it feels cheap on a first impression.
+What you know if asked: you want something smooth and quick, not flashy; it should not slow anything down.
+Needs you will not volunteer but will confirm if the assistant raises them: the login and onboarding pages use the same abrupt spinner and you would want them to feel the same, so if asked you say yes, include those. The dashboard is fine as is.
+What you would call overkill if proposed: adopting an animation library, a different custom animation per page, skeleton screens for every page, a full design-system overhaul.
+Style: short answers. For technical choices you say it's the assistant's call.
+```
+
+### Fixture `webapp`
+
+A React app whose four pages all render one shared loader, so a change to the sign-up transition decides whether the other pages change too.
+
+`AGENTS.md`
+
+```markdown
+# acme-web
+React single-page app for a B2B SaaS product. Pages live in src/pages; shared UI in src/components.
+```
+
+`package.json`
+
+```json
+{ "name": "acme-web", "private": true, "type": "module", "dependencies": { "react": "^19", "react-dom": "^19" } }
+```
+
+`src/components/PageLoader.tsx`
+
+```tsx
+// Full-screen loading state shown while a page fetches its data.
+// Currently a plain spinner that pops in and out with no transition.
+export function PageLoader() {
+  return <div className="page-loader"><div className="spinner" /></div>
+}
+```
+
+`src/pages/Dashboard.tsx`
+
+```tsx
+import { useEffect, useState } from "react"
+import { PageLoader } from "../components/PageLoader"
+
+export function DashboardPage() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => { fetch("/api/dashboard").then(() => setReady(true)) }, [])
+  if (!ready) return <PageLoader />
+  return <main className="dashboard">Dashboard</main>
+}
+```
+
+`src/pages/Login.tsx`
+
+```tsx
+import { useEffect, useState } from "react"
+import { PageLoader } from "../components/PageLoader"
+
+export function LoginPage() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => { fetch("/api/login").then(() => setReady(true)) }, [])
+  if (!ready) return <PageLoader />
+  return <main className="login">Login</main>
+}
+```
+
+`src/pages/Onboarding.tsx`
+
+```tsx
+import { useEffect, useState } from "react"
+import { PageLoader } from "../components/PageLoader"
+
+export function OnboardingPage() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => { fetch("/api/onboarding").then(() => setReady(true)) }, [])
+  if (!ready) return <PageLoader />
+  return <main className="onboarding">Onboarding</main>
+}
+```
+
+`src/pages/SignUp.tsx`
+
+```tsx
+import { useEffect, useState } from "react"
+import { PageLoader } from "../components/PageLoader"
+
+// Sign-up flow: account details -> email verification -> workspace setup.
+export function SignUpPage() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => { fetch("/api/signup/config").then(() => setReady(true)) }, [])
+  if (!ready) return <PageLoader />
+  return <main className="signup">Sign up</main>
+}
 ```
 
 ## Conversation rubric
@@ -146,3 +254,16 @@ With a user who answers and pushes back, both refs mostly stay balanced: hidden 
 | Questions / options | 35 / 33 | 21 / 28 | 51 / 43 | 65 / 49 |
 
 When the user delegates everything, Claude on the branch commits less scope and asks fewer questions with about the same number of options. Codex barely changes, and its counts vary by five or more between rounds, larger than the effect being measured.
+
+**Exploration check** (after adding the sentence that Rule 9 governs what is recommended and committed, not what is asked; 3 conversations per cell):
+
+| | Claude main | Claude branch | Codex main | Codex branch |
+|---|---|---|---|---|
+| conversion: understanding questions | 13 | 13 | 19 | 23 |
+| conversion: hidden needs missed (of 6) | 2 | 3 | 5 | 0 |
+| conversion: reduced to measurement only | 0 | 1 (user chose it) | 2 | 0 |
+| animation: asked about the other pages sharing the loader | 3 of 3 | 3 of 3 | 2 of 3 | 2 of 3 |
+| animation: other pages changed without the user choosing | 0 | 0 | 0 | 0 |
+| overbuilt (both personas) | 0 | 0 | 0 | 0 |
+
+Unattended (`ce-plan` in pipeline mode on the animation request, 2 runs per host): three plans kept the change on sign-up and named the other pages as follow-up; one changed the shared loader for every page but named it as an assumption with an open question. None expanded silently. Claude often does not ask about device mix, missing the "mostly mobile" need on both refs.
