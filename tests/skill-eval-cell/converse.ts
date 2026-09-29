@@ -72,11 +72,15 @@ export function simReplyOrDone(raw: string): string | null {
   return text
 }
 
-/** The simulated user gets no tools, extensions, or settings, so its reply rests on the persona and transcript alone. */
+/**
+ * The simulated user gets no tools and no machine-local customizations (hooks, MCP,
+ * plugins, CLAUDE.md), the same posture as ce-doc-review's tool-less Claude peer, so
+ * its reply rests on the persona and transcript alone.
+ */
 export function userSimArgv(prompt: string): string[] {
   return [
     "claude", "-p", prompt, "--model", "sonnet", "--output-format", "text",
-    "--tools", "", "--strict-mcp-config", "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence",
+    "--safe-mode", "--disable-slash-commands", "--tools", "", "--no-session-persistence",
   ]
 }
 

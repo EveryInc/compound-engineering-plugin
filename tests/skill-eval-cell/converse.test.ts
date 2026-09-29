@@ -44,10 +44,9 @@ describe("conversation control", () => {
     expect(runUserSim("p", [], {}, 0)).toEqual({ reply: null, failed: false, timedOut: true, error: "" })
   })
 
-  test("the simulated user runs without tools, extensions, or settings", () => {
+  test("the simulated user runs without tools or machine-local customizations", () => {
     const argv = userSimArgv("reply")
     expect(argv[argv.indexOf("--tools") + 1]).toBe("")
-    expect(argv[argv.indexOf("--setting-sources") + 1]).toBe("")
-    expect(argv).toContain("--strict-mcp-config")
+    expect(argv).toContain("--safe-mode")
   })
 })
