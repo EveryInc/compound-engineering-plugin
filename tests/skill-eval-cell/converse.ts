@@ -5,6 +5,9 @@
  * the skill, only its persona and the conversation.
  */
 import { spawnSync } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 import type { Host } from "./hosts"
 
 export const CONVERSE_HOSTS: Host[] = ["claude", "codex"]
@@ -69,15 +72,29 @@ export function simReplyOrDone(raw: string): string | null {
   return text
 }
 
+/** The simulated user gets no tools, extensions, or settings, so its reply rests on the persona and transcript alone. */
+export function userSimArgv(prompt: string): string[] {
+  return [
+    "claude", "-p", prompt, "--model", "sonnet", "--output-format", "text",
+    "--tools", "", "--strict-mcp-config", "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence",
+  ]
+}
+
 /** The simulated user's reply (null when it has nothing to say), bounded by what is left of the cell deadline. */
 export function runUserSim(
-  persona: string, turns: Turn[], cwd: string, env: NodeJS.ProcessEnv, remainingMs: number,
+  persona: string, turns: Turn[], env: NodeJS.ProcessEnv, remainingMs: number,
 ): { reply: string | null; failed: boolean; timedOut: boolean; error: string } {
   const timeout = Math.min(300_000, remainingMs)
   if (timeout <= 0) return { reply: null, failed: false, timedOut: true, error: "" }
-  const sim = spawnSync("claude", ["-p", userSimPrompt(persona, turns), "--model", "sonnet", "--output-format", "text"], {
-    cwd, env, encoding: "utf8", timeout, maxBuffer: 1 << 20, stdio: ["ignore", "pipe", "pipe"],
-  })
+  const [bin, ...args] = userSimArgv(userSimPrompt(persona, turns))
+  // An empty scratch directory keeps the cell's skill and workspace out of reach.
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "ce-user-sim-"))
+  let sim
+  try {
+    sim = spawnSync(bin, args, { cwd, env, encoding: "utf8", timeout, maxBuffer: 1 << 20, stdio: ["ignore", "pipe", "pipe"] })
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true })
+  }
   if (sim.error && (sim.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
     return { reply: null, failed: false, timedOut: true, error: "" }
   }

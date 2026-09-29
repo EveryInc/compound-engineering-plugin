@@ -155,13 +155,14 @@ async function runPlan(plan: HostPlan, cwd: string, timeoutMs: number): Promise<
 async function converse(
   host: Host, plan: HostPlan, cwd: string, hostDir: string,
   opts: { prompt: string; persona: string; timeoutMs: number; maxTurns: number },
-): Promise<RunResult & { turns: number; ended: ConversationEnd }> {
+): Promise<RunResult & { turns: number; ended: ConversationEnd; argvs: string[][] }> {
   const sessionId = crypto.randomUUID()
   const lastMessageFile = path.join(hostDir, "last-message.txt")
   const deadline = Date.now() + opts.timeoutMs
   const turns: Turn[] = []
   const log = path.join(hostDir, "transcript.jsonl")
   let message = opts.prompt
+  const argvs: string[][] = []
   let stderr = ""
   let last: RunResult = { exitCode: null, stdout: "", stderr: "", timedOut: false }
   let ended: ConversationEnd = "max-turns"
@@ -172,6 +173,7 @@ async function converse(
     if (remaining <= 0) { ended = "timeout"; last.timedOut = true; break }
     fs.rmSync(lastMessageFile, { force: true })
     const argv = hostTurnArgv(host, { first: i === 0, sessionId, message, cwd, lastMessageFile })
+    argvs.push(argv)
     last = await runPlan({ ...plan, argv }, cwd, remaining)
     stderr += last.stderr
     let agentText = last.stdout
@@ -187,7 +189,7 @@ async function converse(
     fs.appendFileSync(log, `${JSON.stringify({ role: "agent", text: agentText, exitCode: last.exitCode })}\n`)
     if (last.timedOut) { ended = "timeout"; break }
     if (last.exitCode !== 0) { ended = "host-error"; break }
-    const sim = runUserSim(opts.persona, turns, hostDir, plan.env, deadline - Date.now())
+    const sim = runUserSim(opts.persona, turns, plan.env, deadline - Date.now())
     if (sim.timedOut) { ended = "timeout"; last.timedOut = true; break }
     if (sim.failed) {
       // An unanswered question is not usable evidence, so the cell must not read as completed.
@@ -208,7 +210,7 @@ async function converse(
     stderr += `\nconversation stopped at --max-turns ${opts.maxTurns} with a reply unsent\n`
   }
   const stdout = formatTranscript(turns, "USER")
-  return { ...last, stdout, stderr, turns: turns.filter((t) => t.role === "agent").length, ended }
+  return { ...last, stdout, stderr, turns: turns.filter((t) => t.role === "agent").length, ended, argvs }
 }
 
 async function main() {
@@ -257,7 +259,6 @@ async function main() {
 
   const out = prepareOutput(arg("--out") ?? mintCellDir())
   fs.writeFileSync(path.join(out, "task.md"), taskText, { flag: "wx" })
-  if (personaText !== null) fs.writeFileSync(path.join(out, "persona.md"), personaText, { flag: "wx" })
   const sourceRev = spawnSync("git", ["rev-parse", "--verify", `${ref === WORKTREE_REF ? "HEAD" : ref}^{commit}`], {
     cwd: REPO_ROOT, encoding: "utf8",
   })
@@ -423,6 +424,8 @@ async function main() {
       ? await converse(host, plan, hostWorkspace, hostDir, { prompt: hostPrompt, persona: personaText, timeoutMs, maxTurns })
       : null
     const result = conversation ?? (await runPlan(plan, hostWorkspace, timeoutMs))
+    // A conversation runs its own per-turn commands, not the single-turn plan written above.
+    if (conversation) fs.writeFileSync(path.join(hostDir, "argv.json"), `${JSON.stringify(conversation.argvs, null, 2)}\n`)
     fs.writeFileSync(path.join(hostDir, "stdout.txt"), result.stdout)
     fs.writeFileSync(path.join(hostDir, "stderr.txt"), result.stderr)
     fs.writeFileSync(
@@ -442,6 +445,9 @@ async function main() {
   }
 
   const summaryPath = path.join(out, "summary.json")
+  // Written only after every host has exited: a host with filesystem access could
+  // otherwise read the persona's hidden needs instead of eliciting them.
+  if (personaText !== null) fs.writeFileSync(path.join(out, "persona.md"), personaText, { flag: "wx" })
   sealEvidence(out)
   console.log(summaryPath)
 }
