@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { aggregate, cellComplete, checkHosts, gradingBundle, positiveInt, writtenDocuments, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
+import { aggregate, cellComplete, checkHosts, checkScenarioId, gradingBundle, positiveInt, writtenDocuments, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
 import { JUDGED_SCENARIOS, type JudgedScenario } from "./judged/scenarios"
 
 const scenario: JudgedScenario = {
@@ -140,25 +140,28 @@ describe("run selection", () => {
 })
 
 test("the graded result is what the conversation wrote, wherever it wrote it", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "judge-docs-"))
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "judge-docs-"))
   try {
-    const git = (...args: string[]) => Bun.spawnSync(["git", ...args], { cwd: dir })
-    git("init", "-q", "-b", "main")
-    git("config", "user.email", "t@example.test")
-    git("config", "user.name", "t")
-    fs.mkdirSync(path.join(dir, "docs"))
-    fs.writeFileSync(path.join(dir, "docs", "old.md"), "fixture doc")
-    git("add", ".")
-    git("commit", "-q", "-m", "seed")
-    const seed = new TextDecoder().decode(git("rev-parse", "HEAD").stdout).trim()
-    fs.mkdirSync(path.join(dir, "specs", "plans"), { recursive: true })
-    fs.writeFileSync(path.join(dir, "specs", "plans", "new.md"), "written")
-    fs.writeFileSync(path.join(dir, "notes.txt"), "not a document")
-    expect(writtenDocuments(dir, seed)).toEqual(["specs/plans/new.md"])
-    git("add", ".")
-    git("commit", "-q", "-m", "run")
-    expect(writtenDocuments(dir, seed)).toEqual(["specs/plans/new.md"])
+    const initial = path.join(root, "initial")
+    const final = path.join(root, "final")
+    for (const dir of [initial, final]) {
+      fs.mkdirSync(path.join(dir, "docs"), { recursive: true })
+      fs.writeFileSync(path.join(dir, "docs", "old.md"), "fixture doc")
+      fs.writeFileSync(path.join(dir, "README.md"), "readme")
+    }
+    fs.writeFileSync(path.join(final, "README.md"), "readme, edited")
+    fs.mkdirSync(path.join(final, "specs", "plans"), { recursive: true })
+    fs.writeFileSync(path.join(final, "specs", "plans", "new.md"), "written")
+    fs.writeFileSync(path.join(final, "notes.txt"), "not a document")
+    fs.mkdirSync(path.join(final, ".git"))
+    fs.writeFileSync(path.join(final, ".git", "description.md"), "git internals")
+    expect(writtenDocuments(initial, final)).toEqual(["README.md", "specs/plans/new.md"])
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
+    fs.rmSync(root, { recursive: true, force: true })
   }
+})
+
+test("scenario ids cannot climb out of the output directory", () => {
+  expect(() => checkScenarioId("ce-brainstorm/animation")).not.toThrow()
+  for (const bad of ["../victim", "a/../b", "..\\..\\victim", "a b", "", "a//b"]) expect(() => checkScenarioId(bad)).toThrow(/plain names/)
 })

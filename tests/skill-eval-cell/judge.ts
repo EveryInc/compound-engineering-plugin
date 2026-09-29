@@ -10,7 +10,7 @@
  *
  * Bills the host CLIs on PATH. Not part of `bun test` or CI.
  */
-import { spawn, spawnSync } from "node:child_process"
+import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -71,6 +71,14 @@ export function loadScenarioFile(file: string): JudgedScenario[] {
   })
 }
 
+/** Ids become directory names, so each segment must be a plain name that cannot climb out of the output. */
+export function checkScenarioId(id: string): void {
+  const segments = id.split("/")
+  if (!segments.every((seg) => /^[A-Za-z0-9._-]+$/.test(seg) && seg !== "." && seg !== "..")) {
+    throw new Error(`scenario id must be slash-separated plain names (letters, digits, . _ -), not ${JSON.stringify(id)}`)
+  }
+}
+
 export function planCells(
   scenarios: JudgedScenario[],
   outRoot: string,
@@ -78,6 +86,7 @@ export function planCells(
 ): Cell[] {
   const cells: Cell[] = []
   for (const scenario of scenarios) {
+    checkScenarioId(scenario.id)
     const hosts = opts.hosts ?? scenario.hosts
     const trials = opts.trials ?? scenario.trials
     for (const arm of opts.arms) {
@@ -238,17 +247,21 @@ export function cellComplete(dir: string, host: Host): boolean {
 }
 
 /**
- * The documents the conversation wrote: committed since the seed, modified, or untracked.
- * Reading changes rather than a fixed folder follows a configured docs root and ignores
- * documents the fixture already had.
+ * The documents the conversation wrote: files in the host's final workspace that are new
+ * or changed from the sealed starting workspace. Both copies are sealed evidence, unlike
+ * .git, and the comparison also catches documents written to gitignored paths.
  */
-export function writtenDocuments(workspace: string, seedSha: string): string[] {
-  const git = (args: string[]) => spawnSync("git", args, { cwd: workspace, encoding: "utf8" }).stdout ?? ""
-  const committed = seedSha ? git(["diff", "--name-only", `${seedSha}..HEAD`]).split("\n") : []
-  const pending = git(["status", "--porcelain", "--untracked-files=all"]).split("\n").map((l) => l.slice(3))
-  return [...new Set([...committed, ...pending])]
-    .filter((f) => /\.(md|html)$/.test(f) && fs.existsSync(path.join(workspace, f)))
-    .sort()
+export function writtenDocuments(initialWorkspace: string, finalWorkspace: string): string[] {
+  const docs: string[] = []
+  for (const rel of fs.readdirSync(finalWorkspace, { recursive: true }).map(String)) {
+    if (rel.split(path.sep).includes(".git") || !/\.(md|html)$/.test(rel)) continue
+    const after = path.join(finalWorkspace, rel)
+    if (!fs.statSync(after).isFile()) continue
+    const before = path.join(initialWorkspace, rel)
+    if (fs.existsSync(before) && fs.readFileSync(before).equals(fs.readFileSync(after))) continue
+    docs.push(rel.split(path.sep).join("/"))
+  }
+  return docs.sort()
 }
 
 function readCell(cell: Cell): { conversation: string; result: string | null; persona: string } | null {
@@ -257,8 +270,7 @@ function readCell(cell: Cell): { conversation: string; result: string | null; pe
   verifyEvidence(cell.dir)
   const hostDir = path.join(cell.dir, "hosts", cell.host)
   const workspace = path.join(hostDir, "workspace")
-  const seedSha = JSON.parse(fs.readFileSync(path.join(cell.dir, "summary.json"), "utf8")).seed_sha ?? ""
-  const docs = writtenDocuments(workspace, seedSha)
+  const docs = writtenDocuments(path.join(cell.dir, "workspace"), workspace)
   const result = docs.length
     ? docs.map((f) => `--- ${f} ---\n${fs.readFileSync(path.join(workspace, f), "utf8")}`).join("\n\n")
     : null
@@ -356,8 +368,11 @@ async function main() {
   fs.writeFileSync(path.join(out, "report.md"), report)
   console.log(report)
   console.error(`graded ${graded.length} of ${readable.length} completed cells; ${cells.length - readable.length} did not complete and are not graded`)
-  // An empty report must not read as a passing evaluation.
-  if (graded.length === 0) process.exit(1)
+  // A partial grid can show only one arm; the report stays for diagnosis, but the run fails.
+  if (graded.length < cells.length) {
+    console.error(`incomplete: ${cells.length - graded.length} of ${cells.length} planned cells have no grade`)
+    process.exit(1)
+  }
 }
 
 if (import.meta.main) {
