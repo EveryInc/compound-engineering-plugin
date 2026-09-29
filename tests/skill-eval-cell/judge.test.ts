@@ -2,9 +2,8 @@ import { afterAll, describe, expect, test } from "bun:test"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { aggregate, cellComplete, cellMatchesPlan, checkHosts, checkScenario, checkScenarioId, gradingBundle, positiveInt, writtenDocuments, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
+import { aggregate, cellComplete, cellIdentity, cellMatchesPlan, checkHosts, checkScenario, checkScenarioId, gradingBundle, positiveInt, writtenDocuments, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
 import { JUDGED_SCENARIOS, type JudgedScenario } from "./judged/scenarios"
-import { fingerprint, sha256 } from "./provenance"
 
 const scenario: JudgedScenario = {
   id: "ce-brainstorm/x", skill: "ce-brainstorm", companions: [], fixture: "f", persona: "p.md", opening: "o",
@@ -183,7 +182,7 @@ test("every library scenario passes the checks a run applies", () => {
   for (const s of JUDGED_SCENARIOS) expect(() => checkScenario(s)).not.toThrow()
 })
 
-test("a finished cell is reused only when it was collected from the planned inputs", () => {
+test("a finished cell is reused only when it was collected from exactly the planned inputs", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "judge-plan-"))
   try {
     const persona = path.join(root, "persona.md")
@@ -193,21 +192,20 @@ test("a finished cell is reused only when it was collected from the planned inpu
     fs.writeFileSync(path.join(fixture, "a.txt"), "a")
     const s: JudgedScenario = { ...scenario, persona, fixture, base_ref: "abc" }
     const cell: Cell = { scenario: s, arm: "pre", host: "claude", trial: 1, dir: path.join(root, "cell") }
-    fs.mkdirSync(cell.dir)
-    const manifest = (over: Record<string, unknown>) => fs.writeFileSync(path.join(cell.dir, "input-manifest.json"), JSON.stringify({
-      requested_ref: "abc", task_sha256: sha256("Idea: o"), persona_sha256: sha256("the persona"),
-      initial_workspace: fingerprint(fixture), ...over,
-    }))
-    manifest({})
+    expect(cellMatchesPlan(cell)).toBe(false)
+    fs.writeFileSync(`${cell.dir}.identity`, cellIdentity(cell))
     expect(cellMatchesPlan(cell)).toBe(true)
-    manifest({ task_sha256: sha256("an older task") })
-    expect(cellMatchesPlan(cell)).toBe(false)
-    manifest({ requested_ref: "def" })
-    expect(cellMatchesPlan(cell)).toBe(false)
-    manifest({})
+    for (const changed of [{ skill: "ce-plan" }, { companions: ["ce-noslop"] }, { max_turns: 9 }, { timeout_secs: 99 }, { opening: "x" }]) {
+      expect(cellMatchesPlan({ ...cell, scenario: { ...s, ...changed } })).toBe(false)
+    }
     fs.writeFileSync(persona, "an edited persona")
     expect(cellMatchesPlan(cell)).toBe(false)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
+})
+
+test("repeated scenario ids or hosts are rejected instead of sharing a cell", () => {
+  expect(() => planCells([scenario, scenario], "/out", { arms: ["pre"] })).toThrow(/share a directory/)
+  expect(() => planCells([scenario], "/out", { arms: ["pre"], hosts: ["claude", "claude"] })).toThrow(/share a directory/)
 })

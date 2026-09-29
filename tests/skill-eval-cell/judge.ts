@@ -18,7 +18,7 @@ import { arg, flag } from "./cli"
 import { REPO_ROOT, WORKTREE_REF } from "./extract"
 import { CONVERSE_HOSTS, toollessClaudeArgv } from "./converse"
 import { cellEnv, type Host } from "./hosts"
-import { fingerprint, sha256, verifyEvidence } from "./provenance"
+import { fingerprint, sha256, valueHash, verifyEvidence } from "./provenance"
 import { JUDGED_SCENARIOS, type JudgedScenario } from "./judged/scenarios"
 
 export type Arm = "pre" | "post"
@@ -111,6 +111,9 @@ export function planCells(
       }
     }
   }
+  const dirs = cells.map((c) => c.dir)
+  const repeated = dirs.filter((d, i) => dirs.indexOf(d) !== i)
+  if (repeated.length > 0) throw new Error(`two planned cells share a directory (repeated scenario id or host): ${[...new Set(repeated)].join(", ")}`)
   return cells
 }
 
@@ -280,21 +283,30 @@ export function writtenDocuments(initialWorkspace: string, finalWorkspace: strin
 }
 
 /**
- * A finished cell is reused only if it was collected from the inputs this run plans:
- * the post arm's directory always says WORKTREE, so an edited skill, task, persona or
- * fixture would otherwise have an old transcript graded as if it tested the new one.
+ * Everything that shapes a cell's conversation, hashed: the whole scenario plus the arm,
+ * host and trial, and the content of the persona and fixture, and on the working-tree arm
+ * the skill and its companions. Hashing the whole plan, rather than comparing chosen
+ * fields, means a field added to scenarios later is covered without anyone remembering it.
  */
+export function cellIdentity(cell: Cell): string {
+  const s = cell.scenario
+  const fixture = path.isAbsolute(s.fixture) ? s.fixture : path.join(REPO_ROOT, s.fixture)
+  const tree = (name: string) => cell.arm === "post" ? fingerprint(path.join(REPO_ROOT, "skills", name)).sha256 : null
+  return valueHash({
+    scenario: s, arm: cell.arm, host: cell.host, trial: cell.trial,
+    persona: sha256(fs.readFileSync(personaPath(s))),
+    fixture: fingerprint(fixture).sha256,
+    skills: Object.fromEntries([s.skill, ...s.companions].map((name) => [name, tree(name)])),
+  })
+}
+
+/** Written beside the cell before it runs, so an interrupted or changed cell never reads as current. */
+const identityFile = (cell: Cell) => `${cell.dir}.identity`
+
+/** A finished cell is reused only when it was collected from exactly this run's plan. */
 export function cellMatchesPlan(cell: Cell): boolean {
   try {
-    const input = JSON.parse(fs.readFileSync(path.join(cell.dir, "input-manifest.json"), "utf8"))
-    const s = cell.scenario
-    const ref = cell.arm === "pre" ? s.base_ref : WORKTREE_REF
-    const fixture = path.isAbsolute(s.fixture) ? s.fixture : path.join(REPO_ROOT, s.fixture)
-    return input.requested_ref === ref &&
-      input.task_sha256 === sha256(s.task.replace("{opening}", s.opening)) &&
-      input.persona_sha256 === sha256(fs.readFileSync(personaPath(s))) &&
-      input.initial_workspace?.sha256 === fingerprint(fixture).sha256 &&
-      (ref !== WORKTREE_REF || input.skill?.sha256 === fingerprint(path.join(REPO_ROOT, "skills", s.skill)).sha256)
+    return fs.readFileSync(identityFile(cell), "utf8").trim() === cellIdentity(cell)
   } catch {
     return false
   }
@@ -365,6 +377,7 @@ async function main() {
     console.error(`running ${pending.length} of ${cells.length} cells, ${concurrency} at a time`)
     await pool(pending, concurrency, async (cell) => {
       fs.mkdirSync(path.dirname(cell.dir), { recursive: true })
+      fs.writeFileSync(identityFile(cell), `${cellIdentity(cell)}\n`)
       const r = await exec(cellArgv(cell), { cwd: REPO_ROOT, timeoutMs: (cell.scenario.timeout_secs + 600) * 1000 })
       fs.writeFileSync(`${cell.dir}.collector.log`, `${r.stdout}\n${r.stderr}`)
       console.error(`${r.status === 0 ? "ran" : "FAILED"} ${path.relative(out, cell.dir)}`)
