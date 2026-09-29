@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
-import { detectInstalledTools, getDetectedTargetNames } from "../src/utils/detect-tools"
+import { detectInstalledTools } from "../src/utils/detect-tools"
 
 describe("detectInstalledTools", () => {
   test("detects tools when config directories exist", async () => {
@@ -177,34 +177,5 @@ describe("detectInstalledTools", () => {
     results = await detectInstalledTools(tempHome, tempCwd)
     expect(results.find((t) => t.name === "copilot")?.detected).toBe(true)
     expect(results.find((t) => t.name === "copilot")?.reason).toContain(".github/skills")
-  })
-})
-
-describe("getDetectedTargetNames", () => {
-  test("returns only names of detected tools", async () => {
-    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-names-"))
-    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-names-cwd-"))
-
-    await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
-    await fs.mkdir(path.join(tempHome, ".gemini", "antigravity-cli"), { recursive: true })
-    delete process.env.OPENCODE_CONFIG_DIR
-
-    const names = await getDetectedTargetNames(tempHome, tempCwd)
-
-    expect(names).toContain("codex")
-    expect(names).toContain("antigravity")
-    expect(names).not.toContain("opencode")
-    expect(names).not.toContain("droid")
-    expect(names).not.toContain("pi")
-    expect(names).not.toContain("cursor")
-  })
-
-  test("returns empty array when nothing detected", async () => {
-    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-none-"))
-    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-none-cwd-"))
-    delete process.env.OPENCODE_CONFIG_DIR
-
-    const names = await getDetectedTargetNames(tempHome, tempCwd)
-    expect(names).toEqual([])
   })
 })

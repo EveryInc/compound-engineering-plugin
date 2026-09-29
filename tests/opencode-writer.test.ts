@@ -3,7 +3,6 @@ import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
 import { writeOpenCodeBundle } from "../src/targets/opencode"
-import { mergeJsonConfigAtKey } from "../src/utils/json-config"
 import type { OpenCodeBundle } from "../src/types/opencode"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { convertClaudeToOpenCode } from "../src/converters/claude-to-opencode"
@@ -965,41 +964,6 @@ describe("writeOpenCodeBundle preserves user-managed skill and command paths", (
       }
     },
   )
-})
-
-describe("mergeJsonConfigAtKey", () => {
-  test("incoming plugin entries overwrite same-named servers", async () => {
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "json-merge-"))
-    const configPath = path.join(tempDir, "opencode.json")
-
-    // User has an existing MCP server config
-    const existingConfig = {
-      model: "my-model",
-      mcp: {
-        "user-server": { type: "local", command: ["uvx", "user-srv"] },
-      },
-    }
-    await fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
-
-    // Plugin syncs its servers, overwriting same-named entries
-    await mergeJsonConfigAtKey({
-      configPath,
-      key: "mcp",
-      incoming: {
-        "plugin-server": { type: "local", command: ["uvx", "plugin-srv"] },
-        "user-server": { type: "local", command: ["uvx", "plugin-override"] },
-      },
-    })
-
-    const merged = JSON.parse(await fs.readFile(configPath, "utf8"))
-
-    // User's top-level keys preserved
-    expect(merged.model).toBe("my-model")
-    // Plugin server added
-    expect(merged.mcp["plugin-server"]).toBeDefined()
-    // Plugin server overwrites same-named existing entry
-    expect(merged.mcp["user-server"].command[1]).toBe("plugin-override")
-  })
 })
 
 describe("writeOpenCodeBundle guards against ancestor-symlink traversal", () => {

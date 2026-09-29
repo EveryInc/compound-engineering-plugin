@@ -18,10 +18,6 @@ export function resolveTargetOutputRoot(options: {
     const base = hasExplicitOutput ? outputRoot : process.cwd()
     return path.join(base, ".agy")
   }
-  if (targetName === "kiro") {
-    const base = hasExplicitOutput ? outputRoot : process.cwd()
-    return path.join(base, ".kiro")
-  }
   if (targetName === "opencode") {
     // Without an explicit --output, default to the OpenCode global-config root
     // (OPENCODE_CONFIG_DIR or ~/.config/opencode). With an explicit --output,
