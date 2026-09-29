@@ -75,11 +75,12 @@ export function simReplyOrDone(raw: string): string | null {
 /**
  * The simulated user gets no tools and no machine-local customizations (hooks, MCP,
  * plugins, CLAUDE.md), the same posture as ce-doc-review's tool-less Claude peer, so
- * its reply rests on the persona and transcript alone.
+ * its reply rests on the persona and transcript alone. The prompt goes on stdin:
+ * it holds the hidden persona, and argv is visible to other processes and size-limited.
  */
-export function userSimArgv(prompt: string): string[] {
+export function userSimArgv(): string[] {
   return [
-    "claude", "-p", prompt, "--model", "sonnet", "--output-format", "text",
+    "claude", "-p", "--model", "sonnet", "--output-format", "text",
     "--safe-mode", "--disable-slash-commands", "--tools", "", "--no-session-persistence",
   ]
 }
@@ -90,12 +91,12 @@ export function runUserSim(
 ): { reply: string | null; failed: boolean; timedOut: boolean; error: string } {
   const timeout = Math.min(300_000, remainingMs)
   if (timeout <= 0) return { reply: null, failed: false, timedOut: true, error: "" }
-  const [bin, ...args] = userSimArgv(userSimPrompt(persona, turns))
+  const [bin, ...args] = userSimArgv()
   // An empty scratch directory keeps the cell's skill and workspace out of reach.
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "ce-user-sim-"))
   let sim
   try {
-    sim = spawnSync(bin, args, { cwd, env, encoding: "utf8", timeout, maxBuffer: 1 << 20, stdio: ["ignore", "pipe", "pipe"] })
+    sim = spawnSync(bin, args, { cwd, env, input: userSimPrompt(persona, turns), encoding: "utf8", timeout, maxBuffer: 1 << 20 })
   } finally {
     fs.rmSync(cwd, { recursive: true, force: true })
   }

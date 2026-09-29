@@ -45,7 +45,7 @@ describe("conversation control", () => {
   })
 
   test("the simulated user runs without tools or machine-local customizations", () => {
-    const argv = userSimArgv("reply")
+    const argv = userSimArgv()
     expect(argv[argv.indexOf("--tools") + 1]).toBe("")
     expect(argv).toContain("--safe-mode")
   })
