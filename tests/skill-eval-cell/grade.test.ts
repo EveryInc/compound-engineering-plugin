@@ -252,6 +252,14 @@ describe("skill-eval-cell host grade", () => {
     const late = hostDir({ "stdout.txt": "I looked around.\nRead SKILL.md\nNEXT: measure\n\nFILES_READ: a\nACTIONS: none\n" })
     expect(gradeHost({ host: "claude", hostDir: late, arm: "post", grade }).ok).toBe(true)
 
+    // Grok can also glue the answer onto the end of its narration line.
+    const glued = hostDir({ "stdout.txt": "I read the rubric and the code together.NEXT: measure\n\nFILES_READ: a\nACTIONS: none\n" })
+    expect(gradeHost({ host: "grok", hostDir: glued, arm: "post", grade }).ok).toBe(true)
+
+    // A label mentioned mid-sentence is not a declaration.
+    const prose = hostDir({ "stdout.txt": "I weighed NEXT: measure against shipping.\nNEXT: implement\n\nFILES_READ: a\nACTIONS: none\n" })
+    expect(gradeHost({ host: "grok", hostDir: prose, arm: "post", grade }).reasons).toEqual(["expected NEXT: measure, got implement"])
+
     const twice = hostDir({ "stdout.txt": "NEXT: implement\nNEXT: measure\n\nFILES_READ: a\nACTIONS: none\n" })
     expect(gradeHost({ host: "claude", hostDir: twice, arm: "post", grade }).reasons).toEqual(["expected one NEXT line, got 2"])
 

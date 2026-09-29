@@ -146,10 +146,18 @@ function resultBlock(text: string): string | null {
  */
 function declaredLines(text: string, name: string): string[] {
   const prefix = `${name.toUpperCase()}:`
+  // Grok can print its answer on the same line as the narration before it
+  // ("...together.T1: more-code"), so a label right after sentence-ending
+  // punctuation also starts a declaration.
+  const glued = new RegExp(`[.!?]\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`, "i")
   return text
     .split("\n")
     .map((line) => line.trim().replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim())
-    .filter((plain) => plain.toUpperCase().startsWith(prefix))
+    .flatMap((plain) => {
+      if (plain.toUpperCase().startsWith(prefix)) return [plain]
+      const m = glued.exec(plain)
+      return m ? [plain.slice(m.index + m[0].length - prefix.length)] : []
+    })
     .map((plain) => plain.slice(prefix.length).trim())
 }
 

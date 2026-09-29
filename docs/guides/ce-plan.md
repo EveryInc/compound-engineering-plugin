@@ -113,11 +113,17 @@ This matters because `ce-work` references units by U-ID across plan edits. Renum
 
 When the plan is sourced from a `ce-brainstorm` requirements-only unified plan, identifiers flow through in the same file. Requirements (R-IDs) stay in the Product Contract. Actors (A-IDs) carry forward when they affect behavior or permissions. Key Flows (F-IDs) cite into the units that realize them. Acceptance Examples (AE-IDs) cite into test scenarios (`Covers AE3. <scenario>`). Every Product Contract section is checked against the Planning Contract before finalization.
 
-Every feature-bearing unit enumerates test scenarios from each applicable category: happy path, edge cases (boundaries, empty/nil, concurrency), error/failure paths, and integration. Each scenario names the input, action, and expected outcome.
+Every feature-bearing unit enumerates test scenarios for the behavior it builds: happy path, plus edge cases, error handling, and integration where the unit has them. A category is not a list of failures to add handling for. Each scenario names the input, action, and expected outcome.
+
+### Sizing what gets built
+
+A plan starts from how the result will be used: who runs or depends on it, what they see when it works, and who finds out when it fails. A mechanism the request did not ask for, such as a guard, retry, recovery path, mode, or abstraction, is built only when an existing contract requires it, when leaving it out causes harm nobody would catch in time, or when adding it later would be expensive (stored data, a public interface, money, security). A concern that fails that test, whether it came from research, a specialist agent, or review, is listed as considered and not built, with the reason and what would change the call. When the call is unclear, the mechanism is built.
+
+The test sizes only what the request did not ask for. A safeguard may not delay, gate, cap, or skip part of a requested behavior; a real conflict between the two goes to Open Questions for the requester. `ce-doc-review`'s scope-guardian applies the same test to every plan in both directions: it flags committed mechanisms that fail it, left-out items that pass it, and requested behavior the plan narrowed.
 
 ### Confidence check, then research that matches intent
 
-After writing a Durable plan, `ce-plan` scores sections, picks the weakest ones, dispatches targeted sub-agents (correctness for units, data integrity for migrations, architecture for key technical decisions), and folds findings back into the plan. During generation this runs in auto mode. When you ask to deepen an existing plan, findings are presented one by one for accept/reject.
+After writing a Durable plan, `ce-plan` scores sections, picks the weakest ones, dispatches targeted sub-agents (correctness for units, data integrity for migrations, architecture for key technical decisions), and judges each finding by the same sizing test before folding it into the plan. During generation this runs in auto mode. When you ask to deepen an existing plan, findings are presented one by one for accept/reject.
 
 Research earlier in the run is decided by intent, not a single on/off switch. Local research (repo patterns, `docs/solutions/` learnings, and any [Compound Pack](./packs.md) declared in the repo's `packs` config, whose matching rules land in the plan with a `(pack: <id>, <path>)` citation) always runs in parallel, plus spec-flow analysis for Standard and Deep plans. An explicit request ("research competitors", "which library") always triggers external research. Implicit signals can too, when local patterns are thin or the recommendations hinge on an unsettled external option set. Implementation-guidance questions route to framework docs; landscape questions route to a web scan; mixed requests run the scan first, then docs on the shortlist.
 

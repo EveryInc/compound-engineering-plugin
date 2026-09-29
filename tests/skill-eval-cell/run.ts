@@ -159,7 +159,7 @@ async function main() {
   const taskFile = arg("--task-file")
   if (!skill) {
     console.error(
-      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--read-only] [--git-init] [--git-untracked p,p] [--git-staged p,p] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
+      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--with-skill name,name] [--reasoning-effort level (grok)] [--read-only] [--git-init] [--git-untracked p,p] [--git-staged p,p] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
     )
     process.exit(2)
   }
@@ -189,6 +189,11 @@ async function main() {
   if (ref !== WORKTREE_REF && sourceRev.status !== 0) throw new Error(`cannot resolve ref: ${ref}`)
   const resolvedRef = ref === WORKTREE_REF ? ref : sourceRev.stdout.trim()
   const { skillDir } = extractSkill({ skill, ref: resolvedRef, dest: path.join(out, "extract") })
+  const companionNames = (arg("--with-skill") ?? "").split(",").map((s) => s.trim()).filter(Boolean)
+  const companions = companionNames.map((name) => ({
+    name,
+    dir: extractSkill({ skill: name, ref: resolvedRef, dest: path.join(out, "extract") }).skillDir,
+  }))
   const workspace = path.join(out, "workspace")
   const fixture = arg("--fixture")
   if (fixture) copyFixture(fixture, workspace)
@@ -275,7 +280,17 @@ async function main() {
     // Script imports can create caches. Keep the input snapshot unchanged and
     // give every host its own execution copy, included in the sealed evidence.
     fs.cpSync(skillDir, hostSkillDir, { recursive: true })
-    const hostPrompt = wrapPrompt({ skillDir: hostSkillDir, workspace: hostWorkspace, task: taskText })
+    const hostCompanions = companions.map((c) => {
+      const dir = path.join(hostDir, "skills", c.name)
+      fs.cpSync(c.dir, dir, { recursive: true })
+      return { name: c.name, dir }
+    })
+    const hostPrompt = wrapPrompt({
+      skillDir: hostSkillDir,
+      workspace: hostWorkspace,
+      task: taskText,
+      companions: hostCompanions,
+    })
     const promptFile = path.join(hostDir, "prompt.md")
     fs.writeFileSync(promptFile, hostPrompt)
     const plan = planHost(host, {
@@ -283,6 +298,7 @@ async function main() {
       prompt: hostPrompt,
       promptFile,
       readOnly,
+      reasoningEffort: arg("--reasoning-effort"),
     })
     const shims: PathShim[] = []
     if (flag("--shim-git-push")) {

@@ -9,7 +9,7 @@ Read two slots in your prompt's `<review-context>` block:
 
 Calibrate by combining the two slots:
 
-**`Document type: requirements`:** full review. Scope-goal alignment, indirect scope, complexity smell test, priority dependency, and the completeness principle all apply at the spec level.
+**`Document type: requirements`:** full review. Scope-goal alignment, indirect scope, complexity smell test, priority dependency, and mechanism sizing all apply at the spec level.
 
 **`Document type: plan` AND `Origin:` is a path (not `none`):** scope-goal alignment was largely settled upstream. Focus this review on:
 - **Implementation-time abstractions** — does each new abstraction proposed in the plan have multiple current consumers? Checking that an abstraction justifies its cost is plan-time work, not requirements-time work.
@@ -17,7 +17,7 @@ Calibrate by combining the two slots:
 - **Priority dependency among implementation units** — U-IDs declaring dependencies that don't make sense in the implementation order
 - **Scope-creep into deferred work** — implementation units that quietly include work the origin doc placed in `Deferred for later` or `Outside this product's identity`
 
-**Tighten the completeness principle when `Origin:` is set:** flag missing test scenarios or error handling only when the origin requirements explicitly demanded the coverage. Don't push complete-over-partial in places the origin already chose partial. The cost-gap argument belongs to brainstorm-time review, not plan-time scope review.
+**Mechanism sizing applies to every plan, with or without `Origin:`** (section 5). Don't re-argue a coverage choice the origin requirements already made.
 
 Suppress findings on the plan that re-argue scope-goal alignment already settled in the origin doc. Orphan-requirement and unserved-goal critiques against the origin's own goals belong upstream.
 
@@ -51,9 +51,20 @@ If priority tiers exist:
 - **Priority inflation**: 80% of items at P0 means prioritization isn't doing useful work.
 - **Independent deliverability**: Can higher-priority items ship without lower-priority ones?
 
-### 5. Completeness principle
+### 5. Mechanism sizing (both directions)
 
-With AI-assisted implementation, the cost gap between shortcuts and complete solutions is 10-100x smaller. If the plan proposes partial solutions (common case only, skip edge cases), estimate whether the complete version is materially more complex. If not, recommend complete. Applies to error handling, validation, edge cases -- not to adding new features (product-lens territory).
+Any design has one more way to fail, so a plan can always grow by one more guard, retry, recovery path, mode, option, or abstraction. A mechanism the request did not ask for earns its place only when an existing contract requires it or one of these holds:
+
+- **Leaving it out causes harm nobody would catch in time.** The failure can actually happen here (trace it), and the way the result is used would not surface it quickly to someone who can fix it cheaply.
+- **Adding it later would be expensive,** because it concerns stored data or its format, a public or shared interface, money, or security.
+
+Apply this in both directions and emit each result as a finding:
+
+- **A committed mechanism that fails it** — recommend moving it to the plan's considered-and-not-built list (usually `Deferred to Follow-Up Work`), quoting the mechanism and naming why neither condition holds. Something built around a needed mechanism that covers nothing the first one does not also fails.
+- **A left-out item that passes it** — for everything the plan defers, excludes, or lists as considered and not built, ask what happens when that failure occurs and who finds out. Recommend building it when the answer is harm that lands before anyone catches it, such as money moved twice or an unattended job whose failures reach no one.
+- **A requested behavior the plan narrows** — a safeguard or a narrow reading that delays, gates, caps, or skips part of something the request asked for. Recommend planning the behavior as requested, with any real conflict with a needed safeguard recorded as an open question for the requester.
+
+Do not recommend edge-case handling, validation, or error handling on the grounds that it is cheap to write. Each addition is more to build, review, and maintain, and it faces the same test.
 
 ## Confidence calibration
 

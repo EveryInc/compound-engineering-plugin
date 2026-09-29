@@ -41,6 +41,8 @@ For **Standard** or **Deep** plans, briefly consider who is affected by this cha
 
 #### 3.3 Break Work into Implementation Units
 
+Start from how the result will be used or run: who calls it, runs it, or depends on it, what they see when it works, and who finds out when it fails. When nobody would, making the failure visible is part of that usage, not an extra. Units exist to deliver that usage and to keep existing contracts working. A mechanism the request did not ask for enters a unit only by passing 3.8.
+
 Break the work into logical implementation units. Each unit should represent one meaningful change that an implementer could typically land as an atomic commit.
 
 Good units are:
@@ -95,10 +97,10 @@ For each unit, include:
 - **Execution note** - optional natural-language direction, only when the unit benefits from non-default sequencing or proof. Do not treat this as an enum; phrase the evidence the implementer should seek.
 - **Technical design** - optional pseudo-code or diagram when the unit's approach is non-obvious and prose alone would leave it ambiguous. Frame explicitly as directional guidance, not implementation specification
 - **Patterns to follow** - existing code or conventions to mirror
-- **Test scenarios** - enumerate the specific test cases the implementer should write, one scenario per list item (never a semicolon-chained paragraph), right-sized to the unit's complexity and risk. Consider each category below and include scenarios from every category that applies to this unit. A simple config change may need one scenario; a payment flow may need a dozen. The quality signal is specificity — each scenario should name the input, action, and expected outcome so the implementer doesn't have to invent coverage. For units with no behavioral change (pure config, scaffolding, styling), use `Test expectation: none -- [reason]` instead of leaving the field blank. **AE-link convention:** when a test scenario directly enforces an origin Acceptance Example, prefix it with `Covers AE<N>.` (or `Covers F<N> / AE<N>.`). This is sparse-by-design — most test scenarios are finer-grained than AEs and do not link. Do not force AE links onto tests that only cover lower-level implementation details.
+- **Test scenarios** - enumerate the specific test cases the implementer should write, one scenario per list item (never a semicolon-chained paragraph), right-sized to the unit's complexity and risk. Scenarios test the behavior the unit builds; a category is not a list of failures to add handling for. Include scenarios from each category below that applies to what this unit builds. A simple config change may need one scenario; a payment flow may need a dozen. The quality signal is specificity — each scenario should name the input, action, and expected outcome so the implementer doesn't have to invent coverage. For units with no behavioral change (pure config, scaffolding, styling), use `Test expectation: none -- [reason]` instead of leaving the field blank. **AE-link convention:** when a test scenario directly enforces an origin Acceptance Example, prefix it with `Covers AE<N>.` (or `Covers F<N> / AE<N>.`). This is sparse-by-design — most test scenarios are finer-grained than AEs and do not link. Do not force AE links onto tests that only cover lower-level implementation details.
   - **Happy path behaviors** - core functionality with expected inputs and outputs
-  - **Edge cases** (when the unit has meaningful boundaries) - boundary values, empty inputs, nil/null states, concurrent access
-  - **Error and failure paths** (when the unit has failure modes) - invalid input, downstream service failures, timeout behavior, permission denials
+  - **Edge cases** (inputs the unit really receives) - boundary values, empty inputs, nil/null states
+  - **Error and failure paths** (failure handling the unit builds) - how the unit behaves when that handling triggers
   - **Integration scenarios** (when the unit crosses layers) - behaviors that mocks alone will not prove, e.g., "creating X triggers callback Y which persists Z". Include these for any unit touching callbacks, middleware, or multi-layer interactions
 - **Verification** - how an implementer should know the unit is complete, expressed as outcomes rather than shell command scripts
 
@@ -127,6 +129,19 @@ Examples:
 Distinct from 3.6 (which is about *unknowns* at plan time): 3.7 is about *known but tangential* work that the agent notices while planning but that falls outside the user's confirmed scope. When research surfaces an adjacent refactor, a "while we're here" cleanup, or a scope-adjacent nice-to-have ("we could also add rate limiting"), put it in the existing `### Deferred to Follow-Up Work` subsection in Scope Boundaries (Phase 4.2 Core Plan Template), not into active Implementation Units.
 
 This reinforces the synthesis discipline established at Phase 0.7 / Phase 5.1.5 — the user's confirmed scope is what the active plan executes; everything else is deferred. Does NOT impose architectural bias on extend-vs-invent decisions within confirmed scope — that judgment stays with the agent (and is shown to the user in the Phase 5.1.5 synthesis when material). The user's explicit ask overrides this default — if the user explicitly requested a refactor, it's in-scope, not deferred.
+
+#### 3.8 Judge Each Concern; Record What You Chose Not to Build
+
+Risk has no natural limit: any design has one more way to fail. A concern raised by you, by research, by a specialist agent, or by a reviewer is a claim to judge, not an item to build. Build a mechanism the request did not ask for, such as a guard, retry, recovery path, mode, option, abstraction, or extra operational procedure, only when an existing contract requires it or one of these holds:
+
+- **Leaving it out causes harm nobody would catch in time.** The failure can actually happen here (trace it, do not assume it), and the way the result is used would not surface it quickly to someone who can fix it cheaply. Something that notices the failure counts; an instruction asking a person to avoid it, or to clean up by hand afterward, does not.
+- **Adding it later would be expensive,** because it concerns stored data or its format, a public or shared interface, money, or security.
+
+A mechanism that passes gets the smallest form that closes its gap. Anything built around it, such as a second guard, a recovery mode, or a finer classification of outcomes, is its own addition and faces the same test.
+
+This test sizes what the request did not ask for; it never trims what it did. A safeguard may not narrow a requested behavior by delaying, gating, capping, or skipping any part of it, and where the request's words cover a case, the plan covers it. When a needed safeguard and a requested behavior truly conflict, plan the behavior as requested and record the conflict under Open Questions for the requester.
+
+A concern that fails the test is not dropped silently. List it under `### Deferred to Follow-Up Work` as considered and not built, with one line on why and on what evidence would change the call. When you cannot tell whether leaving a mechanism out lets harm land before anyone catches it, or whether it keeps an existing contract or stored data working, build it.
 
 ### Phase 4: Write the Plan
 

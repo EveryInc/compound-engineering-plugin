@@ -88,7 +88,7 @@ Conditional personas activate from what the doc says, not keyword matching:
 - **product-lens** when the doc stakes an unsettled product position that a stakeholder could challenge (what to build, why, or what comes first), or the work carries strategic weight. A choice among mechanisms is not a product position
 - **design-lens** when it contains UI/UX references, user flows, or visual design language
 - **security-lens** when it touches auth, public APIs, sensitive data, payments, or third-party trust boundaries
-- **scope-guardian** when it has multiple priority tiers, a large requirement count, or scope-boundary language that looks misaligned
+- **scope-guardian** on every plan, where it checks that each mechanism the request did not ask for earns its place, that nothing left out lets harm land unnoticed, and that no requested behavior was narrowed; on other docs, when it has multiple priority tiers, a large requirement count, or scope-boundary language that looks misaligned
 - **adversarial** when it touches high-stakes domains, proposes new abstractions, has missing or extended origin, contains requirements-shape premise content, or presents explicit alternatives
 
 `coherence-reviewer` and `feasibility-reviewer` run on every review.
@@ -169,7 +169,7 @@ The pass embeds the document into the peer prompt and sends it to an external pr
 
 `/ce-plan` finishes a Standard plan for a notification-mute feature and invokes `/ce-doc-review` in `mode:non-interactive` with the plan path.
 
-The skill reads the doc, classifies it as a plan from content-shape signals (U-IDs, plan section structure), and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates coherence (always-on), feasibility (always-on, plan-shape techniques), and design-lens (UI surface). Adversarial, scope-guardian, security-lens, and product-lens skip.
+The skill reads the doc, classifies it as a plan from content-shape signals (U-IDs, plan section structure), and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates coherence (always-on), feasibility (always-on, plan-shape techniques), scope-guardian (every plan), and design-lens (UI surface). Adversarial, security-lens, and product-lens skip.
 
 Two reviewers flag a broken cross-reference, a CSV test method that contradicts the required quoting behavior, and several requests to repeat instructions already present elsewhere. The lead drops the repetition requests and verifies both actual defects.
 

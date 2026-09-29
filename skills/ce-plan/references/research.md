@@ -200,7 +200,7 @@ For **Standard** or **Deep** plans, or when user flow completeness is still uncl
 Use the output to:
 - Identify missing edge cases, state transitions, or handoff gaps
 - Tighten requirements trace or verification strategy
-- Add only the flow details that materially improve the plan
+- Add only the flow details that materially improve the plan. Carry an edge case forward as a concern for Phase 3 to judge, not as committed plan work
 
 #### 1.6 Bake-off
 

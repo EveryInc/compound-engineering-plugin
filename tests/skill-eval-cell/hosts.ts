@@ -119,7 +119,7 @@ export const CLAUDE_READ_ONLY_DENY = "Bash,Edit,Write,NotebookEdit,Task,Skill,We
 
 export function planHost(
   host: Host,
-  opts: { cwd: string; prompt: string; promptFile: string; readOnly?: boolean },
+  opts: { cwd: string; prompt: string; promptFile: string; readOnly?: boolean; reasoningEffort?: string },
 ): HostPlan {
   const env = cellEnv()
   const notes: string[] = []
@@ -179,6 +179,8 @@ export function planHost(
     "--always-approve",
     "--disable-web-search",
   ]
+  // Without this the run inherits the operator's ~/.grok default, which can be xhigh.
+  if (opts.reasoningEffort) argv.push("--reasoning-effort", opts.reasoningEffort)
   if (opts.readOnly) {
     argv.push("--deny", "Bash", "--deny", "Edit", "--deny", "Write")
     notes.push("read-only: Bash/Edit/Write denied")
@@ -192,11 +194,22 @@ export const TRAILER_NAMES = {
   delegates: "DELEGATES_DISPATCHED",
 } as const
 
-export function wrapPrompt(opts: { skillDir: string; workspace: string; task: string }): string {
+export function wrapPrompt(opts: {
+  skillDir: string
+  workspace: string
+  task: string
+  /** Skills the main skill may invoke, by name, with the directory holding each copy. */
+  companions?: { name: string; dir: string }[]
+}): string {
+  const companions = opts.companions ?? []
   return [
     `Read the skill at ${path.join(opts.skillDir, "SKILL.md")} first.`,
     `Resolve bundled references and scripts from that directory.`,
     `Do not read or use an installed plugin copy of this skill (not ~/.claude, ~/.grok, ~/.agents, ~/.config/opencode, project .opencode, or a plugin cache).`,
+    ...companions.map(
+      (c) =>
+        `When it tells you to invoke the \`${c.name}\` skill, invoke it by reading ${path.join(c.dir, "SKILL.md")} and following it, resolving its references from that directory. Do not use an installed plugin copy of \`${c.name}\`.`,
+    ),
     `The project workspace is ${opts.workspace}. Stay inside it.`,
     ``,
     `Task:`,

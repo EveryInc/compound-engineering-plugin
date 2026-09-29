@@ -132,4 +132,23 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(prompt).toContain("~/.config/opencode")
     expect(prompt).toContain("project .opencode")
   })
+
+  test("grok takes an explicit reasoning effort instead of the operator default", () => {
+    const base = { cwd: "/tmp/ws", prompt: "p", promptFile: "/tmp/p.md" }
+    expect(planHost("grok", base).argv).not.toContain("--reasoning-effort")
+    const argv = planHost("grok", { ...base, reasoningEffort: "high" }).argv
+    expect(argv.slice(argv.indexOf("--reasoning-effort"), argv.indexOf("--reasoning-effort") + 2)).toEqual(["--reasoning-effort", "high"])
+  })
+
+  test("wrapPrompt points each companion skill at its bundled copy", () => {
+    const prompt = wrapPrompt({
+      skillDir: "/tmp/skill",
+      workspace: "/tmp/ws",
+      task: "Plan it.",
+      companions: [{ name: "ce-doc-review", dir: "/tmp/skills/ce-doc-review" }],
+    })
+    expect(prompt).toContain("/tmp/skills/ce-doc-review/SKILL.md")
+    expect(prompt).toContain("Do not use an installed plugin copy of `ce-doc-review`")
+    expect(prompt.toLowerCase()).not.toContain("eval")
+  })
 })
