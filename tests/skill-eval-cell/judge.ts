@@ -18,7 +18,7 @@ import { arg, flag } from "./cli"
 import { REPO_ROOT, WORKTREE_REF } from "./extract"
 import { CONVERSE_HOSTS, toollessClaudeArgv } from "./converse"
 import { cellEnv, type Host } from "./hosts"
-import { verifyEvidence } from "./provenance"
+import { fingerprint, sha256, verifyEvidence } from "./provenance"
 import { JUDGED_SCENARIOS, type JudgedScenario } from "./judged/scenarios"
 
 export type Arm = "pre" | "post"
@@ -58,6 +58,17 @@ export function positiveInt(raw: string | undefined, name: string): number | und
   return n
 }
 
+/** Checks what a run needs from a scenario, whether it came from the library or a file. */
+export function checkScenario(s: JudgedScenario): void {
+  checkScenarioId(s.id)
+  if (!Array.isArray(s.hosts) || s.hosts.length === 0) throw new Error(`${s.id}: hosts must list at least one host`)
+  checkHosts(s.hosts, s.id)
+  for (const key of ["trials", "max_turns", "timeout_secs"] as const) {
+    if (!Number.isInteger(s[key]) || s[key] <= 0) throw new Error(`${s.id}: ${key} must be a positive integer, not ${s[key]}`)
+  }
+  if (!s.task.includes("{opening}")) throw new Error(`${s.id}: task must contain {opening}`)
+}
+
 /** Loads one scenario or a list from a JSON file an agent wrote for the change at hand. */
 export function loadScenarioFile(file: string): JudgedScenario[] {
   const parsed = JSON.parse(fs.readFileSync(file, "utf8"))
@@ -66,8 +77,9 @@ export function loadScenarioFile(file: string): JudgedScenario[] {
     for (const key of ["id", "skill", "fixture", "persona", "opening", "task", "rubric", "base_ref"]) {
       if (typeof raw[key] !== "string" || !raw[key]) throw new Error(`${file}: scenario is missing "${key}"`)
     }
-    if (!raw.task.includes("{opening}")) throw new Error(`${file}: task must contain {opening}`)
-    return { ...SCENARIO_DEFAULTS, ...raw } as JudgedScenario
+    const scenario = { ...SCENARIO_DEFAULTS, ...raw } as JudgedScenario
+    checkScenario(scenario)
+    return scenario
   })
 }
 
@@ -92,7 +104,8 @@ export function planCells(
     for (const arm of opts.arms) {
       for (const host of hosts) {
         for (let trial = 1; trial <= trials; trial++) {
-          const dir = path.join(outRoot, "cells", scenario.id.replaceAll("/", "__"), arm, `${host}-${trial}`)
+          // Id segments are checked plain names, so nesting them keeps every scenario in its own directory.
+          const dir = path.join(outRoot, "cells", ...scenario.id.split("/"), arm, `${host}-${trial}`)
           cells.push({ scenario, arm, host, trial, dir })
         }
       }
@@ -126,8 +139,10 @@ export function parseGrade(raw: string): Grade | null {
   if (start < 0 || end <= start) return null
   try {
     const parsed = JSON.parse(raw.slice(start, end + 1))
-    if (!parsed || typeof parsed.metrics !== "object" || parsed.metrics === null) return null
-    return parsed as Grade
+    if (!parsed || typeof parsed.metrics !== "object" || parsed.metrics === null || Array.isArray(parsed.metrics)) return null
+    // A grade must carry at least one number or yes/no answer; an empty or untyped map grades nothing.
+    const usable = Object.values(parsed.metrics).some((v) => (typeof v === "number" && Number.isFinite(v)) || typeof v === "boolean")
+    return usable ? (parsed as Grade) : null
   } catch {
     return null
   }
@@ -264,6 +279,27 @@ export function writtenDocuments(initialWorkspace: string, finalWorkspace: strin
   return docs.sort()
 }
 
+/**
+ * A finished cell is reused only if it was collected from the inputs this run plans:
+ * the post arm's directory always says WORKTREE, so an edited skill, task, persona or
+ * fixture would otherwise have an old transcript graded as if it tested the new one.
+ */
+export function cellMatchesPlan(cell: Cell): boolean {
+  try {
+    const input = JSON.parse(fs.readFileSync(path.join(cell.dir, "input-manifest.json"), "utf8"))
+    const s = cell.scenario
+    const ref = cell.arm === "pre" ? s.base_ref : WORKTREE_REF
+    const fixture = path.isAbsolute(s.fixture) ? s.fixture : path.join(REPO_ROOT, s.fixture)
+    return input.requested_ref === ref &&
+      input.task_sha256 === sha256(s.task.replace("{opening}", s.opening)) &&
+      input.persona_sha256 === sha256(fs.readFileSync(personaPath(s))) &&
+      input.initial_workspace?.sha256 === fingerprint(fixture).sha256 &&
+      (ref !== WORKTREE_REF || input.skill?.sha256 === fingerprint(path.join(REPO_ROOT, "skills", s.skill)).sha256)
+  } catch {
+    return false
+  }
+}
+
 function readCell(cell: Cell): { conversation: string; result: string | null; persona: string } | null {
   if (!cellComplete(cell.dir, cell.host)) return null
   // Grade against the persona the simulated user actually saw, sealed with the cell.
@@ -308,7 +344,7 @@ async function main() {
     const idPrefix = arg("--id") ?? ""
     const scenarios = (scenarioFile ? loadScenarioFile(scenarioFile) : JUDGED_SCENARIOS).filter((s) => s.id.startsWith(idPrefix))
     if (scenarios.length === 0) throw new Error(`no judged scenario matches ${idPrefix}`)
-    for (const s of scenarios) checkHosts(s.hosts, s.id)
+    for (const s of scenarios) checkScenario(s)
     const armArg = arg("--arm", "ab")
     if (!["ab", "pre", "post"].includes(armArg!)) throw new Error(`--arm must be ab, pre or post, not ${armArg}`)
     const hosts = arg("--hosts")?.split(",").map((h) => h.trim()) as Host[] | undefined
@@ -318,9 +354,10 @@ async function main() {
     fs.writeFileSync(configFile, `${JSON.stringify(config, null, 2)}\n`)
   }
   const cells = planCells(config.scenarios, path.resolve(out), { arms: config.arms, hosts: config.hosts, trials: config.trials })
+  if (cells.length === 0) throw new Error("the selection plans no cells")
 
   if (!flag("--grade-only")) {
-    const pending = cells.filter((c) => !cellComplete(c.dir, c.host))
+    const pending = cells.filter((c) => !cellComplete(c.dir, c.host) || !cellMatchesPlan(c))
     for (const cell of pending) {
       // run.ts needs an empty output directory; keep an interrupted attempt for inspection.
       if (fs.existsSync(cell.dir)) fs.renameSync(cell.dir, `${cell.dir}.incomplete-${Date.now()}`)

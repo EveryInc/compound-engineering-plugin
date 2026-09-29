@@ -2,8 +2,9 @@ import { afterAll, describe, expect, test } from "bun:test"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { aggregate, cellComplete, checkHosts, checkScenarioId, gradingBundle, positiveInt, writtenDocuments, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
+import { aggregate, cellComplete, cellMatchesPlan, checkHosts, checkScenario, checkScenarioId, gradingBundle, positiveInt, writtenDocuments, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
 import { JUDGED_SCENARIOS, type JudgedScenario } from "./judged/scenarios"
+import { fingerprint, sha256 } from "./provenance"
 
 const scenario: JudgedScenario = {
   id: "ce-brainstorm/x", skill: "ce-brainstorm", companions: [], fixture: "f", persona: "p.md", opening: "o",
@@ -15,7 +16,12 @@ describe("planCells", () => {
     const cells = planCells([scenario], "/out", { arms: ["pre", "post"] })
     expect(cells).toHaveLength(8)
     expect(new Set(cells.map((c) => c.dir)).size).toBe(8)
-    expect(cells[0].dir).toBe("/out/cells/ce-brainstorm__x/pre/claude-1")
+    expect(cells[0].dir).toBe(path.join("/out/cells/ce-brainstorm/x/pre/claude-1"))
+  })
+
+  test("ids that differ keep separate directories", () => {
+    const dirs = planCells([{ ...scenario, id: "a/b__c" }, { ...scenario, id: "a__b/c" }], "/out", { arms: ["pre"] }).map((c) => c.dir)
+    expect(new Set(dirs).size).toBe(dirs.length)
   })
 
   test("host and trial overrides replace the scenario's own", () => {
@@ -42,9 +48,12 @@ describe("parseGrade", () => {
     expect(parseGrade(`Here you go:\n\`\`\`json\n${body}\n\`\`\``)?.metrics.asked_adjacent).toBe(true)
   })
 
-  test("rejects output without a metrics object", () => {
+  test("rejects output without a usable metric", () => {
     expect(parseGrade("no json here")).toBeNull()
     expect(parseGrade('{"items": []}')).toBeNull()
+    expect(parseGrade('{"metrics": {}}')).toBeNull()
+    expect(parseGrade('{"metrics": []}')).toBeNull()
+    expect(parseGrade('{"metrics": {"overbuilt": "two", "asked_adjacent": null}}')).toBeNull()
   })
 })
 
@@ -90,6 +99,10 @@ describe("scenario files an agent writes", () => {
     expect(() => loadScenarioFile(file)).toThrow(/\{opening\}/)
     fs.writeFileSync(file, JSON.stringify({ ...required, rubric: undefined }))
     expect(() => loadScenarioFile(file)).toThrow(/rubric/)
+    fs.writeFileSync(file, JSON.stringify({ ...required, trials: 0 }))
+    expect(() => loadScenarioFile(file)).toThrow(/trials/)
+    fs.writeFileSync(file, JSON.stringify({ ...required, hosts: [] }))
+    expect(() => loadScenarioFile(file)).toThrow(/hosts/)
   })
 
   test("a path wins over the library name", () => {
@@ -164,4 +177,37 @@ test("the graded result is what the conversation wrote, wherever it wrote it", (
 test("scenario ids cannot climb out of the output directory", () => {
   expect(() => checkScenarioId("ce-brainstorm/animation")).not.toThrow()
   for (const bad of ["../victim", "a/../b", "..\\..\\victim", "a b", "", "a//b"]) expect(() => checkScenarioId(bad)).toThrow(/plain names/)
+})
+
+test("every library scenario passes the checks a run applies", () => {
+  for (const s of JUDGED_SCENARIOS) expect(() => checkScenario(s)).not.toThrow()
+})
+
+test("a finished cell is reused only when it was collected from the planned inputs", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "judge-plan-"))
+  try {
+    const persona = path.join(root, "persona.md")
+    fs.writeFileSync(persona, "the persona")
+    const fixture = path.join(root, "fixture")
+    fs.mkdirSync(fixture)
+    fs.writeFileSync(path.join(fixture, "a.txt"), "a")
+    const s: JudgedScenario = { ...scenario, persona, fixture, base_ref: "abc" }
+    const cell: Cell = { scenario: s, arm: "pre", host: "claude", trial: 1, dir: path.join(root, "cell") }
+    fs.mkdirSync(cell.dir)
+    const manifest = (over: Record<string, unknown>) => fs.writeFileSync(path.join(cell.dir, "input-manifest.json"), JSON.stringify({
+      requested_ref: "abc", task_sha256: sha256("Idea: o"), persona_sha256: sha256("the persona"),
+      initial_workspace: fingerprint(fixture), ...over,
+    }))
+    manifest({})
+    expect(cellMatchesPlan(cell)).toBe(true)
+    manifest({ task_sha256: sha256("an older task") })
+    expect(cellMatchesPlan(cell)).toBe(false)
+    manifest({ requested_ref: "def" })
+    expect(cellMatchesPlan(cell)).toBe(false)
+    manifest({})
+    fs.writeFileSync(persona, "an edited persona")
+    expect(cellMatchesPlan(cell)).toBe(false)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 })
