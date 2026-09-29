@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { USER_DONE, hostTurnArgv, runUserSim, simReplyOrDone, userSimArgv, userSimPrompt } from "./converse"
+import { USER_DONE, hostTurnArgv, runUserSim, simReplyOrDone, toollessClaudeArgv, userSimPrompt } from "./converse"
 
 const base = { sessionId: "11111111-1111-4111-8111-111111111111", message: "hi", cwd: "/w", lastMessageFile: "/h/last.txt" }
 
@@ -45,7 +45,7 @@ describe("conversation control", () => {
   })
 
   test("the simulated user runs without tools or machine-local customizations", () => {
-    const argv = userSimArgv()
+    const argv = toollessClaudeArgv()
     expect(argv[argv.indexOf("--tools") + 1]).toBe("")
     expect(argv).toContain("--safe-mode")
   })

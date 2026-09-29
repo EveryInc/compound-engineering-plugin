@@ -1,0 +1,1 @@
+{ "name": "shop", "private": true, "dependencies": { "express": "^4", "pg": "^8", "hbs": "^4" } }

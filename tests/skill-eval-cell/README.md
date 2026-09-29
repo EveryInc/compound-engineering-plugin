@@ -30,6 +30,18 @@ partial collection outcomes, legacy-pack compatibility, and snapshot limits.
 
 Gotchas baked in (see `docs/solutions/skill-design/size-driven-skill-restructure.md`): Codex stdin `/dev/null`, `CLAUDECODE` unset, `NO_COLOR=1`.
 
+## Judged conversation evals
+
+`bun run test:skill-eval-judge` evaluates behavior only a model can grade, such as whether an interview skill surfaces what the user needs without building what nobody asked for. For each scenario it runs the skill at the scenario's base ref and at the working tree, on Claude and Codex, as a conversation (`run.ts --persona`: each turn resumes the host session and a separate tool-less simulated user answers from a persona). It then grades every transcript blind under an anonymous id, with cell paths redacted, using the scenario's rubric, and writes `report.md` and `report.json` with totals per host and arm.
+
+```bash
+bun run test:skill-eval-judge -- --scenario my-change.json --out /tmp/judge    # scenarios written for the change
+bun run test:skill-eval-judge -- --id ce-brainstorm/ --out /tmp/judge          # the starting library
+bun run test:skill-eval-judge -- --grade-only --out /tmp/judge                 # regrade existing cells
+```
+
+Scenarios are best written for the change under test; `judged/scenarios.ts` documents the fields and holds a starting library, with personas and rubrics under `judged/` and fixtures under `fixtures/judged-*`. A rubric must ask for one JSON object with a `metrics` map. Results are PR evidence, not a regrade-stable pack: grades come from a model, so deterministic checks stay in `catalog.ts`. Not part of `bun test` or CI; it bills the host CLIs.
+
 ## Hand-run eval packs
 
 `packs/` holds the evaluator-owned behavioral eval specs for the cross-model paths of `ce-work`, `ce-code-review`, and `ce-doc-review`. They live here, not under `skills/`, so they are absent from everything that copies a skill directory as a unit: the converter's output for other harnesses, and the skill this driver extracts for a cell. A Claude marketplace install is different: its plugin root is the whole repository, so `tests/` is present there. Run a pack's scenarios against an extracted skill (this driver), never against a repo-root plugin load, and never inject a pack into the agent under test.

@@ -73,14 +73,14 @@ export function simReplyOrDone(raw: string): string | null {
 }
 
 /**
- * The simulated user gets no tools and no machine-local customizations (hooks, MCP,
- * plugins, CLAUDE.md), the same posture as ce-doc-review's tool-less Claude peer, so
- * its reply rests on the persona and transcript alone. The prompt goes on stdin:
- * it holds the hidden persona, and argv is visible to other processes and size-limited.
+ * A Claude call with no tools and no machine-local customizations (hooks, MCP, plugins,
+ * CLAUDE.md), the same posture as ce-doc-review's tool-less Claude peer. The simulated
+ * user and the judge both use it, so a reply rests on its prompt alone. The prompt goes
+ * on stdin: it can hold a hidden persona, and argv is visible to other processes and size-limited.
  */
-export function userSimArgv(): string[] {
+export function toollessClaudeArgv(model = "sonnet"): string[] {
   return [
-    "claude", "-p", "--model", "sonnet", "--output-format", "text",
+    "claude", "-p", "--model", model, "--output-format", "text",
     "--safe-mode", "--disable-slash-commands", "--tools", "", "--no-session-persistence",
   ]
 }
@@ -91,7 +91,7 @@ export function runUserSim(
 ): { reply: string | null; failed: boolean; timedOut: boolean; error: string } {
   const timeout = Math.min(300_000, remainingMs)
   if (timeout <= 0) return { reply: null, failed: false, timedOut: true, error: "" }
-  const [bin, ...args] = userSimArgv()
+  const [bin, ...args] = toollessClaudeArgv()
   // An empty scratch directory keeps the cell's skill and workspace out of reach.
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "ce-user-sim-"))
   let sim

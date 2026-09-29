@@ -1,0 +1,1 @@
+{ "name": "acme-web", "private": true, "type": "module", "dependencies": { "react": "^19", "react-dom": "^19" } }
