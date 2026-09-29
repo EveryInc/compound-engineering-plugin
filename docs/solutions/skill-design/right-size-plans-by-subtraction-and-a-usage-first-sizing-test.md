@@ -74,7 +74,7 @@ Sizing one skill in a chain does nothing if the next skill is told to add it bac
 
 The same conditions then go where code gets written: "Build what was asked" in `skills/ce-work/references/implementation-loop.md`, passed verbatim to native workers and summarized in the external worker persona. Two things mattered there:
 
-- **Build as asked and report the conflict.** Without that clause, Codex returned `blocked` on 3 of 3 runs over a risk the plan had explicitly accepted (a ledger written after a money grant). With it, Codex built the script and reported the risk.
+- **Build a trade-off the plan already decided; return an undecided one.** Without the first half, Codex returned `blocked` on 3 of 3 runs over a risk the plan had explicitly accepted (a ledger written after a money grant). With it, Codex built the script and reported the risk. The second half matters too: a conflict between a needed safeguard and requested behavior that nobody decided is the requester's call, so `ce-work` stops rather than shipping either side.
 - **Accept a small residual rather than argue it down.** On that money-moving script, Codex still adds five or six input checks, reading the money condition plus "when unsure, build it" as covering them. That is a fair reading of the rule and cheap to live with. Adding counter-prose is the move that failed in the planning pass.
 
 The implementation eval is `tests/skill-eval-cell/packs/ce-work-sizing.md` (`ce-work` in `mode:return-to-caller`, diffs graded blind).

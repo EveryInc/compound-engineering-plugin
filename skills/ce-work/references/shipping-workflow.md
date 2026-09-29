@@ -13,7 +13,6 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    # Examples: bin/rails test, npm test, pytest, go test, etc.
 
    # Run linting (per the project's configured lint command / active instructions)
-   # Use linting-agent before pushing to origin
    ```
 
 2. **Simplify** (conditional; separate from code review)
@@ -54,17 +53,9 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - All tasks marked completed
    - Testing addressed -- tests pass and new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
    - Linting passes
-   - Code follows existing patterns
    - Figma designs match (if applicable)
-   - No console errors or warnings
    - If the plan has a `Requirements` section (or legacy `Requirements Trace`), verify each requirement is satisfied by the completed work
    - If any `Deferred to Implementation` questions were noted, confirm they were resolved during execution
-
-6. **Prepare Operational Validation Plan** (REQUIRED)
-
-   The PR description's `## Post-Deploy Monitoring & Validation` section must let a maintainer distinguish the intended behavior change from a regression. Base its log queries, metrics, expected signals, failure/mitigation triggers, validation window, and owner on the available project evidence. State material unknowns rather than inventing operational facts. A rollback trigger needs evidence of unintended harm; a change in behavior the task explicitly requires is not that evidence.
-
-   If there is no production/runtime impact, use `No additional operational monitoring required` with a one-line reason. Prepare this material for the shipping handoff; do not turn it into extra advice in a local-completion reply when shipping is outside the requested work.
 
 ## Phase 4: Ship It
 
@@ -89,7 +80,6 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - Testing notes (tests added/modified, manual testing performed)
    - Evidence context from step 1, so `ce-commit-push-pr` can decide whether to ask about capturing evidence
    - Figma design link (if applicable)
-   - The Post-Deploy Monitoring & Validation section (see Phase 3 Step 6)
    - Code-review receipt (`status` + `artifact_path`/`run_id`) or the exact skip phrase from the completion gate
    - Any findings accepted in the Phase 3 Residual Work Gate, rendered verbatim as a dedicated `## Unapplied review findings` section: one checkbox bullet per finding (`- [ ] <severity> — <file:line> — <title>`, `suggested_fix` beneath when present) so the reviewer ticks what they close, plus the review run context
 
@@ -109,13 +99,11 @@ Before creating PR, verify:
 
 - [ ] All clarifying questions asked and answered
 - [ ] All tasks marked completed
+- [ ] Linting passes
 - [ ] Testing addressed -- tests pass AND new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
-- [ ] Linting passes (use linting-agent)
-- [ ] Code follows existing patterns
 - [ ] Figma designs match implementation (if applicable)
 - [ ] Validation/evidence context passed to `ce-commit-push-pr` when the change has observable behavior
 - [ ] Commit messages follow conventional format
-- [ ] PR description includes Post-Deploy Monitoring & Validation section (or explicit no-impact rationale)
 - [ ] Simplify: `ce-simplify-code` under the threshold selected in Phase 3 (or skipped with reason)
 - [ ] Code review completion gate: completed receipt (`status: complete` + `artifact_path`/`run_id` or markdown Actionable/Coverage/Verdict) **or** exact phrase (`Code review: skipped (mechanical diff)` / `Code review: skipped (ce-code-review unavailable)` / `Code review: harness-native fallback`); residuals handled via the Residual Work Gate
 - [ ] Ship-handoff gate passed before `ce-commit-push-pr` / `ce-commit` (completed receipt or exact phrase in shipping context)

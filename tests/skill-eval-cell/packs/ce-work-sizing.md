@@ -43,20 +43,21 @@ Return `MECHANISMS`, `SPECULATIVE`, `NONGOAL_BUILT`, `REQUIRED_MISSING`, `EXTRA_
 
 ## Reference results (2026-09-28)
 
-Pre-change is `ce-work` at `7a744082`; post is this change. Single trials except `script` on Codex (three each).
+Pre-change is `ce-work` at `7a744082`. "Rule added" adds the build rule and removes the category-filling test guidance. "Final" also deletes the process instructions that asked for extra work (most of the system-wide test check, "Test Continuously", the required post-deploy monitoring section) and settles the conflict wording. Single trials per host, except `script` on Codex (three per column).
 
-| Measure | Pre | Post |
-|---|---|---|
-| Runs that refused to build | 3 (Codex, script, all three trials) | 0 |
-| REQUIRED items missing in built runs | 0 | 0 |
-| Plan non-goals built | 0 | 0 |
-| Unrequested tests (lib, script, job, api) | 12 | 3 |
-| Unrequested mechanisms, Claude | 4 | 3 |
-| Unrequested mechanisms, Codex (excluding script) | 2 | 2 |
-| `rename`: old function kept as wrapper | 0 of 2 | 0 of 2 |
-| `cents`: root cause handled | 2 of 2 fixed `toCents`, silently changing tip rounding | Codex fixed `toCents`; Claude kept it for its other caller and reported the bug |
+| Measure | Pre | Rule added | Final |
+|---|---|---|---|
+| Runs that refused to build | 3 (Codex, script, all three) | 0 | 0 |
+| REQUIRED items missing in built runs | 0 | 0 | 0 |
+| Plan non-goals built | 0 | 0 | 0 |
+| Unrequested tests (lib, script, job, api) | 12 | 3 | 4-5 (3 from one Codex job run) |
+| Unrequested mechanisms, Claude (lib, script, job, api) | 4 | 3 | 1 |
+| Unrequested mechanisms, Codex (lib, job, api) | 2 | 2 | 1 |
+| Unrequested mechanisms, Codex `script` | refused | 5-6 | 5-7 |
+| `rename`: old function kept as wrapper | 0 of 2 | 0 of 2 | 0 of 2 |
+| `cents`: root cause handled | 2 of 2 fixed `toCents`, silently changing tip rounding | Codex fixed `toCents`; Claude kept it and reported the bug | Claude fixed the float error inside `toCents` without changing its rounding; Codex rounded in `parseAmount` and left `toCents` for its other caller |
 
-Before the change, Codex returned `blocked` on every `script` run over the crash window between a grant and its ledger write, a risk the plan had accepted. After it, Codex builds the script, reports that window, and adds five or six input checks the grader counts as speculative; the dry-run total comparison already catches bad input. That residual is known.
+Before the change, Codex returned `blocked` on every `script` run over the crash window between a grant and its ledger write, a risk the plan had accepted by specifying that sequence. A conflict rule that only said "stop when nobody decided the trade-off" brought one block back; stating that a plan which specified the risky design has decided it removed it (0 of 3). After the change, Codex adds five to seven input checks to that script, which the grader counts as speculative because the dry-run total comparison already catches bad input. That residual is known.
 
 ## Fixtures
 
