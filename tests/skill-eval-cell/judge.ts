@@ -313,7 +313,8 @@ export function cellMatchesPlan(cell: Cell): boolean {
 }
 
 function readCell(cell: Cell): { conversation: string; result: string | null; persona: string } | null {
-  if (!cellComplete(cell.dir, cell.host)) return null
+  // Grading, like resuming, only accepts a cell collected from exactly the loaded plan.
+  if (!cellComplete(cell.dir, cell.host) || !cellMatchesPlan(cell)) return null
   // Grade against the persona the simulated user actually saw, sealed with the cell.
   verifyEvidence(cell.dir)
   const hostDir = path.join(cell.dir, "hosts", cell.host)
