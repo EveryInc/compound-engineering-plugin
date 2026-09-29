@@ -10,14 +10,15 @@
  *
  * Bills the host CLIs on PATH. Not part of `bun test` or CI.
  */
-import { spawn } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { arg, flag } from "./cli"
 import { REPO_ROOT, WORKTREE_REF } from "./extract"
-import { toollessClaudeArgv } from "./converse"
-import { HOSTS, cellEnv, type Host } from "./hosts"
+import { CONVERSE_HOSTS, toollessClaudeArgv } from "./converse"
+import { cellEnv, type Host } from "./hosts"
+import { verifyEvidence } from "./provenance"
 import { JUDGED_SCENARIOS, type JudgedScenario } from "./judged/scenarios"
 
 export type Arm = "pre" | "post"
@@ -41,6 +42,21 @@ export function resolveAsset(ref: string, libraryDir: string): string {
 }
 
 const SCENARIO_DEFAULTS = { companions: [] as string[], hosts: ["claude", "codex"] as Host[], trials: 1, max_turns: 25, timeout_secs: 3600 }
+
+export type RunConfig = { scenarios: JudgedScenario[]; arms: Arm[]; hosts?: Host[]; trials?: number }
+
+/** Only hosts with a scriptable resume can hold a conversation. */
+export function checkHosts(hosts: string[], source: string): void {
+  const bad = hosts.filter((h) => !CONVERSE_HOSTS.includes(h as Host))
+  if (bad.length > 0) throw new Error(`${source}: conversations run only on ${CONVERSE_HOSTS.join(", ")}, not ${bad.join(", ")}`)
+}
+
+export function positiveInt(raw: string | undefined, name: string): number | undefined {
+  if (raw === undefined) return undefined
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer, not ${raw}`)
+  return n
+}
 
 /** Loads one scenario or a list from a JSON file an agent wrote for the change at hand. */
 export function loadScenarioFile(file: string): JudgedScenario[] {
@@ -221,18 +237,35 @@ export function cellComplete(dir: string, host: Host): boolean {
   }
 }
 
-function readCell(cell: Cell): { conversation: string; result: string | null } | null {
+/**
+ * The documents the conversation wrote: committed since the seed, modified, or untracked.
+ * Reading changes rather than a fixed folder follows a configured docs root and ignores
+ * documents the fixture already had.
+ */
+export function writtenDocuments(workspace: string, seedSha: string): string[] {
+  const git = (args: string[]) => spawnSync("git", args, { cwd: workspace, encoding: "utf8" }).stdout ?? ""
+  const committed = seedSha ? git(["diff", "--name-only", `${seedSha}..HEAD`]).split("\n") : []
+  const pending = git(["status", "--porcelain", "--untracked-files=all"]).split("\n").map((l) => l.slice(3))
+  return [...new Set([...committed, ...pending])]
+    .filter((f) => /\.(md|html)$/.test(f) && fs.existsSync(path.join(workspace, f)))
+    .sort()
+}
+
+function readCell(cell: Cell): { conversation: string; result: string | null; persona: string } | null {
   if (!cellComplete(cell.dir, cell.host)) return null
+  // Grade against the persona the simulated user actually saw, sealed with the cell.
+  verifyEvidence(cell.dir)
   const hostDir = path.join(cell.dir, "hosts", cell.host)
-  const stdoutFile = path.join(hostDir, "stdout.txt")
-  if (!fs.existsSync(stdoutFile)) return null
-  const docs = path.join(hostDir, "workspace", "docs")
-  const doc = fs.existsSync(docs)
-    ? fs.readdirSync(docs, { recursive: true }).map(String).find((f) => /\.(md|html)$/.test(f))
-    : undefined
+  const workspace = path.join(hostDir, "workspace")
+  const seedSha = JSON.parse(fs.readFileSync(path.join(cell.dir, "summary.json"), "utf8")).seed_sha ?? ""
+  const docs = writtenDocuments(workspace, seedSha)
+  const result = docs.length
+    ? docs.map((f) => `--- ${f} ---\n${fs.readFileSync(path.join(workspace, f), "utf8")}`).join("\n\n")
+    : null
   return {
-    conversation: redact(fs.readFileSync(stdoutFile, "utf8"), cell.dir),
-    result: doc ? redact(fs.readFileSync(path.join(docs, doc), "utf8"), cell.dir) : null,
+    conversation: redact(fs.readFileSync(path.join(hostDir, "stdout.txt"), "utf8"), cell.dir),
+    result: result ? redact(result, cell.dir) : null,
+    persona: fs.readFileSync(path.join(cell.dir, "persona.md"), "utf8"),
   }
 }
 
@@ -248,22 +281,31 @@ function shuffle<T>(items: T[]): T[] {
 async function main() {
   const out = arg("--out")
   if (!out) {
-    console.error("usage: bun run test:skill-eval-judge -- --out dir [--scenario file.json] [--id prefix] [--arm ab|pre|post] [--hosts claude,codex] [--trials n] [--concurrency 8] [--grader-model sonnet] [--grade-only]")
+    console.error("usage: bun run test:skill-eval-judge -- --out dir [--scenario file.json] [--id prefix] [--arm ab|pre|post] [--hosts claude,codex] [--trials n] [--concurrency 8] [--grader-model sonnet] [--grade-only (reuses the run's saved selection)]")
     process.exit(2)
   }
-  const scenarioFile = arg("--scenario")
-  const idPrefix = arg("--id") ?? ""
-  const scenarios = (scenarioFile ? loadScenarioFile(scenarioFile) : JUDGED_SCENARIOS).filter((s) => s.id.startsWith(idPrefix))
-  if (scenarios.length === 0) throw new Error(`no judged scenario matches ${idPrefix}`)
-  const armArg = arg("--arm", "ab")
-  if (!["ab", "pre", "post"].includes(armArg!)) throw new Error(`--arm must be ab, pre or post, not ${armArg}`)
-  const arms: Arm[] = armArg === "ab" ? ["pre", "post"] : [armArg as Arm]
-  const hosts = arg("--hosts")?.split(",").map((h) => h.trim()) as Host[] | undefined
-  const unknown = hosts?.filter((h) => !HOSTS.includes(h))
-  if (unknown?.length) throw new Error(`unknown host: ${unknown.join(", ")}`)
-  const trials = arg("--trials") ? Number(arg("--trials")) : undefined
-  const concurrency = Number(arg("--concurrency", "8"))
-  const cells = planCells(scenarios, path.resolve(out), { arms, hosts, trials })
+  const concurrency = positiveInt(arg("--concurrency", "8"), "--concurrency")!
+  const configFile = path.join(out, "judge-config.json")
+  let config: RunConfig
+  if (flag("--grade-only")) {
+    // Regrade exactly the cells this output was collected for, whatever flags are passed now.
+    if (!fs.existsSync(configFile)) throw new Error(`--grade-only needs ${configFile} from an earlier run`)
+    config = JSON.parse(fs.readFileSync(configFile, "utf8"))
+  } else {
+    const scenarioFile = arg("--scenario")
+    const idPrefix = arg("--id") ?? ""
+    const scenarios = (scenarioFile ? loadScenarioFile(scenarioFile) : JUDGED_SCENARIOS).filter((s) => s.id.startsWith(idPrefix))
+    if (scenarios.length === 0) throw new Error(`no judged scenario matches ${idPrefix}`)
+    for (const s of scenarios) checkHosts(s.hosts, s.id)
+    const armArg = arg("--arm", "ab")
+    if (!["ab", "pre", "post"].includes(armArg!)) throw new Error(`--arm must be ab, pre or post, not ${armArg}`)
+    const hosts = arg("--hosts")?.split(",").map((h) => h.trim()) as Host[] | undefined
+    if (hosts) checkHosts(hosts, "--hosts")
+    config = { scenarios, arms: armArg === "ab" ? ["pre", "post"] : [armArg as Arm], hosts, trials: positiveInt(arg("--trials"), "--trials") }
+    fs.mkdirSync(out, { recursive: true })
+    fs.writeFileSync(configFile, `${JSON.stringify(config, null, 2)}\n`)
+  }
+  const cells = planCells(config.scenarios, path.resolve(out), { arms: config.arms, hosts: config.hosts, trials: config.trials })
 
   if (!flag("--grade-only")) {
     const pending = cells.filter((c) => !cellComplete(c.dir, c.host))
@@ -284,14 +326,20 @@ async function main() {
   const gradingDir = path.join(out, "grading")
   fs.mkdirSync(gradingDir, { recursive: true })
   const model = arg("--grader-model", "sonnet")!
-  const readable = shuffle(cells.map((cell) => ({ cell, content: readCell(cell) })).filter((c) => c.content !== null))
+  const readable = shuffle(cells.map((cell) => {
+    try {
+      return { cell, content: readCell(cell) }
+    } catch (error) {
+      console.error(`not grading ${path.relative(out, cell.dir)}: ${(error as Error).message}`)
+      return { cell, content: null }
+    }
+  }).filter((c) => c.content !== null))
   const graded: { cell: Cell; grade: Grade }[] = []
   const map: Record<string, string> = {}
   await pool(readable.map((c, i) => ({ ...c, id: `G${String(i + 1).padStart(3, "0")}` })), concurrency, async ({ cell, content, id }) => {
     map[id] = path.relative(out, cell.dir)
-    const persona = fs.readFileSync(personaPath(cell.scenario), "utf8")
     const rubric = fs.readFileSync(rubricPath(cell.scenario), "utf8")
-    const input = `${rubric}\n\n${gradingBundle(persona, content!.conversation, content!.result)}`
+    const input = `${rubric}\n\n${gradingBundle(content!.persona, content!.conversation, content!.result)}`
     const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "ce-judge-"))
     const r = await exec(toollessClaudeArgv(model), { cwd: scratch, input, timeoutMs: 600_000 })
     fs.rmSync(scratch, { recursive: true, force: true })
@@ -308,6 +356,8 @@ async function main() {
   fs.writeFileSync(path.join(out, "report.md"), report)
   console.log(report)
   console.error(`graded ${graded.length} of ${readable.length} completed cells; ${cells.length - readable.length} did not complete and are not graded`)
+  // An empty report must not read as a passing evaluation.
+  if (graded.length === 0) process.exit(1)
 }
 
 if (import.meta.main) {

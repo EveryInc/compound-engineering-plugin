@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { aggregate, cellComplete, gradingBundle, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
+import { aggregate, cellComplete, checkHosts, gradingBundle, positiveInt, writtenDocuments, loadScenarioFile, parseGrade, planCells, redact, renderReport, resolveAsset, type Cell } from "./judge"
 import { JUDGED_SCENARIOS, type JudgedScenario } from "./judged/scenarios"
 
 const scenario: JudgedScenario = {
@@ -121,6 +121,43 @@ test("a cell counts as complete only once its evidence is sealed and its convers
     summary("nonzero-or-spawn-error")
     expect(cellComplete(dir, "claude")).toBe(false)
     expect(cellComplete(dir, "codex")).toBe(false)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+describe("run selection", () => {
+  test("conversation hosts are limited to the ones with a scriptable resume", () => {
+    expect(() => checkHosts(["claude", "codex"], "--hosts")).not.toThrow()
+    expect(() => checkHosts(["grok"], "--hosts")).toThrow(/grok/)
+  })
+
+  test("trial and concurrency counts must be positive integers", () => {
+    expect(positiveInt("3", "--trials")).toBe(3)
+    expect(positiveInt(undefined, "--trials")).toBeUndefined()
+    for (const bad of ["0", "-1", "2.5", "x"]) expect(() => positiveInt(bad, "--trials")).toThrow(/positive integer/)
+  })
+})
+
+test("the graded result is what the conversation wrote, wherever it wrote it", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "judge-docs-"))
+  try {
+    const git = (...args: string[]) => Bun.spawnSync(["git", ...args], { cwd: dir })
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@example.test")
+    git("config", "user.name", "t")
+    fs.mkdirSync(path.join(dir, "docs"))
+    fs.writeFileSync(path.join(dir, "docs", "old.md"), "fixture doc")
+    git("add", ".")
+    git("commit", "-q", "-m", "seed")
+    const seed = new TextDecoder().decode(git("rev-parse", "HEAD").stdout).trim()
+    fs.mkdirSync(path.join(dir, "specs", "plans"), { recursive: true })
+    fs.writeFileSync(path.join(dir, "specs", "plans", "new.md"), "written")
+    fs.writeFileSync(path.join(dir, "notes.txt"), "not a document")
+    expect(writtenDocuments(dir, seed)).toEqual(["specs/plans/new.md"])
+    git("add", ".")
+    git("commit", "-q", "-m", "run")
+    expect(writtenDocuments(dir, seed)).toEqual(["specs/plans/new.md"])
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
