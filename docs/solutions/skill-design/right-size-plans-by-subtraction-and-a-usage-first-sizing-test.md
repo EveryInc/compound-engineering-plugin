@@ -6,6 +6,7 @@ module: skills/ce-plan
 problem_type: design_pattern
 component: development_workflow
 severity: high
+last_updated: 2026-09-28
 applies_when:
   - A planning or review skill produces plans with guards, retries, modes, runbooks, or kill switches nobody asked for
   - Deciding whether to fix overbuilding by adding counter-prose or by removing instructions that ask for more
@@ -17,8 +18,8 @@ symptoms:
   - ce-doc-review findings asking for more edge-case handling get bolted onto the plan
   - Plans for ambitious requests narrow explicitly requested features (4 of 4 baseline runs)
   - A sizing test without a usage step dropped alerting on an unattended job and rerun protection on a money-moving script
-related_components: [ce-doc-review, testing_framework]
-tags: [skill-design, ce-plan, ce-doc-review, plan-sizing, subtraction, scope-guardian, skill-eval, cross-host]
+related_components: [ce-doc-review, ce-work, testing_framework]
+tags: [skill-design, ce-plan, ce-doc-review, ce-work, plan-sizing, subtraction, scope-guardian, skill-eval, cross-host]
 ---
 
 # Right-size plans by removing instructions that ask for more, then sizing with a usage-first test
@@ -66,6 +67,17 @@ A test that only cuts will over-cut, and a reviewer that only adds will undo it.
 - a requested behavior the plan narrows.
 
 It replaced a "completeness principle" that recommended edge-case handling because AI makes it cheap to write. The new text says the opposite: "Do not recommend edge-case handling, validation, or error handling on the grounds that it is cheap to write" (`scope-guardian-reviewer.md:67`). The two skills now enforce one standard together.
+
+### 4. Audit the skills downstream, or they re-expand what you sized
+
+Sizing one skill in a chain does nothing if the next skill is told to add it back. `ce-work`'s implementation loop told it to check the plan's test scenarios against every category and supplement gaps, including "downstream failures it should handle", and native workers got the same "supplement gaps" instruction. So `ce-work` rebuilt the handling `ce-plan` had just sized out. Removing that instruction cut unrequested tests from 12 to 3 across four fixtures. When you right-size one skill, search every skill that consumes its output for instructions that re-expand it.
+
+The same conditions then go where code gets written: "Build what was asked" in `skills/ce-work/references/implementation-loop.md`, passed verbatim to native workers and summarized in the external worker persona. Two things mattered there:
+
+- **Build as asked and report the conflict.** Without that clause, Codex returned `blocked` on 3 of 3 runs over a risk the plan had explicitly accepted (a ledger written after a money grant). With it, Codex built the script and reported the risk.
+- **Accept a small residual rather than argue it down.** On that money-moving script, Codex still adds five or six input checks, reading the money condition plus "when unsure, build it" as covering them. That is a fair reading of the rule and cheap to live with. Adding counter-prose is the move that failed in the planning pass.
+
+The implementation eval is `tests/skill-eval-cell/packs/ce-work-sizing.md` (`ce-work` in `mode:return-to-caller`, diffs graded blind).
 
 ## Why This Matters
 

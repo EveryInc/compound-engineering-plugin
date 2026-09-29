@@ -27,6 +27,15 @@ while (tasks remain):
   - Evaluate for incremental commit (see below)
 ```
 
+**Build what was asked.** The plan's units and scope, or the request itself when there is no plan, define what gets built. Add a mechanism neither asked for, such as a guard, retry, fallback, validation layer, option, mode, abstraction, or support on another interface, only when an existing contract requires it or one of these holds:
+
+- Leaving it out lets harm land before anyone catches it. Trace that the failure can actually happen here; something that notices the failure counts, while an instruction asking a person to avoid it, or to clean up by hand afterward, does not.
+- Adding it later would be expensive, because it concerns stored data or its format, a public or shared interface, money, or security.
+
+Give a mechanism that passes its smallest form. One that fails is not built: report it with the task's outcome as considered and not built, with one line on why. When you cannot tell, build it. An item the plan already lists as a non-goal stays unbuilt unless implementation turns up evidence the plan did not have; then build it and say what that evidence was. Never narrow requested behavior to fit a safeguard by delaying, gating, capping, or skipping part of what was asked; when the two truly conflict, build the behavior as asked and report the conflict.
+
+When the work replaces a function, type, or module whose callers are all in this repository, update those callers and remove the old version in the same change instead of keeping it as a wrapper or alias. An interface used outside this repository, or one the plan says to keep, is an existing contract and keeps working.
+
 Batch independent reads within a task: the plan's referenced files, pattern searches, and test discovery don't depend on one another — request them all in one response rather than one per turn. Only the write-and-verify steps are inherently sequential.
 
 For a parallel wave, the loop pauses after every canonical result so the host can integrate it. Inspect the actual result rather than its declared scope, re-run the independence judgment against the advancing tree, and recompute readiness from committed prerequisites. Affected dependents remain queued. An unaffected sibling may continue only after any failed apply or verification has been restored exactly and the prior integration lock released. Re-dispatch a stale or colliding result on the new base, resolve it explicitly, or finish it serially. Never treat a conflict-free apply as proof that the results are compatible. Repeated collision or broad edits disable further parallel waves for the run.
@@ -54,14 +63,7 @@ Guardrails for execution evidence:
 | No existing test covers the behavior | Add the smallest focused failing test or characterization test that proves the behavior slice |
 | Testing is inappropriate for the task | Record the no-test exception and replacement verification before marking the task complete |
 
-**Test Scenario Completeness** — Before writing tests for a feature-bearing unit, check whether the plan's `Test scenarios` cover all categories that apply to this unit. If a category is missing or scenarios are vague (e.g., "validates correctly" without naming inputs and expected outcomes), supplement from the unit's own context before writing tests:
-
-| Category | When it applies | How to derive if missing |
-|----------|----------------|------------------------|
-| **Happy path** | Always for feature-bearing units | Read the unit's Goal and Approach for core input/output pairs |
-| **Edge cases** | When the unit has meaningful boundaries (inputs, state, concurrency) | Identify boundary values, empty/nil inputs, and concurrent access patterns |
-| **Error/failure paths** | When the unit has failure modes (validation, external calls, permissions) | Enumerate invalid inputs the unit should reject, permission/auth denials it should enforce, and downstream failures it should handle |
-| **Integration** | When the unit crosses layers (callbacks, middleware, multi-service) | Identify the cross-layer chain and write a scenario that exercises it without mocks |
+**Test Scenario Completeness** — Tests prove the behavior the unit builds. Before writing tests for a feature-bearing unit, make any vague plan scenario concrete (e.g., "validates correctly" becomes named inputs and expected outcomes) from the unit's Goal and Approach. A scenario category the plan left out is not a gap to fill: do not add scenarios for failure handling, validation, or edge cases the unit does not build, and do not build handling so that such a scenario can exist. Draw from these categories where the unit has them: happy path; edge cases in inputs the unit really receives; error paths for failure handling the unit builds; integration across a layer the unit changes, exercised without mocks.
 
 **System-Wide Test Check** — Before marking a task done, pause and ask:
 
@@ -69,8 +71,8 @@ Guardrails for execution evidence:
 |----------|------------|
 | **What fires when this runs?** Callbacks, middleware, observers, event handlers — trace two levels out from your change. | Read the actual code (not docs) for callbacks on models you touch, middleware in the request chain, `after_*` hooks. |
 | **Do my tests exercise the real chain?** If every dependency is mocked, the test proves your logic works *in isolation* — it says nothing about the interaction. | Write at least one integration test that uses real objects through the full callback/middleware chain. No mocks for the layers that interact. |
-| **Can failure leave orphaned state?** If your code persists state (DB row, cache, file) before calling an external service, what happens when the service fails? Does retry create duplicates? | Trace the failure path with real objects. If state is created before the risky call, test that failure cleans up or that retry is idempotent. |
-| **What other interfaces expose this?** Mixins, DSLs, alternative entry points (Agent vs Chat vs ChatMethods). | Grep for the method/behavior in related classes. If parity is needed, add it now — not as a follow-up. |
+| **Can failure leave orphaned state?** If your code persists state (DB row, cache, file) before calling an external service, what happens when the service fails? Does retry create duplicates? | Trace the failure path with real objects. If it can, decide the guard by **Build what was asked** above; test what you build. |
+| **What other interfaces expose this?** Mixins, DSLs, alternative entry points (Agent vs Chat vs ChatMethods). | Grep for the method/behavior in related classes. An interface that already exposes this behavior must keep working with your change. Adding the behavior to an interface that never had it is new scope, decided by **Build what was asked**. |
 | **Do error strategies align across layers?** Retry middleware + application fallback + framework error handling — do they conflict or create double execution? | List the specific error classes at each layer. Verify your rescue list matches what the lower layer actually raises. |
 
 **When to skip:** Leaf-node changes with no callbacks, no state persistence, no parallel interfaces. If the change is purely additive (new helper method, new view partial), the check takes 10 seconds and the answer is "nothing fires, skip."
@@ -122,7 +124,7 @@ git commit -m "feat(scope): description of this unit" -- <files related to this 
 
 - Run relevant tests after each significant change
 - Don't wait until the end to test
-- Fix failures immediately
+- Fix failures immediately. If two fixes for the same failing check have not worked, stop patching: name the assumption both fixes relied on and check it, so the next change targets the root cause. If that assumption came from the plan, report it as a blocker instead of trying a third patch
 - Add new tests for new behavior, update tests for changed behavior, remove tests for deleted behavior
 - **Unit tests with mocks prove logic in isolation. Integration tests with real objects prove the layers work together.** If your change touches callbacks, middleware, or error handling — you need both.
 
@@ -156,7 +158,7 @@ For UI tasks without a Figma design -- where the implementation touches view, te
 8. **Track Progress**
 - Keep the task list updated as you complete tasks
 - Note any blockers or unexpected discoveries
-- Create new tasks if scope expands
+- Add a task when requested work turns out larger than expected; a mechanism nobody asked for goes through **Build what was asked** first
 - Keep user informed of major milestones
 - When the plan defines U-IDs for Implementation Units, or the plan or origin document carries stable R-IDs (and optionally A/F/AE IDs), reference them in blockers, deferred-work notes, task summaries, and final verification — not routine status updates. U-IDs anchor units across plan edits; R/A/F/AE anchor product intent across the brainstorm-plan handoff. Use the IDs the plan supplies and do not invent ones it does not. This preserves traceability without burying signal under noise.
 
