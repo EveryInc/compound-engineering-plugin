@@ -235,6 +235,12 @@ The single, surface-agnostic contract for how a review finding is presented for 
 ### Headless mode
 An explicit opt-in mode that runs a Skill unattended, with no user prompts — it produces a written report as its deliverable and conservatively defers genuinely ambiguous decisions rather than guessing. A Skill may expose a separate depth selector inside headless mode when automations need an explicit coverage tradeoff; the non-interactive contract and the work depth remain distinct decisions.
 
+### Scoping synthesis
+The chat checkpoint a writer skill (ce-brainstorm, ce-plan) shows the user before writing its document, so the user can confirm in one read that the agent understood the problem and can correct the decisions that would change the output. It is not a preview of the document: it leads with the problem in the agent's own words, carries only what the user needs to judge the requirements or plan, and leaves the rest to the document.
+*Avoid:* synthesis summary, scope confirmation
+
+Session-settled decisions carried in from before the skill started appear in it as statements, never as questions; decisions the user made in the skill's own dialogue are reflected in the stated shape rather than replayed. A revision is not a confirmation: the document is written only after the user confirms the current synthesis.
+
 ### Session-settled decision
 A decision examined and chosen by the user in the invoking conversation — a surfaced tradeoff or alternative followed by the user's choice — carried through the Pipeline as a provenance-labeled constraint (annotation stem `session-settled:`, classes `user-directed` and `user-approved`) that downstream skills augment but never re-ask, and contradict only on evidence. An unexamined assertion is a directive, not a settled decision, and receives exactly one in-pipeline challenge; agents never label their own unexamined proposals.
 
