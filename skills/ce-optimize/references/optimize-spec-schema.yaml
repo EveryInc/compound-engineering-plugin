@@ -225,7 +225,7 @@ required_fields:
           max_total_cost_usd:
             type: number
             default: 5
-            description: "Stop judge evaluation when cumulative judge spend reaches this cap. Counts judge scoring only; stopping.max_total_cost_usd caps the whole run. This is a first-run safety default; raise it only after the rubric and harness are trustworthy. Set to null only with explicit user approval."
+            description: "Do not start a judge pass whose estimated cost would take cumulative judge spend past this cap. Counts judge scoring only; stopping.max_total_cost_usd caps the whole run. This is a first-run safety default; raise it only after the rubric and harness are trustworthy. Set to null only with explicit user approval."
 
   measurement:
     type: object
@@ -466,7 +466,7 @@ optional_fields:
       max_total_cost_usd:
         type: number
         default: null
-        description: "Stop when estimated model spend for the whole run (experiment workers, judges, and research subagents) reaches this cap. Counted from host-reported usage where available and estimated otherwise."
+        description: "Do not start a dispatch whose estimated cost would take model spend for the whole run (experiment workers, judges, and research subagents) past this cap. Counted from host-reported usage where available and estimated otherwise."
 
   max_runner_up_merges_per_batch:
     type: integer

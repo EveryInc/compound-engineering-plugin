@@ -86,6 +86,7 @@ Select hypotheses for this batch:
 - A hypothesis is not runnable while a cheaper locating measurement would still change whether it is kept or skipped
 - If `execution.mode` is `serial`, or the current decision needs to attribute a cost change to one lever, force `batch_size = 1`
 - Otherwise, `batch_size = min(runnable_backlog_size, execution.max_concurrent)`
+- Shrink the batch until its estimated worker and judge cost fits every configured spend cap (3.6). If not even one experiment fits, stop with that criterion
 - Select by the ranked expected benefit, confidence, cost, and risk above; the priority label does not decide order. Category diversity breaks remaining ties.
 
 When a cheaper locating measurement can be taken and would still change whether a hypothesis is kept or skipped, take that measurement and update the backlog before selecting a batch. Do not treat that state as an empty backlog.
@@ -167,7 +168,7 @@ For each completed experiment, **immediately**:
    - Dispatch the `ceil(sample_size / batch_size)` judge sub-agents using the same bounded dispatch as Phase 3.2: queue them, dispatch to whatever concurrency the host accepts, and treat a capacity error as backpressure (retry the queued batch after a slot frees) rather than a scoring failure. These judge sub-agents are a separate budget from the experiment worktrees.
    - Each sub-agent returns structured JSON scores
    - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
-   - Keep the lowest-scoring items, about five, with their `reason` as `worst_cases` for step 7
+   - Keep the items that scored worst by `metric.primary.direction`, about five, with their `reason` as `worst_cases` for step 7
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
 6. **Compare with `decide.mjs`.** Invoke it only after the degenerate gates pass and the payload holds every required objective value, meaning the hard metrics from measurement and the judge scores when those were collected. The payload is the spec as loaded plus the baseline and candidate snapshots. The script reads the nested spec (`metric`, `measurement.stability`) and decides eligibility, noise, and the ladder next step. Do not reconstruct a flattened payload, and do not re-derive the threshold in prose.
@@ -250,7 +251,7 @@ Stop the loop as soon as any one of these holds:
 - **Target reached**: `stopping.target_reached` is true and the current best meets every declared required target (`decide.mjs` `target_reached` on the current-best snapshot). When `metric.objectives` is absent, that is the single `metric.primary.target` if set. Do not stop for a primary-only hit while another required target is still unmet.
 - **Max iterations**: total experiments run >= `stopping.max_iterations`
 - **Max hours**: wall-clock time since Phase 3 started (not since the invocation) >= `stopping.max_hours`
-- **Spend cap reached**: `metric.judge.max_total_cost_usd` is set and cumulative judge spend has reached it, or `stopping.max_total_cost_usd` is set and the whole-run spend estimate has reached it
+- **Spend cap reached**: the spend already recorded plus the estimated cost of the next dispatch would pass a configured cap: `metric.judge.max_total_cost_usd` for judge spend, `stopping.max_total_cost_usd` for whole-run spend. A cap limits spend; it does not trigger after spend passes it. Check it before every dispatch that costs money, including Phase 2 research and each batch with its judge passes, not only at this step
 - **Plateau**: no improvement for `stopping.plateau_iterations` **consecutive** experiments
 - **Manual stop**: the user interrupts. Save state, then go to Phase 4.
 - **No runnable hypothesis left**: no executable next action remains
