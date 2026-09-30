@@ -1005,7 +1005,7 @@ describe("Product Contract section catalog and routing destinations", () => {
       ],
       [
         "ce-brainstorm routing table",
-        sliceSection(brainstormSynthesisSummary, "| Internal-draft element | Where it goes in the doc |", "The chat-time Trade-offs section"),
+        sliceSection(brainstormSynthesisSummary, "| Internal-draft element | Where it goes in the doc |", "The chat-time call-outs dissolve by kind"),
       ],
     ]
 

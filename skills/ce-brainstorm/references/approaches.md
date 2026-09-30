@@ -38,15 +38,15 @@ If relevant, call out whether the choice is:
 
 ### Phase 2.5: Synthesis Summary
 
-**STOP. Before composing the synthesis, read `references/synthesis-summary.md`.** The two-stage shape (internal three-bucket draft → chat-time scoping synthesis), the four scoping synthesis sections with their keep tests, the per-bullet affirmability and detail tests, the tier-aware bullet budget with re-cut rule, anti-pattern guidance, soft-cut behavior, self-redirect support, and internal-draft routing into doc body sections all live there — none of them appear here or in `SKILL.md`. Composing a synthesis without these rules loaded reliably produces malformed output: the full internal three-bucket draft pasted verbatim into chat, implementation detail leaking into the scoping synthesis, the proposal-pitch anti-pattern. The Path A / Path B routing below decides only *whether* a confirmation question is asked — it is not the synthesis spec.
+**STOP. Before composing the synthesis, read `references/synthesis-summary.md`.** It defines what the user sees (the problem as you understand it, what we're building, call-outs), the internal three-bucket draft and where it lands in the doc, the revision loop, soft-cut, and self-redirect. Composed from memory, the synthesis tends to paste the internal draft into chat or leak implementation detail. The Path A / Path B routing below decides only *whether* a confirmation question is asked; it is not the synthesis spec.
 
 Show the user a scoping synthesis before Phase 3 writes the requirements-only unified plan — the user's last opportunity to correct scope before the artifact lands. The scoping synthesis is shaped like what two product collaborators would confirm before writing a PRD, not like a comprehensive audit or a one-line preview.
 
 Runs for **all tiers** including Lightweight. Skip Phase 2.5 entirely on the Phase 0.1b non-software (universal-brainstorming) route.
 
-**Path A vs Path B** is decided by `references/synthesis-summary.md` from two signals: whether any blocking question was asked, and the Phase 0.3 tier. Path A (announce-only, no confirmation) applies **solely** to Lightweight tier with no blocking questions; every other case — including a richly pre-loaded Standard/Deep opener that needed no dialogue — is Path B (full tier-aware scoping synthesis, always followed by a confirmation question). Follow the reference's rule exactly; do not decide the path or compose the synthesis from memory.
+**Path A vs Path B** is decided by `references/synthesis-summary.md` from two signals: whether any blocking question was asked, and the Phase 0.3 tier. Path A (announce-only, no confirmation) applies **solely** to Lightweight tier with no blocking questions; every other case — including a richly pre-loaded Standard/Deep opener that needed no dialogue — is Path B (the full scoping synthesis, always followed by a confirmation question). Follow the reference's rule exactly; do not decide the path or compose the synthesis from memory.
 
-Session-settled decisions render in the scoping synthesis as `Carrying forward:` lines, never as questions or call-outs — `references/synthesis-summary.md` defines that rendering. Path B rich-context openers carrying prior-session decisions are the common case.
+Session-settled decisions carried in from before this skill started render in the scoping synthesis as `Carrying forward:` lines, never as questions or call-outs — `references/synthesis-summary.md` defines that rendering. Path B rich-context openers carrying prior-session decisions are the common case.
 
 #### 2.6 Claim Verification (inside the Path B confirmation wait)
 

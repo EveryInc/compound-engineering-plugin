@@ -28,141 +28,52 @@ This draft is internal. Do not paste it verbatim into chat. Compose it as a thin
 
 ## Stage 2: the chat-time scoping synthesis
 
-The scoping synthesis is what the user actually sees. It reflects the dialogue's substance back so the user can pattern-match — long enough to serve a multi-turn conversation, short enough to be high-impact only. The reference shape is what two product collaborators would say to each other after a real discussion: "OK, so we're doing X, with Y trade-off, deferring Z, and one thing I want to double-check is W. Sound right?"
+The scoping synthesis is what the user actually sees. Its job is to let the user check, in one read, whether you understood them: the problem they are trying to solve, what will be built, and which calls they might want to change. Write it in your own words from your understanding, the way a collaborator would play a discussion back before writing it up ("So the real problem is X. We're building Y, deferring Z, and I'm assuming W. Sound right?"). Show what you understood and what you assumed, not what the user said. Replaying their answers back ("you said X, then you said Y") shows recall rather than understanding, and they just lived through it.
 
-The scoping synthesis has up to four named sections, each **render-conditional** on having something to say. Empty sections are omitted, not padded.
+Start with the synthesis itself, with no process narration or repo findings above it. It contains, in this order:
 
-1. **What we're building** (always present) — 1–3 sentences. The shape that emerged from dialogue, forward-looking, plain words. Not a transcript of "you said X."
-2. **Key trade-offs** (conditional) — 1–3 bullets, each with a brief why. Render only when real trade-offs were made in dialogue.
-3. **What's not in scope** (conditional) — 1–3 bullets, or fold into a single sentence. Render only when deferred items would surprise a downstream reader if absent.
-4. **Call outs** (conditional) — 0–3 bullets. Residual forks the dialogue didn't resolve: post-dialogue consequences (combining user answers revealed something they couldn't see during Q&A), silent agent inferences, or — in pre-loaded contexts with no dialogue — scope bets the user is seeing for the first time. **Not "questions the agent could have asked during Phase 1.3 but didn't"** — if a call-out reads like a missed dialogue question, Phase 1.3's integration check failed; flag the gap rather than padding the section.
+- **The problem** — 1–2 sentences, as prose: who has the problem, what it costs them now, and what will be true when it is solved. State the goal behind the request, not the feature restated. When the user never said why, say what you inferred so they can correct it.
+- **What we're building** — 1–3 sentences of prose on the shape that emerged, forward-looking and in plain words. Say what the thing is and how it holds together, not the requested features listed back; the choices the user made in dialogue show up here as part of that description. Shape only; the requirements belong in the doc.
+- **Carrying forward:** lines only for session-settled decisions carried in from before this skill started (an earlier conversation or a passed brief) — one line each, `Carrying forward: <decision> over <rejected alternative> — <one-line reason>.` These are statements, never questions or call-outs. Decisions the user made in this skill's own dialogue get no line; the shape already reflects them.
+- **Call outs** — flat bullets for what the user has not already seen stated this way: bets you made without asking, deferrals the user did not explicitly make, and consequences of combining the user's answers that they are unlikely to have tracked. A call-out is not a question you could have asked during dialogue; if one reads that way, the dialogue missed it, so say so plainly.
 
-Session-settled decisions render as `Carrying forward:` lines — one line each, placed before Call outs (where Call outs would sit when none survive): `Carrying forward: <decision> over <rejected alternative> — <one-line reason>.` They are statements, never questions and never call-outs: the confirmation covers the overall shape, not decisions the user already made.
+Leave out anything the user cannot judge without reading code (file paths, names, data shapes, exact wording), mechanical choices with no real alternative, and anything the prose already says. Keep each bullet to one sentence a collaborator would say aloud, with no nested bullets. Include only what the user needs to know to judge whether the requirements are right: your understanding of the problem and the shape, and the decisions or assumptions that would change what gets built if they were wrong. Everything else belongs in the doc. A larger scope means naming those decisions at a higher level, not adding lines. Omit an empty section rather than padding it. On a Deep scope, zero call-outs usually means consequences of the user's answers were filtered out as "already implied"; look again before emitting. Write the synthesis through the `ce-noslop` skill.
 
-Each section answers a different question:
+If a question genuinely cannot be defaulted, resolve it before presenting the synthesis, then integrate the answer. Never present the synthesis with open questions beside it, since the user then has no clear way to respond.
 
-- **What's being built?** → shape
-- **What did we trade off?** → explicit choices made in conversation
-- **What did we cut?** → deferred items a reader would expect to see acknowledged
-- **Where might you redirect?** → residual forks: post-dialogue consequences, silent inferences, late-cycle bets
-
-Then the confirmation, which names **what actually happens next** so the user knows what is coming and can interrupt without ambiguity. When a doc is expected — the common case — that is the artifact write: *"Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change."*
+End with a confirmation that names what actually happens next, so the user knows what is coming and can interrupt without ambiguity. When a doc is expected — the common case — that is the artifact write: *"Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change — even something I captured correctly earlier is fair game to revise."*
 
 When a doc is already ruled out — the user declined one, or `brainstorm-sections.md`'s "Decide whether a doc is warranted at all" criteria plainly hold — name where the decisions actually go instead, which is whichever of that rule's alternatives *this run* established (`ce-plan`, the user's commit message, `<root>/solutions/`): *"Confirm and we're done here — the scope above carries straight into [the destination the dialogue established]. Or tell me what to change."* When the dialogue named none, drop the clause rather than picking one: *"Confirm and we're done here — no doc, as you asked. Or tell me what to change."*
 
 Do not hardcode a destination. This phase writes no commit message and hands off at Phase 4, so asserting a downstream action the run will not take is the same overreach as promising the doc. Phase 3, not this phase, decides whether a doc is warranted, so promising the write here makes a user who already declined a doc decline it a second time.
+
+Ask for the confirmation open-ended, without an `AskUserQuestion` menu. Per Interaction Rule 5(a) in `references/interaction-rules.md`, an option menu would steer the user's feedback toward the parts the menu lists.
+
+Example, for a notification-mute feature after a Standard dialogue:
+
+```
+**The problem:** The support team gets paged at 3 AM by noisy channels they can't act on until morning, and today the only fix is deleting the rule.
+
+**What we're building:** Per-channel mute on notification rules, with a 24h preset. The mute lives on the rule and survives rule edits.
+
+**Call outs:**
+- A mute also silences @mentions routed through that rule; I'm assuming that's wanted
+- Presence-based mute and quiet-hours schedules are deferred
+- Deleting a rule silently loses its mute; I'm assuming no warning is needed
+
+Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change.
+```
 
 ### Path A vs Path B: the gate that fires the confirmation question
 
 Phase 2.5 has two presentation modes, decided by **two signals**: (1) was any blocking question asked before Phase 2.5? AND (2) what tier did Phase 0.3 classify the scope as? Blocking questions include Phase 0.3 scope disambiguation, Phase 1.3 collaborative dialogue probes, and Phase 2 approach selection (when a menu is shown). Internal classification, Phase 1.1 scan, and Phase 1.2 pressure test are not blocking questions — they don't count.
 
 - **Path A — no blocking questions were asked AND tier is Lightweight**: announce and continue without waiting. Emit "What we're building" prose only (no other sections, no confirmation question). That paragraph is the result; proceed to Phase 3 doc-write in the same turn only when `phase-0.md`'s Lightweight rule says a file is warranted. Do NOT end the turn waiting for acknowledgment. The user can revise after the paragraph or the doc lands if the shape is wrong.
-- **Path B — at least one blocking question was asked, OR tier is Standard / Deep-feature / Deep-product**: full tier-aware scoping synthesis followed by a confirmation question. Two scenarios lead to Path B: (a) the user invested answer-time during dialogue, or (b) the user pre-loaded substantive scope content (Phase 0.2 fast-path with a richly-specified opening prompt). Either way, the substance deserves a real checkpoint. The confirmation question is unconditional even when zero call-outs survive the keep test.
+- **Path B — at least one blocking question was asked, OR tier is Standard / Deep-feature / Deep-product**: the full scoping synthesis above, followed by a confirmation question. Two scenarios lead to Path B: (a) the user invested answer-time during dialogue, or (b) the user pre-loaded substantive scope content (Phase 0.2 fast-path with a richly-specified opening prompt). Either way, the substance deserves a real checkpoint. The confirmation question is unconditional even when there are no call-outs.
 
 **Why the tier guard exists.** Phase 0.2's fast path is designed for two very different cases — a tight one-line prompt that needs no dialogue ("fix the typo on line 47"), and a richly pre-loaded brainstorm context that ALSO needs no dialogue because the user pre-stated everything (e.g., handing off accumulated decisions from a prior session for a brainstorm doc backfill). Without a tier guard, both route to Path A, and the richly-loaded case gets a 1-sentence checkpoint for what may be 20+ items worth of scope. Tier-classifying Phase 0.3 distinguishes these cases — pre-loaded substance makes the tier Standard or Deep, which then routes to Path B and produces the full scoping synthesis the substance deserves. Do not simplify the rule back to a single "no questions asked" signal — that was a real defect that produced one-sentence syntheses on Deep-tier pre-loads.
 
 Path A is the same announce-and-continue behavior the Phase 0.2 fast path already uses, but only when the substance genuinely warrants 1–3 sentences. Path B is the default for every other interactive invocation.
-
-### Keep tests per section
-
-Each conditional section has its own keep test. Sections are render-conditional — an empty section is omitted, not padded with weak items.
-
-**Trade-offs keep test:** would the user be surprised if I didn't name this choice? Real trade-offs are choices the user explicitly weighed alternatives on in dialogue, or structural choices the agent made that the user would expect to see named. Mechanical or inevitable choices (e.g., "uses the existing rule entity") fail the test and go into the doc body without being shown in chat.
-
-**Deferred keep test:** is a reasonable downstream reader likely to ask "why isn't X here?" Items the user explicitly deferred, or items adjacent enough that a reader will look for them. Mechanical excludes (e.g., "no rate limiting because it's not in scope") fail and stay in the internal draft only.
-
-**Call-outs keep test (the affirmability test):** would the user need to read code to evaluate this? If yes, it is doc-body content — cut. If no, apply the keep test — one of the following must be true:
-
-- **Real scope fork** — another reasonable agent might choose a different scope on this dimension (who the primary actor is, whether case X is in/out, in scope vs deferred)
-- **Non-obvious scope inclusion** — a behavior the agent assumed is in scope that the user might want excluded
-- **Non-obvious scope exclusion** — an item the agent moved to deferred that the user might want in scope
-- **Cheap-now-expensive-later correction** — a scope bet that's cheap to fix now but expensive after the Product Contract lands and ce-plan consumes it
-- **Non-obvious consequence of multi-turn answers** — a downstream effect of combining user-stated answers that the user is unlikely to have tracked through dialogue. Stated forward-looking ("X means Y for the doc"), not retrospectively ("you said X"). This category is the multi-turn-dialogue reason call-outs exist at all in ce-brainstorm; do not filter these as "already implied by Stated"
-
-Cut anything that doesn't match a keep-test category, including:
-
-- Session-settled decisions — already chosen; they render as `Carrying forward:` lines, never call-outs
-- Mechanical items where there is no real alternative
-- Implementation choices that will be settled during planning
-- Items already implied by the scoping synthesis prose
-- Re-statements of Q&A turns ("you said you wanted X") — that's transcript, not a call-out
-- Re-statements of the Phase 2 approach the user already picked
-
-### Total bullet budget across sections 2–4
-
-The cap is heuristic, not law. The real discipline is each section's keep test on each candidate. Typical bounds by tier, counting bullets across Trade-offs + Deferred + Call outs combined:
-
-| Tier | Typical total | Hard ceiling |
-|---|---|---|
-| Lightweight | 0–1 | 2 |
-| Standard | 2–4 | 5 |
-| Deep — feature | 3–5 | 7 |
-| Deep — product | 4–7 | 9 |
-
-**Above the hard ceiling, the synthesis is misshapen — do not raise the cap, re-cut at a higher level of abstraction.** Almost always, multiple bullets within a section are sub-decisions of one larger named decision. Collapse related bullets into a single one named at the level the user actually weighs in on.
-
-A useful test: read the bullets aloud. If two or more sound like "and also" extensions of the same idea, they belong as one.
-
-**Path A applies only to Lightweight tier with no blocking questions. Path B is the default for Standard, Deep-feature, and Deep-product regardless of question signal — the substance decides the checkpoint, not the interaction history.** Zero call-outs on Path B is normal for Lightweight, sometimes for Standard, almost never for Deep. If a Deep scoping synthesis produces zero call-outs after rich content (whether from dialogue or pre-loaded context), double-check the agent hasn't filtered consequence-class call-outs as "already implied."
-
-### Detail level: conversational, not documentary
-
-Each bullet is **1 line ideally, 2 lines maximum**. The reference shape is what two collaborators would say to each other in conversation, not what a Product Contract would say in its body. The synthesis is a forcing function for shape confirmation; the requirements-only unified plan is where the substance lives. If a bullet reads like a doc paragraph, it's wrong-shaped — the agent has compressed horizontally (fewer bullets) without compressing vertically (less per bullet), and the cap is meaningless if individual bullets bloat to fill it.
-
-Two tests:
-
-- **Read-aloud test**: would two product collaborators *say* this bullet, or would they *write* it in a spec? Say = right. Write = re-cut to a sentence or cut.
-- **Single-sentence test**: can the bullet land in one sentence? If it needs semicolons stringing clauses or a list within the bullet, it's probably two decisions sharing a bullet — split (and re-cut for count) or cut to the higher-level one.
-
-Bad vs good — detail level:
-
-| Too detailed (wrong) | Conversational (right) |
-|---|---|
-| Per-channel mute scoped to notification rules; mute applies to all events through that rule including @mentions, DMs forwarded as notifications, and bot messages; persists 24h with extension | Per-channel over per-user — support team isn't a single user |
-| Rule-delete loss path is silent and could surprise users who configured extended mutes; consider a confirmation dialog, soft-delete with state preservation, or a 7-day undo window | Rule-delete silently loses pause state — confirm no warning needed |
-
-The "What we're building" prose obeys the same discipline: 1–3 sentences describing the shape, not an enumeration of requirements. If the prose lists what's in / what's out / what's how, it has become a doc preview — cut to shape only.
-
-### Anti-patterns
-
-Each anti-pattern below produces a bullet that fails its section's keep test, or a scoping synthesis that drifts back toward the comprehensive-audit failure mode.
-
-- **Naming implementation detail in any bullet**: file paths, module names, exact JSON keys, HTTP status codes, error message wording, SQL syntax. The synthesis is scope-only; implementation is ce-plan's job. These granularity rules apply to every bullet in every section.
-- **Re-stating a Q&A turn verbatim** ("you said you wanted X"): transcript, not scoping synthesis. Reframe forward-looking ("X means Y for the doc") or cut.
-- **Re-stating the Phase 2 approach the user already picked**: the approach was chosen before Phase 2.5 — its mention belongs in one sentence of "What we're building," not as a call-out.
-- **Padding a section to meet a bullet count**: render-conditional means empty is allowed. Omit the section entirely rather than fill it with weak items.
-- **Pasting the three-bucket internal draft verbatim into chat**: that was the old shape and the volume problem it produced is why stage 2 exists. Compose internally, derive scoping synthesis sections, present compressed.
-- **Floating questions adjacent to stage 2**: if a question genuinely cannot be defaulted, pause synthesis and resolve it before presenting. Pick the question shape that matches: a blocking multiple-choice tool when options are bounded and meaningfully distinct, open-ended when option sets would unintentionally influence the user's answer per Interaction Rule 5(a). Integrate the answer, then present the scoping synthesis. Never present the scoping synthesis with adjacent floating questions — that gives the user no clear resolution path.
-
----
-
-## Prompt templates
-
-This is directional guidance — adjust phrasing to fit dialogue context. Open-ended feedback per Interaction Rule 5(a) (an option menu would unintentionally influence the user toward the parts the menu lists, away from anything else they might want to change).
-
-**Prose discipline for "What we're building" (required):** forward-looking (what *will* be in the doc), not retrospective (what's been discussed). Write it through the `ce-noslop` skill. Lead with the actual thing being built. No re-stating dialogue context the user just lived through. If the work can't be said in 1–3 sentences without filler, the synthesis isn't ready yet.
-
-### Path B template (questions were asked)
-
-```
-Based on our dialogue, here's the scope I'm proposing for the Product Contract:
-
-**What we're building:** [1–3 sentences — the shape that emerged from dialogue, forward-looking, plain words]
-
-**Key trade-offs:** [render only when real trade-offs exist]
-- [explicit choice + brief why]
-- [explicit choice + brief why]
-
-**What's not in scope:** [render only when deferred items would surprise a reader]
-- [deferred item]
-- [deferred item]
-
-**Call outs:** [render only when one or more survived the keep test]
-- [scope-level fork or non-obvious consequence the user can affirm or redirect]
-- [same]
-
-[Closing line — name what actually happens next, per "the confirmation" above. Doc expected (the common case):] Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change — even something I captured correctly earlier is fair game to revise (you may have changed your mind or want to correct an unstated assumption). [Doc already ruled out — user declined one, or the skip criteria plainly hold:] Confirm and we're done here — the scope above carries straight into [the destination this run established; drop this clause when none was named]. Or tell me what to change — even something I captured correctly earlier is fair game to revise.
-```
 
 ### Path A template (no questions were asked — typically Phase 0.2 short-circuit)
 
@@ -173,52 +84,6 @@ No open decisions — [when a file was earned: writing the requirements-only pla
 ```
 
 When a file is warranted, proceed to Phase 3 doc-write in the same turn — do NOT end the turn waiting for an acknowledgment; otherwise present Phase 4's handoff. The "interrupt if wrong" affordance means the user can revise after the result lands, not before.
-
-Ask the user open-ended on Path B (no `AskUserQuestion` menu). The justification is Interaction Rule 5(a) in `references/interaction-rules.md` — an option menu would unintentionally influence the user's feedback toward the parts the menu lists.
-
-### Worked example: compression from internal draft to scoping synthesis (Standard tier)
-
-For a notification-mute feature where the internal draft had 5 Stated items, 4 Inferred items, and 3 Out-of-scope items, the compressed Stage 2 looks like:
-
-```
-Based on our dialogue, here's the scope I'm proposing for the Product Contract:
-
-**What we're building:** Per-channel mute on notification rules, with a 24h preset for the support team's 3 AM ping problem. Mute lives on the rule itself and survives rule edits.
-
-**Key trade-offs:**
-- Per-channel over per-user — support team isn't a single user
-- Mute on the rule, not a separate entity — pause state survives edits
-
-**What's not in scope:**
-- Presence-based mute and quiet-hours schedules — deferred for later
-- Cross-rule mute groups — would force a rule-grouping concept we don't have
-
-**Call outs:**
-- Rule-delete silently loses pause state — confirm no warning needed
-
-Confirm and I'll write the requirements-only plan next, drawing on our dialogue and this synthesis. Or tell me what to change.
-```
-
-What got cut from the 12-item internal draft and why:
-
-- Stated items already covered by the "What we're building" prose dissolved silently
-- "Use existing rule entity" — mechanical, no real trade-off
-- "Use Postgres for persistence" — implementation detail (ce-plan's job), failed granularity rules
-- One Out-of-scope item ("no rate limiting") — mechanical exclude, no reader would ask about it
-- Three Inferred items rolled into the Trade-offs section as the explicit choices behind them
-
-What survived: a scoping synthesis with substance proportional to the dialogue, bounded at the Standard ceiling of 5 bullets across the three conditional sections — any more would have triggered a re-cut at higher abstraction.
-
----
-
-## Pre-flight re-review
-
-Before emitting the scoping synthesis, re-read the draft as a user would read it. Two failure modes to catch:
-
-- **The scoping synthesis reads like a Product Contract preview.** Prose enumerates what's in/out, bullets are documentary instead of conversational. The synthesis is a shape-confirmation checkpoint, not a doc preview — if it reads as preview, Phase 2.5 and Phase 3 have collapsed into one step. Revise to conversational shape, or accept that the requirements-only unified plan itself will contain the detail and the synthesis should be lighter.
-- **The bullet count fits the cap but each bullet is over-detailed.** Hitting 5 bullets in Standard while each bullet is a paragraph means the agent met the count cap by compressing horizontally (fewer bullets) without compressing vertically (less per bullet). The cap is meaningless if individual bullets bloat to fill it. Re-cut to sentence-level bullets.
-
-This is one mental act — re-read as the user — not a checklist to mechanically run. The forcing function is putting yourself in the user's reading shoes briefly, with explicit attention to detail level alongside the keep tests. Revise before emitting if either failure mode appears.
 
 ---
 
@@ -269,12 +134,13 @@ After user confirmation (or after the user chooses "proceed" at that blocking qu
 | Internal-draft element | Where it goes in the doc |
 |---|---|
 | "What we're building" prose | `## Summary` (1–3 lines, forward-looking, what's proposed) |
+| "The problem" as confirmed | `## Problem Frame` — the confirmed problem anchors that section's narrative, expanded rather than copied |
 | Stated bullets | `## Requirements` (numbered R-IDs, full detail) and where relevant `## Problem Frame` for narrative context |
 | Inferred bullets | `## Key Decisions` (with rationale) — bets the user accepted in dialogue become decisions in the doc. |
 | Out-of-scope bullets | `## Scope Boundaries` |
 | Success signals (Stated or Inferred) | `## Success Criteria` when its catalog entry applies — quality, metric, or handoff signals the Requirements don't already carry. This row **overrides** the generic Stated and Inferred rows for those items: a success signal routes here *instead of* to Requirements or Key Decisions, never to both. |
 
-The chat-time Trade-offs section dissolves into `## Key Decisions` (the explicit choices acknowledged in chat become documented decisions). The chat-time What's-not-in-scope section dissolves into `## Scope Boundaries`.
+The chat-time call-outs dissolve by kind: choices and bets the user confirmed become `## Key Decisions`, and deferrals become `## Scope Boundaries`.
 
 Session-settled decisions are the exception to the Stated → Requirements row: each routes to `## Key Decisions` carrying its `session-settled:` annotation — a user-confirmed choice, never softened into an inferred bet or recorded as an assumption. This holds equally when the artifact is written from context without dialogue.
 

@@ -35,7 +35,7 @@ A settled decision is recorded on its Key Technical Decision entry (plan) or Key
 
 ## Capture rules
 
-- Never re-ask a settled decision. In the scoping synthesis it renders as a "Carrying forward:" line, not a call-out, and question phases skip it.
+- Never re-ask a settled decision. In the scoping synthesis it is never a question or call-out: one carried in from before the skill started renders as a "Carrying forward:" line, and one the user made in the skill's own dialogue is reflected in the stated shape instead. Question phases skip it.
 - Research builds on settled decisions and may contradict them only on evidence. Handle a contradiction by its severity: nothing found -> proceed silently; suboptimal-but-workable -> proceed as settled and attach a conflict call-out to the decision entry (at artifact-write time only — consumers that run after the write never mutate the artifact); invalidating (infeasible, wrong-thing, destructive) -> stop as blocked per this skill's pipeline contract.
 - A settled label never suppresses defect evidence: a real bug or infeasibility finding inside a settled approach keeps full severity everywhere.
 - When passing research context to subagents, include settled decisions as scope — with their rejected alternatives, so researchers do not re-survey them — plus the standing line: "If you find evidence a settled decision cannot work, report it — do not suppress it." Do not pass the advocacy or rationale for the decision (the decision as fact scopes the work; advocacy anchors), and keep any adversarial/validation lens blind to settlement markers.
