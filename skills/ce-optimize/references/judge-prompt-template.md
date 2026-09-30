@@ -32,13 +32,14 @@ Return ONLY a valid JSON array. No prose, no markdown, no explanation outside th
 Each element must have:
 - "item_id": the identifier of the item being evaluated (string or number, matching the input)
 - All fields requested by the rubric (scores, counts, etc.)
+- "reason": one short sentence naming what most held this item's score down, or what earned it the score when nothing did
 - "ambiguous": true if you cannot confidently score this item (e.g., insufficient context, borderline case). When ambiguous, still provide your best-guess score but flag it.
 
 Example output format (adapt field names to match the rubric):
 [
-  {"item_id": "cluster-42", "score": 4, "distinct_topics": 1, "outlier_count": 0, "ambiguous": false},
-  {"item_id": "cluster-17", "score": 2, "distinct_topics": 3, "outlier_count": 2, "ambiguous": false},
-  {"item_id": "cluster-99", "score": 3, "distinct_topics": 2, "outlier_count": 1, "ambiguous": true}
+  {"item_id": "cluster-42", "score": 4, "distinct_topics": 1, "outlier_count": 0, "reason": "One coherent topic; the title undersells it.", "ambiguous": false},
+  {"item_id": "cluster-17", "score": 2, "distinct_topics": 3, "outlier_count": 2, "reason": "Billing and login issues merged because both mention 'account'.", "ambiguous": false},
+  {"item_id": "cluster-99", "score": 3, "distinct_topics": 2, "outlier_count": 1, "reason": "Two related topics; unclear whether the rubric wants them split.", "ambiguous": true}
 ]
 
 Rules:
@@ -105,6 +106,7 @@ Rules:
 
 - Designed for Haiku by default -- prompts are concise and well-structured for smaller models
 - The rubric is part of the immutable measurement harness -- the experiment agent cannot modify it
+- The `reason` field does not change the score. The orchestrator keeps the reasons for the worst-scoring items so later hypotheses and workers can see why items failed, not just how much
 - The `ambiguous` flag on items helps the orchestrator identify noisy evaluations without forcing bad scores
 - For singleton evaluation, the orchestrator provides cluster summaries (not full contents) to keep judge context lean
 - Each sub-agent evaluates one batch independently -- sub-agents do not see each other's results

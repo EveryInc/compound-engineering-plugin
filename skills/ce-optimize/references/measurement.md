@@ -67,6 +67,7 @@ The SKILL.md body states this gate. Run `git status --porcelain`, filter the out
 1. Analyze the codebase to understand the current approach and what should be measured
 2. Build an evaluation script (e.g., `evaluate.py`, `evaluate.sh`, or equivalent)
 3. Add the evaluation script path to `scope.immutable` -- the experiment agent must not modify it
+   When the target produces per-case results (items, tests, queries, requests), have the script also report the few worst cases with what went wrong, under a key that no gate or objective reads. Later hypotheses need that evidence as well as the totals.
 4. Run it once and validate the output
 5. Include the measurement method and validated output in the Phase 1 approval presentation, with a link to the script for inspection.
 
@@ -100,7 +101,7 @@ baseline:
     ...
 ```
 
-If primary type is `judge`, also run the judge evaluation on baseline output to establish the starting judge score.
+If primary type is `judge`, also run the judge evaluation on baseline output to establish the starting judge score. Record the baseline's `worst_cases` from the measurement output or the judges, as Phase 3.3 does for experiments.
 
 ### 1.4 Parallelism Readiness Probe
 
@@ -138,6 +139,6 @@ If count + `execution.max_concurrent` would exceed 12:
 
 ### 1.7 User Approval Gate
 
-The SKILL.md body states this gate and its user-facing reporting rule. That rule covers the options, the condition on adjusting the spec, the uncapped-spend disclosure, and the requirement for explicit approval before Phase 2. A resume that cannot prove the user cleared this gate presents it again. Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, and estimated scoring cost against the configured cap. Link the experiment log and measurement script for inspection. Keep the full degenerate-gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence. Report those details to the user when they affect the user's decision.
+The SKILL.md body states this gate and its user-facing reporting rule. That rule covers the options, the condition on adjusting the spec, the uncapped-spend disclosure, and the requirement for explicit approval before Phase 2. A resume that cannot prove the user cleared this gate presents it again. Explain the starting measurements, whether behavior checks passed, any measurement limitations or execution blockers, the planned experiment scope, and estimated scoring and whole-run cost against the configured caps. Link the experiment log and measurement script for inspection. Keep the full degenerate-gate values, diagnostics, judge scores, probe results and mitigations, clean-tree confirmation, and worktree count and projection in the saved evidence. Report those details to the user when they affect the user's decision.
 
 ---

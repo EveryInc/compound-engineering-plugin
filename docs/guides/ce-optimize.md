@@ -73,7 +73,7 @@ The next action is the cheapest step that would change what gets implemented. Th
 - Independent variants run in their own worktrees. If worktrees are unavailable, the same experiments run one at a time.
 - After a batch, the best merge lands on the optimization branch. A runner-up that touched different files can be cherry-picked and re-measured.
 - The experiment log on disk is the record. Chat focuses on findings, decisions, blockers, and results, with occasional updates during longer work. Approval requests explain scope, evidence, and limits in plain language and link the saved details.
-- Before experiments start, you approve the starting measurements, behavior checks, planned scope, and any scoring cost. The measurement method and full execution checks remain available in the linked evidence.
+- Before experiments start, you approve the starting measurements, behavior checks, planned scope, and any scoring cost. The judge cap counts only scoring; set `stopping.max_total_cost_usd` to cap the whole run's model spend. The measurement method and full execution checks remain available in the linked evidence.
 
 ---
 
@@ -81,7 +81,7 @@ The next action is the cheapest step that would change what gets implemented. Th
 
 ### Three-layer scoring, so a proxy cannot win alone
 
-Gates run first and are cheap. "Everything in one cluster" or "0% tests pass" dies there, before a judge is paid. For qualitative work the loop then scores sampled outputs against a rubric. Diagnostics (counts, timing, cost) explain a score change without becoming the thing being optimized.
+Gates run first and are cheap. "Everything in one cluster" or "0% tests pass" dies there, before a judge is paid. For qualitative work the loop then scores sampled outputs against a rubric. Diagnostics (counts, timing, cost) explain a score change without becoming the thing being optimized. Judges also give a one-line reason per item, and the worst cases, whether from judges or from per-case harness output, go to the next hypotheses and experiment workers as evidence of where the current best still fails.
 
 Hard metrics belong on targets where higher or lower is unambiguously better: build time, latency, test pass rate, memory. Judge mode belongs on clustering, search, prompts, and anything a human would have to look at. If you insist on a hard metric for a qualitative target, the skill warns and continues.
 

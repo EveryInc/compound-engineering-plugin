@@ -30,6 +30,8 @@ export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 export const HOLDABLE_OBJECTIVE_BASE_REF = "0e758b60b35cec165470443fde5acf60db8bdae9"
 const PLAN_CONTENT_BASE_REF = "5c32ef92339b95348d6a12000e814d4877902557"
 export const CE_OPTIMIZE_BASE_REF = "b159e1fa4c70efa995742269d38269bcc7524dd2"
+/** main before ce-optimize fed worst cases to workers and added a whole-run spend cap. */
+export const CE_OPTIMIZE_EVIDENCE_BASE_REF = "7b867109526165def0cc2a31b7c348b7308ae2c8"
 /** main before annotation waits became event-driven and symptom-only notes became a question. */
 const ANNOTATION_WAIT_BASE_REF = "d1734f7ed5341b6d0b683405da82895f0a0a25f7"
 /** main before streak interpretation accounted for estimated baselines and candidate selection (#1698). */
@@ -815,6 +817,67 @@ Include exactly one line \`NEXT: measure\` or \`NEXT: implement\` in your answer
       files_read_post: ["references/loop.md"],
       declared: { NEXT: "implement" },
       must_include: ["HDBSCAN", "boilerplate"],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-optimize/worker-failure-evidence",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: CE_OPTIMIZE_EVIDENCE_BASE_REF,
+    why: "An external comparison found workers improved prompts from score totals alone and re-read the corpus every experiment; a weaker orchestrator lost to an optimizer that showed failing cases.",
+    pre_contract: "The worker prompt carries the hypothesis, metrics, scope, constraints, dependencies, and a rolling window of recent experiment summaries; the worker reads the relevant mutable code itself.",
+    task: `Use ce-optimize for Phase 3.2 only. Return the complete filled experiment worker prompt you would dispatch for the next experiment; do not dispatch or write files.
+Spec writing-voice: optimize skills/voice/SKILL.md (mutable) so drafts match the author's real posts. Immutable: eval/ (harness, rubric) and data/posts/ (400 posts, 2.1 MB). Primary: judge mean_score on a 1-5 match rubric. No approved dependencies. Constraints: keep the skill under 400 lines.
+Baseline 2.6, no keeps yet, so the current best is the baseline. Experiments 1-3 reverted: tone adjectives (2.5), few-shot excerpts (2.6), shorter sentences (2.7, inconclusive).
+The baseline entry in experiment-log.yaml records these worst cases:
+- post-118, score 1: "Opens with a listicle where the real post opens with a personal anecdote."
+- post-042, score 1: "Generic motivational sign-off; the author ends on a concrete next step."
+- post-307, score 2: "Hedges every claim; the author states opinions flatly."
+Phase 2 finished normally. Next hypothesis (iteration 4, category structure): add explicit guidance on how the author opens a post.`,
+    // Both arms forward failure cases the task hands them; the old skill never produced them (judges returned no reasons).
+    // What discriminates here is the read-once digest replacing "read the corpus" in every worker prompt.
+    grade: { must_include: ["listicle", "source digest"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/judge-reasons-logged",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: CE_OPTIMIZE_EVIDENCE_BASE_REF,
+    why: "Judge reasons help later hypotheses only if the orchestrator records the worst ones on the experiment entry instead of keeping just the aggregate.",
+    pre_contract: "CP-3 appends the experiment entry with raw metrics, judge scores, outcome, and learnings.",
+    task: `Use ce-optimize for Phase 3.3 only, steps 5 through 7 for experiment 5. Return the experiment log entry you would write at CP-3 as YAML; do not dispatch or write files.
+Spec writing-voice, primary judge mean_score (1-5), current best 2.9 (baseline, no keeps). Degenerate gates passed. Hypothesis: describe how the author closes a post; category structure. decide.mjs returned decision revert, next_measurement none, primary delta -0.1. Judge cost for this experiment: $0.28.
+The two judge batches returned:
+[{"item_id":"post-011","score":4,"reason":"Opening and pacing match; one sentence runs long.","ambiguous":false},
+ {"item_id":"post-208","score":1,"reason":"Pivots to a product pitch in the last paragraph; the author never sells.","ambiguous":false},
+ {"item_id":"post-093","score":3,"reason":"Right structure but hedges the main claim.","ambiguous":false}]
+[{"item_id":"post-150","score":2,"reason":"Ends on a rhetorical question where the author ends on a concrete next step.","ambiguous":false},
+ {"item_id":"post-377","score":3,"reason":"Tone fits; the example is generic rather than personal.","ambiguous":true},
+ {"item_id":"post-264","score":2,"reason":"Closing paragraph restates the intro instead of adding anything.","ambiguous":false}]`,
+    // Pins the field the digest and worker prompt read. Handed reasons, the old skill also kept them (under judge scores and learnings);
+    // its gap was that judges returned no reasons and nothing downstream read them (2026-09-29, Claude and Codex).
+    grade: { must_include: ["worst_cases", "product pitch"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-optimize/run-spend-disclosure",
+    skill: "ce-optimize",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: CE_OPTIMIZE_EVIDENCE_BASE_REF,
+    why: "A user who set the judge cap read it as a run cap; experiment workers, not judges, drove most of a $53 run.",
+    pre_contract: "The approval gate states that spend is uncapped only when the primary is a judge and the judge cost cap is unset.",
+    task: `Use ce-optimize to write the user-facing approval message for this run state. Do not execute work or write files.
+Spec writing-voice has been saved and the baseline measured: judge mean_score 2.6 on a 1-5 match rubric, gates pass, the tree is clean, and serial execution is supported. metric.judge.max_total_cost_usd is 5, with expected scoring cost of $0.30 per experiment. The stopping section sets max_iterations 20 and max_hours 4 and nothing else. Each experiment worker is a fresh agent that edits the skill. The log is experiment-log.yaml. Approval is pending.`,
+    // Regression floor, not a discriminator: unprompted, both arms on both hosts (2026-09-29) said the judge cap leaves worker spend uncapped.
+    grade: {
+      must_include_any: [["no dollar cap", "uncapped", "not capped", "no cap on", "no overall cap", "no whole-run cap", "not counted against", "does not cover", "doesn't cover"]],
       actions: "none",
       delegates: "none",
     },

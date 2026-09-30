@@ -225,7 +225,7 @@ required_fields:
           max_total_cost_usd:
             type: number
             default: 5
-            description: "Stop judge evaluation when cumulative judge spend reaches this cap. This is a first-run safety default; raise it only after the rubric and harness are trustworthy. Set to null only with explicit user approval."
+            description: "Stop judge evaluation when cumulative judge spend reaches this cap. Counts judge scoring only; stopping.max_total_cost_usd caps the whole run. This is a first-run safety default; raise it only after the rubric and harness are trustworthy. Set to null only with explicit user approval."
 
   measurement:
     type: object
@@ -463,6 +463,10 @@ optional_fields:
         type: boolean
         default: true
         description: "Stop when the primary metric reaches the target value (if set)"
+      max_total_cost_usd:
+        type: number
+        default: null
+        description: "Stop when estimated model spend for the whole run (experiment workers, judges, and research subagents) reaches this cap. Counted from host-reported usage where available and estimated otherwise."
 
   max_runner_up_merges_per_batch:
     type: integer
@@ -489,6 +493,7 @@ validation_rules:
   - "If metric.judge.singleton_sample > 0, metric.judge.singleton_rubric must be present"
   - "If metric.primary.type is 'judge' and metric.judge.max_total_cost_usd is null, the user should explicitly approve uncapped spend"
   - "stopping must have at least one non-default criterion or use defaults"
+  - "stopping.max_total_cost_usd, when set, must be a positive number"
   - "If metric.objectives is set, each additional objective is a hard metric whose name is unique and matches a measurement JSON key"
   - "The primary is always a required comparison, including when metric.objectives omits it"
   - "If measurement.stability.mode is 'ladder', comparison.method should be relative or paired unless the user explicitly keeps absolute"

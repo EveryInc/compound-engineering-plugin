@@ -44,6 +44,18 @@ You may add or use these dependencies without further approval:
 If your implementation requires a dependency NOT in this list, STOP and note it in your output. Do not install unapproved dependencies.
 </approved-dependencies>
 
+<source-digest>
+What you need to know about the material this target works on and the current approach:
+
+{source_digest}
+</source-digest>
+
+<failure-evidence>
+Worst cases from the current best that bear on this hypothesis, with what went wrong. Use them to check your change against real failures. The hypothesis still decides what you implement, and it may replace the approach rather than fix these cases:
+
+{failure_cases}
+</failure-evidence>
+
 <previous-experiments>
 Recent experiments and their outcomes (for context -- avoid re-trying approaches that already failed):
 
@@ -51,7 +63,7 @@ Recent experiments and their outcomes (for context -- avoid re-trying approaches
 </previous-experiments>
 
 <instructions>
-1. Read and understand the relevant code in the mutable scope
+1. Read the mutable files your change touches. Rely on the source digest for the rest of the material, and open other files only when the hypothesis depends on a detail the digest lacks
 2. Implement the hypothesis described above
 3. Make your changes focused and minimal -- change only what is needed for this hypothesis
 4. Do NOT run the measurement harness (the orchestrator handles this)
@@ -78,6 +90,8 @@ Focus on implementing the hypothesis well. The orchestrator will measure and eva
 | `{scope_immutable}` | Spec `scope.immutable` | List of files/dirs the worker must not touch |
 | `{constraints}` | Spec `constraints` | Free-text constraints to follow |
 | `{approved_dependencies}` | Spec `dependencies.approved` | Dependencies approved for use |
+| `{source_digest}` | `source-digest.md` in the run's scratch directory | What workers need to know about the target's material and current approach |
+| `{failure_cases}` | `worst_cases` on the current best (kept experiment entry, or baseline) | The cases relevant to this hypothesis, with reasons; "none recorded" when absent |
 | `{recent_experiment_summaries}` | Rolling window (last 10) from experiment log | Compact summaries: hypothesis, outcome, learnings |
 
 ## Notes

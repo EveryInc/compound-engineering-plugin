@@ -11,6 +11,10 @@ Read the code within `scope.mutable` to understand:
 - Obvious improvement opportunities
 - Constraints and dependencies between components
 
+When the baseline recorded `worst_cases`, read them. They show where the current approach fails and are one source of hypotheses, beside the code, attribution, and prior learnings. They do not limit the search: a hypothesis may replace the approach instead of fixing those cases.
+
+Write `source-digest.md` in the run's scratch directory once, now. It holds what an experiment worker needs to know about the material the target works on (evaluation data, corpora, large inputs, and how the harness uses them) and about the current approach, short enough to include in every worker prompt. Each worker starts with an empty context, so without the digest every experiment pays to read that material again. Rewrite the digest only when a keep changes something it describes.
+
 The next action is the cheapest executable step that would change what gets implemented. A locating measurement is one that finds where the cost actually sits (a profile, per-stage timing, a query count) rather than testing a change. It belongs in this phase when it is cheaper than an implementation experiment, would change whether a hypothesis is worth keeping or skipping, and can be taken. For a named workload's cost, the locating measurement is attribution: shares by stage, query, or call. Take it before an implementation experiment when the Phase 1 baseline total cannot say which hypothesis is worth keeping and those same conditions hold. The baseline total stays the scoring reference; the shares only decide what to try. A scored variant space does not require a performance profile: rubric evidence decides what to try, and numerical benefit may stay unknown.
 
 Do not treat the implementation backlog as empty, and do not proceed to wrap-up, while a cheaper locating measurement can still be taken and would change whether a hypothesis is kept or skipped. If such a measurement would change that decision but cannot be obtained, wrap up and say what blocked it. Do not implement without that measurement.
@@ -112,6 +116,8 @@ The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-opt
    - Mutable and immutable scope
    - Constraints and approved dependencies
    - Rolling window of last 10 experiments (concise summaries)
+   - The source digest
+   - The current best's `worst_cases` that bear on this hypothesis, if any were recorded (from the kept experiment's entry, or the baseline before any keep)
 4. Dispatch a subagent with the filled prompt, working in the experiment worktree
 
 **Codex backend:**
@@ -145,7 +151,7 @@ For each completed experiment, **immediately**:
 
 2. **Write crash-recovery marker.** Immediately after measurement, write `result.yaml` in the experiment worktree containing the raw metrics. This keeps the measurement recoverable even if the agent crashes before updating the main log.
 
-3. **Read raw JSON output** from the measurement script
+3. **Read raw JSON output** from the measurement script. When it reports per-case results, keep the worst few, with what went wrong, as `worst_cases` for step 7.
 
 4. **Evaluate degenerate gates** (the cheap hard checks in `metric.degenerate_gates` that reject obviously broken output):
    - For each gate in `metric.degenerate_gates`, parse the operator and threshold
@@ -161,6 +167,7 @@ For each completed experiment, **immediately**:
    - Dispatch the `ceil(sample_size / batch_size)` judge sub-agents using the same bounded dispatch as Phase 3.2: queue them, dispatch to whatever concurrency the host accepts, and treat a capacity error as backpressure (retry the queued batch after a slot frees) rather than a scoring failure. These judge sub-agents are a separate budget from the experiment worktrees.
    - Each sub-agent returns structured JSON scores
    - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
+   - Keep the lowest-scoring items, about five, with their `reason` as `worst_cases` for step 7
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
 6. **Compare with `decide.mjs`.** Invoke it only after the degenerate gates pass and the payload holds every required objective value, meaning the hard metrics from measurement and the judge scores when those were collected. The payload is the spec as loaded plus the baseline and candidate snapshots. The script reads the nested spec (`metric`, `measurement.stability`) and decides eligibility, noise, and the ladder next step. Do not reconstruct a flattened payload, and do not re-derive the threshold in prose.
@@ -172,7 +179,7 @@ For each completed experiment, **immediately**:
    ```
    If that probe finds no runtime, do not invoke an empty command. Mark the experiment `error` with that reason and continue the batch. Use `decision` and `next_measurement`. Collect the requested measurement and repeat this sequence whenever `next_measurement` is not `none`. Do not keep a candidate until `next_measurement` is `none`. Record `inconclusive` and `censored` as those outcomes, not as `reverted`. Each extra sample belongs to this same experiment: write it onto the existing entry at CP-3, then decide again.
 
-7. **IMMEDIATELY persist this experiment on disk (CP-3).** Do not defer this to batch evaluation. The durable unit is one log entry per experiment at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`. After the first measurement, append that entry. After every later ladder sample for the same experiment, write the accumulated metrics and current outcome onto that same entry. Do not append a second entry for the same hypothesis, and do not rewrite a different experiment's samples. Write a decide terminal only when `next_measurement` is `none`. Until then the entry stays nonterminal, `promising` while the keep path still needs samples and `measured` otherwise (including an inconclusive result that still wants samples). When `next_measurement` is `none`, an eligible result stays `measured` until its diff is on the optimization branch; a non-eligible result gets the decide terminal (`reverted`, `inconclusive`, `censored`, `degenerate`). `kept` and `runner_up_kept` wait until that integration. The raw metrics are on disk and safe from context compaction.
+7. **IMMEDIATELY persist this experiment on disk (CP-3).** Do not defer this to batch evaluation. The durable unit is one log entry per experiment at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`. After the first measurement, append that entry, including any `worst_cases`. After every later ladder sample for the same experiment, write the accumulated metrics and current outcome onto that same entry. Do not append a second entry for the same hypothesis, and do not rewrite a different experiment's samples. Write a decide terminal only when `next_measurement` is `none`. Until then the entry stays nonterminal, `promising` while the keep path still needs samples and `measured` otherwise (including an inconclusive result that still wants samples). When `next_measurement` is `none`, an eligible result stays `measured` until its diff is on the optimization branch; a non-eligible result gets the decide terminal (`reverted`, `inconclusive`, `censored`, `degenerate`). `kept` and `runner_up_kept` wait until that integration. The raw metrics are on disk and safe from context compaction.
 
 8. **VERIFY the write (CP-3 verification).** Read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
 
@@ -214,11 +221,12 @@ After all experiments in the batch have been measured:
 
 2. **Finalize outcomes.** Update experiment entries from the step 3.4 evaluation (mark `kept`, `reverted`, `runner_up_kept`, etc.). Write these outcome updates to disk immediately.
 
-3. **Update the `best` section** in the experiment log if a new best was found. Write to disk.
+3. **Update the `best` section** in the experiment log if a new best was found. Update the running spend totals there too: judge spend, and the estimated spend of the whole run, which counts experiment workers, judges, and research subagents. Use the usage the host reports where it reports any, estimate the rest from the work dispatched, and record which parts are estimates. Write to disk.
 
 4. **Write strategy digest** to `.context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md`:
    - Categories tried so far (with success/failure counts)
    - Key learnings from this batch and overall
+   - Failure patterns that recur across `worst_cases`, and which ones the current best still shows
    - Remaining opportunities, their supporting evidence, and whether current measurements still support their estimates; mark stale estimates for reassessment before selecting them
    - Current best metrics and improvement from baseline
 
@@ -242,7 +250,7 @@ Stop the loop as soon as any one of these holds:
 - **Target reached**: `stopping.target_reached` is true and the current best meets every declared required target (`decide.mjs` `target_reached` on the current-best snapshot). When `metric.objectives` is absent, that is the single `metric.primary.target` if set. Do not stop for a primary-only hit while another required target is still unmet.
 - **Max iterations**: total experiments run >= `stopping.max_iterations`
 - **Max hours**: wall-clock time since Phase 3 started (not since the invocation) >= `stopping.max_hours`
-- **Judge budget exhausted**: `metric.judge.max_total_cost_usd` is set and cumulative judge spend has reached it
+- **Spend cap reached**: `metric.judge.max_total_cost_usd` is set and cumulative judge spend has reached it, or `stopping.max_total_cost_usd` is set and the whole-run spend estimate has reached it
 - **Plateau**: no improvement for `stopping.plateau_iterations` **consecutive** experiments
 - **Manual stop**: the user interrupts. Save state, then go to Phase 4.
 - **No runnable hypothesis left**: no executable next action remains

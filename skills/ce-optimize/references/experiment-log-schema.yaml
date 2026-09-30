@@ -60,6 +60,18 @@ structure:
       diagnostics:
         type: object
         description: "Key-value pairs of diagnostic metric names to their baseline values"
+      worst_cases:
+        type: array
+        description: "The few worst per-case results (items, tests, queries) with what went wrong, from the measurement output or judge reasons. Explains the score; never changes it"
+        items:
+          type: object
+          children:
+            case_id:
+              type: string
+            score:
+              type: string
+            reason:
+              type: string
       judge:
         type: object
         description: "Judge scores on the baseline (only when primary type is 'judge')"
@@ -96,6 +108,12 @@ structure:
       total_judge_cost_usd:
         type: number
         description: "Running total of all judge costs across all experiments"
+      total_run_cost_usd:
+        type: number
+        description: "Running estimate of whole-run model spend: experiment workers, judges, and research subagents"
+      run_cost_basis:
+        type: string
+        description: "Which parts of total_run_cost_usd come from host-reported usage and which are estimates"
 
   hypothesis_backlog:
     type: array
@@ -264,6 +282,10 @@ experiment_entry:
         judge_cost_usd:
           type: number
           description: "Cost of judge calls for this experiment"
+
+    worst_cases:
+      type: array
+      description: "Same shape as baseline.worst_cases, for this experiment's latest measurement"
 
     primary_delta:
       type: string
