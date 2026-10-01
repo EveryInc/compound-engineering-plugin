@@ -159,8 +159,16 @@ const SETUP_INSTRUCTIONS_TASK =
 const ROLE_REPORT_SHAPE =
   "Put your whole report between a line that is only RESULT-START and a line that is only RESULT-END, and put the trailers after RESULT-END. In the ACTIONS trailer, list every bundled skill script you ran, by file name, as well as any mutation."
 const ROLE_LINES = "each appearing once in your whole answer, as plain text with no backticks, quotes, or extra words"
-/** No-map half of every restraint row: no resolver run, and nothing about model roles in the report. */
-const NO_ROLE_OUTPUT = { must_exclude: ["model-role-resolve"], result_must_not_include: ["model role"] }
+/**
+ * No-map half of every restraint row: no resolver run, and no `Model role` report line.
+ * The needles are the line's two openings for that role, not the bare phrase: the task
+ * asks for the whole resolution walk, and a host that says it checked for the map and
+ * found none has skipped it correctly.
+ */
+const noRoleOutput = (role: string) => ({
+  must_exclude: ["model-role-resolve"],
+  result_must_not_include: [`model role ${role}:`, `model role ${role} seat`],
+})
 
 const roleChoiceLines = (step: string) => `End your report with exactly these five lines, ${ROLE_LINES}. When more than one repo setting names a model for ${step}, report the one that wins.
 
@@ -209,7 +217,7 @@ const ROLE_CODE_REVIEW_TASK = `Use the ce-code-review skill on the staged change
 
 ${roleReviewTeamLines("local reviewer")}`
 
-const ROLE_DEBUG_TASK = `Use ce-debug on this bug for a bounded checkpoint: the seat cap check is failing. node tests/seat-cap.check.js exits 1, and SPEC.md is the product contract. Before you reproduce or trace anything, state how the investigation will be carried out and by which model; then stop. Do not investigate, edit, or dispatch.
+const ROLE_DEBUG_TASK = `Use ce-debug on this bug for a bounded checkpoint: the seat cap check is failing. node tests/seat-cap.check.js exits 1, and SPEC.md is the product contract. Do the setup the skill calls for before its investigation starts, including reading any repo settings it names. Then, before you reproduce or trace anything, state how the investigation will be carried out and by which model, and stop. Do not reproduce, trace, edit, or dispatch.
 
 End your report with exactly these three lines, ${ROLE_LINES}:
 
@@ -3588,8 +3596,10 @@ Use "Correct widget limit" as the description in the subject and any required bo
         REQUESTED_MODEL: "claude-ce-eval-a",
         REQUESTED_EFFORT: "low",
         SETTING_KEY: "model_roles",
-        STEP_ROUTE: "claude-cli",
       },
+      // The first route attempted is the host's to decide: a host whose subagent tool
+      // can set effort tries native before the Claude CLI. The invariant is the hand-off.
+      must_include_any: [["STEP_ROUTE: claude-cli", "STEP_ROUTE: native-subagent"]],
       delegates: "none",
       git: "clean",
     },
@@ -3658,8 +3668,8 @@ Use "Correct widget limit" as the description in the subject and any required bo
         REQUESTED_MODEL: "claude-ce-eval-a",
         REQUESTED_EFFORT: "high",
         SETTING_KEY: "model_roles",
-        STEP_ROUTE: "claude-cli",
       },
+      must_include_any: [["STEP_ROUTE: claude-cli", "STEP_ROUTE: native-subagent"]],
       delegates: "none",
       git: "clean",
     },
@@ -3879,7 +3889,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: ROLE_BRAINSTORM_TASK,
     grade: {
       declared: { REQUESTED_MODEL: "none", STEP_ROUTE: "session" },
-      ...NO_ROLE_OUTPUT,
+      ...noRoleOutput("brainstorm"),
       delegates: "none",
       git: "clean",
     },
@@ -3899,7 +3909,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: ROLE_PLAN_TASK,
     grade: {
       declared: { REQUESTED_MODEL: "ce-eval-unavailable", SETTING_KEY: "plan_model" },
-      ...NO_ROLE_OUTPUT,
+      ...noRoleOutput("plan"),
       delegates: "none",
       git: "clean",
     },
@@ -3919,7 +3929,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: roleDocReviewTask("docs/plans/2026-07-31-003-fix-portable-windows-path-unit-tests-plan.md"),
     grade: {
       must_include: ["coherence", "feasibility"],
-      ...NO_ROLE_OUTPUT,
+      ...noRoleOutput("doc-review"),
       delegates: "none",
       git: "clean",
     },
@@ -3939,7 +3949,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: ROLE_DEBUG_TASK,
     grade: {
       declared: { INVESTIGATED_BY: "session", REQUESTED_MODEL: "none" },
-      ...NO_ROLE_OUTPUT,
+      ...noRoleOutput("debug"),
       delegates: "none",
       git: "clean",
     },
@@ -3959,7 +3969,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: ROLE_WORK_TASK,
     grade: {
       declared: { ENGINE_ROUTE: "native", REQUESTED_MODEL: "none" },
-      ...NO_ROLE_OUTPUT,
+      ...noRoleOutput("work"),
       delegates: "none",
       git: "clean",
     },
@@ -3980,7 +3990,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: ROLE_SIMPLIFY_TASK,
     grade: {
       declared: { APPLIED_BY: "session", REQUESTED_MODEL: "none" },
-      ...NO_ROLE_OUTPUT,
+      ...noRoleOutput("simplify"),
       delegates: "none",
       workspace_contains: [ACCESS_TS_UNCHANGED],
     },
@@ -4001,7 +4011,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: ROLE_CODE_REVIEW_TASK,
     grade: {
       must_include: ["correctness"],
-      ...NO_ROLE_OUTPUT,
+      ...noRoleOutput("code-review"),
       delegates: "none",
       workspace_contains: [ACCESS_TS_UNCHANGED],
     },
@@ -4021,7 +4031,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: ROLE_COMPOUND_TASK,
     grade: {
       must_include_any: [COMPOUND_TERMINAL_LINE_LAST],
-      ...NO_ROLE_OUTPUT,
+      ...noRoleOutput("compound"),
       delegates: "none",
       git: "dirty",
       workspace_contains: [COMPOUND_SOURCE_UNCHANGED],
