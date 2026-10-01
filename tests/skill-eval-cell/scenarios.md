@@ -136,6 +136,7 @@ Resolution, precedence, and review policy:
 | `ce-work/personal-off-keeps-team-entry-native` | Team `work` entry stays native; the personal `work_engine_mode` is named as the reason |
 | `ce-doc-review/seat-list-runs-on-routine-plan` | Both seats are on the team of a plan that activates no judgment lens |
 | `ce-doc-review/review-mode-off-skips-other-provider-seats` | Mode `off`: only the Claude seat is on the team; two seats not run, reason `review-mode` |
+| `ce-doc-review/unattested-host-review-mode-off-skips-every-named-seat` | Mode `off` on a host with no attested family (run with `--hosts cursor`): no seat on the team; three seats not run, reason `review-mode` |
 | `ce-code-review/seat-list-and-review-mode` | Mode `off`: the Claude seat is on the team; the Grok seat is not run, reason `review-mode` |
 | `ce-debug/role-entry-hands-off-investigation` | The `debug` entry's model is declared before any investigation; subagent or session both pass |
 | `ce-simplify-code/role-entry-governs-apply` | The `simplify` entry's model and `low` are declared, with the effort reported as not applied |

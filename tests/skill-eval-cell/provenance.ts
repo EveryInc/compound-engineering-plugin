@@ -157,7 +157,7 @@ export function verifyEvidence(out: string, expectedManifestHash?: string): void
     throw new Error("no unique host results were collected")
   }
   for (const host of summary.hosts_run) {
-    if (!["claude", "codex", "grok", "opencode"].includes(host)) throw new Error("unknown recorded host")
+    if (!["claude", "codex", "grok", "opencode", "cursor"].includes(host)) throw new Error("unknown recorded host")
     const dir = containedPath(out, `hosts/${host}`)
     for (const name of ["stdout.txt", "stderr.txt", "exit.json", "prompt.md", "argv.json", "git-status.txt", "git-head-files.txt"]) {
       if (!fs.lstatSync(path.join(dir, name)).isFile()) throw new Error(`missing regular host evidence: ${name}`)
