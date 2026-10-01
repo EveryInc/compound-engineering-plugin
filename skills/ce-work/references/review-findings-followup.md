@@ -55,7 +55,7 @@ The lead agent decides which findings to act on, groups the work, reviews the di
 
 ### Where each fix runs
 
-Apply a fix in this context when the code it needs is already in your context from this session's work, or is a small region you can read without materially growing this context. The lead agent stays active through tests, commits, and the handoff, so loading many cited files here is the cost delegation avoids. Dispatch file-grouped subagent batches for the rest: fixes that need code you have not read, or fixes across several files that can run as parallel waves. Do not dispatch a subagent for a fix you could apply from what you already hold.
+Dispatch file-grouped subagent batches when fixes need code you have not read, or when fixes on disjoint files form a real parallel wave. Apply every other fix in this context: one whose code is already in your context from this session's work, or a small region you can read without materially growing this context. The lead agent stays active through tests, commits, and the handoff, so loading many cited files here is the cost delegation avoids.
 
 **Batching (primary rule: group by file):**
 

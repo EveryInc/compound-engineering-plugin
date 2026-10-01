@@ -96,7 +96,7 @@ Dispatch fixers **only** for fix-list items. Reply-list and human-list items nev
 
 ### Where each fix runs
 
-Step 3 already read the code behind every fix-list item. Apply an item in this context, with the fixer prompt below as your own instructions, when the fix stays within the code you read to judge it. Dispatch fixers when items span several files that can be fixed in parallel, or when a fix reaches well beyond what you read (a rename across callers, a class fix over many sites). Do not dispatch a fixer for a fix you could make from what you already hold.
+Step 3 already read the code behind every fix-list item. Dispatch fixers when the items form a real parallel batch (two or more items on disjoint files), or for an item whose fix reaches well beyond what you read (a rename across callers, a class fix over many sites). Apply every other item in this context, with the fixer prompt below as your own instructions, and produce the same return record a fixer would.
 
 ### Dispatch
 
@@ -137,7 +137,7 @@ Fixes can occasionally expand beyond their referenced file (e.g., renaming a met
 
 ## 5. Validate Combined State
 
-Aggregate `files_changed` across every fixer summary. If it's empty, skip steps 5 and 6 and proceed to step 7.
+Aggregate `files_changed` across every per-item result: each fixer's return, and the record you produced for each item you fixed in this context. If it's empty, skip steps 5 and 6 and proceed to step 7.
 
 Fixers run only targeted tests on their own changes. This step runs the project's full validation **once** against the combined diff to catch cross-agent interactions that targeted runs can't see.
 
@@ -153,13 +153,13 @@ Record the validation outcome (command run, pass/fail counts, any pre-existing f
 
 ## 6. Commit and Push
 
-1. Stage only files reported by fixers and commit with a message referencing the PR:
+1. Stage only files listed in those per-item results and commit with a message referencing the PR:
 
 ```bash
-git add [files from fixer summaries]
+git add [files from per-item results]
 git commit -m "Address PR review feedback (#PR_NUMBER)
 
-- [list changes from fixer summaries]"
+- [list changes from per-item results]"
 ```
 
 2. Push to remote:
@@ -169,7 +169,7 @@ git push
 
 ## 7. Reply and Resolve
 
-After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the fixer's `reply_text`; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved shows up as new work again in the next `ce-babysit-pr` loop. The mechanism depends on the feedback type.
+After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the `reply_text` from their per-item result; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved shows up as new work again in the next `ce-babysit-pr` loop. The mechanism depends on the feedback type.
 
 ### Reply format
 
