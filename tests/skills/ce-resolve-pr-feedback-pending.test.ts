@@ -33,7 +33,127 @@ function run(...args: string[]) {
   return spawnSync("python3", [SCRIPT, ...args], { encoding: "utf8" })
 }
 
+function publicationFixture(batch: Omit<ReturnType<typeof record>, "fix_commit"> & { fix_commit: string | null } = record()) {
+  const { dir, handoff } = fixture()
+  const remote = path.join(dir, "remote.json")
+  const calls = path.join(dir, "calls.jsonl")
+  writeFileSync(handoff, JSON.stringify(batch, null, 2) + "\n")
+  const metadata = {
+    number: batch.pr.number, html_url: batch.pr.url,
+    base: { repo: { full_name: batch.pr.base_repo } },
+    head: { repo: { full_name: batch.pr.head_repo }, ref: batch.pr.head_ref, sha: "d".repeat(40) },
+  }
+  const comparison = { status: "ahead", merge_base_commit: { sha: batch.fix_commit } }
+  writeFileSync(path.join(dir, "gh"), `#!/usr/bin/env python3
+import json, os, sys
+with open(os.environ['FAKE_GH_CALLS'], 'a') as out:
+    out.write(json.dumps(sys.argv[1:]) + '\\n')
+with open(os.environ['FAKE_GH_REMOTE']) as source:
+    data = json.load(source)
+key = 'comparison' if '/compare/' in sys.argv[-1] else 'metadata'
+value = data[key]
+if isinstance(value, str):
+    print(value, file=sys.stderr)
+    sys.exit(1)
+print(json.dumps(value))
+`)
+  chmodSync(path.join(dir, "gh"), 0o755)
+  const bytes = readFileSync(handoff, "utf8")
+  const inspect = (freshMetadata = metadata, freshComparison: unknown = comparison) => {
+    writeFileSync(remote, JSON.stringify({ metadata: freshMetadata, comparison: freshComparison }))
+    return spawnSync("python3", [SCRIPT, "inspect-publication", "--path", handoff], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, FAKE_GH_CALLS: calls, FAKE_GH_REMOTE: remote },
+    })
+  }
+  return { handoff, metadata, comparison, bytes, inspect, calls }
+}
+
 describe("resolver saved feedback", () => {
+  test("publication inspection proves a descendant using the actual fork head and preserves original bytes", () => {
+    const { handoff, bytes, inspect, calls } = publicationFixture()
+    const result = inspect()
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).publication).toMatchObject({ verified: true, head_sha: "d".repeat(40), comparison_status: "ahead" })
+    expect(readFileSync(handoff, "utf8")).toBe(bytes)
+    const invoked = readFileSync(calls, "utf8").trim().split("\n").map(line => JSON.parse(line))
+    expect(invoked).toEqual([
+      ["api", "--hostname", "github.com", "--method", "GET", "repos/upstream/project/pulls/42"],
+      ["api", "--hostname", "github.com", "--method", "GET", `repos/contributor/project/compare/${"a".repeat(40)}...${"d".repeat(40)}`],
+    ])
+  })
+
+  test("identical Enterprise heads require positive compare proof too", () => {
+    const batch = record()
+    batch.pr.host = "git.example.com"
+    batch.pr.url = "https://git.example.com/upstream/project/pull/42"
+    batch.actions[0]!.source.url = `${batch.pr.url}#discussion_r11`
+    const { metadata, inspect, calls } = publicationFixture(batch)
+    metadata.head.sha = batch.fix_commit
+    const result = inspect(metadata, { status: "identical", merge_base_commit: { sha: batch.fix_commit } })
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).publication.verified).toBe(true)
+    expect(readFileSync(calls, "utf8")).toContain('"--hostname", "git.example.com"')
+  })
+
+  test("unpublished, diverged, unknown, and API-failed commits never authorize writes", () => {
+    for (const comparison of [
+      { status: "behind", merge_base_commit: { sha: "a".repeat(40) } },
+      { status: "diverged", merge_base_commit: { sha: "e".repeat(40) } },
+      { status: "ahead", merge_base_commit: { sha: "e".repeat(40) } },
+      { status: "unknown", merge_base_commit: { sha: "a".repeat(40) } },
+      {}, "HTTP 404: commit not found", "HTTP 503: unavailable",
+    ]) {
+      const { handoff, bytes, inspect, calls } = publicationFixture()
+      const result = inspect(undefined, comparison)
+      expect(result.status, result.stderr).toBe(0)
+      const publication = JSON.parse(result.stdout).publication
+      expect(publication.verified).toBe(false)
+      expect(publication.reason.length).toBeGreaterThan(0)
+      expect(readFileSync(handoff, "utf8")).toBe(bytes)
+      expect(readFileSync(calls, "utf8")).not.toMatch(/POST|PATCH|mutation/)
+    }
+  })
+
+  test("PR or head identity changes stop before comparing", () => {
+    for (const change of ["url", "number", "base", "repo", "ref", "sha"] as const) {
+      const { metadata, inspect, calls } = publicationFixture()
+      if (change === "url") metadata.html_url = "https://other.example/upstream/project/pull/42"
+      if (change === "number") metadata.number = 99
+      if (change === "base") metadata.base.repo.full_name = "other/project"
+      if (change === "repo") metadata.head.repo.full_name = "other/project"
+      if (change === "ref") metadata.head.ref = "other"
+      if (change === "sha") metadata.head.sha = "unknown"
+      const result = inspect(metadata)
+      expect(result.status, result.stderr).toBe(0)
+      expect(JSON.parse(result.stdout).publication.verified).toBe(false)
+      expect(readFileSync(calls, "utf8").trim().split("\n")).toHaveLength(1)
+    }
+  })
+
+  test("a failed fresh PR read leaves even a completed saved record unproved", () => {
+    const batch = { ...record(), status: "completed" }
+    const { dir, handoff } = fixture()
+    writeFileSync(handoff, JSON.stringify(batch))
+    writeFileSync(path.join(dir, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+    chmodSync(path.join(dir, "gh"), 0o755)
+    const result = spawnSync("python3", [SCRIPT, "inspect-publication", "--path", handoff], {
+      encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+    })
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).publication).toMatchObject({ verified: false, head_sha: null })
+    expect(JSON.parse(readFileSync(handoff, "utf8"))).toEqual(batch)
+  })
+
+  test("a no-change batch verifies fresh identity without comparing a fabricated commit", () => {
+    const batch = { ...record(), fix_commit: null }
+    const { inspect, calls } = publicationFixture(batch)
+    const result = inspect()
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).publication).toMatchObject({ verified: true, comparison_status: null })
+    expect(readFileSync(calls, "utf8").trim().split("\n")).toHaveLength(1)
+  })
+
   test("creates and validates a private exact-byte record for a fork PR", () => {
     const { input, handoff } = fixture()
     const bytes = JSON.stringify(record(), null, 2) + "\n"

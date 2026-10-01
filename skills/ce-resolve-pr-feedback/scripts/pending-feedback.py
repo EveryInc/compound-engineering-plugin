@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -195,15 +196,56 @@ def write_record(path: Path, raw: bytes, *, checkpoint: bool) -> None:
     read_record(path)
 
 
+def github_json(host: str, endpoint: str) -> dict:
+    result = subprocess.run(
+        ["gh", "api", "--hostname", host, "--method", "GET", endpoint],
+        capture_output=True, text=True, check=False,
+    )
+    require(result.returncode == 0, result.stderr.strip() or f"GitHub GET failed: {endpoint}")
+    return object_value(json.loads(result.stdout), "GitHub response")
+
+
+def inspect_publication(record: dict) -> dict:
+    proof = {"verified": False, "reason": "", "head_sha": None,
+             "head_repo": None, "head_ref": None, "comparison_status": None}
+    pr = record["pr"]
+    try:
+        fresh = github_json(pr["host"], f"repos/{pr['base_repo']}/pulls/{pr['number']}")
+        require(fresh.get("number") == pr["number"] and fresh.get("html_url") == pr["url"],
+                "fresh PR host/number/URL differs from the saved PR")
+        base = object_value(fresh.get("base"), "fresh base")
+        require(object_value(base.get("repo"), "fresh base repository").get("full_name") == pr["base_repo"],
+                "fresh PR base repository differs from the saved PR")
+        head = object_value(fresh.get("head"), "fresh head")
+        proof["head_repo"] = object_value(head.get("repo"), "fresh head repository").get("full_name")
+        proof["head_ref"] = head.get("ref")
+        proof["head_sha"] = string(head.get("sha"), "fresh head SHA", r"[0-9a-f]{40}")
+        require(proof["head_repo"] == pr["head_repo"] and proof["head_ref"] == pr["head_ref"],
+                "fresh PR head repository/ref differs from the saved PR")
+        commit = record["fix_commit"]
+        if commit is None:
+            proof.update(verified=True, reason="saved batch created no fix commit")
+            return proof
+        comparison = github_json(pr["host"], f"repos/{proof['head_repo']}/compare/{commit}...{proof['head_sha']}")
+        proof["comparison_status"] = comparison.get("status")
+        merge_base = object_value(comparison.get("merge_base_commit"), "comparison merge base")
+        require(proof["comparison_status"] in {"ahead", "identical"} and merge_base.get("sha") == commit,
+                "recorded fix commit is not positively reachable from the fresh PR head")
+        proof.update(verified=True, reason="recorded fix commit is reachable from the fresh PR head")
+    except (OSError, ValueError, TypeError) as error:
+        proof["reason"] = str(error)
+    return proof
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="command", required=True)
     preflight = subcommands.add_parser("preflight")
     preflight.add_argument("--path")
-    for command in ("create", "validate", "checkpoint"):
+    for command in ("create", "validate", "checkpoint", "inspect-publication"):
         command_parser = subcommands.add_parser(command)
         command_parser.add_argument("--path", required=True)
-        if command != "validate":
+        if command in {"create", "checkpoint"}:
             command_parser.add_argument("--input", required=True)
     args = parser.parse_args()
     if args.command == "preflight":
@@ -215,7 +257,7 @@ def main() -> None:
         print(json.dumps({"handoff": str(path)}))
         return
     path = Path(args.path).absolute()
-    if args.command == "validate":
+    if args.command in {"validate", "inspect-publication"}:
         record, _ = read_record(path)
     else:
         record, raw = read_record(Path(args.input))
@@ -223,7 +265,10 @@ def main() -> None:
             previous, _ = read_record(path)
             require(prepared_content(previous) == prepared_content(record), "checkpoint cannot replace the prepared batch")
         write_record(path, raw, checkpoint=args.command == "checkpoint")
-    print(json.dumps({"handoff": str(path), "record": record}, ensure_ascii=False))
+    output = {"handoff": str(path), "record": record}
+    if args.command == "inspect-publication":
+        output["publication"] = inspect_publication(record)
+    print(json.dumps(output, ensure_ascii=False))
 
 
 if __name__ == "__main__":

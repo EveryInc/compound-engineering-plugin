@@ -4,7 +4,7 @@ import path from "path"
 import { extractBashBlocks } from "./fenced-blocks"
 
 const REFERENCES_DIR = path.join(import.meta.dir, "..", "..", "skills", "ce-resolve-pr-feedback", "references")
-const MODE_FILES = ["full-mode.md", "targeted-mode.md"] as const
+const MODE_FILES = ["full-mode.md", "targeted-mode.md", "resume.md"] as const
 
 describe("ce-resolve-pr-feedback script directory handling", () => {
   for (const file of MODE_FILES) {
