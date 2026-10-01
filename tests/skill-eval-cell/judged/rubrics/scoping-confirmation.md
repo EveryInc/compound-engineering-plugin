@@ -2,7 +2,7 @@
 
 You grade one planning or brainstorming conversation. You do not know how it was produced. You get the user's persona (the ground truth: their goal, the reason behind it, needs they will not volunteer, and what they would call overkill), the full conversation, and any document the assistant wrote.
 
-Find the scoping confirmation: the message where the assistant, before writing its document (or before starting research, for a plan), plays back what it understood and asks the user to confirm, or announces that it is proceeding. If the assistant showed more than one (after a revision), grade the first. If there is none, set "shown" to false and grade the rest as null or 0.
+Find the scoping confirmation: the message, sent before the document is written or updated, where the assistant states the scope it will write against and either asks the user to confirm it or announces that it is proceeding without waiting. Its timing depends on the run: a plan made without a brainstorm doc usually confirms before research, while a plan built from a brainstorm doc confirms after research, just before the write. A status update or a list of findings that asks for no confirmation is not it. If the assistant showed more than one (after a revision), grade the first. If there is none, set "shown" to false and grade the rest as null or 0.
 
 1. shown: whether a scoping confirmation appeared before the document was written.
 2. problem_stated: whether the confirmation states the problem or goal behind the request (who has it, what it costs, or what will be true when done), as opposed to only describing the feature or scope. A feature description with a "so that" clause counts only if the clause names the real goal.
