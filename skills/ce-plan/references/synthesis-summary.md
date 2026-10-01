@@ -109,7 +109,7 @@ Confirm and I'll proceed to research, drawing on this scope.
 
 The auto-proceed path (announce without waiting for user confirmation) applies only when **plan depth is Lightweight AND there are no call-outs**. For Standard or Deep plans, always ask for confirmation even when there are no call-outs — the plan's substance is what calls for the checkpoint, not how much dialogue preceded it. A Deep plan with rich silent decisions and a 1-3 line summary is exactly the case where rubber-stamping is most likely; the explicit confirmation request gives the user a real chance to push back before research or plan-write proceeds.
 
-When auto-proceed applies (Lightweight + zero call-outs), emit a one-line announcement and continue:
+When auto-proceed applies (Lightweight + zero call-outs), send the user this announcement as a chat message, then continue. Deciding it in your reasoning is not sending it; silent proceeding is not allowed, and the reason (no forks worth flagging) must be visible:
 
 ```
 Planning: [1-3 line summary]
@@ -117,13 +117,11 @@ Planning: [1-3 line summary]
 No open decisions to weigh in on — proceeding to [research / plan-write]. Interrupt if I have the scope wrong.
 ```
 
-The announcement is mandatory when skipping — silent proceeding is not allowed. The "why" (no forks worth flagging) must be visible.
-
 For Standard/Deep with no call-outs, the confirmation lines still apply; the "Call outs:" header is simply omitted. The user gets the summary plus the explicit confirmation request.
 
 There is a third skip condition: the **opt-in `SKIP_SCOPING_CONFIRM` setting** (Phase 0.0 — `confirm:auto` token or the `plan_skip_scoping_confirm` config key). When it resolves to skip, the confirmation auto-proceeds for *any* tier or call-out count — the user has pre-authorized it. The announcement is still mandatory (it names that confirmation is off and that inferred scope landed in `## Assumptions`), and the skip is scoped to this confirmation only: genuine blocking questions and the Phase 5.4 menu still run. This differs from headless mode only in that announcement — headless has no synchronous user to announce to.
 
-When the opt-in skip applies, emit this announcement — **not** the auto-proceed template above. The opt-in skip applies to *any* tier and call-out count, so claiming "No open decisions to weigh in on" would be false whenever call-outs survived; the announcement instead names that confirmation is off and that inferred scope is recorded under `## Assumptions`:
+When the opt-in skip applies, send this announcement the same way — **not** the auto-proceed template above. The opt-in skip applies to *any* tier and call-out count, so claiming "No open decisions to weigh in on" would be false whenever call-outs survived; the announcement instead names that confirmation is off and that inferred scope is recorded under `## Assumptions`:
 
 ```
 Planning: [1-3 line scope claim]

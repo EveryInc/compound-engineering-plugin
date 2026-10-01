@@ -45,11 +45,13 @@ Run this step **whenever Phase 0.2 resolved an upstream Product Contract source*
 
 **Required output — do not skip; silent proceeding is not allowed.** Compose an internal three-bucket scope draft (Stated / Inferred / Out of scope — internal thinking that feeds plan-body routing at Phase 5.2, not the chat output). Derive call-outs (specific forks where user input materially changes the plan), then emit the **brainstorm-sourced** synthesis and **wait for user confirmation before continuing to Phase 5.2.** Its summary is two parts — a one-sentence anchor naming the brainstorm's scope in the brainstorm's own vocabulary, then the plan-specific scoping decisions the brainstorm did not make (full-brainstorm coverage vs. narrowed subset; adjacent refactors in or out; test scope at scenario level) — each affirmable without reading code, and never an enumeration of Implementation Units, file paths, or PR/sequencing shape. Use the confirmation or auto-proceed lines in `references/synthesis-summary.md` (loaded above) rather than reconstructing them here.
 
-**Blocking decision:** auto-proceed — announce without waiting — only when plan depth is **Lightweight AND zero call-outs survive**. Standard and Deep always ask for confirmation, even with zero call-outs.
+**Blocking decision:** auto-proceed — send the user the auto-proceed announcement in chat, then continue without waiting — only when plan depth is **Lightweight AND zero call-outs survive**. Standard and Deep always ask for confirmation, even with zero call-outs.
 
 **Headless / opt-in skip:** in headless mode, or when `SKIP_SCOPING_CONFIRM` resolved to skip in Phase 0.0, do not block — compose the internal draft, skip the chat-time confirmation, and route Inferred bets to a `## Assumptions` section at plan-write (Phase 5.2). The skip covers only this scoping confirmation; Phase 0.4 routing, Phase 0.5 blockers, Phase 2 questions, source-doc disambiguation, and the Phase 5.4 menu still run. Announcement wording and full routing: `references/synthesis-summary.md` ("Headless mode", "When to skip the blocking confirmation").
 
 #### 5.2 Write Plan File
+
+**Before the write, on an interactive run from an upstream Product Contract, check the chat:** the user must already have seen this run's Phase 5.1.5 synthesis or its auto-proceed announcement. Answers to your own planning questions are not that checkpoint, because the synthesis is where those answers show up as scope. If neither is in chat, send it now.
 
 Return to SKILL.md for its Model elevation step (Phase 5 workflow item 8), which decides whether a different model authors the plan. Resume here only after that step has finished; this reference does not dispatch the authoring route itself.
 

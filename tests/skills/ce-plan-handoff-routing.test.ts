@@ -514,3 +514,20 @@ describe("ce-plan output-contract gate", () => {
     expect(RESEARCH_BODY).not.toContain("Local Research (Always Runs)")
   })
 })
+
+describe("ce-plan pre-write scoping checkpoint", () => {
+  // Claude skipped the brainstorm-sourced synthesis on Lightweight runs after answering its own
+  // planning questions, writing the plan with no confirmation or announcement. Judged evals
+  // (2026-10-01) needed both lines: the body gate alone left 2 of 3 runs silent, the write-step
+  // check alone 2 of 4, and both together 0 of 4.
+  const FINAL_REVIEW_BODY = readFileSync(path.join(process.cwd(), "skills/ce-plan/references/final-review.md"), "utf8")
+
+  test("the always-loaded body states the pre-write checkpoint", () => {
+    expect(SKILL_BODY).toMatch(/the user sees the Phase 5\.1\.5 scoping synthesis in chat before the write/)
+  })
+
+  test("the write step checks the chat for the checkpoint before writing", () => {
+    const writeStep = FINAL_REVIEW_BODY.slice(FINAL_REVIEW_BODY.indexOf("#### 5.2 Write Plan File"))
+    expect(writeStep.slice(0, 600)).toMatch(/Answers to your own planning questions are not that checkpoint/)
+  })
+})
