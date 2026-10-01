@@ -59,6 +59,36 @@ function brainstorm(id: string, fixture: string, opening: string, trials = 1): J
   }
 }
 
+/** main before the problem-first scoping confirmation (#1813). */
+export const SCOPING_CONFIRMATION_BASE_REF = "7b867109526165def0cc2a31b7c348b7308ae2c8"
+
+export const PLAN_TASK = `Use ce-plan to plan this with me. I'm here and will answer your questions: ask in chat, one question at a time, and wait for my reply. If a handoff menu appears after the plan is written, stop there without choosing an option.
+
+Request: {opening}`
+
+/** Grades the pre-write scoping confirmation of ce-brainstorm or ce-plan, not the whole conversation. */
+function scoping(id: string, skill: "ce-brainstorm" | "ce-plan", fixture: string, persona: string, opening: string, trials = 1): JudgedScenario {
+  return {
+    id: `scoping/${id}`,
+    skill,
+    companions: ["ce-noslop"],
+    fixture: `${FIX}/${fixture}`,
+    persona,
+    opening,
+    task: skill === "ce-plan" ? PLAN_TASK : BRAINSTORM_TASK,
+    rubric: "scoping-confirmation.md",
+    base_ref: SCOPING_CONFIRMATION_BASE_REF,
+    hosts: ["claude", "codex"],
+    trials,
+    max_turns: 25,
+    timeout_secs: 3600,
+  }
+}
+
+const JOB_OPENING = "Add a nightly job that charges each customer's saved card for their overdue open invoices and marks them paid."
+const DUNNING_OPENING =
+  "Build a complete dunning system for overdue invoices: a nightly job that charges each customer's saved card, a configurable retry schedule (for example day 1, 3 and 7 after the due date), customer emails before each attempt and after a failure, an admin page that lists failed collections with a manual \"retry now\" button, and a per-customer switch to pause collection."
+
 export const JUDGED_SCENARIOS: JudgedScenario[] = [
   brainstorm("conversion", "judged-webapp", "We need to improve sign-up conversion.", 3),
   brainstorm("animation", "judged-webapp", "Let's add a better animation on the transition when our sign-up page is loading.", 3),
@@ -70,4 +100,9 @@ export const JUDGED_SCENARIOS: JudgedScenario[] = [
     "Build a complete dunning system for overdue invoices: a nightly job that charges each customer's saved card, a configurable retry schedule (for example day 1, 3 and 7 after the due date), customer emails before each attempt and after a failure, an admin page that lists failed collections with a manual \"retry now\" button, and a per-customer switch to pause collection.",
   ),
   brainstorm("vague", "judged-billing", "Our failed-payment rate on invoices is hurting revenue. Help me figure out what we should build."),
+  scoping("brainstorm-conversion", "ce-brainstorm", "judged-webapp", "conversion.md", "We need to improve sign-up conversion.", 2),
+  scoping("brainstorm-dunning", "ce-brainstorm", "judged-billing", "dunning.md", DUNNING_OPENING, 2),
+  scoping("plan-solo-job", "ce-plan", "judged-billing", "job.md", JOB_OPENING, 2),
+  scoping("plan-solo-dunning", "ce-plan", "judged-billing", "dunning.md", DUNNING_OPENING, 2),
+  scoping("plan-from-brainstorm", "ce-plan", "judged-billing-planned", "job-planned.md", "Plan docs/plans/2026-09-20-0900-feat-nightly-invoice-charging-plan.md", 2),
 ]
