@@ -263,3 +263,24 @@ describe("light-webserver.js drift across ce-brainstorm and ce-prototype", () =>
     expect(contents[1]).toBe(contents[0])
   })
 })
+
+// The template restates each track's problem_type list; schema.yaml owns it.
+// A type missing from the template has no template to follow (issue #1799).
+describe("resolution template track lists match schema.yaml", () => {
+  test("each track's Use for list names exactly the schema's problem_types", async () => {
+    const schema = load(
+      await readFile(path.join(PLUGIN_ROOT, "ce-compound", "references/schema.yaml"), "utf8"),
+    ) as { tracks: Record<string, { problem_types: string[] }> }
+    const template = await readFile(
+      path.join(PLUGIN_ROOT, "ce-compound", "assets/resolution-template.md"),
+      "utf8",
+    )
+    const useFor = [...template.matchAll(/^Use for: (.+)$/gm)].map((m) =>
+      [...m[1].matchAll(/`([^`]+)`/g)].map((t) => t[1]).sort(),
+    )
+    expect(useFor).toEqual([
+      [...schema.tracks.bug.problem_types].sort(),
+      [...schema.tracks.knowledge.problem_types].sort(),
+    ])
+  })
+})
