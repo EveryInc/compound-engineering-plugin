@@ -201,9 +201,9 @@ ${ROLE_REPORT_SHAPE}`
 
 const roleReviewTeamLines = (personas: string) => `End your report with exactly these three lines, ${ROLE_LINES}:
 
-NOT_RUN_COUNT: <how many configured additional reviewers will not run; 0 when there are none>
-NOT_RUN_REASON: <why they will not run, one of: none, unreachable, invalid-entry, review-mode, peers-allowlist>
-TEAM: <comma-separated reviewers that will be dispatched: each ${personas} by its name, each additional reviewer by the model id it was requested on>
+NOT_RUN_COUNT: <how many configured additional reviewers the review would leave out if it continued past this checkpoint; 0 when it would run every one. Stopping at this checkpoint does not count>
+NOT_RUN_REASON: <why it would leave them out, one of: none, unreachable, invalid-entry, review-mode, peers-allowlist>
+TEAM: <comma-separated reviewers the review would dispatch if it continued past this checkpoint: each ${personas} by its name, each additional reviewer by the model id it was requested on. Never none>
 
 ${ROLE_REPORT_SHAPE}`
 
