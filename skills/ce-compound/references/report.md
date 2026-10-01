@@ -61,9 +61,9 @@ Documentation skipped
 Ran Full mode.
 Auto memory: 2 relevant entries used as supplementary evidence
 
-Subagent Results:
-  ✓ Context Analyzer: Identified performance_issue in background_job (component from corpus), category: performance-issues/
-  ✓ Solution Extractor: 3 code fixes, prevention strategies
+Research Results:
+  ✓ Classified: performance_issue in background_job (component from corpus), category: performance-issues/
+  ✓ Drafted: 3 code fixes, prevention strategies
   ✓ Related Docs Finder: 2 related issues
   ✓ Session History: 3 prior sessions on same branch, 2 failed approaches surfaced
 

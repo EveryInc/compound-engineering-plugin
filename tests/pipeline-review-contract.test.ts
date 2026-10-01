@@ -1137,9 +1137,9 @@ describe("ce-compound vocabulary is corpus-first, not Rails-specific (issue #126
     // Both classification paths moved into the references the body names at
     // their step; the corpus-first rule is asserted where each one now lives.
     const research = await readRepoFile("skills/ce-compound/references/research.md")
-    const contextAnalyzer = sliceSection(research, "#### 1. **Context Analyzer**", "#### 2. **Solution Extractor**")
-    expect(contextAnalyzer).toMatch(/existing docs .*<root>\/solutions\//)
-    expect(contextAnalyzer).toMatch(/directory/)
+    const classify = sliceSection(research, "#### 1. **Classify** (this context)", "#### 2. **Draft the body** (this context)")
+    expect(classify).toMatch(/existing docs .*<root>\/solutions\//)
+    expect(classify).toMatch(/directory/)
     // lightweight mode classifies inline and must carry the same rule
     const lightweight = await readRepoFile("skills/ce-compound/references/lightweight.md")
     expect(lightweight).toMatch(/existing docs/)
@@ -1205,6 +1205,15 @@ describe("ce-compound Phase 1 artifact contract", () => {
     expect(phase2).toContain("{run_dir}")
     // Inline return is the documented fallback when the artifact is absent
     expect(phase2.toLowerCase()).toContain("fall back")
+  })
+
+  test("classification and drafting stay in the context that holds the conversation", async () => {
+    // Fresh subagents never received the conversation they were told to extract
+    // from; only the corpus search is delegated.
+    const research = await readRepoFile("skills/ce-compound/references/research.md")
+    expect(research).not.toContain("Context Analyzer")
+    expect(research).not.toContain("Solution Extractor")
+    expect(research).toContain("#### 3. **Related Docs Finder** (subagent)")
   })
 
   test("no longer imposes an absolute no-write rule on Phase 1 subagents", async () => {
