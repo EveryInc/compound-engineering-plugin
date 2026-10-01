@@ -41,7 +41,7 @@ The first source that exists decides the model for the step:
 4. The skill's existing key for this step.
 5. The session model.
 
-The calling skill's existing rules decide what counts as a live instruction or a carrier. Either one replaces the entry whole, including its effort, and the skill then handles it as it does with no map. A map entry in either config file outranks an existing key in either file.
+The calling skill's existing rules decide what counts as a live instruction or a carrier. Either one replaces the entry whole, including its effort, and the skill then handles it as it does with no map. That step prints no `Model role` line. A map entry in either config file outranks an existing key in either file.
 
 ## What the entry governs
 
@@ -66,7 +66,7 @@ A hand-off uses the first route that can serve the entry's model at the entry's 
 
 ## Fallback for a single-model role
 
-When no route can serve the entry as written, the step takes the first of these that a route can serve:
+When no route can serve the entry as written, or the route that started fails, the step takes the first of these that a route can serve:
 
 1. The same model at the nearest lower effort the route accepts.
 2. The same model with the effort not applied, on a route that has no effort control. A native subagent on a host that cannot set effort is such a route.
