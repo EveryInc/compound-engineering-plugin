@@ -47,7 +47,7 @@ When the target resolves to the current host's default execution route and no di
 - **Do not** use this rule for `docs_root` — that key is `config.yaml` only.
 <!-- ce-config-layers:end -->
 
-**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `work` role before reading the `work_engine_*` keys below. With no such key, skip this and print nothing about model roles.
+**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `work` role before reading the `work_engine_*` keys below. With no such key in either file, skip this: do not read that reference or run its resolver, and print nothing about model roles.
 
 The role's deliverable is the code the plan's units call for, and its peer route is this skill's cross-model engine routes. `references/model-roles.md` owns the resolver command, what each `state` means, precedence, when a hand-off happens, the serving order, the fallback ladder, and the `Model role` line. "A `work` role entry" below adds only what is specific to this skill.
 

@@ -25,13 +25,13 @@ Read the **full thread**, not just the opening post. Read every comment, with pa
 
 ### Phase 1: Investigate
 
-**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `debug` role before the investigation starts. With no such key, skip this and print nothing about model roles.
+**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `debug` role before the investigation starts. With no such key in either file, skip this: do not read that reference or run its resolver, and print nothing about model roles.
 
 The `debug` role's deliverable is the diagnosis and the fix. The role has no peer route, so a native subagent is its only hand-off route, and the fallback ladder in `references/model-roles.md` comes straight after it. The entry is standing config. `mode:pipeline` and `mode:return-to-caller` honor it the way interactive use does, and no mode asks about it.
 
 **Investigation hand-off.** When the role hands off and the host can give the entry's model to a subagent, one read-only subagent on that model gathers the evidence and proposes the causal chain. When the host cannot, the session investigates as the rest of this file describes, and the `Model role` line says so.
 
-Create the run directory, then write `handoff.md` in it. That file holds the problem statement from Phase 0 and the content of the issue of record when there is one.
+For a hand-off, create the run directory, then write `handoff.md` in it. A run with no hand-off creates neither. That file holds the problem statement from Phase 0 and the content of the issue of record when there is one.
 
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
