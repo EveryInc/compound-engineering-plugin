@@ -107,6 +107,7 @@ def validate(record: object) -> dict:
         require(action.get("verdict") in VERDICTS, "invalid verdict")
         string(action.get("reply_body"), "reply_body")
         require(type(action.get("resolve")) is bool, "resolve must be boolean")
+        require(action["resolve"] == (source["kind"] == "thread" and action["verdict"] != "needs-human"), "resolve must match the source kind and verdict")
         if source["kind"] == "thread":
             positive_int(action.get("root_comment_id"), "root_comment_id")
             string(action.get("thread_id"), "thread_id", r"[A-Za-z0-9_+=:-]+")

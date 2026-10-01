@@ -22,6 +22,10 @@ function record() {
   }
 }
 
+function completedRecord() {
+  return { ...record(), status: "completed", actions: record().actions.map(action => ({ ...action, progress: { reply_id: 100, resolved: true } })), body_ticks: record().body_ticks.map(tick => ({ ...tick, progress: { applied: true } })) }
+}
+
 function fixture() {
   const dir = mkdtempSync(path.join(tmpdir(), "ce-pending-test-"))
   const input = path.join(dir, "input.json")
@@ -109,39 +113,35 @@ describe("resolver saved feedback", () => {
     expect(readFileSync(calls, "utf8")).toContain('"--hostname", "git.example.com"')
   })
 
-  test("unpublished, diverged, unknown, and API-failed commits never authorize writes", () => {
-    for (const comparison of [
-      { status: "behind", merge_base_commit: { sha: "a".repeat(40) } },
-      { status: "diverged", merge_base_commit: { sha: "e".repeat(40) } },
-      { status: "ahead", merge_base_commit: { sha: "e".repeat(40) } },
-      { status: "unknown", merge_base_commit: { sha: "a".repeat(40) } },
-      {}, "HTTP 404: commit not found", "HTTP 503: unavailable",
-    ]) {
-      const { handoff, bytes, inspect, calls } = publicationFixture()
-      const result = inspect(undefined, comparison)
-      expect(result.status, result.stderr).toBe(0)
-      const publication = JSON.parse(result.stdout).publication
-      expect(publication.verified).toBe(false)
-      expect(publication.reason.length).toBeGreaterThan(0)
-      expect(readFileSync(handoff, "utf8")).toBe(bytes)
-      expect(readFileSync(calls, "utf8")).not.toMatch(/POST|PATCH|mutation/)
-    }
+  test.each([
+    { status: "behind", merge_base_commit: { sha: "a".repeat(40) } },
+    { status: "diverged", merge_base_commit: { sha: "e".repeat(40) } },
+    { status: "ahead", merge_base_commit: { sha: "e".repeat(40) } },
+    { status: "unknown", merge_base_commit: { sha: "a".repeat(40) } },
+    {}, "HTTP 404: commit not found", "HTTP 503: unavailable",
+  ])("publication rejects comparison %j without authorizing writes", comparison => {
+    const { handoff, bytes, inspect, calls } = publicationFixture()
+    const result = inspect(undefined, comparison)
+    expect(result.status, result.stderr).toBe(0)
+    const publication = JSON.parse(result.stdout).publication
+    expect(publication.verified).toBe(false)
+    expect(publication.reason.length).toBeGreaterThan(0)
+    expect(readFileSync(handoff, "utf8")).toBe(bytes)
+    expect(readFileSync(calls, "utf8")).not.toMatch(/POST|PATCH|mutation/)
   })
 
-  test("PR or head identity changes stop before comparing", () => {
-    for (const change of ["url", "number", "base", "repo", "ref", "sha"] as const) {
-      const { metadata, inspect, calls } = publicationFixture()
-      if (change === "url") metadata.html_url = "https://other.example/upstream/project/pull/42"
-      if (change === "number") metadata.number = 99
-      if (change === "base") metadata.base.repo.full_name = "other/project"
-      if (change === "repo") metadata.head.repo.full_name = "other/project"
-      if (change === "ref") metadata.head.ref = "other"
-      if (change === "sha") metadata.head.sha = "unknown"
-      const result = inspect(metadata)
-      expect(result.status, result.stderr).toBe(0)
-      expect(JSON.parse(result.stdout).publication.verified).toBe(false)
-      expect(readFileSync(calls, "utf8").trim().split("\n")).toHaveLength(1)
-    }
+  test.each(["url", "number", "base", "repo", "ref", "sha"] as const)("PR or head %s identity changes stop before comparing", change => {
+    const { metadata, inspect, calls } = publicationFixture()
+    if (change === "url") metadata.html_url = "https://other.example/upstream/project/pull/42"
+    if (change === "number") metadata.number = 99
+    if (change === "base") metadata.base.repo.full_name = "other/project"
+    if (change === "repo") metadata.head.repo.full_name = "other/project"
+    if (change === "ref") metadata.head.ref = "other"
+    if (change === "sha") metadata.head.sha = "unknown"
+    const result = inspect(metadata)
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).publication.verified).toBe(false)
+    expect(readFileSync(calls, "utf8").trim().split("\n")).toHaveLength(1)
   })
 
   test("a failed fresh PR read leaves even a completed saved record unproved", () => {
@@ -243,43 +243,56 @@ describe("resolver saved feedback", () => {
     const { input, handoff } = fixture()
     writeFileSync(input, JSON.stringify(record()))
     expect(run("create", "--input", input, "--path", handoff).status).toBe(0)
-    const updated = { ...record(), status: "completed", actions: record().actions.map(action => ({ ...action, progress: { reply_id: 100, resolved: true } })), body_ticks: record().body_ticks.map(tick => ({ ...tick, progress: { applied: true } })) }
+    const updated = completedRecord()
     writeFileSync(input, JSON.stringify(updated))
     expect(run("checkpoint", "--input", input, "--path", handoff).status).toBe(0)
     expect(JSON.parse(run("validate", "--path", handoff).stdout).record).toEqual(updated)
-    for (const replaced of [
-      { ...updated, fix_commit: "d".repeat(40) },
-      { ...updated, pr: { ...updated.pr, head_ref: "other" } },
-      { ...updated, actions: updated.actions.map(action => ({ ...action, source: { ...action.source, body_sha256: "e".repeat(64) } })) },
-      { ...updated, actions: updated.actions.map(action => ({ ...action, reply_body: "different reply" })) },
-    ]) {
-      writeFileSync(input, JSON.stringify(replaced))
-      expect(run("checkpoint", "--input", input, "--path", handoff).status).toBe(1)
-      expect(JSON.parse(readFileSync(handoff, "utf8"))).toEqual(updated)
-    }
   })
 
-  test("invalid original bytes or control fields fail before creation", () => {
-    const invalid = [
-      "{",
-      JSON.stringify({ ...record(), schema_version: 2 }),
-      JSON.stringify({ ...record(), fix_commit: "--help" }),
-      JSON.stringify({ ...record(), pr: { ...record().pr, host: "github.com\nGH_TOKEN=secret" } }),
-      JSON.stringify({ ...record(), pr: { ...record().pr, head_ref: "bad..ref" } }),
-      ...["upstream/.", "upstream/..", "upstream/../other"].flatMap(repo => [
-        JSON.stringify({ ...record(), pr: { ...record().pr, base_repo: repo } }),
-        JSON.stringify({ ...record(), pr: { ...record().pr, head_repo: repo } }),
-      ]),
-      JSON.stringify({ ...record(), pr: { ...record().pr, url: "https://github.com/other/project/pull/42" } }),
-      JSON.stringify({ ...record(), actions: record().actions.map(action => ({ ...action, source: { ...action.source, body_sha256: "bad" } })) }),
-      JSON.stringify(record()).replace('"schema_version":1', '"schema_version":1,"schema_version":2'),
-    ]
-    for (const bytes of invalid) {
-      const { input, handoff } = fixture()
-      writeFileSync(input, bytes)
-      const result = run("create", "--input", input, "--path", handoff)
-      expect(result.status).toBe(1)
-      expect(() => readFileSync(handoff)).toThrow()
+  test.each(["commit", "ref", "source", "reply"])("checkpoint rejects changes to prepared %s", field => {
+    const { input, handoff } = fixture()
+    const updated = completedRecord()
+    writeFileSync(handoff, JSON.stringify(updated))
+    const replacements = {
+      commit: { ...updated, fix_commit: "d".repeat(40) },
+      ref: { ...updated, pr: { ...updated.pr, head_ref: "other" } },
+      source: { ...updated, actions: updated.actions.map(action => ({ ...action, source: { ...action.source, body_sha256: "e".repeat(64) } })) },
+      reply: { ...updated, actions: updated.actions.map(action => ({ ...action, reply_body: "different reply" })) },
     }
+    writeFileSync(input, JSON.stringify(replacements[field as keyof typeof replacements]))
+    expect(run("checkpoint", "--input", input, "--path", handoff).status).toBe(1)
+    expect(JSON.parse(readFileSync(handoff, "utf8"))).toEqual(updated)
+  })
+
+  test.each(["fixed", "fixed-differently", "replied", "not-addressing", "declined"])("ordinary %s thread actions require resolution", verdict => {
+    const { input, handoff } = fixture()
+    const batch = record()
+    batch.actions[0]!.verdict = verdict
+    batch.actions[0]!.resolve = false
+    writeFileSync(input, JSON.stringify(batch))
+    const result = run("create", "--input", input, "--path", handoff)
+    expect(result.status, result.stderr).toBe(1)
+    expect(() => readFileSync(handoff)).toThrow()
+  })
+
+  test.each([
+    "{",
+    JSON.stringify({ ...record(), schema_version: 2 }),
+    JSON.stringify({ ...record(), fix_commit: "--help" }),
+    JSON.stringify({ ...record(), pr: { ...record().pr, host: "github.com\nGH_TOKEN=secret" } }),
+    JSON.stringify({ ...record(), pr: { ...record().pr, head_ref: "bad..ref" } }),
+    ...["upstream/.", "upstream/..", "upstream/../other"].flatMap(repo => [
+      JSON.stringify({ ...record(), pr: { ...record().pr, base_repo: repo } }),
+      JSON.stringify({ ...record(), pr: { ...record().pr, head_repo: repo } }),
+    ]),
+    JSON.stringify({ ...record(), pr: { ...record().pr, url: "https://github.com/other/project/pull/42" } }),
+    JSON.stringify({ ...record(), actions: record().actions.map(action => ({ ...action, source: { ...action.source, body_sha256: "bad" } })) }),
+    JSON.stringify(record()).replace('"schema_version":1', '"schema_version":1,"schema_version":2'),
+  ].map((bytes, index) => [index, bytes] as const))("invalid original bytes case %i fails before creation", (_index, bytes) => {
+    const { input, handoff } = fixture()
+    writeFileSync(input, bytes)
+    const result = run("create", "--input", input, "--path", handoff)
+    expect(result.status).toBe(1)
+    expect(() => readFileSync(handoff)).toThrow()
   })
 })
