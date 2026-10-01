@@ -93,15 +93,15 @@ describe("ce-pov cross-model route safety", () => {
     const accepted = emit("codex", {
       ...process.env,
       CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
-      CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-6-sol",
+      CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-6.1-sol",
     })
-    expect(accepted).toContain("openai.gpt-6-sol")
+    expect(accepted).toContain("openai.gpt-6.1-sol")
     const acceptedSlash = emit("codex", {
       ...process.env,
       CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
-      CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-6-sol",
+      CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-6.1-sol",
     })
-    expect(acceptedSlash).toContain("openai/gpt-6-sol")
+    expect(acceptedSlash).toContain("openai/gpt-6.1-sol")
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "codex"], {
       encoding: "utf8",
@@ -122,6 +122,7 @@ describe("ce-pov cross-model route safety", () => {
       expect(command).not.toContain("bypassPermissions")
       expect(command).not.toContain("<run-dir>")
     }
+    expect(emit("codex")).toContain("-m gpt-6.1-sol")
     expect(emit("codex")).toContain("-s read-only")
     expect(emit("codex")).toContain("-C <read-root>")
     expect(emit("claude")).toContain("--permission-mode dontAsk")

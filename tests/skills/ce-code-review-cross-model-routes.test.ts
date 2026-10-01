@@ -1616,7 +1616,7 @@ describe("cross-model-adversarial-review normalization", () => {
       env: {
         ...process.env,
         CROSS_MODEL_MODEL_OVERRIDE_TARGET: "composer",
-        CROSS_MODEL_MODEL_OVERRIDE: "gpt-6-sol",
+        CROSS_MODEL_MODEL_OVERRIDE: "gpt-6.1-sol",
       },
     })
     expect(crossFamily.status).toBe(2)
@@ -2006,15 +2006,15 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     expect(
       emitAdapter("codex", SCRIPT, {
         CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
-        CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-6-sol",
+        CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-6.1-sol",
       }),
-    ).toContain("-m openai.gpt-6-sol")
+    ).toContain("-m openai.gpt-6.1-sol")
     expect(
       emitAdapter("codex", SCRIPT, {
         CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
-        CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-6-sol",
+        CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-6.1-sol",
       }),
-    ).toContain("-m openai/gpt-6-sol")
+    ).toContain("-m openai/gpt-6.1-sol")
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "codex"], {
       encoding: "utf8",
