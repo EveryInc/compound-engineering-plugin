@@ -249,8 +249,13 @@ describe("work engine opt-out", () => {
     const team = map("  work: gpt-5.5 high\n")
     const optedOut = role(makeProject(team, "work_engine_mode: off\n"), "work")
     expect([optedOut.source, optedOut.engine_opt_out]).toEqual(["team", true])
+    // The reason travels with the answer, so a host need not re-read the personal file to state it.
+    expect(optedOut.warnings).toEqual([
+      "config.local.yaml sets `work_engine_mode: off`: the team `work` entry is not handed to another model",
+    ])
     const personal = role(makeProject(team, `work_engine_mode: off\n${map("  work: opus\n")}`), "work")
     expect([personal.source, personal.engine_opt_out]).toEqual(["local", false])
+    expect(personal.warnings).toEqual([])
   })
 })
 

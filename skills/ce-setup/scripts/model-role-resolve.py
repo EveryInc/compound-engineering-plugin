@@ -302,6 +302,11 @@ def resolve_role(role: str, layers: list, policy: dict) -> dict:
     if role == "work" and result["state"] == "entries" and result["source"] == "team":
         # KTD4: a personal `work_engine_mode: off` keeps a team entry off any external engine.
         result["engine_opt_out"] = _unquote(layers[0][1]["top"].get("work_engine_mode", "")) == "off"
+        if result["engine_opt_out"]:
+            # The reason travels with the answer, so a caller can state it without re-reading the file.
+            result["warnings"].append(
+                "config.local.yaml sets `work_engine_mode: off`: the team `work` entry is not handed to another model"
+            )
     return result
 
 
