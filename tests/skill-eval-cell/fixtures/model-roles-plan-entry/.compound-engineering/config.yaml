@@ -1,0 +1,3 @@
+plan_model: claude-ce-eval-legacy
+model_roles:
+  plan: claude-ce-eval-a low
