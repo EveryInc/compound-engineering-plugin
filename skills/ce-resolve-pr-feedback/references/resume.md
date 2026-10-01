@@ -8,7 +8,8 @@ Pass the supplied path directly to the bundled helper. It reads and validates th
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
-python3 "$SKILL_DIR/scripts/pending-feedback.py" inspect-publication --path '<handoff path>'
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/pending-feedback.py" inspect-publication --path '<handoff path>'
 ```
 
 The helper returns `{handoff, record, publication}` without changing the file or writing to GitHub. Invalid or unreadable records exit nonzero. A readable record with unknown or refused publication exits zero with `publication.verified:false` and a reason; exit zero alone never authorizes completion. Only `publication.verified:true` permits the remote tail. On any other result return pending with the evidence, performing zero remote writes.
