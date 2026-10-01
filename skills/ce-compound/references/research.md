@@ -25,7 +25,7 @@ If no relevant entries are found, proceed to Phase 1 without memory context.
 
 ### Phase 1: Research
 
-You classify the learning and draft its body in this context, because both depend on the conversation, which only this context holds. A fresh subagent sees only what you paste into its prompt. The Related Docs Finder runs as a subagent alongside, because its corpus search reads many docs this context does not need to keep. Each Phase 1 subagent writes its full output to a per-run scratch artifact and returns only the artifact path to the orchestrator.
+You classify the learning and draft its body in this context, because both depend on the conversation, which only this context holds. A fresh subagent sees only what you paste into its prompt. The one exception is a `compound` model role hand-off, which step 2 describes: a subagent drafts the body from a hand-off file you write. The Related Docs Finder runs as a subagent alongside, because its corpus search reads many docs this context does not need to keep. Each Phase 1 subagent writes its full output to a per-run scratch artifact and returns only the artifact path to the orchestrator.
 
 **Run ID and run dir (before dispatching the finder):** generate a unique run identifier and create the run directory. This scopes every Phase 1 artifact file to the same directory so the orchestrator can Read them back in Phase 2.
 
@@ -46,10 +46,11 @@ echo "$RUN_DIR";
 
 **CRITICAL: glob `<root>/solutions/` fresh every run.** The current vocabulary and conventions above do not substitute for the live-tree search in step 3.
 
-Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagent prompt: the Related Docs Finder, and the session-history synthesis subagent when it runs. Each subagent **writes its full structured output** to its own file under `{run_dir}/`, **confirms the write succeeded** (the file exists and is non-empty), and then **returns only a one-line confirmation containing the artifact path**, not the prose body inline. Artifact filenames by subagent:
+Pass `{run_id}` and the resolved absolute `{run_dir}` into every Phase 1 subagent prompt: the Related Docs Finder, the session-history synthesis subagent when it runs, and the Body Drafter when step 2 hands the draft off. Each subagent **writes its full structured output** to its own file under `{run_dir}/`, **confirms the write succeeded** (the file exists and is non-empty), and then **returns only a one-line confirmation containing the artifact path**, not the prose body inline. Artifact filenames by subagent:
 
 - **Related Docs Finder** → `{run_dir}/related.json` (links, refresh candidates, overlap assessment)
 - **Session History** synthesis subagent (when run) → `{run_dir}/session-history.md` (prose findings)
+- **Body Drafter** (only on a `compound` role hand-off) → `{run_dir}/draft.md` (the doc body)
 
 **Return the full output inline whenever the artifact write did not succeed.** This covers both cases where the orchestrator's Phase 2 inline fallback would otherwise have nothing to read: (a) `{run_id}` is empty or did not resolve (non-Claude-Code platforms where the pre-resolution failed), so there is no path to write to; and (b) `{run_id}` resolved but the write itself failed (tool permission denied, absolute-path writes unavailable, disk error, or the post-write existence check came back empty). In either case the subagent must return its complete structured output inline instead of a path, because the path would point at a file that does not exist. Return only the bare path when, and only when, the write is confirmed on disk. The artifact pattern is a reliability improvement, not a hard requirement; the orchestrator handles a missing artifact in Phase 2 by using the inline return.
 
@@ -86,6 +87,8 @@ Classify a rejected dispatch by whether an agent launched: correct a pre-launch 
    - Does not force bug-track fields onto knowledge-track learnings or vice versa
 
 #### 2. **Draft the body** (this context)
+   **Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `compound` role before drafting the body. With no such key, skip this and print nothing about model roles. The role's deliverable is the learning document's body. This skill has no peer route. When that reference calls for a hand-off, **Body hand-off** at the end of this step replaces drafting in this context. Otherwise you draft here, as the rest of this step describes.
+
    - Adapts output structure to the track chosen in step 1
    - **Drafts the full doc-body prose** (all track-appropriate sections below) from the conversation and the verified fix. The failed attempts and the reasoning behind the fix are what a later reader cannot recover from the code, so they come from what happened in this session, not from a recap of the final diff.
    - Uses auto memory excerpts from Phase 0.5 as supplementary evidence. Conversation history and the verified fix take priority; if memory notes contradict the conversation, note the contradiction as cautionary context
@@ -108,6 +111,12 @@ Classify a rejected dispatch by whether an agent launched: correct a pre-launch 
    - **Why This Matters**: Rationale and impact of following or not following this guidance
    - **When to Apply**: Conditions or situations where this applies
    - **Examples**: Concrete before/after or usage examples showing the practice in action
+
+   **Body hand-off.** This applies only when `references/model-roles.md` calls for a hand-off of the `compound` role. A native subagent on the entry's model is the only hand-off route. When the host's subagent primitive takes a model but no effort, an entry that has an effort is served through that reference's effort-not-applied rung. You still classify in this context, and you remain the only writer of product files.
+
+   - **Hand-off file.** Write `{run_dir}/draft-handoff.md` with what the draft needs and only this conversation holds: the problem and its symptoms, each thing that was tried and failed and why it failed, the fix, why the fix works, how it was verified, the Phase 0.5 auto memory excerpt when there is one, and step 1's classification with its frontmatter skeleton and track. Write these in full. The drafter cannot see this conversation, so whatever the file leaves out is lost to the doc.
+   - **Dispatch.** Launch one **Body Drafter** subagent on the entry's model once the hand-off file is written and the Related Docs Finder and session history have finished, because it reads their artifacts. Give it file paths to read rather than a retelling of their contents: the hand-off file, and whichever of `related.json` and `session-history.md` exist. Its prompt also carries this step's drafting rules and the chosen track's output sections, verbatim. The drafter writes the body to `{run_dir}/draft.md` and nothing else, under the Phase 1 artifact contract above, and returns only that path. The draft is still a Phase 1 input, so assembly waits for it.
+   - **Fallback.** When the host cannot hand the entry's model to a subagent, or no usable draft comes back once the rejected-dispatch rule above has been applied, you draft the body in this context as this step describes. The `Model role` line then names the session as the route and gives the reason.
 
 #### 3. **Related Docs Finder** (subagent)
    - Searches `<root>/solutions/` for related documentation
