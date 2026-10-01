@@ -47,6 +47,10 @@ When the target resolves to the current host's default execution route and no di
 - **Do not** use this rule for `docs_root` — that key is `config.yaml` only.
 <!-- ce-config-layers:end -->
 
+**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `work` role before reading the `work_engine_*` keys below. With no such key, skip this and print nothing about model roles.
+
+The role's deliverable is the code the plan's units call for, and its peer route is this skill's cross-model engine routes. `references/model-roles.md` owns the resolver command, what each `state` means, precedence, when a hand-off happens, the serving order, the fallback ladder, and the `Model role` line. "A `work` role entry" below adds only what is specific to this skill.
+
 Standing configuration uses one mode plus an ordered route list. Resolve `work_engine_mode` and `work_engine_preferences` independently from the two repo files (`config.local.yaml` then `config.yaml`); a present local list, including `[]`, replaces the team list. Do not pick one file for the whole group.
 
 ```yaml
@@ -77,6 +81,37 @@ Traverse each ordered candidate during preflight. If a candidate is equivalent t
 `work_engine_effort` resolves on its own under the same two-file rule, and a present local map replaces the team map. It requests an effort for every candidate of that harness, including a candidate a caller binding or live intent selected, and it applies whatever `work_engine_mode` says. A candidate that cannot run at the effort requested for it is unavailable before any work is sent, the same as any other unavailable candidate, and nothing runs at a different effort than the one requested. The adapter script owns which levels each route accepts; ask it at preflight rather than judging the value yourself. A candidate that collapses to native execution runs at the session's own effort, so say that the configured effort was not applied. A value that is not a harness map requests nothing: say once that it was ignored and continue with each route's default.
 
 `off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding. An enabled mode without a valid candidate list is unavailable rather than guessed. When the list is exhausted, both `prefer` and `require` disclose every attempted route and reason once, then continue natively on the current harness and session model. A required route is never replaced by another unrequested external recipient. Standing configuration supplies defaults, not permission to change recipient or broaden authority.
+
+### A `work` role entry
+
+This subsection applies when the resolver reports `inherit` or `entries` for the `work` role. In every other state, routing uses the keys above as it does with no map.
+
+**Precedence.** The entry sits at the per-checkout configuration step of the resolution order. Every source above that step, including live intent and a typed caller binding, outranks the entry and replaces it whole, effort included. Routing then resolves as it does with no map. While the entry governs the run, `work_engine_mode`, `work_engine_preferences`, and `work_engine_effort` are not consulted.
+
+**`inherit`.** The run uses native execution on the session model.
+
+**Personal opt-out.** When the resolver reports `engine_opt_out: true`, the entry is not handed to any other model: the work runs natively on the session model, and the `Model role` line gives the personal `work_engine_mode: off` as the reason. The resolver reports this only for a team-file entry, so a personal-file entry is unaffected.
+
+**Serving the entry.** The serving order in `references/model-roles.md` maps onto this skill's engines in this way:
+
+- **No hand-off.** An entry with no effort that names the model the session attests it is on collapses to native execution.
+- **Native subagent.** When the host's subagent primitive can be handed the entry's model at the entry's effort, the inline/subagent engine serves the entry: every unit is dispatched to a subagent on that model as `references/execution-strategy.md` describes, no unit runs inline, and no external candidate is formed.
+- **Peer route.** Otherwise the entry becomes the only standing candidate, at `prefer`. The candidate is the resolver's `harness`, the entry's `model`, and the entry's `effort` as the effort requested for it. Normalize and preflight it like any other candidate.
+
+A candidate from an entry that carries an effort is never equivalent to the current host. It is not skipped as a route to self, and it does not collapse to native execution. It runs through the host's own CLI route at that effort: `opus medium` in a Claude Code session already on Opus runs through the `claude` route at `medium`. The equivalence and collapse rules elsewhere in this file keep governing candidates from every other source.
+
+A null `harness` means the resolver could not place the model in a family, so no candidate can be formed from the entry. Unless a native subagent serves it, the run ends on native execution on the session model, and the `Model role` line says that the model's family has no engine route.
+
+**Fallback.** A candidate from the entry follows the fallback ladder in `references/model-roles.md`, not the unavailable-candidate rules above. Those rules, including that nothing runs at a different effort than the one requested, keep governing `work_engine_effort`. These facts connect the ladder to this skill's routes:
+
+- The adapter script says which effort levels a route accepts. `references/cross-model-execution.md` gives the question to ask it at preflight.
+- A route for which the adapter accepts no level has no effort control. The Cursor routes are such routes today. The candidate runs there on the entry's model with no effort requested.
+- The route's default model is the same candidate with no `model`.
+- When the ladder ends on the session model, execution is native.
+
+Walk the ladder at preflight, before any work is sent. After dispatch starts, the recipient lock and the single fallback claim in `references/cross-model-execution.md` apply unchanged.
+
+**Report.** Print the `Model role` line with the run's closing summary. In Return-to-Caller Mode, print it immediately before the structured return, which gains no field for it. The existing fields carry the same facts. `requested_model` holds the model the entry names. `requested_effort` holds the entry's effort whenever an external route ran, even when that route ran at a lower effort or with none applied. `fallback_reason` names a step-down, an effort that was not applied, a default-model substitution, the personal opt-out, or a family with no engine route. The binding's `source` names the `model_roles` entry and the file it came from.
 
 ## Step 1: Probe host capability
 
