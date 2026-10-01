@@ -50,7 +50,7 @@ echo "$SCRATCH_DIR";
 Run these agents in parallel:
 
 - `references/agents/repo-research-analyst.md` — scope: **patterns**. Pass the planning context summary and `$SCRATCH_DIR/repo-research.md` so it can go directly to current feature patterns and the code that implements them.
-- `references/agents/learnings-researcher.md` — pass the planning context summary, the search-root list from **Pack discovery**, and `$SCRATCH_DIR/learnings.md`. When the origin document already carries `(pack: …)` citations, pass those pack ids and file paths too so the researcher skips re-reading cited files and searches only for gaps (the same pass-through shape as the Slack context section below).
+- `references/agents/learnings-researcher.md` — pass the planning context summary, the search-root list from **Pack discovery**, and `$SCRATCH_DIR/learnings.md`. When the origin document already carries `(pack: …)` citations, pass those pack ids and file paths too so the researcher skips re-reading cited files and searches only for gaps (the same pass-through shape as the Slack context section below). Dispatch it only when at least one search root holds a markdown file; an empty or missing store has nothing to search.
 
 **Agent-native planning triage** (conditional) — consider broadly, dispatch selectively. Dispatch a generic subagent with `references/agents/agent-native-planning-strategist.md` and `$SCRATCH_DIR/agent-native.md` in parallel with the local research agents when the request, origin document, or repo research indicates any of:
 
