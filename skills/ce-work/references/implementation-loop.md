@@ -84,9 +84,11 @@ If the plan has Implementation Units, use them as a starting guide for commit bo
 
 **Message convention:** match project commit conventions already in context; else match the recent log pattern; else conventional commits (`type(scope): description`). User override wins.
 
-Write the full resolved message to a file outside the repo with your file-write tool. Pass that file to Git so the shell never interprets message text.
+Preserve the full resolved message as data through the selected engine's canonical commit owner. If that owner cannot accept the full message, stop and report the blocker rather than truncate it or bypass the owner's protocol. Cross-model commits follow the controller integration contract in `references/cross-model-execution.md`.
 
-**Commit workflow:**
+For native host-owned Git commits, write the full resolved message to a file outside the repo with your file-write tool. Pass that file to Git so the shell never interprets message text.
+
+**Native Git commit workflow:**
 ```bash
 # 1. Verify tests pass (use project's test command)
 # Examples: bin/rails test, npm test, pytest, go test, etc.
