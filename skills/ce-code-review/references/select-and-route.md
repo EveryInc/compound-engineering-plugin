@@ -76,6 +76,10 @@ The Review depth gate in `references/modes-and-output.md` already chose lite, fo
 
 ### Stage 3d: Bind the adversarial route and final roster
 
+**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `code-review` role before binding the adversarial route. With no such key, skip this and print nothing about model roles.
+
+**Review seats.** When that key is active, read `references/cross-model-review.md` in full too, before running the resolver. Its Step 1 host attestation supplies the resolver's `--host-family`, and its review-seat section decides, from the resolver's answer, what runs beside the local reviewers. A seat does not depend on which personas were selected, so seats run whether or not adversarial was selected. When that section says the single-peer pass does not run, the rest of this stage binds no route: keep `adversarial-reviewer` in the local roster when Stage 3 selected it, start the worker seats now, and add the natively served seats to the Stage 4 batch. The exclusive choice below, and its rule that a started peer and the in-process adversarial reviewer never receive the same brief, govern only the single-peer pass.
+
 Complete this stage **before reading persona prompt assets, `references/dispatch-reviewers.md`, or entering Stage 4** (Dispatch reviewers). That reference's persona-file instructions are valid only once you have settled which single route covers the adversarial lens: the peer, or the in-process fallback. This stage makes that exclusive choice between a cross-model adversarial peer and the in-process `adversarial-reviewer`. Later stages use that choice and must not decide it again, except when the fold-in step finds the peer never ran, or restores the in-process reviewer after a retry on the same route fails on a rate limit.
 
 Both routes share the run directory Stage 1b created; do not create another.

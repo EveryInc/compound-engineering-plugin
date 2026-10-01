@@ -1915,6 +1915,124 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
   })
 })
 
+// A `model_roles` review list runs one worker invocation per seat. CROSS_MODEL_SEAT
+// carries the seat number: it names the artifact and reviewer so two seats on one
+// provider cannot collide, and it marks the recipient as explicitly configured, so
+// the automatic same-family and unknown-host skips do not apply to that invocation.
+describe("cross-model-adversarial-review review seats (CROSS_MODEL_SEAT)", () => {
+  const seatStub =
+    `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t","file":"a.ts","line":1}]}}'\n`
+  const seatArgs = (host: string, target: string, runDir: string) => [host, target, "HEAD", runDir]
+  const seatOutputs = (files: string[]) => files.filter((file) => /^adversarial-[a-z]+(-s\d+)?\.json$/.test(file)).sort()
+  const artifact = (runDir: string, name: string) =>
+    JSON.parse(readFileSync(path.join(runDir, name), "utf8"))
+
+  test("two seats on one provider write two artifacts with distinct reviewer identities", () => {
+    const { env } = sandbox(["claude"], seatStub)
+    const runDir = makeRunDir()
+    for (const seat of ["1", "2"]) {
+      const r = run(seatArgs("codex", "claude", runDir), runDir, { ...env, CROSS_MODEL_SEAT: seat })
+      expect(r.code).toBe(0)
+    }
+    expect(seatOutputs(readdirSync(runDir))).toEqual(["adversarial-claude-s1.json", "adversarial-claude-s2.json"])
+    expect(artifact(runDir, "adversarial-claude-s1.json").reviewer).toBe("adversarial-claude-s1")
+    expect(artifact(runDir, "adversarial-claude-s2.json").reviewer).toBe("adversarial-claude-s2")
+    // A different-family seat still records verified independence.
+    expect(artifact(runDir, "adversarial-claude-s1.json").independence_verified).toBe(true)
+
+    // The seat number becomes part of a file name, so only a positive integer is accepted.
+    const bad = makeRunDir()
+    const r = run(seatArgs("codex", "claude", bad), bad, { ...env, CROSS_MODEL_SEAT: "../x" })
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("seat '../x' invalid")
+  })
+
+  test("a seat in the host's own family runs only as an explicit seat and never records independence", () => {
+    const { env } = sandbox(["claude"], seatStub)
+    let runDir = makeRunDir()
+    let r = run(seatArgs("claude", "claude", runDir), runDir, env)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("no different-provider peer reachable")
+
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "claude", runDir), runDir, { ...env, CROSS_MODEL_SEAT: "3" })
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+    expect(seatOutputs(r.files)).toEqual(["adversarial-claude-s3.json"])
+    const out = artifact(runDir, "adversarial-claude-s3.json")
+    expect(out.serving_family).toBe("claude")
+    expect(out.independence_verified).toBe(false)
+  })
+
+  test("a seat under an unknown host family runs only as an explicit seat and never records independence", () => {
+    const { env } = sandbox(["claude"], seatStub)
+    const hostEnv = { ...env, CROSS_MODEL_HOST_HARNESS: "cursor" }
+    let runDir = makeRunDir()
+    let r = run(seatArgs("unknown", "claude", runDir), runDir, hostEnv)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("host serving family unattested")
+
+    runDir = makeRunDir()
+    r = run(seatArgs("unknown", "claude", runDir), runDir, { ...hostEnv, CROSS_MODEL_SEAT: "1" })
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+    expect(seatOutputs(r.files)).toEqual(["adversarial-claude-s1.json"])
+    expect(artifact(runDir, "adversarial-claude-s1.json").independence_verified).toBe(false)
+  })
+
+  test("a seat's model and effort reach the claude and codex adapter arguments", () => {
+    const capRoot = mkTempRoot("xmodel-cr-seat-argv-")
+    const capFile = path.join(capRoot, "argv.txt")
+    const recordStub = (body: string) =>
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' "$@" > "$ARGV_CAPTURE"\nprintf '%s' '${body}'\n`
+
+    let { env } = sandbox(["claude"], recordStub('{"structured_output":{"reviewer":"adversarial","findings":[]}}'))
+    let runDir = makeRunDir()
+    run(seatArgs("codex", "claude", runDir), runDir, {
+      ...env,
+      ARGV_CAPTURE: capFile,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "sonnet",
+      CROSS_MODEL_EFFORT_OVERRIDE: "medium",
+    })
+    let argv = readFileSync(capFile, "utf8").split("\n")
+    expect(argv[argv.indexOf("--model") + 1]).toBe("sonnet")
+    expect(argv[argv.indexOf("--effort") + 1]).toBe("medium")
+    let out = artifact(runDir, "adversarial-claude-s1.json")
+    expect(out.model_requested).toBe("sonnet")
+    expect(out.effort_requested).toBe("medium")
+
+    ;({ env } = sandbox(["codex"], recordStub('{"reviewer":"adversarial","findings":[]}')))
+    runDir = makeRunDir()
+    run(seatArgs("claude", "codex", runDir), runDir, {
+      ...env,
+      ARGV_CAPTURE: capFile,
+      CROSS_MODEL_SEAT: "2",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+      CROSS_MODEL_MODEL_OVERRIDE: "gpt-seat-model",
+      CROSS_MODEL_EFFORT_OVERRIDE: "low",
+    })
+    argv = readFileSync(capFile, "utf8").split("\n")
+    expect(argv[argv.indexOf("-m") + 1]).toBe("gpt-seat-model")
+    expect(argv).toContain('model_reasoning_effort="low"')
+    out = artifact(runDir, "adversarial-codex-s2.json")
+    expect(out.model_requested).toBe("gpt-seat-model")
+    expect(out.effort_requested).toBe("low")
+  }, 30_000) // the codex liveness poll sleeps in 5s slices even for a fast stub
+
+  test("a seat effort on a cursor-agent route ends as a named skip with no artifact", () => {
+    const { env } = sandbox(["cursor-agent"], seatStub)
+    const runDir = makeRunDir()
+    const r = run(seatArgs("claude", "composer", runDir), runDir, {
+      ...env,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_EFFORT_OVERRIDE: "high",
+    })
+    expect(r.code).toBe(0)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("effort override 'high' not compatible with route 'composer'; skipping")
+  })
+})
+
 function blockBetween(script: string, startMarker: string, endMarker = "# --- --emit-adapter"): string {
   const source = readFileSync(script, "utf8")
   const start = source.indexOf(startMarker)

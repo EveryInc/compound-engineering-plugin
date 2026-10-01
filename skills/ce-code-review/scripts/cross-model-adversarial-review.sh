@@ -33,6 +33,7 @@
 #   <base-ref>      the diff base (merge-base SHA or branch); the peer reviews
 #                   only `git diff <base-ref>` in the current repository
 #   <run-dir>       an existing dir; output -> <run-dir>/adversarial-<provider>.json
+#                   (adversarial-<provider>-s<n>.json when CROSS_MODEL_SEAT=<n> is set)
 #
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-adversarial-review.sh --emit-adapter <route>
@@ -374,6 +375,22 @@ RUN_DIR="${4:-}"
 [ -n "$RUN_DIR" ] && [ -d "$RUN_DIR" ] || skip "run-dir '${RUN_DIR:-<empty>}' is not a directory; skipping"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
+# --- review seat (model role map) -------------------------------------------
+# CROSS_MODEL_SEAT=<n> marks this invocation as seat <n> of a `model_roles` review
+# list. The config names that recipient, so the two automatic eligibility rules
+# below do not apply to it: the skip on an unattested host family, and the
+# exclusion of a target in the host's own family. The CROSS_MODEL_PEERS allowlist
+# still applies. independence_verified is still computed at normalization and
+# stays false whenever the families match or either is unknown. The seat number
+# also joins the artifact name and the reviewer identity, so two seats on one
+# provider cannot collide. Unset keeps the single-peer names and gates exactly.
+SEAT="${CROSS_MODEL_SEAT:-}"
+case "$SEAT" in
+  '') SEAT_SUFFIX="" ;;
+  0*|*[!0-9]*) skip "seat '$SEAT' invalid (want a positive integer); skipping" ;;
+  *) SEAT_SUFFIX="-s$SEAT" ;;
+esac
+
 # Validate the host identity tuple. An unknown serving family is allowed, but
 # normalization marks every result non-independent.
 case "$HOST_PROVIDER" in
@@ -384,7 +401,7 @@ case "$HOST_HARNESS" in
   codex|claude|grok|cursor|opencode|unknown) ;;
   *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|unknown); skipping cross-model pass" ;;
 esac
-[ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
+[ -n "$SEAT" ] || [ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
 
 # --- self-locate skill root + canonical sibling files ----------------------
 SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || skip "cannot resolve skill root; skipping"
@@ -447,7 +464,7 @@ for p in $CANDIDATES; do
   p="$(printf '%s' "$p" | tr -d '[:space:]')"
   [ -n "$p" ] || continue
   case "$p" in codex|claude|grok|cursor|composer|opencode) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
-  [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
+  [ -z "$SEAT" ] && [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
   case " $SELECTED " in *" $p "*) continue ;; esac
   if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
   if ! provider_available "$p"; then log "provider '$p' has no installed route; skipping"; continue; fi
@@ -1083,12 +1100,12 @@ attempt_route() {
       compose_prompt_codex
       run_codex_cmd "$attempt_hard"
       classify_route_output
-      cp "$PEERLOG" "$RUN_DIR/adversarial-codex-events.jsonl" 2>/dev/null || true
+      cp "$PEERLOG" "$RUN_DIR/adversarial-codex$SEAT_SUFFIX-events.jsonl" 2>/dev/null || true
       jq -s '[.[] | select(.type == "turn.completed") | .usage] | last // empty' "$PEERLOG" \
-        > "$RUN_DIR/adversarial-codex-usage.json" 2>/dev/null || true
+        > "$RUN_DIR/adversarial-codex$SEAT_SUFFIX-usage.json" 2>/dev/null || true
       # Redirect + `// empty` would leave a zero-byte file when no turn.completed
       # exists; json.load then fails (#1531). Keep the artifact only if non-empty.
-      [ -s "$RUN_DIR/adversarial-codex-usage.json" ] || rm -f "$RUN_DIR/adversarial-codex-usage.json"
+      [ -s "$RUN_DIR/adversarial-codex$SEAT_SUFFIX-usage.json" ] || rm -f "$RUN_DIR/adversarial-codex$SEAT_SUFFIX-usage.json"
       if [ "$RUN_SUCCEEDED" = true ] && out_missing_or_invalid; then
         recover_findings_json "$PEERLOG" "$RAW_OUT" && log "recovered codex JSON from stdout (-o file unavailable)"
       fi
@@ -1142,8 +1159,8 @@ route_hard_budget() {
 run_provider() {
   local provider="$1" primary="" fixed="${CROSS_MODEL_FIXED_ROUTE:-}"
   local provider_budget provider_deadline remaining
-  OUT="$RUN_DIR/adversarial-$provider.json"
-  RAW_OUT="$RAW_DIR/adversarial-$provider.raw.json"
+  OUT="$RUN_DIR/adversarial-$provider$SEAT_SUFFIX.json"
+  RAW_OUT="$RAW_DIR/adversarial-$provider$SEAT_SUFFIX.raw.json"
   [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
   [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
   if [ "$fixed" = "grok-cursor" ] && ! cursor_egress_ok; then
@@ -1199,7 +1216,7 @@ run_provider() {
     esac
     _independent=false
     [ "$HOST_PROVIDER" != "unknown" ] && [ "$_target_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$_target_family" ] && _independent=true
-    if jq --arg r "adversarial-$provider" --arg route "$ACTUAL_ROUTE" \
+    if jq --arg r "adversarial-$provider$SEAT_SUFFIX" --arg route "$ACTUAL_ROUTE" \
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
@@ -1236,7 +1253,7 @@ run_provider() {
   fi
   if [ -s "$OUT" ] && jq -e '(.reviewer|type=="string") and (.findings|type=="array") and (.residual_risks|type=="array") and (.testing_gaps|type=="array")' "$OUT" >/dev/null 2>&1; then
     n="$(jq '.findings | length' "$OUT" 2>/dev/null || echo '?')"
-    log "wrote $n finding(s) to $OUT (reviewer adversarial-$provider)"
+    log "wrote $n finding(s) to $OUT (reviewer adversarial-$provider$SEAT_SUFFIX)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
     # Surface bounded peer output so the orchestrator can reason about WHY it

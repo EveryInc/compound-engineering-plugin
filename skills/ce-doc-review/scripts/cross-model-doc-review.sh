@@ -46,6 +46,7 @@
 #   <origin>        the Origin context slot (a path, product_contract_source:<v>,
 #                   or the literal token none)
 #   <run-dir>       an existing dir; output -> <run-dir>/<reviewer-name>-<provider>.json
+#                   (<reviewer-name>-<provider>-s<n>.json when CROSS_MODEL_SEAT=<n> is set)
 #
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-doc-review.sh --emit-adapter <route>
@@ -377,6 +378,22 @@ mkdir -p "$RUN_DIR" 2>/dev/null
 [ -d "$RUN_DIR" ] || skip "run-dir '$RUN_DIR' could not be created; skipping"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
+# --- review seat (model role map) -------------------------------------------
+# CROSS_MODEL_SEAT=<n> marks this invocation as seat <n> of a `model_roles` review
+# list. The config names that recipient, so the two automatic eligibility rules
+# below do not apply to it: the skip on an unattested host family, and the
+# exclusion of a target in the host's own family. The CROSS_MODEL_PEERS allowlist
+# still applies. independence_verified is still computed at normalization and
+# stays false whenever the families match or either is unknown. The seat number
+# also joins the artifact name and the reviewer identity, so two seats on one
+# provider cannot collide. Unset keeps the single-peer names and gates exactly.
+SEAT="${CROSS_MODEL_SEAT:-}"
+case "$SEAT" in
+  '') SEAT_SUFFIX="" ;;
+  0*|*[!0-9]*) skip "seat '$SEAT' invalid (want a positive integer); skipping" ;;
+  *) SEAT_SUFFIX="-s$SEAT" ;;
+esac
+
 # Validate the host identity tuple. An unknown serving family is allowed, but
 # normalization marks every result non-independent.
 case "$HOST_PROVIDER" in
@@ -387,7 +404,7 @@ case "$HOST_HARNESS" in
   codex|claude|grok|cursor|opencode|unknown) ;;
   *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|unknown); skipping cross-model pass" ;;
 esac
-[ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
+[ -n "$SEAT" ] || [ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
 
 # --- derive persona-brief filename from the allowlisted reviewer-name -------
 # Never a caller argument -> no path-traversal / arbitrary-file-read surface.
@@ -494,7 +511,7 @@ for p in $CANDIDATES; do
   p="$(printf '%s' "$p" | tr -d '[:space:]')"
   [ -n "$p" ] || continue
   case "$p" in codex|claude|grok|cursor|composer|opencode) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
-  [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
+  [ -z "$SEAT" ] && [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
   case " $SELECTED " in *" $p "*) continue ;; esac   # dedup
   if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
   if ! provider_available "$p"; then log "provider '$p' has no installed route; skipping"; continue; fi
@@ -1107,7 +1124,7 @@ route_hard_budget() {
 run_provider() {   # <provider>
   local provider="$1" primary="" fixed="${CROSS_MODEL_FIXED_ROUTE:-}"
   local provider_budget provider_deadline remaining
-  OUT="$RUN_DIR/$REVIEWER_NAME-$provider.json"
+  OUT="$RUN_DIR/$REVIEWER_NAME-$provider$SEAT_SUFFIX.json"
   # Per-peer empty workspace, kept SEPARATE from the shared fold-in dir (RUN_DIR).
   # The peer's cwd/workspace and its RAW_OUT live here, so a read-capable peer
   # (codex/cursor-agent) can neither list a shared cwd nor read another lens's
@@ -1116,7 +1133,7 @@ run_provider() {   # <provider>
   # never written into RUN_DIR by the peer itself. Falls back to RUN_DIR only if
   # mktemp fails (preserves prior behavior over failing the pass).
   PEER_WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/xmodel-doc-peer-XXXXXX")" || PEER_WORKDIR="$RUN_DIR"
-  RAW_OUT="$PEER_WORKDIR/$REVIEWER_NAME-$provider.raw.json"
+  RAW_OUT="$PEER_WORKDIR/$REVIEWER_NAME-$provider$SEAT_SUFFIX.raw.json"
   [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
   [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
   if [ "$fixed" = "grok-cursor" ] && ! cursor_egress_ok; then
@@ -1180,7 +1197,7 @@ run_provider() {   # <provider>
     esac
     _independent=false
     [ "$HOST_PROVIDER" != "unknown" ] && [ "$_target_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$_target_family" ] && _independent=true
-    if jq --arg r "$REVIEWER_NAME-$provider" --arg route "$ACTUAL_ROUTE" \
+    if jq --arg r "$REVIEWER_NAME-$provider$SEAT_SUFFIX" --arg route "$ACTUAL_ROUTE" \
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
@@ -1208,7 +1225,7 @@ run_provider() {   # <provider>
   fi
   if [ -s "$OUT" ] && jq -e '(.reviewer|type=="string") and (.findings|type=="array") and (.residual_risks|type=="array") and (.deferred_questions|type=="array")' "$OUT" >/dev/null 2>&1; then
     n="$(jq '.findings | length' "$OUT" 2>/dev/null || echo '?')"
-    log "wrote $n finding(s) to $OUT (reviewer $REVIEWER_NAME-$provider)"
+    log "wrote $n finding(s) to $OUT (reviewer $REVIEWER_NAME-$provider$SEAT_SUFFIX)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
     # Surface bounded peer output so the orchestrator can
