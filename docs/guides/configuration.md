@@ -2,7 +2,7 @@
 
 Compound Engineering keeps optional repo defaults in `.compound-engineering/config.yaml`. Ordinary keys may also live in `.compound-engineering/config.local.yaml`, which overrides the repo file per key. Both files are visible to every supported harness that opens the same checkout.
 
-Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-engineering/config.example.yaml`. Setup does not create `config.local.yaml`. Uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in either file.
+Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-engineering/config.example.yaml`. Setup creates `config.local.yaml` only when you run `/ce-setup models` and choose the personal file. Uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in either file.
 
 ## How keys resolve
 
@@ -109,7 +109,7 @@ All settings are optional. Commented examples are documentation, not active valu
 
 ## Model roles
 
-`model_roles` names the model, and optionally the reasoning effort, that produces each pipeline step's deliverable. A team file might set:
+`model_roles` names the model, and optionally the reasoning effort, that produces each pipeline step's deliverable. Run `/ce-setup models` to build or edit the map in a guided flow that shows each role's current value and source, offers the models this session can reach, and asks which file to write ([Set model roles](./ce-setup.md#set-model-roles)). A team file might set:
 
 ```yaml
 model_roles:

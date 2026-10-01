@@ -171,11 +171,14 @@ describe("ce-setup check-health", () => {
       "ce-brainstorm",
       "ce-code-review",
       "ce-commit-push-pr",
+      "ce-compound",
+      "ce-debug",
       "ce-doc-review",
       "ce-ideate",
       "ce-plan",
       "ce-product-pulse",
       "ce-promote",
+      "ce-simplify-code",
       "ce-sweep",
       "ce-work",
       "lfg",
@@ -871,7 +874,10 @@ describe("ce-setup check-health", () => {
     ).join("\n")
     expect(skill).toContain("Set up a repo config file for this project?")
     expect(skill).toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`")
-    expect(skill).toContain("Do not create `config.local.yaml`")
+    // Scoped to Step 6 on purpose: the model role flow (references/model-roles-setup.md) may
+    // create the personal file, so the bare "Do not create `config.local.yaml`." is no longer true
+    // of setup as a whole. tests/skills/ce-setup-model-roles.test.ts rejects the unscoped line.
+    expect(skill).toContain("Do not create `config.local.yaml` in this step")
     expect(skill).toContain("offer to move it into `config.yaml`")
     expect(skill).not.toContain("Set up a local config file for this project?")
     expect(skill).not.toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`")

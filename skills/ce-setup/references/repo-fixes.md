@@ -46,11 +46,11 @@ It does not create config.local.yaml.
 2. No thanks
 ```
 
-If the user approves, copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`. Never overwrite an existing `config.yaml` or `config.local.yaml`.
+If the user approves, copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`. Never overwrite an existing `config.yaml` or `config.local.yaml` with the template.
 
 If `config.local.yaml` already exists, leave it. After creating (or if both files already exist), name ordinary local keys that would shadow the new team file. If local still has `docs_root`, say it is ignored and offer to move it into `config.yaml`.
 
-Do not create `config.local.yaml`.
+The model role flow (`references/model-roles-setup.md`) is the one part of setup that writes `config.local.yaml`. It runs only when the invocation asks for it, and it writes only the `model_roles` map the user approved. Do not create `config.local.yaml` in this step.
 
 ### Step 6a: Repair Invalid CE Work Preferences
 
