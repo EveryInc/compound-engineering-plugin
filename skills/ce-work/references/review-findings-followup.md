@@ -48,14 +48,14 @@ Defer a fix when essential evidence is unavailable, the user must choose a produ
 
 Read the relevant source or assign a subagent to investigate a specific question. Use `ce-pov` only when an important, specific choice needs an independent assessment beyond ordinary inspection. Reviewer disagreement alone is not enough. Give it the subject, known constraints, and locations of supporting evidence. Use its answer or explanation of missing context to inform your decision. Neither gives permission to edit or automatically start a panel of models.
 
-## Execution — orchestrator reviews and groups findings, subagents apply
+## Execution — orchestrator reviews and groups findings, then applies or delegates
 
 The lead agent decides which findings to act on, groups the work, reviews the diffs, runs tests, and checks what remains at the Residual Work Gate. It may investigate a small question directly; delegate broader research rather than loading every cited file. Subagents confirm that the evidence still matches the code before applying fixes within the agreed scope. They return any unresolved decisions with supporting evidence.
 
 
-### Default: batched fix subagents
+### Where each fix runs
 
-After review, **dispatch subagents for all remaining applicable findings** unless the optional inline shortcut below applies. Do not classify findings by complexity in the parent thread.
+Apply a fix in this context when the code it needs is already in your context from this session's work, or is a small region you can read without materially growing this context. The lead agent stays active through tests, commits, and the handoff, so loading many cited files here is the cost delegation avoids. Dispatch file-grouped subagent batches for the rest: fixes that need code you have not read, or fixes across several files that can run as parallel waves. Do not dispatch a subagent for a fix you could apply from what you already hold.
 
 **Batching (primary rule: group by file):**
 
@@ -71,20 +71,11 @@ After review, **dispatch subagents for all remaining applicable findings** unles
 - Do not re-run `ce-code-review`
 - Shared-directory fallback: do not stage or commit; return which `#` were applied or skipped and which files changed
 
-**After each wave:** orchestrator reviews diffs (scope = assigned `#` only), runs tests (`requires_verification: true` on any applied finding → at least targeted tests; multi-file → broader suite), commits (`fix(review): apply findings #…`) unless worktree-isolated subagents merge per Phase 1. Repeat until all batches complete.
-
-### Optional inline shortcut (skip subagent spawn)
-
-Use **only** when **all** of the following hold:
-
-- Exactly **one** applicable finding after review, **and**
-- The orchestrator **already** has that file's relevant region in context from Phase 2 work this session (no new Read/Grep expedition)
-
-Otherwise dispatch a subagent, even for a single finding. When unsure, dispatch.
+**After inline fixes and after each wave:** orchestrator reviews diffs (scope = assigned `#` only), runs tests (`requires_verification: true` on any applied finding → at least targeted tests; multi-file → broader suite), commits (`fix(review): apply findings #…`) unless worktree-isolated subagents merge per Phase 1. Repeat until all batches complete.
 
 ### Summary (required)
 
-Report the batches dispatched, `#` applied vs skipped, artifact path, verification results, and justified work still unresolved. Save the reasons for rejected claims with the review evidence. A skipped low-value suggestion is not a deferred concern to repeat in the handoff.
+Report which `#` you applied inline and which batches you dispatched, `#` applied vs skipped, artifact path, verification results, and justified work still unresolved. Save the reasons for rejected claims with the review evidence. A skipped low-value suggestion is not a deferred concern to repeat in the handoff.
 
 ## Handoff to Residual Work Gate
 

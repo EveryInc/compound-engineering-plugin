@@ -313,7 +313,7 @@ Always-loaded skill prose remains in context throughout the workflow. Extract su
 - Do not inline a summary complete enough to suppress loading the authoritative reference.
 - Pass large context to subagents by file path plus a short gist rather than duplicating it into prompts.
 
-When delegation is used, each task needs a distinct scope, output contract, and synthesis owner. Use parallel work for genuinely independent questions, not as a reflex. A single capable model may be better when the work depends on one evolving context or requires tight synthesis.
+Dispatch a subagent only for a reason that survives better compaction. There are four: the work must read far more than it returns and the parent will not need the raw material again; independent judgment is the product (review, verification, ideation, judging), so the parent's context would anchor it; substantial units can run in parallel without shared files or state; or the harness can actually select a different model for it. Do the work in the parent when its input lives only in the parent (the conversation, decisions settled this session), when the parent will read the full output back anyway, or when it is a small change to code the parent already read. A fresh subagent sees only what its prompt carries, so a subagent told to "extract the conversation" without being handed it is a broken dispatch, not a cheap one: `ce-compound` once drafted every learning that way. Inlining is not free either. Tokens added to a long-lived parent, such as an `lfg` or `ce-babysit-pr` chain, are re-read on every later turn, and in one measured `ce-code-review` run the orchestrator's cache reads were twice those of its six subagents combined (`review-cost-is-in-entering-the-spine-not-the-findings.md`). Each delegated task still needs a distinct scope, output contract, and synthesis owner.
 
 Stable cross-skill fields, enums, and return statuses are protocols. Version or parity-test them when independently evolving skills depend on exact agreement.
 
@@ -437,6 +437,7 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Higher-priority prohibitions remain intact.
 - [ ] Inherited authority is explicit and can only narrow.
 - [ ] Delegated tasks have distinct scopes, output contracts, and a synthesis owner.
+- [ ] Each subagent dispatch names its reason (flood protection, independent judgment, parallel units, or a selectable model) and receives every input it needs; work whose input lives only in the parent stays in the parent.
 
 ### Evidence and evaluation
 

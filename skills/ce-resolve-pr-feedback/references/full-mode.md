@@ -90,13 +90,17 @@ Create a task list of all new items (e.g., `TaskCreate` in Claude Code, `update_
 
 If the fix-list is empty (all verdicts are reply/needs-human), skip steps 4-6 and go to step 7.
 
-## 4. Fix (PARALLEL — fix-list only)
+## 4. Fix (fix-list only)
 
 Dispatch fixers **only** for fix-list items. Reply-list and human-list items never reach a subagent.
 
+### Where each fix runs
+
+Step 3 already read the code behind every fix-list item. Apply an item in this context, with the fixer prompt below as your own instructions, when the fix stays within the code you read to judge it. Dispatch fixers when items span several files that can be fixed in parallel, or when a fix reaches well beyond what you read (a rename across callers, a class fix over many sites). Do not dispatch a fixer for a fix you could make from what you already hold.
+
 ### Dispatch
 
-Read [references/agents/pr-comment-resolver.md](agents/pr-comment-resolver.md) and spawn a generic subagent seeded with that fixer prompt for each fix-list item. Do not dispatch a standalone agent by type/name. The fixer only implements: the validity judgment is already done, so it implements and returns; it does not re-judge whether the fix is worthwhile.
+Read [references/agents/pr-comment-resolver.md](agents/pr-comment-resolver.md) and spawn a generic subagent seeded with that fixer prompt for each fix-list item you are delegating. Do not dispatch a standalone agent by type/name. The fixer only implements: the validity judgment is already done, so it implements and returns; it does not re-judge whether the fix is worthwhile.
 
 Each fixer receives:
 - The feedback_id (thread ID or comment ID) and feedback type.
@@ -107,7 +111,7 @@ Each fixer receives:
 
 For `pr_comment` / `review_body` fix-list items (no file/line), the fixer identifies the relevant files from the comment text and the PR diff.
 
-**No subagent capability — apply the fixes yourself, sequentially.** When the harness exposes no way to dispatch (or a dispatch fails), work the fix-list in this context one item at a time, using the fixer prompt as your own instructions and producing the same per-item result. This is a supported path, not a shortfall to report as lost coverage: the decision about whether each item is valid already happened in step 3, and fixers only *implement* changes you approved, so running them here costs parallelism and context headroom — never correctness. Keep the dispatch path's discipline: one item at a time, re-read each file before editing it, and stop to re-evaluate if implementing reveals a contradiction (the `blocked` handling applies unchanged).
+**No subagent capability — apply the fixes yourself, sequentially.** When the harness exposes no way to dispatch (or a dispatch fails), work the fix-list in this context one item at a time, using the fixer prompt as your own instructions and producing the same per-item result. This is a supported path, not a shortfall to report as lost coverage: the decision about whether each item is valid already happened in step 3, and fixers only *implement* changes you approved, so running them here costs parallelism and context headroom — never correctness. Keep the dispatch path's discipline: one item at a time, re-read each file before editing it, and stop to re-evaluate if implementing reveals a contradiction (the `blocked` handling applies unchanged). Items you apply in this context by choice follow the same discipline.
 
 This skill therefore does not depend on agent-tool authorization to complete a review. That is deliberate: it runs unattended under `ce-babysit-pr`, where a permission prompt would stall the whole loop, so it needs few tools and can still fix without dispatch.
 
@@ -123,7 +127,7 @@ This skill therefore does not depend on agent-tool authorization to complete a r
 
 ### Batching and conflict avoidance
 
-**Batching**: If the fix-list has 1-4 items, dispatch all in parallel. For 5+, batch in groups of 4.
+**Batching**: If 1-4 items are delegated, dispatch them all in parallel. For 5+, batch in groups of 4.
 
 **Conflict avoidance**: No two fixers that touch the same file run in parallel. You already know the target files from step 3 — serialize fixers that share a file (dispatch one, wait, then the next); non-overlapping items run in parallel. For a **class item**, feed the fixer its full enumerated location set and every covered feedback ID (not a single thread), and account for **all** of its sites in this check — a class fix touching files another fixer also touches must be serialized against every one of them. When one fixer handles multiple threads on the same file, it addresses them sequentially.
 
