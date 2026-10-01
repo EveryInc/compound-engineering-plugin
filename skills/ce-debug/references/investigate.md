@@ -25,6 +25,33 @@ Read the **full thread**, not just the opening post. Read every comment, with pa
 
 ### Phase 1: Investigate
 
+**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `debug` role before the investigation starts. With no such key, skip this and print nothing about model roles.
+
+The `debug` role's deliverable is the diagnosis and the fix. The role has no peer route, so a native subagent is its only hand-off route, and the fallback ladder in `references/model-roles.md` comes straight after it. The entry is standing config. `mode:pipeline` and `mode:return-to-caller` honor it the way interactive use does, and no mode asks about it.
+
+**Investigation hand-off.** When the role hands off and the host can give the entry's model to a subagent, one read-only subagent on that model gathers the evidence and proposes the causal chain. When the host cannot, the session investigates as the rest of this file describes, and the `Model role` line says so.
+
+Create the run directory, then write `handoff.md` in it. That file holds the problem statement from Phase 0 and the content of the issue of record when there is one.
+
+```bash
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
+if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
+(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
+if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
+chmod 700 "$SCRATCH_ROOT" || exit 1;
+RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ');
+RUN_DIR="$SCRATCH_ROOT/ce-debug/$RUN_ID";
+(umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1;
+echo "$RUN_DIR";
+```
+
+The subagent's prompt carries the path of `handoff.md`, the absolute path of this file, the output path `investigation.md` in the same directory, and the text of SKILL.md's **Secrets in evidence** rule. The subagent follows Phases 1 and 2 of this file through hypothesis formation. It is read-only: it edits no file, changes no git state, and dispatches nothing. A probe that needs an edit or a git state change, which includes instrumentation and 1.2's stash experiment, is named in its output for the session to run. A question only the user can answer is named there too. The subagent writes `investigation.md` in the evidence-return format the parallel investigators in Phase 2 use, and it returns only that path. The file states the reproduction check and what it showed, each observation with its file:line, what was ruled out and why, what is left for the session, and the proposed causal chain with its uncertain links marked.
+
+The session reads `investigation.md` as a proposal. It runs the probes the subagent left, closes any gap, and decides whether the chain passes SKILL.md's causal-chain gate. The findings block and the fix-choice question come from the session, as they do with no map. The parallel investigation option in Phase 2 is unchanged.
+
+**Reporting.** One `Model role debug:` line covers the run, in the format `references/model-roles.md` defines. In interactive use it is the last line of Phase 4's Debug Summary. In `mode:pipeline` and `mode:return-to-caller` it is the optional `model_role` field of the structured return. When the investigation and the fix were served differently, the line reports the fix, and its `reason:` says how the investigation was served.
+
 #### 1.1 Reproduce the bug
 
 Confirm the bug exists and understand its behavior. Run the test, trigger the error, follow the reported steps, whatever matches the input.
