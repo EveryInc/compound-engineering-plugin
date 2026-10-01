@@ -10,6 +10,8 @@ This phase is interactive-only: a non-interactive caller has no human-in-the-loo
 
 Based on problem type, optionally dispatch generic subagents seeded with local prompt assets from `references/agents/` to review the documentation. Do not dispatch standalone agents by type/name.
 
+Pick each subagent's model by the model-tier rule in `references/research.md`. `best-practices-researcher` and `framework-docs-researcher` gather sources for the orchestrator to judge, so they take the mid tier. The domain reviewers and `pattern-recognition-specialist` judge the solution itself, so they inherit the orchestrator's model.
+
 - **performance_issue** → `references/agents/performance-oracle.md`
 - **security_issue** → `references/agents/security-sentinel.md`
 - **database_issue** → `references/agents/data-integrity-guardian.md`

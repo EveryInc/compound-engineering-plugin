@@ -4,7 +4,7 @@ Read this after the spec is saved and follow it through the approval gate. A gat
 
 ### 0.3 Search Prior Learnings
 
-Read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt to search for prior optimization work on similar topics. Do not dispatch a standalone agent by type/name. If relevant learnings exist, incorporate them into the approach.
+Read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt to search for prior optimization work on similar topics. Do not dispatch a standalone agent by type/name. The search only retrieves evidence for this skill to judge, so dispatch it on the platform's mid-tier model when the current harness exposes a known override (in Claude Code, the Sonnet class; in Codex, only when the dispatch primitive exposes an explicit model or custom-agent selector). If model names are unknown, omit the override and inherit. If relevant learnings exist, incorporate them into the approach.
 
 ### 0.4 Run Identity Detection
 
