@@ -58,6 +58,52 @@
 # brainstorm_output: html        # md | html (default: md)
 # ideate_output: md              # md | html (default: html -- ideation docs are human-facing, so HTML is the default; set md to opt out)
 
+# --- Model roles ---
+# One map that names the model, and optionally the reasoning effort, that
+# produces each pipeline step's deliverable. An entry governs that deliverable
+# and nothing else. Dialogue with you, orchestration inside the skill, and
+# lfg's hand-offs between steps stay on your session model. The map applies the
+# same way whether you run the skill or lfg does. A role with no entry behaves
+# exactly as it does without this map.
+#
+# An entry is `<model> [<effort>]`, or `inherit` for the session model. The
+# model is an alias or a full id, never a CLI flag or command. The effort scale
+# is low | medium | high | xhigh | max. `doc-review` and `code-review` also
+# take a list. Each item is one seat: an independent reviewer on that model,
+# run beside the skill's own persona review.
+#
+# Layering is role by role, unlike the other maps in this file. An entry in
+# config.local.yaml overrides that one role and leaves the team's other roles
+# in place.
+#
+# An entry in either file replaces the older keys for the same step:
+#   brainstorm                -> brainstorm_model
+#   plan                      -> plan_model
+#   doc-review, code-review   -> cross_model_peer, cross_model_model, cross_model_effort
+#   work                      -> work_engine_mode, work_engine_preferences, work_engine_effort
+# debug, simplify, and compound have no older key.
+#
+# Two opt-outs from a team map go in config.local.yaml. `<role>: inherit` puts
+# that role back on your session model. `work_engine_mode: off` keeps a team
+# `work` entry off external engines.
+#
+# Review seats stay under `cross_model_review_mode` (below) and the
+# CROSS_MODEL_PEERS environment variable. A seat that either one excludes is
+# skipped and reported, never replaced by another model.
+
+# model_roles:
+#   brainstorm: opus high              # the generated approaches
+#   plan: fable low                    # the authored plan
+#   doc-review:                        # each seat reviews the plan independently
+#     - grok-4.7 high
+#     - gpt-6.1-sol
+#     - opus medium
+#   debug: opus high                   # the diagnosis and fix
+#   work: opus medium                  # the code
+#   simplify: sonnet low               # the simplification
+#   code-review: [opus high, sonnet]   # each seat reviews the diff independently
+#   compound: inherit                  # the learning document, on the session model
+
 # --- Model elevation ---
 # Send only the reasoning-heavy step of /ce-plan (interpret research, then author
 # the plan) and /ce-brainstorm (generate approaches) to a model you name. The rest

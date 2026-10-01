@@ -8,6 +8,7 @@ Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-eng
 
 - **Ordinary keys:** read `config.local.yaml`, then `config.yaml`. The first active (non-commented) value wins. A missing file is skipped. Invalid or empty scalars continue to the next layer, then the skill default. A present list or map, including empty, replaces the whole key.
 - **`docs_root`:** read only from `config.yaml`. A `docs_root` in `config.local.yaml` is ignored.
+- **`model_roles`:** resolved one role at a time. Each role reads `config.local.yaml`, then `config.yaml`, so a personal entry overrides that one role and the team's other roles stay in place. This is the exception to a present map replacing the whole key. See [Model roles](#model-roles).
 - **Gitignore does not change resolution.** Either file works whether ignored or committed.
 - A current-task instruction still wins over config. Session and project instructions already in context can override or narrow it.
 
@@ -92,6 +93,7 @@ All settings are optional. Commented examples are documentation, not active valu
 | all artifact-writing skills | `docs_root` | Repo-relative folder every CE artifact subdirectory lives under. Set only in `config.yaml`. Unset -> `docs`. See [Artifact root](#artifact-root). |
 | [`ce-ideate`](./ce-ideate.md), [`ce-brainstorm`](./ce-brainstorm.md), [`ce-plan`](./ce-plan.md) | `ideate_output`, `brainstorm_output`, `plan_output` | Artifact format: `md` or `html`. Defaults are HTML for ideation and markdown for brainstorms/plans. Headless and pipeline runs resolve the format the same way; nothing forces markdown. |
 | [`ce-plan`](./ce-plan.md) | `plan_skip_scoping_confirm` | `true` skips the normal pre-plan scope confirmation; default `false`. It does not suppress genuine blockers or the post-plan menu. |
+| [`ce-brainstorm`](./ce-brainstorm.md), [`ce-plan`](./ce-plan.md), [`ce-doc-review`](./ce-doc-review.md), [`ce-debug`](./ce-debug.md), [`ce-work`](./ce-work.md), [`ce-simplify-code`](./ce-simplify-code.md), [`ce-code-review`](./ce-code-review.md), [`ce-compound`](./ce-compound.md) | `model_roles` | One map from pipeline role to the model, and optional reasoning effort, that produces that step's deliverable. Roles: `brainstorm`, `plan`, `doc-review`, `debug`, `work`, `simplify`, `code-review`, `compound`. An entry is `<model> [<effort>]` with effort `low`, `medium`, `high`, `xhigh`, or `max`, or `inherit` for the session model. `doc-review` and `code-review` also take a list, which adds one independent reviewer per item. Resolved role by role across the two files. An entry replaces the older model keys for the same step. No default: a role with no entry behaves as it does without the map. See [Model roles](#model-roles). |
 | [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_model`, `brainstorm_model` | Model elevation: send the reasoning-heavy step to a named model (e.g. `fable`, `opus`) instead of the session model. Value is a model alias; a prompt request or an orchestrator's `plan_model:<alias>` carrier (e.g. from `lfg`, honored even in pipeline mode) overrides it. Takes effect on every harness: natively where the host serves the model, else via the Claude CLI, else inline. Whenever one of these skills runs a Bake-off, automatically in planning or on request, pass the corresponding choice as a candidate model preference. Bake-off owns its dispatch: native access, authorized model CLIs, then fresh same-host agents on failure, subject to explicit model restrictions. With no preference, it seeks model-family diversity. Planning still has a final authoring call, while brainstorming replaces its ordinary generation. No default (elevation off). |
 | [`ce-work`](./ce-work.md), [`lfg`](./lfg.md) | `work_engine_mode`, `work_engine_preferences` | Ordered implementation-author preferences. Mode is `off`, `prefer`, or `require`; each entry has a `harness` and optional `model`. See [Implementation routing](#implementation-routing). |
 | [`ce-work`](./ce-work.md), [`lfg`](./lfg.md) | `work_engine_effort` | Reasoning effort for the external implementation worker, as a map from harness to one of that harness's own levels (claude `low`..`max`; codex `low`..`xhigh` plus `max` and `ultra` on the models that list them; grok `low`..`xhigh`; opencode its own variants; Cursor routes take none). A harness left out keeps its default. A level the harness cannot run makes that entry unavailable, and the list continues. See [Implementation routing](#implementation-routing). |
@@ -104,6 +106,70 @@ All settings are optional. Commented examples are documentation, not active valu
 | [`ce-product-pulse`](./ce-product-pulse.md) | `pulse_metric_sources`, `pulse_pending_metrics`, `pulse_excluded_metrics` | Per-metric source overrides and strategy metrics that should render as pending or be excluded. |
 | [`ce-promote`](./ce-promote.md) | `ce_promote_spiral_optout` | `true` suppresses the one-time Spiral setup offer; remove the key to enable it again. |
 | [`ce-sweep`](./ce-sweep.md) | `feedback_sources`, `sweep_state_path`, `sweep_ack_cap`, `sweep_lease_ttl_minutes`, `sweep_shared_branch` | Feedback connectors, durable state location, acknowledgment circuit breaker, lease expiry, and optional push-gated shared-branch coordination. The setup interview writes these values. |
+
+## Model roles
+
+`model_roles` names the model, and optionally the reasoning effort, that produces each pipeline step's deliverable. A team file might set:
+
+```yaml
+model_roles:
+  plan: fable low                    # <model> [<effort>]
+  doc-review:                        # a list on a review role: one seat per item
+    - grok-4.7 high
+    - gpt-6.1-sol
+    - opus medium
+  work: opus medium
+  code-review: [opus high, sonnet]   # a flow list works too
+
+plan_model: opus                     # shadowed: the plan entry replaces it
+cross_model_peer: codex              # shadowed: both review roles have an entry
+```
+
+A personal `config.local.yaml` beside it can opt out of single roles:
+
+```yaml
+model_roles:
+  plan: inherit                      # my plans stay on my session model
+
+work_engine_mode: off                # the team work entry stays off external engines
+```
+
+With both files, plans are authored on the session model, each plan gets three independent reviews and each diff two, and every role with no entry (`brainstorm`, `debug`, `simplify`, `compound`) runs as it does without the map.
+
+| Role | Skill | Deliverable the entry governs | Older keys the entry replaces |
+|---|---|---|---|
+| `brainstorm` | [`ce-brainstorm`](./ce-brainstorm.md) | The generated approaches | `brainstorm_model` |
+| `plan` | [`ce-plan`](./ce-plan.md) | The authored plan | `plan_model` |
+| `doc-review` | [`ce-doc-review`](./ce-doc-review.md) | Each independent review of the plan | `cross_model_peer`, `cross_model_model`, `cross_model_effort` |
+| `debug` | [`ce-debug`](./ce-debug.md) | The diagnosis and fix | none |
+| `work` | [`ce-work`](./ce-work.md) | The code | `work_engine_mode`, `work_engine_preferences`, `work_engine_effort` |
+| `simplify` | [`ce-simplify-code`](./ce-simplify-code.md) | The simplification | none |
+| `code-review` | [`ce-code-review`](./ce-code-review.md) | Each independent review of the diff | `cross_model_peer`, `cross_model_model`, `cross_model_effort` |
+| `compound` | [`ce-compound`](./ce-compound.md) | The learning document | none |
+
+An entry is `<model> [<effort>]`. The model is an alias such as `fable`, `opus`, or `sonnet`, or a full model id. The effort is one of `low`, `medium`, `high`, `xhigh`, or `max`. `inherit` means the session model. An entry never carries a CLI flag, a command, or an app-specific model slug, so the same map works in every supported harness.
+
+Only `doc-review` and `code-review` take a list. Each item is one seat: an independent reviewer on that model. Seats run on every review of that role, in addition to the skill's own persona review. A single model on a review role is one seat. A scalar `inherit` or an empty list means no seats. Inside a list, `inherit` is one seat on the session model.
+
+An entry governs the step's deliverable, not the conversation. Dialogue with you, orchestration inside the skill, and `lfg`'s hand-offs between steps stay on the session model. The scouts and verifiers a step dispatches keep their own model tier. A step honors its entry the same way whether you invoke the skill or `lfg` does.
+
+For each role, the order is: a direct instruction in the conversation, then a stage directive carried by `lfg`, then the role's entry in `config.local.yaml`, then its entry in `config.yaml`, then the older keys, then the session model. An entry in either file outranks an older key in either file, which is why the example's `plan_model` and `cross_model_peer` no longer apply. A conversation instruction or `lfg` directive replaces the entry whole for that run, including its effort and, on a review role, its seat list. On a single-model role, an invalid entry is skipped with a warning and the next file is read. On a review role, an invalid seat is dropped alone and the list never continues to the other file's seats. When the `model_roles` block itself is malformed, a review skill runs its persona review only and names the reason.
+
+A committed map applies to every teammate, so two opt-outs live in the personal file. `<role>: inherit` puts that role back on the session model. `work_engine_mode: off` keeps a team `work` entry off any external engine, while a `work` entry in the personal file still wins.
+
+Review seats stay under the two controls that already govern what review content leaves for another provider. `cross_model_review_mode: off` skips every seat whose model is served by a provider other than the session model's, and a direct conversation request for a peer still overrides it for that run. The `CROSS_MODEL_PEERS` environment variable, when set, filters seats by provider in the same way. Under either control, a named seat is also skipped when the session's own provider cannot be established or the seat's model belongs to no known provider. A skipped seat is reported and never replaced by another model.
+
+When a single-model role's entry cannot be served as written, the step keeps the named model as long as a route can serve it: first at the nearest lower effort the route accepts, then with the effort unapplied on a route that has no effort control. After that it uses the route's own default model, and last the session model. `debug`, `simplify`, and `compound` run through a host subagent, which has had no effort control on any harness verified so far, so their effort is reported as not applied. A review seat that cannot run is dropped and the remaining seats run. The persona review still runs when every seat is dropped.
+
+Each governed step prints one `Model role` line in the output it already produces. The line names what was requested, what was served, the route, and the reason for any fallback, drop, or skip:
+
+```text
+Model role plan: requested fable low; served fable (unverified) at low; route claude CLI.
+Model role work: requested opus max; served opus at high; route claude CLI; reason: the route does not accept max.
+Model role doc-review seat 1: requested grok-4.7 high; not run; reason: blocked by cross_model_review_mode: off.
+```
+
+A checkout with no active `model_roles` key prints nothing about model roles.
 
 ## Implementation routing
 
