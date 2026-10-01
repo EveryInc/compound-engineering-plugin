@@ -1384,6 +1384,11 @@ describe("ce-code-review contract", () => {
     }
   })
 
+  test("resolver commit recipe limits the commit to fix-owned paths", async () => {
+    const fullMode = await readRepoFile("skills/ce-resolve-pr-feedback/references/full-mode.md")
+    expect(fullMode).toMatch(/git commit -m "[\s\S]*?" -- \[files in the change set\]/)
+  })
+
   test("ce-code-review emits actionable findings summary for callers", async () => {
     const content = await readCodeReviewRuntimeContract()
     expect(content).toContain("### Emit actionable findings summary")

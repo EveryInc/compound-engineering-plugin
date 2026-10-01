@@ -70,6 +70,19 @@ print(json.dumps(value))
 }
 
 describe("resolver saved feedback", () => {
+  test("publication accepts dot-prefixed base and fork repository names", () => {
+    const batch = record()
+    batch.pr.base_repo = "upstream/.github"
+    batch.pr.head_repo = "contributor/.github"
+    batch.pr.url = "https://github.com/upstream/.github/pull/42"
+    batch.actions[0]!.source.url = `${batch.pr.url}#discussion_r11`
+    const { inspect, calls } = publicationFixture(batch)
+    const result = inspect()
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).publication.verified).toBe(true)
+    expect(readFileSync(calls, "utf8")).toContain("repos/contributor/.github/compare/")
+  })
+
   test("publication inspection proves a descendant using the actual fork head and preserves original bytes", () => {
     const { handoff, bytes, inspect, calls } = publicationFixture()
     const result = inspect()
@@ -253,6 +266,10 @@ describe("resolver saved feedback", () => {
       JSON.stringify({ ...record(), fix_commit: "--help" }),
       JSON.stringify({ ...record(), pr: { ...record().pr, host: "github.com\nGH_TOKEN=secret" } }),
       JSON.stringify({ ...record(), pr: { ...record().pr, head_ref: "bad..ref" } }),
+      ...["upstream/.", "upstream/..", "upstream/../other"].flatMap(repo => [
+        JSON.stringify({ ...record(), pr: { ...record().pr, base_repo: repo } }),
+        JSON.stringify({ ...record(), pr: { ...record().pr, head_repo: repo } }),
+      ]),
       JSON.stringify({ ...record(), pr: { ...record().pr, url: "https://github.com/other/project/pull/42" } }),
       JSON.stringify({ ...record(), actions: record().actions.map(action => ({ ...action, source: { ...action.source, body_sha256: "bad" } })) }),
       JSON.stringify(record()).replace('"schema_version":1', '"schema_version":1,"schema_version":2'),

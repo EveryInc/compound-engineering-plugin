@@ -78,7 +78,7 @@ def validate(record: object) -> dict:
     pr = object_value(record.get("pr"), "pr")
     host = string(pr.get("host"), "host", r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]+)?")
     for key in ("base_repo", "head_repo"):
-        string(pr.get(key), key, r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*")
+        string(pr.get(key), key, r"[A-Za-z0-9_-][A-Za-z0-9_.-]*/(?!\.{1,2}$)[A-Za-z0-9_.-]+")
     positive_int(pr.get("number"), "PR number")
     expected_url = f"https://{host}/{pr['base_repo']}/pull/{pr['number']}"
     require(pr.get("url") == expected_url, "PR URL does not match host/base/number")

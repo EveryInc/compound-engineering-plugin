@@ -161,7 +161,7 @@ Commit only the change set, preserving unrelated work in the tree and index, wit
 git add [files in the change set]
 git commit -m "Address PR review feedback (#PR_NUMBER)
 
-- [list changes from per-item results]"
+- [list changes from per-item results]" -- [files in the change set]
 ```
 
 In `mode:return-to-caller`, capture the combined fix commit SHA and follow [references/return-to-caller.md](return-to-caller.md) to save every judged action and intended checklist tick. Return after saving; do not push or enter steps 7-8 for any part of this batch. A failed commit or save reports the actual local state and incomplete handoff, never completion.
