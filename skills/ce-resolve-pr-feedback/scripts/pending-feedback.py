@@ -123,6 +123,10 @@ def validate(record: object) -> dict:
             string(action["invariant_key"], "invariant_key", r"[A-Za-z0-9._:-]{1,120}")
         if "progress" in action:
             progress(action["progress"])
+        if record["status"] == "completed":
+            observed = action.get("progress", {})
+            positive_int(observed.get("reply_id"), "completed action reply_id")
+            require(not action["resolve"] or observed.get("resolved") is True, "completed action must have its required resolution")
     for tick in array(record.get("body_ticks"), "body_ticks"):
         tick = object_value(tick, "body tick")
         original = string(tick.get("original"), "original checklist bullet")
@@ -130,6 +134,8 @@ def validate(record: object) -> dict:
         require(tick.get("checked") == original.replace("- [ ] ", "- [x] ", 1), "body tick must only check the saved bullet")
         if "progress" in tick:
             progress(tick["progress"])
+        if record["status"] == "completed":
+            require(tick.get("progress", {}).get("applied") is True, "completed body tick must be applied")
     for residual in array(record.get("residuals"), "residuals"):
         residual = object_value(residual, "residual")
         require(residual.get("type") == "needs-human", "invalid residual type")
@@ -172,6 +178,7 @@ def prepared_content(record: dict) -> dict:
         "pr": record["pr"], "fix_commit": record["fix_commit"], "verification": record["verification"],
         "actions": [{key: value for key, value in action.items() if key != "progress"} for action in record["actions"]],
         "body_ticks": [{key: value for key, value in tick.items() if key != "progress"} for tick in record["body_ticks"]],
+        "residuals": record["residuals"],
     }
 
 

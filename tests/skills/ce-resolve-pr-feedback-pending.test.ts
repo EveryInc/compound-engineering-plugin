@@ -145,7 +145,7 @@ describe("resolver saved feedback", () => {
   })
 
   test("a failed fresh PR read leaves even a completed saved record unproved", () => {
-    const batch = { ...record(), status: "completed" }
+    const batch = completedRecord()
     const { dir, handoff } = fixture()
     writeFileSync(handoff, JSON.stringify(batch))
     writeFileSync(path.join(dir, "gh"), "#!/usr/bin/env bash\nexit 1\n")
@@ -247,6 +247,75 @@ describe("resolver saved feedback", () => {
     writeFileSync(input, JSON.stringify(updated))
     expect(run("checkpoint", "--input", input, "--path", handoff).status).toBe(0)
     expect(JSON.parse(run("validate", "--path", handoff).stdout).record).toEqual(updated)
+  })
+
+  const completed = completedRecord()
+  const unfinished = [
+    ["missing action progress", { ...completed, actions: completed.actions.map(action => ({ ...action, progress: undefined })) }],
+    ["missing reply", { ...completed, actions: completed.actions.map(action => ({ ...action, progress: { resolved: true } })) }],
+    ["unresolved thread", { ...completed, actions: completed.actions.map(action => ({ ...action, progress: { reply_id: 100, resolved: false } })) }],
+    ["missing tick progress", { ...completed, body_ticks: completed.body_ticks.map(tick => ({ ...tick, progress: undefined })) }],
+    ["unapplied tick", { ...completed, body_ticks: completed.body_ticks.map(tick => ({ ...tick, progress: { applied: false } })) }],
+  ] as const
+
+  for (const command of ["create", "validate", "checkpoint"] as const) {
+    test.each(unfinished)(`${command} rejects completed records with %s`, (_name, batch) => {
+      const { input, handoff } = fixture()
+      const original = JSON.stringify(command === "validate" ? batch : record())
+      if (command !== "create") writeFileSync(handoff, original)
+      writeFileSync(input, JSON.stringify(batch))
+      const result = command === "validate" ? run(command, "--path", handoff) : run(command, "--input", input, "--path", handoff)
+      expect(result.status, result.stderr).toBe(1)
+      if (command === "create") expect(() => readFileSync(handoff)).toThrow()
+      else expect(readFileSync(handoff, "utf8")).toBe(original)
+    })
+  }
+
+  const decision_context = {
+    quoted_feedback: "Change the API?", investigation: "Read callers in client.ts.", decision_reason: "Requires API owner authority.",
+    options: [{ option: "Keep contract", tradeoff: "Preserves callers; leaves requested change pending." }], recommendation: null,
+  }
+  const humanBatch = {
+    ...record(),
+    actions: record().actions.map(action => ({ ...action, verdict: "needs-human", resolve: false, decision_context })),
+    residuals: [{ type: "needs-human", sources: [{ kind: "thread", id: "PRRT_1" }], decision_context, thread_urls: [record().actions[0]!.source.url] }],
+  }
+
+  test("completed human acknowledgments preserve open threads and typed decisions", () => {
+    const { input, handoff } = fixture()
+    const updated = {
+      ...humanBatch, status: "completed",
+      actions: humanBatch.actions.map(action => ({ ...action, progress: { reply_id: 100, resolved: false } })),
+      body_ticks: completedRecord().body_ticks,
+    }
+    writeFileSync(handoff, JSON.stringify(humanBatch))
+    writeFileSync(input, JSON.stringify(updated))
+    const result = run("checkpoint", "--input", input, "--path", handoff)
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).record).toEqual(updated)
+  })
+
+  test.each(["comment", "review"])("completed %s actions need a reply but no resolution", kind => {
+    const { input, handoff } = fixture()
+    const batch = {
+      ...completedRecord(),
+      actions: record().actions.map(action => ({ ...action, source: { ...action.source, kind }, root_comment_id: null, thread_id: null, resolve: false, progress: { reply_id: 100 } })),
+    }
+    writeFileSync(input, JSON.stringify(batch))
+    expect(run("create", "--input", input, "--path", handoff).status).toBe(0)
+    writeFileSync(handoff, JSON.stringify({ ...batch, actions: batch.actions.map(action => ({ ...action, progress: {} })) }))
+    expect(run("validate", "--path", handoff).status).toBe(1)
+  })
+
+  test.each(["drop", "rewrite"])("checkpoint cannot %s saved human decisions", change => {
+    const { input, handoff } = fixture()
+    const original = JSON.stringify(humanBatch)
+    writeFileSync(handoff, original)
+    const residuals = change === "drop" ? [] : humanBatch.residuals.map(residual => ({ ...residual, decision_context: { ...decision_context, recommendation: "Change the contract" } }))
+    writeFileSync(input, JSON.stringify({ ...humanBatch, residuals }))
+    const result = run("checkpoint", "--input", input, "--path", handoff)
+    expect(result.status, result.stderr).toBe(1)
+    expect(readFileSync(handoff, "utf8")).toBe(original)
   })
 
   test.each(["commit", "ref", "source", "reply"])("checkpoint rejects changes to prepared %s", field => {
