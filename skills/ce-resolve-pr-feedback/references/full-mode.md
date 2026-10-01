@@ -96,7 +96,9 @@ Dispatch fixers **only** for fix-list items. Reply-list and human-list items nev
 
 ### Where each fix runs
 
-Step 3 already read the code behind every fix-list item. Dispatch fixers when the items form a real parallel batch (two or more items on disjoint files), or for an item whose fix reaches well beyond what you read (a rename across callers, a class fix over many sites). Apply every other item in this context, with the fixer prompt below as your own instructions, and produce the same return record a fixer would.
+Step 3 already read the code behind every fix-list item. Dispatch fixers when the items form a real parallel batch (two or more items on disjoint files), or for an item whose fix reaches well beyond what you read (a rename across callers, a class fix over many sites). Apply every other item in this context, with the fixer prompt below as your own instructions.
+
+Every fix-list item ends with one **per-item result** in the return format below, whether a fixer produced it or you did. The **change set** for this run is the union of those results' `files_changed`. Steps 5-7 read only per-item results and the change set, never which path produced them.
 
 ### Dispatch
 
@@ -115,7 +117,7 @@ For `pr_comment` / `review_body` fix-list items (no file/line), the fixer identi
 
 This skill therefore does not depend on agent-tool authorization to complete a review. That is deliberate: it runs unattended under `ce-babysit-pr`, where a permission prompt would stall the whole loop, so it needs few tools and can still fix without dispatch.
 
-### Fixer return format
+### Per-item result format (fixer or inline)
 
 - **verdict**: `fixed`, `fixed-differently`, or `blocked`
 - **feedback_id**, **feedback_type**
@@ -137,26 +139,26 @@ Fixes can occasionally expand beyond their referenced file (e.g., renaming a met
 
 ## 5. Validate Combined State
 
-Aggregate `files_changed` across every per-item result: each fixer's return, and the record you produced for each item you fixed in this context. If it's empty, skip steps 5 and 6 and proceed to step 7.
+If the change set is empty, skip steps 5 and 6 and proceed to step 7.
 
-Fixers run only targeted tests on their own changes. This step runs the project's full validation **once** against the combined diff to catch cross-agent interactions that targeted runs can't see.
+Each fix runs only targeted tests on its own change. This step runs the project's full validation **once** against the combined diff to catch interactions between fixes that targeted runs can't see.
 
 1. **Run the project's validation command** (test suite, type check, or whatever the project's active conventions specify). Run once, not per-agent.
 
 2. **Green** -> proceed to step 6.
 
-3. **Red, failures touch files fixers changed** -> one inline diagnose-and-fix pass. Re-run validation. If still red, escalate with a `needs-human` item containing the test output; do **not** commit.
+3. **Red, failures touch files in the change set** -> one inline diagnose-and-fix pass. Re-run validation. If still red, escalate with a `needs-human` item containing the test output; do **not** commit.
 
-4. **Red, failures touch only files no fixer changed** -> treat as pre-existing. Proceed to step 6, but add a footer to the commit message: `Note: pre-existing failure in <test> not addressed by this PR.`
+4. **Red, failures touch only files outside the change set** -> treat as pre-existing. Proceed to step 6, but add a footer to the commit message: `Note: pre-existing failure in <test> not addressed by this PR.`
 
 Record the validation outcome (command run, pass/fail counts, any pre-existing failures noted) for the step 9 summary.
 
 ## 6. Commit and Push
 
-1. Stage only files listed in those per-item results and commit with a message referencing the PR:
+1. Stage only the change set and commit with a message referencing the PR:
 
 ```bash
-git add [files from per-item results]
+git add [files in the change set]
 git commit -m "Address PR review feedback (#PR_NUMBER)
 
 - [list changes from per-item results]"
