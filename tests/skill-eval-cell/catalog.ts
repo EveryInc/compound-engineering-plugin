@@ -3066,9 +3066,10 @@ Units:
     { id: "fallback", fixture: "fallback", subject: "fix(widget): Correct widget limit", override: "" },
     { id: "user-override", fixture: "project", subject: "CHANGE Correct widget limit", override: "For this run, use the subject format CHANGE <description> instead of the project format." },
     { id: "literal-message", fixture: "project", subject: "Correct widget limit $(printf literal) `marker` \"quoted\"", override: "For this run, append these literal characters to the subject: $(printf literal) `marker` \"quoted\"." },
-  ].map(({ id, fixture, subject, override }): Scenario => ({
+    { id: "required-attribution", fixture: "project", subject: "Correct widget limit", footer: "Co-authored-by: Alex Example <alex@example.test>", baseline: "d36681d514f4186bf0fd850b9c4fcffb90acb5ae", override: "For this commit, include the footer Co-authored-by: Alex Example <alex@example.test>." },
+  ].map(({ id, fixture, subject, override, footer = "none", baseline = "bb5899b36" }): Scenario => ({
     id: `ce-work/incremental-message-${id}`,
-    baseline_ref: "bb5899b36",
+    baseline_ref: baseline,
     skill: "ce-work",
     cohort: "resized",
     key_behavior: "judgment",
@@ -3078,12 +3079,13 @@ Units:
     why: "Issue #1808: incremental commits prescribed conventional messages instead of resolving project, history, and fallback precedence.",
     pre_contract: "Use project commit conventions, else the recent log pattern, else conventional commits. User override wins.",
     task: `Use ce-work to decide the next incremental commit for a completed logical unit that fixes an off-by-one widget limit. Only widget.ts belongs to it; tests have passed. The recent git log snapshot is in COMMIT_HISTORY.md; use that snapshot instead of running git. Read the incremental commit guidance and resolve the message format from the available project context. ${override}
-Use "Correct widget limit" as the description in the subject and any required body, adding only the formatting required by the selected convention. If conventional commits apply, this is a fix in scope widget. Output exactly one SUBJECT: line with the resolved subject, one BODY: line with the resolved body (or none), and one COMMAND: line with the path-scoped commit command. Use a concrete temporary path if the command needs a file. Stop at this decision: do not change files, commit, invoke other skills, or run the rest of the workflow.`,
+Use "Correct widget limit" as the description in the subject and any required body, adding only the formatting required by the selected convention. If conventional commits apply, this is a fix in scope widget. Output exactly one SUBJECT: line with the resolved subject, one BODY: line with the resolved body (or none), one FOOTER: line with the resolved footer (or none), and one COMMAND: line with the path-scoped commit command. Use a concrete path under /tmp if the command needs a file. Stop at this decision: do not change files, commit, invoke other skills, or run the rest of the workflow.`,
     grade: {
       files_read_post: ["references/implementation-loop.md"],
-      declared: { SUBJECT: subject, BODY: fixture === "project" ? "- Correct widget limit" : "none" },
+      declared: { SUBJECT: subject, BODY: fixture === "project" ? "- Correct widget limit" : "none", FOOTER: footer },
       must_include_field: "COMMAND",
-      must_include: ["git commit -F", "-- widget.ts"],
+      must_include: ["-- widget.ts"],
+      must_include_any: [["git commit -F /tmp/", 'git commit -F "/tmp/', "git commit -F '/tmp/"]],
       actions: "none",
       delegates: "none",
     },

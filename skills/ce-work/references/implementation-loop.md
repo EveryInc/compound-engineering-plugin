@@ -84,7 +84,7 @@ If the plan has Implementation Units, use them as a starting guide for commit bo
 
 **Message convention:** match project commit conventions already in context; else match the recent log pattern; else conventional commits (`type(scope): description`). User override wins.
 
-Write the full resolved message, including any required body, to a file outside the repo with your file-write tool. Pass that file to Git so the shell never interprets message text.
+Write the full resolved message to a file outside the repo with your file-write tool. Pass that file to Git so the shell never interprets message text.
 
 **Commit workflow:**
 ```bash
@@ -100,7 +100,7 @@ git commit -F <message-file> -- <files related to this logical unit>
 
 **Handling merge conflicts:** If conflicts arise during rebasing or merging, resolve them immediately. Incremental commits make conflict resolution easier since each commit is small and focused.
 
-**Note:** Incremental commits omit attribution footers. The final Phase 4 handoff passes `branding:on` so `ce-commit-push-pr` can add generic Compound Engineering branding to the PR.
+**Note:** Incremental commits add no plugin-generated attribution. The final Phase 4 handoff passes `branding:on` so `ce-commit-push-pr` can add generic Compound Engineering branding to the PR.
 
 **Parallel subagent mode:** commit ownership follows the isolation mode chosen at dispatch — see `references/execution-strategy.md`.
 

@@ -236,6 +236,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-work/incremental-message-literal-message:references/implementation-loop.md",
         "ce-work/incremental-message-project:references/implementation-loop.md",
         "ce-work/incremental-message-recent-log:references/implementation-loop.md",
+        "ce-work/incremental-message-required-attribution:references/implementation-loop.md",
         "ce-work/incremental-message-user-override:references/implementation-loop.md",
         "ce-work/requirements-only-stops:references/input-triage.md",
         "ce-work/return-to-caller-no-pr:references/input-triage.md",
@@ -246,16 +247,19 @@ describe("skill-eval-cell catalog", () => {
   })
 
   test.each([
-    ["BODY: - Correct widget limit", "git commit -F message.txt -- widget.ts", true],
-    ["", "git commit -F message.txt -- widget.ts", false],
-    ["BODY: none", "git commit -F message.txt -- widget.ts", false],
+    ["BODY: - Correct widget limit", "git commit -F /tmp/message.txt -- widget.ts", true],
+    ["BODY: - Correct widget limit", 'git commit -F "/tmp/message.txt" -- widget.ts', true],
+    ["BODY: - Correct widget limit", "git commit -F '/tmp/message.txt' -- widget.ts", true],
+    ["BODY: - Correct widget limit", "git commit -F message.txt -- widget.ts", false],
+    ["", "git commit -F /tmp/message.txt -- widget.ts", false],
+    ["BODY: none", "git commit -F /tmp/message.txt -- widget.ts", false],
     ["BODY: - Correct widget limit", 'git commit -m "Correct widget limit" -- widget.ts', false],
   ])("incremental project message grades body %s and transport %s", (body, command, accepted) => {
     const scenario = scenarioById("ce-work/incremental-message-project")!
     const hostDir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-message-grade-"))
     try {
       fs.writeFileSync(path.join(hostDir, "stdout.txt"), [
-        "SUBJECT: Correct widget limit", body, `COMMAND: ${command}`,
+        "SUBJECT: Correct widget limit", body, "FOOTER: none", `COMMAND: ${command}`,
         "FILES_READ: references/implementation-loop.md", "ACTIONS: none", "DELEGATES_DISPATCHED: none",
       ].join("\n"))
       expect(gradeHost({ host: "claude", hostDir, arm: "post", grade: scenario.grade }).ok).toBe(accepted)
