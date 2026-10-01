@@ -15,6 +15,9 @@
 #   elevation-dispatch.sh <model> <prompt-file> <result-path>
 #   elevation-dispatch.sh --emit-adapter <model>   # print argv, no model call (test hook)
 #
+# Environment: CE_ELEVATION_EFFORT=<low|medium|high|xhigh|max> sets the claude
+# CLI reasoning effort for this call. Unset or empty runs at high.
+#
 # NOTE ON THE FUNCTION NAMED run_codex_cmd: it is NOT codex-specific here. It is
 # the $PEERLOG byte-growth idle loop that implements R11's primary supervision
 # signal (run_timeout_cmd, hard-cap-only, would leave a stalled run undetected).
@@ -31,7 +34,14 @@ RUN_SUCCEEDED=false
 
 log() { printf '[elevation] %s\n' "$*" >&2; }
 
-EFFORT="high"   # settled: elevation runs at high effort
+# Elevation runs at high effort unless the caller passes one (a model role map
+# entry's effort). The claude CLI documents exactly these levels; anything else
+# is rejected here, before the test hook or any model call.
+EFFORT="${CE_ELEVATION_EFFORT:-high}"
+case "$EFFORT" in
+  low|medium|high|xhigh|max) ;;
+  *) log "effort '$EFFORT' rejected: the claude CLI accepts low|medium|high|xhigh|max"; exit 2 ;;
+esac
 
 # Read-only tool posture (R7): the available built-in set, not a denylist. The
 # elevated step reads the repo (Read/Glob/Grep) and may check current facts on
@@ -99,7 +109,7 @@ HANDOFF_DIR="$(cd "$HANDOFF_DIR" 2>/dev/null && pwd || printf '%s' "$HANDOFF_DIR
 # `done`, the envelope's status:failed is read, and it degrades to inline.
 if ! command -v jq >/dev/null 2>&1; then
   log "jq not found on PATH; cannot parse the elevated result — degrading to inline"
-  printf '{"status":"failed","requested_model":"%s","evidence":"jq unavailable on PATH"}' "$MODEL" > "$RESULT_PATH" 2>/dev/null || true
+  printf '{"status":"failed","requested_model":"%s","requested_effort":"%s","evidence":"jq unavailable on PATH"}' "$MODEL" "$EFFORT" > "$RESULT_PATH" 2>/dev/null || true
   exit 0
 fi
 
@@ -270,19 +280,19 @@ if [ "$RUN_SUCCEEDED" = true ] && [ "$HAS_OUTPUT" = "yes" ] \
   # internally — never pass the plan text as an argv --arg, which would exceed
   # ARG_MAX for a large Deep plan.
   tmp="${RESULT_PATH}.tmp.$$"
-  if printf '%s' "$EVENT" | jq --arg m "$MODEL" --arg s "$SERVED" --arg r "$RECEIPT" \
-       '{status:"ok", requested_model:$m, served_model:$s, receipt:$r, output:.result}' \
+  if printf '%s' "$EVENT" | jq --arg m "$MODEL" --arg f "$EFFORT" --arg s "$SERVED" --arg r "$RECEIPT" \
+       '{status:"ok", requested_model:$m, requested_effort:$f, served_model:$s, receipt:$r, output:.result}' \
        > "$tmp" 2>/dev/null; then
     mv -f "$tmp" "$RESULT_PATH"
-    log "elevated step complete: requested=$MODEL served=$SERVED receipt=$RECEIPT"
+    log "elevated step complete: requested=$MODEL effort=$EFFORT served=$SERVED receipt=$RECEIPT"
   else
     rm -f "$tmp"
-    write_result "$(jq -n --arg m "$MODEL" '{status:"failed", requested_model:$m, evidence:"result envelope build failed"}')"
+    write_result "$(jq -n --arg m "$MODEL" --arg f "$EFFORT" '{status:"failed", requested_model:$m, requested_effort:$f, evidence:"result envelope build failed"}')"
     log "elevated step: result envelope build failed"
   fi
 else
-  write_result "$(jq -n --arg m "$MODEL" --arg e "$(bounded_failure_evidence)" \
-    '{status:"failed", requested_model:$m, evidence:$e}')"
+  write_result "$(jq -n --arg m "$MODEL" --arg f "$EFFORT" --arg e "$(bounded_failure_evidence)" \
+    '{status:"failed", requested_model:$m, requested_effort:$f, evidence:$e}')"
   log "elevated step failed; wrote failure envelope"
 fi
 rm -f "$PEERLOG"
