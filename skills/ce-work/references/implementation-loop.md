@@ -82,6 +82,8 @@ After completing each task, evaluate whether to create an incremental commit:
 
 If the plan has Implementation Units, use them as a starting guide for commit boundaries — but adapt based on what you find during implementation. A unit might need multiple commits if it's larger than expected, or small related units might land together. Use each unit's Goal to inform the commit message.
 
+**Message convention:** match project commit conventions already in context; else match the recent log pattern; else conventional commits (`type(scope): description`). User override wins.
+
 **Commit workflow:**
 ```bash
 # 1. Verify tests pass (use project's test command)
@@ -90,13 +92,13 @@ If the plan has Implementation Units, use them as a starting guide for commit bo
 # 2. Stage only files related to this logical unit (not `git add .`)
 git add <files related to this logical unit>
 
-# 3. Commit with conventional message, limited to those same paths
-git commit -m "feat(scope): description of this unit" -- <files related to this logical unit>
+# 3. Commit with the resolved message, limited to those same paths
+git commit -m "<resolved commit message>" -- <files related to this logical unit>
 ```
 
 **Handling merge conflicts:** If conflicts arise during rebasing or merging, resolve them immediately. Incremental commits make conflict resolution easier since each commit is small and focused.
 
-**Note:** Incremental commits use clean conventional messages without attribution footers. The final Phase 4 handoff passes `branding:on` so `ce-commit-push-pr` can add generic Compound Engineering branding to the PR.
+**Note:** Incremental commits omit attribution footers. The final Phase 4 handoff passes `branding:on` so `ce-commit-push-pr` can add generic Compound Engineering branding to the PR.
 
 **Parallel subagent mode:** commit ownership follows the isolation mode chosen at dispatch — see `references/execution-strategy.md`.
 

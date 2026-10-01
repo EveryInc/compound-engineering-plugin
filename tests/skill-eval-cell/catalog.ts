@@ -3060,6 +3060,31 @@ Units:
       actions: "none",
     },
   },
+  ...[
+    { id: "project", fixture: "project", subject: "Correct widget limit", override: "" },
+    { id: "recent-log", fixture: "recent-log", subject: "Widget: Correct widget limit", override: "" },
+    { id: "fallback", fixture: "fallback", subject: "fix(widget): Correct widget limit", override: "" },
+    { id: "user-override", fixture: "project", subject: "CHANGE Correct widget limit", override: "For this run, use the subject format CHANGE <description> instead of the project format." },
+  ].map(({ id, fixture, subject, override }): Scenario => ({
+    id: `ce-work/incremental-message-${id}`,
+    baseline_ref: "bb5899b36",
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/incremental-message/${fixture}`,
+    timeout_secs: 180,
+    why: "Issue #1808: incremental commits prescribed conventional messages instead of resolving project, history, and fallback precedence.",
+    pre_contract: "Use project commit conventions, else the recent log pattern, else conventional commits. User override wins.",
+    task: `Use ce-work to decide the next incremental commit for a completed logical unit that fixes an off-by-one widget limit. Only widget.ts belongs to it; tests have passed. The recent git log snapshot is in COMMIT_HISTORY.md; use that snapshot instead of running git. Read the incremental commit guidance and resolve the message format from the available project context. ${override}
+Use "Correct widget limit" as the description, adding only the formatting required by the selected convention. If conventional commits apply, this is a fix in scope widget. Output exactly one SUBJECT: line with the resolved subject, followed by the body and the path-scoped commit command. Stop at this decision: do not change files, commit, invoke other skills, or run the rest of the workflow.`,
+    grade: {
+      files_read_post: ["references/implementation-loop.md"],
+      declared: { SUBJECT: subject },
+      actions: "none",
+      delegates: "none",
+    },
+  })),
   {
     id: "lfg/plan-first",
     baseline_ref: ISSUE_1482_BASE_REF,

@@ -81,6 +81,10 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-plan/trace-degrades-to-single-pass` | With ce-explain unavailable, the gate still fires as a labeled single-pass trace |
 | `ce-plan/config-model-reaches-authoring-gate` | At the authoring boundary, active config-only `plan_model` reaches `reasoning-elevation.md` and resolves transparently before dispatch or write |
 | `ce-work/return-to-caller-no-pr` | Return-to-caller does not open a PR |
+| `ce-work/incremental-message-project` | Project commit format wins over a conventional recent log |
+| `ce-work/incremental-message-recent-log` | Without project conventions, incremental commits follow the recent log |
+| `ce-work/incremental-message-fallback` | Without conventions or history, incremental commits use conventional commits |
+| `ce-work/incremental-message-user-override` | An explicit user format overrides the project convention |
 | `ce-prototype/batch-conflict-asks` | Conflicting annotation notes stay in chat instead of guessing an edit |
 | `ce-prototype/clear-batch-applies-in-place` | A clear annotation batch iterates in place; conversation does not swallow it |
 | `ce-prototype/question-stays-in-chat` | A question pin is answered in chat, not treated as an edit or a next variant |
