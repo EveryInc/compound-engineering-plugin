@@ -131,6 +131,12 @@ After capturing the new learning, `ce-compound` checks whether the learning sugg
 
 Phrases like "that worked", "it's fixed", "working now", and "problem solved" identify the completion checkpoint. They do not establish that a learning qualifies. Automatic capture still applies the non-obvious, durable, and material gate above. `/ce-compound [context]` requests immediate evaluation without waiting for a completion phrase; it does not lower the bar.
 
+### Model role
+
+`ce-compound` reads the `compound` role from the `model_roles` map in CE config. The entry names the model that drafts the learning document. In Full mode a subagent on that model writes the body from a hand-off file, while the session still classifies the learning, writes the file, and validates it. Lightweight mode launches no subagents, so it writes the doc on the session model whatever the entry names.
+
+This role is served only by a subagent of your harness. An effort in the entry is reported as not applied where that subagent cannot be given one, and the session drafts the body itself when the harness cannot hand over the model. The report carries one `Model role compound:` line naming what was requested, what served it, and the route. See [Model roles](./configuration.md#model-roles) for entry syntax, precedence, and fallback.
+
 ---
 
 ## Quick example

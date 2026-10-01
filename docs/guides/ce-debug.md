@@ -132,6 +132,12 @@ Concrete signals trigger a `/ce-brainstorm` recommendation rather than a fix: th
 
 `mode:return-to-caller` (set by `lfg` on its defect route) is also non-interactive, but the caller owns everything after the fix. It keeps the full investigation and the convergent-or-defer boundary, creates a feature branch when it starts on the default branch, commits the fix-owned files without pushing, skips the post-fix polish and review steps, and returns a structured result: `fixed`, `diagnosed-no-fix`, `needs-human`, or `blocked`, with the root cause, changed files, verification evidence, residuals, and the issue of record. `lfg` then simplifies, reviews, and ships from that return.
 
+### Model role
+
+`ce-debug` reads the `debug` role from the `model_roles` map in CE config. The entry names the model that produces the diagnosis and the fix. A read-only subagent on that model gathers the evidence and proposes the causal chain, and a second one writes the failing test and the minimal fix. The session keeps the causal-chain gate, the branch, the commit, and the return. Pipeline and return-to-caller runs honor the entry the same way interactive runs do.
+
+This role is served only by a subagent of your harness. An effort in the entry is reported as not applied where that subagent cannot be given one, and the session does the work itself when the harness cannot hand over the model. An interactive run prints one `Model role debug:` line at the end of the Debug Summary. A pipeline or return-to-caller run carries the same line in the optional `model_role` field of its structured result. See [Model roles](./configuration.md#model-roles) for entry syntax, precedence, and fallback.
+
 ---
 
 ## Quick Example

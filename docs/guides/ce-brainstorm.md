@@ -248,6 +248,12 @@ When you want a specific model for the heavy reasoning step, `ce-brainstorm` can
 
 This works on any harness. The host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and says which precondition was unmet.
 
+## Model role
+
+`ce-brainstorm` reads the `brainstorm` role from the `model_roles` map in CE config. The entry names the model, and optionally the reasoning effort, that generates the approaches. That is the same step model elevation dispatches, and the entry takes the place of `brainstorm_model`. A model you name in the prompt still wins for that run.
+
+The Claude CLI route serves Claude-family models, at any effort the map accepts. A model from another family is used only where your harness can hand it to a subagent. Otherwise the step runs on your session model and says why. Whenever an entry governs the step, the skill prints one `Model role brainstorm:` line naming what was requested, what served it, and the route. See [Model roles](./configuration.md#model-roles) for entry syntax, precedence, and fallback.
+
 ---
 
 ## See Also
