@@ -153,9 +153,9 @@ Each fix runs only targeted tests on its own change. This step runs the project'
 
 Record the validation outcome (command run, pass/fail counts, any pre-existing failures noted) for the step 9 summary.
 
-## 6. Commit and Push
+## 6. Commit and Publication
 
-1. Stage only the change set and commit with a message referencing the PR:
+Commit only the change set, preserving unrelated work in the tree and index, with a message referencing the PR:
 
 ```bash
 git add [files in the change set]
@@ -164,14 +164,18 @@ git commit -m "Address PR review feedback (#PR_NUMBER)
 - [list changes from per-item results]"
 ```
 
-2. Push to remote:
+In `mode:return-to-caller`, capture the combined fix commit SHA and follow [references/return-to-caller.md](return-to-caller.md) to save every judged action and intended checklist tick. Return after saving; do not push or enter steps 7-8 for any part of this batch. A failed commit or save reports the actual local state and incomplete handoff, never completion.
+
+Ordinary and pipeline execution publish the commit before the remote tail:
 ```bash
 git push
 ```
 
 ## 7. Reply and Resolve
 
-After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the `reply_text` from their per-item result; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved shows up as new work again in the next `ce-babysit-pr` loop. The mechanism depends on the feedback type.
+Enter the remote tail only when the batch's fix commit is published, or the batch created no code changes. Return-to-caller batches with a fix stop at step 6; their saved reply-only and human-list items remain deferred too. No-change return-to-caller batches use this existing protocol and save observed progress even when a write fails. Apply eligible PR checklist ticks under the entrypoint's publication condition.
+
+The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the `reply_text` from their per-item result; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved shows up as new work again in the next `ce-babysit-pr` loop. The mechanism depends on the feedback type.
 
 ### Reply format
 
@@ -272,6 +276,8 @@ The `review_threads` array should be empty (except `needs-human` items).
 PR comments and review bodies have no resolve mechanism, so they will still appear in the output. Verify they were replied to by checking the PR conversation.
 
 ## 9. Summary
+
+In `mode:return-to-caller`, emit the structured result in [references/return-to-caller.md](return-to-caller.md) instead of the interactive summary below. Save actual no-change completion and any incomplete remote tail before returning; human decisions stay open and retain their typed payloads.
 
 Present a concise summary of all work done. Group by verdict, one line per item describing *what was done* not just *where*. This is the primary output the user sees, and the place where your step 3 (Consolidate & Decide) judgments become visible: the user can see exactly what was fixed, what was skipped, and why.
 
