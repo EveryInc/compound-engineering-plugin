@@ -696,6 +696,8 @@ describe("ce-work implementation evidence characterization", () => {
     expect(incremental).toContain(precedence!)
     expect(incremental).toContain("User override wins.")
     expect(incremental).not.toMatch(/Commit with conventional message|use clean conventional messages|git commit -m "feat\(scope\):/)
+    expect(incremental).toContain("git commit -F <message-file> -- <files related to this logical unit>")
+    expect(incremental).not.toContain("git commit -m")
   })
 
   test("loads the extracted protocol only at the implementation gate", async () => {

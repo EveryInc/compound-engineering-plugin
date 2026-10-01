@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import {
   ISSUE_1482_BASE_REF,
@@ -8,9 +9,11 @@ import {
   PRE_SWEEP_REF,
   SCENARIOS,
   WAVE1,
+  scenarioById,
   scenarioHasDecisionGrade,
 } from "./catalog"
 import { REPO_ROOT, WORKTREE_REF } from "./extract"
+import { gradeHost } from "./grade"
 
 const skillsDir = path.join(REPO_ROOT, "skills")
 
@@ -230,6 +233,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-test-xcode/swiftui-inline-link-fallback:references/test-and-report.md",
         "ce-work/behavior-fix-routes-to-review:references/input-triage.md",
         "ce-work/incremental-message-fallback:references/implementation-loop.md",
+        "ce-work/incremental-message-literal-message:references/implementation-loop.md",
         "ce-work/incremental-message-project:references/implementation-loop.md",
         "ce-work/incremental-message-recent-log:references/implementation-loop.md",
         "ce-work/incremental-message-user-override:references/implementation-loop.md",
@@ -239,6 +243,25 @@ describe("skill-eval-cell catalog", () => {
         "lfg/plan-first:references/plan-brief.md",
       ].sort(),
     )
+  })
+
+  test.each([
+    ["BODY: - Correct widget limit", "git commit -F message.txt -- widget.ts", true],
+    ["", "git commit -F message.txt -- widget.ts", false],
+    ["BODY: none", "git commit -F message.txt -- widget.ts", false],
+    ["BODY: - Correct widget limit", 'git commit -m "Correct widget limit" -- widget.ts', false],
+  ])("incremental project message grades body %s and transport %s", (body, command, accepted) => {
+    const scenario = scenarioById("ce-work/incremental-message-project")!
+    const hostDir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-message-grade-"))
+    try {
+      fs.writeFileSync(path.join(hostDir, "stdout.txt"), [
+        "SUBJECT: Correct widget limit", body, `COMMAND: ${command}`,
+        "FILES_READ: references/implementation-loop.md", "ACTIONS: none", "DELEGATES_DISPATCHED: none",
+      ].join("\n"))
+      expect(gradeHost({ host: "claude", hostDir, arm: "post", grade: scenario.grade }).ok).toBe(accepted)
+    } finally {
+      fs.rmSync(hostDir, { recursive: true, force: true })
+    }
   })
 
   test("the 8KB sweep has no in-progress skills left", () => {

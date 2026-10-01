@@ -84,6 +84,8 @@ If the plan has Implementation Units, use them as a starting guide for commit bo
 
 **Message convention:** match project commit conventions already in context; else match the recent log pattern; else conventional commits (`type(scope): description`). User override wins.
 
+Write the full resolved message, including any required body, to a file outside the repo with your file-write tool. Pass that file to Git so the shell never interprets message text.
+
 **Commit workflow:**
 ```bash
 # 1. Verify tests pass (use project's test command)
@@ -93,7 +95,7 @@ If the plan has Implementation Units, use them as a starting guide for commit bo
 git add <files related to this logical unit>
 
 # 3. Commit with the resolved message, limited to those same paths
-git commit -m "<resolved commit message>" -- <files related to this logical unit>
+git commit -F <message-file> -- <files related to this logical unit>
 ```
 
 **Handling merge conflicts:** If conflicts arise during rebasing or merging, resolve them immediately. Incremental commits make conflict resolution easier since each commit is small and focused.
