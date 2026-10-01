@@ -199,7 +199,24 @@ PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
     the user asking in conversation to review with Grok: the seat list is not
     used and the single-peer rules run for that request.
 
+19. **Seats served as Cursor subagents (AE7; R3, R10).** Run on the Cursor host
+    (`--hosts cursor`), live, with no stub CLIs: this case is about what the
+    host's own subagent tool accepts, so stubs cannot stand in for it. Take
+    case 16's document and set `doc-review` to three models from three families
+    that the session's subagent tool lists, written app-neutral as
+    `<model> [<effort>]` and never as a Cursor model id. Assert each seat is
+    dispatched as a subagent on the listed id that matches its model and
+    effort, no peer CLI job starts, and each seat writes
+    `whole-doc-native-s<n>.json` with `independence_verified: false` and
+    `model_actual: "unverified"`. Coverage carries one
+    `Model role doc-review seat <n>: ... route native subagent.` line per seat,
+    and the persona review still runs. Then change one seat to an effort the
+    tool lists no id for: that seat is not served natively, and it is dropped
+    and reported unless an installed peer CLI can serve it. Cursor's model list
+    changes, so pick the three models at run time and record them with the
+    result; do not pin them in a fixture.
+
 ## Pass criteria
 
-All eighteen cases pass on the current on-disk source, and case 2 confirms the
+All nineteen cases pass on the current on-disk source, and case 2 confirms the
 conditional cost profile (no peer spawn on a routine validated plan).
