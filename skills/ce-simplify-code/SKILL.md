@@ -41,7 +41,7 @@ Do not paraphrase these rubrics from memory. Read each file and pass it verbatim
 
 ## Step 3: Fix issues
 
-**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `simplify` role before applying any finding. With no such key in either file, skip this: do not read that reference or run its resolver, and print nothing about model roles. The role's deliverable is the applied simplification edits and their verification, which is this step and Step 4. This skill has no peer route. When the role resolves to `inherit` or `entries`, read `references/model-role-handoff.md` before editing.
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path; a file search skips that hidden directory. When either carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `simplify` role before applying any finding. With no such key in either file, skip this: do not read that reference or run its resolver, and print nothing about model roles. The role's deliverable is the applied simplification edits and their verification, which is this step and Step 4. This skill has no peer route. When the role resolves to `inherit` or `entries`, read `references/model-role-handoff.md` before editing.
 
 Proceed only after all three review outcomes are complete, whether returned by subagents or produced inline. Apply worthwhile findings directly; record false positives and low-value findings as skipped without asking the user.
 

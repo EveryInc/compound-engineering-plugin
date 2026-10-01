@@ -4,7 +4,7 @@ Read this before editing any file in Phase 3. SKILL.md runs the branch check and
 
 *One change at a time. If you are changing multiple things, stop.*
 
-**Model role.** When either repo CE config file (`.compound-engineering/config.local.yaml` or `config.yaml`) carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `debug` role before the first edit. With no such key in either file, skip this: do not read that reference or run its resolver, and print nothing about model roles.
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path; a file search skips that hidden directory. When either carries an active `model_roles:` key, read `references/model-roles.md` now and resolve the `debug` role before the first edit. With no such key in either file, skip this: do not read that reference or run its resolver, and print nothing about model roles.
 
 When Phase 1 already resolved the role, use that result. `references/investigate.md` states the role's deliverable, its route, and where the `Model role` line goes. This file adds only the fix hand-off.
 
