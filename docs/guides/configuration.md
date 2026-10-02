@@ -149,7 +149,7 @@ With both files, plans are authored on the session model, each plan gets three i
 
 An entry is `<model> [<effort>]`. The model is an alias such as `fable`, `opus`, or `sonnet`, or a full model id. The effort is one of `low`, `medium`, `high`, `xhigh`, or `max`. `inherit` means the session model. An entry never carries a CLI flag, a command, or an app-specific model slug, so the same map works in every supported harness.
 
-Only `doc-review` and `code-review` take a list. Each item is one seat: an independent reviewer on that model. Seats run on every review of that role, in addition to the skill's own persona review. A single model on a review role is one seat. A scalar `inherit` or an empty list means no seats. Inside a list, `inherit` is one seat on the session model.
+Only `doc-review` and `code-review` take a list. Each item is one seat: an independent reviewer on that model. Seats run on every review that dispatches the skill's reviewer team, in addition to that team. `ce-code-review` sizes a small, low-risk diff down to a lite or focused review with no team. That review does not apply the `code-review` entry and says so; `depth:full` applies it. A single model on a review role is one seat. A scalar `inherit` or an empty list means no seats. Inside a list, `inherit` is one seat on the session model.
 
 An entry governs the step's deliverable, not the conversation. Dialogue with you, orchestration inside the skill, and `lfg`'s hand-offs between steps stay on the session model. The scouts and verifiers a step dispatches keep their own model tier. A step honors its entry the same way whether you invoke the skill or `lfg` does.
 

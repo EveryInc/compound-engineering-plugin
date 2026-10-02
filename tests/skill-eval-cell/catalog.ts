@@ -213,7 +213,7 @@ ${roleReviewTeamLines("persona")}`
 
 const ROLE_DOC_REVIEW_PLAN = "docs/plans/2026-09-28-1100-fix-greeting-name-trim-plan.md"
 
-const ROLE_CODE_REVIEW_TASK = `Use the ce-code-review skill on the staged change in this repo with depth:full. This is a bounded checkpoint: run the skill through scope and reviewer selection until the final review team is settled, then stop. Do not start any detached job and do not dispatch any reviewer. Report the final team: every local reviewer, and every additional independent reviewer with the model it was requested on.
+const ROLE_CODE_REVIEW_TASK = `Use the ce-code-review skill on the staged change in this repo with base:HEAD depth:full. This is a bounded checkpoint: run the skill through scope and reviewer selection until the final review team is settled, then stop. Do not start any detached job and do not dispatch any reviewer. Report the final team: every local reviewer, and every additional independent reviewer with the model it was requested on.
 
 ${roleReviewTeamLines("local reviewer")}`
 
@@ -3802,6 +3802,39 @@ Use "Correct widget limit" as the description in the subject and any required bo
       declared: { NOT_RUN_COUNT: "1", NOT_RUN_REASON: "review-mode" },
       delegates: "none",
       workspace_contains: [ACCESS_TS_UNCHANGED],
+    },
+  },
+  {
+    id: "ce-code-review/lite-review-says-role-not-applied",
+    post_only: true,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/tablefmt.ts"],
+    fixture: `${FIX}/model-roles-code-review-lite`,
+    why: "The `depth-gate-loud-lite` diff with a `code-review` seat list configured. Seats run only where the reviewer team is dispatched, so the review stays lite, runs no seat and no resolver, and its Coverage must say the role was not applied and that `depth:full` applies it. The task never mentions model roles; `depth:full` appears in the answer only when that Coverage sentence fires.",
+    pre_contract: "The lite path never looks at the model role map, so a configured seat list is skipped with nothing said.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate. If the gate selects lite or focused, also list each statement the receipt's Coverage will make, one per line, without reviewing the diff. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: focused
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
+      declared: { DEPTH: "lite" },
+      must_include: ["depth:full"],
+      actions: "none",
+      delegates: "none",
     },
   },
   {

@@ -2,6 +2,8 @@
 
 Read this only when the Review depth gate in `references/modes-and-output.md` selected lite or focused; a full run never opens it. Both paths finish in the dispatch context and write the same receipt shape that reference defines.
 
+**Model role.** The `code-review` model role is applied only on the full spine, where the reviewer team is dispatched. Check `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root for an active `model_roles:` key with a `code-review` entry. Open both by path, because a file search skips that hidden directory. When either has one, run no review seat on this path and do not run the resolver. Coverage then says that the `code-review` model role was not applied because this review took the lite or focused path, and that `depth:full` applies it. The focused path's independent read below is unchanged. With no such entry, say nothing about model roles.
+
 ### Lite path
 
 Lite is the same review with the same receipt, done in this context. Do not dispatch reviewers or finish leaves. Read no reference beyond the two named below. The skill's done condition applies unchanged: every retained finding is supported by the source, and the receipt states its coverage limits.

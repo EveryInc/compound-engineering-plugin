@@ -122,7 +122,7 @@ bun run test:skill-eval-pack -- --id ce-plan/role-entry-reaches-authoring-gate -
 bun run test:skill-eval-pack -- --skill ce-doc-review --arm post --hosts claude
 ```
 
-Every row is write mode, because resolving a role runs a bundled script and a read-only cell denies the shell. Each stops at one decision and is graded on declared lines, the `TEAM` trailer, and an unchanged workspace. The tasks never name the map or its resolver. A skill's entry rows and its no-map row share one task, so only the fixture differs. Fixture model ids such as `claude-ce-eval-a` are grammar-valid fakes, so a declared id can only have come from the entry that won.
+Every row that resolves a role is write mode, because resolving runs a bundled script and a read-only cell denies the shell. `ce-code-review/lite-review-says-role-not-applied` is read-only, because a lite review runs no resolver. Each row stops at one decision and is graded on declared lines, the `TEAM` trailer, and an unchanged workspace. The tasks never name the map or its resolver. A skill's entry rows and its no-map row share one task, so only the fixture differs. Fixture model ids such as `claude-ce-eval-a` are grammar-valid fakes, so a declared id can only have come from the entry that won.
 
 Resolution, precedence, and review policy:
 
@@ -138,6 +138,7 @@ Resolution, precedence, and review policy:
 | `ce-doc-review/review-mode-off-skips-other-provider-seats` | Mode `off`: only the Claude seat is on the team; two seats not run, reason `review-mode` |
 | `ce-doc-review/unattested-host-review-mode-off-skips-every-named-seat` | Mode `off` on a host with no attested family (run with `--hosts cursor`): no seat on the team; three seats not run, reason `review-mode` |
 | `ce-code-review/seat-list-and-review-mode` | Mode `off`: the Claude seat is on the team; the Grok seat is not run, reason `review-mode` |
+| `ce-code-review/lite-review-says-role-not-applied` | A small diff stays `lite` with a seat list configured, and Coverage names `depth:full` as the way to apply the role |
 | `ce-debug/role-entry-hands-off-investigation` | The `debug` entry's model is declared before any investigation; subagent or session both pass |
 | `ce-simplify-code/role-entry-governs-apply` | The `simplify` entry's model and `low` are declared, with the effort reported as not applied |
 | `ce-compound/lightweight-never-hands-off` | A doc is written with no subagent, a `Model role compound:` line with route session, and `Documentation complete` still last |
