@@ -10,7 +10,7 @@
 - the resolved scope, and the mutation boundary Step 3 draws around it
 - any structure constraint the caller passed, with its plan path
 - the text of Step 3 and Step 4 from `SKILL.md`, verbatim and without the model role paragraph, as the rules it works under
-- the active project instructions and subdirectory-scoped instructions that govern the files in scope, as text or as the paths of the instruction files to read before it edits, because a subagent may start without the instructions the session has loaded
+- what `references/model-roles.md` says every native subagent is given
 - the instruction to perform both steps itself, inside that boundary, and to dispatch no further agent
 - the return it owes: the findings it applied, grouped as reuse, quality, and efficiency; the findings it skipped; the edits it reverted; and each check it ran, with its outcome
 

@@ -64,10 +64,17 @@ describe("ce-simplify-code `simplify` role hand-off", () => {
     expect(midEdit).toMatch(/Step 4[^\n]*again/)
   })
 
-  test("the editing subagent's prompt carries the project instructions for the files in scope", () => {
-    // A subagent may start without the session's loaded instructions, and it edits and verifies project files.
+  test("the editing subagent's prompt points at what the shared reference gives every native subagent", () => {
     const prompt = section(read("ce-simplify-code", HANDOFF), "The subagent's prompt carries:", "The session writes the Step 5 summary")
-    expect(prompt).toMatch(/^- [^\n]*project instructions[^\n]*govern the files/m)
+    expect(prompt).toMatch(/^- what `references\/model-roles\.md` says every native subagent is given$/m)
+  })
+
+  test("the shared reference gives a native subagent the project instructions and this skill's files", () => {
+    // A fresh subagent has none of the session's loaded instructions and resolves `references/...` against
+    // the project. The eight copies are byte-identical (model-roles-reference-parity), so one copy is read.
+    const given = section(read("ce-simplify-code", "references/model-roles.md"), "## What every native subagent is given", "## Fallback")
+    expect(given).toContain("project instructions")
+    expect(given).toContain("absolute path of this skill's directory")
   })
 })
 

@@ -62,6 +62,10 @@ A hand-off uses the first route that can serve the entry's model at the entry's 
 2. **The peer route the calling skill names**, when the skill has one and that route can serve both the model and the effort.
 3. **The fallback ladder** below.
 
+## What every native subagent is given
+
+A native subagent starts with nothing the session has loaded. It also resolves a relative path against the project, not this skill. Its prompt therefore gives it two things. The first is the active project instructions, and any subdirectory-scoped instructions, that govern the work it is handed, as text or as absolute paths. The second, when its steps name a file of this skill, is the absolute path of this skill's directory and the instruction to resolve those file names against it.
+
 ## Fallback for a single-model role
 
 When no route can serve the entry as written, or the route that started fails, the step takes the first of these that a route can serve:

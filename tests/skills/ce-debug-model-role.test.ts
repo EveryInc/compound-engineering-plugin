@@ -38,10 +38,14 @@ describe("ce-debug model role wiring", () => {
     expect(block).toMatch(/the pre-fix scope record[^.]*the commit stay with the session/)
   })
 
-  test("the fix hand-off gives the editing subagent the project instructions for the files it may change", () => {
+  test("both hand-off prompts point at what the shared reference gives every native subagent", () => {
+    // The shared reference owns the rule: project instructions and this skill's files, as text or absolute paths.
+    // Each prompt names it where the prompt is composed, because the role was resolved many steps earlier.
+    const pointer = /`references\/model-roles\.md` says every native subagent is given/
+    const investigation = investigate.slice(investigate.indexOf("**Investigation hand-off.**"), investigate.indexOf("**Reporting.**"))
+    expect(investigation).toMatch(new RegExp(`subagent's prompt carries[^\\n]*${pointer.source}`))
     const block = fix.slice(fix.indexOf("**Fix hand-off.**"), fix.indexOf("**Test-first:**"))
-    // A subagent may start without the session's loaded instructions, and step 1 tells it to follow them.
-    expect(block).toMatch(/\*\*The subagent\*\*[^\n]*project instructions[^\n]*govern the files/)
+    expect(block).toMatch(new RegExp(`\\*\\*The subagent\\*\\*[^\\n]*${pointer.source}`))
   })
 
   test("both structured returns carry the report as the optional model_role key", () => {
