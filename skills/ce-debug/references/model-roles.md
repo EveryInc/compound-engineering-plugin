@@ -10,7 +10,7 @@ A *single-model role* has one entry. A *review role* has a list of seats, and th
 
 ## Resolve the role
 
-Run this skill's resolver in one command:
+Run this skill's resolver in one command, with the project as the working directory. The resolver reads the config of the repository it runs in, so a run from the skill directory finds no map.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";

@@ -25,7 +25,7 @@ Read the **full thread**, not just the opening post. Read every comment, with pa
 
 ### Phase 1: Investigate
 
-**Model role.** Check `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root for an active `model_roles:` key. Open both by path, because a file search skips that hidden directory. When either has the key, read `references/model-roles.md` now and run its resolver for the `debug` role before the investigation starts. The resolver's answer decides the role; your own reading of the entry does not. With no such key in either file, skip this: do not read that reference or run its resolver, and print nothing about model roles.
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. When neither has an active `model_roles:` key, skip this: do not read `references/model-roles.md` or run its resolver, and print nothing about model roles. When either has the key, read `references/model-roles.md` now and run its resolver for the `debug` role before the investigation starts. The resolver's answer decides the role; your own reading of the entry does not.
 
 The `debug` role's deliverable is the diagnosis and the fix. The role has no peer route, so a native subagent is its only hand-off route, and the fallback ladder in `references/model-roles.md` comes straight after it. The entry is standing config. `mode:pipeline` and `mode:return-to-caller` honor it the way interactive use does, and no mode asks about it.
 
