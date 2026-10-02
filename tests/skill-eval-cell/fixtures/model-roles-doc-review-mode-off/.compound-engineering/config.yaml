@@ -1,0 +1,6 @@
+cross_model_review_mode: off
+model_roles:
+  doc-review:
+    - grok-ce-eval high
+    - gpt-ce-eval
+    - claude-ce-eval-a medium

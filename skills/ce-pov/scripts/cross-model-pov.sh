@@ -99,12 +99,13 @@ M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is t
 # "unverified" — never a fallback to the requested value. Keep this block byte-identical across
 # ce-code-review and ce-doc-review (kernel parity).
 expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id family prefix
-  case "$1" in
+  # A bracketed qualifier such as [1m] is not part of the served id.
+  case "${1%%\[*}" in
     fable)    printf 'claude-fable' ;;
     opus)     printf 'claude-opus' ;;
     sonnet)   printf 'claude-sonnet' ;;
     haiku)    printf 'claude-haiku' ;;
-    claude-*) printf '%s' "$1" ;;
+    claude-*) printf '%s' "${1%%\[*}" ;;
   esac
 }
 

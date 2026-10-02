@@ -20,7 +20,7 @@ function parseHosts(): Host[] | undefined {
   const raw = arg("--hosts")
   if (raw === undefined) return undefined
   if (!raw) {
-    console.error("usage: --hosts claude,codex,grok,opencode")
+    console.error("usage: --hosts claude,codex,grok,opencode,cursor")
     process.exit(2)
   }
   const wanted = raw.split(",").map((s) => s.trim()).filter(Boolean) as Host[]

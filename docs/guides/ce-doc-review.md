@@ -163,6 +163,12 @@ The pass needs a peer *agent* CLI (`codex`, `claude`, `grok`, `cursor-agent`, or
 
 The pass embeds the document into the peer prompt and sends it to an external provider. `CROSS_MODEL_PEERS` restricts which providers may receive content. Peers are strictly read-only. Failures never block the review; an exact provider-overload 529 gets one same-route retry, never an unbounded retry loop. A second target remains opt-in (`CROSS_MODEL_MAX_PEERS=2`).
 
+### Model role
+
+`ce-doc-review` reads the `doc-review` role from the `model_roles` map in CE config. The entry is one model or a list, each with an optional reasoning effort. Every item is a seat: one independent reviewer that reads the whole document on that model. Seats run on every review, beside the persona reviewers, and they take the place of the conditional single-peer pass described above.
+
+`cross_model_review_mode: off` and `CROSS_MODEL_PEERS` still decide which seats may send the document to another provider. A seat that cannot run is dropped and reported, never filled by another model, and the persona review runs either way. Each seat prints its own `Model role doc-review seat <n>:` line naming what was requested, what served it, and the route. See [Model roles](./configuration.md#model-roles) for entry syntax, precedence, and the seat rules.
+
 ---
 
 ## Quick Example

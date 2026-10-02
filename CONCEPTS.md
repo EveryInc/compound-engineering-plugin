@@ -99,6 +99,11 @@ A semantic cost class for a dispatched sub-agent — extraction (cheapest capabl
 
 When a platform cannot select models per agent, every role runs on the inherited model and cost control falls back to structure: read budgets and output caps.
 
+### Model role map
+A per-repository assignment of a model, and optionally a reasoning effort, to each kind of work in the Pipeline — one role per step Skill — so each step produces its deliverable on the developer's choice whether the developer invokes the Skill or an orchestrating Skill does. An entry governs only that step's deliverable: dialogue with the user, orchestration inside the Skill, and sub-agents dispatched at their Model tier are unchanged. A role with no entry behaves as it did before the map existed, and an entry may say to inherit, which means the session model.
+
+An instruction given for the current run outranks an entry, and an entry outranks the older per-step model settings. When the named model or effort cannot be served, a single-model role runs on the nearest option, keeping the named model as long as any route can serve it and ending at the session model. Every governed step reports the requested model, the served model, and the route, so a fallback is visible rather than silent.
+
 ### Evidence dossier
 A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap scout agent — written to scratch storage instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
 
@@ -140,6 +145,11 @@ Liveness and progress are distinct signals, and an idle window detects only whic
 An additive delegated run that sends the host workflow's review or judgment brief through a different model-provider route and folds the structured result back into the host's synthesis. It stays non-blocking when the peer cannot run, and it counts as independent corroboration only when the serving model family can be verified rather than merely requested.
 
 A peer result is usable only after the route reports a successful terminal outcome and the result satisfies that consumer's output contract. Provider-failure retry allowances belong to the route worker and remain inside the original route deadline; once a provider no-review outcome reaches the host, that peer is not restarted. POV position results additionally declare settledness in their output contract: a schema-shaped result not declared final is a placeholder, never a peer voice.
+
+### Review seat
+One independent reviewer that a review role's entry in the Model role map adds to a review, running on the model that entry names. A review role takes a list, and the length of the list sets the number of independent reviews. Seats run in addition to the Skill's own Reviewer persona review, which still runs when every seat is dropped, and where a review role has an entry its seats take the place of the single conditional Cross-model pass.
+
+A seat that cannot be served on its named model is dropped and reported, never filled by another model, because a substituted seat weakens the Independence the panel exists for. A policy that keeps review content from leaving for another provider skips a seat in the same way.
 
 ### Clean skip
 A delegated run that reached its gate, judged the work did not apply, and ended without producing output — a terminal outcome of the workflow rather than a failure of it.

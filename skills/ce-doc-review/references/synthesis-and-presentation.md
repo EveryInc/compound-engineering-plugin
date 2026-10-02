@@ -60,6 +60,8 @@ When findings merge:
 
 **Cross-model returns.** A `<reviewer-name>-<provider>` return merges with its in-process twin under the same one-fix test. Whether that merge counts as *independent corroboration* is decided in 3.4 (Cross-Persona Agreement Promotion) by the return's `independence_verified` flag, not here.
 
+**Review seats.** A seat return (`whole-doc-<target>-s<n>` or `whole-doc-native-s<n>`, from the review-seat section of `references/cross-model-review.md`) is one more reviewer here. It merges with any finding under the same one-fix test. In 3.4, 3.6, and 3.7 it is a cross-model peer return whichever model served it, so those rules apply to it unchanged.
+
 **The merged set is the record.** The merged finding set produced by this step is the single source of truth for both Coverage counts and rendered output. Each finding appears in exactly one place in the output — counted once in its route bucket, rendered once at its own position.
 
 ### 3.4 Cross-Persona Agreement Promotion
@@ -270,6 +272,8 @@ Review complete
 ```
 
 Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned. "Applied N fixes" reports what already changed. The obligations block and "Proposed fixes" together render the grouped confirmation: obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule. The caller re-narrates this result to a reader who has seen none of it, so a flat list here becomes a flat list there. "Decisions" carries the decisions the user must still make, and "FYI observations" carries anchor `50`. End with "Review complete" as the final line so callers can detect completion.
+
+**Model role lines.** When `references/model-roles.md` was read for this review, print the `doc-review` role's `Model role` lines, one per seat as the review-seat section of `references/cross-model-review.md` states, with any resolver warning or the reason the map could not be used. In interactive mode they follow the Coverage table and its footnotes. In the non-interactive result they are the one addition to the fenced text above: each on its own line after `Restated:` and before `Review complete`, which stays the final line. Print nothing about model roles when no `model_roles:` key is active.
 
 **Count findings by their final route.** Obligations still awaiting grouped confirmation count as proposed fixes; grouping changes presentation, not the count. Obligations already applied count only as applied fixes. Do not export a separate obligation count: the caller uses the proposed-fixes count to detect pending approval, so it must include every pending edit and exclude edits that already landed.
 

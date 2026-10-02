@@ -7,8 +7,19 @@
  */
 import path from "node:path"
 
-export const HOSTS = ["claude", "codex", "grok", "opencode"] as const
+export const HOSTS = ["claude", "codex", "grok", "opencode", "cursor"] as const
 export type Host = (typeof HOSTS)[number]
+/**
+ * Hosts that run only when `--hosts` names them. Cursor needs a signed-in
+ * `cursor-agent` and bills its own account, so a default peer selection never
+ * picks it up just because the binary is on PATH.
+ */
+const EXPLICIT_ONLY_HOSTS: readonly Host[] = ["cursor"]
+
+/** The CLI a host runs as, where it differs from the host's name. */
+export function hostBinary(host: Host): string {
+  return host === "cursor" ? "cursor-agent" : host
+}
 export type CurrentHost = Host | "unknown"
 
 export type HostResolution = {
@@ -33,12 +44,12 @@ export function attestCurrentHost(env: NodeJS.ProcessEnv = process.env): Current
   }
   if (env.GROK_AGENT === "1" || env.GROK_SESSION_ID) return "grok"
   if (env.OPENCODE_TERMINAL) return "opencode"
+  if (env.CURSOR_AGENT || env.CURSOR_CONVERSATION_ID) return "cursor"
   return "unknown"
 }
 
 export function peerHosts(current: CurrentHost): Host[] {
-  if (current === "unknown") return [...HOSTS]
-  return HOSTS.filter((host) => host !== current)
+  return HOSTS.filter((host) => host !== current && !EXPLICIT_ONLY_HOSTS.includes(host))
 }
 
 export function resolveRunHosts(opts: {
@@ -48,7 +59,7 @@ export function resolveRunHosts(opts: {
 }): HostResolution {
   const current = attestCurrentHost(opts.env)
   const wanted = opts.explicit ?? peerHosts(current)
-  const onPath = opts.onPath ?? ((host: Host) => commandExists(host))
+  const onPath = opts.onPath ?? ((host: Host) => commandExists(hostBinary(host)))
   const warnings: string[] = []
   if (!opts.explicit && current === "unknown") {
     warnings.push("warning: could not attest current harness; defaulting to every CLI on PATH")
@@ -56,8 +67,8 @@ export function resolveRunHosts(opts: {
   const skipped: HostResolution["skipped"] = []
   let run = wanted.filter((host) => {
     if (onPath(host)) return true
-    skipped.push({ host, reason: `${host} CLI not on PATH` })
-    warnings.push(`warning: skipping ${host}: ${host} CLI not on PATH`)
+    skipped.push({ host, reason: `${hostBinary(host)} CLI not on PATH` })
+    warnings.push(`warning: skipping ${host}: ${hostBinary(host)} CLI not on PATH`)
     return false
   })
   // Only the default peer selection falls back to self. An explicit --hosts that is
@@ -108,6 +119,8 @@ export function cellEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEn
   delete env.GROK_AGENT
   delete env.GROK_SESSION_ID
   delete env.OPENCODE_TERMINAL
+  delete env.CURSOR_AGENT
+  delete env.CURSOR_CONVERSATION_ID
   delete env.CLICOLOR_FORCE
   delete env.GH_FORCE_TTY
   env.NO_COLOR = "1"
@@ -168,6 +181,23 @@ export function planHost(
     }
     return { host, argv, env, stdin: "null", notes }
   }
+  if (host === "cursor") {
+    // Flags follow the cursor-agent invocations the bundled workers already run:
+    // `--trust` keeps print mode from waiting on a workspace-trust prompt, and
+    // `--sandbox enabled` holds for both postures. `--force` is the write posture
+    // (skills/ce-work/scripts/cross-model-work.sh); `--mode ask` is the read-only
+    // one (skills/ce-doc-review/scripts/cross-model-doc-review.sh).
+    notes.push("cursor-agent must be signed in (`cursor-agent login`); an unauthenticated run exits before the model is called")
+    const argv = ["cursor-agent", "-p", "--output-format", "text", "--trust", "--sandbox", "enabled", "--workspace", opts.cwd]
+    if (opts.readOnly) {
+      argv.push("--mode", "ask")
+      notes.push("read-only: --mode ask, no --force")
+    } else {
+      argv.push("--force")
+    }
+    argv.push(opts.prompt)
+    return { host, argv, env, stdin: "null", notes }
+  }
   notes.push("progress narration prints to stdout before the answer; grep for trailers, do not treat the whole file as the answer")
   const argv = [
     "grok",
@@ -205,7 +235,7 @@ export function wrapPrompt(opts: {
   return [
     `Read the skill at ${path.join(opts.skillDir, "SKILL.md")} first.`,
     `Resolve bundled references and scripts from that directory.`,
-    `Do not read or use an installed plugin copy of this skill (not ~/.claude, ~/.grok, ~/.agents, ~/.config/opencode, project .opencode, or a plugin cache).`,
+    `Do not read or use an installed plugin copy of this skill (not ~/.claude, ~/.grok, ~/.agents, ~/.cursor, ~/.config/opencode, project .opencode, or a plugin cache).`,
     ...companions.map(
       (c) =>
         `When it tells you to invoke the \`${c.name}\` skill, invoke it by reading ${path.join(c.dir, "SKILL.md")} and following it, resolving its references from that directory. Do not use an installed plugin copy of \`${c.name}\`.`,

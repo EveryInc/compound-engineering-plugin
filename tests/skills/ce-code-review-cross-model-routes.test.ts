@@ -1610,6 +1610,17 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(emitAdapter("composer", SCRIPT, override)).toContain("--model composer-next")
     expect(emitAdapter("grok-cursor", SCRIPT, override)).toContain("--model grok-4.7-xhigh")
     expect(emitAdapter("cursor", SCRIPT, override)).not.toContain("--model")
+    // A Claude alias may carry one bracketed qualifier, the form a `model_roles` seat can name.
+    const qualified = { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: "opus[1m]" }
+    expect(emitAdapter("claude", SCRIPT, qualified)).toContain("--model opus[1m]")
+    // Exactly one qualifier of letters and digits, the grammar the role resolver accepts.
+    for (const malformed of ["opus[]", "opus[a][b]", "opus[1m]junk]", "claude-opus-5-5[1 m]"]) {
+      const bad = spawnSync("bash", [SCRIPT, "--emit-adapter", "claude"], {
+        encoding: "utf8",
+        env: { ...process.env, CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: malformed },
+      })
+      expect(bad.status, malformed).toBe(2)
+    }
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "composer"], {
       encoding: "utf8",
@@ -1912,6 +1923,193 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
     })
     expect(r.files).not.toContain("adversarial-grok.json")
     expect(r.stderr).toContain("requires Cursor intermediary sanction")
+  })
+})
+
+// A `model_roles` review list runs one worker invocation per seat. CROSS_MODEL_SEAT
+// carries the seat number: it names the artifact and reviewer so two seats on one
+// provider cannot collide, and it marks the recipient as explicitly configured, so
+// the automatic same-family and unknown-host skips do not apply to that invocation.
+describe("cross-model-adversarial-review review seats (CROSS_MODEL_SEAT)", () => {
+  const seatStub =
+    `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t","file":"a.ts","line":1}]}}'\n`
+  const seatArgs = (host: string, target: string, runDir: string) => [host, target, "HEAD", runDir]
+  const seatOutputs = (files: string[]) => files.filter((file) => /^adversarial-[a-z]+(-s\d+)?\.json$/.test(file)).sort()
+  const artifact = (runDir: string, name: string) =>
+    JSON.parse(readFileSync(path.join(runDir, name), "utf8"))
+
+  test("two seats on one provider write two artifacts with distinct reviewer identities", () => {
+    const { env } = sandbox(["claude"], seatStub)
+    const runDir = makeRunDir()
+    for (const seat of ["1", "2"]) {
+      const r = run(seatArgs("codex", "claude", runDir), runDir, { ...env, CROSS_MODEL_SEAT: seat })
+      expect(r.code).toBe(0)
+    }
+    expect(seatOutputs(readdirSync(runDir))).toEqual(["adversarial-claude-s1.json", "adversarial-claude-s2.json"])
+    expect(artifact(runDir, "adversarial-claude-s1.json").reviewer).toBe("adversarial-claude-s1")
+    expect(artifact(runDir, "adversarial-claude-s2.json").reviewer).toBe("adversarial-claude-s2")
+    // A different-family seat still records verified independence.
+    expect(artifact(runDir, "adversarial-claude-s1.json").independence_verified).toBe(true)
+
+    // The seat number becomes part of a file name, so only a positive integer is accepted.
+    const bad = makeRunDir()
+    const r = run(seatArgs("codex", "claude", bad), bad, { ...env, CROSS_MODEL_SEAT: "../x" })
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("seat '../x' invalid")
+  })
+
+  test("a seat in the host's own family runs only as an explicit seat and never records independence", () => {
+    const { env } = sandbox(["claude"], seatStub)
+    let runDir = makeRunDir()
+    let r = run(seatArgs("claude", "claude", runDir), runDir, env)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("no different-provider peer reachable")
+
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "claude", runDir), runDir, { ...env, CROSS_MODEL_SEAT: "3" })
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+    expect(seatOutputs(r.files)).toEqual(["adversarial-claude-s3.json"])
+    const out = artifact(runDir, "adversarial-claude-s3.json")
+    expect(out.serving_family).toBe("claude")
+    expect(out.independence_verified).toBe(false)
+  })
+
+  test("a seat under an unknown host family runs only as an explicit seat and never records independence", () => {
+    const { env } = sandbox(["claude"], seatStub)
+    const hostEnv = { ...env, CROSS_MODEL_HOST_HARNESS: "cursor" }
+    let runDir = makeRunDir()
+    let r = run(seatArgs("unknown", "claude", runDir), runDir, hostEnv)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("host serving family unattested")
+
+    runDir = makeRunDir()
+    r = run(seatArgs("unknown", "claude", runDir), runDir, { ...hostEnv, CROSS_MODEL_SEAT: "1" })
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+    expect(seatOutputs(r.files)).toEqual(["adversarial-claude-s1.json"])
+    expect(artifact(runDir, "adversarial-claude-s1.json").independence_verified).toBe(false)
+  })
+
+  test("CROSS_MODEL_PEERS refuses a seat only when its provider is a new recipient", () => {
+    const refused = "not in CROSS_MODEL_PEERS allowlist"
+    const { env } = sandbox(["claude", "cursor-agent"], seatStub)
+    const seat = { ...env, CROSS_MODEL_SEAT: "1" }
+
+    // The role resolver clears a seat in the host's own family: nothing new leaves the machine.
+    let runDir = makeRunDir()
+    let r = run(seatArgs("claude", "claude", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "codex" })
+    expect(r.stderr).not.toContain(refused)
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+
+    // `cursor` on the allowlist sanctions Cursor as a recipient, so its Composer seat is not refused.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "cursor" })
+    expect(r.stderr).not.toContain(refused)
+    // The resolver trims and lowercases the allowlist, so the worker reads it the same way.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: " Cursor , grok" })
+    expect(r.stderr).not.toContain(refused)
+
+    // Another provider's seat is still refused, and so is Composer outside a seat.
+    runDir = makeRunDir()
+    r = run(seatArgs("codex", "claude", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "grok" })
+    expect(r.stderr).toContain(`provider 'claude' ${refused}`)
+    expect(seatOutputs(r.files)).toEqual([])
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", runDir), runDir, { ...env, CROSS_MODEL_PEERS: "cursor" })
+    expect(r.stderr).toContain(`provider 'composer' ${refused}`)
+
+    // Only the edges of each entry are trimmed: a space inside a name never repairs it into a recipient.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "codex", runDir), runDir, { ...env, CROSS_MODEL_PEERS: "co dex,claude" })
+    expect(r.stderr).toContain(`provider 'codex' ${refused}`)
+  })
+
+  test("a seat whose receipt names another model writes no artifact", () => {
+    const otherModelStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t","file":"a.ts","line":1}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":10}}}'\n`
+    const { env } = sandbox(["claude"], otherModelStub)
+    const override = { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: "opus" }
+
+    // A seat is one model: when the receipt says another served, the seat was not served.
+    let runDir = makeRunDir()
+    let r = run(seatArgs("codex", "claude", runDir), runDir, { ...env, ...override, CROSS_MODEL_SEAT: "1" })
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("a seat is never filled by another model")
+
+    // Outside a seat the single-peer pass still publishes and warns, as before.
+    runDir = makeRunDir()
+    r = run(seatArgs("codex", "claude", runDir), runDir, { ...env, ...override })
+    expect(r.stderr).toContain("WARNING: model mismatch")
+    expect(seatOutputs(r.files).length).toBe(1)
+  })
+
+  test("a Claude alias with a bracketed qualifier is checked against its family's receipt", () => {
+    const receiptStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t","file":"a.ts","line":1}]},"modelUsage":{"claude-opus-5-5-20260801":{"inputTokens":10}}}'\n`
+    const { env } = sandbox(["claude"], receiptStub)
+    const runDir = makeRunDir()
+    const r = run(seatArgs("codex", "claude", runDir), runDir, {
+      ...env,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "opus[1m]",
+    })
+    expect(r.stderr).not.toContain("model mismatch")
+    expect(artifact(runDir, "adversarial-claude-s1.json").model_actual).toBe("claude-opus-5-5-20260801")
+  })
+
+  test("a seat's model and effort reach the claude and codex adapter arguments", () => {
+    const capRoot = mkTempRoot("xmodel-cr-seat-argv-")
+    const capFile = path.join(capRoot, "argv.txt")
+    const recordStub = (body: string) =>
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s\\n' "$@" > "$ARGV_CAPTURE"\nprintf '%s' '${body}'\n`
+
+    let { env } = sandbox(["claude"], recordStub('{"structured_output":{"reviewer":"adversarial","findings":[]}}'))
+    let runDir = makeRunDir()
+    run(seatArgs("codex", "claude", runDir), runDir, {
+      ...env,
+      ARGV_CAPTURE: capFile,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "sonnet",
+      CROSS_MODEL_EFFORT_OVERRIDE: "medium",
+    })
+    let argv = readFileSync(capFile, "utf8").split("\n")
+    expect(argv[argv.indexOf("--model") + 1]).toBe("sonnet")
+    expect(argv[argv.indexOf("--effort") + 1]).toBe("medium")
+    let out = artifact(runDir, "adversarial-claude-s1.json")
+    expect(out.model_requested).toBe("sonnet")
+    expect(out.effort_requested).toBe("medium")
+
+    ;({ env } = sandbox(["codex"], recordStub('{"reviewer":"adversarial","findings":[]}')))
+    runDir = makeRunDir()
+    run(seatArgs("claude", "codex", runDir), runDir, {
+      ...env,
+      ARGV_CAPTURE: capFile,
+      CROSS_MODEL_SEAT: "2",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+      CROSS_MODEL_MODEL_OVERRIDE: "gpt-seat-model",
+      CROSS_MODEL_EFFORT_OVERRIDE: "low",
+    })
+    argv = readFileSync(capFile, "utf8").split("\n")
+    expect(argv[argv.indexOf("-m") + 1]).toBe("gpt-seat-model")
+    expect(argv).toContain('model_reasoning_effort="low"')
+    out = artifact(runDir, "adversarial-codex-s2.json")
+    expect(out.model_requested).toBe("gpt-seat-model")
+    expect(out.effort_requested).toBe("low")
+  }, 30_000) // the codex liveness poll sleeps in 5s slices even for a fast stub
+
+  test("a seat effort on a cursor-agent route ends as a named skip with no artifact", () => {
+    const { env } = sandbox(["cursor-agent"], seatStub)
+    const runDir = makeRunDir()
+    const r = run(seatArgs("claude", "composer", runDir), runDir, {
+      ...env,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_EFFORT_OVERRIDE: "high",
+    })
+    expect(r.code).toBe(0)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("effort override 'high' not compatible with route 'composer'; skipping")
   })
 })
 

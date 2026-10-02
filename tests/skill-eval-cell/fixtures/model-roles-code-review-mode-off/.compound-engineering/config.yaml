@@ -1,0 +1,3 @@
+cross_model_review_mode: off
+model_roles:
+  code-review: [grok-ce-eval high, claude-ce-eval-a]

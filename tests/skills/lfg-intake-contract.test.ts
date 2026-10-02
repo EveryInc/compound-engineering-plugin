@@ -130,6 +130,19 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
     }
   })
 
+  // Model role map (U8): the return may carry the `Model role debug:` line in one
+  // optional key. The required set above is unchanged, so this pins only that the
+  // key is optional at the producer and that lfg's gate never requires it.
+  test("model_role is an optional report field on both ends", () => {
+    expect(DEBUG_RETURN_FIELDS).not.toContain("model_role")
+    expect(debugReturn).toMatch(/"model_role":/)
+    expect(debugReturn).toMatch(/`model_role` is the one optional key/)
+    const required = debugReturnGate.match(/Require `status`[^.]*\./)?.[0] ?? ""
+    expect(required).toContain("`standalone_shipping_skipped: true`")
+    expect(required).not.toContain("model_role")
+    expect(debugReturnGate).toMatch(/`model_role` is optional/)
+  })
+
   test("the debug gate requires the same evidence facts the ce-work gate requires", () => {
     for (const phrase of [
       "existing tests inspected",

@@ -674,6 +674,36 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(unverified.independent_reviewers).toEqual(["correctness", "reliability"])
   })
 
+  test("agreement between review seats alone does not promote", () => {
+    const finding = {
+      title: "Stale result", severity: "P1", file: "src/worker.ts", line: 12,
+      confidence: 75, autofix_class: "manual", owner: "downstream-resolver",
+      requires_verification: true, pre_existing: false,
+      first_evidence: "src/worker.ts:12 -- result = staleValue",
+    }
+    const seat = (reviewer: string) => ({
+      reviewer, findings: [finding], residual_risks: [], testing_gaps: [], independence_verified: true,
+    })
+    const merge = (returns: unknown[]) => {
+      const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+      expect(result.status).toBe(0)
+      return JSON.parse(result.stdout).findings[0]
+    }
+
+    // Two verified seats and no in-process reviewer: peers corroborate an
+    // in-process reading, they do not corroborate each other.
+    const seatsOnly = merge([seat("adversarial-codex-s1"), seat("adversarial-grok-s2")])
+    expect(seatsOnly.confidence).toBe(75)
+
+    // The same two seats beside an in-process reviewer promote once, not twice.
+    const withInProcess = merge([
+      { reviewer: "correctness", findings: [{ ...finding, confidence: 50 }], residual_risks: [], testing_gaps: [] },
+      seat("adversarial-codex-s1"),
+      seat("adversarial-grok-s2"),
+    ])
+    expect(withInProcess.confidence).toBe(100)
+  })
+
   test("synthetic reruns preserve independent corroboration from semantic duplicates", () => {
     const reconciled = {
       title: "Reconciled stale-state defect",
