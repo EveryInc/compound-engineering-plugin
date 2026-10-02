@@ -147,7 +147,7 @@ With both files, plans are authored on the session model, each plan gets three i
 | `code-review` | [`ce-code-review`](./ce-code-review.md) | Each independent review of the diff | `cross_model_peer`, `cross_model_model`, `cross_model_effort` |
 | `compound` | [`ce-compound`](./ce-compound.md) | The learning document | none |
 
-An entry is `<model> [<effort>]`. The model is an alias such as `fable`, `opus`, or `sonnet`, or a full model id. The effort is one of `low`, `medium`, `high`, `xhigh`, or `max`. `inherit` means the session model. An entry never carries a CLI flag, a command, or an app-specific model slug, so the same map works in every supported harness.
+An entry is `<model> [<effort>]`. The model is an alias such as `fable`, `opus`, or `sonnet`, or a full model id. Write an alias or id in its exact case: `Opus` is skipped with a warning that names `opus`. The effort is one of `low`, `medium`, `high`, `xhigh`, or `max`. `inherit` means the session model. An entry never carries a CLI flag, a command, or an app-specific model slug, so the same map works in every supported harness.
 
 Only `doc-review` and `code-review` take a list. Each item is one seat: an independent reviewer on that model. Seats run on every review that dispatches the skill's reviewer team, in addition to that team. `ce-code-review` sizes a small, low-risk diff down to a lite or focused review with no team. That review does not apply the `code-review` entry and says so; `depth:full` applies it. A single model on a review role is one seat. A scalar `inherit` or an empty list means no seats. Inside a list, `inherit` is one seat on the session model.
 

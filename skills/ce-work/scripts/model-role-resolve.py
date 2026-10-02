@@ -212,6 +212,10 @@ def parse_entry(text: str):
         return "expected `<model> [<effort>]`"
     if not _MODEL_RE.fullmatch(tokens[0]):
         return f"`{tokens[0]}` is not a model id"
+    # Every route matches ids case-sensitively, so a case variant of a routable id would be
+    # classified here and then refused by the route.
+    if family(tokens[0]) == "unknown" and family(tokens[0].lower()) != "unknown":
+        return f"`{tokens[0]}` is not a model id a route accepts: ids are case-sensitive, write `{tokens[0].lower()}`"
     if len(tokens) == 2 and tokens[1] not in EFFORT_SCALE:
         return f"unknown effort `{tokens[1]}` (expected one of {', '.join(EFFORT_SCALE)})"
     return tokens[0], tokens[1] if len(tokens) == 2 else None
@@ -221,13 +225,13 @@ def _engine_harness(model: str, model_family: str) -> str | None:
     """The work engine harness for an entry, or None when no engine route accepts it.
     The engine's routes take an unqualified id only: no bracketed qualifier, and no
     provider prefix on a Codex id. The review workers accept both."""
-    if "[" in model or (model_family == "codex" and not re.match(r"gpt-|o\d", model.lower())):
+    if "[" in model or (model_family == "codex" and not re.match(r"gpt-|o\d", model)):
         return None
     return HARNESS.get(model_family)
 
 
 def family(model: str) -> str:
-    name = model.lower().split("[", 1)[0]
+    name = model.split("[", 1)[0]
     if "/" not in name:
         if name in ("fable", "opus", "sonnet", "haiku") or name.startswith("claude-"):
             return "claude"

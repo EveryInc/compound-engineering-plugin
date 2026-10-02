@@ -158,6 +158,19 @@ describe("entries and layering", () => {
     expect(out.entries[1].reason).toContain("banana")
   })
 
+  test("a case variant of a routable id is rejected with the spelling to use", () => {
+    // Every route's own validator is case-sensitive, so the resolver must not call `Opus` a Claude id.
+    const dir = makeProject(map("  plan: Opus high\n  doc-review: [sonnet, GPT-6.1-Sol]\n  debug: MyOrg/Custom-Model\n"))
+    const plan = role(dir, "plan")
+    expect(plan.state).toBe("unset")
+    expect(plan.warnings[0]).toContain("write `opus`")
+    const seat = role(dir, "doc-review").entries[1]
+    expect(seat).toMatchObject({ invalid: true, raw: "GPT-6.1-Sol" })
+    expect(seat.reason).toContain("write `gpt-6.1-sol`")
+    // An id that no route claims in any spelling keeps its own.
+    expect(role(dir, "debug").entries[0]).toMatchObject({ model: "MyOrg/Custom-Model", family: "unknown" })
+  })
+
   test("a model id may end in one bracketed qualifier", () => {
     const dir = makeProject(map("  plan: opus[1m] high\n  doc-review: [sonnet, opus[1m] max, opus[1m]]\n  work: opus[]\n"))
     expect(role(dir, "plan").entries[0]).toMatchObject({ model: "opus[1m]", effort: "high", family: "claude" })
