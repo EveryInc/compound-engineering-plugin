@@ -140,7 +140,7 @@ Resolution, precedence, and review policy:
 | `ce-code-review/seat-list-and-review-mode` | Mode `off`: the Claude seat is on the team; the Grok seat is not run, reason `review-mode` |
 | `ce-code-review/lite-review-says-role-not-applied` | A small diff takes the lite or focused path with a seat list configured, and Coverage names `depth:full` as the way to apply the role |
 | `ce-debug/role-entry-hands-off-investigation` | The `debug` entry's model is declared before any investigation; subagent or session both pass |
-| `ce-simplify-code/role-entry-governs-apply` | The `simplify` entry's model and `low` are declared, with the effort reported as not applied |
+| `ce-simplify-code/role-entry-governs-apply` | The `simplify` entry's model and `low` are declared; subagent or session both pass |
 | `ce-compound/lightweight-never-hands-off` | A doc is written with no subagent, a `Model role compound:` line with route session, and `Documentation complete` still last |
 
 Restraint, one per role skill, with no `model_roles` key in either config file. Each grade fails when `model-role-resolve` appears in `ACTIONS`, when the report block mentions a model role, or when the ordinary decision is not declared:
