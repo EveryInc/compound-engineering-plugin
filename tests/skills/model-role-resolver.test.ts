@@ -213,12 +213,16 @@ describe("family and harness", () => {
   })
 
   test("a provider-qualified GPT or o-series id is Codex, as the review workers accept it", () => {
-    const models = ["openai.gpt-5.5", "openai/gpt-5.5", "azure/o3-pro", "anthropic/claude-opus-5-5", "openai/some-model"]
+    const models = ["openai.gpt-5.5", "openai/gpt-5.5", "azure/o3-pro", "azure2/gpt-5.5", "grok-4.o1", "anthropic/claude-opus-5-5", "openai/some-model"]
     const out = role(makeProject(map(`  doc-review: [${models.join(", ")}]\n  work: openai/gpt-5.5 high\n`)), "doc-review")
     expect(out.entries.map((e: any) => [e.model, e.family])).toEqual([
       ["openai.gpt-5.5", "codex"],
       ["openai/gpt-5.5", "codex"],
       ["azure/o3-pro", "codex"],
+      // Any provider prefix the Codex route accepts, digits included.
+      ["azure2/gpt-5.5", "codex"],
+      // A name already in another family is not re-read as provider-qualified.
+      ["grok-4.o1", "grok"],
       // Only the forms a route accepts are placed: the Claude route takes no namespace.
       ["anthropic/claude-opus-5-5", "unknown"],
       ["openai/some-model", "unknown"],

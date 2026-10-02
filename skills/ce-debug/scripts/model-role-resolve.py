@@ -217,20 +217,19 @@ def parse_entry(text: str):
 
 def family(model: str) -> str:
     name = model.lower().split("[", 1)[0]
-    # The Codex route accepts a provider-qualified id, so `<provider>.` or `<provider>/` before a
-    # GPT or o-series name is still Codex. Any other id with a slash belongs to no family here.
-    if re.fullmatch(r"[a-z][a-z_-]*[./](?:gpt-|o\d).*", name):
+    if "/" not in name:
+        if name in ("fable", "opus", "sonnet", "haiku") or name.startswith("claude-"):
+            return "claude"
+        if name.startswith("gpt-") or re.match(r"o\d", name):
+            return "codex"
+        if name.startswith("grok-"):
+            return "grok"
+        if name.startswith("composer-"):
+            return "composer"
+    # The Codex route accepts a provider-qualified id: anything, then `.` or `/`, then a GPT or
+    # o-series name. Every other id that reaches this point belongs to no family here.
+    if re.fullmatch(r".+[./](?:gpt-|o\d).*", name):
         return "codex"
-    if "/" in name:
-        return "unknown"
-    if name in ("fable", "opus", "sonnet", "haiku") or name.startswith("claude-"):
-        return "claude"
-    if name.startswith("gpt-") or re.match(r"o\d", name):
-        return "codex"
-    if name.startswith("grok-"):
-        return "grok"
-    if name.startswith("composer-"):
-        return "composer"
     return "unknown"
 
 
