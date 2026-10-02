@@ -313,6 +313,15 @@ describe("elevation-dispatch worker", () => {
     expect(result.receipt).toBe("mismatch")
   })
 
+  test("an alias with a bracketed qualifier matches its family's receipt", () => {
+    const stub =
+      "#!/bin/sh\n" +
+      `printf '%s\\n' '${RESULT_LINE("PLAN BODY", { "claude-opus-4-8": { outputTokens: 5 } })}'\n`
+    const { result } = runWorker("opus[1m]", stub)
+    expect(result.served_model).toBe("claude-opus-4-8")
+    expect(result.receipt).toBe("matched")
+  })
+
   test("picks the requested family's key from a multi-key modelUsage, not keys[0]", () => {
     // jq `keys` is sorted, so keys[0] here is claude-haiku-*, an auxiliary
     // model — the served model for a requested opus is claude-opus-*.

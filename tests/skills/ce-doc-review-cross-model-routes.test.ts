@@ -1633,6 +1633,27 @@ describe("cross-model-doc-review review seats (CROSS_MODEL_SEAT)", () => {
     runDir = makeRunDir()
     r = run(seatArgs("claude", "composer", doc, runDir), runDir, { ...env, CROSS_MODEL_PEERS: "cursor" })
     expect(r.stderr).toContain(`provider 'composer' ${refused}`)
+
+    // Only the edges of each entry are trimmed: a space inside a name never repairs it into a recipient.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "codex", doc, runDir), runDir, { ...env, CROSS_MODEL_PEERS: "co dex,claude" })
+    expect(r.stderr).toContain(`provider 'codex' ${refused}`)
+  })
+
+  test("a Claude alias with a bracketed qualifier is checked against its family's receipt", () => {
+    const receiptStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"whole-doc","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-opus-5-5-20260801":{"inputTokens":10}}}'\n`
+    const { env } = sandbox(["claude"], receiptStub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(seatArgs("codex", "claude", doc, runDir), runDir, {
+      ...env,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "opus[1m]",
+    })
+    expect(r.stderr).not.toContain("model mismatch")
+    expect(artifact(runDir, "whole-doc-claude-s1.json").model_actual).toBe("claude-opus-5-5-20260801")
   })
 
   test("a seat's model and effort reach the claude and codex adapter arguments", () => {

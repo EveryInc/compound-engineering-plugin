@@ -157,12 +157,13 @@ bounded_failure_evidence() { tail -c 800 "$PEERLOG" 2>/dev/null || true; }
 
 # Expected served-id prefix for a requested model alias, or empty if unknown.
 model_prefix() {   # <requested> -> prefix | ""
-  case "$1" in
+  # A bracketed qualifier such as [1m] is not part of the served id.
+  case "${1%%\[*}" in
     fable)    printf 'claude-fable-' ;;
     opus)     printf 'claude-opus-' ;;
     sonnet)   printf 'claude-sonnet-' ;;
     haiku)    printf 'claude-haiku-' ;;
-    claude-*) printf '%s' "$1" ;;
+    claude-*) printf '%s' "${1%%\[*}" ;;
   esac
 }
 

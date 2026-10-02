@@ -129,12 +129,13 @@ route_receipt_supported() {
 # "unverified" — never a fallback to the requested value. Keep this block byte-identical across
 # ce-code-review and ce-doc-review (kernel parity).
 expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id family prefix
-  case "$1" in
+  # A bracketed qualifier such as [1m] is not part of the served id.
+  case "${1%%\[*}" in
     fable)    printf 'claude-fable' ;;
     opus)     printf 'claude-opus' ;;
     sonnet)   printf 'claude-sonnet' ;;
     haiku)    printf 'claude-haiku' ;;
-    claude-*) printf '%s' "$1" ;;
+    claude-*) printf '%s' "${1%%\[*}" ;;
   esac
 }
 
@@ -417,8 +418,10 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || skip "not inside a g
 PEER_WORKDIR="$REPO_ROOT"
 
 # --- resolve which provider(s) to run (exclude host, allowlist, availability) --
-# Read the allowlist the way the role resolver does: whitespace ignored, lowercase.
-ALLOW="$(printf '%s' "${CROSS_MODEL_PEERS:-}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+# Read the allowlist the way the role resolver does: lowercase, with only the
+# edges of each entry trimmed. A space inside a name must not repair it into a
+# recipient the environment did not name.
+ALLOW="$(printf '%s' "${CROSS_MODEL_PEERS:-}" | tr '\n\t\r' '   ' | tr '[:upper:]' '[:lower:]' | sed -e 's/ *, */,/g' -e 's/^ *//' -e 's/ *$//')"
 MAX_PEERS="${CROSS_MODEL_MAX_PEERS:-1}"
 case "$MAX_PEERS" in ''|*[!0-9]*) MAX_PEERS=1 ;; esac
 [ "$MAX_PEERS" -gt 2 ] && MAX_PEERS=2
