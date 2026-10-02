@@ -38,6 +38,12 @@ describe("ce-debug model role wiring", () => {
     expect(block).toMatch(/the pre-fix scope record[^.]*the commit stay with the session/)
   })
 
+  test("the fix hand-off gives the editing subagent the project instructions for the files it may change", () => {
+    const block = fix.slice(fix.indexOf("**Fix hand-off.**"), fix.indexOf("**Test-first:**"))
+    // A subagent may start without the session's loaded instructions, and step 1 tells it to follow them.
+    expect(block).toMatch(/\*\*The subagent\*\*[^\n]*project instructions[^\n]*govern the files/)
+  })
+
   test("both structured returns carry the report as the optional model_role key", () => {
     for (const body of [returnToCaller, pipelineMode]) {
       expect(body).toContain('"model_role":')

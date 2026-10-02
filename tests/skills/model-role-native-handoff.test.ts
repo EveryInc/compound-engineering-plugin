@@ -63,6 +63,12 @@ describe("ce-simplify-code `simplify` role hand-off", () => {
     expect(midEdit).toContain("working tree")
     expect(midEdit).toMatch(/Step 4[^\n]*again/)
   })
+
+  test("the editing subagent's prompt carries the project instructions for the files in scope", () => {
+    // A subagent may start without the session's loaded instructions, and it edits and verifies project files.
+    const prompt = section(read("ce-simplify-code", HANDOFF), "The subagent's prompt carries:", "The session writes the Step 5 summary")
+    expect(prompt).toMatch(/^- [^\n]*project instructions[^\n]*govern the files/m)
+  })
 })
 
 describe("ce-compound `compound` role hand-off", () => {
