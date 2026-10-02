@@ -11,7 +11,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { arg, flag } from "./cli"
 import { REPO_ROOT, WORKTREE_REF, extractSkill, mintCellDir } from "./extract"
-import { CONVERSE_HOSTS, formatTranscript, hostTurnArgv, runUserSim, type ConversationEnd, type Turn } from "./converse"
+import { CONVERSE_HOSTS, codexAgentText, formatTranscript, hostTurnArgv, runUserSim, type ConversationEnd, type Turn } from "./converse"
 import { HOSTS, planHost, resolveRunHosts, wrapPrompt, type Host, type HostPlan } from "./hosts"
 import { installPathShims, type PathShim } from "./path-shim"
 import { fingerprint, prepareOutput, sealEvidence, sha256, writeJSON } from "./provenance"
@@ -157,7 +157,6 @@ async function converse(
   opts: { prompt: string; persona: string; timeoutMs: number; maxTurns: number },
 ): Promise<RunResult & { turns: number; ended: ConversationEnd; argvs: string[][] }> {
   const sessionId = crypto.randomUUID()
-  const lastMessageFile = path.join(hostDir, "last-message.txt")
   const deadline = Date.now() + opts.timeoutMs
   const turns: Turn[] = []
   const log = path.join(hostDir, "transcript.jsonl")
@@ -171,20 +170,14 @@ async function converse(
   for (let i = 0; i < opts.maxTurns; i++) {
     const remaining = deadline - Date.now()
     if (remaining <= 0) { ended = "timeout"; last.timedOut = true; break }
-    fs.rmSync(lastMessageFile, { force: true })
-    const argv = hostTurnArgv(host, { first: i === 0, sessionId, message, cwd, lastMessageFile })
+    const argv = hostTurnArgv(host, { first: i === 0, sessionId, message, cwd })
     argvs.push(argv)
     last = await runPlan({ ...plan, argv }, cwd, remaining)
     stderr += last.stderr
-    let agentText = last.stdout
-    if (host === "codex") {
-      try {
-        agentText = fs.readFileSync(lastMessageFile, "utf8")
-      } catch {
-        // codex wrote no final message; keep its stdout
-      }
-    }
-    agentText = agentText.trim()
+    // Codex's stdout is its event stream here; the tool calls it holds stay in the
+    // cell's stderr.txt, out of the graded transcript.
+    if (host === "codex") stderr += last.stdout
+    const agentText = (host === "codex" ? codexAgentText(last.stdout) : last.stdout).trim()
     turns.push({ role: "agent", text: agentText })
     fs.appendFileSync(log, `${JSON.stringify({ role: "agent", text: agentText, exitCode: last.exitCode })}\n`)
     if (last.timedOut) { ended = "timeout"; break }

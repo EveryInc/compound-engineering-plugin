@@ -24,7 +24,7 @@ export function formatTranscript(turns: Turn[], userLabel: string): string {
 
 export function hostTurnArgv(
   host: Host,
-  opts: { first: boolean; sessionId: string; message: string; cwd: string; lastMessageFile: string },
+  opts: { first: boolean; sessionId: string; message: string; cwd: string },
 ): string[] {
   if (host === "claude") {
     // AskUserQuestion cannot reach a person in print mode; removing it makes the
@@ -36,7 +36,9 @@ export function hostTurnArgv(
     ]
   }
   if (host === "codex") {
-    const common = ["--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "-o", opts.lastMessageFile]
+    // --json puts the turn's events on stdout so codexAgentText can keep every agent
+    // message; -o and plain stdout carry only the last one.
+    const common = ["--dangerously-bypass-approvals-and-sandbox", "--skip-git-repo-check", "--json"]
     // Resume without an id picks the newest session recorded for this cwd; every
     // host runs in its own workspace, so that is this conversation.
     return opts.first
@@ -44,6 +46,26 @@ export function hostTurnArgv(
       : ["codex", "exec", "resume", "--last", ...common, opts.message]
   }
   throw new Error(`--persona supports ${CONVERSE_HOSTS.join(", ")} only, not ${host}`)
+}
+
+/**
+ * What Codex said to the user in one `codex exec --json` turn: every agent message, in
+ * order. Codex spreads a reply over several messages and tends to end on a one-line
+ * prompt, so the last message alone drops most of it. Tool calls, command output, and
+ * reasoning are other item types and stay out.
+ */
+export function codexAgentText(events: string): string {
+  const messages: string[] = []
+  for (const line of events.split("\n")) {
+    let event
+    try {
+      event = JSON.parse(line)
+    } catch {
+      continue
+    }
+    if (event?.type === "item.completed" && event.item?.type === "agent_message") messages.push(event.item.text)
+  }
+  return messages.join("\n\n")
 }
 
 export function userSimPrompt(persona: string, turns: Turn[]): string {

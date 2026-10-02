@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { USER_DONE, hostTurnArgv, runUserSim, simReplyOrDone, toollessClaudeArgv, userSimPrompt } from "./converse"
+import { USER_DONE, codexAgentText, hostTurnArgv, runUserSim, simReplyOrDone, toollessClaudeArgv, userSimPrompt } from "./converse"
 
-const base = { sessionId: "11111111-1111-4111-8111-111111111111", message: "hi", cwd: "/w", lastMessageFile: "/h/last.txt" }
+const base = { sessionId: "11111111-1111-4111-8111-111111111111", message: "hi", cwd: "/w" }
 
 describe("hostTurnArgv", () => {
   test("claude pins the session on the first turn and resumes it after", () => {
@@ -19,7 +19,11 @@ describe("hostTurnArgv", () => {
     expect(first.at(-1)).toBe("hi")
     const next = hostTurnArgv("codex", { ...base, first: false })
     expect(next.slice(0, 4)).toEqual(["codex", "exec", "resume", "--last"])
-    expect(next).toContain(base.lastMessageFile)
+    // Every turn must emit events: the last-message outputs drop what Codex said before its closing line.
+    for (const argv of [first, next]) {
+      expect(argv).toContain("--json")
+      expect(argv).not.toContain("-o")
+    }
   })
 
   test("hosts without a scriptable resume are rejected", () => {
@@ -28,6 +32,23 @@ describe("hostTurnArgv", () => {
 })
 
 describe("conversation control", () => {
+  test("a codex turn records every agent message in order and nothing else", () => {
+    // Event shapes as emitted by codex-cli 0.160.0 `exec --json`.
+    const events = [
+      `{"type":"thread.started","thread_id":"t"}`,
+      `{"type":"turn.started"}`,
+      `{"type":"item.completed","item":{"id":"item_0","type":"reasoning","text":"thinking"}}`,
+      `{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"| role | model |\\n| plan | opus |"}}`,
+      `{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"cat config.yaml","aggregated_output":"","exit_code":null,"status":"in_progress"}}`,
+      `{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"cat config.yaml","aggregated_output":"secret: 1\\n","exit_code":0,"status":"completed"}}`,
+      `{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"I'm waiting for your list of roles."}}`,
+      `{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}`,
+      "",
+    ].join("\n")
+    expect(codexAgentText(events)).toBe("| role | model |\n| plan | opus |\n\nI'm waiting for your list of roles.")
+    expect(codexAgentText("warning: not an event\n")).toBe("")
+  })
+
   test("the simulated user can decline to reply", () => {
     expect(simReplyOrDone(`  ${USER_DONE}\n`)).toBeNull()
     expect(simReplyOrDone("")).toBeNull()
