@@ -55,7 +55,8 @@ role carries the fields above plus `existing_keys` (the older keys for the same
 step that are set: `{"key", "file", "value"}`, value null for a list or map
 key), `effective` (`{"from": "map|existing_key|session|invalid", "value"}`),
 and `shadowed` (the existing keys a map entry overrides). Its top-level
-`warnings` name unknown role keys under `model_roles`.
+`warnings`, and every `--role` answer's, name unknown role keys under
+`model_roles`.
 """
 
 from __future__ import annotations
@@ -88,7 +89,8 @@ STRUCTURED_KEYS = ("work_engine_preferences", "work_engine_effort")
 WORK_ENGINE_MODES = ("off", "prefer", "require")
 REVIEW_MODES = ("auto", "off")
 
-_MODEL_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]*")
+# An id may end in one bracketed qualifier, such as a context-window variant: `opus[1m]`.
+_MODEL_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]*(\[[A-Za-z0-9]+\])?")
 
 
 # --- minimal YAML reader: top-level keys plus the model_roles block ----------
@@ -217,7 +219,7 @@ def parse_entry(text: str):
 
 
 def family(model: str) -> str:
-    name = model.lower()
+    name = model.lower().split("[", 1)[0]
     if "/" in name:
         return "unknown"
     if name in ("fable", "opus", "sonnet", "haiku") or name.startswith("claude-"):
@@ -350,14 +352,19 @@ def resolve_all(layers: list, policy: dict) -> dict:
         result["effective"] = _describe(result, existing)
         result["shadowed"] = [k["key"] for k in existing] if result["effective"]["from"] == "map" else []
         roles.append(result)
-    warnings = [
+    errors = [error for _, parsed in layers for error in parsed["errors"]]
+    return {"roles": roles, "effort_scale": list(EFFORT_SCALE), "warnings": _unknown_roles(layers), "errors": errors}
+
+
+def _unknown_roles(layers: list) -> list:
+    """One warning per key under `model_roles` that is not a role. Every answer
+    carries them, so a misspelled role is reported by the skill it was meant for."""
+    return [
         f"{parsed['file']}:{line}: unknown role `{key}` under model_roles is ignored (roles: {', '.join(ROLES)})"
         for _, parsed in layers
         for key, line in parsed["role_lines"].items()
         if key not in ROLES
     ]
-    errors = [error for _, parsed in layers for error in parsed["errors"]]
-    return {"roles": roles, "effort_scale": list(EFFORT_SCALE), "warnings": warnings, "errors": errors}
 
 
 # --- entry point -------------------------------------------------------------
@@ -405,6 +412,7 @@ def _resolve(args) -> dict:
     else:
         out = resolve_role(args.role, layers, policy)
         warnings, errors = out.pop("warnings"), out.pop("errors")
+        warnings += _unknown_roles(layers)
         if args.role in REVIEW_ROLES:
             warnings += mode_warnings
         out.update(effort_scale=list(EFFORT_SCALE), warnings=warnings, errors=errors)

@@ -158,6 +158,21 @@ describe("entries and layering", () => {
     expect(out.entries[1].reason).toContain("banana")
   })
 
+  test("a model id may end in one bracketed qualifier", () => {
+    const dir = makeProject(map("  plan: opus[1m] high\n  doc-review: [sonnet, opus[1m] max, opus[1m]]\n  work: opus[]\n"))
+    expect(role(dir, "plan").entries[0]).toMatchObject({ model: "opus[1m]", effort: "high", family: "claude" })
+    const seats = role(dir, "doc-review").entries
+    expect(seats.map((e: any) => [e.model, e.effort, e.family])).toEqual([
+      ["sonnet", null, "claude"],
+      ["opus[1m]", "max", "claude"],
+      ["opus[1m]", null, "claude"],
+    ])
+    // An empty qualifier is not an id.
+    const work = role(dir, "work")
+    expect(work.state).toBe("unset")
+    expect(work.warnings[0]).toContain("is not a model id")
+  })
+
   test("a malformed model_roles block is state invalid with an error for every role", () => {
     const dir = makeProject(map("  plan:\n    model: opus\n    effort: high\n  doc-review: [opus]\n"))
     for (const name of ["plan", "doc-review"]) {
@@ -168,10 +183,13 @@ describe("entries and layering", () => {
     }
   })
 
-  test("an unknown role key is ignored by --role and warned about by --all", () => {
+  test("an unknown role key is ignored, with a warning from --role and from --all", () => {
     const dir = makeProject(map("  code_review: [opus]\n"))
+    // A misspelled role must not vanish: the skill that runs --role shows this warning.
     const one = role(dir, "code-review")
-    expect([one.state, one.warnings, one.errors]).toEqual(["unset", [], []])
+    expect([one.state, one.errors]).toEqual(["unset", []])
+    expect(one.warnings.length).toBe(1)
+    expect(one.warnings[0]).toContain("code_review")
     const all = run(dir, ["--all"])
     expect(byRole(all, "code-review").state).toBe("unset")
     expect(all.warnings.length).toBe(1)
