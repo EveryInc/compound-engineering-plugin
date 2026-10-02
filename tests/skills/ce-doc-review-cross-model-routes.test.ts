@@ -1362,6 +1362,14 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     // A Claude alias may carry one bracketed qualifier, the form a `model_roles` seat can name.
     const qualified = { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: "opus[1m]" }
     expect(emitAdapter("claude", qualified)).toContain("--model opus[1m]")
+    // Exactly one qualifier of letters and digits, the grammar the role resolver accepts.
+    for (const malformed of ["opus[]", "opus[a][b]", "opus[1m]junk]", "claude-opus-5-5[1 m]"]) {
+      const bad = spawnSync("bash", [SCRIPT, "--emit-adapter", "claude"], {
+        encoding: "utf8",
+        env: { ...process.env, CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: malformed },
+      })
+      expect(bad.status, malformed).toBe(2)
+    }
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "composer"], {
       encoding: "utf8",

@@ -324,8 +324,22 @@ validate_model_override() {
   target="$(route_target "$route")" || return 1
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
+  # A Claude id may end in exactly one bracketed qualifier of letters and
+  # digits, such as [1m]: the grammar the role resolver accepts. The qualifier
+  # is checked here and the id before it is checked below.
+  if [ "$route" = claude ]; then
+    case "$override" in
+      *\[*|*\]*)
+        local qualifier="${override#*\[}"
+        case "$override" in *\]) ;; *) return 1 ;; esac
+        qualifier="${qualifier%\]}"
+        case "$qualifier" in ''|*[!A-Za-z0-9]*) return 1 ;; esac
+        override="${override%%\[*}"
+        ;;
+    esac
+  fi
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:fable\[*\]|claude:opus\[*\]|claude:sonnet\[*\]|claude:haiku\[*\]|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
+    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
     *) return 1 ;;
   esac
 }
