@@ -75,7 +75,7 @@ describe("review seat block parity", () => {
     for (const { file, role } of TRIGGERS) {
       const content = await read(file)
       expect(content, `${file} resolves its role`).toContain(
-        `read \`references/model-roles.md\` now and resolve the \`${role}\` role`,
+        `read \`references/model-roles.md\` now and run its resolver for the \`${role}\` role`,
       )
       expect(content, `${file} loads the seat rules`).toContain(
         "**Review seats.** When that key is active, read `references/cross-model-review.md`",
