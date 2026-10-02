@@ -1610,6 +1610,9 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(emitAdapter("composer", SCRIPT, override)).toContain("--model composer-next")
     expect(emitAdapter("grok-cursor", SCRIPT, override)).toContain("--model grok-4.7-xhigh")
     expect(emitAdapter("cursor", SCRIPT, override)).not.toContain("--model")
+    // A Claude alias may carry one bracketed qualifier, the form a `model_roles` seat can name.
+    const qualified = { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: "opus[1m]" }
+    expect(emitAdapter("claude", SCRIPT, qualified)).toContain("--model opus[1m]")
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "composer"], {
       encoding: "utf8",
@@ -1976,6 +1979,32 @@ describe("cross-model-adversarial-review review seats (CROSS_MODEL_SEAT)", () =>
     expect(r.stderr).toContain("peer run: provider=claude route=claude")
     expect(seatOutputs(r.files)).toEqual(["adversarial-claude-s1.json"])
     expect(artifact(runDir, "adversarial-claude-s1.json").independence_verified).toBe(false)
+  })
+
+  test("CROSS_MODEL_PEERS refuses a seat only when its provider is a new recipient", () => {
+    const refused = "not in CROSS_MODEL_PEERS allowlist"
+    const { env } = sandbox(["claude", "cursor-agent"], seatStub)
+    const seat = { ...env, CROSS_MODEL_SEAT: "1" }
+
+    // The role resolver clears a seat in the host's own family: nothing new leaves the machine.
+    let runDir = makeRunDir()
+    let r = run(seatArgs("claude", "claude", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "codex" })
+    expect(r.stderr).not.toContain(refused)
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+
+    // `cursor` on the allowlist sanctions Cursor as a recipient, so its Composer seat is not refused.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "cursor" })
+    expect(r.stderr).not.toContain(refused)
+
+    // Another provider's seat is still refused, and so is Composer outside a seat.
+    runDir = makeRunDir()
+    r = run(seatArgs("codex", "claude", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "grok" })
+    expect(r.stderr).toContain(`provider 'claude' ${refused}`)
+    expect(seatOutputs(r.files)).toEqual([])
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", runDir), runDir, { ...env, CROSS_MODEL_PEERS: "cursor" })
+    expect(r.stderr).toContain(`provider 'composer' ${refused}`)
   })
 
   test("a seat's model and effort reach the claude and codex adapter arguments", () => {

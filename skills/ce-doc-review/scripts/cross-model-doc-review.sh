@@ -314,7 +314,7 @@ validate_model_override() {
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
+    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:fable\[*\]|claude:opus\[*\]|claude:sonnet\[*\]|claude:haiku\[*\]|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
     *) return 1 ;;
   esac
 }
@@ -465,6 +465,15 @@ out_missing_or_invalid() { [ ! -s "$RAW_OUT" ] || ! jq -e '(.findings|type)=="ar
 # -- either way the user has accepted that content may reach Cursor.
 cursor_egress_ok() { [ -z "$ALLOW" ] || in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
 
+# The allowlist names recipients. For a seat, the role resolver has already
+# cleared two targets it does not list: the attested host's own family, where
+# nothing new leaves the machine, and Composer when `cursor` is listed.
+seat_cleared() {
+  [ -n "$SEAT" ] || return 1
+  if [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$1")" = "$HOST_PROVIDER" ]; then return 0; fi
+  [ "$1" = composer ] && in_csv cursor "$ALLOW"
+}
+
 # Soft size gate: peer prompt embeds the full document. Over-budget docs skip
 # cleanly (R11) rather than collapsing silently inside the provider context window.
 MAX_DOC_CHARS="${CROSS_MODEL_MAX_DOC_CHARS:-200000}"
@@ -513,7 +522,7 @@ for p in $CANDIDATES; do
   case "$p" in codex|claude|grok|cursor|composer|opencode) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
   [ -z "$SEAT" ] && [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
   case " $SELECTED " in *" $p "*) continue ;; esac   # dedup
-  if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
+  if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW" && ! seat_cleared "$p"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
   if ! provider_available "$p"; then log "provider '$p' has no installed route; skipping"; continue; fi
   SELECTED="$SELECTED $p"
 done
