@@ -25,7 +25,7 @@ Read the **full thread**, not just the opening post. Read every comment, with pa
 
 ### Phase 1: Investigate
 
-**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. When neither has an active `model_roles:` key, skip this: do not read `references/model-roles.md` or run its resolver, and print nothing about model roles. When either has the key, read `references/model-roles.md` now and run its resolver for the `debug` role before the investigation starts. The resolver's answer decides the role; your own reading of the entry does not.
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `debug` role before the investigation starts. The resolver decides the role, not your reading of the config.
 
 The `debug` role's deliverable is the diagnosis and the fix. The role has no peer route. `mode:pipeline` and `mode:return-to-caller` honor the entry the way interactive use does, and no mode asks about it.
 

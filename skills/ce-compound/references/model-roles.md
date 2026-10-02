@@ -1,12 +1,10 @@
 # Model roles
 
-A repo's CE config can carry a `model_roles:` map. Each entry names the model, and optionally the reasoning effort, that should produce one step's deliverable. This file states how a skill honors the entry for its role. The calling skill's hook names the role, the deliverable, and the peer route, when the skill has one.
+Each entry in the repo CE config's `model_roles:` map names the model, and optionally the reasoning effort, that should produce one step's deliverable.
 
 **Outcome:** the deliverable is produced by the model and effort the entry names, or by the nearest option this file allows, and the skill's output says which model served it and by which route.
 
-**When this applies.** The hook loads this file only when a repo CE config file carries an active `model_roles:` key. When the role has no entry, the skill behaves exactly as it does without this file.
-
-A *single-model role* has one entry. A *review role* has a list of seats, and the calling skill's own reference states the seat rules. This file points to them where they replace a rule below.
+A *single-model role* has one entry. A *review role* has a list of seats, and the calling skill's own reference states the seat rules.
 
 ## Resolve the role
 
@@ -27,7 +25,7 @@ Add `--host-family <family>` only when the calling skill already attests the ses
 | `entries` | Use the entry: its `model`, and its `effort` unless that is null. A single-model role has exactly one. |
 | `invalid` | The `model_roles` block is malformed. A single-model role continues as it does today and says why, quoting `errors`. |
 
-When the command yields no JSON (no interpreter, script not found, non-zero exit), a single-model role continues as it does today and says once that the model role map could not be read. It never stops the run for that.
+When the command yields no JSON (no interpreter, script not found, non-zero exit), a single-model role continues as it does today and says once that the model role map could not be read.
 
 A review role does not use the `invalid` row or the no-JSON rule. The calling skill's seat rules decide both.
 
@@ -54,7 +52,7 @@ A hand-off gives the deliverable's work to another model run and takes the resul
 - The state is `inherit`.
 - The entry has no effort and names the model the session can attest it is already running on. The session attests its model from what its harness states, never from a guess.
 
-Every other entry hands off. An entry with an effort always hands off, because no host exposes the session's own effort, so the session cannot show that it already runs at that effort.
+Every other entry hands off. An entry with an effort always hands off, because no host exposes the session's own effort.
 
 ## Serving order
 
@@ -75,11 +73,11 @@ When no route can serve the entry as written, or the route that started fails, t
 
 The resolver's `effort_scale` gives the order of efforts, lowest first: `low`, `medium`, `high`, `xhigh`, `max`. The route's adapter says which levels the route accepts. The agent does not guess them.
 
-This ladder serves map entries only. The skill's existing keys keep the failure rules they have today. A review seat never uses the ladder: the calling skill's seat rules decide what happens to a seat that cannot be served.
+This ladder serves map entries only. A review seat never uses the ladder: the calling skill's seat rules decide what happens to a seat that cannot be served.
 
 ## The `Model role` line
 
-Print one line for every step an entry governs, which means every step whose role resolved to `inherit` or `entries`. Put it in the output the skill already produces. Print nothing about model roles when no active `model_roles:` key exists.
+Print one line for every step an entry governs, which means every step whose role resolved to `inherit` or `entries`. Put it in the output the skill already produces.
 
 ```text
 Model role <role>: requested <model>[ <effort>]; <outcome>; route <route>[; reason: <why>].
@@ -90,14 +88,11 @@ Model role <role>: requested <model>[ <effort>]; <outcome>; route <route>[; reas
 - `<route>` is `native subagent`, `<name> CLI`, or `session`.
 - `reason:` appears only after a fallback, a dropped or blocked seat, or an invalid entry.
 
-Name the served model as served only when the route's receipt confirms it. Without a receipt, write the model the route was asked for, followed by `(unverified)`. On the `session` route, write the model the session attests, or `unverified` alone when it attests none. No route returns an effort receipt, so the served effort is never verified: the line reports the effort the route was asked to run at.
+Name the served model as served only when the route's receipt confirms it. Without a receipt, write the model the route was asked for, followed by `(unverified)`. On the `session` route, write the model the session attests, or `unverified` alone when it attests none. No route returns an effort receipt, so the line reports the effort the route was asked to run at.
 
 Show the resolver's `warnings` for the role once, with this line. When the step prints no line, show them alone in the same place.
 
 ```text
 Model role <role>: requested fable low; served fable (unverified) at low; route claude CLI.
-Model role <role>: requested opus max; served opus at high; route claude CLI; reason: the route does not accept max.
-Model role <role>: requested sonnet low; served sonnet, effort not applied; route native subagent.
 Model role <role>: requested inherit; served opus; route session.
-Model role <role> seat 2: requested opus high; not run; reason: no route can serve it.
 ```

@@ -4,7 +4,7 @@ Read this before editing any file in Phase 3. SKILL.md runs the branch check and
 
 *One change at a time. If you are changing multiple things, stop.*
 
-**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. When neither has an active `model_roles:` key, skip this: do not read `references/model-roles.md` or run its resolver, and print nothing about model roles. When either has the key, read `references/model-roles.md` now and run its resolver for the `debug` role before the first edit. The resolver's answer decides the role; your own reading of the entry does not.
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `debug` role before the first edit. The resolver decides the role, not your reading of the config.
 
 When Phase 1 already resolved the role, use that result.
 

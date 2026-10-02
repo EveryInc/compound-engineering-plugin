@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Resolve the model role map in this repo's CE config into a per-role answer.
+"""Resolve the `model_roles:` map in this repo's CE config into a per-role answer.
 
-Reads the top-level `model_roles:` map from
-`<repo-root>/.compound-engineering/config.local.yaml` (personal) and
+Reads `<repo-root>/.compound-engineering/config.local.yaml` (personal) and
 `config.yaml` (team) and prints one JSON object to stdout. Exit 0 whenever
 resolution ran -- a bad entry, a malformed block, or a missing repository is
 data in the JSON, never a traceback. Non-zero only for a bad command line.
@@ -12,13 +11,11 @@ data in the JSON, never a traceback. Non-zero only for a bad command line.
       work: inherit                  # the session model
       doc-review:                    # review roles also take a list: one seat each
         - opus high
-        - inherit                    # a seat on the session model
+        - inherit
       code-review: [sonnet, opus max]
 
-Roles: brainstorm, plan, doc-review, debug, work, simplify, code-review,
-compound. Efforts: low, medium, high, xhigh, max. Only `doc-review` and
-`code-review` accept a list; on them a scalar model is one seat, and `[]` or a
-scalar `inherit` means no seats.
+Only the review roles accept a list. On them a scalar model is one seat, and
+`[]` or a scalar `inherit` means no seats.
 
 Layering is per role: the personal entry wins, else the team entry. On a
 single-model role an invalid entry is skipped with a warning and the next layer
