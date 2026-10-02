@@ -1,5 +1,5 @@
 import { spawnSync } from "child_process"
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs"
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { tmpdir } from "os"
 import path from "path"
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
@@ -241,6 +241,46 @@ describe("review egress policy", () => {
       "cross_model_review_mode: off\n",
     )
     expect(blocked(role(dir, "doc-review", ["--host-family", "claude"]))).toEqual([null, "review_mode_off"])
+  })
+
+  test("an unrecognized `cross_model_review_mode` value is ignored with a warning on review roles", () => {
+    const dir = makeProject(`cross_model_review_mode: Off\n${map("  doc-review: [grok-4.7]\n  plan: opus\n")}`)
+    const doc = role(dir, "doc-review", ["--host-family", "claude"])
+    // The key's existing rule: an invalid value falls through to `auto`, so the seat is not blocked.
+    expect(blocked(doc)).toEqual([null])
+    expect(doc.warnings).toEqual(["config.yaml: `cross_model_review_mode: Off` is not `auto` or `off` and is ignored"])
+    expect(role(dir, "plan").warnings).toEqual([])
+    expect(run(dir, ["--all"]).warnings).toEqual(doc.warnings)
+  })
+})
+
+describe("structural errors fail closed", () => {
+  const cases: [string, string][] = [
+    ["a scalar under `model_roles:`", "model_roles: opus\n"],
+    ["a role declared twice", map("  doc-review: [opus]\n  doc-review: [sonnet]\n")],
+    ["`model_roles:` declared twice", `${map("  plan: opus\n")}${map("  doc-review: [opus]\n")}`],
+  ]
+  for (const [name, team] of cases) {
+    test(`${name} makes a review role invalid with no seats`, () => {
+      const out = role(makeProject(team), "doc-review")
+      expect([out.state, out.entries]).toEqual(["invalid", []])
+      expect(out.errors.length).toBeGreaterThan(0)
+    })
+  }
+
+  test.skipIf(process.getuid?.() === 0)("a config file the resolver cannot read is invalid, never unset", () => {
+    const dir = makeProject(map("  doc-review: [opus]\n"))
+    const file = path.join(dir, ".compound-engineering", "config.yaml")
+    chmodSync(file, 0o000)
+    try {
+      const one = role(dir, "doc-review")
+      expect([one.state, one.entries]).toEqual(["invalid", []])
+      expect(one.errors[0]).toContain("model role resolver failed unexpectedly")
+      const all = run(dir, ["--all"])
+      expect(all.roles.map((r: any) => r.state)).toEqual(ROLES.map(() => "invalid"))
+    } finally {
+      chmodSync(file, 0o644)
+    }
   })
 })
 

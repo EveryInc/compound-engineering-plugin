@@ -45,7 +45,8 @@ structurally malformed `model_roles` block in either file makes every role
   CROSS_MODEL_PEERS environment variable excludes the seat. A seat in the
   attested host family (`--host-family`) is never blocked; with an unknown host
   family, or an unknown seat family, a named seat is always blocked under
-  either policy. An `inherit` seat is never blocked.
+  either policy. An `inherit` seat is never blocked. A `cross_model_review_mode`
+  value other than `auto` or `off` is ignored, with a warning on review roles.
 - `work` adds `engine_opt_out`: true when the entry comes from the team file
   and the personal file sets `work_engine_mode: off`.
 
@@ -300,7 +301,7 @@ def resolve_role(role: str, layers: list, policy: dict) -> dict:
         result.update(state="entries" if entries else "inherit", source=source, entries=entries)
         break
     if role == "work" and result["state"] == "entries" and result["source"] == "team":
-        # KTD4: a personal `work_engine_mode: off` keeps a team entry off any external engine.
+        # A personal `work_engine_mode: off` keeps a team entry off any external engine.
         result["engine_opt_out"] = _unquote(layers[0][1]["top"].get("work_engine_mode", "")) == "off"
         if result["engine_opt_out"]:
             # The reason travels with the answer, so a caller can state it without re-reading the file.
@@ -391,11 +392,21 @@ def _resolve(args) -> dict:
         "peers": peers,
         "mode": _ordinary_scalar("cross_model_review_mode", layers, REVIEW_MODES)[0] or "auto",
     }
+    # An invalid value falls through like any ordinary key. Say so: a typo here leaves review seats unblocked.
+    mode_warnings = [
+        f"{parsed['file']}: `cross_model_review_mode: {value}` is not `auto` or `off` and is ignored"
+        for _, parsed in layers
+        for value in [_unquote(parsed["top"].get("cross_model_review_mode", ""))]
+        if value and value not in REVIEW_MODES
+    ]
     if args.all:
         out = resolve_all(layers, policy)
+        out["warnings"] += mode_warnings
     else:
         out = resolve_role(args.role, layers, policy)
         warnings, errors = out.pop("warnings"), out.pop("errors")
+        if args.role in REVIEW_ROLES:
+            warnings += mode_warnings
         out.update(effort_scale=list(EFFORT_SCALE), warnings=warnings, errors=errors)
     if repo_root is None:
         out["warnings"].append("not inside a git repository; no CE config to read")
