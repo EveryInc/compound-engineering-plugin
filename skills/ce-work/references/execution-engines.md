@@ -99,11 +99,11 @@ This subsection applies when the resolver reports `inherit` or `entries` for the
 
 A candidate from an entry that carries an effort is never equivalent to the current host. It is not skipped as a route to self, and it does not collapse to native execution. It runs through the host's own CLI route at that effort: `opus medium` in a Claude Code session already on Opus runs through the `claude` route at `medium`.
 
-A null `harness` means the resolver could not place the model in a family, so no candidate can be formed from the entry. Unless a native subagent serves it, the run ends on native execution on the session model, and the `Model role` line says that the model's family has no engine route.
+A null `harness` means no engine route accepts the entry's model, so no candidate can be formed from the entry. Unless a native subagent serves it, the run ends on native execution on the session model, and the `Model role` line says that no engine route accepts the model.
 
 **Fallback.** A candidate from the entry follows the fallback ladder in `references/model-roles.md`, not the unavailable-candidate rules above. Walk the ladder at preflight, before any work is sent. `references/cross-model-execution.md` gives the question that asks the adapter script which effort levels a route accepts. The route's default model is the same candidate with no `model`. After dispatch starts, the recipient lock and the single fallback claim in `references/cross-model-execution.md` apply unchanged.
 
-**Report.** Print the `Model role` line with the run's closing summary. In Return-to-Caller Mode, print it immediately before the structured return, which gains no field for it. `requested_model` holds the model the entry names. `requested_effort` holds the entry's effort whenever an external route ran, even when that route ran at a lower effort or with none applied. `fallback_reason` names a step-down, an effort that was not applied, a default-model substitution, the personal opt-out, or a family with no engine route. The binding's `source` names the `model_roles` entry and the file it came from.
+**Report.** Print the `Model role` line with the run's closing summary. In Return-to-Caller Mode, print it immediately before the structured return, which gains no field for it. `requested_model` holds the model the entry names. `requested_effort` holds the entry's effort whenever an external route ran, even when that route ran at a lower effort or with none applied. `fallback_reason` names a step-down, an effort that was not applied, a default-model substitution, the personal opt-out, or a model that no engine route accepts. The binding's `source` names the `model_roles` entry and the file it came from.
 
 ## Step 1: Probe host capability
 

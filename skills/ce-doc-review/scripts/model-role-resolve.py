@@ -36,7 +36,8 @@ structurally malformed `model_roles` block in either file makes every role
 - A bad seat carries `"invalid": true`, a `reason`, and its `raw` text, with the
   other fields null. An `inherit` seat has model `inherit` and a null family.
 - `family` is also the seat's peer key. `harness` is set on `work` entries only:
-  the engine harness for the family (composer -> cursor), null when unknown.
+  the engine harness for the family (composer -> cursor), null when no engine
+  route accepts the id (an unknown family, or a provider-qualified Codex id).
 - `blocked_by` is set on review seats only: `review_mode_off` when
   `cross_model_review_mode` resolves to `off`, `peers_allowlist` when the
   CROSS_MODEL_PEERS environment variable excludes the seat. A seat in the
@@ -215,6 +216,14 @@ def parse_entry(text: str):
     return tokens[0], tokens[1] if len(tokens) == 2 else None
 
 
+def _engine_harness(model: str, model_family: str) -> str | None:
+    """The work engine harness for an entry, or None when no engine route accepts it.
+    The engine's Codex route takes an unqualified id only, unlike the review workers."""
+    if model_family == "codex" and not re.match(r"gpt-|o\d", model.lower()):
+        return None
+    return HARNESS.get(model_family)
+
+
 def family(model: str) -> str:
     name = model.lower().split("[", 1)[0]
     if "/" not in name:
@@ -255,7 +264,7 @@ def _seat(number: int, text: str, role: str, policy: dict) -> dict:
         model, effort = parsed
         seat.update(model=model, effort=effort, family=family(model))
         if role == "work":
-            seat["harness"] = HARNESS.get(seat["family"])
+            seat["harness"] = _engine_harness(seat["model"], seat["family"])
         if role in REVIEW_ROLES:
             seat["blocked_by"] = _blocked_by(seat["family"], policy)
     return seat
