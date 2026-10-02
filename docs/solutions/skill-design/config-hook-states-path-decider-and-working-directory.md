@@ -37,14 +37,15 @@ A fifth slip went the other way. Once the hook stressed that the resolver decide
 
 ## Guidance
 
-A hook that conditions a step on a repo file gives the agent four facts in this order. The current wording is in `skills/ce-plan/references/reasoning-elevation.md:17`, and the same sentence shape is used at the other nine sites.
+A hook that conditions a step on a repo file gives the agent five facts in this order. The current wording is in `skills/ce-plan/references/reasoning-elevation.md:17`, and the same sentence shape is used at the other nine sites.
 
 1. **The full path of every file, and that it is opened by path.** Write `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml`, never the directory once and a bare file name after it. Say why: a file search skips that hidden directory.
 2. **The skip, before the action.** State the case where nothing happens first, and name what is skipped: do not read the reference, do not run its script, print nothing.
 3. **The action, naming the script as the thing to run.** "Run its resolver for the `plan` role" rather than "resolve the `plan` role". An agent that has just read the file treats "resolve" as already done.
-4. **Who decides.** One sentence: the resolver's answer decides the role, and the agent's own reading of the entry does not.
+4. **The trigger is the key, not an entry for this role.** "Otherwise, even with no entry for this role, read … and run its resolver." When the map held an entry for another role only, Codex saw none for its own and skipped the resolver, and once reported the other role's model.
+5. **Who decides.** One sentence: the resolver decides the role, and the agent's reading of the config does not.
 
-The reference that carries the script's command states where to run it. `skills/ce-plan/references/model-roles.md:13` says to run the resolver with the project as the working directory, because it reads the config of the repository it runs in.
+The reference that carries the script's command states where to run it. `skills/ce-plan/references/model-roles.md:11` says to run the resolver with the project as the working directory, because it reads the config of the repository it runs in.
 
 Grade the route as well as the answer. A cell that only checks the declared model passes when the agent read the entry by eye. The cells that exposed the third failure declare a required read with `files_read_post` (`tests/skill-eval-cell/catalog.ts`, graded in `tests/skill-eval-cell/grade.ts:275`), and their matching no-map cells forbid the resolver in `ACTIONS`. The pair fails in both directions: the route skipped when a map exists, and the route taken when none does.
 
@@ -54,7 +55,7 @@ Each omission produced a silent failure. The user configures a model, the step r
 
 The failures are invisible on the authoring model. Claude followed the first wording in every cell, so an eval run on Claude alone would have shipped it. They are also invisible to a grade that reads only the declared answer, because simple fixtures make a shortcut look correct.
 
-Fixing one omission exposed the next. Telling the agent where the files are made it open them, and having opened them it stopped needing the script. Telling it the script decides made it run the script in cases that should skip. A hook like this is settled only when a round passes in both directions on the weaker host. The final wording has one such round, so the last row of the table below is thin evidence.
+Fixing one omission exposed the next. Telling the agent where the files are made it open them, and having opened them it stopped needing the script. Telling it the script decides made it run the script in cases that should skip. A hook like this is settled only when rounds pass in both directions on the weaker host. One round is not evidence: the wording before the last one looked clean after one round and showed two misses over eleven.
 
 ## When to Apply
 
@@ -80,11 +81,11 @@ After:
 ```text
 **Model role.** Open `.compound-engineering/config.local.yaml` and
 `.compound-engineering/config.yaml` at the repo root by path, because a file search skips
-that hidden directory. When neither has an active `model_roles:` key, skip this: do not
-read `references/model-roles.md` or run its resolver, and print nothing about model roles.
-When either has the key, read `references/model-roles.md` now and run its resolver for
-the `plan` role before reading the per-skill key. The resolver's answer decides the role;
-your own reading of the entry does not.
+that hidden directory. If neither has an active `model_roles:` key, do not read
+`references/model-roles.md`, do not run its resolver, and print nothing about model roles.
+Otherwise, even with no entry for this role, read `references/model-roles.md` now and run
+its resolver for the `plan` role before reading the per-skill key. The resolver decides
+the role, not your reading of the config.
 ```
 
 Codex results by hook wording, counted over the graded Codex cells of each round:
@@ -94,9 +95,10 @@ Codex results by hook wording, counted over the graded Codex cells of each round
 | Directory once, bare `config.yaml` after it | 2 of 9 | not reached | 0 | 0 |
 | Both full paths, opened by path | 0 of 36 | 4 of 20 | 0 of 16 | 0 |
 | Plus "run its resolver" and "the resolver's answer decides" | 0 of 38 | 0 of 20 | 2 of 16 | 2 of 20 |
-| Skip stated first, and the reference says to run from the project | 0 of 19 | 0 of 10 | 0 of 8 | 0 of 10 |
+| Skip stated first, and the reference says to run from the project | 0 of 209 | 2 of 110 | 1 of 88 | 0 of 110 |
+| Plus "even with no entry for this role" | 0 of 95 | 0 of 50 | 1 of 40 | 0 of 50 |
 
-The first row is one partial round, the next two rows are two rounds each, and the last row is one round. Over the same rounds Claude passed 111 of 112 cells, and its one miss was an answer-format slip in a new cell. Cursor passed 58 of 58 over three rounds, the first of which ran before the bare file name was fixed.
+The first row is one partial round, the next two rows are two rounds each, the fourth row is eleven rounds, and the last row is five. In the fourth row's rounds Codex also read the wrong role's entry once, in the cell whose map has no entry for its role; that did not recur in the last row. Over all of these rounds Claude passed every cell but one, an answer-format slip in a new cell, and Cursor passed every cell.
 
 ## Related
 
