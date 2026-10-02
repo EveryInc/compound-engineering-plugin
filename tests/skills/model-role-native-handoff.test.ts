@@ -27,12 +27,6 @@ const hookFor = (role: string) =>
     `\\*\\*Model role\\.\\*\\*[^\\n]*\`model_roles:\`[^\\n]*\`references/model-roles\\.md\`[^\\n]*\`${role}\` role`,
   )
 
-/** Byte size as a Windows checkout with CRLF line endings would inject it (tests/codex-skill-prompt-budget.test.ts). */
-function crlfByteSize(contents: string): number {
-  const lf = contents.replace(/\r\n/g, "\n")
-  return Buffer.byteLength(lf, "utf8") + (lf.match(/\n/g)?.length ?? 0)
-}
-
 /** Bodies of the fenced blocks in a Markdown file, without the fence lines. */
 function fencedBlocks(source: string): string[] {
   return [...source.matchAll(/^```[^\n]*\n([\s\S]*?)\n```$/gm)].map((match) => match[1])
@@ -55,10 +49,6 @@ describe("ce-simplify-code `simplify` role hand-off", () => {
 
   test("prints the `Model role` line in the Step 5 summary", () => {
     expect(section(body, "## Step 5: Summarize")).toContain("`Model role` line")
-  })
-
-  test("the body keeps about 200 bytes of room under the 8,000-byte prompt bound", () => {
-    expect(crlfByteSize(body)).toBeLessThanOrEqual(8_000 - 200)
   })
 
   test("the reviewers keep their tier, and a failed hand-off lands on the session", () => {

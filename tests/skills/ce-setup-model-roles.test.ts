@@ -1,7 +1,7 @@
 import { readFileSync } from "fs"
 import path from "path"
 import { describe, expect, test } from "bun:test"
-import { load } from "js-yaml"
+import { parseFrontmatter } from "../../src/utils/frontmatter"
 
 // ce-setup's model role flow is the one place setup writes a `model_roles` map,
 // and the one place it may write the personal `config.local.yaml`. These guards
@@ -20,15 +20,9 @@ const read = (rel: string) => readFileSync(path.join(REPO, rel), "utf8")
 const SKILL = read("skills/ce-setup/SKILL.md")
 const REFERENCE_PATH = "skills/ce-setup/references/model-roles-setup.md"
 
-function frontmatter(body: string): Record<string, unknown> {
-  const match = body.match(/^---\r?\n([\s\S]*?)\r?\n---/)
-  expect(match, "frontmatter block").not.toBeNull()
-  return load(match![1]) as Record<string, unknown>
-}
-
 describe("ce-setup model role flow contract", () => {
   test("SKILL.md names the models trigger and routes to the reference", () => {
-    expect(frontmatter(SKILL)["argument-hint"]).toContain("models")
+    expect(parseFrontmatter(SKILL).data["argument-hint"]).toContain("models")
 
     const start = SKILL.indexOf("## Model Roles")
     expect(start, "## Model Roles section").toBeGreaterThan(-1)
