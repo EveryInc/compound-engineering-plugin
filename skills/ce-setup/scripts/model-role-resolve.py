@@ -37,7 +37,8 @@ structurally malformed `model_roles` block in either file makes every role
   other fields null. An `inherit` seat has model `inherit` and a null family.
 - `family` is also the seat's peer key. `harness` is set on `work` entries only:
   the engine harness for the family (composer -> cursor), null when no engine
-  route accepts the id (an unknown family, or a provider-qualified Codex id).
+  route accepts the id (an unknown family, a provider-qualified Codex id, or
+  an id with a bracketed qualifier).
 - `blocked_by` is set on review seats only: `review_mode_off` when
   `cross_model_review_mode` resolves to `off`, `peers_allowlist` when the
   CROSS_MODEL_PEERS environment variable excludes the seat. A seat in the
@@ -218,8 +219,9 @@ def parse_entry(text: str):
 
 def _engine_harness(model: str, model_family: str) -> str | None:
     """The work engine harness for an entry, or None when no engine route accepts it.
-    The engine's Codex route takes an unqualified id only, unlike the review workers."""
-    if model_family == "codex" and not re.match(r"gpt-|o\d", model.lower()):
+    The engine's routes take an unqualified id only: no bracketed qualifier, and no
+    provider prefix on a Codex id. The review workers accept both."""
+    if "[" in model or (model_family == "codex" and not re.match(r"gpt-|o\d", model.lower())):
         return None
     return HARNESS.get(model_family)
 

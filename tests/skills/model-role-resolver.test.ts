@@ -167,6 +167,9 @@ describe("entries and layering", () => {
       ["opus[1m]", "max", "claude"],
       ["opus[1m]", null, "claude"],
     ])
+    // The work engine's routes take an unqualified id only, so a qualified entry gets no engine.
+    const qualified = role(makeProject(map("  work: opus[1m] high\n")), "work").entries[0]
+    expect(qualified).toMatchObject({ model: "opus[1m]", family: "claude", harness: null })
     // An empty qualifier is not an id.
     const work = role(dir, "work")
     expect(work.state).toBe("unset")
