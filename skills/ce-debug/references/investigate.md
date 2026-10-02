@@ -21,6 +21,16 @@ Read the **full thread**, not just the opening post. Read every comment, with pa
 
 The `debug` role's deliverable is the diagnosis and the fix. The role has no peer route. `mode:pipeline` and `mode:return-to-caller` honor the entry the way interactive use does, and no mode asks about it.
 
+**Investigation hand-off.** The entry's model produces the diagnosis on every path, and a trivial bug changes only how deep the diagnosis goes. When the role hands off and the host can give the entry's model to a subagent, one read-only subagent on that model diagnoses: on the trivial-bug fast-path below it states the cause and the proposed fix, and otherwise it gathers the evidence and proposes the causal chain. When the host cannot, the session diagnoses as the rest of this file describes.
+
+For a hand-off, create a private run directory with `mktemp -d "${TMPDIR:-/tmp}/ce-debug-XXXXXX"`, then write `handoff.md` in it. A run with no hand-off creates neither. That file holds the problem statement from Phase 0 and the content of the issue of record when there is one.
+
+The subagent's prompt carries the path of `handoff.md`, the absolute path of this file, the output path `investigation.md` in the same directory, and the text of SKILL.md's **Secrets in evidence** rule. The subagent follows Phases 1 and 2 of this file through hypothesis formation, or on the fast-path stops once it has stated the cause and the proposed fix. It is read-only: it edits no file, changes no git state, and dispatches nothing. A probe that needs an edit or a git state change, which includes instrumentation and 1.2's stash experiment, is named in its output for the session to run. A question only the user can answer is named there too. The subagent writes `investigation.md` and returns only that path. The file states the reproduction check and what it showed, each observation with its file:line, what was ruled out and why, what is left for the session, and the proposed causal chain with its uncertain links marked.
+
+The session reads `investigation.md` as a proposal. It runs the probes the subagent left, closes any gap, and decides whether the chain passes SKILL.md's causal-chain gate.
+
+**Reporting.** One `Model role debug:` line covers the run, in the format `references/model-roles.md` defines. In interactive use it is the last line of Phase 4's Debug Summary. In `mode:pipeline` and `mode:return-to-caller` it is the optional `model_role` field of the structured return. When the investigation and the fix were served differently, the line reports the fix, and its `reason:` says how the investigation was served.
+
 **Trivial-bug fast-path:** if the cause is immediately readable from the input (single-file typo, missing import, obvious null deref or off-by-one with a one-line fix) and verification needs no deep tracing, present the cause and proposed fix, then return to SKILL.md's Phase 2 gate (the fix-choice question it asks before any edit) before editing. On "fix": first take SKILL.md's Phase 3 preconditions, the branch check and the pre-fix scope record, because a one-line fix is still a fix and Phase 4 cannot reconstruct that record afterwards. Then apply it, leave a one-line note explaining the cause, and skip to Phase 4's structured summary. On "diagnosis only": write the summary and stop. When in doubt, run the full framework. A wrong root cause costs more than the ceremony.
 
 **Questions:** do not ask by default; investigate first (read code, run tests, trace errors). Ask only when a genuine ambiguity blocks investigation and cannot be resolved by reading code or running tests, and ask one specific question. The exception: if the user signals prior failed attempts ("I've been trying", "keeps failing", "stuck"), ask what they already tried *before* investigating, so you do not repeat a dead end.
@@ -28,16 +38,6 @@ The `debug` role's deliverable is the diagnosis and the fix. The role has no pee
 ---
 
 ### Phase 1: Investigate
-
-**Investigation hand-off.** When the role hands off and the host can give the entry's model to a subagent, one read-only subagent on that model gathers the evidence and proposes the causal chain. When the host cannot, the session investigates as the rest of this file describes. The trivial-bug fast-path has no investigation to hand off: the session states the cause, and the fix hand-off in `references/fix.md` still applies.
-
-For a hand-off, create a private run directory with `mktemp -d "${TMPDIR:-/tmp}/ce-debug-XXXXXX"`, then write `handoff.md` in it. A run with no hand-off creates neither. That file holds the problem statement from Phase 0 and the content of the issue of record when there is one.
-
-The subagent's prompt carries the path of `handoff.md`, the absolute path of this file, the output path `investigation.md` in the same directory, and the text of SKILL.md's **Secrets in evidence** rule. The subagent follows Phases 1 and 2 of this file through hypothesis formation. It is read-only: it edits no file, changes no git state, and dispatches nothing. A probe that needs an edit or a git state change, which includes instrumentation and 1.2's stash experiment, is named in its output for the session to run. A question only the user can answer is named there too. The subagent writes `investigation.md` and returns only that path. The file states the reproduction check and what it showed, each observation with its file:line, what was ruled out and why, what is left for the session, and the proposed causal chain with its uncertain links marked.
-
-The session reads `investigation.md` as a proposal. It runs the probes the subagent left, closes any gap, and decides whether the chain passes SKILL.md's causal-chain gate.
-
-**Reporting.** One `Model role debug:` line covers the run, in the format `references/model-roles.md` defines. In interactive use it is the last line of Phase 4's Debug Summary. In `mode:pipeline` and `mode:return-to-caller` it is the optional `model_role` field of the structured return. When the investigation and the fix were served differently, the line reports the fix, and its `reason:` says how the investigation was served.
 
 #### 1.1 Reproduce the bug
 
