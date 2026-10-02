@@ -3816,7 +3816,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     fixture: `${FIX}/model-roles-code-review-lite`,
     why: "The `depth-gate-loud-lite` diff with a `code-review` seat list configured. Seats run only where the reviewer team is dispatched, so the review runs no seat and no resolver, and its Coverage must say the role was not applied and that `depth:full` applies it. Lite or focused both pass: the depth judgment has its own rows. The task never mentions model roles; `depth:full` appears in the answer only when that Coverage sentence fires.",
     pre_contract: "The lite path never looks at the model role map, so a configured seat list is skipped with nothing said.",
-    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate. If the gate selects lite or focused, also list each statement the receipt's Coverage will make, one per line, without reviewing the diff. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate. If the gate selects lite or focused, continue into that path far enough to list each statement its receipt's Coverage must make, one per line. Do not review the diff itself. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
 
 End with exactly one line in this form and nothing else on that line:
 
