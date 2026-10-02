@@ -313,6 +313,17 @@ describe("elevation-dispatch worker", () => {
     expect(result.receipt).toBe("mismatch")
   })
 
+  test("a full id matches its own receipt and not a longer id that starts the same", () => {
+    const served = (id: string) =>
+      "#!/bin/sh\n" + `printf '%s\\n' '${RESULT_LINE("PLAN BODY", { [id]: { outputTokens: 5 } })}'\n`
+    // The dated form of the requested id is the same model.
+    expect(runWorker("claude-opus-5", served("claude-opus-5-20260801")).result.receipt).toBe("matched")
+    // `claude-opus-50-*` is another model, although it starts with the requested id.
+    const other = runWorker("claude-opus-5", served("claude-opus-50-20260801")).result
+    expect(other.served_model).toBe("claude-opus-50-20260801")
+    expect(other.receipt).toBe("mismatch")
+  })
+
   test("an alias with a bracketed qualifier matches its family's receipt", () => {
     const stub =
       "#!/bin/sh\n" +

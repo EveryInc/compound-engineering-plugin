@@ -173,9 +173,12 @@ classify_receipt() {   # <requested> <served>
   { [ -z "$served" ] || [ "$served" = "unverified" ]; } && { printf 'unverified'; return; }
   prefix="$(model_prefix "$1")"
   [ -z "$prefix" ] && { printf 'unverified'; return; }
+  # Match at an id boundary: the stem itself, or the stem followed by `-`.
+  # `claude-opus-5` must not accept `claude-opus-50-*`.
+  prefix="${prefix%-}"
   case "$served" in
-    "$prefix"*) printf 'matched' ;;
-    *)          printf 'mismatch' ;;
+    "$prefix"|"$prefix"-*) printf 'matched' ;;
+    *)                     printf 'mismatch' ;;
   esac
 }
 
@@ -261,11 +264,12 @@ run_codex_cmd
 # (an update notice, wrapper output) does not become the "result" we parse.
 EVENT="$(grep -a '"type":"result"' "$PEERLOG" 2>/dev/null | tail -1 || true)"
 PREFIX="$(model_prefix "$MODEL")"
+PREFIX="${PREFIX%-}"
 # jq `keys` is sorted, so keys[0] is not necessarily the served model when
 # modelUsage carries an auxiliary model too; prefer the requested family's key.
 SERVED="$(printf '%s' "$EVENT" | jq -r --arg p "$PREFIX" \
   '(.modelUsage // {} | keys) as $k
-   | (if $p != "" then first($k[] | select(startswith($p))) else empty end) // $k[0] // "unverified"' \
+   | (if $p != "" then first($k[] | select(. == $p or startswith($p + "-"))) else empty end) // $k[0] // "unverified"' \
   2>/dev/null || printf 'unverified')"
 # Ship "ok" only on a clean success — a terminal event carries .result even when
 # truncated/errored (subtype error_*, is_error true). HAS_OUTPUT is a tiny jq
