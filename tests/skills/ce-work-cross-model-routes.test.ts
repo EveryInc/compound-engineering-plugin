@@ -63,6 +63,10 @@ function seedCanonicalRepo(): string {
   writeFileSync(path.join(canonical, "README.md"), "seed\n")
   writeFileSync(path.join(canonical, "docs", "plans", "plan.md"), "# Test plan\n")
   spawnSync("git", ["init", "-q", canonical])
+  // Every fixture is a recursive copy of this repo. A detached `git maintenance`
+  // run after the commit would create and remove lock files while it is copied.
+  spawnSync("git", ["-C", canonical, "config", "gc.auto", "0"])
+  spawnSync("git", ["-C", canonical, "config", "maintenance.auto", "false"])
   spawnSync("git", ["-C", canonical, "config", "user.email", "test@example.com"])
   spawnSync("git", ["-C", canonical, "config", "user.name", "Test"])
   spawnSync("git", ["-C", canonical, "add", "."])
