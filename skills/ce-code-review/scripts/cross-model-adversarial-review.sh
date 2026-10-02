@@ -417,7 +417,8 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || skip "not inside a g
 PEER_WORKDIR="$REPO_ROOT"
 
 # --- resolve which provider(s) to run (exclude host, allowlist, availability) --
-ALLOW="${CROSS_MODEL_PEERS:-}"
+# Read the allowlist the way the role resolver does: whitespace ignored, lowercase.
+ALLOW="$(printf '%s' "${CROSS_MODEL_PEERS:-}" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
 MAX_PEERS="${CROSS_MODEL_MAX_PEERS:-1}"
 case "$MAX_PEERS" in ''|*[!0-9]*) MAX_PEERS=1 ;; esac
 [ "$MAX_PEERS" -gt 2 ] && MAX_PEERS=2

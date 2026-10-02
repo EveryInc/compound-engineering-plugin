@@ -1620,6 +1620,10 @@ describe("cross-model-doc-review review seats (CROSS_MODEL_SEAT)", () => {
     runDir = makeRunDir()
     r = run(seatArgs("claude", "composer", doc, runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "cursor" })
     expect(r.stderr).not.toContain(refused)
+    // The resolver trims and lowercases the allowlist, so the worker reads it the same way.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", doc, runDir), runDir, { ...seat, CROSS_MODEL_PEERS: " Cursor , grok" })
+    expect(r.stderr).not.toContain(refused)
 
     // Another provider's seat is still refused, and so is Composer outside a seat.
     runDir = makeRunDir()
