@@ -478,6 +478,18 @@ seat_cleared() {
   [ "$1" = composer ] && in_csv cursor "$ALLOW"
 }
 
+# A seat is one model. A receipt that names a different model than the one the
+# seat requested means the seat was not served, so nothing is published for it.
+# Only the Claude route returns a receipt; a route without one cannot tell.
+seat_model_mismatch() {   # <route>
+  [ -n "$SEAT" ] && [ "$1" = claude ] && [ "$MODEL_ACTUAL" != "unverified" ] || return 1
+  local prefix
+  prefix="$(expected_model_prefix "$(route_model claude)")"
+  [ -n "$prefix" ] || return 1
+  case "$MODEL_ACTUAL" in "$prefix"|"$prefix"-*) return 1 ;; esac
+  return 0
+}
+
 # Soft size gate: peer prompt embeds the full document. Over-budget docs skip
 # cleanly (R11) rather than collapsing silently inside the provider context window.
 MAX_DOC_CHARS="${CROSS_MODEL_MAX_DOC_CHARS:-200000}"
@@ -1200,6 +1212,10 @@ run_provider() {   # <provider>
   # Publish ONLY the normalized OUT into RUN_DIR. RAW_OUT lives in the per-peer
   # workspace and is never a fold-in artifact — if this script dies before normalize
   # (orphaned launch), synthesis finds no .json in RUN_DIR.
+  if seat_model_mismatch "$ACTUAL_ROUTE"; then
+    log "seat $SEAT: requested $(route_model "$ACTUAL_ROUTE"), backend served $MODEL_ACTUAL; a seat is never filled by another model, so no artifact is written"
+    rm -f "$RAW_OUT"
+  fi
   rm -f "$OUT"
   if [ -s "$RAW_OUT" ]; then
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-norm-XXXXXX")"

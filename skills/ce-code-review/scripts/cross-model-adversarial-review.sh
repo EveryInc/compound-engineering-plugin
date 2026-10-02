@@ -447,6 +447,18 @@ seat_cleared() {
   [ "$1" = composer ] && in_csv cursor "$ALLOW"
 }
 
+# A seat is one model. A receipt that names a different model than the one the
+# seat requested means the seat was not served, so nothing is published for it.
+# Only the Claude route returns a receipt; a route without one cannot tell.
+seat_model_mismatch() {   # <route>
+  [ -n "$SEAT" ] && [ "$1" = claude ] && [ "$MODEL_ACTUAL" != "unverified" ] || return 1
+  local prefix
+  prefix="$(expected_model_prefix "$(route_model claude)")"
+  [ -n "$prefix" ] || return 1
+  case "$MODEL_ACTUAL" in "$prefix"|"$prefix"-*) return 1 ;; esac
+  return 0
+}
+
 # The Codex desktop app (Codex.app, or ChatGPT.app since the July 2026 merger)
 # ships `codex` at Contents/Resources without linking it onto PATH (#1272).
 # Append, never prepend, so a PATH-installed CLI stays authoritative.
@@ -1219,6 +1231,10 @@ run_provider() {
   fi
   ATTEMPT_HARD_SECS=""
 
+  if seat_model_mismatch "$ACTUAL_ROUTE"; then
+    log "seat $SEAT: requested $(route_model "$ACTUAL_ROUTE"), backend served $MODEL_ACTUAL; a seat is never filled by another model, so no artifact is written"
+    rm -f "$RAW_OUT"
+  fi
   rm -f "$OUT"
   if [ -s "$RAW_OUT" ]; then
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-norm-XXXXXX")"

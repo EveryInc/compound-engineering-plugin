@@ -1640,6 +1640,26 @@ describe("cross-model-doc-review review seats (CROSS_MODEL_SEAT)", () => {
     expect(r.stderr).toContain(`provider 'codex' ${refused}`)
   })
 
+  test("a seat whose receipt names another model writes no artifact", () => {
+    const otherModelStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"whole-doc","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":10}}}'\n`
+    const { env } = sandbox(["claude"], otherModelStub)
+    const doc = makeDoc()
+    const override = { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: "opus" }
+
+    // A seat is one model: when the receipt says another served, the seat was not served.
+    let runDir = makeRunDir()
+    let r = run(seatArgs("codex", "claude", doc, runDir), runDir, { ...env, ...override, CROSS_MODEL_SEAT: "1" })
+    expect(r.files).toEqual([])
+    expect(r.stderr).toContain("a seat is never filled by another model")
+
+    // Outside a seat the single-peer pass still publishes and warns, as before.
+    runDir = makeRunDir()
+    r = run(seatArgs("codex", "claude", doc, runDir), runDir, { ...env, ...override })
+    expect(r.stderr).toContain("WARNING: model mismatch")
+    expect(r.files.length).toBe(1)
+  })
+
   test("a Claude alias with a bracketed qualifier is checked against its family's receipt", () => {
     const receiptStub =
       `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"whole-doc","findings":[{"section":"X","title":"t"}]},"modelUsage":{"claude-opus-5-5-20260801":{"inputTokens":10}}}'\n`
