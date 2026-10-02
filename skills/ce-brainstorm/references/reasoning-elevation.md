@@ -16,13 +16,13 @@ Resolve the per-skill **model choice immediately before adapter selection**, so 
 
    **Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. When neither has an active `model_roles:` key, skip this: do not read `references/model-roles.md` or run its resolver, and print nothing about model roles. When either has the key, read `references/model-roles.md` now and run its resolver for the `plan` role in ce-plan, or the `brainstorm` role in ce-brainstorm, before reading the per-skill key. The resolver's answer decides the role; your own reading of the entry does not.
 
-   The entry governs this file's elevated step: the authored plan for `plan`, the generated approaches for `brainstorm`. The peer route is this file's Claude CLI adapter, which serves Claude-family models only. `references/model-roles.md` owns the resolver command, what each resolver `state` means, when a hand-off happens, the serving order, the fallback ladder, and the `Model role` line. This file adds the route facts under Adapter selection.
+   The entry governs this file's elevated step: the authored plan for `plan`, the generated approaches for `brainstorm`. The peer route is this file's Claude CLI adapter, which serves Claude-family models only.
 
    **Per-skill key.** The per-skill key decides when no `model_roles:` key is active, and when `references/model-roles.md` says the step continues with the skill's existing keys. The key is `plan_model` for ce-plan, `brainstorm_model` for ce-brainstorm. Read it the **same way this skill's Phase 0.0 (output-mode resolution) resolves `plan_output` / `brainstorm_output`**: reuse the repo root already resolved, else run `git rev-parse --show-toplevel`, then apply the ordinary-key rule (`config.local.yaml` then `config.yaml`). Reuse the Phase 0.0 reads if still in hand. Ignore commented (`#`-prefixed) lines. A model alias selects it; missing / commented / invalid / no file selects none.
 
-**Precedence: latest explicit live user intent, then caller carrier, then config.** In pipeline / `disable-model-invocation` runs, where there is no live user dialogue, resolution is caller-carrier-then-config. Nothing elevates without one of those sources. Inside the config tier, the role's map entry in either file outranks the per-skill key in either file. A live instruction or a caller carrier replaces the entry whole, including its effort, and the step then runs as it does with no map.
+**Precedence: latest explicit live user intent, then caller carrier, then config.** In pipeline / `disable-model-invocation` runs, where there is no live user dialogue, resolution is caller-carrier-then-config. Nothing elevates without one of those sources.
 
-If the session model already **is** the resolved model and the choice carries no effort, there is nothing to elevate: skip dispatch (see Transparency for whether a line is still printed). A map entry with an effort always hands off, even when it names the session model.
+If the session model already **is** the resolved model and the choice carries no effort, there is nothing to elevate: skip dispatch (see Transparency for whether a line is still printed).
 
 ## Adapter selection
 
@@ -32,12 +32,7 @@ When elevation is active, resolve an adapter in this fixed order and use the fir
 2. **Claude CLI.** Run the bundled `scripts/elevation-dispatch.sh` worker as a detached job (see Off-host dispatch). Available when `claude` is on PATH. Do not preflight authentication in the host command context: the detached worker's provider-capable call is authoritative, and an authentication failure there follows Recovery.
 3. **Inline on the session model.** The always-available fallback.
 
-**Map entries.** A choice from a `model_roles` entry uses these same adapters in the serving order of `references/model-roles.md`, which also owns the fallback ladder. That file needs these facts about this file's routes:
-
-- An entry with no effort keeps the fixed order above.
-- An entry with an effort uses the first adapter that can carry the effort. The native adapter can only where the host's subagent tool sets effort. Elsewhere it is the ladder's route with no effort control. The Claude CLI adapter can for a Claude-family model, which means the resolver reports the entry's `family` as `claude`. It accepts every effort on the resolver's scale.
-- An entry in another model family has no CLI adapter in this file, so only the native adapter can serve it.
-- When no adapter can serve the entry as written, or the adapter that started fails, the ladder decides the next step.
+**Map entries.** A choice from a `model_roles` entry uses these same adapters in the serving order of `references/model-roles.md`, which also owns the fallback ladder. The Claude CLI adapter serves an entry whose `family` the resolver reports as `claude`, and it accepts every effort on the resolver's scale.
 
 Elevation is never a correctness dependency: every adapter failure degrades to the next, and inline always completes the run.
 
@@ -102,7 +97,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 
 `CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run (R11) — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure (R22). `start` returns a job id in under ~2s.
 
-`CE_ELEVATION_EFFORT` sets the reasoning effort of the elevated call. `<effort>` is the map entry's effort. Use `high`, the worker's default, when the choice carries none. The worker accepts `low`, `medium`, `high`, `xhigh`, and `max`, and it rejects any other value before it launches the model.
+`CE_ELEVATION_EFFORT` sets the reasoning effort of the elevated call. `<effort>` is the map entry's effort. Use `high`, the worker's default, when the choice carries none.
 
 3. **Poll** between your other work until the job reaches a terminal state (resolve `$PY` again — each tool call is a fresh shell):
 
@@ -131,11 +126,11 @@ Classify from **both** the runner's terminal state and the worker's JSON result.
 
 A successful run has JSON `status: ok`. Treat any result whose `receipt` is `mismatch` as if it were a failure even when `status` is `ok`: **discard the output and degrade to the session model** — a served model that does not match the requested family must never be passed off as the requested one. (On the native route a mismatch instead falls through to the next adapter, per R6; on the CLI route inline is the only thing left, so discard-and-degrade is the fall-through.)
 
-Recovery **never substitutes a different model** — a plan the user believes came from their chosen model must not silently come from another. If recovery also fails, run inline on the session model. A choice from a map entry instead follows the fallback ladder in `references/model-roles.md` wherever this file degrades to the session model, and its `Model role` line names the model that served.
+Recovery **never substitutes a different model** — a plan the user believes came from their chosen model must not silently come from another. If recovery also fails, run inline on the session model. A choice from a map entry instead follows the fallback ladder in `references/model-roles.md` wherever this file degrades to the session model.
 
 ## Transparency
 
-- **Choice from a map entry** → print the `Model role` line from `references/model-roles.md` in place of the lines below, whenever that file calls for one. It adds the applied effort and the reason for any fallback. On the Claude CLI route the applied effort is the result's `requested_effort`. The bullets below govern every other run: a choice from an instruction, a carrier, or a per-skill key, and a run with no choice at all.
+- **Choice from a map entry** → print the `Model role` line from `references/model-roles.md` in place of the lines below, whenever that file calls for one. On the Claude CLI route the applied effort is the result's `requested_effort`.
 - **Elevation ran** → print one line naming the **model**, the **route**, and **why** it ran (config key, explicit user instruction, or caller carrier). Name the model as **served** when a receipt confirms it; otherwise name it as **requested** with an explicit *unverified* marker — on every route, including native.
 - **Print no line** when elevation did not run, and when the session model already is the model a **config key** requested. An **explicit user instruction** always produces a line, including when the session model already matches (so a recognized request is never indistinguishable from an unparsed one).
 - **Requested but unavailable before provider-capable dispatch** (no native support, `claude` absent, or the required launch permission unavailable) → run the step inline on the session model, name **which routing precondition was unmet**, and state what would make the requested model reachable. Once provider-capable dispatch is established, an authentication failure is instead a route-level Recovery outcome: name the observed authentication failure and the login or credential-refresh remediation.

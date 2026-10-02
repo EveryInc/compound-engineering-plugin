@@ -6,15 +6,15 @@ Read this before editing any file in Phase 3. SKILL.md runs the branch check and
 
 **Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. When neither has an active `model_roles:` key, skip this: do not read `references/model-roles.md` or run its resolver, and print nothing about model roles. When either has the key, read `references/model-roles.md` now and run its resolver for the `debug` role before the first edit. The resolver's answer decides the role; your own reading of the entry does not.
 
-When Phase 1 already resolved the role, use that result. `references/investigate.md` states the role's deliverable, its route, and where the `Model role` line goes. This file adds only the fix hand-off.
+When Phase 1 already resolved the role, use that result.
 
-**Fix hand-off.** When the role hands off and the host can give the entry's model to a subagent, one subagent on that model does steps 1 to 3 below: it writes the failing test, sees it fail for the right reason, and implements the minimal fix. The branch check, the confirmation for files that carry the user's unstaged work, the pre-fix scope record, steps 4 and 5, the count of failed attempts, and the commit stay with the session. When the host cannot hand over the model, the session does all five steps as this file describes, and the `Model role` line says so.
+**Fix hand-off.** When the role hands off and the host can give the entry's model to a subagent, one subagent on that model does steps 1 to 3 below. The branch check, the confirmation for files that carry the user's unstaged work, the pre-fix scope record, steps 4 and 5, the count of failed attempts, and the commit stay with the session. When the host cannot hand over the model, the session does all five steps as this file describes.
 
-- **Before the dispatch**, SKILL.md's Phase 3 preconditions, as this run's mode applies them, are complete for every file the diagnosis names. The session then adds the Phase 2 findings to `handoff.md`: the confirmed causal chain, the proposed fix, the files the fix may change, the test recommendation, and Phase 1's reproduction check. A run that has no run directory yet creates it first with the block in `references/investigate.md`.
+- **Before the dispatch**, SKILL.md's Phase 3 preconditions, as this run's mode applies them, are complete for every file the diagnosis names. The session then adds the Phase 2 findings to `handoff.md`: the confirmed causal chain, the proposed fix, the files the fix may change, the test recommendation, and Phase 1's reproduction check. A run that has no run directory yet creates it first, the way `references/investigate.md` does.
 - **The subagent** receives the path of `handoff.md` and the text of steps 1 to 3. It edits only the files `handoff.md` names. When the fix needs another file, it stops and returns that file's name, and the session takes the file through the same preconditions before it dispatches again. The subagent does not commit, change branches, or dispatch anything. It returns the paths it changed and the failure it observed before the fix.
-- **After the return**, the session reads the diff, runs steps 4 and 5 itself, and adds the changed paths to the fix-owned files. The commit happens where this run's mode already puts it.
-- **A failed fix** follows the rule below unchanged: the session returns to Phase 2, invalidates the hypothesis, and counts the attempt. The retry dispatches again from `handoff.md` once the session has added that Phase 2 reasoning to it.
-- **A hand-off that fails mid-edit** is finished inline. The session completes steps 1 to 3 from the working tree as it stands, runs steps 4 and 5, and names the fallback in the `reason:` of the `Model role` line.
+- **After the return**, the session adds the changed paths to the fix-owned files.
+- **A retry after a failed fix** dispatches again from `handoff.md` once the session has added the new Phase 2 reasoning to it.
+- **A hand-off that fails mid-edit** is finished inline. The session completes steps 1 to 3 from the working tree as it stands, then runs steps 4 and 5.
 
 **Test-first:**
 

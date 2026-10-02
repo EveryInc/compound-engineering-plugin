@@ -42,7 +42,7 @@ Return each decision in the shared typed residual contract. Its `sources` enumer
 
 ## Structured return
 
-The return in pipeline mode is machine-readable (the caller parses it). `model_role` is an optional key that no caller requires: it carries the `Model role debug:` line that `references/investigate.md` defines, as a string, and it is left out when no `model_roles` entry governed this run.
+The return in pipeline mode is machine-readable (the caller parses it). `model_role` is an optional key that no caller requires: it carries the `Model role debug:` line as a string.
 
 ```json
 {

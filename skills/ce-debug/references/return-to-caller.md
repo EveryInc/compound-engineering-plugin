@@ -17,7 +17,7 @@ Phases 0 through 3 run as the body defines them, with the investigation rigor un
 
 ## Structured return
 
-The return is machine-readable; the caller parses it and branches on the exact `status` spellings, so never rename, abbreviate, or add to them. The keys are fixed in the same way. `model_role` is the one optional key: it carries the `Model role debug:` line that `references/investigate.md` defines, as a string, and it is left out when no `model_roles` entry governed this run.
+The return is machine-readable; the caller parses it and branches on the exact `status` spellings, so never rename, abbreviate, or add to them. The keys are fixed in the same way. `model_role` is the one optional key: it carries the `Model role debug:` line as a string.
 
 ```json
 {

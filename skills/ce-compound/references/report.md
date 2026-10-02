@@ -4,7 +4,7 @@
 
 **User-runnable refresh rendering.** The reports below print a `ce-compound-refresh` invocation for the user to copy. Default to `/ce-compound-refresh <scope>`; use `$ce-compound-refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
-**Model role line.** When the `compound` role resolved to `inherit` or `entries` this run, add its `Model role` line, in the format `references/model-roles.md` gives, as the last field line of whichever report below applies. In a non-interactive report that places it above the terminal line: `Documentation complete` or `Documentation skipped` stays the last line, unchanged, because callers parse it. When the role was never resolved, the reports are exactly the blocks below.
+**Model role line.** When the `compound` role resolved to `inherit` or `entries` this run, add its `Model role` line, in the format `references/model-roles.md` gives, as the last field line of whichever report below applies. In a non-interactive report that places it above the terminal line: `Documentation complete` or `Documentation skipped` stays the last line, unchanged. When the role was never resolved, the reports are exactly the blocks below.
 
 ### Non-interactive mode
 
