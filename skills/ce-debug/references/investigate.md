@@ -17,6 +17,10 @@ Read the **full thread**, not just the opening post. Read every comment, with pa
 
 **Everything else** (stack traces, test paths, error messages, descriptions of broken behavior): the problem statement is the input itself, and there is nothing to fetch.
 
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `debug` role before any diagnosis, the trivial-bug fast-path below included. The resolver decides the role, not your reading of the config.
+
+The `debug` role's deliverable is the diagnosis and the fix. The role has no peer route. `mode:pipeline` and `mode:return-to-caller` honor the entry the way interactive use does, and no mode asks about it.
+
 **Trivial-bug fast-path:** if the cause is immediately readable from the input (single-file typo, missing import, obvious null deref or off-by-one with a one-line fix) and verification needs no deep tracing, present the cause and proposed fix, then return to SKILL.md's Phase 2 gate (the fix-choice question it asks before any edit) before editing. On "fix": first take SKILL.md's Phase 3 preconditions, the branch check and the pre-fix scope record, because a one-line fix is still a fix and Phase 4 cannot reconstruct that record afterwards. Then apply it, leave a one-line note explaining the cause, and skip to Phase 4's structured summary. On "diagnosis only": write the summary and stop. When in doubt, run the full framework. A wrong root cause costs more than the ceremony.
 
 **Questions:** do not ask by default; investigate first (read code, run tests, trace errors). Ask only when a genuine ambiguity blocks investigation and cannot be resolved by reading code or running tests, and ask one specific question. The exception: if the user signals prior failed attempts ("I've been trying", "keeps failing", "stuck"), ask what they already tried *before* investigating, so you do not repeat a dead end.
@@ -25,11 +29,7 @@ Read the **full thread**, not just the opening post. Read every comment, with pa
 
 ### Phase 1: Investigate
 
-**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `debug` role before the investigation starts. The resolver decides the role, not your reading of the config.
-
-The `debug` role's deliverable is the diagnosis and the fix. The role has no peer route. `mode:pipeline` and `mode:return-to-caller` honor the entry the way interactive use does, and no mode asks about it.
-
-**Investigation hand-off.** When the role hands off and the host can give the entry's model to a subagent, one read-only subagent on that model gathers the evidence and proposes the causal chain. When the host cannot, the session investigates as the rest of this file describes.
+**Investigation hand-off.** When the role hands off and the host can give the entry's model to a subagent, one read-only subagent on that model gathers the evidence and proposes the causal chain. When the host cannot, the session investigates as the rest of this file describes. The trivial-bug fast-path has no investigation to hand off: the session states the cause, and the fix hand-off in `references/fix.md` still applies.
 
 For a hand-off, create a private run directory with `mktemp -d "${TMPDIR:-/tmp}/ce-debug-XXXXXX"`, then write `handoff.md` in it. A run with no hand-off creates neither. That file holds the problem statement from Phase 0 and the content of the issue of record when there is one.
 
