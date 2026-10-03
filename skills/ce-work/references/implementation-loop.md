@@ -49,7 +49,7 @@ Guardrails for execution evidence:
 - Do not add a duplicate regression test when an existing test is the right home; update or strengthen that test instead, then observe the failure before changing code
 - A new or changed test must fail when the behavior it names breaks, and keep passing when only the implementation changes. It fails that bar when its expected value comes from the code under test, when a mock or fixture supplies the result the code should produce, or when it asserts calls between internal parts instead of what the code returns, stores, or sends across its boundary
 - Do not add a production export, flag, wrapper, or hook that only tests use when the real entry point can drive the behavior; test through that entry point instead
-- Skip proof-first discipline for trivial renames, pure configuration, pure styling, generated artifacts, and manual-only surfaces, but record the reason and replacement verification while continuing execution
+- Skip proof-first discipline for trivial renames, configuration that does not change a trust boundary, pure styling, generated artifacts, and manual-only surfaces, but record the reason and replacement verification while continuing execution
 
 **Test Discovery** — Before implementing changes to a file, find its existing test files (search for test/spec files that import, reference, or share naming patterns with the implementation file). When a plan specifies test scenarios or test files, start there, then check for additional test coverage the plan may not have enumerated. Changes to implementation files should be accompanied by corresponding test updates — new tests for new behavior, modified tests for changed behavior, removed or updated tests for deleted behavior.
 
@@ -62,6 +62,10 @@ Guardrails for execution evidence:
 | Existing test is over-mocked or misses the real chain | Strengthen/refactor it narrowly, then verify it fails for the right reason |
 | No existing test covers the behavior | Add the smallest focused failing test or characterization test that proves the behavior slice |
 | Testing is inappropriate for the task | Record the no-test exception and replacement verification before marking the task complete |
+
+For units that implement keyed cryptographic derivation or boot-time middleware trust, passing tests must distinguish the intended guarantee from a plausible incorrect implementation or configuration. Keyed derivation needs an independently computed known answer and a test that changes only the secret. Middleware trust needs a fresh application boot that exercises the configured chain through its real consumer.
+
+Before marking such a unit complete, demonstrate that the relevant tests fail for the expected reason under a targeted negative control, such as replacing the keyed digest with an unkeyed hash or omitting a required trusted hop. Keep the control isolated from live state, restore the intended code or configuration, rerun the tests, and record both results. If the control passes, strengthen coverage before completion. This additional proof applies only to these contracts.
 
 **Test Scenario Completeness** — Tests prove the behavior the unit builds. Before writing tests for a feature-bearing unit, make any vague plan scenario concrete (e.g., "validates correctly" becomes named inputs and expected outcomes) from the unit's Goal and Approach. A scenario category the plan left out is not a gap to fill: do not add scenarios for failure handling, validation, or edge cases the unit does not build, and do not build handling so that such a scenario can exist. Draw from these categories where the unit has them: happy path; edge cases in inputs the unit really receives; error paths for failure handling the unit builds; integration across a layer the unit changes, exercised without mocks.
 

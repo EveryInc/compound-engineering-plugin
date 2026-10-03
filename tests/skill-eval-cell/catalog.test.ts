@@ -234,6 +234,10 @@ describe("skill-eval-cell catalog", () => {
         "ce-test-xcode/missing-mcp-stops:references/setup-and-build.md",
         "ce-test-xcode/swiftui-inline-link-fallback:references/test-and-report.md",
         "ce-work/behavior-fix-routes-to-review:references/input-triage.md",
+        // Evidence selection is owned by the mandatory implementation-loop reference.
+        "ce-work/evidence-boot-trust:references/implementation-loop.md",
+        "ce-work/evidence-keyed-derivation:references/implementation-loop.md",
+        "ce-work/evidence-trivial-rename:references/implementation-loop.md",
         "ce-work/incremental-message-fallback:references/implementation-loop.md",
         "ce-work/incremental-message-literal-message:references/implementation-loop.md",
         "ce-work/incremental-message-project:references/implementation-loop.md",
@@ -342,6 +346,8 @@ describe("skill-eval-cell catalog", () => {
       "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision",
       "ce-setup/instruction-file-covered-offers-nothing",
       "ce-setup/instruction-file-gap-offers-store-and-directive",
+      "ce-work/evidence-boot-trust",
+      "ce-work/evidence-keyed-derivation",
     ])
   })
 
