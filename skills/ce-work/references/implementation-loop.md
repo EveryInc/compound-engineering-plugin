@@ -65,6 +65,8 @@ Guardrails for execution evidence:
 
 **Test Scenario Completeness** — Tests prove the behavior the unit builds. Before writing tests for a feature-bearing unit, make any vague plan scenario concrete (e.g., "validates correctly" becomes named inputs and expected outcomes) from the unit's Goal and Approach. A scenario category the plan left out is not a gap to fill: do not add scenarios for failure handling, validation, or edge cases the unit does not build, and do not build handling so that such a scenario can exist. Draw from these categories where the unit has them: happy path; edge cases in inputs the unit really receives; error paths for failure handling the unit builds; integration across a layer the unit changes, exercised without mocks.
 
+Before marking a planned unit complete, map each explicit plan `Test scenario` to the spec example that proves its outcome, or name the unverified gap in the handoff. A lock timeout alone does not prove a requested concurrent outcome; when the plan requires one, test a committed competing write and assert the final persisted state. For rollout-dependent migrations, trace the actual startup path and the order of migration DDL and cleanup/backfill tasks. If cleanup must precede DDL, verify an unmet cutover condition fails before the first schema write.
+
 **System-Wide Test Check** — Before marking a task done, trace what the change touches beyond its own files: callbacks, middleware, observers, and hooks up to two levels out, and any other interface that already exposes the behavior you changed. Read the actual code, not docs. What already worked through those paths must still work, so run or update the tests that cover them. A leaf change that touches none of them passes at once.
 
 2. **Incremental Commits**
