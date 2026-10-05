@@ -17,9 +17,7 @@ const PYTHON = ["python3", "python", "py"].find(
 )
 if (!PYTHON) throw new Error("no working Python 3 interpreter on PATH (tried python3, python, py)")
 
-function run(args: string[]) {
-  return spawnSync(PYTHON, [SCRIPT, ...args], { encoding: "utf8" })
-}
+const run = (args: string[]) => spawnSync(PYTHON, [SCRIPT, ...args], { encoding: "utf8" })
 
 describe("pr-snapshot watch bootstrap refusal", () => {
   test("bare watch fails closed with bootstrap guidance", () => {

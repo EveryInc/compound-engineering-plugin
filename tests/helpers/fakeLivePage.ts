@@ -78,7 +78,7 @@ export class FakeLivePage {
     return this.envelope(fixture.type, fixture.payload, seq)
   }
 
-  async postRaw(body: string | Uint8Array, headers = this.headers()): Promise<PostResult> {
+  async postRaw(body: string | Uint8Array<ArrayBuffer>, headers = this.headers()): Promise<PostResult> {
     const response = await fetch(`${this.url}/events`, { method: "POST", headers, body })
     const text = await response.text()
     let parsed: Record<string, unknown> = {}
@@ -182,7 +182,7 @@ export class FakeLivePage {
     return { status: response.status, body: await response.json().catch(() => ({})) }
   }
 
-  async endSession(archive: Uint8Array | string, contentType = "application/zip"): Promise<PostResult> {
+  async endSession(archive: Uint8Array<ArrayBuffer> | string, contentType = "application/zip"): Promise<PostResult> {
     const response = await fetch(`${this.url}/session/end`, {
       method: "POST",
       headers: this.headers({ "Content-Type": contentType }),

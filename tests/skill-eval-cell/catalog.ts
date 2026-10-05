@@ -96,6 +96,8 @@ export type Grade = {
   classification?: "Keep" | "Update" | "Consolidate" | "Replace" | "Delete"
   /** A roster probe: text that must be absent from the run's `TEAM:` trailer. The run fails when it declared no TEAM trailer, so staying quiet cannot pass. must_include also reads that trailer when present. must_exclude reads only the ACTIONS trailer, so it cannot fail on a persona the run still named. */
   must_not_include?: string[]
+  /** Text that must be absent from the answer's RESULT-START/RESULT-END block. The run fails when it returned no such block. */
+  result_must_not_include?: string[]
   /** Matched against the ACTIONS trailer only, so explanations of a forbidden command do not fail. */
   must_exclude?: string[]
   actions?: "none" | "any"

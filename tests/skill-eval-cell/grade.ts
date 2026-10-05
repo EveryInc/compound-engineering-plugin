@@ -310,7 +310,7 @@ export function gradeHost(opts: {
   if (opts.grade.result_must_not_include?.length) {
     const block = resultBlock(stdout)
     if (block === null) reasons.push("missing RESULT-START/RESULT-END block")
-    for (const needle of block === null ? [] : opts.grade.result_must_not_include) {
+    else for (const needle of opts.grade.result_must_not_include) {
       if (block.toLowerCase().includes(needle.toLowerCase())) {
         reasons.push(`source phrase survived in RESULT block: ${needle}`)
       }

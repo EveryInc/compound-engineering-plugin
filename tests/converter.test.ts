@@ -156,7 +156,7 @@ describe("convertClaudeToOpenCode", () => {
       permissions: "from-commands",
     })
 
-    expect(bundle.config.command).toBeUndefined()
+    expect((bundle.config as Record<string, unknown>).command).toBeUndefined()
     expect(bundle.config.tools).toBeUndefined()
     expect(bundle.commandFiles.find((f) => f.name === "workflows:review")).toBeDefined()
     expect(bundle.commandFiles.find((f) => f.name === "plan_review")).toBeDefined()

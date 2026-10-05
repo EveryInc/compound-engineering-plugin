@@ -29,6 +29,7 @@ delete process.env.CROSS_MODEL_EFFORT_OVERRIDE
 const SCRIPT = path.join(process.cwd(), "skills/ce-work/scripts/cross-model-work.sh")
 const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspace.py")
 const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementation-result-schema.json")
+type PreparedUnit = { authorization_path: string; workspace: string; packet_path: string; result_dir: string }
 const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor", "opencode"] as const
 const ROUTE_CONTRACTS = {
   codex: { target: "codex", harness: "codex", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
@@ -90,7 +91,7 @@ function fixture() {
     packetSource: packet,
     capture,
     runs,
-    prepared: null as null | { authorization_path: string; workspace: string; packet_path: string; result_dir: string },
+    prepared: null as null | PreparedUnit,
   }
 }
 
@@ -186,13 +187,14 @@ function run(
       }),
     )
     const base = spawnSync("git", ["-C", f.canonical, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim()
-    f.prepared = invoke(
+    const prepared: PreparedUnit = invoke(
       "prepare", "--run-id", runId, "--unit-id", unitId, "--attempt-id", attemptId,
       "--base", base, "--packet", f.packetSource, "--activity-posture", "incremental",
     )
-    f.workspace = f.prepared.workspace
-    f.packet = f.prepared.packet_path
-    f.resultDir = f.prepared.result_dir
+    f.prepared = prepared
+    f.workspace = prepared.workspace
+    f.packet = prepared.packet_path
+    f.resultDir = prepared.result_dir
   }
   let authorization = f.prepared.authorization_path
   if (forgedAuthorization) {
@@ -329,7 +331,7 @@ describe("ce-work fixed write routes", () => {
     expect(emit("opencode", cleanEnv()).stdout).not.toContain("--variant")
   })
 
-  test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {
+  test.each([...ROUTES])("%s receives one workspace and bounded packet", (route) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)
     const result = run(

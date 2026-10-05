@@ -675,12 +675,13 @@ describe("ce-prototype light-webserver.js", () => {
     expect(note).toContain("CE local web")
 
     // A script fetching the same files gets them raw: a partial is not a screen.
-    for (const headers of [
+    const headerSets: Record<string, string>[] = [
       { "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors", Accept: "*/*" },
       { "Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate", Accept: "text/html" },
       { Accept: "*/*" },
       {},
-    ]) {
+    ]
+    for (const headers of headerSets) {
       const raw = await fetch(`${origin}/pages/part.html`, { headers })
       expect(raw.headers.get("cache-control"), JSON.stringify(headers)).toBe("no-store")
       expect(await raw.text(), JSON.stringify(headers)).toBe("<h2>Part</h2>")
@@ -961,7 +962,7 @@ describe("ce-prototype light-webserver.js", () => {
     const decoder = new TextDecoder()
     let text = ""
     const timedOut = Symbol("timed out")
-    let pendingRead: Promise<ReadableStreamReadResult<Uint8Array>> | null = null
+    let pendingRead: ReturnType<typeof reader.read> | null = null
     const readUntil = async (predicate: () => boolean, ms: number) => {
       const deadline = Date.now() + ms
       while (Date.now() < deadline && !predicate()) {
@@ -1017,7 +1018,7 @@ describe("ce-prototype light-webserver.js", () => {
     const decoder = new TextDecoder()
     let text = ""
     const timedOut = Symbol("timed out")
-    let pendingRead: Promise<ReadableStreamReadResult<Uint8Array>> | null = null
+    let pendingRead: ReturnType<typeof reader.read> | null = null
     const readUntil = async (predicate: () => boolean, ms: number) => {
       const deadline = Date.now() + ms
       while (Date.now() < deadline && !predicate()) {
@@ -1048,7 +1049,7 @@ describe("ce-prototype light-webserver.js", () => {
     expect(followUp.status).toBe(200)
     const followReader = followUp.body!.getReader()
     let followText = ""
-    let followPending: Promise<ReadableStreamReadResult<Uint8Array>> | null = null
+    let followPending: ReturnType<typeof followReader.read> | null = null
     const followUntil = async (predicate: () => boolean, ms: number) => {
       const deadline = Date.now() + ms
       while (Date.now() < deadline && !predicate()) {
