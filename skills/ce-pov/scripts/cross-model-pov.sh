@@ -38,7 +38,7 @@
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-pov.sh --emit-adapter <route>
 #     prints the exact argv the given route would run (route in:
-#     codex | claude | grok-cli | grok-cursor | cursor | composer). Both this mode and the
+#     codex | claude | claude-cursor | grok-cli | grok-cursor | cursor | composer). Both this mode and the
 #     live run build their argv from adapter_argv(), so the U7 route-safety test
 #     asserts on the same command string the peer actually runs.
 #
@@ -84,6 +84,7 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 # and the single maintenance point when model families change.
 M_CODEX="gpt-6.1-sol"          # codex CLI            (-c model_reasoning_effort="high")
 M_CLAUDE="claude-opus-5-5"     # claude CLI, Opus 5.5 (--effort high)
+M_CLAUDE_CURSOR="claude-opus-5-5[effort=high]" # cursor-agent; effort is in the id, no --effort flag
 M_GROK="grok-4.7"              # grok CLI             (--effort xhigh)
 M_GROK_CURSOR="grok-4.7-xhigh" # cursor-agent --list-models; 4.7 has no cursor- prefix, effort is in the id
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
@@ -120,6 +121,7 @@ route_model() {   # <route> -> the M_* constant that route requests
   case "$1" in
     codex)       printf '%s' "$M_CODEX" ;;
     claude)      printf '%s' "$M_CLAUDE" ;;
+    claude-cursor) printf '%s' "$M_CLAUDE_CURSOR" ;;
     grok-cli)    printf '%s' "$M_GROK" ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     cursor)      printf 'auto' ;;
@@ -130,7 +132,8 @@ route_model() {   # <route> -> the M_* constant that route requests
 
 route_target() {
   case "$1" in
-    codex|claude|cursor|composer) printf '%s' "$1" ;;
+    codex|cursor|composer) printf '%s' "$1" ;;
+    claude|claude-cursor) printf '%s' claude ;;
     grok-cli|grok-cursor) printf 'grok' ;;
     opencode) printf 'opencode' ;;
   esac
@@ -141,7 +144,7 @@ route_harness() {
     codex) printf 'codex' ;;
     claude) printf 'claude' ;;
     grok-cli) printf 'grok' ;;
-    grok-cursor|cursor|composer) printf 'cursor-agent' ;;
+    claude-cursor|grok-cursor|cursor|composer) printf 'cursor-agent' ;;
     opencode) printf 'opencode' ;;
   esac
 }
@@ -225,6 +228,13 @@ adapter_argv() {
         --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" \
         --output-format stream-json --verbose
       ;;
+    claude-cursor)
+      # Same Opus tier as native claude, through cursor-agent, when that CLI is
+      # absent or does not accept --safe-mode, --effort, and --max-turns.
+      # Effort is in the model id; this route takes no --effort flag.
+      printf '%s\0' cursor-agent -p --model "$(route_model claude-cursor)" --mode ask --trust \
+        --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
+      ;;
     grok-cli)
       # Schema forces buffered json — hard-only, no PEERLOG idle (#1270).
       # --verbatim: without it grok offloads a large prompt to a session file and
@@ -272,6 +282,7 @@ apply_model_override() {
   case "$route:$override" in
     codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]* ) ;;
     claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-* ) ;;
+    claude-cursor:claude-* ) ;;
     grok-cli:grok-* ) ;;
     grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-* ) ;;
     composer:composer-* ) ;;
@@ -290,7 +301,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   apply_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|claude-cursor|grok-cli|grok-cursor|cursor|composer|opencode)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -345,7 +356,7 @@ case "$HOST_HARNESS" in
 esac
 
 case "$FIXED_ROUTE" in
-  codex|claude|grok-cli|grok-cursor|cursor|composer|opencode) ;;
+  codex|claude|claude-cursor|grok-cli|grok-cursor|cursor|composer|opencode) ;;
   *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;
 esac
 TARGET="$(route_target "$FIXED_ROUTE")" || skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress"
@@ -395,6 +406,9 @@ route_allowlisted() {
     grok-cursor)
       in_csv grok "$ALLOW" && { in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
       ;;
+    claude-cursor)
+      in_csv claude "$ALLOW" && { in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
+      ;;
     opencode) in_csv opencode "$ALLOW" ;;
     *) return 1 ;;
   esac
@@ -425,6 +439,7 @@ route_available() {
   case "$1" in
     codex) command -v codex >/dev/null 2>&1 ;;
     claude) command -v claude >/dev/null 2>&1 ;;
+    claude-cursor) command -v cursor-agent >/dev/null 2>&1 ;;
     grok-cli) command -v grok >/dev/null 2>&1 ;;
     grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
     opencode) command -v opencode >/dev/null 2>&1 ;;
@@ -834,6 +849,7 @@ attempt_route() {   # <provider> <route>
     codex)       note="$(route_model codex) (effort high)" ;;
     claude)      note="$(route_model claude) (effort high)" ;;
     grok-cli)    note="$(route_model grok-cli) (effort xhigh)" ;;
+    claude-cursor) note="$(route_model claude-cursor)" ;;
     grok-cursor) note="$(route_model grok-cursor)" ;;
     cursor)      note="auto (serving model unverified)" ;;
     composer)    note="$(route_model composer)" ;;
@@ -851,7 +867,7 @@ attempt_route() {   # <provider> <route>
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
     claude)      run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
                  [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
-    grok-cursor|cursor|composer)
+    claude-cursor|grok-cursor|cursor|composer)
       # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
       # positional argv token: the composed prompt (persona + schema + template +
       # full subject payload, up to CROSS_MODEL_MAX_PAYLOAD_CHARS) can exceed ARG_MAX and fail
@@ -916,7 +932,7 @@ run_fixed_route() {
     _norm="$PEER_WORKDIR/normalized.json"
     case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
       cursor:*) serving_family="unknown" ;;
-      composer:unverified|grok-cursor:unverified) serving_family="unknown" ;;
+      claude-cursor:unverified|composer:unverified|grok-cursor:unverified) serving_family="unknown" ;;
       *) serving_family="$(target_serving_family "$provider")" ;;
     esac
     independence=false

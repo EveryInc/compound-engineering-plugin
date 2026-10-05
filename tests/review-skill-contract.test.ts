@@ -1831,6 +1831,16 @@ describe("cross-model peer skip legibility", () => {
     })
   }
 
+  for (const reference of pairs.map((p) => p.reference)) {
+    test(`${reference} binds native claude unless that CLI lacks the peer flags`, async () => {
+      const src = await readRepoFile(reference)
+      expect(src).toContain("The host harness does not choose the Claude route")
+      expect(src).toContain("when `claude --help` lists `--safe-mode`, `--effort`, and `--max-turns`")
+      expect(src).toContain("Bind `claude-cursor` when `cursor-agent` is installed")
+      expect(src).toContain("Do not bind `claude-cursor` when a compatible native CLI is already present")
+    })
+  }
+
   for (const reference of routeTokenPairs.map((p) => p.reference)) {
     test(`${reference} binds grok-cli unless the user asked for Grok through Cursor`, async () => {
       const src = await readRepoFile(reference)

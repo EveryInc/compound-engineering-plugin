@@ -183,13 +183,15 @@ refuses anything else (including route-shaped guesses like `codex-cli`):
 | Target | Route token(s) |
 |--------|----------------|
 | `codex` | `codex` |
-| `claude` | `claude` |
+| `claude` | `claude` (native CLI) or `claude-cursor` (via Cursor intermediary) |
 | `grok` | `grok-cli` (native CLI) or `grok-cursor` (via Cursor intermediary) |
 | `cursor` | `cursor` |
 | `composer` | `composer` |
 | `opencode` | `opencode` |
 
 The host harness does not choose the Grok route. Target `grok` binds `grok-cli` when that CLI is installed. Bind `grok-cursor` only when the user asked for Grok through Cursor, or when the grok CLI is absent and Cursor is a sanctioned recipient.
+
+The host harness does not choose the Claude route. Target `claude` binds `claude` when `claude --help` lists `--safe-mode`, `--effort`, and `--max-turns`. Bind `claude-cursor` when `cursor-agent` is installed and Cursor egress is sanctioned, and either the native CLI is absent or that help lacks any of those flags. Do not bind `claude-cursor` when a compatible native CLI is already present.
 
 Binary presence proves only that a route is a candidate. Pre-dispatch capability
 evidence may refine the fixed route only when the current host context makes that

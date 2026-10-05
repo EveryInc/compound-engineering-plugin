@@ -26,7 +26,7 @@ function temp(prefix: string): string {
 afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
 
 const SCRIPT = path.join(__dirname, "../../skills/ce-pov/scripts/cross-model-pov.sh")
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer", "opencode"] as const
+const ROUTES = ["codex", "claude", "claude-cursor", "grok-cli", "grok-cursor", "cursor", "composer", "opencode"] as const
 const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerously-skip-permissions"]
 const REAL_TOOLS = [
   "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "dirname",
@@ -140,7 +140,7 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("grok-cli")).toContain("--verbatim")
     expect(emit("grok-cli")).toContain("--output-format json")
     expect(emit("grok-cli")).not.toContain("stream-json")
-    for (const route of ["grok-cursor", "cursor", "composer"]) {
+    for (const route of ["claude-cursor", "grok-cursor", "cursor", "composer"]) {
       expect(emit(route)).toContain("--mode ask")
       expect(emit(route)).toContain("--sandbox enabled")
       expect(emit(route)).toContain("--workspace <read-root>")
@@ -150,6 +150,8 @@ describe("ce-pov cross-model route safety", () => {
     expect(emit("composer")).toContain("--model")
     expect(emit("grok-cli")).toContain("--model grok-4.7")
     expect(emit("grok-cli")).toContain("--effort xhigh")
+    expect(emit("claude-cursor")).toContain("--model claude-opus-5-5[effort=high]")
+    expect(emit("claude-cursor")).not.toContain("--effort")
     expect(emit("grok-cursor")).toContain("--model grok-4.7-xhigh")
     expect(emit("opencode")).toContain("opencode run")
     expect(emit("opencode")).toContain('OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}')
@@ -645,13 +647,16 @@ describe("ce-pov fixed route and egress allowlist", () => {
     ["grok-cursor", "grok,cursor", true],
     ["grok-cursor", "grok,composer", true],
     ["grok-cursor", "grok", false],
+    ["claude-cursor", "claude,cursor", true],
+    ["claude-cursor", "claude,composer", true],
+    ["claude-cursor", "claude", false],
   ])("route %s with allowlist %s allowed=%s", (route, allow, allowed) => {
     const response = '{"structured_output":{"voice":"peer","position":"Hold","reasoning":"Evidence","evidence":[],"external_check":"unavailable","mode":"independent","movement":"initial","final":true}}'
     const binary = route === "grok-cli" ? "grok" : "cursor-agent"
     const { env } = sandbox([binary], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${response}'\n`)
     const dir = runDir()
     const result = run(["codex", route, payload(), dir], dir, { ...env, CROSS_MODEL_PEERS: allow })
-    const target = route.startsWith("grok") ? "grok" : route
+    const target = route.startsWith("grok") ? "grok" : route.startsWith("claude") ? "claude" : route
     expect(result.files.includes(`pov-${target}.json`)).toBe(allowed)
   })
 

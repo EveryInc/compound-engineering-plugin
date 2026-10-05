@@ -85,6 +85,7 @@ case "$TRANSIENT_RETRY_DELAY_SECS" in ''|*[!0-9]*) skip "transient retry delay m
 # detection, slower tail) -- docs/solutions/skill-design/benchmark-review-peer-model-and-reasoning-tier.md
 M_CODEX="gpt-6-luna"         # codex CLI            (-c model_reasoning_effort="xhigh")
 M_CLAUDE="claude-opus-5-5"     # claude CLI, Opus 5.5 (--effort high)
+M_CLAUDE_CURSOR="claude-opus-5-5[effort=high]" # cursor-agent; effort is in the id, no --effort flag
 M_GROK="grok-4.7"              # grok CLI             (--effort xhigh)
 M_GROK_CURSOR="grok-4.7-xhigh" # cursor-agent --list-models; 4.7 has no cursor- prefix, effort is in the id
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
@@ -103,6 +104,7 @@ route_effort() {   # <route> -> requested effort: the override where the route t
   case "$1" in
     codex|grok-cli) printf 'xhigh' ;;
     claude) printf 'high' ;;
+    claude-cursor) printf 'model-implied-high' ;;
     grok-cursor) printf 'model-implied-xhigh' ;;
     composer) printf 'fast' ;;
     cursor) printf 'unverified' ;;
@@ -149,6 +151,7 @@ route_model() {   # <route> -> the M_* constant that route requests
   case "$1" in
     codex)       printf '%s' "$M_CODEX" ;;
     claude)      printf '%s' "$M_CLAUDE" ;;
+    claude-cursor) printf '%s' "$M_CLAUDE_CURSOR" ;;
     grok-cli)    printf '%s' "$M_GROK" ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     cursor)      printf 'auto' ;;
@@ -159,7 +162,8 @@ route_model() {   # <route> -> the M_* constant that route requests
 
 route_target() {
   case "$1" in
-    codex|claude|cursor|composer) printf '%s' "$1" ;;
+    codex|cursor|composer) printf '%s' "$1" ;;
+    claude|claude-cursor) printf '%s' claude ;;
     grok-cli|grok-cursor) printf 'grok' ;;
     opencode) printf 'opencode' ;;
   esac
@@ -170,7 +174,7 @@ route_harness() {
     codex) printf 'codex' ;;
     claude) printf 'claude' ;;
     grok-cli) printf 'grok' ;;
-    grok-cursor|cursor|composer) printf 'cursor-agent' ;;
+    claude-cursor|grok-cursor|cursor|composer) printf 'cursor-agent' ;;
     opencode) printf 'opencode' ;;
   esac
 }
@@ -254,6 +258,15 @@ adapter_argv() {
         --max-turns "$PEER_MAX_TURNS" --no-session-persistence --json-schema "$SCHEMA_REF" \
         --output-format stream-json --verbose
       ;;
+    claude-cursor)
+      # Same Opus tier as native claude, through cursor-agent, when that CLI is
+      # absent or does not accept --safe-mode, --effort, and --max-turns.
+      # Effort is in the model id; this route takes no --effort flag.
+      printf '%s\0' cursor-agent -p --model "$(route_model claude-cursor)" --mode ask --trust \
+        --sandbox enabled --workspace "$PEER_WORKDIR"
+      [ -z "${LARGE_DIFF_CONTEXT_DIR:-}" ] || printf '%s\0' --add-dir "$LARGE_DIFF_CONTEXT_DIR"
+      printf '%s\0' --output-format stream-json
+      ;;
     grok-cli)
       # Read allowed (in-tree context); deny writes / shell / subagents / web / MCP.
       # Schema forces non-streaming json on grok — keep hard-only (no PEERLOG idle).
@@ -323,7 +336,7 @@ validate_model_override() {
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
+    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|claude-cursor:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
     *) return 1 ;;
   esac
 }
@@ -357,7 +370,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   route="${2:-}"
   validate_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   validate_effort_override "$route" 2>/dev/null || { echo "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|claude-cursor|grok-cli|grok-cursor|cursor|composer|opencode)" >&2; exit 2; }
   validate_turn_limit "$route" || { echo "peer max turns must be a positive integer" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
@@ -432,7 +445,7 @@ fi
 provider_available() {
   case "$1" in
     codex)    command -v codex >/dev/null 2>&1 ;;
-    claude)   command -v claude >/dev/null 2>&1 ;;
+    claude)   command -v claude >/dev/null 2>&1 || { cursor_egress_ok && command -v cursor-agent >/dev/null 2>&1; } ;;
     grok)     command -v grok >/dev/null 2>&1 || { cursor_egress_ok && command -v cursor-agent >/dev/null 2>&1; } ;;
     cursor)   command -v cursor-agent >/dev/null 2>&1 ;;
     composer) command -v cursor-agent >/dev/null 2>&1 ;;
@@ -989,7 +1002,7 @@ def terminal_success(value):
     if value.get("type") == "result":
         if subtype:
             return subtype == "success"
-        return route in {"grok-cursor", "cursor", "composer"}
+        return route in {"claude-cursor", "grok-cursor", "cursor", "composer"}
     if "stopReason" in value or "terminal_reason" in value or terminal_status is not None or "api_error_status" in value:
         return True
     return value.get("is_error") is False
@@ -1073,7 +1086,7 @@ attempt_route() {
   build_cmd "$route"
   case "$route" in
     codex|claude|grok-cli) note="$(route_model "$route") (effort $(route_effort "$route"))" ;;
-    grok-cursor|composer)  note="$(route_model "$route")" ;;
+    claude-cursor|grok-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
     opencode)              note="auto (serving model unverified)" ;;
   esac
@@ -1105,7 +1118,7 @@ attempt_route() {
       classify_route_output
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT"
       ;;
-    grok-cursor|cursor|composer)
+    claude-cursor|grok-cursor|cursor|composer)
       compose_prompt_embedded
       run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle
       classify_route_output
@@ -1146,8 +1159,8 @@ run_provider() {
   RAW_OUT="$RAW_DIR/adversarial-$provider.raw.json"
   [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
   [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
-  if [ "$fixed" = "grok-cursor" ] && ! cursor_egress_ok; then
-    log "fixed route 'grok-cursor' requires Cursor intermediary sanction; skipping"
+  if { [ "$fixed" = "grok-cursor" ] || [ "$fixed" = "claude-cursor" ]; } && ! cursor_egress_ok; then
+    log "fixed route '$fixed' requires Cursor intermediary sanction; skipping"
     rm -f "$OUT"
     return 0
   fi
@@ -1194,7 +1207,7 @@ run_provider() {
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-norm-XXXXXX")"
     case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
       cursor:*) _target_family="unknown" ;;
-      composer:unverified|grok-cursor:unverified) _target_family="unknown" ;;
+      claude-cursor:unverified|composer:unverified|grok-cursor:unverified) _target_family="unknown" ;;
       *) _target_family="$(target_serving_family "$provider")" ;;
     esac
     _independent=false

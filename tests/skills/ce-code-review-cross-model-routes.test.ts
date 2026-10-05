@@ -122,7 +122,7 @@ const DOC_SCRIPT = path.join(
   "../../skills/ce-doc-review/scripts/cross-model-doc-review.sh",
 )
 
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer", "opencode"] as const
+const ROUTES = ["codex", "claude", "claude-cursor", "grok-cli", "grok-cursor", "cursor", "composer", "opencode"] as const
 
 const NEVER_FLAGS = [
   "--yolo",
@@ -258,7 +258,7 @@ describe("cross-model-adversarial-review route safety", () => {
   })
 
   test("turn limits are validated only for adapters that consume them", () => {
-    for (const route of ["codex", "grok-cursor", "cursor", "composer"] as const) {
+    for (const route of ["codex", "claude-cursor", "grok-cursor", "cursor", "composer"] as const) {
       expect(emitAdapter(route, SCRIPT, { PEER_MAX_TURNS: "invalid" })).not.toContain("--max-turns")
     }
 
@@ -477,7 +477,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   })
 
   test("cursor-agent routes: ask mode + sandbox + repo workspace", () => {
-    for (const route of ["grok-cursor", "cursor", "composer"]) {
+    for (const route of ["claude-cursor", "grok-cursor", "cursor", "composer"]) {
       const cmd = emitAdapter(route)
       expect(cmd).toContain("--mode ask")
       expect(cmd).toContain("--trust")
@@ -485,6 +485,9 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
       expect(cmd).toContain("--workspace <repo-root>")
       expect(cmd).toContain("--output-format stream-json")
     }
+    expect(emitAdapter("claude-cursor")).toContain("--model claude-opus-5-5[effort=high]")
+    expect(emitAdapter("claude-cursor")).not.toContain("--effort")
+    expect(emitAdapter("claude-cursor")).not.toContain("--safe-mode")
     expect(emitAdapter("grok-cursor")).toContain("grok-4.7-xhigh")
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
@@ -560,7 +563,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   test("adapters target repo-root, not shared run-dir fold-in path", () => {
     expect(emitAdapter("codex")).toContain("-C <repo-root>")
     expect(emitAdapter("grok-cli")).toContain("--cwd <repo-root>")
-    for (const route of ["grok-cursor", "cursor", "composer"]) {
+    for (const route of ["claude-cursor", "grok-cursor", "cursor", "composer"]) {
       expect(emitAdapter(route)).toContain("--workspace <repo-root>")
     }
     for (const route of ROUTES) {
@@ -658,6 +661,22 @@ describe("cross-model-adversarial-review provider selection", () => {
     expect(resolvePeers("claude", "grok", ["cursor-agent"], {
       CROSS_MODEL_PEERS: "grok,cursor",
     })).toBe("grok")
+  })
+
+  test("claude is available via cursor-agent alone when the native CLI is absent", () => {
+    expect(resolvePeers("codex", "codex,claude,grok,composer", ["cursor-agent"])).toBe("claude")
+  })
+
+  test("a claude-only allowlist does not egress through cursor-agent when the native CLI is absent", () => {
+    expect(resolvePeers("codex", "claude", ["cursor-agent"], {
+      CROSS_MODEL_PEERS: "claude",
+    })).toBe("")
+  })
+
+  test("composer in the allowlist sanctions Claude through cursor-agent", () => {
+    expect(resolvePeers("codex", "claude", ["cursor-agent"], {
+      CROSS_MODEL_PEERS: "claude,composer",
+    })).toBe("claude")
   })
 })
 
@@ -1913,6 +1932,42 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
     expect(r.files).not.toContain("adversarial-grok.json")
     expect(r.stderr).toContain("requires Cursor intermediary sanction")
   })
+
+  test("runs a pre-sanctioned Claude-via-Cursor route without treating it as a receipted Claude CLI", () => {
+    const review = JSON.stringify({ reviewer: "adversarial", findings: [{ title: "t" }] })
+    const payload = JSON.stringify({ type: "result", result: review })
+    const { env } = sandbox(["cursor-agent"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '${payload}'\n`)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_PEERS: "claude,cursor",
+      CROSS_MODEL_FIXED_ROUTE: "claude-cursor",
+    })
+    expect(r.code).toBe(0)
+    expect(r.files).toContain("adversarial-claude.json")
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"))
+    expect(out.cross_model_route).toBe("claude-cursor")
+    expect(out.cross_model_target).toBe("claude")
+    expect(out.cross_model_harness).toBe("cursor-agent")
+    expect(out.model_requested).toBe("claude-opus-5-5[effort=high]")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.effort_requested).toBe("model-implied-high")
+    expect(out.serving_family).toBe("unknown")
+    expect(out.independence_verified).toBe(false)
+    expect(out.findings[0].title).toBe("t")
+  })
+
+  test("a fixed Claude-via-Cursor route still requires Cursor intermediary sanction", () => {
+    const { env } = sandbox(["claude", "cursor-agent"], okStub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_PEERS: "claude",
+      CROSS_MODEL_FIXED_ROUTE: "claude-cursor",
+    })
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("fixed route 'claude-cursor' requires Cursor intermediary sanction")
+  })
 })
 
 function blockBetween(script: string, startMarker: string, endMarker = "# --- --emit-adapter"): string {
@@ -1934,8 +1989,31 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     expect(emitAdapter("grok-cli", DOC_SCRIPT)).toContain("grok-4.7")
     expect(emitAdapter("grok-cursor")).toContain("grok-4.7-xhigh")
     expect(emitAdapter("grok-cursor", DOC_SCRIPT)).toContain("grok-4.7-xhigh")
+    expect(emitAdapter("claude-cursor")).toContain("--model claude-opus-5-5[effort=high]")
+    expect(emitAdapter("claude-cursor", DOC_SCRIPT)).toContain("--model claude-opus-5-5[effort=high]")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
     expect(emitAdapter("composer", DOC_SCRIPT)).toContain("composer-2.5-fast")
+  })
+
+  test("claude-cursor accepts a claude model id and rejects a short alias", () => {
+    const override = {
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-opus-5-5[effort=max]",
+    }
+    expect(emitAdapter("claude-cursor", SCRIPT, override)).toContain("--model claude-opus-5-5[effort=max]")
+    expect(emitAdapter("claude-cursor", DOC_SCRIPT, override)).toContain("--model claude-opus-5-5[effort=max]")
+    for (const script of [SCRIPT, DOC_SCRIPT]) {
+      const alias = spawnSync("bash", [script, "--emit-adapter", "claude-cursor"], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+          CROSS_MODEL_MODEL_OVERRIDE: "fable",
+        },
+      })
+      expect(alias.status).toBe(2)
+      expect(alias.stderr).toContain("not compatible with route 'claude-cursor'")
+    }
   })
 
   test("the fable alias is an accepted claude override in both skills' --emit-adapter", () => {
@@ -1965,6 +2043,7 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
       ["claude", "minimal"],       // not a claude CLI level
       ["codex", "minimal"],        // the API rejects it on every current codex model
       ["grok-cli", "max"],         // not a grok level
+      ["claude-cursor", "high"],   // effort is in the cursor-agent model id
       ["grok-cursor", "high"],     // cursor-agent routes imply effort in the model id
       ["composer", "high"],
       ["cursor", "high"],
