@@ -75,11 +75,11 @@ function failureRecap(cases: JunitCase[]): string {
   return `\nFailing tests (${failed.length}):\n${entries.join("\n")}`
 }
 
-/** The recap for a failing pass, or why there is none to read. */
 function readReport(report: string): JunitCase[] | null {
   return existsSync(report) ? junitCases(readFileSync(report, "utf8")) : null
 }
 
+/** The recap for a failing pass, or why there is none to read. */
 function reportRecap(cases: JunitCase[] | null): string {
   if (cases === null) {
     return "\nNo junit report, so no recap: bun exited before writing one (for example, no test file matched). See bun's output above."
