@@ -76,11 +76,15 @@ function failureRecap(cases: JunitCase[]): string {
 }
 
 /** The recap for a failing pass, or why there is none to read. */
-function reportRecap(report: string): string {
-  if (!existsSync(report)) {
+function readReport(report: string): JunitCase[] | null {
+  return existsSync(report) ? junitCases(readFileSync(report, "utf8")) : null
+}
+
+function reportRecap(cases: JunitCase[] | null): string {
+  if (cases === null) {
     return "\nNo junit report, so no recap: bun exited before writing one (for example, no test file matched). See bun's output above."
   }
-  return failureRecap(junitCases(readFileSync(report, "utf8")))
+  return failureRecap(cases)
 }
 
 /**
@@ -308,9 +312,10 @@ async function main(argv: string[]): Promise<number> {
     const first = pass.status
     if (first === 0) return 0
 
-    const failed = existsSync(report) ? rerunCandidates(junitCases(readFileSync(report, "utf8"))) : []
+    const cases = readReport(report)
+    const failed = cases === null ? [] : rerunCandidates(cases)
     if (failed.length === 0) {
-      console.error(reportRecap(report))
+      console.error(reportRecap(cases))
       return first
     }
 
@@ -321,7 +326,7 @@ async function main(argv: string[]): Promise<number> {
     )
     const rerunReport = path.join(reportDir, "rerun.xml")
     const second = run(["--reporter=junit", `--reporter-outfile=${rerunReport}`, ...passthroughArgs(argv), ...failed])
-    if (second !== 0) console.error(reportRecap(rerunReport))
+    if (second !== 0) console.error(reportRecap(readReport(rerunReport)))
     else {
       console.error(
         "\nEvery re-run file passed in a fresh process, so the first-pass failures were" +

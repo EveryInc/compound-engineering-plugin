@@ -103,7 +103,7 @@ describe("run-tests: choosing files to re-run from a bun junit report", () => {
   })
 
   test("keeps each case's describe path, name, and decoded message (bun 1.4.2 output)", () => {
-    // Verbatim bun 1.4.2: nested describes are nested suites, classname lists them innermost first.
+    // Verbatim bun output: nested describes are nested suites, classname lists them innermost first.
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="bun test" tests="3" assertions="1" failures="2" skipped="0" time="0.00934">
   <testsuite name="a.test.ts" file="a.test.ts" tests="3" assertions="1" failures="2" skipped="0" time="0.005708" hostname="ci">
