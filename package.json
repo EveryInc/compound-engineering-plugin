@@ -24,6 +24,7 @@
     "cli:install": "bun run src/index.ts install",
     "test": "bun run scripts/run-tests.ts",
     "typecheck": "tsc --noEmit",
+    "test:skill-guards": "bun run scripts/run-tests.ts skill-conventions codex-skill-prompt-budget repo-local-ce-skill-work contract",
     "test:skill-eval-cell": "bun tests/skill-eval-cell/run.ts",
     "test:skill-eval-pack": "bun tests/skill-eval-cell/pack.ts",
     "test:skill-eval-judge": "bun tests/skill-eval-cell/judge.ts",
