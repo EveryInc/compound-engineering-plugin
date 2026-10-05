@@ -15,31 +15,72 @@ import path from "node:path"
 
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
 
-export type JunitCase = { file: string; failure: string | null }
+export type JunitCase = { file: string; failure: string | null; describe: string[]; name: string; message: string }
 
-/** Every testcase in a bun junit report, in report order, with its failure type if any. */
+const ENTITIES: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" }
+
+function decodeXml(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, ref: string) => {
+    if (ref[0] !== "#") return ENTITIES[ref] ?? whole
+    const code = ref[1] === "x" || ref[1] === "X" ? Number.parseInt(ref.slice(2), 16) : Number(ref.slice(1))
+    return String.fromCodePoint(code)
+  })
+}
+
+/** Every testcase in a bun junit report, in report order, with its describe path and first failure if any. */
 export function junitCases(xml: string): JunitCase[] {
   const out: JunitCase[] = []
-  const suites: string[] = []
+  const suites: { label: string; name: string }[] = []
   let current: JunitCase | null = null
   for (const tag of xml.matchAll(/<(\/?)(testsuite|testcase|failure|error)\b([^>]*?)(\/?)>/g)) {
-    const [, closing, name, attrs, selfClosing] = tag
-    const attr = (key: string) => attrs.match(new RegExp(`\\b${key}="([^"]*)"`))?.[1]
+    const [whole, closing, name, attrs, selfClosing] = tag
+    const attr = (key: string) => {
+      const value = attrs.match(new RegExp(`\\b${key}="([^"]*)"`))?.[1]
+      return value === undefined ? undefined : decodeXml(value)
+    }
     if (name === "testsuite") {
       if (closing) suites.pop()
-      else if (!selfClosing) suites.push(attr("file") ?? attr("name") ?? "")
+      else if (!selfClosing) suites.push({ label: attr("file") ?? attr("name") ?? "", name: attr("name") ?? "" })
     } else if (name === "testcase") {
       if (closing) current = null
       else {
-        const file = attr("file") ?? suites.findLast((s) => TEST_FILE.test(s)) ?? ""
-        if (TEST_FILE.test(file)) out.push((current = { file, failure: null }))
+        const file = attr("file") ?? suites.findLast((s) => TEST_FILE.test(s.label))?.label ?? ""
+        // bun nests one suite per describe inside the file's suite; classname lists them innermost first.
+        const describe = suites.slice(suites.findLastIndex((s) => s.name === file) + 1).map((s) => s.name)
+        if (TEST_FILE.test(file)) out.push((current = { file, failure: null, describe, name: attr("name") ?? "", message: "" }))
         if (selfClosing) current = null
       }
     } else if (!closing && current && !current.failure) {
       current.failure = attr("type") ?? name
+      const bodyStart = tag.index + whole.length
+      const body = selfClosing ? "" : xml.slice(bodyStart, xml.indexOf(`</${name}>`, bodyStart))
+      current.message = attr("message") ?? decodeXml(body)
     }
   }
   return out
+}
+
+const RECAP_MESSAGE_LINES = 4
+
+/** Every failing case as `file > describe > test`, each with its first few non-blank message lines. */
+function failureRecap(cases: JunitCase[]): string {
+  const failed = cases.filter((c) => c.failure)
+  if (failed.length === 0) {
+    return "\nThe junit report lists no failing test; the failure (a load error or an error between tests) is in bun's output above."
+  }
+  const entries = failed.map((c) => {
+    const lines = (c.message || c.failure || "").split("\n").filter((line) => line.trim()).slice(0, RECAP_MESSAGE_LINES)
+    return [`  ${[c.file, ...c.describe, c.name].join(" > ")}`, ...lines.map((line) => `      ${line.trimEnd()}`)].join("\n")
+  })
+  return `\nFailing tests (${failed.length}):\n${entries.join("\n")}`
+}
+
+/** The recap for a failing pass, or why there is none to read. */
+function reportRecap(report: string): string {
+  if (!existsSync(report)) {
+    return "\nNo junit report, so no recap: bun exited before writing one (for example, no test file matched). See bun's output above."
+  }
+  return failureRecap(junitCases(readFileSync(report, "utf8")))
 }
 
 /**
@@ -114,6 +155,14 @@ export function parsePs(stdout: string): PsRow[] {
 export function lostExitZombies(rows: PsRow[]): PsRow[] {
   const bunTest = new Set(rows.filter((r) => /(^|\/)bun\s+test\b/.test(r.args)).map((r) => r.pid))
   return rows.filter((r) => r.stat.startsWith("Z") && bunTest.has(r.ppid))
+}
+
+/** Declared dependencies with no `node_modules/<name>/package.json` in the repo that holds this script. */
+function missingDependencies(): string[] {
+  const repo = path.join(import.meta.dir, "..")
+  const pkg = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8"))
+  const declared = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })
+  return declared.filter((name) => !existsSync(path.join(repo, "node_modules", name, "package.json"))).sort()
 }
 
 function run(args: string[]): number {
@@ -233,6 +282,11 @@ function runPass(args: string[], limitMs: number | null, lostMs: number): Promis
 }
 
 async function main(argv: string[]): Promise<number> {
+  const missing = missingDependencies()
+  if (missing.length > 0) {
+    console.error(`Missing dependencies: ${missing.join(", ")}. Run \`bun install\`, then re-run the tests.`)
+    return 1
+  }
   const reportDir = mkdtempSync(path.join(tmpdir(), "bun-test-report-"))
   const report = path.join(reportDir, "junit.xml")
   try {
@@ -246,21 +300,29 @@ async function main(argv: string[]): Promise<number> {
       pass = await runPass(passArgs, limitMs, lostMs)
     }
     // A stall is never re-run into a green result: without a lost-exit zombie its cause is unknown.
-    if (pass.stalled || pass.lostExit) return 1
+    if (pass.stalled || pass.lostExit) {
+      console.error("\nNo junit report, so no recap: the test pass was killed before a report was written. See bun's output above.")
+      return 1
+    }
     if (pass.interrupted) return pass.status
     const first = pass.status
     if (first === 0) return 0
 
     const failed = existsSync(report) ? rerunCandidates(junitCases(readFileSync(report, "utf8"))) : []
-    if (failed.length === 0) return first
+    if (failed.length === 0) {
+      console.error(reportRecap(report))
+      return first
+    }
 
     console.error(
       `\nEvery first-pass failure was a TimeoutError, the bun lost-child-exit shape.` +
         ` Re-running ${failed.length} file(s) serially in a fresh process (oven-sh/bun#34069):` +
         `\n  ${failed.join("\n  ")}\n`,
     )
-    const second = run([...passthroughArgs(argv), ...failed])
-    if (second === 0) {
+    const rerunReport = path.join(reportDir, "rerun.xml")
+    const second = run(["--reporter=junit", `--reporter-outfile=${rerunReport}`, ...passthroughArgs(argv), ...failed])
+    if (second !== 0) console.error(reportRecap(rerunReport))
+    else {
       console.error(
         "\nEvery re-run file passed in a fresh process, so the first-pass failures were" +
           " process-local (a lost child-exit notification), not a defect the tests reproduce.",
