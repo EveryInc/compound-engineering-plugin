@@ -15,6 +15,8 @@ bun run test:skill-eval-cell -- \
   --task "mode:pipeline the seat cap test is failing. Run node tests/seat-cap.check.js."
 ```
 
+`--fixture` copies the directory into the cell workspace. Test files under `fixtures/` belong to those workspaces, so the repo-root `bunfig.toml` excludes them from the repository suite.
+
 `--git-remote` (catalog: `git_remote: true`) adds a fake `origin` whose `main` is the seed commit, so a shipping tail takes the push/PR path — where `--shim-git-push` then fails — instead of the local-commit path it takes when no remote exists.
 
 `--read-only` enforces the fake boundary, it does not merely suggest it: Codex drops `--dangerously-bypass-approvals-and-sandbox` and runs `--sandbox read-only` (the two contradict each other), and Claude pairs `--allowedTools Read,Glob,Grep` with a `--disallowedTools` list that also names `Task,Skill,WebFetch,WebSearch,NotebookEdit` — under `--dangerously-skip-permissions` those stay callable, so allow-listing alone leaves the boundary open.
