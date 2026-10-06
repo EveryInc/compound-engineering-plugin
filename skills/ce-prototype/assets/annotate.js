@@ -243,9 +243,15 @@
 
   // Variants that share one screen behind a tab control are told apart by the
   // data-ce-variant marker the build convention asks for. Without the marker,
-  // only a variant hidden in place (not re-rendered) hides its pins.
+  // only a variant hidden in place (not re-rendered) hides its pins. The whole
+  // chain of enclosing markers counts, so nested controls that reuse inner
+  // names still tell their outer options apart.
   function variantOf(node) {
-    return node.closest?.("[data-ce-variant]")?.getAttribute("data-ce-variant") || null
+    const names = []
+    for (let el = node.closest?.("[data-ce-variant]"); el; el = el.parentElement?.closest("[data-ce-variant]")) {
+      names.unshift(el.getAttribute("data-ce-variant"))
+    }
+    return names.length ? names.join(" > ") : null
   }
 
   function rendered(node) {
@@ -260,7 +266,10 @@
   function pinOffView(node, pin) {
     if (node) return (pin.variant || null) !== variantOf(node) || !rendered(node)
     if (!pin.variant) return false
-    return ![...document.querySelectorAll(`[data-ce-variant="${CSS.escape(pin.variant)}"]`)].some(rendered)
+    const innermost = pin.variant.split(" > ").pop()
+    return ![...document.querySelectorAll(`[data-ce-variant="${CSS.escape(innermost)}"]`)].some(
+      (el) => variantOf(el) === pin.variant && rendered(el),
+    )
   }
 
   function agentHasBatch() {

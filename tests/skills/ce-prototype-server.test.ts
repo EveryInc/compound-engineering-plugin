@@ -1409,6 +1409,8 @@ describe("ce-prototype light-webserver.js", () => {
     // rendered and inside the data-ce-variant it was placed on; the Send to
     // agent count still covers every pin.
     expect(overlay).toContain('closest?.("[data-ce-variant]")')
+    // Nested controls: the pin's variant is the full chain of enclosing markers.
+    expect(overlay).toContain('names.join(" > ")')
     expect(overlay).toContain("pinOffView(node, pin)")
     expect(overlay).toContain("variant: draft.variant")
     expect(overlay).toContain("event.persisted")
