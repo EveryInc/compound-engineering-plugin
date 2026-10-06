@@ -244,14 +244,18 @@
   // Variants that share one screen behind a tab control are told apart by the
   // data-ce-variant marker the build convention asks for. Without the marker,
   // only a variant hidden in place (not re-rendered) hides its pins. The whole
-  // chain of enclosing markers counts, so nested controls that reuse inner
-  // names still tell their outer options apart.
+  // chain of enclosing markers, outermost first, counts, so nested controls
+  // that reuse inner names still tell their outer options apart.
   function variantOf(node) {
     const names = []
     for (let el = node.closest?.("[data-ce-variant]"); el; el = el.parentElement?.closest("[data-ce-variant]")) {
       names.unshift(el.getAttribute("data-ce-variant"))
     }
-    return names.length ? names.join(" > ") : null
+    return names.length ? names : null
+  }
+
+  function sameVariant(a, b) {
+    return JSON.stringify(a || null) === JSON.stringify(b || null)
   }
 
   function rendered(node) {
@@ -264,11 +268,11 @@
   // A variant re-rendered out of the DOM leaves no node to check, so its own
   // container being absent or hidden is what takes the pin off the view.
   function pinOffView(node, pin) {
-    if (node) return (pin.variant || null) !== variantOf(node) || !rendered(node)
-    if (!pin.variant) return false
-    const innermost = pin.variant.split(" > ").pop()
+    if (node) return !sameVariant(pin.variant, variantOf(node)) || !rendered(node)
+    if (!Array.isArray(pin.variant)) return false
+    const innermost = pin.variant[pin.variant.length - 1]
     return ![...document.querySelectorAll(`[data-ce-variant="${CSS.escape(innermost)}"]`)].some(
-      (el) => variantOf(el) === pin.variant && rendered(el),
+      (el) => sameVariant(pin.variant, variantOf(el)) && rendered(el),
     )
   }
 
