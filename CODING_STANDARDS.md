@@ -1,6 +1,17 @@
 # Coding Standards
 
-Review criteria for every change in this repository. `skills/CODING_STANDARDS.md` and `tests/CODING_STANDARDS.md` add criteria for their subtrees; all governing files apply together. Repo-local skills under `.agents/skills/` are held to `skills/CODING_STANDARDS.md` as well. The Plugin Maintenance, Commit Conventions, and Repository Docs rules in `AGENTS.md` are criteria here too.
+Review criteria for every change in this repository. `skills/CODING_STANDARDS.md` and `tests/CODING_STANDARDS.md` add criteria for their subtrees; all governing files apply together. Repo-local skills under `.agents/skills/` are held to `skills/CODING_STANDARDS.md` as well.
+
+## Repository conventions
+
+`AGENTS.md` owns these conventions for authors. Review checks them here because a reviewer graded against this file does not also read `AGENTS.md`.
+
+- A new user-facing skill adds a `docs/guides/<skill-name>.md` page, a catalog row in `docs/guides/README.md`, and its name in the root `README.md` overview.
+- A removed skill, agent, or command is added to both cleanup registries: `src/utils/legacy-cleanup.ts` and `src/data/plugin-legacy-artifacts.ts`.
+- A changed `.compound-engineering/config.yaml` option updates `skills/ce-setup/references/config-template.yaml`, its copy `.compound-engineering/config.example.yaml`, `docs/guides/configuration.md`, and the consumer skills' docs together.
+- Release-owned versions in plugin and marketplace manifests, and release entries in `CHANGELOG.md`, change only through release automation.
+- Docs land where their kind lives: guides in `docs/guides/`, plans in `docs/plans/`, solutions in `docs/solutions/` with `module`, `tags`, and `problem_type` frontmatter, target specs in `docs/specs/`. A solution's category reflects the plugin user's view: `developer-experience/` is only for contributing to this repo.
+- The PR title is a conventional commit typed by intent (`fix:` over `feat:` when both fit) with the narrowest useful scope, never `compound-engineering`. A `!` or `BREAKING CHANGE:` marker needs explicit maintainer confirmation.
 
 ## What counts as a finding
 
