@@ -333,10 +333,10 @@ For a plan marked `execution: knowledge-work` (produced by `ce-plan`'s approach-
 Yes, if you want the harness to keep re-prompting until the run finishes. `ce-plan` no longer offers `/goal` as a separate way to execute a plan, because that path skipped `ce-work`'s review receipt and its protection for uncommitted files. Type the goal yourself and make `ce-work`'s finished state the condition:
 
 ```text
-/goal The ce-work skill has implemented docs/plans/<plan>.md and opened a PR with a code-review receipt, or reported a blocker
+/goal The ce-work skill has implemented docs/plans/<plan>.md and finished its shipping handoff (a PR or a local commit) with a code-review receipt or an authorized review-skip phrase, or reported a blocker
 ```
 
-The `/goal` evaluator reads only the transcript, so name a state the transcript shows: `ce-work` prints the PR URL and the review receipt or skip phrase when it finishes.
+The `/goal` evaluator reads only the transcript, so name a state the transcript shows: when it finishes, `ce-work` prints where the work landed (a PR URL, or the local commit when it ships without a PR) and its review receipt or skip phrase.
 
 **What happens if I pass a requirements-only brainstorm file?**
 The run stops and tells you the Product Contract needs `ce-plan` enrichment first. It offers the exact `ce-plan <plan-path>` handoff. Blank invoke does the same if the newest matching artifact is still requirements-only.
