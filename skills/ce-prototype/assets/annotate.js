@@ -99,6 +99,9 @@
   // follows it; a reload or a screen change never changes a pin on its own.
   let annotationStates = {}
   const pins = []
+  // Pins whose target or variant is not on view right now. Derived on each
+  // reattach, so it stays out of the persisted pin state.
+  const offViewPins = new Set()
 
   function prototypeRoot() {
     return document.getElementById("ce-prototype-root") || document.body
@@ -185,7 +188,7 @@
     } catch {
       node = null
     }
-    draft = { selector: saved.selector, textSnippet: saved.textSnippet, rect: saved.rect, point: saved.point, x: saved.x, y: saved.y }
+    draft = { selector: saved.selector, textSnippet: saved.textSnippet, variant: saved.variant, rect: saved.rect, point: saved.point, x: saved.x, y: saved.y }
     composer.hidden = false
     if (node) {
       const rect = node.getBoundingClientRect()
@@ -235,6 +238,28 @@
 
   function pinOnThisPage(pin) {
     return !pin.page || pin.page === servedPage
+  }
+
+  // Variants that share one screen behind a tab control are told apart by the
+  // data-ce-variant marker the build convention asks for. Without the marker,
+  // only a variant hidden in place (not re-rendered) hides its pins.
+  function variantOf(node) {
+    return node.closest?.("[data-ce-variant]")?.getAttribute("data-ce-variant") || null
+  }
+
+  function rendered(node) {
+    if (typeof node.checkVisibility === "function") {
+      return node.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+    }
+    return node.getClientRects().length > 0
+  }
+
+  // A variant re-rendered out of the DOM leaves no node to check, so its own
+  // container being absent or hidden is what takes the pin off the view.
+  function pinOffView(node, pin) {
+    if (node) return (pin.variant || null) !== variantOf(node) || !rendered(node)
+    if (!pin.variant) return false
+    return ![...document.querySelectorAll(`[data-ce-variant="${CSS.escape(pin.variant)}"]`)].some(rendered)
   }
 
   function agentHasBatch() {
@@ -330,7 +355,7 @@
   const PIN_SIZE = 22
   function showPinTipAt(x, y) {
     const pin = pins.findLast(
-      (p) => pinOnThisPage(p) && x >= p.x && x <= p.x + PIN_SIZE && y >= p.y && y <= p.y + PIN_SIZE,
+      (p) => pinOnThisPage(p) && !offViewPins.has(p) && x >= p.x && x <= p.x + PIN_SIZE && y >= p.y && y <= p.y + PIN_SIZE,
     )
     pinTip.hidden = !pin
     if (!pin) return
@@ -343,7 +368,7 @@
     pinTip.hidden = true
     layer.replaceChildren()
     for (const pin of pins) {
-      if (!pinOnThisPage(pin)) continue
+      if (!pinOnThisPage(pin) || offViewPins.has(pin)) continue
       const marker = document.createElement("button")
       marker.type = "button"
       marker.className = `ce-annotate-pin is-${pin.status}`
@@ -370,6 +395,7 @@
 
   function reattachPins() {
     const root = prototypeRoot()
+    offViewPins.clear()
     for (const pin of pins) {
       if (!pinOnThisPage(pin)) continue
       let node = null
@@ -379,6 +405,10 @@
         node = null
       }
       const queued = pin.status === "pending" || pin.status === "working"
+      if (pinOffView(node, pin)) {
+        offViewPins.add(pin)
+        continue
+      }
       if (node) {
         if (!queued) pin.status = "attached"
         Object.assign(pin, positionFromNode(node, pin))
@@ -409,6 +439,7 @@
       y: event.clientY,
       selector,
       textSnippet: (target.textContent || "").trim().slice(0, 240),
+      variant: variantOf(target),
       rect: { x: box.left, y: box.top, width: box.width, height: box.height },
       // On a canvas or empty space the target says little; the point is what
       // the explorer indicated.
@@ -638,6 +669,7 @@
       comment,
       selector: draft.selector,
       textSnippet: draft.textSnippet,
+      variant: draft.variant,
       rect: draft.rect,
       point: draft.point,
     }
@@ -719,7 +751,7 @@
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ["style", "class", "hidden"],
+      attributeFilter: ["style", "class", "hidden", "data-ce-variant"],
     })
   }
 

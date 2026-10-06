@@ -511,6 +511,7 @@ function parseAnnotation(raw, options) {
   const screen = screenForPage(options, body.page)
   if (!screen) return null
   const textSnippet = typeof body.textSnippet === "string" ? body.textSnippet : null
+  const variant = typeof body.variant === "string" ? body.variant.trim() || null : null
   const plainObject = (value) => (value && typeof value === "object" && !Array.isArray(value) ? value : null)
   const rect = plainObject(body.rect)
   const point = plainObject(body.point)
@@ -520,6 +521,7 @@ function parseAnnotation(raw, options) {
     comment,
     selector,
     textSnippet,
+    variant,
     rect,
     point,
   }

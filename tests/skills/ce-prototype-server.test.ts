@@ -525,6 +525,7 @@ describe("ce-prototype light-webserver.js", () => {
       comment: "more padding above this heading",
       selector: "h1",
       textSnippet: "Pin me",
+      variant: "compact",
       rect: { x: 12, y: 8, width: 40, height: 20 },
     }
 
@@ -541,11 +542,12 @@ describe("ce-prototype light-webserver.js", () => {
     const payload = JSON.parse(result.stdout.trim())
     expect(Array.isArray(payload)).toBe(true)
     expect(payload).toHaveLength(1)
-    expect(Object.keys(payload[0])).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect", "point"])
+    expect(Object.keys(payload[0])).toEqual(["id", "screen", "comment", "selector", "textSnippet", "variant", "rect", "point"])
     expect(payload[0].screen).toBe("001-screen.html")
     expect(payload[0].comment).toBe(record.comment)
     expect(payload[0].selector).toBe(record.selector)
     expect(payload[0].textSnippet).toBe(record.textSnippet)
+    expect(payload[0].variant).toBe(record.variant)
     expect(payload[0].rect).toEqual(record.rect)
 
     const ending = runServerCommand(["wait", "--root", root])
@@ -600,7 +602,8 @@ describe("ce-prototype light-webserver.js", () => {
 
     expect((await post({ page: "/details.html" })).status).toBe(200)
     const details = await nextRecord()
-    expect(Object.keys(details)).toEqual(["id", "screen", "comment", "selector", "textSnippet", "rect", "point"])
+    expect(details.variant).toBeNull()
+    expect(Object.keys(details)).toEqual(["id", "screen", "comment", "selector", "textSnippet", "variant", "rect", "point"])
     expect(details.screen).toBe("details.html")
     expect(details).not.toHaveProperty("page")
 
@@ -1399,6 +1402,12 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("sessionStorage.setItem(STATE_KEY")
     expect(overlay).toContain('addEventListener("pagehide"')
     expect(overlay).toContain("pinOnThisPage")
+    // Tabbed variants on one screen: a pin shows only while its target is
+    // rendered and inside the data-ce-variant it was placed on; the Send to
+    // agent count still covers every pin.
+    expect(overlay).toContain('closest?.("[data-ce-variant]")')
+    expect(overlay).toContain("pinOffView(node, pin)")
+    expect(overlay).toContain("variant: draft.variant")
     expect(overlay).toContain("event.persisted")
     expect(overlay).not.toContain("sessionStorage.removeItem")
     expect(overlay).toContain("window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)")
