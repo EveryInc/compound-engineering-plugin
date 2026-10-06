@@ -1,6 +1,13 @@
 # Test and Eval Coding Standards
 
-Criteria for `tests/**`, including `tests/skill-eval-cell/`, on top of the root `CODING_STANDARDS.md`. Suite mechanics (parallel workers, the TimeoutError re-run, file sizing) are in `AGENTS.md` "CI and Quality Gates".
+Criteria for `tests/**`, including `tests/skill-eval-cell/`, on top of the root `CODING_STANDARDS.md`.
+
+## Suite mechanics
+
+- A test file never depends on another file's leftovers, and it writes only inside its own `mktemp` directory. The suite runs files in parallel worker processes.
+- A flaky `TimeoutError` is not answered with a `retry` count: a retry runs inside the same wedged worker, and `scripts/run-tests.ts` already re-runs timeout-only failures in a fresh process.
+- No test or script pins a worker count.
+- A test file is split or sized by its measured run time, not its line count.
 
 ## Guards that can fail
 
