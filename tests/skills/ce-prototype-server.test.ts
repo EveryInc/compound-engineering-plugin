@@ -1412,6 +1412,8 @@ describe("ce-prototype light-webserver.js", () => {
     // Nested controls: the pin's variant is the full chain of enclosing
     // markers, kept as a list so no name can collide with a delimiter.
     expect(overlay).toContain("return names.length ? names : null")
+    // A restored draft reattaches under the same condition a pin shows under.
+    expect(overlay).toContain("if (node && !pinOffView(node, draft))")
     expect(overlay).toContain("pinOffView(node, pin)")
     expect(overlay).toContain("variant: draft.variant")
     expect(overlay).toContain("event.persisted")

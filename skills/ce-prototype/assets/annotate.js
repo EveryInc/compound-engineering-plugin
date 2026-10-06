@@ -191,7 +191,7 @@
     }
     draft = { selector: saved.selector, textSnippet: saved.textSnippet, variant: saved.variant, rect: saved.rect, point: saved.point, x: saved.x, y: saved.y }
     composer.hidden = false
-    if (node) {
+    if (node && !pinOffView(node, draft)) {
       const rect = node.getBoundingClientRect()
       Object.assign(draft, positionFromNode(node, draft))
       placeComposer(rect.left, rect.top + rect.height)
