@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "fs/promises"
+import { chmod, copyFile, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test"
@@ -1197,7 +1197,7 @@ describe("ce-setup check-health cross-model peers prerequisite", () => {
 
   async function runWithNode(
     opts: { nodeVersion?: string; npx?: boolean; args?: string[] },
-  ): Promise<RunResult & { npxCalls: string[] }> {
+  ): Promise<RunResult & { npxCalls: string[]; npxDirs: string[]; root: string }> {
     const root = await mkdtemp(path.join(sandbox, "run-"))
     const stubBin = path.join(root, "stub-bin")
     const npxLog = path.join(root, "npx.log")
@@ -1207,10 +1207,11 @@ describe("ce-setup check-health cross-model peers prerequisite", () => {
     }
     await mkdir(stubBin)
     if (opts.nodeVersion !== undefined) await writeStub("node", `echo '${opts.nodeVersion}'`)
-    if (opts.npx) await writeStub("npx", `echo "$*" >> '${npxLog}'`)
+    if (opts.npx) await writeStub("npx", `echo "$*" >> '${npxLog}'; pwd -P >> '${npxLog}.pwd'`)
     const result = await runCheckHealth(root, `${stubBin}:${systemBin}`, {}, opts.args)
     const npxCalls = (await readFile(npxLog, "utf8").catch(() => "")).split("\n").filter(Boolean)
-    return { ...result, npxCalls }
+    const npxDirs = (await readFile(`${npxLog}.pwd`, "utf8").catch(() => "")).split("\n").filter(Boolean)
+    return { ...result, npxCalls, npxDirs, root }
   }
 
   test.each(["24.17.0", "v22.13.0"])("Node %s with npx is available", async (version) => {
@@ -1255,6 +1256,10 @@ describe("ce-setup check-health cross-model peers prerequisite", () => {
       [`acpx@${ACPX_PIN}`, ...adapterSpecs].map((spec) => `--yes --package=${spec} -- node --version`),
     )
     expect(result.stdout).not.toContain("Optional capabilities")
+    // npx resolves packages from its working directory first, so the warm must
+    // not run from the user's project.
+    expect(result.npxDirs.length).toBe(result.npxCalls.length)
+    for (const dir of result.npxDirs) expect(dir.startsWith(await realpath(result.root))).toBe(false)
   })
 
   test("the warm step fetches nothing when the Node prerequisite is unmet", async () => {

@@ -323,6 +323,8 @@ extract_model_receipt() {   # <route>; reads $PEERLOG, sets MODEL_ACTUAL
 $served
 EOF
   MODEL_ACTUAL="$heaviest"
+  # A route that requested no model (Cursor default, OpenCode auto) has nothing to mismatch.
+  [ "$requested" = auto ] && return 0
   log "WARNING: model mismatch - requested $requested, adapter reported $MODEL_ACTUAL; reconcile must surface this"
 }
 
@@ -497,12 +499,6 @@ case "$MAX_PEERS" in ''|*[!0-9]*) MAX_PEERS=1 ;; esac
 [ "$MAX_PEERS" -gt 2 ] && MAX_PEERS=2
 
 in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
-# Require a reviewer-shaped return (top-level `findings` array), not merely valid
-# JSON: a grok error/envelope object (e.g. a 402 usage-exhausted body) is valid
-# JSON but has no findings and would be dropped at normalize. Matches the
-# adversarial twin's check.
-out_missing_or_invalid() { [ ! -s "$RAW_OUT" ] || ! jq -e '(.findings|type)=="array"' "$RAW_OUT" >/dev/null 2>&1; }
-
 # The cursor-agent route egresses content through Cursor even when the *model* is
 # grok (grok-via-cursor-agent). CROSS_MODEL_PEERS is an egress boundary (R19), not
 # just a model-provider filter, so the grok->cursor-agent transport is off-limits
@@ -766,7 +762,9 @@ stop_heartbeat() {
 run_peer_cmd() {   # CMD already built; streams to PEERLOG, diagnostics to PEERERR
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
-  "${CMD[@]}" < /dev/null > "$PEERLOG" 2>"$PEERERR" &
+  # Start npx from private scratch: npx resolves packages from its working
+  # directory's node_modules and .npmrc first, and acpx gets the agent's cwd from --cwd.
+  ( cd "$(dirname "$PEERLOG")" && exec "${CMD[@]}" ) < /dev/null > "$PEERLOG" 2>"$PEERERR" &
   local pid=$!
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m

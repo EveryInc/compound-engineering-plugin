@@ -389,14 +389,18 @@ if [ "$warm_acpx" = "yes" ]; then
     exit 1
   fi
   warm_failed=0
+  # Run from an empty directory, as the peer workers do: npx resolves packages
+  # from its working directory's node_modules and .npmrc first.
+  warm_dir="$(mktemp -d "${TMPDIR:-/tmp}/ce-acpx-warm-XXXXXX")" || { warn "Cannot warm the npm cache: no temporary directory"; echo ""; exit 1; }
   for spec in "acpx@$ACPX_VERSION" $ACPX_ADAPTER_SPECS; do
-    if npx --yes --package="$spec" -- node --version >/dev/null; then
+    if (cd "$warm_dir" && npx --yes --package="$spec" -- node --version >/dev/null); then
       ok "cached $spec"
     else
       warn "could not fetch $spec"
       warm_failed=1
     fi
   done
+  rmdir "$warm_dir" 2>/dev/null
   echo ""
   exit "$warm_failed"
 fi

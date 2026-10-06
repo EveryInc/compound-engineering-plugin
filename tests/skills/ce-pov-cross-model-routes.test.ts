@@ -513,6 +513,23 @@ describe("ce-pov output gate and receipts", () => {
     expect(out.independence_verified).toBe(false)
   })
 
+  test("an auto route records an adapter-reported model without a mismatch warning", () => {
+    const { env } = sandbox(["cursor-agent"], acpStream({ text: pov(), meta: { modelId: "composer-2.5" } }))
+    const dir = runDir()
+    const result = run(["codex", "cursor", payload(), dir], dir, env)
+    expect(published(dir, "cursor").model_actual).toBe("composer-2.5")
+    expect(result.stderr).not.toContain("model mismatch")
+  })
+
+  test("acpx starts from private scratch, never the reviewed repository", () => {
+    const sb = sandbox(["codex"])
+    const dir = runDir()
+    run(["claude", "codex", payload(), dir], dir, sb.env)
+    const pwd = envLog(sb).match(/^PWD=(.*)$/m)?.[1] ?? ""
+    expect(path.basename(pwd)).toStartWith("xmodel-pov-peer-")
+    expect(pwd.startsWith(realpathSync(process.cwd()))).toBe(false)
+  })
+
   test("an explicitly named peer can run with unknown host family but is not independent", () => {
     const { env } = sandbox(["claude"], acpStream({ text: pov({ position: "Hold" }) }))
     const dir = runDir()

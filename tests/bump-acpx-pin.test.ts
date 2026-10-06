@@ -90,6 +90,26 @@ describe("bump-acpx-pin", () => {
     for (const [file, original] of Object.entries({ ...TREE, [rel]: content })) expect(read(root, file)).toBe(original)
   })
 
+  const { "skills/ce-pov/scripts/cross-model-pov.sh": _pov, "skills/ce-doc-review/scripts/nested/cross-model-doc-review.sh": _doc, "skills/ce-setup/scripts/check-health": _health, ...WITHOUT_SCRIPT_PINS } = TREE
+  test.each([
+    ["pin copies disagree", { ...TREE, "skills/ce-pov/scripts/cross-model-pov.sh": WORKER.replace('ACPX_VERSION="0.19.4"\n', 'ACPX_VERSION="0.19.3"\n') }, /pin copies disagree/],
+    ["adapter spec copies disagree", { ...TREE, "skills/other/scripts/specs.sh": `ACPX_ADAPTER_SPECS="${NEW_SPECS}"\n` }, /adapter spec copies disagree/],
+    ["one file assigns the pin twice", { ...TREE, "skills/ce-pov/scripts/cross-model-pov.sh": `${WORKER}ACPX_VERSION="0.19.4"\n` }, /2 assignments of the same pin/],
+    ["no script carries the pin", WITHOUT_SCRIPT_PINS, /no ACPX_VERSION copy found/],
+  ])("fails loudly and writes nothing when %s", (_name, files, error) => {
+    const root = fixture(files as Record<string, string>)
+    expect(() => bumpAcpxPin(root, "0.20.0", NEW_SPECS)).toThrow(error)
+    for (const [file, original] of Object.entries(files as Record<string, string>)) expect(read(root, file)).toBe(original)
+  })
+
+  test("refuses a package whose agent registry it cannot read", () => {
+    const root = fixture({
+      "package.json": JSON.stringify({ name: "acpx", version: "0.20.0" }),
+      "dist/agent-registry-abc123.js": "const AGENT_DEFINITIONS = {};\n",
+    })
+    expect(() => adapterSpecsFromPackage(root, "0.20.0")).toThrow(/ACP_ADAPTER_PACKAGE_RANGES not found/)
+  })
+
   test("derives adapter specs from an extracted acpx package", () => {
     const root = fixture({
       "package.json": JSON.stringify({ name: "acpx", version: "0.20.0" }),

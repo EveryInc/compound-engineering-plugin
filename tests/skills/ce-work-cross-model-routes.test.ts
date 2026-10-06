@@ -300,7 +300,10 @@ describe("ce-work fixed write routes", () => {
     const bin = stubBin(f)
     const result = run(route, f, withBin(bin))
     expect(result.code).toBe(0)
-    expect(captured(f, "pwd")).toBe(realpathSync(f.workspace))
+    // npx starts from private scratch so the workspace's node_modules and .npmrc
+    // cannot decide which acpx runs; the agent gets the workspace through --cwd.
+    expect(captured(f, "pwd")).not.toBe(realpathSync(f.workspace))
+    expect(path.basename(captured(f, "pwd"))).toStartWith("ce-work-adapter-")
     expect(flagValue(argv(f), "--cwd")).toBe(realpathSync(f.workspace))
     const prompt = captured(f, "prompt")
     expect(prompt).toContain("Implement U3 only.")

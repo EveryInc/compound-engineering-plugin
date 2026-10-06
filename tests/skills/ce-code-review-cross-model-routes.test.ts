@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -379,6 +380,15 @@ describe("cross-model-adversarial-review route safety", () => {
     const args = argv(sb)
     expect(args[args.indexOf("--agent") + 1]).toBe(`${path.join(sb.bin, "opencode")} acp`)
     expect(args[args.lastIndexOf("--config-option") + 1]).toBe("mode=plan")
+  })
+
+  test("acpx starts from private scratch, never the reviewed repository", () => {
+    const sb = sandbox(["codex"])
+    const runDir = makeRunDir()
+    run(["claude", "codex", "HEAD", runDir], runDir, sb.env)
+    const pwd = envLog(sb).match(/^PWD=(.*)$/m)?.[1] ?? ""
+    expect(pwd).not.toBe("")
+    expect(pwd.startsWith(realpathSync(dirtyFixtureRepo()))).toBe(false)
   })
 
   test("the claude route launches through a private --safe-mode wrapper", () => {

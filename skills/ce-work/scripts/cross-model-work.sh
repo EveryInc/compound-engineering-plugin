@@ -921,7 +921,9 @@ terminate_route() {
 trap 'terminate_route' TERM INT
 
 set +e
-(cd "$WORKSPACE" && exec "${MIN_ENV[@]}" "${ARGS[@]}" < /dev/null > "$RAW_STDOUT" 2> "$RAW_STDERR") &
+# npx resolves packages from its working directory's node_modules and .npmrc first;
+# acpx gets the agent's cwd from --cwd, so start it from private scratch.
+(cd "$SCRATCH" && exec "${MIN_ENV[@]}" "${ARGS[@]}" < /dev/null > "$RAW_STDOUT" 2> "$RAW_STDERR") &
 ACTIVE_ROUTE_PID=$!
 (
   # A foreground sleep would outlive this subshell's TERM and hold the script's

@@ -310,6 +310,8 @@ extract_model_receipt() {   # <route>; reads $PEERLOG, sets MODEL_ACTUAL
 $served
 EOF
   MODEL_ACTUAL="$heaviest"
+  # A route that requested no model (Cursor default, OpenCode auto) has nothing to mismatch.
+  [ "$requested" = auto ] && return 0
   log "WARNING: model mismatch - requested $requested, adapter reported $MODEL_ACTUAL; reconcile must surface this"
 }
 
@@ -741,7 +743,9 @@ stop_heartbeat() {
 run_peer_cmd() {   # CMD already built; streams to PEERLOG, diagnostics to PEERERR
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
-  "${CMD[@]}" < /dev/null > "$PEERLOG" 2>"$PEERERR" &
+  # Start npx from private scratch: npx resolves packages from its working
+  # directory's node_modules and .npmrc first, and acpx gets the agent's cwd from --cwd.
+  ( cd "$(dirname "$PEERLOG")" && exec "${CMD[@]}" ) < /dev/null > "$PEERLOG" 2>"$PEERERR" &
   local pid=$!
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m

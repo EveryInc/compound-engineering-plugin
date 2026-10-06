@@ -57,7 +57,7 @@ export function acpStream(base: string, spec: StreamSpec = {}): string {
  * The worker launches acpx under `env -i`, so the stub's settings cannot ride the
  * environment. The `npx` wrapper bakes them in, records what the acpx child sees
  * in `capture` (cwd, environment, argv, launch variables, prompt), runs `hook`
- * from the workspace, then replays the stream.
+ * from the `--cwd` workspace the way the agent would, then replays the stream.
  */
 export function acpNpxBin(bin: string, capture: string, stream: string, hook = ""): string {
   for (const binary of AGENT_BINARIES) {
@@ -67,7 +67,11 @@ export function acpNpxBin(bin: string, capture: string, stream: string, hook = "
   writeFileSync(path.join(bin, "npx"), `#!/bin/sh
 printf '%s' "$PWD" > '${capture}/pwd'
 env | sort > '${capture}/env'
+agent_cwd=""; prev=""
+for arg in "$@"; do [ "$prev" = --cwd ] && agent_cwd="$arg"; prev="$arg"; done
+( cd "$agent_cwd" || exit 1
 ${hook}
+) || exit 1
 ACP_STUB_NPX_STREAM='${stream}' ACP_STUB_NPX_ARGV_LOG='${capture}/argv' ACP_STUB_NPX_ENV_LOG='${capture}/launch-env' ACP_STUB_NPX_PROMPT_LOG='${capture}/prompt' exec '${STUB_NPX}' "$@"
 `)
   chmodSync(path.join(bin, "npx"), 0o755)

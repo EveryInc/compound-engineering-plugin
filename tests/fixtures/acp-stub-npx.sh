@@ -29,6 +29,7 @@ if [ -n "${ACP_STUB_NPX_ENV_LOG:-}" ]; then
     printf 'CLAUDE_CODE_EXECUTABLE=%s\n' "${CLAUDE_CODE_EXECUTABLE-<unset>}"
     printf 'OPENCODE_DISABLE_PROJECT_CONFIG=%s\n' "${OPENCODE_DISABLE_PROJECT_CONFIG-<unset>}"
     printf 'OPENCODE_CONFIG_CONTENT=%s\n' "${OPENCODE_CONFIG_CONTENT-<unset>}"
+    printf 'PWD=%s\n' "$(pwd -P)"
     if [ -n "${CLAUDE_CODE_EXECUTABLE:-}" ] && [ -f "$CLAUDE_CODE_EXECUTABLE" ]; then
       printf -- '--- CLAUDE_CODE_EXECUTABLE contents ---\n'
       cat "$CLAUDE_CODE_EXECUTABLE"
