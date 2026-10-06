@@ -1623,12 +1623,12 @@ describe("cross-model peer skip legibility", () => {
   // when it returned a reviewer-shaped object with a top-level `findings` array
   // — not merely any valid JSON. Accepting an error/envelope object (e.g. a grok
   // 402 usage-exhausted body) must be dropped at normalize rather than published
-  // as a fold-in. The two workers must agree on this gate.
+  // as a fold-in. The two workers must agree on this gate, which lives in the
+  // normalize step that alone publishes an artifact.
   for (const worker of pairs.map((p) => p.worker)) {
     test(`${worker} gates fixed-route success on a findings-shaped return, not any valid JSON`, async () => {
       const src = await readRepoFile(worker)
-      expect(src).toMatch(/out_missing_or_invalid\(\)/)
-      expect(src).toContain('(.findings|type)=="array"')
+      expect(src).toMatch(/'if \(\.findings\|type\)=="array"\n\s*then \{ reviewer: \$r,/)
     })
   }
 
@@ -1884,21 +1884,17 @@ describe("cross-model peer skip legibility", () => {
   // The provider runs under `set -m` in its OWN process group so the worker can
   // group-reap it without killing itself. On a clean worker exit the runner's
   // final sweep only kills the worker's pgid, and a survivor the provider left
-  // in its own group reparents off the worker's tree — so EVERY run path must
+  // in its own group reparents off the worker's tree — so the run path must
   // reap "$pid" (the provider group) after wait, or that survivor leaks.
   for (const worker of pairs.map((p) => p.worker)) {
     test(`${worker} reaps the provider process group after waiting on it`, async () => {
       const src = await readRepoFile(worker)
-      // Each run path preserves the exit status before sweeping the provider
-      // group; timed-out/nonzero output must not be publishable. The native
-      // worker has two run paths; the acpx worker runs every route through one.
-      const native = worker.includes("ce-code-review")
+      // The one run path preserves the exit status before sweeping the provider
+      // group; timed-out/nonzero output must not be publishable.
       const guardedWaits = src.match(
-        native
-          ? /if wait "\$pid" 2>\/dev\/null; then RUN_SUCCEEDED=true\n\s*else log "peer exited non-zero or timed out"; fi\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/g
-          : /wait "\$pid" 2>\/dev\/null\n\s*PEER_EXIT=\$\?\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/g,
+        /wait "\$pid" 2>\/dev\/null\n\s*PEER_EXIT=\$\?\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/g,
       ) ?? []
-      expect(guardedWaits).toHaveLength(native ? 2 : 1)
+      expect(guardedWaits).toHaveLength(1)
     })
   }
 

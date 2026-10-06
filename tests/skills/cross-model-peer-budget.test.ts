@@ -32,15 +32,6 @@ const DISPATCH_REFS = {
   "ce-doc-review": "skills/ce-doc-review/references/cross-model-review.md",
 } as const
 
-// Workers whose routes still run the provider CLIs directly. Workers migrated
-// to acpx stream every route through one idle-guarded runner instead.
-const NATIVE_SCRIPTS = {
-  "ce-code-review": SCRIPTS["ce-code-review"],
-} as const
-const ACPX_SCRIPTS = {
-  "ce-doc-review": SCRIPTS["ce-doc-review"],
-  "ce-pov": SCRIPTS["ce-pov"],
-} as const
 
 const POV_REF = "skills/ce-pov/references/cross-model-panel.md"
 const RUNNER = "skills/ce-doc-review/scripts/peer-job-runner.py"
@@ -57,14 +48,6 @@ function caps(rel: string): { idle: number; hard: number } {
   return { idle: Number(idle[1]), hard: Number(hard[1]) }
 }
 
-// Only routes that cannot stream (today: grok-cli with --json-schema) stay on
-// UNGUARDED_HARD_SECS. Claude/cursor-family stream and share HARD_SECS + IDLE_SECS
-// via run_timeout_cmd's idle poll (#1270).
-function unguardedHard(rel: string): number | null {
-  const m = read(rel).match(/UNGUARDED_HARD_SECS="\$\{CROSS_MODEL_HARD_SECS:-(\d+)\}"/)
-  return m ? Number(m[1]) : null
-}
-
 describe("cross-model peer budget", () => {
   test("the idle cap is the liveness guard, so it fires before the hard backstop", () => {
     for (const [skill, rel] of Object.entries(SCRIPTS)) {
@@ -77,54 +60,8 @@ describe("cross-model peer budget", () => {
     expect(caps(SCRIPTS["ce-code-review"])).toEqual(caps(SCRIPTS["ce-doc-review"]))
   })
 
-  test("grok-cli stays hard-only below the raised backstop", () => {
+  test("every worker idle-guards every route on PEERLOG growth under one hard cap", () => {
     for (const [skill, rel] of Object.entries(SCRIPTS)) {
-      const { hard } = caps(rel)
-      const unguarded = unguardedHard(rel)
-      const src = read(rel)
-      if (!/run_timeout_cmd\(\)/.test(src)) continue
-      // Streaming routes share HARD_SECS; only grok-cli keeps the unguarded bound.
-      // Retry-aware workers pass a remaining attempt budget derived from the same
-      // route-specific source instead of reopening the full cap.
-      if (src.includes("ATTEMPT_HARD_SECS")) {
-        expect(src, `${skill} must derive grok-cli from UNGUARDED`).toContain(
-          'if [ "$1" = "grok-cli" ]; then printf \'%s\\n\' "$UNGUARDED_HARD_SECS"',
-        )
-        expect(src, `${skill} must hard-only grok-cli`).toContain(
-          'run_timeout_cmd "" "$attempt_hard" no-idle',
-        )
-        expect(src, `${skill} must idle-guard claude`).toContain(
-          'run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle',
-        )
-      } else {
-        expect(src, `${skill} must hard-only grok-cli`).toContain(
-          'run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle',
-        )
-        expect(src, `${skill} must idle-guard claude`).toContain(
-          'run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle',
-        )
-      }
-      if (hard > 600) {
-        expect(unguarded, `${skill} must keep UNGUARDED for grok-cli`).not.toBeNull()
-        expect(unguarded!, `${skill} unguarded cap`).toBeLessThanOrEqual(600)
-      }
-      if (unguarded !== null) expect(unguarded, `${skill} unguarded cap`).toBeLessThanOrEqual(hard)
-    }
-  })
-
-  test("run_timeout_cmd idle mode polls PEERLOG like run_codex_cmd", () => {
-    for (const [skill, rel] of Object.entries(NATIVE_SCRIPTS)) {
-      const src = read(rel)
-      const body = src.slice(src.indexOf("run_timeout_cmd() {"))
-      const fn = body.slice(0, body.indexOf("\n}\n") + 1)
-      expect(fn, `${skill} idle mode must poll PEERLOG`).toContain('wc -c <"$PEERLOG"')
-      expect(fn, `${skill} idle mode must reap on IDLE_SECS`).toContain('"$IDLE_SECS"')
-      expect(fn, `${skill} must accept no-idle for grok-cli`).toContain('idle_mode="${3:-idle}"')
-    }
-  })
-
-  test("acpx workers idle-guard every route on PEERLOG growth under one hard cap", () => {
-    for (const [skill, rel] of Object.entries(ACPX_SCRIPTS)) {
       const src = read(rel)
       const body = src.slice(src.indexOf("run_peer_cmd() {"))
       const fn = body.slice(0, body.indexOf("\n}\n") + 1)
@@ -135,20 +72,6 @@ describe("cross-model peer budget", () => {
       // acpx applies --timeout per phase, so it gets the same budget but the
       // worker's own wall clock stays authoritative.
       expect(src, `${skill} passes its hard budget to acpx`).toContain('"$HARD_SECS" "$CLAUDE_WRAPPER"')
-    }
-  })
-
-  test("streaming adapters use stream-json; grok-cli stays on buffered json", () => {
-    for (const [skill, rel] of Object.entries(NATIVE_SCRIPTS)) {
-      const src = read(rel)
-      expect(src, `${skill} claude streams`).toMatch(
-        /claude[\s\S]*?--output-format stream-json --verbose/,
-      )
-      expect(src, `${skill} cursor-family streams`).toContain("--output-format stream-json")
-      // grok-cli schema path remains buffered json (schema vs stream mutual exclusion).
-      expect(src, `${skill} grok-cli stays json`).toMatch(
-        /grok-cli\)[\s\S]*?--json-schema "\$SCHEMA_REF" --output-format json/,
-      )
     }
   })
 

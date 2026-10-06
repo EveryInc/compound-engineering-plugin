@@ -12,6 +12,7 @@ const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 const MIGRATED_WORKERS = [
   "ce-pov/scripts/cross-model-pov.sh",
   "ce-doc-review/scripts/cross-model-doc-review.sh",
+  "ce-code-review/scripts/cross-model-adversarial-review.sh",
 ]
 
 const BEGIN_MARKER = "# --- acpx transport (keep byte-identical across migrated peer workers)"

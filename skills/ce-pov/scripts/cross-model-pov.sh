@@ -204,7 +204,7 @@ acpx_preflight() {   # <route> <cwd>; nothing is sent to a provider here
 }
 
 # Claude's ACP adapter always loads project settings, so the launch goes
-# through a wrapper that adds --safe-mode, matching the native route.
+# through a wrapper that adds --safe-mode.
 acpx_claude_wrapper() {   # <private-dir> -> wrapper path
   local real wrapper="$1/claude-safe-mode"
   real="$(command -v claude)" || return 1
