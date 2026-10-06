@@ -6,14 +6,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
 1. **Run Core Quality Checks**
 
-   Always run before submitting:
-
-   ```bash
-   # Run full test suite (use project's test command)
-   # Examples: bin/rails test, npm test, pytest, go test, etc.
-
-   # Run linting (per the project's configured lint command / active instructions)
-   ```
+   Run the project's full test suite and its configured lint command on the finished change before simplification and review.
 
 2. **Simplify** (conditional; separate from code review)
 
@@ -35,7 +28,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
    **3a. Review (read-only).** Invoke `ce-code-review` through the host's normal skill-invocation mechanism with `mode:agent` (add `plan:<path>` when known; `base:<ref>` when the diff base is resolved). Skill invocation means loading the cataloged skill definition and following it through that mechanism; `ce-code-review` does not require a separate executable, runner, or binary. Pass **`depth:full`** when the plan, the task, or the user explicitly asked for a full / deep / thorough review; that is the one escalation signal `ce-code-review` cannot infer from the diff alone. Do not pass `mode:autofix`. Parse the JSON and retain the receipt only when `status` is `complete` (plus `artifact_path` / `run_id`).
 
-   **3b. Apply fixes (the caller applies them, not `ce-code-review`).** Load `references/review-findings-followup.md`: check findings against the evidence and agreed scope, batch justified fixes by file, dispatch fix subagents. The orchestrator merges, tests, and commits. Then proceed to the Residual Work Gate.
+   **3b. Apply fixes (the caller applies them, not `ce-code-review`).** Load `references/review-findings-followup.md`: check findings against the evidence and agreed scope, then apply justified fixes inline or in subagent batches grouped by file, as that reference decides. The orchestrator merges, tests, and commits. Then proceed to the Residual Work Gate.
 
    **If the top-level `ce-code-review` attempt cannot produce a completed receipt:** Preserve the review requirement by entering this branch only when the cataloged skill definition fails to load, or an attempted top-level invocation has terminated without a usable completed receipt and no recovery remains inside `ce-code-review`. Evidence comes from the definition load or the top-level terminal outcome; intermediate internal events never establish caller-owned unavailability. A missing dedicated runner, executable, or binary is not evidence when the definition loads, so proceed through 3a and let `ce-code-review` own its recovery. In an **interactive** session, run the harness-native review if the session catalog lists one (use that entry's listed path; it is not a Compound Engineering skill), fix inline, and note `Code review: harness-native fallback` with a one-line reason (that phrase is what satisfies the completion gate; a silent mental review does not). In a **non-interactive** session (autonomous pipeline, or no native review available), skip the dedicated step, note `Code review: skipped (ce-code-review unavailable)`, and add an explicit manual diff scan to Final Validation. Never silently ship a non-mechanical change with no review of any kind.
 
@@ -50,12 +43,14 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    Skip the gate when there are no justified remaining concerns or dedicated review was skipped. A reported count alone does not decide whether to stop.
 
 5. **Final Validation**
-   - All tasks marked completed
-   - Testing addressed -- tests pass and new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
-   - Linting passes
-   - Figma designs match (if applicable)
-   - If the plan has a `Requirements` section (or legacy `Requirements Trace`), verify each requirement is satisfied by the completed work
-   - If any `Deferred to Implementation` questions were noted, confirm they were resolved during execution
+
+   Before shipping, re-open the plan and re-check its active units, requirements, Verification Contract, and Definition of Done against the diff, because context may have been compacted to a summary that dropped detail. The change is ready when:
+   - every task is complete, and every `Deferred to Implementation` question was resolved;
+   - Testing addressed: tests and lint pass, and new or changed behavior has test coverage or a recorded reason it needs none;
+   - each plan requirement (`Requirements`, or legacy `Requirements Trace`) is satisfied by the work;
+   - code from approaches that did not pan out has been removed from the diff;
+   - UI work built from a Figma design matches it;
+   - when the review step recorded `Code review: skipped (ce-code-review unavailable)`, a manual scan of the diff found nothing that blocks shipping.
 
 ## Phase 4: Ship It
 
@@ -92,30 +87,3 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - Link to PR (if one was created)
    - Note any follow-up work needed
    - Suggest next steps if applicable
-
-## Quality Checklist
-
-Before creating PR, verify:
-
-- [ ] All clarifying questions asked and answered
-- [ ] All tasks marked completed
-- [ ] Linting passes
-- [ ] Testing addressed -- tests pass AND new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
-- [ ] Figma designs match implementation (if applicable)
-- [ ] Validation/evidence context passed to `ce-commit-push-pr` when the change has observable behavior
-- [ ] Commit messages follow conventional format
-- [ ] Simplify: `ce-simplify-code` under the threshold selected in Phase 3 (or skipped with reason)
-- [ ] Code review completion gate: completed receipt (`status: complete` + `artifact_path`/`run_id` or markdown Actionable/Coverage/Verdict) **or** exact phrase (`Code review: skipped (mechanical diff)` / `Code review: skipped (ce-code-review unavailable)` / `Code review: harness-native fallback`); residuals handled via the Residual Work Gate
-- [ ] Ship-handoff gate passed before `ce-commit-push-pr` / `ce-commit` (completed receipt or exact phrase in shipping context)
-- [ ] PR description includes summary, testing notes, and evidence when captured
-- [ ] `ce-commit-push-pr` received `branding:on` from the Compound Engineering workflow (or the project-defined shipping process ran with the same context)
-
-## Code Review
-
-Single portable path: **`ce-code-review`** self-sizes. No harness-native review detection, no caller-owned depth classification; the judgment about size and consequence lives inside `ce-code-review`.
-
-**Completion gate:** shipping is not done without a **completed** review receipt (`status: complete`) or an exact skip / harness-native-fallback phrase. **Skip** only for a purely mechanical diff (formatting, dep-bumps, lint-only, generated, including multi-file mechanical-only); not for applying external findings or behavior-bearing work. Everything else is reviewed.
-
-**Two steps — review is not fix.** (3a) Review-only via `mode:agent`; add `depth:full` when the plan/task/user explicitly asked for a deep review. (3b) Batched fix subagents per `references/review-findings-followup.md`; residuals → Residual Work Gate. Re-check the completion gate at the ship handoff before `ce-commit-push-pr` / `ce-commit`.
-
-**Unavailable review fallback:** preserve the review requirement by using this branch only when the cataloged skill definition fails to load, or an attempted top-level invocation has terminated without a usable completed receipt and no recovery remains inside `ce-code-review`. Evidence comes from the definition load or the top-level terminal outcome; intermediate internal events never establish caller-owned unavailability. A missing dedicated runner, executable, or binary is not evidence when the definition loads. Interactive → harness-native review if present, fix inline, note `Code review: harness-native fallback`; non-interactive → exact unavailable skip phrase + manual diff scan in Final Validation. Never silently ship a non-mechanical change unreviewed.

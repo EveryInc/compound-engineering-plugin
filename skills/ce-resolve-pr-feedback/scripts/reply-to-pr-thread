@@ -15,7 +15,7 @@ fi
 
 PR_NUMBER=$1
 ROOT_COMMENT_ID=$2
-BODY=$(cat)
+IFS= read -r -d '' BODY || true
 
 if [ -n "$3" ]; then
     OWNER=$(echo "$3" | cut -d/ -f1)

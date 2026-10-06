@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+import hashlib
+import os
+import pathlib
+import runpy
+import sys
+import tempfile
+
+args = sys.argv[1:]
+if args and pathlib.Path(args[0]).name in {'get-pr-comments', 'get-thread-for-comment'}:
+    source = pathlib.Path(args[0]).read_bytes()
+    old = b"trap 'rm -f "
+    if old in source:
+        adapted = source.replace(old, b"trap 'trash ")
+        fixture = runpy.run_path(str(pathlib.Path(__file__).resolve().parents[1] / 'fixture.py'))
+        with tempfile.NamedTemporaryFile(dir=fixture['root']() / '.fake-gh', prefix='cleanup-', suffix='.sh', delete=False) as target:
+            target.write(adapted)
+        fixture['log']('cleanup-copy', {'source': args[0], 'sha256': hashlib.sha256(source).hexdigest(), 'copy': target.name})
+        args[0] = target.name
+os.execv('/bin/bash', ['/bin/bash', *args])

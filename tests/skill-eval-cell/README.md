@@ -15,11 +15,13 @@ bun run test:skill-eval-cell -- \
   --task "mode:pipeline the seat cap test is failing. Run node tests/seat-cap.check.js."
 ```
 
+`--fixture` copies the directory into the cell workspace. Test files under `fixtures/` belong to those workspaces, so the repo-root `bunfig.toml` excludes them from the repository suite.
+
 `--git-remote` (catalog: `git_remote: true`) adds a fake `origin` whose `main` is the seed commit, so a shipping tail takes the push/PR path — where `--shim-git-push` then fails — instead of the local-commit path it takes when no remote exists.
 
 `--read-only` enforces the fake boundary, it does not merely suggest it: Codex drops `--dangerously-bypass-approvals-and-sandbox` and runs `--sandbox read-only` (the two contradict each other), and Claude pairs `--allowedTools Read,Glob,Grep` with a `--disallowedTools` list that also names `Task,Skill,WebFetch,WebSearch,NotebookEdit` — under `--dangerously-skip-permissions` those stay callable, so allow-listing alone leaves the boundary open.
 
-Prints a `summary.json` path. Each host gets its own workspace copy plus stdout/stderr, git status/log, and a file list. PATH shims live beside that workspace, never inside it, so the skill under test never sees harness files as its own dirty tree. Grade those; Grok narrates before the answer (grep `FILES_READ:`). Codex transcript is stderr, final message is stdout. `claude -p` is one-tick only.
+Prints a `summary.json` path. Each host gets its own workspace copy plus stdout/stderr, git status/log, and a file list. PATH shims live beside that workspace, never inside it, so the skill under test never sees harness files as its own dirty tree. Grade those; Grok narrates before the answer (grep `FILES_READ:`). Codex transcript is stderr, final message is stdout. A conversation cell (`--persona`) differs: Codex runs with `--json`, `stdout.txt` is the conversation with every agent message of each turn, and the event stream, tool calls included, lands in `stderr.txt`. `claude -p` is one-tick only.
 
 Each invocation requires a new or empty `--out` directory and records input and
 evidence fingerprints. Packs freeze their scenario criteria and grader hashes.

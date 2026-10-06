@@ -750,7 +750,7 @@ describe("live endpoint: session end, stop, replay (KTD18, KTD22)", () => {
     expectOk(await page.sendCheckpoint("ck1", "silence", "smart"))
     const wake = await agent.waitHttp()
     expect(wake.envelope!.units[0]).toMatchObject({ id: "u1", statement: "make the header dark red" })
-    expect((wake.envelope!.units[0] as { anchors: unknown[] }).anchors).toHaveLength(2)
+    expect(wake.envelope!.units[0].anchors).toHaveLength(2)
     expectOk(await agent.ack("ck1"))
     // Released: the wording is frozen, the confirmation still lands.
     expectOk(await page.send("unit_update", { unit_id: "u1", statement: "actually make it blue", confirmed: { element: true, change: false } }))

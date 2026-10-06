@@ -653,7 +653,7 @@ describe("skill-eval-cell host grade", () => {
 })
 
 describe("skill-eval-cell grade: phrasing-tolerant pins", () => {
-  const base = { host: "claude", arm: "post" as const }
+  const base = { host: "claude" as const, arm: "post" as const }
   function hostDir(stdout: string): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grade-any-"))
     fs.mkdirSync(path.join(dir, "workspace"), { recursive: true })

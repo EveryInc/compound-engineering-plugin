@@ -1271,7 +1271,8 @@ describe("ce-code-review contract", () => {
     expect(followup).toContain("mode:agent")
     expect(skill).toContain("references/shipping-workflow.md")
     expect(shipping).toContain("**Review is not fix — two steps:**")
-    expect(shipping).toContain("Review-only via `mode:agent`")
+    expect(shipping).toContain("**3a. Review (read-only).** Invoke `ce-code-review`")
+    expect(shipping).toContain("with `mode:agent`")
     expect(shipping).toContain("review-findings-followup.md")
     expect(shipping).toMatch(/batch.*file|batch applicable findings by file/i)
   })
@@ -1382,6 +1383,11 @@ describe("ce-code-review contract", () => {
     for (const path of ["skills/ce-work/references/shipping-workflow.md", "skills/ce-debug/references/post-fix-handoff.md"]) {
       expect(await readRepoFile(path)).not.toContain("Known Residuals")
     }
+  })
+
+  test("resolver commit recipe limits the commit to fix-owned paths", async () => {
+    const fullMode = await readRepoFile("skills/ce-resolve-pr-feedback/references/full-mode.md")
+    expect(fullMode).toMatch(/git commit -m "[\s\S]*?" -- \[files in the change set\]/)
   })
 
   test("ce-code-review emits actionable findings summary for callers", async () => {

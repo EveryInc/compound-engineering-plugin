@@ -2,7 +2,7 @@
 
 Read this when input triage enters Return-to-Caller Mode, and read it again immediately before returning. Input triage owns and validates the invocation grammar (`references/input-triage.md` parses the mode token and carriers). This file defines every field of the summary you return, the evidence rule for `status: complete`, how a repeated run recovers without reimplementing, and the standalone work you must not do here: simplify, review, PR, CI, and babysitting.
 
-In this mode `ce-work` performs implementation and local verification only — including mid-implementation Phase 2 "Simplify as You Go" — then returns a structured summary instead of running the standalone shipping tail (final simplify, review, commit, PR, CI). The summary is the last thing this mode writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the summary.
+In this mode `ce-work` performs implementation and local verification only — including mid-implementation Phase 2 "Simplify as You Go" — then returns a structured summary instead of running the standalone shipping tail (final simplify, review, PR, CI). It still makes the canonical commit for each completed unit, as Phase 2 directs; the caller commits only what remains. The summary is the last thing this mode writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the summary.
 
 Return:
 
@@ -28,6 +28,6 @@ Return:
 - `behavior_change`: whether behavior-bearing code changed
 - `standalone_shipping_skipped: true`
 
-Return `status: complete` only when behavior-bearing work has verification evidence or a deliberate exception. If a previous return-to-caller run implemented code but omitted evidence, a later same-plan return-to-caller run should use the idempotency check to inspect the existing work, complete the evidence, and return without reimplementing.
+Return `status: complete` only when behavior-bearing work has verification evidence or a deliberate exception. Before returning it, re-open the plan and re-check its active units, Verification Contract, and Definition of Done against the diff, because context may have been compacted to a summary that dropped detail. Remove code left over from approaches that did not pan out. If a previous return-to-caller run implemented code but omitted evidence, a later same-plan return-to-caller run should use the idempotency check to inspect the existing work, complete the evidence, and return without reimplementing.
 
-Engine selection (`references/execution-engines.md`) still applies in this mode, but only for implementation. Do not print a copyable goal/workflow prompt: a manual paste step strands the caller. Run inline/subagents or return a blocker instead. Any goal/workflow engine used here must not open a PR, run the standalone shipping steps, or skip the checks the caller controls.
+Engine selection (`references/execution-engines.md`) still applies in this mode, but only for implementation. Whichever engine runs must not open a PR, run the standalone shipping steps, or skip the checks the caller controls.

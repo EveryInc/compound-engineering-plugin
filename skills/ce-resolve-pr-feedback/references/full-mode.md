@@ -153,25 +153,29 @@ Each fix runs only targeted tests on its own change. This step runs the project'
 
 Record the validation outcome (command run, pass/fail counts, any pre-existing failures noted) for the step 9 summary.
 
-## 6. Commit and Push
+## 6. Commit and Publication
 
-1. Stage only the change set and commit with a message referencing the PR:
+Commit only the change set, preserving unrelated work in the tree and index, with a message referencing the PR:
 
 ```bash
 git add [files in the change set]
 git commit -m "Address PR review feedback (#PR_NUMBER)
 
-- [list changes from per-item results]"
+- [list changes from per-item results]" -- [files in the change set]
 ```
 
-2. Push to remote:
+In `mode:return-to-caller`, capture the combined fix commit SHA and follow [references/return-to-caller.md](return-to-caller.md) to save every judged action and intended checklist tick. Return after saving; do not push or enter steps 7-8 for any part of this batch. A failed commit or save reports the actual local state and incomplete handoff, never completion.
+
+Ordinary and pipeline execution publish the commit before the remote tail:
 ```bash
 git push
 ```
 
 ## 7. Reply and Resolve
 
-After the push succeeds, post replies and resolve where applicable. The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the `reply_text` from their per-item result; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved shows up as new work again in the next `ce-babysit-pr` loop. The mechanism depends on the feedback type.
+Enter the remote tail only when the batch's fix commit is published, or the batch created no code changes. Return-to-caller batches with a fix stop at step 6; their saved reply-only and human-list items remain deferred too. No-change return-to-caller batches use this existing protocol and save observed progress even when a write fails. Resume enters here only through the publication and reconciliation conditions in [references/resume.md](resume.md), uses the saved verdicts and exact reply bodies, and returns there after completing or stopping the remote tail. Apply eligible PR checklist ticks under the entrypoint's publication condition.
+
+The done condition for an ordinary review thread is one visible, submitted substantive reply plus authoritative resolution; satisfy each condition independently and never repeat a satisfied half. Post for every newly handled item: fix-list items use the `reply_text` from their per-item result; reply-list and human-list items use the reply text you composed in step 3. A **class item** carries multiple covered feedback IDs (`feedback_ids`/`feedback_types` from its fixer) — reply to and resolve *every* one, posting the shared `reply_text` on each thread, not just the first; a covered thread left unresolved shows up as new work again in the next `ce-babysit-pr` loop. The mechanism depends on the feedback type.
 
 ### Reply format
 
@@ -183,6 +187,8 @@ For `needs-human` verdicts, post the natural-sounding reply but do NOT resolve t
 
 For every calling mode, select the first unsatisfied completion condition before acting. A thread with no visible submitted substantive reply runs steps 0-4. A `resolution-pending` thread skips only step 1, uses its existing reply IDs for step 2, and runs steps 2-4; do not judge, fix, or post again. A `needs-human` thread stops after its visible submitted reply and remains unresolved.
 
+Current GitHub state decides independently of local progress. A POST may succeed before the helper's pending-review check fails or before a checkpoint is written. Reconcile the existing reply and its submitted visibility before retrying; adopt a verified reply instead of reposting it, and verify authoritative resolution separately.
+
 0. **Verify the thread ID** before replying. GitHub Enterprise can return inconsistent node IDs for the same thread depending on the query path. Always confirm the ID from `get-pr-comments` resolves to the correct thread using [scripts/get-thread-for-comment](../scripts/get-thread-for-comment) with the comment's numeric URL ID. Extract the numeric comment ID from the comment URL (e.g. `discussion_r2589700` → `2589700`) for the `gh api` call; if the bundled script is missing, use `gh api` to inspect the review thread instead:
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
@@ -192,14 +198,16 @@ GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-thread-for-comment" PR_NUMBE
 The returned `id` is the authoritative thread ID for resolution, and `root_comment_id` is the numeric ID of the thread's first comment for the REST reply. If the thread ID differs from what `get-pr-comments` returned, use the one from this script.
 
 1. **Reply directly to the root comment over REST** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread). If the bundled script is missing, use the same `POST repos/{owner}/{repo}/pulls/PR_NUMBER/comments/ROOT_COMMENT_ID/replies` endpoint. Do not substitute `addPullRequestReviewThreadReply`, `gh pr review`, or a `/reviews` POST: those operations go through review-submission state, so the reply can sit unsubmitted, while a successful reply must be immediately submitted and visible.
-Feed the body through a quoted heredoc, never `echo "..."` or `printf`. A reply is multi-line Markdown (a quote line, a blank line, then the response), and `echo` neither interprets `\n` nor survives a body composed with escape sequences — the reviewer then sees a single run-on line containing literal `\n` characters. The quoted delimiter (`<<'EOF'`) also stops the shell from expanding backticks, `$`, and `!` inside quoted code:
+Feed the body from a private OS scratch file. For a fresh reply, the quoted heredoc below writes multiline Markdown without shell expansion; never use `echo "..."` or `printf` to interpret escape sequences. For a saved reply, write its exact decoded `reply_body` bytes to that file with a tool instead of running the illustrative heredoc, which would add a terminal newline. Preserve all existing line breaks, including terminal ones:
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
-GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/reply-to-pr-thread" PR_NUMBER ROOT_COMMENT_ID OWNER/REPO <<'EOF'
+REPLY_BODY_FILE="<absolute private OS scratch reply file>";
+cat > "$REPLY_BODY_FILE" <<'EOF'
 > the specific sentence being addressed from the reviewer's comment
 
 Fixed in abc1234 — the lookup now null-checks before dereferencing.
 EOF
+GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/reply-to-pr-thread" PR_NUMBER ROOT_COMMENT_ID OWNER/REPO < "$REPLY_BODY_FILE"
 ```
 The helper exits nonzero if a pending review is visible after the POST. Stop without resolving on that error; do not submit or discard the review. Check that the returned comment URL contains the correct `OWNER/REPO` and PR number before proceeding.
 
@@ -240,15 +248,16 @@ GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/resolve-pr-thread" THREAD_ID
 These cannot be resolved via GitHub's API. Reply with a top-level PR comment referencing the original (pass `-R OWNER/REPO` — the parsed base repo — so a fork→upstream reply posts on the watched upstream PR, not the fork namespace):
 
 ```bash
-GH_HOST=<derived-host> gh pr comment PR_NUMBER -R OWNER/REPO --body "$(cat <<'EOF'
+REPLY_BODY_FILE="<absolute private OS scratch reply file>";
+cat > "$REPLY_BODY_FILE" <<'EOF'
 > the specific sentence being addressed from the reviewer's comment
 
 Fixed in abc1234 — the lookup now null-checks before dereferencing.
 EOF
-)"
+GH_HOST=<derived-host> gh pr comment PR_NUMBER -R OWNER/REPO --body-file "$REPLY_BODY_FILE"
 ```
 
-The same escaping rule applies here: compose the body in a quoted heredoc so paragraph breaks are real newlines, and confirm the posted comment renders as Markdown rather than one line containing literal `\n`.
+For a saved reply, populate the file with its exact decoded bytes instead of running the illustrative heredoc. `--body-file` preserves terminal newlines that command substitution would strip. Confirm the posted body matches the intended Markdown, including actual line breaks.
 
 Include enough quoted context in the reply so the reader can follow which comment is being addressed without scrolling.
 
@@ -263,7 +272,9 @@ GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-pr-comments" PR_NUMBER OWNER
 
 The `review_threads` array should be empty (except `needs-human` items).
 
-**If new threads remain**, check the iteration count -- counting rounds **for this PR**, not just this invocation. An orchestrator such as `ce-babysit-pr` re-invokes this skill fresh each round, so a per-invocation counter never trips; count instead the earlier review-fix commits already on the branch (`git log <base>..HEAD` subjects that address review feedback) plus this run's own cycles.
+In resume, verify only the saved actions and report new feedback through its caller result; return to [references/resume.md](resume.md) without entering another fix cycle.
+
+**For fresh-feedback modes, if new threads remain**, check the iteration count -- counting rounds **for this PR**, not just this invocation. An orchestrator such as `ce-babysit-pr` re-invokes this skill fresh each round, so a per-invocation counter never trips; count instead the earlier review-fix commits already on the branch (`git log <base>..HEAD` subjects that address review feedback) plus this run's own cycles.
 
 - **First or second fix-verify cycle**: Repeat from step 2 for the remaining threads.
 
@@ -272,6 +283,8 @@ The `review_threads` array should be empty (except `needs-human` items).
 PR comments and review bodies have no resolve mechanism, so they will still appear in the output. Verify they were replied to by checking the PR conversation.
 
 ## 9. Summary
+
+In `mode:return-to-caller`, emit the structured result in [references/return-to-caller.md](return-to-caller.md) instead of the interactive summary below. Save actual no-change completion and any incomplete remote tail before returning; human decisions stay open and retain their typed payloads.
 
 Present a concise summary of all work done. Group by verdict, one line per item describing *what was done* not just *where*. This is the primary output the user sees, and the place where your step 3 (Consolidate & Decide) judgments become visible: the user can see exactly what was fixed, what was skipped, and why.
 

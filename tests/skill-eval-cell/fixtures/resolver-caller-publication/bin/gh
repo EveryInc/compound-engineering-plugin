@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+import pathlib
+import runpy
+import sys
+
+sys.argv.insert(1, '--gh')
+runpy.run_path(str(pathlib.Path(__file__).resolve().parents[1] / 'fixture.py'), run_name='__main__')

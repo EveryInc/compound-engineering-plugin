@@ -108,7 +108,7 @@ const explicitOnlyRendererCases = [
 ] as const
 
 describe("user-facing skill invocation rendering", () => {
-  test.each(modelVisibleRendererCases)(
+  test.each([...modelVisibleRendererCases])(
     "$file keeps model-visible handoffs host-neutral",
     ({ file, defaults, codex, unnecessaryOmp }) => {
       const body = readRepoFile(file)
@@ -123,7 +123,7 @@ describe("user-facing skill invocation rendering", () => {
     },
   )
 
-  test.each(explicitOnlyRendererCases)(
+  test.each([...explicitOnlyRendererCases])(
     "$file uses deterministic OMP syntax for explicit-only skill targets",
     ({ file, defaults, codex, omp, targets }) => {
       const body = readRepoFile(file)
@@ -189,9 +189,8 @@ describe("user-facing skill invocation rendering", () => {
     expect(usageGuide).not.toContain("Use /ce-optimize")
   })
 
-  test("Codex goal remains a built-in exception, not a converted skill invocation", () => {
+  test("the built-in /goal command is never rendered as a converted skill invocation", () => {
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
-    expect(planHandoff).toContain("Run it as a `/goal`")
     expect(planHandoff).not.toContain("$goal")
   })
 })

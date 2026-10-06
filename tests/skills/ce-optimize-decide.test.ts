@@ -34,7 +34,7 @@ const OBSERVED = {
   nestedConcurrency8: 924.515,
 }
 
-function hardSpec(overrides: Record<string, unknown> = {}) {
+function hardSpec<T extends Record<string, unknown> = {}>(overrides: T = {} as T) {
   return {
     primary: { name: "wall_seconds", direction: "minimize", type: "hard" },
     degenerate_gates: [{ name: "suite_passed", check: "== 1" }],

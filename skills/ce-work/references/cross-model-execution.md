@@ -1,8 +1,45 @@
 # Cross-Model Execution Contract
 
-Read this reference only after the cross-model engine is selected, or after you are recovering an existing external run. It defines how the host picks one fixed route, what authority the external worker gets, when native fallback is allowed, how requested and actual identity are kept apart, what the run record must contain, and how one unit moves through the controller one transaction at a time. The host drives the bundled controller, detached runner, and adapter; no worker response or process exit can substitute for controller and Git evidence.
+Read this reference only when `references/execution-engines.md` finds an applicable external route, or when you are recovering an existing external run. It defines how the host picks one fixed route, what authority the external worker gets, when native fallback is allowed, how requested and actual identity are kept apart, what the run record must contain, and how one unit moves through the controller one transaction at a time. The host drives the bundled controller, detached runner, and adapter; no worker response or process exit can substitute for controller and Git evidence.
 
 When this file records that the run leaves the host, that record is the egress: sending repository content, or the authority to change it, to an external process. When this file records a receipt, that is a fact the controller wrote, not something the worker or the host inferred.
+
+## Interpret route intent and standing configuration
+
+`references/execution-engines.md` decides whether an external route applies and which source has authority. This section turns that source into ordered candidates.
+
+A live request such as "use Codex" is preference-strength by default. Interpret unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. The resolved mode is `prefer` or `require`. Requirement strength fixes the requested external identity while that route is viable; it never authorizes another external recipient and does not turn route unavailability into a blocker.
+
+Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Grok, then Codex"). Preserve that order and normalize each harness/model candidate with the same rules as standing configuration. A typed caller binding remains a single already-selected candidate; do not widen its exact four-field grammar into a list.
+
+Standing configuration uses one mode plus an ordered route list. Resolve `work_engine_mode` and `work_engine_preferences` independently from the two repo files (`config.local.yaml` then `config.yaml`); a present local list, including `[]`, replaces the team list. Do not pick one file for the whole group.
+
+```yaml
+work_engine_mode: prefer
+work_engine_preferences:
+  - harness: cursor
+    model: composer
+  - harness: codex
+    model: gpt-6.1-sol
+  - harness: claude
+work_engine_effort:
+  codex: xhigh
+  claude: max
+```
+
+- `work_engine_mode`: `off | prefer | require`
+- `work_engine_preferences`: one or more ordered candidate objects
+- `harness`: `codex | claude | grok | cursor | opencode`
+- optional `model`: a model id or family understood by that harness; omission means its configured default
+- optional `work_engine_effort`: a map from harness to the reasoning effort its external worker runs at, written in that harness's own levels; a harness left out keeps its default
+
+Do not put CLI commands or flags in configuration. The list expresses implementation intent; the skill's adapter recipes and local inspection determine how to invoke it. Composer is therefore `{ harness: cursor, model: composer }`, while `{ harness: cursor }` means Cursor's configured default.
+
+Normalize a qualified candidate to the controller's fixed route: Codex -> `codex`, Claude -> `claude`, native Grok -> `grok-cli`, Cursor with no model -> `cursor`, a Composer-family Cursor model -> `composer`, a Grok-family Cursor model -> `grok-cursor`, another explicit Cursor model -> `cursor` with that controller-authorized model selector, and OpenCode -> `opencode`. A model selector is data, never shell syntax; if it cannot be represented by the fixed adapter's safe model token, the candidate is unavailable.
+
+`work_engine_effort` resolves on its own under the same two-file rule, and a present local map replaces the team map. It requests an effort for every candidate of that harness, including a candidate a caller binding or live intent selected, and it applies whatever `work_engine_mode` says. A candidate that cannot run at the effort requested for it is unavailable before any work is sent, the same as any other unavailable candidate, and nothing runs at a different effort than the one requested. The adapter script owns which levels each route accepts; ask it at preflight rather than judging the value yourself. A candidate that collapses to native execution runs at the session's own effort, so say that the configured effort was not applied. A value that is not a harness map requests nothing: say once that it was ignored and continue with each route's default.
+
+An enabled mode without a valid candidate list is unavailable rather than guessed. When the list is exhausted, both `prefer` and `require` disclose every attempted route and reason once, then continue natively on the current harness and session model. A required route is never replaced by another unrequested external recipient. Standing configuration supplies defaults, not permission to change recipient or broaden authority.
 
 ## Resolve one requested route
 
@@ -14,11 +51,13 @@ Use only these targets: `codex`, `claude`, `grok`, `cursor`, `composer`, and `op
 - `composer` means a Composer-family model through Cursor.
 - `grok` prefers its fixed native route; a Grok model through Cursor is a different intermediary and must be separately permitted and recorded.
 
-When a standing preference lists candidates in order, preflight them in that order without sending anything out. Skip a candidate only when its harness and requested/default model are equivalent to the current host, or when observed evidence shows it is unavailable. Attempt the documented adapter recipe first. Local CLI help or version information may refine a compatible mapping, but only inside the same sanctioned harness/model family and only if the fixed adapter still enforces every restriction. An explicit model pin cannot become another model. When `work_engine_effort` requests an effort for the candidate's harness, preflight also asks the adapter whether that route can run at it. The effort is data, never shell syntax, the same as a model selector: only a plain token that starts with a letter or digit and continues with letters, digits, `-`, or `_` may appear in a command, and any other value makes the candidate unavailable without running anything. Ask with this skill's bundled script by its absolute path under the skill directory, because it is not on `PATH`: `CROSS_MODEL_EFFORT_OVERRIDE='<token>' "<skill-dir>/scripts/cross-model-work.sh" --emit-adapter <route>`. Exit 2 naming the effort means the route cannot run at it, and the candidate is unavailable with that reason. A script that cannot be found or run is a broken preflight to report, not evidence about the route. The first qualified candidate becomes the one fixed recipient.
+When a standing preference lists candidates in order, preflight them in that order without sending anything out. Skip a candidate only when its harness and requested/default model are equivalent to the current host, or when observed evidence shows it is unavailable. An explicit different model in the same harness is still a distinct candidate. After skipping a candidate, record why and continue to the next candidate. Attempt the documented adapter recipe first. Local CLI help or version information may refine a compatible mapping, but only inside the same sanctioned harness/model family and only if the fixed adapter still enforces every restriction. An explicit model pin cannot become another model. When `work_engine_effort` requests an effort for the candidate's harness, preflight also asks the adapter whether that route can run at it. The effort is data, never shell syntax, the same as a model selector: only a plain token that starts with a letter or digit and continues with letters, digits, `-`, or `_` may appear in a command, and any other value makes the candidate unavailable without running anything. Ask with this skill's bundled script by its absolute path under the skill directory, because it is not on `PATH`: `CROSS_MODEL_EFFORT_OVERRIDE='<token>' "<skill-dir>/scripts/cross-model-work.sh" --emit-adapter <route>`. Exit 2 naming the effort means the route cannot run at it, and the candidate is unavailable with that reason. A script that cannot be found or run is a broken preflight to report, not evidence about the route. The first qualified candidate becomes the one fixed recipient.
 
 A candidate that came from a `model_roles` entry, as `execution-engines.md` defines it, differs from the rules above as follows. When its entry carries an effort, it is never skipped as equivalent to the current host and never collapsed to native execution. A refusal moves it down the fallback ladder instead of making it unavailable: when the adapter exits 2 for the entry's effort, ask again at each lower level of the resolver's `effort_scale`, nearest first, and use the first level it accepts. When it accepts no level, the route has no effort control, and the candidate runs on the entry's model with no effort. When the route cannot serve the entry's model, the candidate may run on the harness's configured default model. Record what the route is asked to run, not what the entry asked for: the egress `effort` is the accepted level and is absent when none applies, and the binding's `model` is the model the route will run.
 
 Before egress, you may keep moving down the list after a candidate is proven unavailable. After dispatch starts, the adapter receives one fixed recipient and must never switch recipients, providers, or intermediaries internally. A different recipient requires a separately resolved and recorded attempt, and only after the first attempt reaches an authoritative terminal or reaped state; it is never an in-flight fallback.
+
+Disclose any compatible model alias or substitution, and never relabel an unverified served model.
 
 If a target asks for the same-host default with no distinct serving route or model, collapse to native execution. Record the target as requested and native as actual; do not create an external job merely to call the current host's default model through itself.
 

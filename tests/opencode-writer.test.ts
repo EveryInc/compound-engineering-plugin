@@ -145,7 +145,7 @@ describe("writeOpenCodeBundle", () => {
     const bundle: OpenCodeBundle = {
       config: { 
         $schema: "https://opencode.ai/config.json", 
-        mcp: { "plugin-server": { type: "local", command: "uvx", args: ["plugin-srv"] } } 
+        mcp: { "plugin-server": { type: "local", command: ["uvx", "plugin-srv"] } } 
       },
       agents: [],
       plugins: [],
@@ -178,7 +178,7 @@ describe("writeOpenCodeBundle", () => {
     // Create existing config with user's mcp server
     await fs.mkdir(outputRoot, { recursive: true })
     const existingConfig = { 
-      mcp: { "user-server": { type: "local", command: "uvx", args: ["user-srv"] } } 
+      mcp: { "user-server": { type: "local", command: ["uvx", "user-srv"] } } 
     }
     await fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
 
@@ -187,8 +187,8 @@ describe("writeOpenCodeBundle", () => {
       config: { 
         $schema: "https://opencode.ai/config.json",
         mcp: { 
-          "plugin-server": { type: "local", command: "uvx", args: ["plugin-srv"] },
-          "user-server": { type: "local", command: "uvx", args: ["plugin-override"] }  // conflict
+          "plugin-server": { type: "local", command: ["uvx", "plugin-srv"] },
+          "user-server": { type: "local", command: ["uvx", "plugin-override"] }  // conflict
         } 
       },
       agents: [],
@@ -204,8 +204,8 @@ describe("writeOpenCodeBundle", () => {
     expect(mergedConfig.mcp).toBeDefined()
     expect(mergedConfig.mcp["plugin-server"]).toBeDefined()
     expect(mergedConfig.mcp["user-server"]).toBeDefined()
-    expect(mergedConfig.mcp["user-server"].args[0]).toBe("user-srv")  // user wins on conflict
-    expect(mergedConfig.mcp["plugin-server"].args[0]).toBe("plugin-srv")  // plugin entry present
+    expect(mergedConfig.mcp["user-server"].command[1]).toBe("user-srv")  // user wins on conflict
+    expect(mergedConfig.mcp["plugin-server"].command[1]).toBe("plugin-srv")  // plugin entry present
   })
 
   test("preserves unrelated user keys when merging opencode.json", async () => {
@@ -226,7 +226,7 @@ describe("writeOpenCodeBundle", () => {
     const bundle: OpenCodeBundle = {
       config: { 
         $schema: "https://opencode.ai/config.json",
-        mcp: { "plugin-server": { type: "local", command: "uvx", args: ["plugin-srv"] } },
+        mcp: { "plugin-server": { type: "local", command: ["uvx", "plugin-srv"] } },
         permission: { "bash": "allow" }
       },
       agents: [],

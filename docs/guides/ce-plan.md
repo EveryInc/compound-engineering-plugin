@@ -28,7 +28,7 @@ A prior brainstorm helps but is never required. You can invoke `ce-plan` directl
 | What does it do? | Researches context, captures decisions and scope, breaks work into atomic units with stable IDs, enumerates test scenarios per unit, then auto-strengthens weak sections via a confidence check |
 | When to use it | Requirements are ready and execution guardrails are needed; solo planning when the task is already clear; non-software multi-step tasks; investigative questions that need a structured answer |
 | What it produces | Software: a unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed). Brainstorm-sourced plans gain implementation planning in place. Non-software plan-seeking writes a domain plan (or publishes to Proof). Answer-seeking delivers the answer in chat with no plan file. |
-| What's next | Software: start `ce-work` (recommended), run it as a `/goal` when the host supports that, decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open an HTML plan in the browser. Non-software: save, publish to Proof, or both. Answer-seeking: the answer is the end. |
+| What's next | Software: start `ce-work` (recommended), decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open an HTML plan in the browser. Non-software: save, publish to Proof, or both. Answer-seeking: the answer is the end. |
 
 ---
 
@@ -150,7 +150,7 @@ It dispatches research in parallel (repo analyst, learnings researcher). Local p
 
 The plan is written. The confidence check finds `Risks & Dependencies` thin on a mute-leak risk and one unit's tests missing permission edge cases, dispatches reviewers, and folds the findings back. The plan gets stamped with a `deepened:` date.
 
-Document review then runs non-interactively. When planning includes permission to revise the draft, the planner passes that permission to the reviewer for corrections needed to satisfy the established Product Contract. The reviewer applies eligible corrections and preserves product choices and constraints. The planner checks the returned concerns against the full planning context before handing off. It resolves what it can within the request, discards weak or already-satisfied claims, and builds the menu from what still needs approval or user judgment. Reviewer output remains available as evidence; it is not forwarded unchanged. The menu offers: start `ce-work` (recommended), run it as a `/goal` when the host supports that, decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open the file if it is HTML. There is no Proof option on the software menu and no pause option. The file is already saved.
+Document review then runs non-interactively. When planning includes permission to revise the draft, the planner passes that permission to the reviewer for corrections needed to satisfy the established Product Contract. The reviewer applies eligible corrections and preserves product choices and constraints. The planner checks the returned concerns against the full planning context before handing off. It resolves what it can within the request, discards weak or already-satisfied claims, and builds the menu from what still needs approval or user judgment. Reviewer output remains available as evidence; it is not forwarded unchanged. The menu offers: start `ce-work` (recommended), decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open the file if it is HTML. There is no Proof option on the software menu and no pause option. The file is already saved.
 
 ---
 
@@ -275,7 +275,7 @@ Use the deepen fast path: `/ce-plan deepen <plan>`. It runs interactively, prese
 Disallowed by default. Pseudo-code and DSL grammars are permitted in High-Level Technical Design when they communicate the shape of the solution as directional guidance. Exact method signatures, imports, framework-specific syntax, and step-by-step shell sequences do not belong in plans.
 
 **Can I publish a software plan to Proof from the post-plan menu?**
-No. Proof is on the non-software wrap-up menu (save, publish, or both). Software next steps are `ce-work`, `/goal` when supported, review or prototype, create an issue, or open an HTML file. Publish a markdown plan later with `/ce-proof` if you want a shareable link.
+No. Proof is on the non-software wrap-up menu (save, publish, or both). Software next steps are `ce-work`, review or prototype, create an issue, or open an HTML file. Publish a markdown plan later with `/ce-proof` if you want a shareable link.
 
 ---
 

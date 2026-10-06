@@ -132,6 +132,10 @@ jobs:
       - name: Run tests
         run: bun run test
 
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: bun run typecheck
+
   # Focused Windows gate for the skill scripts that reach for POSIX process and
   # file primitives: peer-job-runner (#1243) and ce-babysit-pr's pr-snapshot
   # (#1280). Not a full-suite matrix — POSIX lifecycle tests (fork/killpg/ps)

@@ -17,10 +17,10 @@ const EXPIRING_TEST_INVOCATION = ["--start-invocation", "--invocation-budget-sec
 
 function fetchFile(dir: string, name: string, obj: unknown): string {
   const p = path.join(dir, name)
-  const fixture = obj && typeof obj === "object" && !Array.isArray(obj)
+  const fixture: unknown = obj && typeof obj === "object" && !Array.isArray(obj)
     ? { ...(obj as Record<string, unknown>) }
     : obj
-  if (fixture && typeof fixture === "object" && Array.isArray(fixture.threads)) {
+  if (fixture && typeof fixture === "object" && "threads" in fixture && Array.isArray(fixture.threads)) {
     fixture.threads = fixture.threads.map((thread: any) => ({
       ...thread,
       url: thread.url ?? `https://example.test/thread/${thread.thread_id}`,

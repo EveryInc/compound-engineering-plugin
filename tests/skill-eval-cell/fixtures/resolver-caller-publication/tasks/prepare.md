@@ -1,0 +1,1 @@
+Use ce-resolve-pr-feedback mode:return-to-caller https://github.com/example/counter/pull/12 handoff:pending.json. Handle the review feedback under the project's authority and return the caller result.

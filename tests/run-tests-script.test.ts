@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { junitCases, lostExitMs, lostExitZombies, parsePs, passTimeoutMs, passthroughArgs, rerunCandidates } from "../scripts/run-tests"
@@ -19,7 +19,7 @@ describe("run-tests: choosing files to re-run from a bun junit report", () => {
   <testsuite name="tests/a.test.ts">
     <testcase name="bun 1.2 shape: no file attr on the case" classname="" time="30" line="2"><failure type="TimeoutError" /></testcase>
   </testsuite>`)
-    expect(junitCases(xml)).toEqual([
+    expect(junitCases(xml)).toMatchObject([
       { file: "tests/b.test.ts", failure: null },
       { file: "tests/b.test.ts", failure: "TimeoutError" },
       { file: "tests/a.test.ts", failure: "TimeoutError" },
@@ -59,9 +59,9 @@ describe("run-tests: choosing files to re-run from a bun junit report", () => {
   </testsuite>
 </testsuites>`
     expect(junitCases(xml)).toEqual([
-      { file: "timeout.test.ts", failure: "AssertionError" },
-      { file: "timeout.test.ts", failure: "TimeoutError" },
-      { file: "timeout.test.ts", failure: null },
+      { file: "timeout.test.ts", failure: "AssertionError", describe: [], name: "slow assertion then hang", message: "expect(received).toBe(expected)" },
+      { file: "timeout.test.ts", failure: "TimeoutError", describe: [], name: "pure timeout", message: "test timed out" },
+      { file: "timeout.test.ts", failure: null, describe: [], name: "after timeout still runs", message: "" },
     ])
     expect(rerunCandidates(junitCases(xml))).toEqual([])
 
@@ -97,9 +97,45 @@ describe("run-tests: choosing files to re-run from a bun junit report", () => {
   test("re-runs nothing for a clean, errored-only, or empty report", () => {
     expect(rerunCandidates(junitCases(junit(suite("tests/c.test.ts", ok("tests/c.test.ts", 1)))))).toEqual([])
     const errored = junit(`<testsuite name="tests/e.test.ts" file="tests/e.test.ts"><testcase name="boom" file="tests/e.test.ts" line="1"><error message="import failed" /></testcase></testsuite>`)
-    expect(junitCases(errored)).toEqual([{ file: "tests/e.test.ts", failure: "error" }])
+    expect(junitCases(errored)).toEqual([{ file: "tests/e.test.ts", failure: "error", describe: [], name: "boom", message: "import failed" }])
     expect(rerunCandidates(junitCases(errored))).toEqual([])
     expect(rerunCandidates(junitCases(""))).toEqual([])
+  })
+
+  test("keeps each case's describe path, name, and decoded message (bun 1.4.2 output)", () => {
+    // Verbatim bun output: nested describes are nested suites, classname lists them innermost first.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="3" assertions="1" failures="2" skipped="0" time="0.00934">
+  <testsuite name="a.test.ts" file="a.test.ts" tests="3" assertions="1" failures="2" skipped="0" time="0.005708" hostname="ci">
+    <testsuite name="outer &lt;x&gt;" file="a.test.ts" line="2" tests="2" assertions="1" failures="1" skipped="0" time="0" hostname="ci">
+      <testsuite name="inner &amp; co" file="a.test.ts" line="2" tests="2" assertions="1" failures="1" skipped="0" time="0.002" hostname="ci">
+        <testcase name="fails &quot;quoted&quot;" classname="inner &amp; co &gt; outer &lt;x&gt;" time="0.002903" file="a.test.ts" line="3" assertions="1">
+          <failure type="AssertionError" message="expect(received).toEqual(expected)&#10;&#10;  {&#10;-   &quot;a&quot;: &quot;c&quot;,&#10;+   &quot;a&quot;: &quot;&lt;b&gt;&quot;,&#10;  }&#10;">AssertionError: expect(received).toEqual(expected)&#10;      at a.test.ts:3:55&#10;</failure>
+        </testcase>
+        <testcase name="passes" classname="inner &amp; co &gt; outer &lt;x&gt;" time="0.000008" file="a.test.ts" line="4" assertions="0" />
+      </testsuite>
+    </testsuite>
+    <testcase name="top level" classname="" time="0.000039" file="a.test.ts" line="6" assertions="0">
+      <failure type="Error" message="line1&#10;line2 &amp; &lt;tag&gt; &#x41;&apos;">Error: line1&#10;      at a.test.ts:6:65&#10;</failure>
+    </testcase>
+  </testsuite>
+</testsuites>`
+    expect(junitCases(xml)).toEqual([
+      {
+        file: "a.test.ts",
+        failure: "AssertionError",
+        describe: ["outer <x>", "inner & co"],
+        name: 'fails "quoted"',
+        message: 'expect(received).toEqual(expected)\n\n  {\n-   "a": "c",\n+   "a": "<b>",\n  }\n',
+      },
+      { file: "a.test.ts", failure: null, describe: ["outer <x>", "inner & co"], name: "passes", message: "" },
+      { file: "a.test.ts", failure: "Error", describe: [], name: "top level", message: "line1\nline2 & <tag> A'" },
+    ])
+  })
+
+  test("falls back to the failure body when it has no message attribute", () => {
+    const xml = junit(suite("tests/f.test.ts", `<testcase name="t1" classname="g" file="tests/f.test.ts"><error type="SyntaxError">Unexpected &amp;&#10;at 1:1</error></testcase>`))
+    expect(junitCases(xml)).toEqual([{ file: "tests/f.test.ts", failure: "SyntaxError", describe: ["g"], name: "t1", message: "Unexpected &\nat 1:1" }])
   })
 
   test("passes caller options through and drops wrapper-owned reporter flags", () => {
@@ -118,6 +154,25 @@ function fixture(body: string): string {
   fixtureRoots.push(dir)
   writeFileSync(path.join(dir, "fixture.test.ts"), body)
   return dir
+}
+
+const RECAP = "Failing tests ("
+const lastLine = (text: string) => text.trimEnd().split("\n").at(-1) ?? ""
+/** The recap block, which must be the last thing the runner prints. */
+function recapOf(stderr: string): string {
+  const at = stderr.lastIndexOf(RECAP)
+  expect(at).toBeGreaterThanOrEqual(0)
+  return stderr.slice(at)
+}
+
+function runRunner(dir: string, args: string[] = ["./fixture.test.ts"], env: Record<string, string> = {}) {
+  return spawnSync(process.execPath, [RUNNER, ...args], {
+    cwd: dir,
+    encoding: "utf8",
+    env: { ...process.env, CE_TEST_PASS_TIMEOUT_SECONDS: "60", ...env },
+    timeout: 60_000,
+    killSignal: "SIGKILL",
+  })
 }
 
 function readPid(file: string): number {
@@ -157,6 +212,7 @@ describe("run-tests: stall watchdog", () => {
       expect(Date.now() - started).toBeLessThan(30_000)
       expect(r.stderr).toContain("stalled")
       expect(r.stderr).toContain("sleep 300")
+      expect(lastLine(r.stderr)).toContain("killed before a report was written")
       expect(alive(worker)).toBe(false)
       expect(alive(orphan)).toBe(false)
     } finally {
@@ -174,6 +230,9 @@ describe("run-tests: stall watchdog", () => {
     })
     expect(r.status).toBe(0)
     expect(r.stderr).not.toContain("stalled")
+    expect(r.stderr).not.toContain(RECAP)
+    // The runner's own repo has its dependencies, so a bare temp cwd never trips the preflight.
+    expect(r.stderr).not.toContain("bun install")
   }, 90_000)
 
   test("a passing run leaves nothing from its pass running", () => {
@@ -290,4 +349,114 @@ describe.skipIf(process.platform === "win32")("run-tests: lost child-exit", () =
 `)
     expect(lostExitZombies(rows).map((r) => r.pid)).toEqual([102])
   })
+})
+
+describe("run-tests: failure recap", () => {
+  test("ends with each failing test's path and first message line, entities decoded", () => {
+    const dir = fixture(`import { describe, expect, test } from "bun:test"
+describe("group <a> & b", () => {
+  test("compares \\"x\\"", () => { throw new Error("a & b <c>\\nsecond line") })
+  test("passes", () => expect(1).toBe(1))
+})
+`)
+    const r = runRunner(dir)
+    expect(r.status).not.toBe(0)
+    const recap = recapOf(r.stderr)
+    expect(recap).toContain('fixture.test.ts > group <a> & b > compares "x"')
+    expect(recap).toContain("a & b <c>")
+    expect(recap).toContain("second line")
+    expect(recap).not.toContain("passes")
+  }, 90_000)
+
+  test("names two failing tests in one file, in order", () => {
+    const dir = fixture(`import { expect, test } from "bun:test"
+test("first", () => expect(1).toBe(2))
+test("ok", () => {})
+test("second", () => expect("x").toBe("y"))
+`)
+    const recap = recapOf(runRunner(dir).stderr)
+    expect(recap).toContain("expect(received).toBe(expected)")
+    const first = recap.indexOf("fixture.test.ts > first")
+    const second = recap.indexOf("fixture.test.ts > second")
+    expect(first).toBeGreaterThan(0)
+    expect(second).toBeGreaterThan(first)
+  }, 90_000)
+
+  test("names every failing test and bounds only the message lines", () => {
+    const dir = fixture(`import { test } from "bun:test"
+for (let i = 0; i < 25; i++) {
+  test("case " + i, () => { throw new Error(Array.from({ length: 12 }, (_, n) => "case " + i + " line " + n).join("\\n")) })
+}
+`)
+    const recap = recapOf(runRunner(dir).stderr)
+    for (let i = 0; i < 25; i++) {
+      expect(recap).toContain(`fixture.test.ts > case ${i}\n`)
+      expect(recap).toContain(`case ${i} line 0`)
+      expect(recap).not.toContain(`case ${i} line 11`)
+    }
+  }, 90_000)
+
+  test("a load error the report omits points at bun's output", () => {
+    const dir = fixture(`import { test } from "bun:test"\ntest("ok", () => {})\n`)
+    writeFileSync(path.join(dir, "broken.test.ts"), `import "./no-such-module"\n`)
+    const r = runRunner(dir, ["./fixture.test.ts", "./broken.test.ts"])
+    expect(r.status).not.toBe(0)
+    expect(lastLine(r.stderr)).toContain("lists no failing test")
+  }, 90_000)
+
+  test("a filter that matches no files says no report was written", () => {
+    const r = runRunner(fixture(""), ["no-such-test-file-xyz"])
+    expect(r.status).not.toBe(0)
+    expect(r.stderr).not.toContain(RECAP)
+    expect(lastLine(r.stderr)).toContain("No junit report")
+    expect(lastLine(r.stderr)).toContain("above")
+  }, 90_000)
+
+  test("a TimeoutError-only first pass whose re-run fails recaps the re-run's failures", () => {
+    const dir = fixture(`import { test } from "bun:test"
+import { existsSync, writeFileSync } from "node:fs"
+test("times out, then fails", async () => {
+  if (!existsSync("attempted")) {
+    writeFileSync("attempted", "")
+    await new Promise(() => {})
+  }
+  throw new Error("re-run failure")
+}, 500)
+`)
+    const r = runRunner(dir)
+    expect(r.stderr).toContain("Re-running 1 file(s)")
+    expect(r.status).not.toBe(0)
+    const recap = recapOf(r.stderr)
+    expect(recap).toContain("fixture.test.ts > times out, then fails")
+    expect(recap).toContain("re-run failure")
+    expect(recap).not.toContain("timed out")
+  }, 90_000)
+})
+
+describe("run-tests: dependency preflight", () => {
+  test("a declared dependency missing from node_modules fails fast, naming it and bun install", () => {
+    const repo = fixture(`import { test } from "bun:test"\nimport { writeFileSync } from "node:fs"\ntest("ran", () => writeFileSync("ran", ""))\n`)
+    mkdirSync(path.join(repo, "scripts"))
+    copyFileSync(RUNNER, path.join(repo, "scripts", "run-tests.ts"))
+    writeFileSync(
+      path.join(repo, "package.json"),
+      JSON.stringify({ dependencies: { present: "1" }, devDependencies: { "@scope/absent": "1", "plain-absent": "1" } }),
+    )
+    mkdirSync(path.join(repo, "node_modules", "present"), { recursive: true })
+    writeFileSync(path.join(repo, "node_modules", "present", "package.json"), "{}")
+    const started = Date.now()
+    const r = spawnSync(process.execPath, [path.join(repo, "scripts", "run-tests.ts"), "./fixture.test.ts"], {
+      cwd: repo,
+      encoding: "utf8",
+      timeout: 30_000,
+    })
+    expect(r.status).not.toBe(0)
+    expect(Date.now() - started).toBeLessThan(10_000)
+    expect(r.stderr).toContain("@scope/absent")
+    expect(r.stderr).toContain("plain-absent")
+    expect(r.stderr).not.toContain("present,")
+    expect(r.stderr).toContain("bun install")
+    expect(r.stderr).not.toContain(RECAP)
+    expect(existsSync(path.join(repo, "ran"))).toBe(false)
+  }, 60_000)
 })

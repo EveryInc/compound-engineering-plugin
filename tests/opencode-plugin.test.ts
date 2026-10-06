@@ -91,7 +91,7 @@ describe("opencode plugin", () => {
 
   test("V1 config hook does not clobber explicit commands", async () => {
     const hooks = await CompoundEngineeringPlugin.server()
-    const config = { command: { "ce-brainstorm": { template: "explicit wins" } } }
+    const config: { command?: Record<string, { template: string }> } = { command: { "ce-brainstorm": { template: "explicit wins" } } }
     await hooks.config(config)
     expect(config.command?.["ce-brainstorm"]?.template).toBe("explicit wins")
     expect(config.command?.["ce-plan"]?.template).toContain("ce-plan")

@@ -57,8 +57,8 @@ describe("ce-work review contract", () => {
     expect(shipping).toMatch(/review is not fix|3a\. Review|3b\. Apply/i)
     expect(shipping).toContain("mode:agent")
 
-    // Quality checklist requires receipt or exact skip phrase (completion gate)
-    expect(shipping).toContain("Code review completion gate")
+    // The review step and the ship handoff both bind the completion gate
+    expect(shipping).toContain("Completion gate (standalone shipping)")
     expect(shipping).toContain("Ship-handoff gate")
   })
 
@@ -96,9 +96,9 @@ describe("ce-work review contract", () => {
       "**If the top-level `ce-code-review` attempt cannot produce a completed receipt:**",
       "4. **Residual Work Gate**",
     )
-    const reviewSummaryStart = shipping.indexOf("## Code Review")
-    expect(reviewSummaryStart, "Code Review summary anchor not found").toBeGreaterThanOrEqual(0)
-    const reviewSummary = shipping.slice(reviewSummaryStart)
+    // The gate is stated once in the review step; the former end-of-file recap duplicated it.
+    expect(shipping).not.toContain("## Code Review\n")
+    expect(shipping).not.toContain("## Quality Checklist")
 
     // Always-loaded body owns the gate (not only the lazy reference)
     expect(content).toContain("Code-review completion gate")
@@ -123,10 +123,8 @@ describe("ce-work review contract", () => {
     expect(shipping).toContain("Never substitute")
     // The caller decides only from the owning boundary: definition load or the
     // terminal top-level receipt. Internal review events cannot authorize fallback.
-    for (const section of [unavailableBranch, reviewSummary]) {
-      expect(section).toContain("intermediate internal events never establish caller-owned unavailability")
-      expect(section).toContain("A missing dedicated runner, executable, or binary is not evidence")
-    }
+    expect(unavailableBranch).toContain("intermediate internal events never establish caller-owned unavailability")
+    expect(unavailableBranch).toContain("A missing dedicated runner, executable, or binary is not evidence")
     expect(unavailableBranch).toContain("proceed through 3a and let `ce-code-review` own its recovery")
   })
 
@@ -152,17 +150,17 @@ describe("ce-work review contract", () => {
     // Testing deliberation exists in the execution loop
     expect(content).toContain("Assess testing coverage")
 
-    // Deliberation is between "Run tests after changes" and "Mark task as completed"
+    // Deliberation is between "Run tests after changes" and marking the task completed
     const runTestsIdx = content.indexOf("Run tests after changes")
     const assessIdx = content.indexOf("Assess testing coverage")
-    const markDoneIdx = content.indexOf("Mark task as completed")
+    const markDoneIdx = content.indexOf("mark the task completed")
     expect(runTestsIdx).toBeLessThan(assessIdx)
     expect(assessIdx).toBeLessThan(markDoneIdx)
   })
 
-  test("quality checklist says 'Testing addressed' not 'Tests pass'", async () => {
+  test("final validation says 'Testing addressed' not 'Tests pass'", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
-    // Quality checklist extracted to references/shipping-workflow.md
+    // Final validation lives in references/shipping-workflow.md
     const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
 
     // New language present in reference file
@@ -688,13 +686,11 @@ describe("ce-plan review contract", () => {
   test("handoff options expose deeper-review opt-in alongside ce-work", async () => {
     const content = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
 
-    // Both executors are offered; ce-work is always the recommended default (it is the
-    // correctly-layered entry point that reaches goal/workflow engines itself), while goal
-    // mode is the opt-in preference for driving the work through the harness's goal loop.
+    // ce-work is the only executor offered and carries the recommended marker. A /goal
+    // option bypassed ce-work's review receipt and WIP protections, so it was removed.
     expect(content).toContain("**Start `ce-work`** - Build and ship the plan in this session")
-    expect(content).toContain("**Run it as a `/goal`**")
-    expect(content).toMatch(/`ce-work` \(option 1\) always carries \*\(recommended\)\*/i)
-    expect(content).toContain("Codex `create_goal` in the available tool list")
+    expect(content).not.toContain("**Run it as a `/goal`**")
+    expect(content).toContain("render option 1 as **Start `ce-work`** *(recommended)*")
 
     // Deeper review is a first-class menu fixture so users can engage with surfaced findings
     // without relying on free-form prompting; routed through ce-doc-review without non-interactive mode.
@@ -706,7 +702,7 @@ describe("ce-plan review contract", () => {
     // collapses back to a 4-option AskUserQuestion-friendly shape on Claude Code. FYI-only
     // state also hides the option since ce-doc-review's walkthrough is gated to actionable
     // findings (anchor 75/100, gated_auto/manual) and FYIs (anchor 50) bypass it.
-    expect(content).toContain("Show `Decide on the review's open items` (option 3) only when the resolved review state has")
+    expect(content).toContain("Show `Decide on the review's open items` (option 2) only when the resolved review state has")
     expect(content).toContain("proposed_fixes_count + decisions_count > 0")
 
     // Summary line above the menu surfaces autofix counts and remaining-bucket counts

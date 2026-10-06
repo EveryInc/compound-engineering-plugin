@@ -141,7 +141,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   test("every trajectory field cited in consumer prose is one pr-snapshot actually emits", async () => {
     const script = await readRepoFile(PR_SNAPSHOT)
     const emitted = new Set(emittedTrajectoryKeys(script))
-    const [babysit, ceresolve] = await Promise.all([readBabysit(), readRepoFile(CERESOLVE)])
+    const [babysit, ceresolve] = await Promise.all([readBabysit(), readRepoFile("skills/ce-resolve-pr-feedback/references/pipeline-mode.md")])
     for (const field of BABYSIT_TRAJECTORY_REFS) {
       expect(emitted.has(field), `babysit cites '${field}' but pr-snapshot no longer emits it`).toBe(true)
       expect(babysit).toContain(field)

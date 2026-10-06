@@ -26,7 +26,7 @@ Scale into the existing app only as a throwaway overlay when the user asks or th
 
 ## Showing it
 
-When the question is which option wins, put the options on one surface so they can be judged together — unless that surface would distort what is being judged: a scroll or transition gets a full-size run of its own rather than being nested in a small framed panel, and the comparison surface stays static.
+When the question is which option wins, put the options on one surface so they can be judged together — unless that surface would distort what is being judged: a scroll or transition gets a full-size run of its own rather than being nested in a small framed panel, and the comparison surface stays static. When a control swaps the options in place, such as tabs, give each option's container `data-ce-variant="<name>"` with a name no other option on the screen uses, so an annotation pin shows only on the option it was placed on.
 
 After each user-facing action or variant change, show the relevant state so they can see what changed.
 

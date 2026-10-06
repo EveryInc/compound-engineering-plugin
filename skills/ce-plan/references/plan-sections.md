@@ -144,7 +144,7 @@ present. They carry the contracts downstream consumers depend on.
   sequencing, and research that shapes how the Product Contract will be built.
 - **Implementation Units** (with stable U-IDs) — discrete work packets sized so
   each is independently executable. Each unit names Goal, Requirements,
-  Files, Approach, Test Scenarios, and Verification. `ce-work` and goal-mode
+  Files, Approach, Test Scenarios, and Verification. `ce-work` and other
   executors consume these units.
   - **Unit Index (large plans only, ~10+ units).** When the plan has roughly
     ten or more units, open the section with a compact navigation table — one
@@ -165,7 +165,7 @@ present. They carry the contracts downstream consumers depend on.
   "build time reduced 30%") and consider routing to `ce-optimize` — a metric
   target is a sharper done signal for a long-running goal than a boolean check.
 - **Definition of Done** — global and per-unit done criteria. This is the
-  completion contract for `/goal` or equivalent long-running workflows. Include
+  completion contract an executor checks before declaring the work done. Include
   a cleanup criterion: a long autonomous run accumulates dead-end and
   experimental code from approaches that did not pan out; declaring done
   requires that abandoned-attempt code is removed, not left in the diff.
