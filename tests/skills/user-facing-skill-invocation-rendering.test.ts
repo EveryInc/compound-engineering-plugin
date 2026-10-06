@@ -189,9 +189,8 @@ describe("user-facing skill invocation rendering", () => {
     expect(usageGuide).not.toContain("Use /ce-optimize")
   })
 
-  test("Codex goal remains a built-in exception, not a converted skill invocation", () => {
+  test("the built-in /goal command is never rendered as a converted skill invocation", () => {
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
-    expect(planHandoff).toContain("Run it as a `/goal`")
     expect(planHandoff).not.toContain("$goal")
   })
 })

@@ -90,7 +90,7 @@ An invalidating settlement conflict from planning or review stops the pipeline b
 
 No git remote: commit locally and skip push, PR creation, and CI watch. That is a terminal local-only path, not an error to retry.
 
-`lfg` never launches `/goal` itself. If goal-mode is the right engine, `ce-work` chooses it and must still return control.
+`lfg` never launches `/goal` itself. `ce-work` implements the plan and returns control, so `lfg` can run review and shipping.
 
 ---
 

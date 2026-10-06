@@ -111,7 +111,7 @@ Before each task, it checks whether the unit's work already exists and matches t
 
 ### Engine, workspace, and scheduling are separate decisions
 
-Ordinary synchronous native work stays in the active checkout. Each implementation unit gets a fresh, single-use native worker context using whatever isolation the current harness provides. A detached external worker always gets a private linked worktree. The host alone applies, verifies, and commits that result in the canonical checkout.
+Independent units in the same dependency layer run as a parallel wave of fresh, single-use native workers, using whatever isolation the current harness provides. That spends more tokens than working inline, in exchange for finishing sooner. Units that must run in sequence gain no time from a worker, so they run inline in the active checkout unless the context is crowded enough that a fresh window would help. A detached external worker always gets a private linked worktree. The host alone applies, verifies, and commits that result in the canonical checkout.
 
 The scheduler may author a bounded wave concurrently only after checking dependencies, actual and expected paths, shared interfaces, generated or config surfaces, migrations, and shared runtime resources. Results then fold in one at a time against the advancing canonical tree. A clean patch is not proof of semantic compatibility; overlap or uncertainty returns the affected work to host resolution, re-dispatch, or serial execution.
 
@@ -328,6 +328,15 @@ After review, `ce-work` drops incorrect or low-value suggestions and applies jus
 
 **Does `ce-work` support non-software plans?**
 For a plan marked `execution: knowledge-work` (produced by `ce-plan`'s approach-altitude flow), yes. The carve-out reads the sources, synthesizes, and produces the deliverable, skipping the commit/test/PR lifecycle. Other non-software work without that marker still ends at `ce-plan`, and a human executes it.
+
+**Can I run `ce-work` under `/goal`?**
+Yes, if you want the harness to keep re-prompting until the run finishes. `ce-plan` no longer offers `/goal` as a separate way to execute a plan, because that path skipped `ce-work`'s review receipt and its protection for uncommitted files. Type the goal yourself and make `ce-work`'s finished state the condition:
+
+```text
+/goal The ce-work skill has implemented docs/plans/<plan>.md and opened a PR with a code-review receipt, or reported a blocker
+```
+
+The `/goal` evaluator reads only the transcript, so name a state the transcript shows: `ce-work` prints the PR URL and the review receipt or skip phrase when it finishes.
 
 **What happens if I pass a requirements-only brainstorm file?**
 The run stops and tells you the Product Contract needs `ce-plan` enrichment first. It offers the exact `ce-plan <plan-path>` handoff. Blank invoke does the same if the newest matching artifact is still requirements-only.

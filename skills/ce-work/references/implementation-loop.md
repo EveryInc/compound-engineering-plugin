@@ -2,30 +2,17 @@
 
 1. **Task Execution Loop**
 
-For each task in priority order:
+Work the tasks in dependency order. Mark a task completed only after each of these holds, in this order:
+
+- **Completion signal checked first.** If any part of the unit's completion depends on out-of-repo state (a console setting, DNS record, CMS object, live-system rows), that part has no git-derived completion signal: decide it from the observed state of the deliverable, never from a clean tree or a tracker write. Mark it complete only when that state is already satisfied; execute only when it is observably unsatisfied and re-applying is safe or the user has authorized it; otherwise ask or block. If the unit's entire completion signal is repository-derived and that work is already present and matches the plan's intent (files exist with the expected capability, or the unit's `Verification` criteria are already satisfied by the current code), the work has likely shipped on a prior branch or session. Verify it matches, mark the task complete, and move on. Do not silently reimplement.
+- **Evidence chosen before behavior changes.** Find the existing tests for the files you will change (Test Discovery, below). Choose the evidence strategy for this task before changing behavior: use an existing failing test, update or strengthen an existing test, add a new failing test, add characterization coverage, or record a deliberate no-test exception with replacement verification. For behavior-bearing changes, default to test-first or characterization-first when the current code and its tests make that practical, even if the plan has no `Execution note`. When the evidence strategy calls for pre-implementation proof, create/update/strengthen the test or characterization coverage now and verify the expected failure or baseline capture before changing production code.
+- **Built to the plan.** Implement following existing conventions and the unit's `Patterns to follow`. Add, update, or remove any remaining tests needed to match implementation changes.
+- **Nothing that worked is broken.** Run System-Wide Test Check (below). Run tests after changes. If two fixes for the same failing check have not worked, stop patching: name the assumption both fixes relied on and check it, so the next change targets the root cause. When that assumption came from the plan and correcting it stays within the agreed scope, correct it and note what changed; report a blocker only when correcting it would change a settled decision, need authority the run lacks, or need input only the user can give.
+- **Evidence recorded.** Assess testing coverage: did this task change behavior? If yes, were existing tests inspected and were tests written, updated, strengthened, or deliberately left unchanged with a reason? If no tests were added or changed, is the justification deliberate (e.g., pure config, no behavioral change, manual-only surface) and paired with replacement verification? Record verification evidence for the task: behavior-change signal, existing tests inspected, tests added/changed/used unchanged, red failure or characterization observed when applicable, verification run, and any exception reason.
+
+Then mark the task completed in the task tracker and decide whether to commit it (Incremental Commits, below).
 
 When the selected engine is cross-model execution, this loop still decides unit order, the evidence strategy, inspection of what actually changed, authoritative verification, and incremental canonical commits; the worker's authoring follows the serial external-unit protocol in `references/cross-model-execution.md`. A detached worker process finishing proves only that authoring finished; do not mark the task complete until the controller records the host-owned canonical commit. A unit whose workspace was preserved, or whose restoration is blocked, stops this loop before any fallback, retry, or next unit.
-
-```
-while (tasks remain):
-  - Mark task as in-progress
-  - Read any referenced files from the plan or discovered during Phase 0
-  - **If any part of the unit's completion depends on out-of-repo state** (a console setting, DNS record, CMS object, live-system rows), that part has no git-derived completion signal: decide it from the observed state of the deliverable, never from a clean tree or a tracker write. Mark it complete only when that state is already satisfied; execute only when it is observably unsatisfied and re-applying is safe or the user has authorized it; otherwise ask or block.
-  - **If the unit's entire completion signal is repository-derived and that work is already present and matches the plan's intent** (files exist with the expected capability, or the unit's `Verification` criteria are already satisfied by the current code), the work has likely shipped on a prior branch or session. Verify it matches, mark the task complete, and move on. Do not silently reimplement.
-  - Look for similar patterns in codebase
-  - Find existing test files for implementation files being changed (Test Discovery — see below)
-  - Choose the evidence strategy for this task before changing behavior: use an existing failing test, update or strengthen an existing test, add a new failing test, add characterization coverage, or record a deliberate no-test exception with replacement verification
-  - For behavior-bearing changes, default to test-first or characterization-first when the current code and its tests make that practical, even if the plan has no `Execution note`
-  - When the evidence strategy calls for pre-implementation proof, create/update/strengthen the test or characterization coverage now and verify the expected failure or baseline capture before changing production code
-  - Implement following existing conventions
-  - Add, update, or remove any remaining tests needed to match implementation changes (see Test Discovery below)
-  - Run System-Wide Test Check (see below)
-  - Run tests after changes. If two fixes for the same failing check have not worked, stop patching: name the assumption both fixes relied on and check it, so the next change targets the root cause. When that assumption came from the plan and correcting it stays within the agreed scope, correct it and note what changed; report a blocker only when correcting it would change a settled decision, need authority the run lacks, or need input only the user can give
-  - Assess testing coverage: did this task change behavior? If yes, were existing tests inspected and were tests written, updated, strengthened, or deliberately left unchanged with a reason? If no tests were added or changed, is the justification deliberate (e.g., pure config, no behavioral change, manual-only surface) and paired with replacement verification?
-  - Record verification evidence for the task: behavior-change signal, existing tests inspected, tests added/changed/used unchanged, red failure or characterization observed when applicable, verification run, and any exception reason
-  - Mark task as completed
-  - Evaluate for incremental commit (see below)
-```
 
 **Build what was asked.** The plan's units and scope, or the request itself when there is no plan, define what gets built. Add a mechanism neither asked for, such as a guard, retry, fallback, validation layer, option, mode, abstraction, or support on another interface, only when an existing contract requires it or one of these holds:
 
@@ -69,16 +56,7 @@ Guardrails for execution evidence:
 
 2. **Incremental Commits**
 
-After completing each task, evaluate whether to create an incremental commit:
-
-| Commit when... | Don't commit when... |
-|----------------|---------------------|
-| Logical unit complete (model, service, component) | Small part of a larger unit |
-| Tests pass + meaningful progress | Tests failing |
-| About to switch contexts (backend → frontend) | Purely scaffolding with no behavior |
-| About to attempt risky/uncertain changes | Would need a "WIP" commit message |
-
-**Heuristic:** "Can I write a commit message that describes a complete, valuable change? If yes, commit. If the message would be 'WIP' or 'partial X', wait."
+After completing each task, decide whether to commit. Never commit while its tests fail. **Heuristic:** "Can I write a commit message that describes a complete, valuable change? If yes, commit. If the message would be 'WIP' or 'partial X', wait."
 
 If the plan has Implementation Units, use them as a starting guide for commit boundaries — but adapt based on what you find during implementation. A unit might need multiple commits if it's larger than expected, or small related units might land together. Use each unit's Goal to inform the commit message.
 
@@ -100,11 +78,9 @@ git add <files related to this logical unit>
 git commit -F <message-file> -- <files related to this logical unit>
 ```
 
-**Handling merge conflicts:** If conflicts arise during rebasing or merging, resolve them immediately. Incremental commits make conflict resolution easier since each commit is small and focused.
-
 **Note:** Incremental commits add no plugin-generated attribution. The final Phase 4 handoff passes `branding:on` so `ce-commit-push-pr` can add generic Compound Engineering branding to the PR.
 
-**Parallel subagent mode:** commit ownership follows the isolation mode chosen at dispatch — see `references/execution-strategy.md`.
+**Workers:** worker commits follow the **No canonical commits** rule in `references/execution-strategy.md`; only the orchestrator makes canonical commits.
 
 3. **Simplify as You Go**
 
@@ -116,24 +92,13 @@ If **`ce-simplify-code`** is available, invoke it at phase boundaries (especiall
 
 When the plan carries `session-settled:`-labeled KTDs or Key Decisions, pass the plan path as context for which structures must stay as they are, not as the simplification scope, with the one-line constraint that labeled entries are settled decisions the simplification must preserve (e.g., deliberate duplication stays duplicated).
 
-4. **Figma Design Sync** (if applicable)
+4. **UI Verification** (if applicable)
 
-For UI work with Figma designs:
+For UI work built from a Figma design, read `references/agents/figma-design-sync.md` and dispatch a generic subagent seeded with that local prompt to compare the implementation against the design. Do not dispatch a standalone agent by type/name. Apply the reported fixes that hold up against the project's conventions, then compare again until it reports a match or only differences you judge intentional.
 
-- Implement components following design specs
-- Read `references/agents/figma-design-sync.md` and dispatch a generic subagent seeded with that local prompt to compare implementation against the Figma design. Do not dispatch a standalone agent by type/name.
-- Fix visual differences identified
-- Repeat until implementation matches design
+For other user-visible UI changes, check the changed UI in a browser at desktop and mobile widths when browser tooling is available. If none is available, review the layout code for overflow and responsive breakage and record that browser verification was unavailable. Phase 4's screenshot capture still applies when the change is user-visible.
 
-5. **Frontend Design Guidance** (if applicable)
-
-For UI tasks without a Figma design -- where the implementation touches view, template, component, layout, or page files, creates user-visible routes, or the plan contains explicit UI/frontend/design language:
-
-- Apply the frontend guidance embedded in this skill and the active repo instructions: preserve existing design-system conventions, use real UI controls and states, keep layouts responsive, and verify text does not overflow or overlap.
-- When browser tooling is available, inspect the changed UI at desktop and mobile widths before final validation. If no browser access is available, do a code-level responsive/layout review and record that browser verification was unavailable.
-- Phase 4's screenshot capture still applies when the change is user-visible.
-
-6. **Track Progress**
+5. **Track Progress**
 - Add a task when requested work turns out larger than expected; a mechanism nobody asked for goes through **Build what was asked** first
 - When the plan defines U-IDs for Implementation Units, or the plan or origin document carries stable R-IDs (and optionally A/F/AE IDs), reference them in blockers, deferred-work notes, task summaries, and final verification — not routine status updates. U-IDs anchor units across plan edits; R/A/F/AE anchor product intent across the brainstorm-plan handoff. Use the IDs the plan supplies and do not invent ones it does not. This preserves traceability without burying signal under noise.
 
