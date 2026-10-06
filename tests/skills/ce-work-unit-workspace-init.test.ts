@@ -519,7 +519,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       harness: "codex",
       intermediaries: [],
       model_requested: "auto",
-      restriction_posture: "adapter-enforced",
+      restriction_posture: "cooperative",
       restrictions: [],
       activity_posture: "hard-only",
       packet_digest: packetDigest("authorized packet"),

@@ -412,7 +412,6 @@ describe("ce-work cross-model engine contract", () => {
     expect(protocol).toContain("`git commit`")
     expect(protocol).toContain("Git admin dir")
     expect(protocol).toContain("workspace-write")
-    expect(protocol).toContain("--sandbox enabled")
     expect(protocol).toContain("never required")
     expect(protocol).toContain("Leave the completed working tree uncommitted")
     expect(protocol).toContain("Do not instruct it to run `git add`")

@@ -156,8 +156,8 @@
 
 # Reasoning effort for the external worker, per harness. Each value is one of
 # that harness's own effort levels. An unset harness keeps its own default:
-# Codex and Claude at high, native Grok at xhigh, OpenCode with no variant.
-# Cursor routes take no effort. A map in config.local.yaml replaces this one.
+# Codex and Claude at high, native Grok at xhigh. OpenCode and Cursor routes
+# take no effort. A map in config.local.yaml replaces this one.
 
 # work_engine_effort:
 #   codex: xhigh

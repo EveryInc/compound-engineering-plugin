@@ -3,6 +3,9 @@
 # supplied detached workspace. The adapter never creates worktrees, changes
 # recipients, integrates output, or retries through another route.
 #
+# Every route reaches its agent through acpx (the Agent Client Protocol
+# client), which prints the JSON-RPC stream; one parser reads every route.
+#
 # Usage:
 #   cross-model-work.sh <authorization-json> <workspace> <unit-packet> <expected-packet-sha256> <result-dir>
 #
@@ -25,8 +28,10 @@ if [ -z "$PY" ]; then
 fi
 [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; }
 
-M_GROK_CURSOR="grok-4.7-xhigh"
-M_COMPOSER="composer-2.5-fast"
+# Cursor's ACP server offers one preset per model and rejects effort variants,
+# so grok-cursor runs at high/fast and composer at its fast tier.
+M_GROK_CURSOR="grok-4.7[context=256k,reasoning_effort=high,fast=true]"
+M_COMPOSER="composer-2.5[fast=true]"
 
 log() { printf '[cross-model-work] %s\n' "$*" >&2; }
 
@@ -69,8 +74,140 @@ route_model() {
   esac
 }
 
+route_available() {
+  case "$1" in
+    codex) command -v codex >/dev/null 2>&1 ;;
+    claude) command -v claude >/dev/null 2>&1 ;;
+    grok-cli) command -v grok >/dev/null 2>&1 ;;
+    cursor|composer|grok-cursor) command -v cursor-agent >/dev/null 2>&1 ;;
+    opencode) command -v opencode >/dev/null 2>&1 ;;
+    *) return 1 ;;
+  esac
+}
+
+# --- acpx transport (keep byte-identical across migrated peer workers) -----
+# Every route reaches its agent through acpx, which speaks the Agent Client
+# Protocol and prints the JSON-RPC stream, so one parser covers every CLI.
+# The calling worker supplies route_available, route_model, and log.
+ACPX_VERSION="0.19.4"
+ACPX_UNAVAILABLE=""   # pre-egress reason; ACPX_SCOPE says whether every route shares it
+ACPX_SCOPE=""
+
+acpx_agent() {   # <route> -> acpx built-in agent name
+  case "$1" in
+    codex) printf 'codex' ;;
+    claude) printf 'claude' ;;
+    grok-cli) printf 'grok-build' ;;
+    grok-cursor|cursor|composer) printf 'cursor' ;;
+    opencode) printf 'opencode' ;;
+    *) return 1 ;;
+  esac
+}
+
+acpx_unavailable() {   # <shared|route> <reason>
+  ACPX_SCOPE="$1"; ACPX_UNAVAILABLE="$2"
+  return 1
+}
+
+# acpx lets ~/.acpx/config.json and <cwd>/.acpxrc.json replace a built-in
+# agent's launch command; a route that would run something else is skipped.
+# opencode launches the installed CLI by path, which no config entry overrides.
+acpx_config_guard() {   # <route> <cwd>
+  local agent file
+  [ "$1" = opencode ] && return 0
+  agent="$(acpx_agent "$1")" || return 1
+  for file in "${HOME:-}/.acpx/config.json" "$2/.acpxrc.json"; do
+    [ -e "$file" ] || continue
+    if ! jq -e --arg a "$agent" '(.agents // {}) | keys | map(ascii_downcase) | index($a) == null' "$file" >/dev/null 2>&1; then
+      acpx_unavailable route "$file overrides or cannot be checked for the '$agent' agent launch"
+      return 1
+    fi
+  done
+}
+
+acpx_preflight() {   # <route> <cwd>; nothing is sent to a provider here
+  local v major minor
+  ACPX_UNAVAILABLE=""; ACPX_SCOPE=""
+  command -v node >/dev/null 2>&1 || { acpx_unavailable shared "node not found; acpx needs Node 22.13 or newer"; return 1; }
+  v="$(node -p 'process.versions.node' 2>/dev/null)"
+  major="${v%%.*}"; minor="${v#*.}"; minor="${minor%%.*}"
+  case "$major$minor" in ''|*[!0-9]*) acpx_unavailable shared "cannot read the Node version; acpx needs Node 22.13 or newer"; return 1 ;; esac
+  if [ "$major" -lt 22 ] || { [ "$major" -eq 22 ] && [ "$minor" -lt 13 ]; }; then
+    acpx_unavailable shared "Node $v is too old; acpx needs Node 22.13 or newer"
+    return 1
+  fi
+  command -v npx >/dev/null 2>&1 || { acpx_unavailable shared "npx not found; acpx runs through npx"; return 1; }
+  route_available "$1" || { acpx_unavailable route "the agent CLI for route '$1' is not installed"; return 1; }
+  acpx_config_guard "$1" "$2"
+}
+
+# Claude's ACP adapter always loads project settings, so the launch goes
+# through a wrapper that adds --safe-mode.
+acpx_claude_wrapper() {   # <private-dir> -> wrapper path
+  local real wrapper="$1/claude-safe-mode"
+  real="$(command -v claude)" || return 1
+  printf '#!/bin/sh\nexec %s --safe-mode "$@"\n' "$(printf '%q' "$real")" > "$wrapper" && chmod 700 "$wrapper" || return 1
+  printf '%s' "$wrapper"
+}
+
+# Prints the NUL-delimited argv prefix through `npx acpx@<pin>` and its global
+# flags; the worker appends permission flags, `--model`, the agent, and exec options.
+# The codex and claude adapters are pointed at the installed CLIs so the pin
+# governs the transport, not which models the agent can serve.
+acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper>
+  printf '%s\0' env npm_config_prefer_offline=true npm_config_fetch_retries=0
+  case "$1" in
+    codex) printf '%s\0' "CODEX_PATH=$(command -v codex)" ;;
+    claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
+  esac
+  printf '%s\0' npx -y "acpx@$ACPX_VERSION" --cwd "$2" --format json --mcp-config "$3" --timeout "$4"
+}
+
+acpx_agent_argv() {   # <route>
+  if [ "$1" = opencode ]; then printf '%s\0' --agent "$(command -v opencode) acp" exec
+  else printf '%s\0' "$(acpx_agent "$1")" exec; fi
+}
+
+# The run's outcome is the result of its own session/prompt request, matched by
+# id because --model adds a session/set_model request before the prompt.
+acpx_outcome() {   # <stream-log> -> end_turn | <other stopReason> | error | incomplete | not-sent
+  local id outcome
+  id="$(jq -R 'fromjson? | select(.method == "session/prompt") | .id' "$1" 2>/dev/null | tail -1)"
+  [ -n "$id" ] || { printf 'not-sent'; return 0; }
+  outcome="$(jq -rR --argjson id "$id" 'fromjson? | select(.method == null and .id == $id) | if .error then "error" else (.result.stopReason // "error") end' "$1" 2>/dev/null | tail -1)"
+  printf '%s' "${outcome:-incomplete}"
+}
+
+acpx_text() {   # <stream-log> <outfile>: the agent's reply text
+  jq -jR 'fromjson? | select(.method == "session/update" and .params.update.sessionUpdate == "agent_message_chunk") | .params.update.content.text // empty' "$1" > "$2" 2>/dev/null
+}
+
+# Model ids the adapter reports in the prompt result's _meta. acpx documents
+# _meta as adapter-defined, so these are the adapter's assertion, not proof.
+acpx_served_models() {   # <stream-log> -> "<model> <tokens>" lines
+  jq -rR 'fromjson? | select(.result.stopReason?) | .result._meta // {} |
+    ((.quota.model_usage // [])[] | "\(.model) \(.token_count.totalTokens // 0)"),
+    (.modelId // empty | "\(.) 0")' "$1" 2>/dev/null
+}
+
+# Bounded failure evidence from the stream. The stream echoes the outbound
+# prompt, so only error messages and the stop reason are read from it.
+acpx_failure_evidence() {   # <stream-log>
+  local evidence
+  evidence="$(jq -rR 'fromjson? | (.error.message? // empty), (.result.stopReason? // empty | select(. != "end_turn") | "stopReason=" + .)' "$1" 2>/dev/null | tr '\n' ' ')"
+  evidence="${evidence% }"
+  [ "${#evidence}" -gt 300 ] && evidence="${evidence:0:147} ... ${evidence: -147}"
+  printf '%s' "$evidence"
+}
+# --- end acpx transport -----------------------------------------------------
+
+# Cursor routes take Cursor's ACP model ids, which may carry a bracketed preset
+# (grok-4.7[context=256k,reasoning_effort=high,fast=true]); the family rule
+# applies to the id before the bracket.
+CURSOR_MODEL_RE='^([A-Za-z0-9][A-Za-z0-9._:/-]*)(\[[A-Za-z0-9._=,:-]*\])?$'
+
 validate_model_override() {
-  local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" override_target="${CE_WORK_MODEL_OVERRIDE_TARGET:-}" target override_lower
+  local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" override_target="${CE_WORK_MODEL_OVERRIDE_TARGET:-}" target base base_lower
   [ -n "$override" ] || { [ -z "$override_target" ]; return; }
   case "$override_target" in
     codex|claude|grok|cursor|composer|opencode) ;;
@@ -78,103 +215,74 @@ validate_model_override() {
   esac
   target="$(route_target "$route")" || return 1
   [ "$override_target" = "$target" ] || return 0
+  base="$override"
+  case "$route" in
+    cursor|composer|grok-cursor)
+      [[ "$override" =~ $CURSOR_MODEL_RE ]] || return 1
+      base="${BASH_REMATCH[1]}"
+      ;;
+  esac
   if [ "$route" = cursor ]; then
-    case "$override" in
-      [A-Za-z0-9]*)
-        case "$override" in *[!A-Za-z0-9._:/-]*) return 1 ;; esac
-        override_lower="$(printf '%s' "$override" | tr '[:upper:]' '[:lower:]')"
-        case "$override_lower" in composer|composer-*|grok|grok-*|cursor-grok-*) return 1 ;; esac
-        return 0
-        ;;
-      *) return 1 ;;
-    esac
+    base_lower="$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')"
+    case "$base_lower" in composer|composer-*|grok|grok-*|cursor-grok-*) return 1 ;; esac
+    return 0
   fi
-  case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|grok-cursor:grok-4.7-*|composer:composer-*|opencode:*/*) ;;
+  case "$route:$base" in
+    codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:grok-*|grok-cursor:cursor-grok-*|composer:composer-*|opencode:*/*) ;;
     *) return 1 ;;
   esac
 }
 
+# Accept an effort only where the route's ACP adapter exposes an effort option
+# and lists the value (claude effort, codex and grok reasoning_effort; checked
+# 2026-10-06 through acpx 0.19.4). Codex levels vary per model, so a listed
+# level can still be refused before the prompt is sent. Cursor fixes effort in
+# the model preset and OpenCode has no effort option over ACP, so any effort
+# there makes the route unavailable instead of being dropped.
 validate_effort_override() {
-  # Reject a tier the selected route cannot honor instead of forwarding it to a
-  # CLI that will fail the attempt after controller authorization. Routes with
-  # no effort knob (cursor, composer, grok-cursor) reject any override.
-  # Levels checked 2026-09-19 against claude and grok CLI help and codex 0.155.0's
-  # model list; codex levels vary per model, so a listed level can still fail
-  # after launch on a model that lacks it.
   local route="$1" effort="${EFFORT_REQUESTED:-}"
   [ -n "$effort" ] || return 0
   case "$route:$effort" in
     claude:low|claude:medium|claude:high|claude:xhigh|claude:max) ;;
     codex:low|codex:medium|codex:high|codex:xhigh|codex:max|codex:ultra) ;;
     grok-cli:low|grok-cli:medium|grok-cli:high|grok-cli:xhigh) ;;
-    opencode:none|opencode:minimal|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max|opencode:default) ;;
     *) return 1 ;;
   esac
 }
 
+# The worker runs in the prepared workspace with every permission request
+# approved. Each adapter runs in its write-capable mode (codex agent, claude
+# default, cursor agent, opencode build); none of them confines writes to the
+# workspace, which references/cross-model-execution.md records per route.
+# Codex and Claude run at high effort and native Grok at xhigh unless the
+# authorization requests another level.
 adapter_argv() {
-  case "$1" in
-    codex)
-      # --ignore-user-config drops the user's model_reasoning_effort, so pin the
-      # editorial tier explicitly. Claude stays high; native Grok defaults to xhigh.
-      # EFFORT_REQUESTED retunes all three effort-taking routes. Production
-      # starts take it only from the controller authorization; the ambient
-      # CROSS_MODEL_EFFORT_OVERRIDE feeds it in --emit-adapter mode alone.
-      printf '%s\0' codex exec --ignore-user-config --ignore-rules --ephemeral \
-        -s workspace-write -C "$WORKSPACE" --json -o "$RAW_RESULT" \
-        -c model_reasoning_effort="${EFFORT_REQUESTED:-high}"
-      [ "$(route_model codex)" = auto ] || printf '%s\0' -m "$(route_model codex)"
-      printf '%s\0' -
-      ;;
-    claude)
-      local claude_model
-      claude_model="$(route_model claude)"
-      printf '%s\0' claude -p --safe-mode --no-session-persistence \
-        --permission-mode bypassPermissions --tools Read,Write,Edit,Bash \
-        --allowed-tools 'Bash(*)' \
-        --effort "${EFFORT_REQUESTED:-high}" --output-format stream-json --verbose
-      [ "$claude_model" = auto ] || printf '%s\0' --model "$claude_model"
-      ;;
-    grok-cli)
-      local grok_model
-      grok_model="$(route_model grok-cli)"
-      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --cwd "$WORKSPACE" \
-        --effort "${EFFORT_REQUESTED:-xhigh}" --permission-mode acceptEdits \
-        --tools Read,Write,Edit --disable-web-search --no-memory --no-subagents \
-        --no-plan --max-turns 50 --output-format streaming-json --verbatim
-      [ "$grok_model" = auto ] || printf '%s\0' --model "$grok_model"
-      ;;
-    cursor)
-      local cursor_model
-      cursor_model="$(route_model cursor)"
-      printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
-        --force --sandbox enabled --trust --workspace "$WORKSPACE"
-      [ "$cursor_model" = auto ] || printf '%s\0' --model "$cursor_model"
-      ;;
-    composer)
-      printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
-        --force --sandbox enabled --trust --workspace "$WORKSPACE" --model "$(route_model composer)"
-      ;;
-    grok-cursor)
-      printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
-        --force --sandbox enabled --trust --workspace "$WORKSPACE" --model "$(route_model grok-cursor)"
-      ;;
-    opencode)
-      printf '%s\0' opencode run --dir "$WORKSPACE" --format json --auto \
-        "Follow the attached unit packet. Return only the implementation result JSON." --file "$PROMPT_FILE"
-      [ "$(route_model opencode)" = auto ] || printf '%s\0' --model "$(route_model opencode)"
-      # OpenCode carries effort through --variant, same as the review adapters.
-      [ -z "${EFFORT_REQUESTED:-}" ] || printf '%s\0' --variant "$EFFORT_REQUESTED"
-      ;;
-    *) return 1 ;;
+  local route="$1" model
+  acpx_agent "$route" >/dev/null || return 1
+  model="$(route_model "$route")"
+  acpx_base_argv "$route" "$WORKSPACE" "$MCP_CONFIG" "$ACPX_TIMEOUT" "$CLAUDE_WRAPPER"
+  printf '%s\0' --approve-all
+  [ "$model" = auto ] || printf '%s\0' --model "$model"
+  acpx_agent_argv "$route"
+  case "$route" in
+    codex) printf '%s\0' --config-option mode=agent --config-option "reasoning_effort=${EFFORT_REQUESTED:-high}" ;;
+    # Claude otherwise starts in the user's default permission mode.
+    claude) printf '%s\0' --config-option mode=default --config-option "effort=${EFFORT_REQUESTED:-high}" ;;
+    grok-cli) printf '%s\0' --config-option "reasoning_effort=${EFFORT_REQUESTED:-xhigh}" ;;
+    cursor|composer|grok-cursor) printf '%s\0' --config-option mode=agent ;;
+    opencode) printf '%s\0' --config-option mode=build ;;
   esac
+  printf '%s\0' --file "$PROMPT_FILE"
 }
+
+ACPX_TIMEOUT="${CE_PEER_HARD_SECS:-7200}"
+case "$ACPX_TIMEOUT" in ''|0|*[!0-9]*) ACPX_TIMEOUT=7200 ;; esac
 
 if [ "${1:-}" = "--emit-adapter" ]; then
   WORKSPACE="<workspace>"
   PROMPT_FILE="<prompt-file>"
-  RAW_RESULT="<raw-result>"
+  MCP_CONFIG="<mcp-config>"
+  CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"
   ROUTE="${2:-}"
   EFFORT_REQUESTED="${CROSS_MODEL_EFFORT_OVERRIDE:-}"
   validate_model_override "$ROUTE" || {
@@ -218,9 +326,14 @@ SCHEMA="$SKILL_ROOT/references/implementation-result-schema.json"
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/ce-work-adapter-XXXXXX")" || exit 2
 chmod 700 "$SCRATCH"
 PROMPT_FILE="$SCRATCH/prompt.md"
+# acpx prints the ACP stream on stdout; npm and adapter diagnostics go to stderr.
 RAW_STDOUT="$SCRATCH/stdout.log"
 RAW_STDERR="$SCRATCH/stderr.log"
-RAW_RESULT="$SCRATCH/result.raw"
+STREAM="$SCRATCH/stream.redacted"
+REPLY_TEXT="$SCRATCH/reply.txt"
+SERVED_MODELS="$SCRATCH/served-models"
+MCP_CONFIG="$SCRATCH/mcp.json"
+CLAUDE_WRAPPER=""
 RAW_LIMIT_MARKER="$SCRATCH/raw-output-limit"
 PACKET_SNAPSHOT="$SCRATCH/unit-packet"
 AUTH_VALUES="$SCRATCH/authorization-values"
@@ -243,12 +356,12 @@ required = {
     "restrictions", "activity_posture", "packet_digest",
 }
 contracts = {
-    "codex": ("codex", "codex", [], "adapter-enforced"),
+    "codex": ("codex", "codex", [], "cooperative"),
     "claude": ("claude", "claude", [], "cooperative"),
     "grok-cli": ("grok", "grok", [], "cooperative"),
-    "cursor": ("cursor", "cursor-agent", [], "adapter-enforced"),
-    "composer": ("composer", "cursor-agent", ["cursor"], "adapter-enforced"),
-    "grok-cursor": ("grok", "cursor-agent", ["cursor"], "adapter-enforced"),
+    "cursor": ("cursor", "cursor-agent", [], "cooperative"),
+    "composer": ("composer", "cursor-agent", ["cursor"], "cooperative"),
+    "grok-cursor": ("grok", "cursor-agent", ["cursor"], "cooperative"),
     "opencode": ("opencode", "opencode", [], "cooperative"),
 }
 
@@ -258,21 +371,23 @@ def fail(message):
 def model_allowed(route, model):
     if not isinstance(model, str) or not model or "\n" in model or "\r" in model:
         return False
+    if route in ("cursor", "composer", "grok-cursor"):
+        match = re.fullmatch(r"([A-Za-z0-9][A-Za-z0-9._:/-]*)(?:\[[A-Za-z0-9._=,:-]*\])?", model)
+        if not match:
+            return False
+        base = match.group(1)
+        if route == "composer":
+            return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", base))
+        if route == "grok-cursor":
+            return bool(re.fullmatch(r"(?:cursor-)?grok-[A-Za-z0-9._-]+", base))
+        lowered = base.lower()
+        return not (lowered in {"composer", "grok"} or lowered.startswith(("composer-", "grok-", "cursor-grok-")))
     if route == "codex":
         return model == "auto" or bool(re.fullmatch(r"(?:gpt-[A-Za-z0-9._-]+|o[0-9][A-Za-z0-9._-]*)", model))
     if route == "claude":
         return model in {"auto", "fable", "opus", "sonnet", "haiku"} or bool(re.fullmatch(r"claude-[A-Za-z0-9._-]+", model))
     if route == "grok-cli":
         return model == "auto" or bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
-    if route == "cursor":
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", model):
-            return False
-        lowered = model.lower()
-        return not (lowered in {"composer", "grok"} or lowered.startswith(("composer-", "grok-", "cursor-grok-")))
-    if route == "composer":
-        return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", model))
-    if route == "grok-cursor":
-        return bool(re.fullmatch(r"(?:cursor-grok-[A-Za-z0-9._-]+|grok-4\.7-[A-Za-z0-9._-]+)", model))
     if route == "opencode":
         return model == "auto" or bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+", model))
     return False
@@ -563,12 +678,23 @@ PY
 
 redact_stream() {
   CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" "$PY" -c '
-import os, sys
+import json, os, sys
+
+# The ACP stream is JSON, so a value is also matched in its escaped forms.
+def forms(value):
+    yield value
+    try:
+        text = value.decode("utf-8")
+    except UnicodeDecodeError:
+        return
+    yield json.dumps(text, ensure_ascii=False)[1:-1].encode("utf-8")
+    yield json.dumps(text)[1:-1].encode("ascii")
+
 p = os.environ.get("CE_WORK_REDACT_FILE", "")
 if p:
     try:
         values = sorted(
-            {v for v in open(p, "rb").read().splitlines() if v},
+            {form for v in open(p, "rb").read().splitlines() if v for form in forms(v)},
             key=lambda value: (-len(value), value),
         )
     except OSError:
@@ -659,11 +785,11 @@ TARGET="$AUTH_TARGET"
 HARNESS="$AUTH_HARNESS"
 
 publish_unavailable() {
-  local reason="$1"
-  local terminal_status="${2:-unavailable}"
-  local actual_route="${3:-}"
+  local reason terminal_status="${2:-unavailable}" actual_route="${3:-}"
+  # Failure evidence can quote the stream, so it is redacted like the log.
+  reason="$(printf '%s' "$1" | redact_stream)"
   if [ "$LOG_RETAINED" -ne 1 ]; then
-    printf '%s\n' "$reason" | redact_stream | write_adapter_log || {
+    printf '%s\n' "$reason" | write_adapter_log || {
       log "result dir or adapter log identity changed during route"
       exit 2
     }
@@ -689,26 +815,16 @@ sys.stdout.write("\n")
 PY
 }
 
-if [ "${CE_WORK_REQUIRE_ENFORCED_CONFINEMENT:-}" = "1" ]; then
-  case "$ROUTE" in
-    claude|grok-cli)
-      publish_unavailable "route offers cooperative workspace restriction, not required enforceable confinement" || exit 2
-      exit 2
-      ;;
-    opencode)
-      publish_unavailable "route offers cooperative workspace restriction, not required enforceable confinement" || exit 2
-      exit 2
-      ;;
-  esac
+if [ "${CE_WORK_REQUIRE_ENFORCED_CONFINEMENT:-}" = "1" ] && [ "$RESTRICTION_POSTURE" != adapter-enforced ]; then
+  publish_unavailable "route offers cooperative workspace restriction, not required enforceable confinement" || exit 2
+  exit 2
 fi
 
-case "$ROUTE" in
-  codex) BINARY=codex ;;
-  claude) BINARY=claude ;;
-  grok-cli) BINARY=grok ;;
-  cursor|composer|grok-cursor) BINARY=cursor-agent ;;
-  opencode) BINARY=opencode ;;
-esac
+validate_effort_override "$ROUTE" || {
+  publish_unavailable "effort override '$EFFORT_REQUESTED' not compatible with route '$ROUTE'" || exit 2
+  exit 2
+}
+
 # The Codex desktop app (Codex.app, or ChatGPT.app since the July 2026 merger)
 # ships `codex` at Contents/Resources without linking it onto PATH (#1272).
 # Append, never prepend, so a PATH-installed CLI stays authoritative.
@@ -720,15 +836,23 @@ if ! command -v codex >/dev/null 2>&1; then
   done
   IFS="$OLDIFS"
 fi
-if ! command -v "$BINARY" >/dev/null 2>&1; then
-  publish_unavailable "fixed route executable '$BINARY' is unavailable" || exit 2
+
+# Nothing is sent to a provider before this point.
+if ! command -v jq >/dev/null 2>&1; then
+  publish_unavailable "transport unavailable (pre-egress, shared): jq not found; the ACP stream is read with jq" || exit 2
   exit 2
 fi
-
-validate_effort_override "$ROUTE" || {
-  publish_unavailable "effort override '$EFFORT_REQUESTED' not compatible with route '$ROUTE'" || exit 2
+acpx_preflight "$ROUTE" "$WORKSPACE" || {
+  publish_unavailable "transport unavailable (pre-egress, $ACPX_SCOPE): $ACPX_UNAVAILABLE" || exit 2
   exit 2
 }
+if [ "$ROUTE" = claude ]; then
+  CLAUDE_WRAPPER="$(acpx_claude_wrapper "$SCRATCH")" || {
+    publish_unavailable "transport unavailable (pre-egress, route): cannot prepare the Claude --safe-mode launcher" || exit 2
+    exit 2
+  }
+fi
+printf '{"mcpServers":[]}\n' > "$MCP_CONFIG"
 
 ARGS=()
 while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(adapter_argv "$ROUTE")
@@ -740,6 +864,12 @@ MIN_ENV=(env -i "PATH=$PATH" "PYTHONDONTWRITEBYTECODE=1")
 [ -n "${LANG:-}" ] && MIN_ENV+=("LANG=$LANG")
 [ -n "${LC_ALL:-}" ] && MIN_ENV+=("LC_ALL=$LC_ALL")
 [ -n "${XDG_CONFIG_HOME:-}" ] && MIN_ENV+=("XDG_CONFIG_HOME=$XDG_CONFIG_HOME")
+# npx reaches the user's npm cache, registry, and user config by these
+# locations. npm auth token values are never forwarded; npm reads its own
+# config file for them.
+for name in npm_config_cache NPM_CONFIG_CACHE npm_config_registry NPM_CONFIG_REGISTRY npm_config_userconfig NPM_CONFIG_USERCONFIG; do
+  [ -n "${!name:-}" ] && MIN_ENV+=("$name=${!name}")
+done
 # Preserve route-specific config-directory pointers so existing CLI-native login
 # remains reachable. Credential-bearing API-key variables are intentionally not
 # forwarded; the worker gets paths to the CLI's own auth store, not secrets.
@@ -756,20 +886,6 @@ case "$ROUTE" in
     ;;
 esac
 
-# Cursor reports a human display label in its init receipt, not necessarily the
-# model key passed on argv. Capture the current catalog label before dispatch so
-# receipt comparison can follow CLI vocabulary drift without weakening the pin.
-# The catalog probe uses the same minimal environment as the worker because it
-# reaches the same authenticated CLI surface before dispatch.
-MODEL_DISPLAY_HINT=""
-if [ "$MODEL_REQUESTED" != auto ]; then
-  case "$ROUTE" in
-    cursor|composer|grok-cursor)
-      MODEL_DISPLAY_HINT="$({ "${MIN_ENV[@]}" "$BINARY" --list-models 2>/dev/null || true; } | awk -F ' - ' -v key="$MODEL_REQUESTED" '$1 == key { sub(/^[^ ]+ - /, ""); print; exit }')"
-      ;;
-  esac
-fi
-
 ACTIVITY_POLL_SECS="${CE_WORK_ACTIVITY_POLL_SECS:-15}"
 case "$ACTIVITY_POLL_SECS" in ''|*[!0-9]*) ACTIVITY_POLL_SECS=15 ;; esac
 [ "$ACTIVITY_POLL_SECS" -lt 1 ] && ACTIVITY_POLL_SECS=1
@@ -779,7 +895,7 @@ case "$MAX_RAW_BYTES" in ''|*[!0-9]*) MAX_RAW_BYTES=10485760 ;; esac
 
 raw_byte_count() {
   local total=0 bytes file
-  for file in "$RAW_STDOUT" "$RAW_STDERR" "$RAW_RESULT"; do
+  for file in "$RAW_STDOUT" "$RAW_STDERR"; do
     [ -f "$file" ] || continue
     bytes="$(wc -c < "$file" | tr -d '[:space:]')"
     case "$bytes" in ''|*[!0-9]*) bytes=0 ;; esac
@@ -800,7 +916,7 @@ terminate_route() {
 trap 'terminate_route' TERM INT
 
 set +e
-(cd "$WORKSPACE" && exec "${MIN_ENV[@]}" "${ARGS[@]}" < "$PROMPT_FILE" > "$RAW_STDOUT" 2> "$RAW_STDERR") &
+(cd "$WORKSPACE" && exec "${MIN_ENV[@]}" "${ARGS[@]}" < /dev/null > "$RAW_STDOUT" 2> "$RAW_STDERR") &
 ACTIVE_ROUTE_PID=$!
 (
   # A foreground sleep would outlive this subshell's TERM and hold the script's
@@ -833,11 +949,13 @@ ACTIVE_ROUTE_PID=""
 ACTIVITY_PID=""
 RAW_BYTES="$(raw_byte_count)"
 [ "$RAW_BYTES" -gt "$MAX_RAW_BYTES" ] && : > "$RAW_LIMIT_MARKER"
+# Everything below reads the redacted stream: acpx echoes the outbound prompt
+# and the contents of files the agent reads.
+redact_stream < "$RAW_STDOUT" > "$STREAM"
 {
-  cat "$RAW_STDOUT"
-  cat "$RAW_STDERR"
-  if [ -f "$RAW_RESULT" ]; then cat "$RAW_RESULT"; fi
-} | redact_stream | cap_stream | write_adapter_log || {
+  cat "$STREAM"
+  redact_stream < "$RAW_STDERR"
+} | cap_stream | write_adapter_log || {
   log "result dir or adapter log identity changed during route"
   exit 2
 }
@@ -848,19 +966,38 @@ if [ -f "$RAW_LIMIT_MARKER" ]; then
   exit 1
 fi
 
-if [ "$ROUTE_EXIT" -ne 0 ]; then
-  publish_unavailable "fixed route exited with exit $ROUTE_EXIT" failed "$ROUTE" || exit 2
-  exit 1
-fi
+# The run's outcome is its own prompt's result, not acpx's exit code.
+OUTCOME="$(acpx_outcome "$STREAM")"
+case "$OUTCOME" in
+  end_turn) ;;
+  not-sent)
+    # Nothing reached the provider: npm could not fetch acpx (every route fails
+    # alike), or the adapter refused before the prompt (this route only).
+    REASON="$(grep -m1 '^npm error' "$RAW_STDERR" 2>/dev/null)"
+    if [ -n "$REASON" ]; then
+      REASON="transport unavailable (pre-egress, shared): ${REASON:0:200}"
+    else
+      REASON="$(acpx_failure_evidence "$STREAM")"
+      REASON="transport unavailable (pre-egress, route): ${REASON:-acpx exited $ROUTE_EXIT before sending the prompt}"
+    fi
+    publish_unavailable "$REASON" || exit 2
+    exit 2
+    ;;
+  *)
+    REASON="$(acpx_failure_evidence "$STREAM")"
+    publish_unavailable "fixed route ended with $OUTCOME (acpx exit $ROUTE_EXIT)${REASON:+: $REASON}" failed "$ROUTE" || exit 2
+    exit 1
+    ;;
+esac
 
-SOURCE="$RAW_STDOUT"
-[ "$ROUTE" = codex ] && SOURCE="$RAW_RESULT"
+acpx_text "$STREAM" "$REPLY_TEXT"
+acpx_served_models "$STREAM" > "$SERVED_MODELS"
 set +e
 CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" "$PY" - \
-  "$SOURCE" "$RAW_STDOUT" "$ROUTE" "$TARGET" "$HARNESS" \
-  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$MODEL_DISPLAY_HINT" "$EFFORT_REQUESTED" <<'PY' | write_result_receipt
+  "$REPLY_TEXT" "$SERVED_MODELS" "$ROUTE" "$TARGET" "$HARNESS" \
+  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$EFFORT_REQUESTED" <<'PY' | write_result_receipt
 import json, os, re, sys
-source, stream, route, target, harness, requested, packet_digest, log, activity, restriction, display_hint, effort = sys.argv[1:]
+reply, served_models, route, target, harness, requested, packet_digest, log, activity, restriction, effort = sys.argv[1:]
 
 def redactions():
     p=os.environ.get("CE_WORK_REDACT_FILE", "")
@@ -902,8 +1039,7 @@ def parse_text(text):
     return found[-1] if found else None
 
 def normalize_served_model(value):
-    # Some CLIs have emitted terminal styling inside the JSON model field.
-    # Strip complete ANSI control sequences before validating the receipt token;
+    # Strip terminal control sequences before validating the receipt token;
     # never publish a partially sanitized or otherwise unsafe identity.
     text=str(value)
     text=re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
@@ -911,22 +1047,9 @@ def normalize_served_model(value):
     text="".join(ch for ch in text if ord(ch) >= 0x20 and ord(ch) != 0x7f).strip()
     return text if 0 < len(text) <= 128 else "unverified"
 
-try: raw=open(source, encoding="utf-8", errors="replace").read()
-except OSError: raw=""
-if route == "opencode":
-    parts=[]
-    for line in raw.splitlines():
-        try: event=json.loads(line)
-        except Exception: continue
-        if not isinstance(event, dict) or event.get("type") != "text":
-            continue
-        part=event.get("part") if isinstance(event.get("part"), dict) else {}
-        chunk=part.get("text") if isinstance(part.get("text"), str) else None
-        if chunk:
-            parts.append(chunk)
-    worker=parse_text("".join(parts)) if parts else None
-else:
-    worker=parse_text(raw)
+try: text=open(reply, encoding="utf-8", errors="replace").read()
+except OSError: text=""
+worker=parse_text(text)
 valid=isinstance(worker,dict)
 worker_fields=("terminal_status", "summary", "changed_files", "evidence", "scope_expansion")
 if valid:
@@ -938,54 +1061,47 @@ if valid:
       and ((worker["terminal_status"]=="scope_expansion" and isinstance(worker.get("scope_expansion"),dict))
         or (worker["terminal_status"]!="scope_expansion" and worker.get("scope_expansion") is None)))
 
-served="unverified"
-if source == stream:
-    stream_text=raw
-else:
-    try: stream_text=open(stream, encoding="utf-8", errors="replace").read()
-    except OSError: stream_text=""
-for line in stream_text.splitlines():
-    try: event=json.loads(line)
-    except Exception: continue
-    if isinstance(event,dict) and event.get("model") and (event.get("subtype")=="init" or event.get("type") in ("init","system")):
-        served=normalize_served_model(event["model"]); break
-
-if served == "unverified": receipt="unverified"
-elif requested == "auto": receipt="verified"
-else:
-    req=requested.lower(); actual=served.lower()
-    if route in ("cursor", "composer", "grok-cursor"):
-        def model_terms(value):
-            value=re.sub(r"\b\d+(?:k|m)\b", " ", value.lower())
-            terms=set(re.findall(r"[a-z]+|\d+", value))
-            return terms - {"claude", "cursor"}
-        expected=model_terms(display_hint or requested)
-        receipt="verified" if expected and expected.issubset(model_terms(served)) else "mismatch"
-    else:
-        family=("claude-fable-" if req=="fable" else "claude-opus-" if req=="opus" else
-          "claude-sonnet-" if req=="sonnet" else "claude-haiku-" if req=="haiku" else req)
-        normalized=lambda value: re.sub(r"[^a-z0-9]", "", value.lower())
-        receipt="verified" if actual.startswith(family) or actual==req or normalized(actual)==normalized(req) else "mismatch"
+# The adapter's _meta report is its own assertion of the served model, so a
+# match is recorded as "asserted", never "verified". Requested and served ids
+# are compared on the model id before any Cursor preset bracket; an alias
+# names its Claude family. An auxiliary model (Claude's Haiku) may also be
+# reported, so a served id in the requested family wins, else the heaviest.
+served=[]
+try:
+    for line in open(served_models, encoding="utf-8", errors="replace").read().splitlines():
+        model, _, tokens = line.rpartition(" ")
+        model=normalize_served_model(model)
+        if model != "unverified":
+            served.append((model, int(tokens) if tokens.isdigit() else 0))
+except OSError:
+    pass
+model_base=lambda value: value.split("[",1)[0].lower()
+family=model_base(requested)
+if family in ("fable","opus","sonnet","haiku"): family="claude-"+family
+in_family=[m for m,_ in served if model_base(m)==family or model_base(m).startswith(family+"-")]
+if not served: actual, receipt = "unverified", "unverified"
+elif requested == "auto": actual, receipt = max(served, key=lambda item: item[1])[0], "asserted"
+elif in_family: actual, receipt = in_family[0], "asserted"
+else: actual, receipt = max(served, key=lambda item: item[1])[0], "mismatch"
 
 intermediaries=["cursor"] if route in ("composer","grok-cursor") else []
-base={
+base_receipt={
   "schema_version":1,
   "requested_route":route, "actual_route":route, "target":target, "harness":harness,
-  "intermediaries":intermediaries, "model_requested":requested, "model_actual":served,
+  "intermediaries":intermediaries, "model_requested":requested, "model_actual":actual,
   "model_receipt_status":receipt, "effort_requested":effort or None, "activity_posture":activity,
   "packet_digest":packet_digest,
   "restriction_posture":restriction,
   "failure_reason":None, "raw_log":log,
 }
 if valid:
-    projected={key:worker[key] for key in worker_fields}
-    base.update(projected)
+    base_receipt.update({key:worker[key] for key in worker_fields})
 else:
-    base.update({"terminal_status":"failed", "summary":"Adapter terminal output failed result schema",
+    base_receipt.update({"terminal_status":"failed", "summary":"Adapter terminal output failed result schema",
       "changed_files":[], "evidence":[], "scope_expansion":None,
       "failure_reason":"terminal output failed implementation result schema"})
-base=redact(base)
-json.dump(base,sys.stdout,indent=2)
+base_receipt=redact(base_receipt)
+json.dump(base_receipt,sys.stdout,indent=2)
 sys.stdout.write("\n")
 sys.exit(0 if valid else 4)
 PY

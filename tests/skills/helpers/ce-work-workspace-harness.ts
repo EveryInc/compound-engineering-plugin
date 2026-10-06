@@ -397,7 +397,7 @@ export function fakeDoneJob(
     model_actual: "unverified",
     model_receipt_status: "unverified",
     activity_posture: "incremental",
-    restriction_posture: "adapter-enforced",
+    restriction_posture: "cooperative",
     failure_reason: null,
     raw_log: logPath,
     packet_digest: digest,
