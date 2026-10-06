@@ -36,9 +36,11 @@ const DISPATCH_REFS = {
 // to acpx stream every route through one idle-guarded runner instead.
 const NATIVE_SCRIPTS = {
   "ce-code-review": SCRIPTS["ce-code-review"],
-  "ce-doc-review": SCRIPTS["ce-doc-review"],
 } as const
-const ACPX_SCRIPTS = { "ce-pov": SCRIPTS["ce-pov"] } as const
+const ACPX_SCRIPTS = {
+  "ce-doc-review": SCRIPTS["ce-doc-review"],
+  "ce-pov": SCRIPTS["ce-pov"],
+} as const
 
 const POV_REF = "skills/ce-pov/references/cross-model-panel.md"
 const RUNNER = "skills/ce-doc-review/scripts/peer-job-runner.py"

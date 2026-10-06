@@ -295,8 +295,9 @@ EOF
 # --- adapter argv (single source of truth for route flags) -----------------
 # Read-only intent on every route: reads are approved, every other permission
 # request is denied, and each adapter runs in its read-only mode where it has
-# one (codex mode=read-only, claude mode=default with a read and web tool
-# allowlist, cursor mode=ask, opencode mode=plan with edits denied). The
+# one (codex mode=read-only, claude mode=default, cursor mode=ask, opencode
+# mode=plan with edits denied). Claude's --allowed-tools is an auto-approve
+# list, not a restriction: its other tools still ask and are denied. The
 # codex adapter does not enforce its read-only mode, so write denial is best
 # effort. PEER_WORKDIR / PROMPT_FILE / MCP_CONFIG / CLAUDE_WRAPPER are resolved
 # by the caller (placeholders in --emit-adapter mode).

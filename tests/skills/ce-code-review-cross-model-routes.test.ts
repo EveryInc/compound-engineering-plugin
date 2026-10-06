@@ -450,7 +450,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     // stream-json + --verbose: PEERLOG grows mid-run for run_timeout_cmd idle (#1270).
     expect(cmd).toContain("--output-format stream-json")
     expect(cmd).toContain("--verbose")
-    // In-tree review: Read must remain available (unlike doc-review's --tools "").
+    // In-tree review: Read must remain available.
     expect(cmd).not.toContain("--tools")
     expect(cmd).not.toContain("--bare")
   })
@@ -1915,15 +1915,9 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
   })
 })
 
-function blockBetween(script: string, startMarker: string, endMarker = "# --- --emit-adapter"): string {
-  const source = readFileSync(script, "utf8")
-  const start = source.indexOf(startMarker)
-  const end = source.indexOf(endMarker, start)
-  expect(start).toBeGreaterThan(-1)
-  expect(end).toBeGreaterThan(start)
-  return source.slice(start, end)
-}
-
+// ce-doc-review runs its peers through acpx while this worker still runs the
+// provider CLIs directly, so only what both transports share is compared here:
+// the per-target model IDs, the override rules, and the absent privilege flags.
 describe("cross-model provider kernel parity (code-review vs doc-review)", () => {
   test("model IDs match across both skills' --emit-adapter output", () => {
     expect(emitAdapter("codex")).toContain("gpt-6-luna")
@@ -1932,10 +1926,10 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     expect(emitAdapter("claude", DOC_SCRIPT)).toContain("--model claude-opus-5-5")
     expect(emitAdapter("grok-cli")).toContain("grok-4.7")
     expect(emitAdapter("grok-cli", DOC_SCRIPT)).toContain("grok-4.7")
+    // Cursor routes name a transport-specific id (cursor-agent's model list vs
+    // Cursor's ACP presets), so they are checked against this worker alone.
     expect(emitAdapter("grok-cursor")).toContain("grok-4.7-xhigh")
-    expect(emitAdapter("grok-cursor", DOC_SCRIPT)).toContain("grok-4.7-xhigh")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
-    expect(emitAdapter("composer", DOC_SCRIPT)).toContain("composer-2.5-fast")
   })
 
   test("the fable alias is an accepted claude override in both skills' --emit-adapter", () => {
@@ -1945,18 +1939,23 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
   })
 
   test("CROSS_MODEL_EFFORT_OVERRIDE replaces the editorial effort on effort-bearing routes in both skills", () => {
-    for (const script of [SCRIPT, DOC_SCRIPT]) {
-      expect(emitAdapter("claude", script, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).toContain("--effort xhigh")
-      expect(emitAdapter("claude", script, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).not.toContain("--effort high")
-      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "medium" })).toContain('model_reasoning_effort="medium"')
-      expect(emitAdapter("grok-cli", script, { CROSS_MODEL_EFFORT_OVERRIDE: "medium" })).toContain("--effort medium")
+    // Each worker spells the effort in its own transport's form.
+    const forms: Array<[string, (route: string, effort: string) => string]> = [
+      [SCRIPT, (route, effort) => route === "codex" ? `model_reasoning_effort="${effort}"` : `--effort ${effort}`],
+      [DOC_SCRIPT, (route, effort) => `--config-option ${route === "claude" ? "effort" : "reasoning_effort"}=${effort}`],
+    ]
+    for (const [script, form] of forms) {
+      expect(emitAdapter("claude", script, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).toContain(form("claude", "xhigh"))
+      expect(emitAdapter("claude", script, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).not.toContain(form("claude", "high"))
+      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "medium" })).toContain(form("codex", "medium"))
+      expect(emitAdapter("grok-cli", script, { CROSS_MODEL_EFFORT_OVERRIDE: "medium" })).toContain(form("grok-cli", "medium"))
       // Levels the installed CLIs accept: codex lists max (and ultra on some models); grok accepts xhigh.
-      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "max" })).toContain('model_reasoning_effort="max"')
-      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "ultra" })).toContain('model_reasoning_effort="ultra"')
-      expect(emitAdapter("grok-cli", script, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).toContain("--effort xhigh")
+      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "max" })).toContain(form("codex", "max"))
+      expect(emitAdapter("codex", script, { CROSS_MODEL_EFFORT_OVERRIDE: "ultra" })).toContain(form("codex", "ultra"))
+      expect(emitAdapter("grok-cli", script, { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).toContain(form("grok-cli", "xhigh"))
       // unset -> editorial defaults unchanged
-      expect(emitAdapter("claude", script)).toContain("--effort high")
-      expect(emitAdapter("codex", script)).toContain('model_reasoning_effort="xhigh"')
+      expect(emitAdapter("claude", script)).toContain(form("claude", "high"))
+      expect(emitAdapter("codex", script)).toContain(form("codex", "xhigh"))
     }
   })
 
@@ -1979,10 +1978,6 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
         expect(r.stderr).toContain(`effort override '${effort}' not compatible with route '${route}'`)
       }
     }
-  })
-
-  test("effort-override validation stays byte-identical across review workers", () => {
-    expect(blockBetween(SCRIPT, "validate_effort_override()")).toBe(blockBetween(DOC_SCRIPT, "validate_effort_override()"))
   })
 
   test("NEVER flags are absent from both skills' adapters", () => {
@@ -2028,30 +2023,12 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     expect(crossFamily.stderr).toContain("not compatible with route")
   })
 
-  test("model-override validation stays byte-identical across review workers", () => {
-    expect(blockBetween(SCRIPT, "validate_model_override()")).toBe(blockBetween(DOC_SCRIPT, "validate_model_override()"))
-  })
-
-  test("provider-overload classification stays byte-identical across review workers", () => {
-    expect(blockBetween(SCRIPT, "provider_overloaded()", "run_provider()")).toBe(
-      blockBetween(DOC_SCRIPT, "provider_overloaded()", "run_provider()"),
-    )
-  })
-
-  test("route-output eligibility stays byte-identical across review workers", () => {
-    expect(blockBetween(SCRIPT, "classify_provider_outcome()", "classify_route_output()")).toBe(
-      blockBetween(DOC_SCRIPT, "classify_provider_outcome()", "classify_route_output()"),
-    )
-  })
-
-  test("provider-overload retry bounds stay present in both review workers", () => {
-    for (const worker of [SCRIPT, DOC_SCRIPT]) {
-      const src = readFileSync(worker, "utf8")
-      expect(src).toContain("provider_deadline=$(( $(date +%s) + provider_budget ))")
-      expect(src).toContain('ATTEMPT_HARD_SECS="$remaining"')
-      expect(src).toContain('if [ ! -s "$RAW_OUT" ] && provider_overloaded; then')
-      expect(src).not.toContain('while [ ! -s "$RAW_OUT" ] && provider_overloaded; do')
-    }
+  test("provider-overload retry bounds stay present", () => {
+    const src = readFileSync(SCRIPT, "utf8")
+    expect(src).toContain("provider_deadline=$(( $(date +%s) + provider_budget ))")
+    expect(src).toContain('ATTEMPT_HARD_SECS="$remaining"')
+    expect(src).toContain('if [ ! -s "$RAW_OUT" ] && provider_overloaded; then')
+    expect(src).not.toContain('while [ ! -s "$RAW_OUT" ] && provider_overloaded; do')
   })
 })
 

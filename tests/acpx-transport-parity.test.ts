@@ -9,7 +9,10 @@ const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 // has migrated to acpx (the plugin has no cross-skill import mechanism; see
 // AGENTS.md "File References in Skills"). Add a worker here in the change that
 // migrates it.
-const MIGRATED_WORKERS = ["ce-pov/scripts/cross-model-pov.sh"]
+const MIGRATED_WORKERS = [
+  "ce-pov/scripts/cross-model-pov.sh",
+  "ce-doc-review/scripts/cross-model-doc-review.sh",
+]
 
 const BEGIN_MARKER = "# --- acpx transport (keep byte-identical across migrated peer workers)"
 const END_MARKER = "# --- end acpx transport"

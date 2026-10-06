@@ -1884,17 +1884,21 @@ describe("cross-model peer skip legibility", () => {
   // The provider runs under `set -m` in its OWN process group so the worker can
   // group-reap it without killing itself. On a clean worker exit the runner's
   // final sweep only kills the worker's pgid, and a survivor the provider left
-  // in its own group reparents off the worker's tree — so BOTH run paths must
+  // in its own group reparents off the worker's tree — so EVERY run path must
   // reap "$pid" (the provider group) after wait, or that survivor leaks.
   for (const worker of pairs.map((p) => p.worker)) {
     test(`${worker} reaps the provider process group after waiting on it`, async () => {
       const src = await readRepoFile(worker)
-      // Both run paths preserve the clean-exit status before sweeping the
-      // provider group; timed-out/nonzero output must not be publishable.
+      // Each run path preserves the exit status before sweeping the provider
+      // group; timed-out/nonzero output must not be publishable. The native
+      // worker has two run paths; the acpx worker runs every route through one.
+      const native = worker.includes("ce-code-review")
       const guardedWaits = src.match(
-        /if wait "\$pid" 2>\/dev\/null; then RUN_SUCCEEDED=true\n\s*else log "peer exited non-zero or timed out"; fi\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/g,
+        native
+          ? /if wait "\$pid" 2>\/dev\/null; then RUN_SUCCEEDED=true\n\s*else log "peer exited non-zero or timed out"; fi\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/g
+          : /wait "\$pid" 2>\/dev\/null\n\s*PEER_EXIT=\$\?\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/g,
       ) ?? []
-      expect(guardedWaits).toHaveLength(2)
+      expect(guardedWaits).toHaveLength(native ? 2 : 1)
     })
   }
 
