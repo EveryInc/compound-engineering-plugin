@@ -32,6 +32,14 @@ const DISPATCH_REFS = {
   "ce-doc-review": "skills/ce-doc-review/references/cross-model-review.md",
 } as const
 
+// Workers whose routes still run the provider CLIs directly. Workers migrated
+// to acpx stream every route through one idle-guarded runner instead.
+const NATIVE_SCRIPTS = {
+  "ce-code-review": SCRIPTS["ce-code-review"],
+  "ce-doc-review": SCRIPTS["ce-doc-review"],
+} as const
+const ACPX_SCRIPTS = { "ce-pov": SCRIPTS["ce-pov"] } as const
+
 const POV_REF = "skills/ce-pov/references/cross-model-panel.md"
 const RUNNER = "skills/ce-doc-review/scripts/peer-job-runner.py"
 
@@ -103,7 +111,7 @@ describe("cross-model peer budget", () => {
   })
 
   test("run_timeout_cmd idle mode polls PEERLOG like run_codex_cmd", () => {
-    for (const [skill, rel] of Object.entries(SCRIPTS)) {
+    for (const [skill, rel] of Object.entries(NATIVE_SCRIPTS)) {
       const src = read(rel)
       const body = src.slice(src.indexOf("run_timeout_cmd() {"))
       const fn = body.slice(0, body.indexOf("\n}\n") + 1)
@@ -113,8 +121,23 @@ describe("cross-model peer budget", () => {
     }
   })
 
+  test("acpx workers idle-guard every route on PEERLOG growth under one hard cap", () => {
+    for (const [skill, rel] of Object.entries(ACPX_SCRIPTS)) {
+      const src = read(rel)
+      const body = src.slice(src.indexOf("run_peer_cmd() {"))
+      const fn = body.slice(0, body.indexOf("\n}\n") + 1)
+      expect(fn, `${skill} must poll PEERLOG`).toContain('wc -c <"$PEERLOG"')
+      expect(fn, `${skill} must reap on IDLE_SECS`).toContain('"$IDLE_SECS"')
+      expect(fn, `${skill} must reap on HARD_SECS`).toContain('"$HARD_SECS"')
+      expect(src, `${skill} has no hard-only route left`).not.toContain("UNGUARDED_HARD_SECS")
+      // acpx applies --timeout per phase, so it gets the same budget but the
+      // worker's own wall clock stays authoritative.
+      expect(src, `${skill} passes its hard budget to acpx`).toContain('"$HARD_SECS" "$CLAUDE_WRAPPER"')
+    }
+  })
+
   test("streaming adapters use stream-json; grok-cli stays on buffered json", () => {
-    for (const [skill, rel] of Object.entries(SCRIPTS)) {
+    for (const [skill, rel] of Object.entries(NATIVE_SCRIPTS)) {
       const src = read(rel)
       expect(src, `${skill} claude streams`).toMatch(
         /claude[\s\S]*?--output-format stream-json --verbose/,

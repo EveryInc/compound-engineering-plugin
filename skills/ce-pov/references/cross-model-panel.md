@@ -19,8 +19,8 @@ Keep four identities separate for the host and every peer:
   `composer`);
 - **harness/intermediary route** — the CLI or intermediary that runs it;
 - **requested model** — an explicit model or the route's declared default; and
-- **served model** — the model the worker's receipt (its record of the route
-  and model that actually answered) confirms, otherwise `unverified`.
+- **served model** — the model the worker's receipt (the route's adapter
+  reporting which model answered) names, otherwise `unverified`.
 
 The requested model is a fact about the request and is always known; the served
 model is a claim about the backend and is known only from a receipt. `unverified`
@@ -141,7 +141,9 @@ adapter turns them into filesystem controls. Never present prompt-only patterns,
 a working directory, or a read-only flag as a confidentiality boundary, and
 never promise that secrets inside the readable scope are inaccessible. Peers may
 search and read within the declared scope but may not mutate the project or
-intentionally inspect outside it.
+intentionally inspect outside it. Every route denies the peer's write requests
+and runs the adapter's read-only mode where one exists, but the Codex adapter
+does not enforce its read-only mode, so no route is a write sandbox.
 
 Before initial dispatch, capture one **repository-scope identity**: the committed
 revision plus a digest of dirty and untracked content inside the normalized
@@ -272,9 +274,7 @@ runner derives its supervisor hard cap from the ambient knob
 clear any ambient one on the start prefix (`CE_PEER_HARD_SECS=`) so a stale
 export cannot undercut the derivation. Do not re-export a *resolved*
 `CROSS_MODEL_HARD_SECS` onto the worker's command line: that converts a
-fallback into an override and strips the worker of its route-aware default
-(idle-guarded streaming routes share `HARD_SECS`; `grok-cli` alone keeps the
-lower `UNGUARDED_HARD_SECS` bound because its `--json-schema` path cannot stream).
+fallback into an override and strips the worker of its own default.
 
 Each worker writes `<run-dir>/pov-<target>.json`, where `<target>` is the resolved
 route target with `grok-cli`/`grok-cursor` collapsing to `grok`. Pass exactly that
@@ -393,7 +393,18 @@ Attribute a served model only from a receipt, never from the request. Record
 target, actual harness/intermediary route, requested model, served model, and
 `independence_verified` separately. A served model of `unverified` stays
 `unverified` in the record; it does not become "unknown model" in the note,
-because the requested model is known. If a job yields no usable artifact, use bounded `peer skip evidence`
+because the requested model is known.
+
+Every route runs through acpx, which needs Node 22.13 or newer and `npx`. A
+worker line `transport unavailable (pre-egress, <scope>): <reason>` means the
+peer did not run and nothing reached the provider; report that voice as not run
+with the reason. Scope `shared` (Node, `npx`, or the npm fetch of acpx) fails
+every route the same way, so another route cannot replace it. Scope `route`
+(that route's CLI is missing, an acpx config file replaces its launch command,
+or the model was rejected, with the available models listed) affects only that
+route; any replacement follows Section 3's recipient rules.
+
+If a job yields no usable artifact, use bounded `peer skip evidence`
 from its log to state an observed quota, authentication, or route failure; never
 invent a cause. Attribute an account authentication failure only after
 provider-capable dispatch is positively established by the launch context or
@@ -527,6 +538,6 @@ and project context must not outlive their use.
 ## Participation, announcement, and disclosure (relocated from the body)
 
 A summons (a panel request) is an **affirmative** request to consult or reconcile peers, detected by reasoning over the invocation context — the user's wording or a calling skill's args. Wording that declines consultation ("solo POV, do not cross-check") or merely recounts a past cross-check names the same terms without asking for one, and is not a summons: peers are not dispatched and no project context leaves the run. For an affirmative request, a caller's paraphrase in one channel never cancels a summons still present in another; only a summons erased from every readable channel upstream is unrecoverable here.
-Invoking a named peer, an explicit cross-check, or `oracle` authorizes the panel protocol's normal read-only consultation against this project. Announce the selected peers before dispatch; ask only when a retry adds an unexpected recipient or intermediary, or an active instruction requires separate approval. Peers inspect the shared working tree directly and cannot edit it. The panel protocol preserves an unbiased initial round, bounds evidence-based reconciliation while honoring user-supplied pass limits, and attributes only receipt-supported independence.
+Invoking a named peer, an explicit cross-check, or `oracle` authorizes the panel protocol's normal read-only consultation against this project. Announce the selected peers before dispatch; ask only when a retry adds an unexpected recipient or intermediary, or an active instruction requires separate approval. Peers inspect the shared working tree directly and are told not to edit it. The panel protocol preserves an unbiased initial round, bounds evidence-based reconciliation while honoring user-supplied pass limits, and attributes only receipt-supported independence.
 Any POV delivered after a summons states which peers ran, or that none did and the observed reason; if no panel runs after a summons, keep the verdict content unchanged but add that panel-status line rather than shipping a bare solo verdict. A POV with no summons keeps the solo result unchanged with no panel note.
 Keep the host's own frozen position out of an independent peer's initial context; expose it only when the requested task is to critique that position or when a later reconciliation round compares already-formed views.

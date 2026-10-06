@@ -63,6 +63,12 @@ Target names distinguish models from harnesses and are not aliases for each othe
 
 Cursor Auto is labeled unverified unless a serving-model receipt exists. Without that proof it does not count as independent cross-model corroboration.
 
+### Requirements and trust boundary
+
+Peers run through [acpx](https://github.com/openclaw/acpx), which talks to each agent CLI over the Agent Client Protocol. It needs Node 22.13 or newer with `npx`, plus the peer's own CLI. The first run fetches a pinned acpx version from npm; later runs reuse the npm cache. When a prerequisite is missing, that peer is reported as not run and nothing is sent.
+
+Peers read the repository you are already working in. Each route denies the peer's write requests and uses the agent's read-only mode where it has one, but this is best effort rather than a sandbox: the Codex adapter can still write. Claude peers start in safe mode, so the repository's project settings and hooks do not apply to them. Served models are recorded from what each adapter reports. Codex, Claude, and the native Grok CLI report one; Cursor and OpenCode routes stay unverified.
+
 ---
 
 ## In a workflow

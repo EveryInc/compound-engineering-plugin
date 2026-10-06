@@ -5,14 +5,14 @@ import { describe, expect, test } from "bun:test"
 const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 
 // The model-identity receipt kernel (expected_model_prefix / route_model /
-// extract_model_receipt) is byte-duplicated between the two cross-model peer
+// extract_model_receipt) is byte-duplicated between the native cross-model peer
 // scripts (the plugin has no cross-skill import mechanism — see AGENTS.md
 // "File References in Skills") and each carries a "keep byte-identical"
-// comment. This test makes that comment enforceable.
+// comment. This test makes that comment enforceable. Workers migrated to acpx
+// read receipts from the shared transport block instead (acpx-transport-parity).
 const SCRIPTS = [
   "ce-code-review/scripts/cross-model-adversarial-review.sh",
   "ce-doc-review/scripts/cross-model-doc-review.sh",
-  "ce-pov/scripts/cross-model-pov.sh",
 ]
 
 const BEGIN_MARKER = "# --- model-identity receipt (R7/R8)"
