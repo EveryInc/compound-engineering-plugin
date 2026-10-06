@@ -25,8 +25,9 @@ as specified.
 Cases 11-14 cover the detached launch->wait lifecycle and model-identity
 receipts (the record of which model actually served a route). Case 15 covers
 U8's fixed-route and bounded-adaptability contract.
-Run them with the fake-CLI harness pattern — stub peer CLIs placed first on
-PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
+Run them with a stub `npx` placed first on PATH that replays canned acpx
+streams (`tests/fixtures/acp-stub-npx.sh`), plus a dummy executable for the
+routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
 
 1. **Activation — at least one trio lens activates (R1, R2).** A document that activates at least one
    trio lens (e.g. a greenfield plan with a high-stakes domain activating

@@ -7,7 +7,8 @@ adversarial pass. Deterministic route tests cover the worker; these cases cover
 the SKILL.md/reference orchestration that only a fresh agent can execute. Inject
 the current `SKILL.md`, `references/cross-model-review.md`, and the relevant
 Stage 5 synthesis prose through the `skill-creator` workflow. Run on Claude Code
-and Codex with fake peer CLIs first on PATH.
+and Codex with a stub `npx` first on PATH that replays canned acpx streams
+(`tests/fixtures/acp-stub-npx.sh`), plus a dummy executable for the routed CLI.
 
 ## Eval cases
 

@@ -165,7 +165,7 @@ The pass embeds the document into the peer prompt and sends it to an external pr
 
 #### Requirements and trust boundary
 
-Peers run through [acpx](https://github.com/openclaw/acpx), which talks to each agent CLI over the Agent Client Protocol. It needs Node 22.13 or newer with `npx`, plus the peer's own CLI. The first run fetches a pinned acpx version from npm; later runs reuse the npm cache. When a prerequisite is missing, that peer is reported as not run and nothing is sent.
+Peers run through [acpx](https://github.com/openclaw/acpx), which talks to each agent CLI over the Agent Client Protocol. It needs Node 22.13 or newer with `npx`, plus the peer's own CLI. On native Windows, OpenCode is reported unavailable, because acpx cannot launch it there. The first run fetches a pinned acpx version from npm; later runs reuse the npm cache. When a prerequisite is missing, that peer is reported as not run and nothing is sent.
 
 Each peer runs from an empty workspace, and every permission request it makes is denied. This is best effort rather than a sandbox. Claude, the native Grok CLI, and OpenCode cannot read files outside that empty workspace or write files. The native Grok CLI can still search and fetch from the web. Codex and the Cursor routes can still read any file your account can read, because their adapters do not ask permission before a read, and the Codex adapter can still write. Claude peers start in safe mode, so the repository's project settings and hooks do not apply to them. Served models are recorded from what each adapter reports. Codex, Claude, and the native Grok CLI report one; Cursor and OpenCode routes stay unverified.
 
