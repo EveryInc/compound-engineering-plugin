@@ -3109,16 +3109,22 @@ Units:
     {
       id: "chained-units-run-inline",
       plan: "chained-plan.md",
-      schedule: "inline",
+      declared: { U1: "inline", U2: "inline", U3: "inline" },
       why: "Units the dependency graph chains gain no wall-clock time from a worker; a fresh worker per unit only spends tokens.",
     },
     {
       id: "independent-units-run-as-wave",
       plan: "independent-plan.md",
-      schedule: "parallel-wave",
+      declared: { U1: "parallel-wave", U2: "parallel-wave", U3: "parallel-wave" },
       why: "Independent units run together as a parallel wave: spending tokens to finish sooner is the intended trade.",
     },
-  ].map(({ id, plan, schedule, why }): Scenario => ({
+    {
+      id: "mixed-plan-wave-then-inline",
+      plan: "mixed-plan.md",
+      declared: { U1: "parallel-wave", U2: "parallel-wave", U3: "inline" },
+      why: "Independent units still run as a wave; only the unit that depends on both runs inline.",
+    },
+  ].map(({ id, plan, why, declared }): Scenario => ({
     id: `ce-work/${id}`,
     baseline_ref: WORK_ENGINES_BASE_REF,
     skill: "ce-work",
@@ -3133,7 +3139,7 @@ Units:
     task: `Use ce-work on docs/plans/${plan}. The execution engine is native and this harness has a subagent mechanism with no worktree isolation. Resolve only how each implementation unit will run, then stop before any branch change, edit, dispatch, or commit. Output exactly one line per unit in the form U1: <schedule>, where <schedule> is one of inline, serial-subagent, or parallel-wave, then one line of reasoning.`,
     grade: {
       files_read_post: ["references/execution-strategy.md"],
-      declared: { U1: schedule, U2: schedule, U3: schedule },
+      declared,
       actions: "none",
       delegates: "none",
     },

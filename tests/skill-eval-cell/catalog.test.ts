@@ -237,6 +237,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-work/behavior-fix-routes-to-review:references/input-triage.md",
         "ce-work/chained-units-run-inline:references/execution-strategy.md",
         "ce-work/independent-units-run-as-wave:references/execution-strategy.md",
+        "ce-work/mixed-plan-wave-then-inline:references/execution-strategy.md",
         "ce-work/incremental-message-fallback:references/implementation-loop.md",
         "ce-work/incremental-message-literal-message:references/implementation-loop.md",
         "ce-work/incremental-message-project:references/implementation-loop.md",
