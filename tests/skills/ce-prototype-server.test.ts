@@ -1396,6 +1396,9 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("new ResizeObserver(reattachPins)")
     expect(overlay).toContain("new MutationObserver(reattachPins)")
     expect(overlay).toContain("EventSource.CLOSED")
+    // A manual reload or link navigation aborts the stream before pagehide;
+    // treating that as session end persisted an ended session into the next page.
+    expect(overlay).toContain("source.readyState === EventSource.CLOSED && !leavingPage")
     // Every screen change reloads the document with the pins carried across;
     // the overlay never reconciles DOM, head, or scripts itself.
     expect(overlay).toContain('addEventListener("screen-changed"')

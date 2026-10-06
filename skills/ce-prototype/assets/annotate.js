@@ -93,6 +93,7 @@
   const frozenStyles = []
   let inFlight = false
   let reloadPending = false
+  let leavingPage = false
   let draft = null
   let source = null
   // The helper's view of each annotation's lifecycle, keyed by id. Pin status
@@ -737,7 +738,13 @@
   })
 
   window.addEventListener("pagehide", persistState)
+  // Leaving the page aborts the event stream before pagehide; that abort is
+  // not the helper ending the session, and pagehide would persist it as one.
+  window.addEventListener("beforeunload", () => {
+    leavingPage = true
+  })
   window.addEventListener("pageshow", (event) => {
+    leavingPage = false
     if (event.persisted) restorePersistedState()
   })
   window.addEventListener("scroll", reattachPins, { capture: true, passive: true })
@@ -811,7 +818,7 @@
     })
     source.addEventListener("session-ended", markEnded)
     source.addEventListener("error", () => {
-      if (source.readyState === EventSource.CLOSED) markEnded()
+      if (source.readyState === EventSource.CLOSED && !leavingPage) markEnded()
     })
   }
 })()
