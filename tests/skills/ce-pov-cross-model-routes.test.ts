@@ -613,6 +613,30 @@ describe("ce-pov output gate and receipts", () => {
     for (const pid of pids) expect(alive(pid)).toBe(false)
   })
 
+  test("without ps -o (Git Bash), the idle guard still reaps a silent peer", () => {
+    const sb = sandbox(["codex"], acpStream({ text: "working", stopReason: null, sleep: 30 }))
+    const realPs = realTools().find(([tool]) => tool === "ps")?.[1]
+    expect(realPs).toBeTruthy()
+    replaceTool(sb.bin, "ps", `#!/bin/sh\nfor a in "$@"; do [ "$a" = -o ] && { echo "ps: unknown option -- o" >&2; exit 1; }; done\nexec '${realPs}' "$@"\n`)
+    const dir = runDir()
+    const started = Date.now()
+    const result = run(["claude", "codex", payload(), dir], dir, { ...sb.env, CROSS_MODEL_IDLE_SECS: "2" })
+    expect(Date.now() - started).toBeLessThan(15_000)
+    expect(result.stderr).toContain("peer output idle 2s")
+    const pids = readFileSync(sb.logs.pids, "utf8").trim().split("\n").map(Number)
+    for (const pid of pids) expect(alive(pid)).toBe(false)
+  })
+
+  test("opencode on native Windows is a route pre-egress failure and acpx is never called", () => {
+    const sb = sandbox(["opencode"])
+    replaceTool(sb.bin, "uname", "#!/bin/sh\necho MINGW64_NT-10.0-26100\n")
+    const dir = runDir()
+    const result = run(["claude", "opencode", payload(), dir], dir, sb.env)
+    expect(result.code).toBe(0)
+    expect(result.stderr).toContain("transport unavailable (pre-egress, route): opencode launches through acpx's raw --agent command")
+    expect(calls(sb)).toBe(0)
+  })
+
   test("workspace creation failure skips the provider without calling acpx", () => {
     const sb = sandbox(["claude"])
     const realMktemp = realTools().find(([tool]) => tool === "mktemp")?.[1]

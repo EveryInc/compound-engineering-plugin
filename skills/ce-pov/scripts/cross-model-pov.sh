@@ -200,6 +200,11 @@ acpx_preflight() {   # <route> <cwd>; nothing is sent to a provider here
   fi
   command -v npx >/dev/null 2>&1 || { acpx_unavailable shared "npx not found; acpx runs through npx"; return 1; }
   route_available "$1" || { acpx_unavailable route "the agent CLI for route '$1' is not installed"; return 1; }
+  if [ "$1" = opencode ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "opencode launches through acpx's raw --agent command, which acpx rejects on native Windows"; return 1 ;;
+    esac
+  fi
   acpx_config_guard "$1" "$2"
 }
 
@@ -559,7 +564,12 @@ peer_alive() {
   if ! command -v ps >/dev/null 2>&1; then
     return 0
   fi
-  st="$(ps -o state= -p "$1" 2>/dev/null | tr -d ' \n')"
+  # Git Bash's ps has no -o; fall back to its -p lookup, which has no zombie state.
+  if ! st="$(ps -o state= -p "$1" 2>/dev/null)"; then
+    ps -p "$1" >/dev/null 2>&1
+    return
+  fi
+  st="$(printf '%s' "$st" | tr -d ' \n')"
   [ -n "$st" ] || return 1
   [ "${st#Z}" = "$st" ]
 }

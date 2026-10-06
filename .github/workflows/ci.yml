@@ -291,6 +291,20 @@ jobs:
       - name: Scratch-root preamble executes under Git Bash
         run: bun test tests/scratch-root-preamble-executes.test.ts
 
+      # acpx needs Node >= 22.13; the runner image's default Node may be older.
+      - name: Setup Node for the acpx worker smoke
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      # Runs a cross-model worker through peer-job-runner.py under Git Bash with a
+      # stub npx: a published result, an idle reap with no surviving process (Git
+      # Bash's ps has no -o), and opencode reported unavailable on native Windows.
+      - name: acpx worker smoke under Git Bash
+        shell: bash
+        timeout-minutes: 4
+        run: bash tests/windows/acpx-worker-smoke.sh
+
   # The cross-model workers' skip-evidence helper once stalled for minutes on macOS
   # /bin/bash 3.2 (#1785). Ubuntu's bash 5 cannot reproduce that, so this job runs the
   # guard under the real 3.2 and fails if the image stops shipping it.
