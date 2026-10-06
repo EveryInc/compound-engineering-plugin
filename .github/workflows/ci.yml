@@ -136,6 +136,32 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run typecheck
 
+  # Runs the pinned acpx from the npm registry against the stub ACP agent. Kept out
+  # of `bun run test` because it needs network access to fetch acpx.
+  acpx-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # acpx requires Node >= 22.13.
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: acpx contract suite
+        run: bun run test:acpx-contract
+
   # Focused Windows gate for the skill scripts that reach for POSIX process and
   # file primitives: peer-job-runner (#1243) and ce-babysit-pr's pr-snapshot
   # (#1280). Not a full-suite matrix — POSIX lifecycle tests (fork/killpg/ps)

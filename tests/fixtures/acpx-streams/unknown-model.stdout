@@ -1,0 +1,5 @@
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":true,"writeTextFile":true},"terminal":true},"clientInfo":{"name":"acpx","version":"0.19.4"}}}
+{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":false},"authMethods":[]}}
+{"jsonrpc":"2.0","id":1,"method":"session/new","params":{"cwd":"/tmp/acpx-contract/cwd","mcpServers":[],"_meta":{"claudeCode":{"options":{"model":"stub-model-z"}}}}}
+{"jsonrpc":"2.0","id":1,"result":{"sessionId":"stub-session-1","models":{"currentModelId":"stub-model-a","availableModels":[{"modelId":"stub-model-a","name":"Stub Model A"},{"modelId":"stub-model-b","name":"Stub Model B"}]}}}
+{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Cannot apply --model \"stub-model-z\": the ACP agent did not advertise that model. Available models: stub-model-a, stub-model-b.","data":{"acpxCode":"RUNTIME","origin":"cli","sessionId":"unknown"}}}
