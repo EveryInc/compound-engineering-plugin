@@ -11,6 +11,10 @@ const PIN_LINE = /^export const ACPX_PIN = "(\d+\.\d+\.\d+)"$/
 const VERSION_LINE = /^ACPX_VERSION="(\d+\.\d+\.\d+)"$/
 const SPECS_LINE = /^ACPX_ADAPTER_SPECS="(\S+(?: \S+)*)"$/
 const ADAPTERS = ["codex", "claude"] as const
+// The specs come from an untrusted package and land in a double-quoted bash
+// assignment that check-health later expands unquoted, so accept only a plain
+// `[@scope/]name@range`: no $, backtick, quote, backslash, glob, or space.
+const ADAPTER_SPEC = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*@[0-9A-Za-z.^~<>=-]+$/
 
 export type BumpResult = {
   oldVersion: string
@@ -66,7 +70,9 @@ function rewrite(content: string, file: string, key: RegExp, exact: RegExp, repl
 
 export function bumpAcpxPin(root: string, newVersion: string, newSpecs: string): BumpResult {
   if (!SEMVER.test(newVersion)) throw new Error(`--version must be x.y.z, got ${JSON.stringify(newVersion)}`)
-  if (!/^\S+(?: \S+)*$/.test(newSpecs)) throw new Error(`malformed adapter specs: ${JSON.stringify(newSpecs)}`)
+  if (!newSpecs.split(" ").every((spec) => ADAPTER_SPEC.test(spec))) {
+    throw new Error(`malformed adapter specs: ${JSON.stringify(newSpecs)}`)
+  }
 
   let scriptPins = 0
   const versions = new Set<string>()

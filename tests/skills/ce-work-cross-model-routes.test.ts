@@ -244,56 +244,58 @@ function flagValue(args: string[], flag: string) {
 }
 
 describe("ce-work fixed write routes", () => {
-  test("every route runs through the pinned acpx with every permission approved in the workspace", () => {
-    for (const route of ROUTES) {
-      const out = emit(route, cleanEnv())
-      expect(out.status).toBe(0)
-      expect(out.stdout).toContain(`npx -y acpx@${ACPX_PIN} --cwd <workspace> --format json --mcp-config <mcp-config>`)
-      expect(out.stdout).toContain("--approve-all")
-      expect(out.stdout).toContain("--file <prompt-file>")
-    }
-    expect(emit("codex", cleanEnv()).stdout).toContain("codex exec --config-option mode=agent --config-option reasoning_effort=high")
-    expect(emit("claude", cleanEnv()).stdout).toContain("CLAUDE_CODE_EXECUTABLE=<claude-safe-mode-wrapper>")
-    expect(emit("claude", cleanEnv()).stdout).toContain("claude exec --config-option mode=default --config-option effort=high")
-    expect(emit("grok-cli", cleanEnv()).stdout).toContain("grok-build exec --config-option reasoning_effort=xhigh")
-    for (const route of ["cursor", "composer", "grok-cursor"]) {
-      expect(emit(route, cleanEnv()).stdout).toContain("cursor exec --config-option mode=agent")
-    }
-    expect(emit("opencode", cleanEnv()).stdout).toContain(" acp exec --config-option mode=build")
-    for (const route of ["codex", "claude", "grok-cli", "cursor", "opencode"]) {
-      expect(emit(route, cleanEnv()).stdout).not.toContain("--model")
-    }
-    expect(emit("composer", cleanEnv()).stdout).toContain(`--model ${COMPOSER_PRESET}`)
-    expect(emit("grok-cursor", cleanEnv()).stdout).toContain(`--model ${GROK_CURSOR_PRESET}`)
+  // One emit per case: each is a subprocess, and a loop of them can outrun the file timeout.
+  const ROUTE_ARGV: Record<string, { contains: string[]; model?: string }> = {
+    codex: { contains: ["codex exec --config-option mode=agent --config-option reasoning_effort=high"] },
+    claude: {
+      contains: [
+        "CLAUDE_CODE_EXECUTABLE=<claude-safe-mode-wrapper>",
+        "claude exec --config-option mode=default --config-option effort=high",
+      ],
+    },
+    "grok-cli": { contains: ["grok-build exec --config-option reasoning_effort=xhigh"] },
+    cursor: { contains: ["cursor exec --config-option mode=agent"] },
+    composer: { contains: ["cursor exec --config-option mode=agent"], model: COMPOSER_PRESET },
+    "grok-cursor": { contains: ["cursor exec --config-option mode=agent"], model: GROK_CURSOR_PRESET },
+    opencode: { contains: [" acp exec --config-option mode=build"] },
+  }
+
+  test.each([...ROUTES])("%s runs through the pinned acpx with every permission approved in the workspace", (route) => {
+    const out = emit(route, cleanEnv())
+    expect(out.status).toBe(0)
+    expect(out.stdout).toContain(`npx -y acpx@${ACPX_PIN} --cwd <workspace> --format json --mcp-config <mcp-config>`)
+    expect(out.stdout).toContain("--approve-all")
+    expect(out.stdout).toContain("--file <prompt-file>")
+    const expected = ROUTE_ARGV[route]
+    for (const fragment of expected.contains) expect(out.stdout).toContain(fragment)
+    if (expected.model) expect(out.stdout).toContain(`--model ${expected.model}`)
+    else expect(out.stdout).not.toContain("--model")
   })
 
-  test("CROSS_MODEL_EFFORT_OVERRIDE retunes the effort-taking routes and stays off by default", () => {
-    const withOverride = (route: string, value: string) =>
-      emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
-
-    expect(withOverride("codex", "xhigh").stdout).toContain("reasoning_effort=xhigh")
-    expect(withOverride("codex", "ultra").stdout).toContain("reasoning_effort=ultra")
-    expect(withOverride("claude", "low").stdout).toContain("effort=low")
-    expect(withOverride("claude", "max").stdout).toContain("effort=max")
-    expect(withOverride("grok-cli", "medium").stdout).toContain("reasoning_effort=medium")
+  test.each([
+    ["codex", "xhigh", "reasoning_effort=xhigh"],
+    ["codex", "ultra", "reasoning_effort=ultra"],
+    ["claude", "low", "effort=low"],
+    ["claude", "max", "effort=max"],
+    ["grok-cli", "medium", "reasoning_effort=medium"],
+  ])("CROSS_MODEL_EFFORT_OVERRIDE retunes %s to %s", (route, value, option) => {
+    expect(emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value }).stdout).toContain(option)
   })
 
-  test("CROSS_MODEL_EFFORT_OVERRIDE rejects tiers the route cannot honor, failing closed before dispatch", () => {
-    const rejected = (route: string, value: string) => {
-      const proc = emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
-      expect(proc.status).toBe(2)
-      expect(proc.stderr).toContain(`effort override '${value}' not compatible with route '${route}'`)
-    }
-
-    rejected("codex", "minimal")
-    rejected("codex", "none")
-    rejected("claude", "minimal")
-    rejected("grok-cli", "max")
-    // Cursor fixes effort in its model preset and OpenCode has no effort option over ACP.
-    rejected("cursor", "high")
-    rejected("composer", "high")
-    rejected("grok-cursor", "high")
-    rejected("opencode", "max")
+  // Cursor fixes effort in its model preset and OpenCode has no effort option over ACP.
+  test.each([
+    ["codex", "minimal"],
+    ["codex", "none"],
+    ["claude", "minimal"],
+    ["grok-cli", "max"],
+    ["cursor", "high"],
+    ["composer", "high"],
+    ["grok-cursor", "high"],
+    ["opencode", "max"],
+  ])("CROSS_MODEL_EFFORT_OVERRIDE rejects %s at %s, failing closed before dispatch", (route, value) => {
+    const proc = emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
+    expect(proc.status).toBe(2)
+    expect(proc.stderr).toContain(`effort override '${value}' not compatible with route '${route}'`)
   })
 
   test.each([...ROUTES])("%s receives one workspace and bounded packet", (route) => {

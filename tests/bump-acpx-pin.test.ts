@@ -102,6 +102,20 @@ describe("bump-acpx-pin", () => {
     for (const [file, original] of Object.entries(files as Record<string, string>)) expect(read(root, file)).toBe(original)
   })
 
+  // Adapter specs come from the untrusted acpx package and are written into a bash
+  // assignment check-health expands, so anything but a plain npm spec is refused.
+  test.each([
+    ["command substitution", "@agentclientprotocol/codex-acp@^1.2.0$(touch pwned)"],
+    ["backticks", "@agentclientprotocol/codex-acp@`id`"],
+    ["a variable", "@agentclientprotocol/codex-acp@$HOME"],
+    ["a glob", "@agentclientprotocol/codex-acp@*"],
+    ["a backslash", "@agentclientprotocol/codex-acp@^1.2.0\\"],
+  ])("refuses an adapter spec carrying %s and writes nothing", (_name, spec) => {
+    const root = fixture(TREE)
+    expect(() => bumpAcpxPin(root, "0.20.0", `${spec} @agentclientprotocol/claude-agent-acp@^0.81.2`)).toThrow(/malformed adapter specs/)
+    for (const [file, original] of Object.entries(TREE)) expect(read(root, file)).toBe(original)
+  })
+
   test("refuses a package whose agent registry it cannot read", () => {
     const root = fixture({
       "package.json": JSON.stringify({ name: "acpx", version: "0.20.0" }),
