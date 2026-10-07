@@ -8,7 +8,6 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -50,10 +49,6 @@ function acpBin(root: string, text: string, options: { meta?: unknown; hook?: st
 }
 
 // The real Node binary; a version-manager shim would not resolve on a reduced PATH.
-function nodeBinary(): string {
-  return spawnSync("node", ["-p", "process.execPath"], { encoding: "utf8" }).stdout.trim()
-}
-
 function packetFile(content: string): string {
   const packet = path.join(temp("ce-work-packet-"), "unit.md")
   writeFileSync(packet, content, { mode: 0o600 })
@@ -438,7 +433,6 @@ describe("ce-work serial cross-model transaction", () => {
     // Node and the acpx stub are present, so the missing agent CLI is what fails preflight.
     const limitedBin = acpBin(root, "unused")
     rmSync(path.join(limitedBin, "codex"))
-    symlinkSync(nodeBinary(), path.join(limitedBin, "node"))
     const limitedPath = `${limitedBin}:/usr/bin:/bin`
     const runnerEnv = {
       ...process.env,

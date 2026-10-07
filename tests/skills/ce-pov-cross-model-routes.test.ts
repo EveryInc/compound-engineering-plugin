@@ -43,7 +43,7 @@ const ROUTE_BIN: Record<string, string> = {
 const PROVIDER_BINS = ["codex", "claude", "grok", "cursor-agent", "opencode"]
 const NEVER_FLAGS = ["--yolo", "--force", "-f", "--always-approve", "--dangerously-skip-permissions", "--approve-all"]
 const REAL_TOOLS = [
-  "bash", "sh", "jq", "python3", "node", "date", "sed", "tr", "cat", "wc", "dirname",
+  "bash", "sh", "jq", "python3", "date", "sed", "tr", "cat", "wc", "dirname",
   "basename", "mktemp", "env", "perl", "timeout", "gtimeout", "sleep", "rm", "mv",
   "chmod", "cp", "printf", "kill", "mkdir", "grep", "tail", "ps", "sort",
 ]
@@ -58,9 +58,7 @@ function realTools(): Array<[string, string]> {
       ? ["-c", "import sys; print(sys.executable)"]
       : tool === "perl"
         ? ["-MConfig", "-e", "print $Config{perlpath}"]
-        : tool === "node"
-          ? ["-p", "process.execPath"]
-          : null
+        : null
     if (probe && actual) {
       const standalone = spawnSync(actual, probe, { encoding: "utf8" }).stdout?.trim()
       if (standalone) actual = standalone
@@ -81,6 +79,10 @@ function sandbox(providers: string[], stream = acpStream({ text: pov() })) {
     try { symlinkSync(actual, path.join(bin, tool)) } catch { /* shell builtin */ }
   }
   symlinkSync(STUB_NPX, path.join(bin, "npx"))
+  // The worker uses node only for its version check; a fixed compliant version
+  // keeps these tests independent of the machine's Node.
+  writeFileSync(path.join(bin, "node"), "#!/bin/sh\necho 24.0.0\n")
+  chmodSync(path.join(bin, "node"), 0o755)
   for (const provider of providers) {
     const file = path.join(bin, provider)
     writeFileSync(file, "#!/bin/sh\nexit 0\n")

@@ -64,6 +64,10 @@ export function acpNpxBin(bin: string, capture: string, stream: string, hook = "
     writeFileSync(path.join(bin, binary), "#!/bin/sh\nexit 0\n")
     chmodSync(path.join(bin, binary), 0o755)
   }
+  // The worker uses node only for its version check; a fixed compliant version
+  // keeps these tests independent of the machine's Node.
+  writeFileSync(path.join(bin, "node"), "#!/bin/sh\necho 24.0.0\n")
+  chmodSync(path.join(bin, "node"), 0o755)
   writeFileSync(path.join(bin, "npx"), `#!/bin/sh
 printf '%s' "$PWD" > '${capture}/pwd'
 env | sort > '${capture}/env'
