@@ -247,7 +247,9 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
 }
 
 acpx_agent_argv() {   # <route>
-  if [ "$1" = opencode ]; then printf '%s\0' --agent "$(command -v opencode) acp" exec
+  # The preflight refuses opencode when it is not installed; the bare name keeps
+  # --emit-adapter output readable on a machine without it.
+  if [ "$1" = opencode ]; then printf '%s\0' --agent "$(command -v opencode || printf opencode) acp" exec
   else printf '%s\0' "$(acpx_agent "$1")" exec; fi
 }
 
