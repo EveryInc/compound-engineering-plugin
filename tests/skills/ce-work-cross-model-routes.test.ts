@@ -1025,6 +1025,23 @@ exec '${python3}' "$@"
     expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).not.toContain(secret)
   })
 
+  // Redaction values are user secrets and can collide with ACP protocol tokens; the
+  // stream is parsed raw and only what is retained or published is redacted.
+  test("a redaction value that collides with ACP protocol text does not corrupt the outcome", () => {
+    const secret = "the-secret-value"
+    const f = fixture()
+    const redactions = path.join(f.root, "redactions")
+    writeFileSync(redactions, `end_turn\n${secret}\n`)
+    const result = run("codex", f, withBin(stubBin(f, acpStream({
+      text: JSON.stringify({ ...JSON.parse(COMPLETED), summary: `done; saw ${secret}` }),
+    })), { CE_WORK_REDACT_FILE: redactions }))
+    expect(result.result.terminal_status).toBe("completed")
+    expect(result.result.summary).toBe("done; saw [REDACTED]")
+    const log = readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")
+    expect(log).not.toContain(secret)
+    expect(log).not.toContain("end_turn")
+  })
+
   test("raw output is redacted before retained evidence is capped", () => {
     const maxRawBytes = 256
     const sentinel = "BOUNDARY-SECRET-credential-123"

@@ -68,7 +68,7 @@ After the health report, decide Phase 2 from writable-checkout availability:
 - If this session has no writable checkout, but the user named a repository and the harness exposes a remote repo-work surface with a writable checkout, run Phase 2 on that surface instead and report the remote repo-local fixes in Phase 3.
 - Otherwise skip Phase 2 and go to Phase 3, saying repo-local writes were skipped because no writable checkout is available.
 
-Two offers concern this machine rather than the checkout, so they stand whether or not Phase 2 runs. If the report names a legacy Compound Codex tool map, offer to remove it following `references/legacy-codex-tool-map.md` from this skill's directory. If the report's `node` row is available, offer to warm the npm cache for cross-model peers following `references/acpx-cache-warm.md`.
+Two offers concern this machine rather than the checkout, so they stand whether or not Phase 2 runs. If the report names a legacy Compound Codex tool map, offer to remove it following `references/legacy-codex-tool-map.md` from this skill's directory. If the bundled health script reported the `node` row available, offer to warm the npm cache for cross-model peers following `references/acpx-cache-warm.md`.
 
 Also remediate these project issues when the report names them:
 

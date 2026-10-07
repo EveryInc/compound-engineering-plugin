@@ -966,8 +966,9 @@ ACTIVE_ROUTE_PID=""
 ACTIVITY_PID=""
 RAW_BYTES="$(raw_byte_count)"
 [ "$RAW_BYTES" -gt "$MAX_RAW_BYTES" ] && : > "$RAW_LIMIT_MARKER"
-# Everything below reads the redacted stream: acpx echoes the outbound prompt
-# and the contents of files the agent reads.
+# acpx echoes the outbound prompt and the contents of files the agent reads, so
+# everything retained or published comes from the redacted copy. The protocol is
+# parsed from the private raw stream: a redaction value can collide with ACP text.
 redact_stream < "$RAW_STDOUT" > "$STREAM"
 {
   cat "$STREAM"
@@ -984,7 +985,7 @@ if [ -f "$RAW_LIMIT_MARKER" ]; then
 fi
 
 # The run's outcome is its own prompt's result, not acpx's exit code.
-OUTCOME="$(acpx_outcome "$STREAM")"
+OUTCOME="$(acpx_outcome "$RAW_STDOUT")"
 case "$OUTCOME" in
   end_turn) ;;
   not-sent)
@@ -1007,8 +1008,9 @@ case "$OUTCOME" in
     ;;
 esac
 
-acpx_text "$STREAM" "$REPLY_TEXT"
-acpx_served_models "$STREAM" > "$SERVED_MODELS"
+# The reply and served models are redacted with the rest of the receipt below.
+acpx_text "$RAW_STDOUT" "$REPLY_TEXT"
+acpx_served_models "$RAW_STDOUT" > "$SERVED_MODELS"
 set +e
 CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" "$PY" - \
   "$REPLY_TEXT" "$SERVED_MODELS" "$ROUTE" "$TARGET" "$HARNESS" \

@@ -379,8 +379,9 @@ check_node_prerequisite() {
 }
 
 # Installs each pinned package into npx's cache under the same key a later
-# `npx -y <spec>` uses, then runs `node --version` instead of the package, so
-# nothing from the package starts.
+# `npx -y <spec>` uses, then runs `node --version` instead of the package, so the
+# package itself never starts. npm still runs its install lifecycle scripts, as
+# it would on a first peer run.
 if [ "$warm_acpx" = "yes" ]; then
   echo ""
   if ! check_node_prerequisite; then
