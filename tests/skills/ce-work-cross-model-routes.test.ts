@@ -18,6 +18,7 @@ import path from "node:path"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { ACPX_PIN } from "../helpers/acpx-pin"
+import { alive } from "../helpers/process"
 import { acpNpxBin, acpStream as acpStreamAt, COMPLETED_RESULT as COMPLETED, type StreamSpec } from "./helpers/ce-work-acp-stub"
 
 setDefaultTimeout(20_000)
@@ -641,6 +642,20 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.terminal_status).toBe("unavailable")
     expect(result.result.failure_reason).toContain("exceeded 256 bytes")
     expect(statSync(path.join(f.resultDir, "adapter.log")).size).toBeLessThanOrEqual(256)
+  })
+
+  // npm launches acpx through `sh -c`; Ubuntu's dash does not exec the command, so
+  // a TERM sent to the npx leader alone stops at the shell and leaves acpx and the
+  // agent running. The route must be stopped as a whole process group.
+  test("stopping a route at the raw-output cap stops its descendants too", () => {
+    const f = fixture()
+    const pidFile = path.join(f.root, "grandchild.pid")
+    const bin = stubBin(f, acpStream(), `sleep 30 & echo $! > '${pidFile}'; printf '%02048d' 0; wait; exit 0`)
+    const result = run("claude", f, withBin(bin, { CE_WORK_MAX_RAW_BYTES: "256", CE_WORK_ACTIVITY_POLL_SECS: "1" }))
+    expect(result.result.failure_reason).toContain("exceeded 256 bytes")
+    const grandchild = Number(readFileSync(pidFile, "utf8").trim())
+    expect(grandchild).toBeGreaterThan(0)
+    expect(alive(grandchild)).toBe(false)
   })
 
   test("an app-bundled codex CLI off PATH satisfies the codex route (issue #1272)", () => {

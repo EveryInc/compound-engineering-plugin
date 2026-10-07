@@ -911,9 +911,15 @@ raw_byte_count() {
 
 ACTIVE_ROUTE_PID=""
 ACTIVITY_PID=""
+# The route runs in its own process group (set -m below). npm launches acpx through
+# `sh -c`, and a shell that does not exec its command (Ubuntu's dash) would stop a
+# leader-only TERM short of acpx and the agent, so signal the whole group.
+stop_route() {
+  kill -TERM -- -"$1" 2>/dev/null || kill -TERM "$1" 2>/dev/null || true
+}
 terminate_route() {
   [ -n "$ACTIVITY_PID" ] && kill "$ACTIVITY_PID" 2>/dev/null || true
-  [ -n "$ACTIVE_ROUTE_PID" ] && kill -TERM "$ACTIVE_ROUTE_PID" 2>/dev/null || true
+  [ -n "$ACTIVE_ROUTE_PID" ] && stop_route "$ACTIVE_ROUTE_PID"
   [ -n "$ACTIVE_ROUTE_PID" ] && wait "$ACTIVE_ROUTE_PID" 2>/dev/null || true
   rm -rf "$SCRATCH"
   exit 143
@@ -923,8 +929,10 @@ trap 'terminate_route' TERM INT
 set +e
 # npx resolves packages from its working directory's node_modules and .npmrc first;
 # acpx gets the agent's cwd from --cwd, so start it from private scratch.
+set -m
 (cd "$SCRATCH" && exec "${MIN_ENV[@]}" "${ARGS[@]}" < /dev/null > "$RAW_STDOUT" 2> "$RAW_STDERR") &
 ACTIVE_ROUTE_PID=$!
+set +m
 (
   # A foreground sleep would outlive this subshell's TERM and hold the script's
   # output open, so callers (bun 1.4 spawnSync) would wait out the poll interval.
@@ -936,7 +944,7 @@ ACTIVE_ROUTE_PID=$!
     if [ "$current" -gt "$MAX_RAW_BYTES" ]; then
       : > "$RAW_LIMIT_MARKER"
       log "activity route=$ROUTE raw-output-limit bytes=$current cap=$MAX_RAW_BYTES"
-      kill -TERM "$ACTIVE_ROUTE_PID" 2>/dev/null || true
+      stop_route "$ACTIVE_ROUTE_PID"
       break
     fi
     if [ "$current" != "$previous" ]; then

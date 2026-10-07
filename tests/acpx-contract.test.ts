@@ -1,7 +1,7 @@
 // Runs the real acpx (fetched through npx) against the stub ACP agent, so it is
 // opt-in: `bun run test:acpx-contract` sets ACPX_CONTRACT=1. ACPX_VERSION overrides the pin.
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { type ChildProcess, spawn } from "node:child_process"
+import { type ChildProcess, spawn, spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
@@ -73,6 +73,23 @@ function withLines(run: Run): JsonRun {
   return { ...run, lines: run.stdout.split("\n").filter((line) => line.trim()).map((line) => JSON.parse(line) as Line) }
 }
 
+// npx runs acpx through `sh -c`, and only bash execs it, so on Ubuntu (dash) a
+// signal sent to npx stops at the shell. The workers signal acpx's whole process
+// group; this finds acpx itself so the contract pins acpx's own cancel behavior.
+function acpxDescendant(rootPid: number): number | undefined {
+  const rows = spawnSync("ps", ["-A", "-o", "pid=,ppid=,command="], { encoding: "utf8" }).stdout
+    .split("\n")
+    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
+    .filter((m): m is RegExpMatchArray => m !== null)
+    .map((m) => ({ pid: Number(m[1]), ppid: Number(m[2]), command: m[3] }))
+  const tree = new Set([rootPid])
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const row of rows) if (tree.has(row.ppid) && !tree.has(row.pid)) { tree.add(row.pid); grew = true }
+  }
+  return rows.find((row) => tree.has(row.pid) && row.pid !== rootPid && /\/\.bin\/acpx\b|\/acpx\/dist\/cli/.test(row.command) && !/^\S*sh\s+-c\b/.test(row.command))?.pid
+}
+
 async function exec(mode: string, flags: string[] = [], onStdout?: (stdout: string, child: ChildProcess) => void) {
   const ws = workspace()
   const args = ["--format", "json", "--cwd", ws.cwd, ...flags, "--agent", `node ${STUB} ${mode}`, "exec", "--file", ws.prompt]
@@ -130,13 +147,20 @@ describe.skipIf(process.env.ACPX_CONTRACT !== "1" || process.platform === "win32
     expect(run.lines.at(-1)?.error?.data?.acpxCode).toBe("TIMEOUT")
   })
 
-  test("SIGTERM to npx reaches a cancel-aware agent as session/cancel and the turn ends cancelled", async () => {
+  test("SIGTERM to acpx reaches a cancel-aware agent as session/cancel and the turn ends cancelled", async () => {
     let signalled = false
+    let polling = false
     const run = await exec("cancel", [], (stdout, child) => {
-      if (!signalled && stdout.includes('"method":"session/prompt"')) {
+      if (polling || !stdout.includes('"method":"session/prompt"')) return
+      polling = true
+      const timer = setInterval(() => {
+        const target = acpxDescendant(child.pid!)
+        if (target === undefined) return
+        clearInterval(timer)
         signalled = true
-        child.kill("SIGTERM")
-      }
+        process.kill(target, "SIGTERM")
+      }, 50)
+      child.once("close", () => clearInterval(timer))
     })
     expect(signalled).toBe(true)
     expect(run.lines.some((line) => line.method === "session/cancel")).toBe(true)
