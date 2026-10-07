@@ -225,6 +225,11 @@ describe("ce-pov cross-model route safety", () => {
       CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-6.1-sol",
     })
     expect(acceptedSlash).toContain("openai/gpt-6.1-sol")
+    expect(emit("grok-cursor", {
+      ...process.env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "grok",
+      CROSS_MODEL_MODEL_OVERRIDE: "cursor-grok-4.6-high",
+    })).toContain("--model cursor-grok-4.6-high")
 
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "codex"], {
       encoding: "utf8",

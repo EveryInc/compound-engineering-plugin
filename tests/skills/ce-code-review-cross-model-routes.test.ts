@@ -1191,6 +1191,7 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     for (const model of ["openai.gpt-6.1-sol", "openai/gpt-6.1-sol"]) {
       expect(emitAdapter("codex", SCRIPT, { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex", CROSS_MODEL_MODEL_OVERRIDE: model })).toContain(`--model ${model}`)
     }
+    expect(emitAdapter("grok-cursor", SCRIPT, { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "grok", CROSS_MODEL_MODEL_OVERRIDE: "cursor-grok-4.6-high" })).toContain("--model cursor-grok-4.6-high")
     const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "codex"], {
       encoding: "utf8",
       env: { ...process.env, CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex", CROSS_MODEL_MODEL_OVERRIDE: "bedrock.claude-opus-5-5" },

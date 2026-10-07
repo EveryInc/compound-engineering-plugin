@@ -141,9 +141,13 @@ jobs:
   acpx-contract:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       # acpx requires Node >= 22.13.
       - name: Setup Node

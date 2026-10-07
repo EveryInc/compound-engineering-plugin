@@ -351,7 +351,7 @@ apply_model_override() {
     codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]* ) ;;
     claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-* ) ;;
     grok-cli:grok-* ) ;;
-    grok-cursor:grok-* ) ;;
+    grok-cursor:grok-*|grok-cursor:cursor-grok-* ) ;;
     composer:composer-* ) ;;
     opencode:*/* ) ;;
     *) return 1 ;;

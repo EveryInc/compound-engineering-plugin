@@ -881,6 +881,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(emitAdapter("cursor", override)).not.toContain("--model")
     expect(emitAdapter("codex", { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex", CROSS_MODEL_MODEL_OVERRIDE: "openai.gpt-6.1-sol" })).toContain("--model openai.gpt-6.1-sol")
     expect(emitAdapter("codex", { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex", CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-6.1-sol" })).toContain("--model openai/gpt-6.1-sol")
+    expect(emitAdapter("grok-cursor", { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "grok", CROSS_MODEL_MODEL_OVERRIDE: "cursor-grok-4.6-high" })).toContain("--model cursor-grok-4.6-high")
     for (const [route, target, model] of [["composer", "composer", "gpt-6.1-sol"], ["codex", "codex", "bedrock.claude-opus-5-5"]]) {
       const r = spawnSync("bash", [SCRIPT, "--emit-adapter", route], {
         encoding: "utf8",
