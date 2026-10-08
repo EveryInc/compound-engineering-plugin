@@ -554,13 +554,20 @@ seat_cleared() {
 
 # A seat is one model. A receipt that names a different model than the one the
 # seat requested means the seat was not served, so nothing is published for it.
-# This is checked on the Claude route, where the served id continues the
-# requested alias or id; the family rule matches extract_model_receipt's.
+# This holds on every route whose adapter returned a receipt; a route without
+# one cannot tell. The family rule matches extract_model_receipt's, except that
+# a Codex id may carry a provider namespace the served id does not.
 seat_model_mismatch() {   # <route>
-  [ -n "$SEAT" ] && [ "$1" = claude ] && [ "$MODEL_ACTUAL" != "unverified" ] || return 1
+  [ -n "$SEAT" ] && [ "$MODEL_ACTUAL" != "unverified" ] || return 1
   local family
-  family="$(route_model claude)"; family="${family%%\[*}"
-  case "$family" in fable|opus|sonnet|haiku) family="claude-$family" ;; esac
+  family="$(route_model "$1")"
+  [ "$family" != auto ] || return 1
+  family="${family%%\[*}"
+  case "$1:$family" in
+    claude:fable|claude:opus|claude:sonnet|claude:haiku) family="claude-$family" ;;
+    codex:*[./]gpt-*) family="gpt-${family##*[./]gpt-}" ;;
+    codex:*[./]o[0-9]*) family="o${family##*[./]o}" ;;
+  esac
   case "$MODEL_ACTUAL" in "$family"|"$family"-*|"$family"\[*) return 1 ;; esac
   return 0
 }

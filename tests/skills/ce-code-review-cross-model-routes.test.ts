@@ -1266,6 +1266,39 @@ describe("cross-model-adversarial-review review seats (CROSS_MODEL_SEAT)", () =>
     expect(seatOutputs(r.files).length).toBe(1)
   })
 
+  test("every route that returns a receipt drops a seat served by another model", () => {
+    // Codex and native Grok report the served model too, so a seat on either is held to it.
+    for (const [bin, target, host, model, other] of [
+      ["codex", "codex", "claude", "gpt-seat-model", "gpt-other-model"],
+      ["grok", "grok", "claude", "grok-seat-model", "grok-other-model"],
+    ]) {
+      const seat = { CROSS_MODEL_SEAT: "1", CROSS_MODEL_MODEL_OVERRIDE_TARGET: target, CROSS_MODEL_MODEL_OVERRIDE: model }
+      let sb = sandbox([bin], acpStream({ text: review(), meta: served(other) }))
+      let runDir = makeRunDir()
+      let r = run(seatArgs(host, target, runDir), runDir, { ...sb.env, ...seat })
+      expect(seatOutputs(r.files), target).toEqual([])
+      expect(r.stderr).toContain("a seat is never filled by another model")
+
+      sb = sandbox([bin], acpStream({ text: review(), meta: served(`${model}-20260801`) }))
+      runDir = makeRunDir()
+      r = run(seatArgs(host, target, runDir), runDir, { ...sb.env, ...seat })
+      expect(seatOutputs(r.files), target).toEqual([`adversarial-${target}-s1.json`])
+    }
+
+    // A Codex id may carry a provider namespace that the served id does not.
+    for (const requested of ["openai/gpt-seat-model", "openai.gpt-seat-model"]) {
+      const sb = sandbox(["codex"], acpStream({ text: review(), meta: served("gpt-seat-model") }))
+      const runDir = makeRunDir()
+      const r = run(seatArgs("claude", "codex", runDir), runDir, {
+        ...sb.env,
+        CROSS_MODEL_SEAT: "1",
+        CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+        CROSS_MODEL_MODEL_OVERRIDE: requested,
+      })
+      expect(seatOutputs(r.files), requested).toEqual(["adversarial-codex-s1.json"])
+    }
+  })
+
   test("a Claude alias with a bracketed qualifier is checked against its family's receipt", () => {
     const { env } = sandbox(["claude"], acpStream({ text: review(), meta: served("claude-opus-5-5-20260801") }))
     const runDir = makeRunDir()
