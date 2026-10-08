@@ -56,7 +56,7 @@ describe("repo-local ce-skill-work skill", () => {
       path.join(ROOT, "docs", "solutions", "skill-design", "portable-agent-skill-authoring.md"),
       "utf8",
     )
-    const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
+    const skillStandards = readFileSync(path.join(ROOT, "skills", "CODING_STANDARDS.md"), "utf8")
     const shapeDescription = [
       "Applies this repository's skill-authoring standard as a procedure. ",
       "Use for any change to, or judgment about, a file under skills/** — a SKILL.md, ",
@@ -107,19 +107,22 @@ describe("repo-local ce-skill-work skill", () => {
     expect(guide).toMatch(/Do not open with identity boilerplate/)
     expect(guide).toContain("distinctive mechanism")
     expect(guide).toContain("quoted utterances")
-    expect(agents).toMatch(/model-invoked description that opens with identity boilerplate or catalogs one branch/)
-    expect(agents).toContain("category opener that omits the distinctive mechanism")
-    expect(agents).toContain("quoted-utterance catalog on a model-invoked skill")
+    expect(skillStandards).toMatch(/model-invoked description that opens with identity boilerplate or catalogs one branch/)
+    expect(skillStandards).toContain("category opener that omits the distinctive mechanism")
+    expect(skillStandards).toContain("quoted-utterance catalog on a model-invoked skill")
     expect(skill).toContain("distinctive mechanism")
     expect(skill).toContain("quoted-utterance")
   })
 
-  test("AGENTS.md routes all four activities to the skill and keeps the reviewer rules bots read", () => {
+  test("AGENTS.md routes all four activities to the skill and points reviewers at the skill standards", () => {
     const agents = readFileSync(path.join(ROOT, "AGENTS.md"), "utf8")
     expect(agents).toMatch(/Before creating, editing, reviewing, or acting on review feedback for anything under `skills\/\*\*`, invoke the repo-local `ce-skill-work` skill/)
     expect(agents).toContain(".agents/skills/ce-skill-work/")
     expect(agents).toContain("`.claude/skills` is a symlink to `.agents/skills`")
-    expect(agents).toMatch(/### Reviewing a skill change \(bots and humans\)/)
-    expect(agents).toMatch(/A case a stated condition already covers is not a finding/)
+    for (const botEntry of ["AGENTS.md", path.join(".cursor", "BUGBOT.md")]) {
+      expect(readFileSync(path.join(ROOT, botEntry), "utf8")).toContain("`skills/CODING_STANDARDS.md`")
+    }
+    const skillStandards = readFileSync(path.join(ROOT, "skills", "CODING_STANDARDS.md"), "utf8")
+    expect(skillStandards).toMatch(/A case a stated condition already covers is not a finding/)
   })
 })

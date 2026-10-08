@@ -623,33 +623,39 @@ def parse_json_arg(raw: str, label: str) -> dict:
 
 
 ROUTE_CONTRACTS = {
-    "codex": {"target": "codex", "harness": "codex", "intermediaries": [], "default_model": "auto", "restriction_posture": "adapter-enforced"},
+    "codex": {"target": "codex", "harness": "codex", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
     "claude": {"target": "claude", "harness": "claude", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
     "grok-cli": {"target": "grok", "harness": "grok", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
-    "cursor": {"target": "cursor", "harness": "cursor-agent", "intermediaries": [], "default_model": "auto", "restriction_posture": "adapter-enforced"},
-    "composer": {"target": "composer", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "composer-2.5-fast", "restriction_posture": "adapter-enforced"},
-    "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "grok-4.7-xhigh", "restriction_posture": "adapter-enforced"},
+    "cursor": {"target": "cursor", "harness": "cursor-agent", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
+    "composer": {"target": "composer", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "composer-2.5[fast=true]", "restriction_posture": "cooperative"},
+    "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "grok-4.7[context=256k,reasoning_effort=high,fast=true]", "restriction_posture": "cooperative"},
     "opencode": {"target": "opencode", "harness": "opencode", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
 }
+# Cursor's ACP model ids may carry a bracketed preset; route families apply to
+# the id before the bracket.
+CURSOR_MODEL = re.compile(r"([A-Za-z0-9][A-Za-z0-9._:/-]*)(?:\[[A-Za-z0-9._=,:-]*\])?")
 
 
 def route_model_allowed(route: str, model: str) -> bool:
+    if route in {"cursor", "composer", "grok-cursor"}:
+        match = CURSOR_MODEL.fullmatch(model)
+        if not match:
+            return False
+        base = match.group(1)
+        if route == "composer":
+            return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", base))
+        if route == "grok-cursor":
+            return bool(re.fullmatch(r"(?:cursor-)?grok-[A-Za-z0-9._-]+", base))
+        lowered = base.lower()
+        return not (lowered in {"composer", "grok"} or lowered.startswith(("composer-", "grok-", "cursor-grok-")))
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", model):
         return False
-    lowered = model.lower()
     if route == "codex":
         return model == "auto" or bool(re.fullmatch(r"(?:gpt-[A-Za-z0-9._-]+|o[0-9][A-Za-z0-9._-]*)", model))
     if route == "claude":
         return model in {"auto", "fable", "opus", "sonnet", "haiku"} or bool(re.fullmatch(r"claude-[A-Za-z0-9._-]+", model))
     if route == "grok-cli":
         return model == "auto" or bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
-    if route == "cursor":
-        reserved = lowered in {"composer", "grok"} or lowered.startswith(("composer-", "grok-", "cursor-grok-"))
-        return not reserved
-    if route == "composer":
-        return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", model))
-    if route == "grok-cursor":
-        return bool(re.fullmatch(r"(?:cursor-grok-[A-Za-z0-9._-]+|grok-4\.7-[A-Za-z0-9._-]+)", model))
     if route == "opencode":
         return model == "auto" or bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+", model))
     return False

@@ -40,7 +40,7 @@ On oh-my-pi the invocation is `/skill:ce-setup`. On Codex it is `$ce-setup` when
 Compound Engineering has two separate setup surfaces:
 
 - **Repo-local state** that should stay consistent and safe: the committed config example, the repo `config.yaml`, and gitignore coverage for `config.local.yaml` and `.context/compound-engineering/` scratch.
-- **Optional external tools** used by specific workflows: `agent-browser`, `gh`, `jq`, `ast-grep`, `ffmpeg`.
+- **Optional external tools** used by specific workflows: `agent-browser`, `gh`, `jq`, `ast-grep`, `ffmpeg`, and Node 22.13 or newer with `npx` for cross-model peers.
 
 A missing optional tool is not a broken plugin. Most workflows never touch `ffmpeg` or `ast-grep`, so installing everything up front is wasted footprint. `ce-setup` reports what is missing, says which workflow each tool serves, and prints the install command. You install only what you use.
 
@@ -55,6 +55,7 @@ The example config refresh happens on its own (it is the committed template copy
 - Offers to add `.context/compound-engineering/` to `.gitignore` whether or not that directory exists yet. An uncovered path is a note, not a project issue.
 - Offers to add a line about the `<root>/solutions/` knowledge store to your root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, or equivalent) when the file does not already convey it, placed in the file's own structure. Then offers the standing compounding instruction from the [ce-compound guide](./ce-compound.md#make-capture-automatic), offer-first or automatic, inserted verbatim. Only when the store is tracked in this repo, and never creates the file. Then offers the `ce-noslop` chat-register instruction, inserted verbatim, so agent reports and summaries to you lead with the outcome and carry no acknowledgements, offers of more help, or process narration. Skipped only when the file already covers the report boundary, that register, and the exclusions (code, config, verbatim quotes, text you asked to post as written); a partial or unrelated writing rule still gets the offer.
 - Repairs an invalid CE Work implementation-engine block, or leftover retired routing keys, in the config layer that supplied the bad value.
+- Offers to warm the npm cache for cross-model peers when Node 22.13 or newer and `npx` are present. On approval it downloads the pinned acpx version and the codex and claude adapters it launches without starting them (npm still runs any install scripts they declare, as a first peer run would), so the first peer run in `ce-pov`, `ce-doc-review`, `ce-code-review`, or `ce-work` does not wait on a download. Declining fetches nothing; the first peer run downloads them instead.
 - Repairs an invalid `docs_root`. This one is a real project issue: CE artifacts will not be written until it is fixed. See [Artifact root](./configuration.md#artifact-root).
 
 Each question uses the host's blocking question tool when one exists. It never silently auto-configures.
@@ -90,6 +91,7 @@ The health report includes the resolved artifact root (`docs/` by default, or a 
 | `jq` | JSON inspection in shell-based workflows |
 | `ast-grep` | Syntax-aware structural code search |
 | `ffmpeg` | Media chunking and screenshot extraction for Riffrec analysis |
+| `node` | Cross-model peers: Node 22.13 or newer with `npx`, which runs the pinned acpx transport |
 
 ---
 

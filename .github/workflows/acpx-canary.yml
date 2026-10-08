@@ -1,0 +1,207 @@
+name: acpx canary
+
+# Tests the newest acpx against the contract suite and proposes a pin bump.
+# Only `contract` executes acpx, so it gets no write permissions and no persisted
+# token; the jobs that write to the repo never run acpx.
+
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: acpx-canary
+  cancel-in-progress: false
+
+env:
+  BUMP_BRANCH: ci/acpx-bump
+  ISSUE_TITLE: "acpx canary: newest acpx fails the contract suite"
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      latest: ${{ steps.versions.outputs.latest }}
+      pin: ${{ steps.versions.outputs.pin }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # A concrete version, never `latest`: the suite asserts `acpx --version` equals it.
+      - name: Resolve newest acpx and the current pin
+        id: versions
+        run: |
+          latest=$(npm view acpx version)
+          pin=$(sed -nE 's/^export const ACPX_PIN = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' tests/helpers/acpx-pin.ts)
+          for v in "$latest" "$pin"; do
+            [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected version string: '$v'"; exit 1; }
+          done
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "pin=$pin" >> "$GITHUB_OUTPUT"
+          if [ "$latest" = "$pin" ]; then
+            echo "acpx $pin is already the newest release; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  contract:
+    needs: resolve
+    if: needs.resolve.outputs.latest != needs.resolve.outputs.pin
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # acpx requires Node >= 22.13.
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: acpx contract suite against acpx ${{ needs.resolve.outputs.latest }}
+        shell: bash
+        env:
+          ACPX_VERSION: ${{ needs.resolve.outputs.latest }}
+        run: bun run test:acpx-contract 2>&1 | tee "$RUNNER_TEMP/contract.log"
+
+      - name: Keep the contract log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acpx-contract-log
+          path: ${{ runner.temp }}/contract.log
+          if-no-files-found: ignore
+
+  propose:
+    needs: [resolve, contract]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # The registry is read as text by the bump script; nothing from the package runs.
+      - name: Fetch the acpx package without running it
+        env:
+          VERSION: ${{ needs.resolve.outputs.latest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/acpx"
+          npm pack "acpx@$VERSION" --ignore-scripts --pack-destination "$RUNNER_TEMP/acpx"
+          tar -xzf "$RUNNER_TEMP/acpx/acpx-$VERSION.tgz" -C "$RUNNER_TEMP/acpx"
+
+      - name: Bump the pin
+        env:
+          VERSION: ${{ needs.resolve.outputs.latest }}
+        run: |
+          bun scripts/bump-acpx-pin.ts --version "$VERSION" --from-package "$RUNNER_TEMP/acpx/package" > "$RUNNER_TEMP/bump.md"
+          cat "$RUNNER_TEMP/bump.md"
+
+      - name: Open or update the bump PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.resolve.outputs.latest }}
+        run: |
+          title="fix(cross-model): bump acpx to $VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BUMP_BRANCH"
+          git diff --quiet && { echo "::error::the bump script changed no files"; exit 1; }
+          git commit -am "$title"
+          git push --force origin "$BUMP_BRANCH"
+          {
+            echo "Weekly acpx canary: acpx $VERSION passed the contract suite (run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+            echo
+            cat "$RUNNER_TEMP/bump.md"
+            echo
+            echo "Before merging, run a local live smoke for each adapter whose spec changed above: the contract suite drives a stub agent, not the real adapters."
+            echo
+            echo "CI was dispatched on \`$BUMP_BRANCH\` because a PR opened with GITHUB_TOKEN does not trigger workflows."
+            echo
+            # --body-file bypasses the PR template, so its required sections are written here.
+            echo "## Security Disclosure"
+            echo
+            echo "Changes which acpx version, and which codex and claude adapter version ranges, the cross-model peers fetch from npm and run on users' machines. The new version passed the contract suite against a stub agent only; review its release notes before merging."
+            echo
+            echo "## Agent Disclosure"
+            echo "- **Model:** No agent used. Generated by the acpx canary workflow."
+          } > "$RUNNER_TEMP/body.md"
+          pr=$(gh pr list --head "$BUMP_BRANCH" --state open --json number --jq '.[0].number')
+          if [ -n "$pr" ]; then
+            gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --head "$BUMP_BRANCH" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+      - name: Run CI on the bump branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --ref "$BUMP_BRANCH"
+
+  report:
+    needs: [resolve, contract]
+    if: failure() && needs.contract.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+
+    steps:
+      - name: Fetch the contract log
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: acpx-contract-log
+          path: ${{ runner.temp }}/log
+
+      # The log came from a job that ran untrusted code; it is only quoted, never executed.
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.resolve.outputs.latest }}
+          PIN: ${{ needs.resolve.outputs.pin }}
+        run: |
+          failures=$(grep -E '^\(fail\)' "$RUNNER_TEMP/log/contract.log" 2>/dev/null || true)
+          {
+            echo "acpx $VERSION failed the contract suite (pin stays at $PIN). Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo
+            echo "Failing scenarios:"
+            echo
+            echo '```'
+            echo "${failures:-none recorded; see the run log}"
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+          issue=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number,title \
+            --jq "map(select(.title == \"$ISSUE_TITLE\")) | .[0].number // empty")
+          if [ -n "$issue" ]; then
+            gh issue comment "$issue" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body-file "$RUNNER_TEMP/body.md"
+          fi

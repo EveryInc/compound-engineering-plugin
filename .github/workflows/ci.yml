@@ -136,6 +136,36 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run typecheck
 
+  # Runs the pinned acpx from the npm registry against the stub ACP agent. Kept out
+  # of `bun run test` because it needs network access to fetch acpx.
+  acpx-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # acpx requires Node >= 22.13.
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: acpx contract suite
+        run: bun run test:acpx-contract
+
   # Focused Windows gate for the skill scripts that reach for POSIX process and
   # file primitives: peer-job-runner (#1243) and ce-babysit-pr's pr-snapshot
   # (#1280). Not a full-suite matrix — POSIX lifecycle tests (fork/killpg/ps)
@@ -264,6 +294,20 @@ jobs:
       # on Windows. Shell out via bun so the same file also runs in the ubuntu suite.
       - name: Scratch-root preamble executes under Git Bash
         run: bun test tests/scratch-root-preamble-executes.test.ts
+
+      # acpx needs Node >= 22.13; the runner image's default Node may be older.
+      - name: Setup Node for the acpx worker smoke
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      # Runs a cross-model worker through peer-job-runner.py under Git Bash with a
+      # stub npx: a published result, an idle reap with no surviving process (Git
+      # Bash's ps has no -o), and opencode reported unavailable on native Windows.
+      - name: acpx worker smoke under Git Bash
+        shell: bash
+        timeout-minutes: 4
+        run: bash tests/windows/acpx-worker-smoke.sh
 
   # The cross-model workers' skip-evidence helper once stalled for minutes on macOS
   # /bin/bash 3.2 (#1785). Ubuntu's bash 5 cannot reproduce that, so this job runs the

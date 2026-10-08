@@ -12,6 +12,7 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { acpNpxBin, acpStream } from "./helpers/ce-work-acp-stub"
 
 const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspace.py")
 const RUNNER = path.join(process.cwd(), "skills/ce-work/scripts/peer-job-runner.py")
@@ -38,6 +39,16 @@ function git(repo: string, ...args: string[]): string {
   return run(repo, ["git", ...args])
 }
 
+// A bin dir whose `npx` replays one acpx stream; `hook` runs in the workspace first.
+function acpBin(root: string, text: string, options: { meta?: unknown; hook?: string } = {}): string {
+  const bin = path.join(root, "fake-bin")
+  const capture = path.join(root, "capture")
+  mkdirSync(bin)
+  mkdirSync(capture)
+  return acpNpxBin(bin, capture, acpStream(path.join(root, "stream"), { text, meta: options.meta }), options.hook)
+}
+
+// The real Node binary; a version-manager shim would not resolve on a reduced PATH.
 function packetFile(content: string): string {
   const packet = path.join(temp("ce-work-packet-"), "unit.md")
   writeFileSync(packet, content, { mode: 0o600 })
@@ -110,7 +121,7 @@ function fakeDoneJob(runs: string, runId: string, unitId: string, packetContent:
     schema_version: 1, terminal_status: "completed", summary: "done", changed_files: [], evidence: ["fake"], scope_expansion: null,
     requested_route: "codex", actual_route: "codex", target: "codex", harness: "codex", intermediaries: [],
     model_requested: "auto", model_actual: "unverified", model_receipt_status: "unverified", activity_posture: "incremental",
-    restriction_posture: "adapter-enforced", failure_reason: null, raw_log: logPath, packet_digest: digest,
+    restriction_posture: "cooperative", failure_reason: null, raw_log: logPath, packet_digest: digest,
   })}\n`, { mode: 0o600 })
   return jobId
 }
@@ -161,18 +172,7 @@ describe("ce-work serial cross-model transaction", () => {
     ).body
     const resultPath = path.join(prepared.result_dir, "implementation-result.json")
 
-    const fakeBin = path.join(root, "fake-bin")
-    mkdirSync(fakeBin)
-    writeFileSync(path.join(fakeBin, "codex"), `#!/bin/sh
-set -eu
-result=""
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "-o" ]; then result="$2"; shift 2; continue; fi
-  shift
-done
-printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract needed","changed_files":[],"evidence":[],"scope_expansion":{"requested_paths":["shared.ts"],"reason":"required by unit"}}' > "$result"
-`)
-    chmodSync(path.join(fakeBin, "codex"), 0o755)
+    const fakeBin = acpBin(root, '{"terminal_status":"scope_expansion","summary":"shared contract needed","changed_files":[],"evidence":[],"scope_expansion":{"requested_paths":["shared.ts"],"reason":"required by unit"}}')
 
     const jobId = run(repo, [
       "python3", RUNNER, "start",
@@ -222,6 +222,74 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
     })
   }, 30_000)
 
+  test.each([
+    ["grok-cursor", "grok", "grok-4.7[context=256k,reasoning_effort=high,fast=true]", "asserted", "INTEGRATION_PENDING"],
+    ["composer", "composer", "composer-2.5[fast=true]", "mismatch", "BLOCKED"],
+  ] as const)("%s at its Cursor preset served as grok-4.7 records %s and terminalizes %s", (route, target, preset, receipt, word) => {
+    const root = temp("ce-work-cursor-preset-")
+    const repo = path.join(root, "repo")
+    const peerRoot = path.join(root, "jobs")
+    const runs = path.join(peerRoot, "ce-work")
+    mkdirSync(repo)
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.name", "CE Work Host")
+    git(repo, "config", "user.email", "host@example.test")
+    mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
+    const plan = path.join(repo, "docs", "plans", "plan.md")
+    writeFileSync(plan, "# Plan\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "seed")
+    const base = git(repo, "rev-parse", "HEAD")
+    const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+
+    expect(control(
+      runs, "init", "--run-id", "preset-run", "--repo", repo, "--plan", plan, "--plan-digest", planDigest,
+      "--binding-json", JSON.stringify({ mode: "prefer", target, model: preset, source: "test" }),
+      "--egress-json", JSON.stringify({ sanction_source: "test", route, intermediaries: ["cursor"], exposed_material: ["U"], restrictions: [] }),
+    ).word).toBe("READY")
+    const prepared = control(
+      runs, "prepare", "--run-id", "preset-run", "--unit-id", "U", "--base", base,
+      "--packet", packetFile("preset packet"), "--attempt-id", "attempt-1", "--activity-posture", "incremental",
+    ).body
+    const resultPath = path.join(prepared.result_dir, "implementation-result.json")
+    const fakeBin = acpBin(
+      root,
+      '{"terminal_status":"completed","summary":"done","changed_files":[],"evidence":[],"scope_expansion":null}',
+      { meta: { modelId: "grok-4.7" } },
+    )
+    const runnerEnv = {
+      ...process.env,
+      CE_PEER_JOBS_ROOT: peerRoot,
+      CE_WORK_RUNS_ROOT: runs,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      CE_PEER_POLL_SECS: "0.1",
+      CE_PEER_IDLE_SECS: "10",
+      CE_PEER_HARD_SECS: "30",
+    }
+    const jobId = run(repo, [
+      "python3", RUNNER, "start", "--skill", "ce-work", "--run-id", "preset-run", "--label", "U",
+      "--input-digest", prepared.packet_digest, "--result-path", resultPath, "--no-sweep",
+      "--", ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
+      prepared.packet_digest, prepared.result_dir,
+    ], runnerEnv)
+    expect(control(
+      runs, "record-job", "--run-id", "preset-run", "--unit-id", "U", "--attempt-id", "attempt-1", "--job-id", jobId,
+    ).word).toBe("AUTHORING")
+    expect(run(repo, ["python3", RUNNER, "wait", "--skill", "ce-work", "--max-secs", "30", jobId], runnerEnv)).toBe("done")
+    expect(control(runs, "sync-job", "--run-id", "preset-run", "--unit-id", "U").body.process_state).toBe("done")
+
+    expect(JSON.parse(readFileSync(resultPath, "utf8"))).toMatchObject({
+      model_requested: preset,
+      model_actual: "grok-4.7",
+      model_receipt_status: receipt,
+    })
+    const terminal = word === "BLOCKED"
+      ? controlFailure(runs, "terminalize", "--run-id", "preset-run", "--unit-id", "U")
+      : control(runs, "terminalize", "--run-id", "preset-run", "--unit-id", "U")
+    expect(terminal.word).toBe(word)
+    if (word === "BLOCKED") expect(JSON.stringify(terminal)).toContain("served-model mismatch")
+  }, 30_000)
+
   test("structured receipts redact secrets before JSON encoding", () => {
     const root = temp("ce-work-structured-redaction-")
     const repo = path.join(root, "repo")
@@ -269,28 +337,16 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
     const redactionFile = path.join(root, "redactions.txt")
     writeFileSync(redactionFile, `${Object.values(secrets).join("\n")}\n`, { mode: 0o600 })
 
-    const fakeBin = path.join(root, "fake-bin")
-    mkdirSync(fakeBin)
-    writeFileSync(path.join(fakeBin, "codex"), `#!/bin/sh
-set -eu
-result=""
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "-o" ]; then result="$2"; shift 2; continue; fi
-  shift
-done
-printf '%s\n' '${JSON.stringify({ type: "init", model: secrets.summary })}'
-printf '%s\n' '${JSON.stringify({
-  terminal_status: "scope_expansion",
-  summary: `summary ${secrets.summary} end`,
-  changed_files: [`src/${secrets.evidence}.ts`],
-  evidence: [`evidence ${secrets.evidence} end`],
-  scope_expansion: {
-    requested_paths: [`src/${secrets.scope}.ts`],
-    reason: `needs ${secrets.scope}`,
-  },
-})}' > "$result"
-`)
-    chmodSync(path.join(fakeBin, "codex"), 0o755)
+    const fakeBin = acpBin(root, JSON.stringify({
+      terminal_status: "scope_expansion",
+      summary: `summary ${secrets.summary} end`,
+      changed_files: [`src/${secrets.evidence}.ts`],
+      evidence: [`evidence ${secrets.evidence} end`],
+      scope_expansion: {
+        requested_paths: [`src/${secrets.scope}.ts`],
+        reason: `needs ${secrets.scope}`,
+      },
+    }), { meta: { modelId: secrets.summary } })
 
     const jobId = run(repo, [
       "python3", RUNNER, "start",
@@ -374,7 +430,10 @@ printf '%s\n' '${JSON.stringify({
       runs, "prepare", "--run-id", "unavailable-run", "--unit-id", "U",
       "--base", base, "--packet", packetFile("unavailable packet"),
     ).body
-    const limitedPath = "/usr/bin:/bin"
+    // Node and the acpx stub are present, so the missing agent CLI is what fails preflight.
+    const limitedBin = acpBin(root, "unused")
+    rmSync(path.join(limitedBin, "codex"))
+    const limitedPath = `${limitedBin}:/usr/bin:/bin`
     const runnerEnv = {
       ...process.env,
       CE_PEER_JOBS_ROOT: peerRoot,
@@ -412,18 +471,18 @@ printf '%s\n' '${JSON.stringify({
       terminal_status: "unavailable",
       requested_route: "codex",
       actual_route: null,
-      failure_reason: "fixed route executable 'codex' is unavailable",
+      failure_reason: "transport unavailable (pre-egress, route): the agent CLI for route 'codex' is not installed",
       packet_digest: prepared.packet_digest,
     })
     const terminal = controlFailure(runs, "terminalize", "--run-id", "unavailable-run", "--unit-id", "U")
     expect(terminal.word).toBe("BLOCKED")
-    expect(terminal.body.failure_reason).toBe("fixed route executable 'codex' is unavailable")
+    expect(terminal.body.failure_reason).toBe("transport unavailable (pre-egress, route): the agent CLI for route 'codex' is not installed")
 
     const fallback = control(
       runs, "claim-fallback", "--run-id", "unavailable-run", "--unit-id", "U", "--caller-mode", "headless",
     )
     expect(fallback.word).toBe("FALLBACK_AUTHORIZED")
-    expect(fallback.body.reason).toBe("fixed route executable 'codex' is unavailable")
+    expect(fallback.body.reason).toBe("transport unavailable (pre-egress, route): the agent CLI for route 'codex' is not installed")
 
     const spoofed = control(
       runs, "prepare", "--run-id", "unavailable-run", "--unit-id", "U-spoofed",
@@ -450,7 +509,7 @@ printf '%s\n' '${JSON.stringify({
       model_actual: "unverified",
       model_receipt_status: "unverified",
       activity_posture: "hard-only",
-      restriction_posture: "adapter-enforced",
+      restriction_posture: "cooperative",
       failure_reason: "spoofed unavailable reason",
       raw_log: spoofedLog,
       packet_digest: spoofed.packet_digest,
@@ -481,8 +540,10 @@ printf '%s\n' '${JSON.stringify({
     const invoked = path.join(root, "codex-invoked")
     mkdirSync(repo)
     mkdirSync(bin)
-    writeFileSync(path.join(bin, "codex"), `#!/bin/sh\n: > '${invoked}'\n`, { mode: 0o755 })
-    chmodSync(path.join(bin, "codex"), 0o755)
+    for (const tool of ["codex", "npx"]) {
+      writeFileSync(path.join(bin, tool), `#!/bin/sh\n: > '${invoked}'\n`, { mode: 0o755 })
+      chmodSync(path.join(bin, tool), 0o755)
+    }
     git(repo, "init", "-b", "main")
     git(repo, "config", "user.name", "CE Work Host")
     git(repo, "config", "user.email", "host@example.test")
@@ -1051,25 +1112,19 @@ class FeatureTest(unittest.TestCase):
     const resultPath = path.join(resultDir, "implementation-result.json")
     const packetDigest = prepared.body.packet_digest as string
 
-    const fakeBin = path.join(root, "fake-bin")
-    mkdirSync(fakeBin)
-    const fakeCodex = path.join(fakeBin, "codex")
-    writeFileSync(fakeCodex, `#!/bin/sh
-set -eu
-result=""
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "-o" ]; then result="$2"; shift 2; continue; fi
-  shift
-done
+    // The hook runs in the workspace the way the agent's tools would.
+    const fakeBin = acpBin(
+      root,
+      '{"terminal_status":"completed","summary":"done","changed_files":["existing.txt","binary.bin","renamed.txt"],"evidence":["fake"],"scope_expansion":null}',
+      { hook: `set -eu
 printf 'committed\n' > existing.txt
 git add existing.txt
 git -c user.name=Worker -c user.email=worker@example.test commit -m 'worker intermediate' >/dev/null
 printf 'residual\n' > existing.txt
 python3 -c 'open("binary.bin", "wb").write(bytes([0,255,1]))'
 git mv delete.txt renamed.txt
-printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":["existing.txt","binary.bin","renamed.txt"],"evidence":["fake"],"scope_expansion":null}' > "$result"
-`)
-    chmodSync(fakeCodex, 0o755)
+set +eu` },
+    )
 
     const jobId = run(repo, [
       "python3", RUNNER, "start",

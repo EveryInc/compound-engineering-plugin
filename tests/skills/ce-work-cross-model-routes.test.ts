@@ -1,7 +1,6 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import {
   chmodSync,
-  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -18,6 +17,9 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
+import { ACPX_PIN } from "../helpers/acpx-pin"
+import { alive } from "../helpers/process"
+import { acpNpxBin, acpStream as acpStreamAt, COMPLETED_RESULT as COMPLETED, type StreamSpec } from "./helpers/ce-work-acp-stub"
 
 setDefaultTimeout(20_000)
 
@@ -29,16 +31,20 @@ delete process.env.CROSS_MODEL_EFFORT_OVERRIDE
 const SCRIPT = path.join(process.cwd(), "skills/ce-work/scripts/cross-model-work.sh")
 const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspace.py")
 const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementation-result-schema.json")
+const STREAMS = path.join(process.cwd(), "tests/fixtures/acpx-streams")
 type PreparedUnit = { authorization_path: string; workspace: string; packet_path: string; result_dir: string }
 const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor", "opencode"] as const
+type Route = typeof ROUTES[number]
+const GROK_CURSOR_PRESET = "grok-4.7[context=256k,reasoning_effort=high,fast=true]"
+const COMPOSER_PRESET = "composer-2.5[fast=true]"
 const ROUTE_CONTRACTS = {
-  codex: { target: "codex", harness: "codex", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
-  claude: { target: "claude", harness: "claude", intermediaries: [], model: "auto", restriction: "cooperative" },
-  "grok-cli": { target: "grok", harness: "grok", intermediaries: [], model: "auto", restriction: "cooperative" },
-  cursor: { target: "cursor", harness: "cursor-agent", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
-  composer: { target: "composer", harness: "cursor-agent", intermediaries: ["cursor"], model: "composer-2.5-fast", restriction: "adapter-enforced" },
-  "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "grok-4.7-xhigh", restriction: "adapter-enforced" },
-  opencode: { target: "opencode", harness: "opencode", intermediaries: [], model: "auto", restriction: "cooperative" },
+  codex: { target: "codex", intermediaries: [] },
+  claude: { target: "claude", intermediaries: [] },
+  "grok-cli": { target: "grok", intermediaries: [] },
+  cursor: { target: "cursor", intermediaries: [] },
+  composer: { target: "composer", intermediaries: ["cursor"] },
+  "grok-cursor": { target: "grok", intermediaries: ["cursor"] },
+  opencode: { target: "opencode", intermediaries: [] },
 } as const
 const roots: string[] = []
 const templateRoots: string[] = []
@@ -98,70 +104,53 @@ function fixture() {
     prepared: null as null | PreparedUnit,
   }
 }
+type Fixture = ReturnType<typeof fixture>
 
-function fakeBin(route: typeof ROUTES[number], capture: string, response?: string) {
-  const bin = temp("ce-work-bin-")
-  const binary = route === "grok-cli" ? "grok" : route === "grok-cursor" || route === "cursor" || route === "composer" ? "cursor-agent" : route
-  const final = response ?? '{"terminal_status":"completed","summary":"implemented","changed_files":["result.txt"],"evidence":["focused test passed"],"scope_expansion":null}'
-  const script = `#!/bin/sh
-set -eu
-if [ "\${1:-}" = "--list-models" ]; then
-  env | sort > '${capture}/probe-env'
-  cat <<'MODELS'
-composer-2.5-fast - Composer 2.5 Fast
-composer-next-fast - Composer Next Fast
-grok-4.7-xhigh - Grok 4.7 Extra High
-cursor-grok-4.6-high - Cursor Grok 4.6
-claude-sonnet-5-low - Sonnet 5 1M Low
-MODELS
-  exit 0
-fi
-printf '%s\\n' "$@" > '${capture}/argv'
-printf '%s' "$PWD" > '${capture}/pwd'
-env | sort > '${capture}/env'
-cat > '${capture}/stdin'
-printf 'READY\\n' > result.txt
-case '${route}' in
-  codex)
-    out=''
-    previous=''
-    for arg in "$@"; do
-      if [ "$previous" = '-o' ]; then out="$arg"; fi
-      previous="$arg"
-    done
-    printf '%s\\n' '{"type":"item.completed"}'
-    printf '%s\\n' '${final.replaceAll("'", "'\\''")}' > "$out"
-    ;;
-  claude)
-    printf '%s\\n' '{"type":"system","subtype":"init","model":"claude-fable-5"}'
-    printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
-    ;;
-  cursor|composer|grok-cursor)
-    model='Cursor Grok 4.6'
-    [ '${route}' = composer ] && model='Composer 2.5 Fast'
-    [ '${route}' = grok-cursor ] && model='Grok 4.7 Extra High'
-    printf '%s\\n' "{\\"type\\":\\"system\\",\\"subtype\\":\\"init\\",\\"model\\":\\"$model\\"}"
-    printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
-    ;;
-  grok-cli)
-    printf '%s\\n' '{"type":"activity","message":"editing"}'
-    printf '%s\\n' '${final.replaceAll("'", "'\\''")}'
-    ;;
-  opencode)
-    printf '%s\\n' '{"type":"step_start"}'
-    printf '%s\\n' '{"type":"text","part":{"type":"text","text":${JSON.stringify(final)}}}'
-    printf '%s\\n' '{"type":"step_finish","part":{"reason":"stop"}}'
-    ;;
-esac
-`
-  writeFileSync(path.join(bin, binary), script)
-  chmodSync(path.join(bin, binary), 0o755)
-  return bin
+function acpStream(spec: StreamSpec = {}) {
+  return acpStreamAt(path.join(temp("ce-work-stream-"), "s"), spec)
+}
+
+function stubBin(f: Fixture, stream: string = acpStream(), hook = "") {
+  return acpNpxBin(temp("ce-work-bin-"), f.capture, stream, hook)
+}
+
+function withBin(bin: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, ...extra }
+}
+
+// A PATH of resolved real tools, for tests that hide a tool or replace HOME:
+// version-manager shims re-resolve through PATH and HOME, which those tests change.
+const REAL_TOOLS = [
+  "bash", "sh", "env", "jq", "python3", "node", "git", "cat", "wc", "tr", "sort", "sed", "awk", "grep",
+  "head", "tail", "mktemp", "chmod", "mkdir", "rm", "mv", "cp", "ln", "sleep", "kill", "ps", "dirname",
+  "basename", "date", "printf", "id", "uname",
+]
+let realToolPaths: Array<[string, string]> | undefined
+function resolvedRealTools(): Array<[string, string]> {
+  if (realToolPaths) return realToolPaths
+  realToolPaths = []
+  for (const tool of REAL_TOOLS) {
+    let actual = spawnSync("command", ["-v", tool], { encoding: "utf8", shell: "/bin/bash" }).stdout?.trim()
+    const probe = tool === "python3" ? ["-c", "import sys; print(sys.executable)"] : tool === "node" ? ["-p", "process.execPath"] : null
+    // A shim linked under another directory can resolve back to itself and spin.
+    if (probe && actual) actual = spawnSync(actual, probe, { encoding: "utf8" }).stdout?.trim()
+    if (probe && !actual) throw new Error(`cannot resolve the real ${tool} binary`)
+    if (actual && existsSync(actual)) realToolPaths.push([tool, actual])
+  }
+  return realToolPaths
+}
+function isolatedPath(bin: string, excluded: string[] = []): string {
+  const tools = temp("ce-work-tools-")
+  for (const [tool, actual] of resolvedRealTools()) {
+    if (excluded.includes(tool) || existsSync(path.join(bin, tool))) continue
+    symlinkSync(actual, path.join(tools, tool))
+  }
+  return `${bin}:${tools}`
 }
 
 function run(
-  route: typeof ROUTES[number],
-  f: ReturnType<typeof fixture>,
+  route: Route,
+  f: Fixture,
   env: NodeJS.ProcessEnv = process.env,
   expectedPacketDigest = createHash("sha256").update(readFileSync(f.packet)).digest("hex"),
   authorizationOverrides: Record<string, unknown> = {},
@@ -245,250 +234,192 @@ function cleanEnv(): NodeJS.ProcessEnv {
   return env
 }
 
+function captured(f: Fixture, name: string) {
+  return readFileSync(path.join(f.capture, name), "utf8")
+}
+
+function argv(f: Fixture) {
+  return captured(f, "argv").split("\n").slice(0, -1)
+}
+
+function flagValue(args: string[], flag: string) {
+  const at = args.indexOf(flag)
+  return at < 0 ? undefined : args[at + 1]
+}
+
 describe("ce-work fixed write routes", () => {
-  test("production argv uses the qualified noninteractive write posture", () => {
-    for (const route of ROUTES) expect(emit(route, cleanEnv()).status).toBe(0)
+  // One emit per case: each is a subprocess, and a loop of them can outrun the file timeout.
+  const ROUTE_ARGV: Record<string, { contains: string[]; model?: string }> = {
+    codex: { contains: ["codex exec --config-option mode=agent --config-option reasoning_effort=high"] },
+    claude: {
+      contains: [
+        "CLAUDE_CODE_EXECUTABLE=<claude-safe-mode-wrapper>",
+        "claude exec --config-option mode=default --config-option effort=high",
+      ],
+    },
+    "grok-cli": { contains: ["grok-build exec --config-option reasoning_effort=xhigh"] },
+    cursor: { contains: ["cursor exec --config-option mode=agent"] },
+    composer: { contains: ["cursor exec --config-option mode=agent"], model: COMPOSER_PRESET },
+    "grok-cursor": { contains: ["cursor exec --config-option mode=agent"], model: GROK_CURSOR_PRESET },
+    opencode: { contains: [" acp exec --config-option mode=build"] },
+  }
 
-    const codex = emit("codex", cleanEnv()).stdout
-    expect(codex).toContain("exec")
-    expect(codex).toContain("--ephemeral")
-    expect(codex).toContain("-s workspace-write")
-    expect(codex).toContain("-C <workspace>")
-    expect(codex).toContain("-c model_reasoning_effort=high")
-
-    const claude = emit("claude", cleanEnv()).stdout
-    expect(claude).toContain("--safe-mode")
-    expect(claude).toContain("--permission-mode bypassPermissions")
-    expect(claude).toContain("--tools Read,Write,Edit,Bash")
-    expect(claude).toContain("--allowed-tools Bash(*)")
-    expect(claude).toContain("--no-session-persistence")
-    expect(claude).not.toContain("--model")
-
-    const grok = emit("grok-cli", cleanEnv()).stdout
-    expect(grok).toContain("--cwd <workspace>")
-    expect(grok).toContain("--permission-mode acceptEdits")
-    expect(grok).toContain("--no-memory")
-    expect(grok).toContain("--no-subagents")
-    expect(grok).not.toContain("--model")
-
-    for (const route of ["cursor", "composer", "grok-cursor"]) {
-      const command = emit(route, cleanEnv()).stdout
-      expect(command).toContain("--sandbox enabled")
-      expect(command).toContain("--workspace <workspace>")
-      expect(command).toContain("--output-format stream-json")
-    }
-    expect(emit("cursor", cleanEnv()).stdout).not.toContain("--model")
-    expect(emit("composer", cleanEnv()).stdout).toContain("--model composer-2.5-fast")
-    expect(emit("grok-cursor", cleanEnv()).stdout).toContain("--model grok-4.7-xhigh")
-    const opencode = emit("opencode", cleanEnv()).stdout
-    expect(opencode).toContain("opencode run")
-    expect(opencode).toContain("--dir <workspace>")
-    expect(opencode).toContain("--format json")
-    expect(opencode).toContain("--auto")
-    expect(opencode).toContain("--file <prompt-file>")
-    // OpenCode's --file is variadic: a bare argument after it becomes another attachment.
-    expect(opencode.indexOf("Follow the attached unit packet.")).toBeGreaterThan(-1)
-    expect(opencode.indexOf("Follow the attached unit packet.")).toBeLessThan(opencode.indexOf("--file <prompt-file>"))
-    expect(opencode).not.toContain("--model")
+  test.each([...ROUTES])("%s runs through the pinned acpx with every permission approved in the workspace", (route) => {
+    const out = emit(route, cleanEnv())
+    expect(out.status).toBe(0)
+    expect(out.stdout).toContain(`npx -y acpx@${ACPX_PIN} --cwd <workspace> --format json --mcp-config <mcp-config>`)
+    expect(out.stdout).toContain("--approve-all")
+    expect(out.stdout).toContain("--file <prompt-file>")
+    const expected = ROUTE_ARGV[route]
+    for (const fragment of expected.contains) expect(out.stdout).toContain(fragment)
+    if (expected.model) expect(out.stdout).toContain(`--model ${expected.model}`)
+    else expect(out.stdout).not.toContain("--model")
   })
 
-  test("CROSS_MODEL_EFFORT_OVERRIDE retunes the effort-taking routes and stays off by default", () => {
-    const withOverride = (route: string, value: string) =>
-      emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
-
-    expect(emit("codex", cleanEnv()).stdout).toContain("-c model_reasoning_effort=high")
-    expect(withOverride("codex", "xhigh").stdout).toContain("-c model_reasoning_effort=xhigh")
-    expect(withOverride("codex", "max").stdout).toContain("-c model_reasoning_effort=max")
-    expect(withOverride("codex", "ultra").stdout).toContain("-c model_reasoning_effort=ultra")
-    expect(withOverride("grok-cli", "xhigh").stdout).toContain("--effort xhigh")
-
-    expect(emit("claude", cleanEnv()).stdout).toContain("--effort high")
-    expect(withOverride("claude", "low").stdout).toContain("--effort low")
-    expect(withOverride("claude", "max").stdout).toContain("--effort max")
-
-    expect(emit("grok-cli", cleanEnv()).stdout).toContain("--effort xhigh")
-    expect(withOverride("grok-cli", "medium").stdout).toContain("--effort medium")
+  test.each([
+    ["codex", "xhigh", "reasoning_effort=xhigh"],
+    ["codex", "ultra", "reasoning_effort=ultra"],
+    ["claude", "low", "effort=low"],
+    ["claude", "max", "effort=max"],
+    ["grok-cli", "medium", "reasoning_effort=medium"],
+  ])("CROSS_MODEL_EFFORT_OVERRIDE retunes %s to %s", (route, value, option) => {
+    expect(emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value }).stdout).toContain(option)
   })
 
-  test("CROSS_MODEL_EFFORT_OVERRIDE rejects tiers the route cannot honor, failing closed before dispatch", () => {
-    const rejected = (route: string, value: string) => {
-      const proc = emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
-      expect(proc.status).toBe(2)
-      expect(proc.stderr).toContain(`effort override '${value}' not compatible with route '${route}'`)
-    }
-
-    rejected("codex", "minimal") // the API rejects it on every current codex model
-    rejected("codex", "none")
-    rejected("claude", "minimal")
-    rejected("grok-cli", "max")
-    // routes with no effort knob reject any override rather than silently ignoring it
-    rejected("cursor", "high")
-    rejected("composer", "high")
-    rejected("grok-cursor", "high")
-    // opencode is effort-bearing through --variant, but only for its own enum
-    rejected("opencode", "bogus")
-  })
-
-  test("opencode carries the override through --variant, matching the review adapters", () => {
-    const out = emit("opencode", { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: "max" }).stdout
-    expect(out).toContain("--variant max")
-    expect(emit("opencode", cleanEnv()).stdout).not.toContain("--variant")
+  // Cursor fixes effort in its model preset and OpenCode has no effort option over ACP.
+  test.each([
+    ["codex", "minimal"],
+    ["codex", "none"],
+    ["claude", "minimal"],
+    ["grok-cli", "max"],
+    ["cursor", "high"],
+    ["composer", "high"],
+    ["grok-cursor", "high"],
+    ["opencode", "max"],
+  ])("CROSS_MODEL_EFFORT_OVERRIDE rejects %s at %s, failing closed before dispatch", (route, value) => {
+    const proc = emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
+    expect(proc.status).toBe(2)
+    expect(proc.stderr).toContain(`effort override '${value}' not compatible with route '${route}'`)
   })
 
   test.each([...ROUTES])("%s receives one workspace and bounded packet", (route) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
-    const result = run(
-      route,
-      f,
-      {
-        ...process.env,
-        PATH: `${bin}:${process.env.PATH}`,
-        ...(route === "grok-cursor" ? { CE_WORK_CURSOR_INTERMEDIARY_SANCTIONED: "1" } : {}),
-      },
-    )
+    const bin = stubBin(f)
+    const result = run(route, f, withBin(bin))
     expect(result.code).toBe(0)
-    expect(readFileSync(path.join(f.capture, "pwd"), "utf8")).toBe(realpathSync(f.workspace))
-    const stdin = readFileSync(path.join(f.capture, "stdin"), "utf8")
-    expect(stdin).toContain("Implement U3 only.")
-    expect(stdin).toContain("Leave the completed working tree uncommitted")
-    expect(stdin).toContain("`git add`")
-    expect(stdin).toContain("`git commit`")
+    // npx starts from private scratch so the workspace's node_modules and .npmrc
+    // cannot decide which acpx runs; the agent gets the workspace through --cwd.
+    expect(captured(f, "pwd")).not.toBe(realpathSync(f.workspace))
+    expect(path.basename(captured(f, "pwd"))).toStartWith("ce-work-adapter-")
+    expect(flagValue(argv(f), "--cwd")).toBe(realpathSync(f.workspace))
+    const prompt = captured(f, "prompt")
+    expect(prompt).toContain("Implement U3 only.")
+    expect(prompt).toContain("Leave the completed working tree uncommitted")
+    expect(prompt).toContain("`git add`")
+    expect(prompt).toContain("`git commit`")
+    // Codex keeps its shell sandbox under ACP, so its packet keeps the host-owned probe rule.
     if (route === "codex") {
-      expect(stdin).toContain("host-owned")
-      expect(stdin).toContain("Socket binds")
-      expect(stdin).toContain("EPERM")
+      expect(prompt).toContain("host-owned")
+      expect(prompt).toContain("EPERM")
     } else {
-      expect(stdin).not.toContain("Socket binds")
-      expect(stdin).not.toContain("EPERM")
+      expect(prompt).not.toContain("Socket binds")
     }
-    if (route === "cursor" || route === "composer" || route === "grok-cursor") {
-      expect(readFileSync(path.join(f.capture, "argv"), "utf8")).not.toContain("Implement U3 only.")
-    }
-    expect(readFileSync(path.join(f.capture, "env"), "utf8")).toContain("PYTHONDONTWRITEBYTECODE=1")
-    expect(readFileSync(path.join(f.workspace, "result.txt"), "utf8")).toBe("READY\n")
+    expect(captured(f, "argv")).not.toContain("Implement U3 only.")
+    expect(captured(f, "env")).toContain("PYTHONDONTWRITEBYTECODE=1")
     expect(result.result.terminal_status).toBe("completed")
     expect(result.result.requested_route).toBe(route)
     expect(result.result.actual_route).toBe(route)
     expect(result.result.activity_posture).toBe("incremental")
+    expect(result.result.restriction_posture).toBe("cooperative")
     expect(result.result.packet_digest).toBe(createHash("sha256").update(readFileSync(f.packet)).digest("hex"))
     expect(realpathSync(result.result.raw_log)).toBe(path.join(realpathSync(f.resultDir), "adapter.log"))
-    if (route === "codex" || route === "grok-cli" || route === "opencode") {
-      expect(result.result.model_actual).toBe("unverified")
-      expect(result.result.model_receipt_status).toBe("unverified")
-    } else {
-      expect(result.result.model_actual).not.toBe("unverified")
-      expect(result.result.model_receipt_status).toBe("verified")
-    }
+    expect(result.result.model_actual).toBe("unverified")
+    expect(result.result.model_receipt_status).toBe("unverified")
   })
 
-  test("Cursor accepts a controller-bounded explicit model while Composer stays family-locked", () => {
-    const cursor = emit("cursor", {
-      ...process.env,
-      CE_WORK_MODEL_OVERRIDE_TARGET: "cursor",
-      CE_WORK_MODEL_OVERRIDE: "claude-sonnet-5-low",
+  test("Cursor accepts a controller-bounded explicit model while Composer and Grok stay family-locked", () => {
+    const override = (target: string, model: string, route = target) => emit(route, {
+      ...cleanEnv(), CE_WORK_MODEL_OVERRIDE_TARGET: target, CE_WORK_MODEL_OVERRIDE: model,
     })
+    const cursor = override("cursor", "claude-sonnet-5-low")
     expect(cursor.status).toBe(0)
     expect(cursor.stdout).toContain("--model claude-sonnet-5-low")
 
-    for (const reserved of ["composer", "composer-2.5-fast", "grok-4.6", "cursor-grok-4.6-high", "grok-4.7-xhigh"]) {
-      const rejected = emit("cursor", {
-        ...process.env,
-        CE_WORK_MODEL_OVERRIDE_TARGET: "cursor",
-        CE_WORK_MODEL_OVERRIDE: reserved,
-      })
+    for (const reserved of ["composer", COMPOSER_PRESET, "grok-4.6", "cursor-grok-4.6-high", GROK_CURSOR_PRESET]) {
+      const rejected = override("cursor", reserved)
       expect(rejected.status).toBe(2)
       expect(rejected.stderr).toContain("not compatible")
     }
-
-    const composer = emit("composer", {
-      ...process.env,
-      CE_WORK_MODEL_OVERRIDE_TARGET: "composer",
-      CE_WORK_MODEL_OVERRIDE: "gpt-6.1-sol",
-    })
-    expect(composer.status).toBe(2)
-    expect(composer.stderr).toContain("not compatible")
-
-    const compatible = emit("composer", {
-      ...process.env,
-      CE_WORK_MODEL_OVERRIDE_TARGET: "composer",
-      CE_WORK_MODEL_OVERRIDE: "composer-next-fast",
-    })
-    expect(compatible.status).toBe(0)
-    expect(compatible.stdout).toContain("--model composer-next-fast")
+    expect(override("composer", "gpt-6.1-sol").status).toBe(2)
+    expect(override("composer", "composer-next[fast=true]").stdout).toContain("--model composer-next[fast=true]")
+    expect(override("grok", "grok-4.6[effort=high,fast=true]", "grok-cursor").stdout).toContain("--model grok-4.6[effort=high,fast=true]")
+    expect(override("grok", "gpt-6[x=1]", "grok-cursor").status).toBe(2)
+    expect(override("grok", "grok-4.7[x;y]", "grok-cursor").status).toBe(2)
   })
 
-  test("Cursor model probes use the credential-sanitized route environment", () => {
+  test("the acpx child sees npm's locations but no npm or provider credential", () => {
     const f = fixture()
-    const bin = fakeBin("cursor", f.capture)
-    const cursorAgent = path.join(bin, "cursor-agent")
-    writeFileSync(
-      cursorAgent,
-      readFileSync(cursorAgent, "utf8").replace("model='Cursor Grok 4.6'", "model='Sonnet 5 1M Low'"),
-    )
-    chmodSync(cursorAgent, 0o755)
+    const bin = stubBin(f)
     const cursorConfig = path.join(f.root, "cursor-config")
-    const apiSecret = "SENTINEL-api-secret-credential"
-    const result = run(
-      "cursor",
-      f,
-      {
-        ...process.env,
-        PATH: `${bin}:${process.env.PATH}`,
-        CURSOR_CONFIG_DIR: cursorConfig,
-        OPENAI_API_KEY: apiSecret,
-      },
-      undefined,
-      { model_requested: "claude-sonnet-5-low" },
-    )
+    const secrets = {
+      NPM_TOKEN: "SENTINEL-npm-token",
+      npm_config__authToken: "SENTINEL-npm-auth",
+      OPENAI_API_KEY: "SENTINEL-openai",
+    }
+    const result = run("cursor", f, withBin(bin, {
+      CURSOR_CONFIG_DIR: cursorConfig,
+      npm_config_cache: path.join(f.root, "npm-cache"),
+      npm_config_registry: "http://registry.invalid/",
+      NPM_CONFIG_USERCONFIG: path.join(f.root, "npmrc"),
+      ...secrets,
+    }))
 
     expect(result.code).toBe(0)
-    const probeEnv = readFileSync(path.join(f.capture, "probe-env"), "utf8")
-    const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
-    for (const observed of [probeEnv, dispatchEnv]) {
-      expect(observed).toContain(`CURSOR_CONFIG_DIR=${cursorConfig}`)
-      expect(observed).not.toContain("OPENAI_API_KEY=")
-      expect(observed).not.toContain(apiSecret)
+    const childEnv = captured(f, "env")
+    expect(childEnv).toContain(`npm_config_cache=${path.join(f.root, "npm-cache")}`)
+    expect(childEnv).toContain("npm_config_registry=http://registry.invalid/")
+    expect(childEnv).toContain(`NPM_CONFIG_USERCONFIG=${path.join(f.root, "npmrc")}`)
+    expect(childEnv).toContain("npm_config_prefer_offline=true")
+    expect(childEnv).toContain(`CURSOR_CONFIG_DIR=${cursorConfig}`)
+    for (const [name, value] of Object.entries(secrets)) {
+      expect(childEnv).not.toContain(`${name}=`)
+      expect(childEnv).not.toContain(value)
     }
-    expect(result.result.model_actual).toBe("Sonnet 5 1M Low")
-    expect(result.result.model_receipt_status).toBe("verified")
   })
 
-  test("Claude dispatch preserves USER for Keychain auth without forwarding credential variables", () => {
+  test("Claude launches through the --safe-mode wrapper with USER and without credential variables", () => {
     const f = fixture()
-    const bin = fakeBin("claude", f.capture)
+    const bin = stubBin(f)
     const user = "ce-work-keychain-user"
     const apiSecret = "SENTINEL-claude-api-secret"
     const oauthSecret = "SENTINEL-claude-oauth-secret"
-    const result = run("claude", f, {
-      ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
+    const result = run("claude", f, withBin(bin, {
       USER: user,
       ANTHROPIC_API_KEY: apiSecret,
       CLAUDE_CODE_OAUTH_TOKEN: oauthSecret,
-    })
+    }))
 
     expect(result.code).toBe(0)
-    const dispatchEnv = readFileSync(path.join(f.capture, "env"), "utf8")
-    expect(dispatchEnv).toContain(`USER=${user}`)
-    expect(dispatchEnv).not.toContain("ANTHROPIC_API_KEY=")
-    expect(dispatchEnv).not.toContain("CLAUDE_CODE_OAUTH_TOKEN=")
-    expect(dispatchEnv).not.toContain(apiSecret)
-    expect(dispatchEnv).not.toContain(oauthSecret)
+    const childEnv = captured(f, "env")
+    expect(childEnv).toContain(`USER=${user}`)
+    expect(childEnv).not.toContain(apiSecret)
+    expect(childEnv).not.toContain(oauthSecret)
+    const launch = captured(f, "launch-env")
+    expect(launch).toContain("--safe-mode")
+    expect(launch).toContain(path.join(bin, "claude"))
   })
 
   test("target-scoped model overrides do not make unrelated route probes unavailable", () => {
     const composerOverride = {
-      ...process.env,
+      ...cleanEnv(),
       CE_WORK_MODEL_OVERRIDE_TARGET: "composer",
-      CE_WORK_MODEL_OVERRIDE: "composer-next-fast",
+      CE_WORK_MODEL_OVERRIDE: "composer-next[fast=true]",
     }
 
     const codex = emit("codex", composerOverride)
     expect(codex.status).toBe(0)
     expect(codex.stdout).not.toContain("--model")
-    expect(codex.stdout).not.toContain("composer-next-fast")
-    expect(emit("composer", composerOverride).stdout).toContain("--model composer-next-fast")
+    expect(emit("composer", composerOverride).stdout).toContain("--model composer-next[fast=true]")
   })
 
   test("malformed model override bindings remain unavailable", () => {
@@ -497,41 +428,44 @@ describe("ce-work fixed write routes", () => {
       { CE_WORK_MODEL_OVERRIDE_TARGET: "composer" },
       { CE_WORK_MODEL_OVERRIDE_TARGET: "unknown", CE_WORK_MODEL_OVERRIDE: "composer-next-fast" },
     ]) {
-      const rejected = emit("codex", { ...process.env, ...env })
+      const rejected = emit("codex", { ...cleanEnv(), ...env })
       expect(rejected.status).toBe(2)
       expect(rejected.stderr).toContain("not compatible")
     }
   })
 
   test.each([
-    ["cursor", "claude-sonnet-5-low"],
+    ["cursor", "claude-sonnet-5-5[context=300k,reasoning_effort=high]"],
     ["claude", "sonnet"],
     ["grok-cli", "grok-4.6"],
-  ] as const)("production %s dispatch honors explicit model %s while defaults stay harness-configured", (route, model) => {
+    ["grok-cursor", GROK_CURSOR_PRESET],
+  ] as const)("production %s dispatch requests the authorized model %s", (route, model) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
-    const result = run(
-      route,
-      f,
-      { ...process.env, PATH: `${bin}:${process.env.PATH}` },
-      undefined,
-      { model_requested: model },
-    )
+    const bin = stubBin(f)
+    const result = run(route, f, withBin(bin), undefined, { model_requested: model })
     expect(result.code).toBe(0)
-    expect(readFileSync(path.join(f.capture, "argv"), "utf8")).toContain(model)
+    expect(flagValue(argv(f), "--model")).toBe(model)
     expect(result.result.model_requested).toBe(model)
+  })
+
+  test("Composer and Grok through Cursor default to Cursor's fast and high presets", () => {
+    for (const [route, preset] of [["composer", COMPOSER_PRESET], ["grok-cursor", GROK_CURSOR_PRESET]] as const) {
+      const f = fixture()
+      const result = run(route, f, withBin(stubBin(f)))
+      expect(result.code).toBe(0)
+      expect(JSON.parse(readFileSync(f.prepared!.authorization_path, "utf8")).model_requested).toBe(preset)
+      expect(flagValue(argv(f), "--model")).toBe(preset)
+      expect(result.result.model_requested).toBe(preset)
+    }
   })
 
   // bun 1.4's spawnSync waits for every holder of the child's output pipe. The
   // activity poller's sleep must not outlive the route, or each caller waits it out.
   test("a finished route returns without waiting out the activity poll interval", () => {
     const f = fixture()
-    const bin = fakeBin("codex", f.capture)
-    const slow = temp("ce-work-slow-bin-")
-    writeFileSync(path.join(slow, "codex"), `#!/bin/sh\nsleep 1\nexec '${path.join(bin, "codex")}' "$@"\n`)
-    chmodSync(path.join(slow, "codex"), 0o755)
+    const bin = stubBin(f, acpStream({ sleep: 1 }))
     const started = Date.now()
-    const result = run("codex", f, { ...process.env, PATH: `${slow}:${process.env.PATH}`, CE_WORK_ACTIVITY_POLL_SECS: "120" })
+    const result = run("codex", f, withBin(bin, { CE_WORK_ACTIVITY_POLL_SECS: "120" }))
     expect(result.code).toBe(0)
     // Far under the 120s poll interval, with room for a loaded machine.
     expect(Date.now() - started).toBeLessThan(60_000)
@@ -539,101 +473,83 @@ describe("ce-work fixed write routes", () => {
 
   test("production dispatch derives the model from controller authorization, not ambient overrides", () => {
     const f = fixture()
-    const bin = fakeBin("composer", f.capture)
+    const bin = stubBin(f)
     const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
     const result = run(
       "composer",
       f,
-      {
-        ...process.env,
-        PATH: `${bin}:${process.env.PATH}`,
-        CE_WORK_MODEL_OVERRIDE_TARGET: "composer",
-        CE_WORK_MODEL_OVERRIDE: "gpt-forged",
-      },
+      withBin(bin, { CE_WORK_MODEL_OVERRIDE_TARGET: "composer", CE_WORK_MODEL_OVERRIDE: "gpt-forged" }),
       digest,
-      { model_requested: "composer-next-fast" },
+      { model_requested: "composer-next[fast=true]" },
     )
     expect(result.code).toBe(0)
-    const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
-    expect(argv).toContain("composer-next-fast")
-    expect(argv).not.toContain("gpt-forged")
-    expect(result.result.model_requested).toBe("composer-next-fast")
+    expect(flagValue(argv(f), "--model")).toBe("composer-next[fast=true]")
+    expect(captured(f, "argv")).not.toContain("gpt-forged")
+    expect(result.result.model_requested).toBe("composer-next[fast=true]")
   })
 
   // One route per test: each run spawns the controller and adapter, and seven in one body can outlast the per-test timeout.
   test.each([
-    ["codex", "model_reasoning_effort=high"],
-    ["claude", "--effort\nhigh"],
-    ["grok-cli", "--effort\nxhigh"],
+    ["codex", "reasoning_effort=high"],
+    ["claude", "effort=high"],
+    ["grok-cli", "reasoning_effort=xhigh"],
     ["cursor", null],
     ["composer", null],
     ["grok-cursor", null],
     ["opencode", null],
   ] as const)("%s without an authorized effort keeps the 13-key schema and its default effort argv", (route, effort) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
-    const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}` })
+    const result = run(route, f, withBin(stubBin(f)))
     expect(result.code).toBe(0)
     const authorization = JSON.parse(readFileSync(f.prepared!.authorization_path, "utf8"))
     expect(Object.keys(authorization).sort()).toEqual([
       "activity_posture", "attempt_id", "harness", "intermediaries", "model_requested", "packet_digest",
       "restriction_posture", "restrictions", "route", "run_id", "schema_version", "target", "unit_id",
     ])
-    const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
-    if (effort) expect(argv).toContain(effort)
-    else {
-      expect(argv).not.toContain("--effort")
-      expect(argv).not.toContain("--variant")
-      expect(argv).not.toContain("model_reasoning_effort")
-    }
+    const args = argv(f)
+    if (effort) expect(args).toContain(effort)
+    else expect(args.filter((arg) => /^(reasoning_)?effort=/.test(arg))).toEqual([])
     expect(result.result.effort_requested).toBeNull()
   })
 
   test.each([
-    ["codex", "xhigh", "model_reasoning_effort=xhigh"],
-    ["claude", "max", "--effort\nmax"],
-    ["grok-cli", "low", "--effort\nlow"],
-    ["opencode", "max", "--variant\nmax"],
-  ] as const)("%s builds its effort argument from the authorized effort %s", (route, effort, expected) => {
+    ["codex", "xhigh", "reasoning_effort=xhigh"],
+    ["claude", "max", "effort=max"],
+    ["grok-cli", "low", "reasoning_effort=low"],
+  ] as const)("%s builds its effort option from the authorized effort %s", (route, effort, expected) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
     const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
     const result = run(
-      route, f,
-      { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, CROSS_MODEL_EFFORT_OVERRIDE: "medium" },
-      digest, { effort_requested: effort },
+      route, f, withBin(stubBin(f), { CROSS_MODEL_EFFORT_OVERRIDE: "medium" }), digest, { effort_requested: effort },
     )
     expect(result.code).toBe(0)
     expect(JSON.parse(readFileSync(f.prepared!.authorization_path, "utf8")).effort_requested).toBe(effort)
-    const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
-    expect(argv).toContain(expected)
-    expect(argv).not.toContain("medium")
+    expect(argv(f)).toContain(expected)
+    expect(captured(f, "argv")).not.toContain("medium")
     expect(result.result.effort_requested).toBe(effort)
     expect(result.result).not.toHaveProperty("effort_actual")
   })
 
   test.each([
-    ["codex", "xhigh", "model_reasoning_effort=high"],
-    ["cursor", "high", "--sandbox"],
-  ] as const)("a %s production start ignores an ambient effort override when no effort is authorized", (route, ambient, fragment) => {
+    ["codex", "reasoning_effort=high"],
+    ["cursor", "mode=agent"],
+  ] as const)("a %s production start ignores an ambient effort override when no effort is authorized", (route, fragment) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
-    const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, CROSS_MODEL_EFFORT_OVERRIDE: ambient })
+    const result = run(route, f, withBin(stubBin(f), { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" }))
     expect(result.code).toBe(0)
-    const argv = readFileSync(path.join(f.capture, "argv"), "utf8")
-    expect(argv).toContain(fragment)
-    expect(argv).not.toContain("xhigh")
+    expect(argv(f)).toContain(fragment)
+    expect(captured(f, "argv")).not.toContain("xhigh")
     expect(result.result.effort_requested).toBeNull()
   })
 
   test.each([
     ["cursor", "high"],
     ["grok-cli", "max"],
+    ["opencode", "max"],
   ] as const)("an authorized effort the %s route cannot honor publishes an unavailable receipt", (route, effort) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
     const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
-    const result = run(route, f, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}` }, digest, { effort_requested: effort })
+    const result = run(route, f, withBin(stubBin(f)), digest, { effort_requested: effort })
     expect(result.code).toBe(2)
     expect(result.result.terminal_status).toBe("unavailable")
     expect(result.result.failure_reason).toContain(`'${effort}' not compatible with route '${route}'`)
@@ -644,25 +560,27 @@ describe("ce-work fixed write routes", () => {
   test.each([
     ["route mismatch", "codex", { route: "claude" }],
     ["Composer family mismatch", "composer", { model_requested: "gpt-6.1-sol" }],
-    ["Cursor Composer model", "cursor", { model_requested: "composer-2.5-fast" }],
+    ["Composer preset on another family", "composer", { model_requested: "gpt-6.1-sol[fast=true]" }],
+    ["Cursor Composer model", "cursor", { model_requested: COMPOSER_PRESET }],
     ["Cursor unqualified Grok model", "cursor", { model_requested: "grok-4.6" }],
     ["Cursor Grok route model", "cursor", { model_requested: "cursor-grok-4.6-high" }],
     ["adapter-unsafe model token", "cursor", { model_requested: "model@beta" }],
+    ["unsafe preset token", "grok-cursor", { model_requested: "grok-4.7[a b]" }],
     ["unknown extra key", "codex", { effort: "xhigh" }],
     ["extra key beside an effort", "codex", { effort_requested: "xhigh", effort_actual: "xhigh" }],
     ["non-token effort", "codex", { effort_requested: "x high" }],
     ["effort that starts with a dash", "codex", { effort_requested: "--model" }],
     ["empty effort", "codex", { effort_requested: "" }],
+    ["enforced posture claim", "codex", { restriction_posture: "adapter-enforced" }],
   ] as const)("forged %s authorization is rejected before CLI invocation", (_name, route, overrides) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
+    const bin = stubBin(f)
     const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
-    const result = run(route, f, { ...process.env, PATH: `${bin}:${process.env.PATH}` }, digest, overrides, true)
+    const result = run(route, f, withBin(bin), digest, overrides, true)
     expect(result.code).toBe(2)
     expect(result.stderr).toContain("controller authorization rejected")
     expect(result.result).toBeNull()
     expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
-    expect(existsSync(path.join(f.capture, "stdin"))).toBe(false)
   })
 
   test("controller handshake rejects hand-authored, cross-attempt, and cross-unit authorization", () => {
@@ -672,22 +590,21 @@ describe("ce-work fixed write routes", () => {
       { unit_id: "U4" },
     ]) {
       const f = fixture()
-      const bin = fakeBin("codex", f.capture)
+      const bin = stubBin(f)
       const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
-      const result = run("codex", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` }, digest, overrides, true)
+      const result = run("codex", f, withBin(bin), digest, overrides, true)
       expect(result.code).toBe(2)
       expect(result.stderr).toContain("controller dispatch authorization failed")
       expect(result.result).toBeNull()
       expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
-      expect(existsSync(path.join(f.capture, "stdin"))).toBe(false)
     }
   })
 
   test("controller handshake rejects a shell-prefixed runner argv before CLI invocation", () => {
     const f = fixture()
-    const bin = fakeBin("codex", f.capture)
+    const bin = stubBin(f)
     const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
-    const result = run("codex", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` }, digest, {}, false, ["bash"])
+    const result = run("codex", f, withBin(bin), digest, {}, false, ["bash"])
 
     expect(result.code).toBe(2)
     expect(result.stderr).toContain("controller dispatch authorization failed")
@@ -697,11 +614,11 @@ describe("ce-work fixed write routes", () => {
 
   test("Grok through Cursor requires its controller-sanctioned intermediary", () => {
     const f = fixture()
-    const bin = fakeBin("grok-cursor", f.capture)
+    const bin = stubBin(f)
     const blocked = run(
       "grok-cursor",
       f,
-      { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+      withBin(bin),
       createHash("sha256").update(readFileSync(f.packet)).digest("hex"),
       { intermediaries: [] },
       true,
@@ -711,76 +628,59 @@ describe("ce-work fixed write routes", () => {
     expect(blocked.result).toBeNull()
     expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
 
-    const allowed = run("grok-cursor", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+    const allowed = run("grok-cursor", f, withBin(bin))
     expect(allowed.code).toBe(0)
   })
 
   test("a quiet route reports no activity before byte growth", () => {
-    const quiet = fixture()
-    const quietBin = temp("ce-work-bin-")
-    writeFileSync(path.join(quietBin, "claude"), `#!/bin/sh
-cat > '${quiet.capture}/stdin'
-sleep 1.1
-exit 7
-`)
-    chmodSync(path.join(quietBin, "claude"), 0o755)
-    const quietResult = run("claude", quiet, {
-      ...process.env,
-      PATH: `${quietBin}:${process.env.PATH}`,
-      CE_WORK_ACTIVITY_POLL_SECS: "1",
-    })
-    expect(quietResult.code).toBe(1)
-    expect(quietResult.stderr).not.toContain("output-updated")
+    const f = fixture()
+    const bin = stubBin(f, acpStream(), "sleep 1.1; exit 7")
+    const result = run("claude", f, withBin(bin, { CE_WORK_ACTIVITY_POLL_SECS: "1" }))
+    expect(result.code).toBe(2)
+    expect(result.stderr).not.toContain("output-updated")
   })
 
   test("raw route output is capped", () => {
-    const noisy = fixture()
-    const noisyBin = temp("ce-work-bin-")
-    writeFileSync(path.join(noisyBin, "claude"), `#!/bin/sh
-cat > '${noisy.capture}/stdin'
-printf '%02048d' 0
-`)
-    chmodSync(path.join(noisyBin, "claude"), 0o755)
-    const noisyResult = run("claude", noisy, {
-      ...process.env,
-      PATH: `${noisyBin}:${process.env.PATH}`,
-      CE_WORK_MAX_RAW_BYTES: "256",
-    })
-    expect(noisyResult.code).toBe(1)
-    expect(noisyResult.result.terminal_status).toBe("unavailable")
-    expect(noisyResult.result.failure_reason).toContain("exceeded 256 bytes")
-    expect(statSync(path.join(noisy.resultDir, "adapter.log")).size).toBeLessThanOrEqual(256)
+    const f = fixture()
+    const bin = stubBin(f, acpStream(), "printf '%02048d' 0; exit 0")
+    const result = run("claude", f, withBin(bin, { CE_WORK_MAX_RAW_BYTES: "256" }))
+    expect(result.code).toBe(1)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.failure_reason).toContain("exceeded 256 bytes")
+    expect(statSync(path.join(f.resultDir, "adapter.log")).size).toBeLessThanOrEqual(256)
+  })
+
+  // npm launches acpx through `sh -c`; Ubuntu's dash does not exec the command, so
+  // a TERM sent to the npx leader alone stops at the shell and leaves acpx and the
+  // agent running. The route must be stopped as a whole process group.
+  test("stopping a route at the raw-output cap stops its descendants too", () => {
+    const f = fixture()
+    const pidFile = path.join(f.root, "grandchild.pid")
+    const bin = stubBin(f, acpStream(), `sleep 30 & echo $! > '${pidFile}'; printf '%02048d' 0; wait; exit 0`)
+    const result = run("claude", f, withBin(bin, { CE_WORK_MAX_RAW_BYTES: "256", CE_WORK_ACTIVITY_POLL_SECS: "1" }))
+    expect(result.result.failure_reason).toContain("exceeded 256 bytes")
+    const grandchild = Number(readFileSync(pidFile, "utf8").trim())
+    expect(grandchild).toBeGreaterThan(0)
+    expect(alive(grandchild)).toBe(false)
   })
 
   test("an app-bundled codex CLI off PATH satisfies the codex route (issue #1272)", () => {
     const f = fixture()
-    const bin = fakeBin("codex", f.capture)
+    const bin = stubBin(f)
     const bundle = path.join(temp("ce-work-bundle-"), "Codex.app", "Contents", "Resources")
     mkdirSync(bundle, { recursive: true })
-    copyFileSync(path.join(bin, "codex"), path.join(bundle, "codex"))
+    writeFileSync(path.join(bundle, "codex"), "#!/bin/sh\nexit 0\n")
     chmodSync(path.join(bundle, "codex"), 0o755)
-    // Hide any real codex from PATH without losing co-located tools: drop dirs
-    // that contain codex, then re-expose the tools the worker needs via symlinks.
-    const realDirs = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean)
-    const tools = temp("ce-work-tools-")
-    for (const tool of ["python3", "python", "git", "jq", "bash", "sh", "env"]) {
-      const dir = realDirs.find((d) => existsSync(path.join(d, tool)))
-      if (dir) symlinkSync(path.join(dir, tool), path.join(tools, tool))
-    }
-    const pathWithoutCodex = [tools, ...realDirs.filter((d) => !existsSync(path.join(d, "codex")))].join(path.delimiter)
-    const result = run("codex", f, { ...process.env, PATH: pathWithoutCodex, CROSS_MODEL_CODEX_APP_DIRS: bundle })
+    rmSync(path.join(bin, "codex"))
+    const result = run("codex", f, { ...cleanEnv(), PATH: isolatedPath(bin), CROSS_MODEL_CODEX_APP_DIRS: bundle })
     expect(result.result.terminal_status).toBe("completed")
-    expect(existsSync(path.join(f.capture, "argv"))).toBe(true)
+    expect(captured(f, "launch-env")).toContain(`CODEX_PATH=${path.join(bundle, "codex")}`)
   })
 
-  test.each(["claude", "grok-cli", "opencode"] as const)("%s is unavailable when enforceable confinement is required", (route) => {
+  test.each([...ROUTES])("%s is unavailable when enforceable confinement is required", (route) => {
     const f = fixture()
-    const bin = fakeBin(route, f.capture)
-    const result = run(route, f, {
-      ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
-      CE_WORK_REQUIRE_ENFORCED_CONFINEMENT: "1",
-    })
+    const bin = stubBin(f)
+    const result = run(route, f, withBin(bin, { CE_WORK_REQUIRE_ENFORCED_CONFINEMENT: "1" }))
     expect(result.code).toBe(2)
     expect(result.result.terminal_status).toBe("unavailable")
     expect(result.result.failure_reason).toContain("cooperative")
@@ -822,7 +722,7 @@ describe("ce-work model role `work` entry", () => {
     expect(grokLevels).not.toContain("max")
     // The nearest lower level the route accepts is the one a max entry runs at.
     expect(grokLevels.at(-1)).toBe("xhigh")
-    expect(ask("grok-cli", "xhigh").stdout).toContain("--effort xhigh")
+    expect(ask("grok-cli", "xhigh").stdout).toContain("--config-option reasoning_effort=xhigh")
 
     // The claude route accepts every level of the resolver's scale, so an `opus max` entry runs there as written.
     expect(resolveWork("opus max").entries[0]).toMatchObject({ model: "opus", effort: "max", harness: "claude" })
@@ -835,7 +735,8 @@ describe("ce-work model role `work` entry", () => {
       expect(acceptedLevels(route, ["low", "medium", "high", "xhigh", "max"])).toEqual([])
       const plain = emit(route, cleanEnv())
       expect(plain.status).toBe(0)
-      expect(plain.stdout).not.toContain("--effort")
+      // Cursor fixes effort inside the model preset, so the adapter passes no effort option.
+      expect(plain.stdout).not.toMatch(/--config-option (reasoning_)?effort=/)
     },
   )
 
@@ -855,13 +756,93 @@ describe("ce-work model role `work` entry", () => {
   })
 })
 
+describe("ce-work acpx outcomes", () => {
+  test("an end_turn after acpx exit 5 (a denied permission) is read as a finished turn", () => {
+    const f = fixture()
+    const result = run("codex", f, withBin(stubBin(f, path.join(STREAMS, "permission-denied-end-turn"))))
+    expect(result.code).toBe(1)
+    expect(result.result.terminal_status).toBe("failed")
+    expect(result.result.failure_reason).toContain("schema")
+
+    const g = fixture()
+    const ok = run("codex", g, withBin(stubBin(g, acpStream({ exit: 5 }))))
+    expect(ok.code).toBe(0)
+    expect(ok.result.terminal_status).toBe("completed")
+  })
+
+  test.each([
+    ["cancelled", acpStream({ stopReason: "cancelled" }), "ended with cancelled"],
+    ["errored", acpStream({ error: "quota exhausted", exit: 1 }), "quota exhausted"],
+    ["incomplete", acpStream({ stopReason: null, exit: 3 }), "ended with incomplete"],
+  ] as const)("a %s prompt is a launched-route failure", (_name, stream, reason) => {
+    const f = fixture()
+    const result = run("grok-cli", f, withBin(stubBin(f, stream)))
+    expect(result.code).toBe(1)
+    expect(result.result.terminal_status).toBe("failed")
+    expect(result.result.actual_route).toBe("grok-cli")
+    expect(result.result.failure_reason).toContain(reason)
+    expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).toContain("session/prompt")
+    expect(argv(f)).toContain("grok-build")
+  })
+
+  test.each([
+    ["npm could not fetch acpx", path.join(STREAMS, "npm-fetch-failure"), "pre-egress, shared): npm error"],
+    ["the adapter rejected the model", path.join(STREAMS, "unknown-model"), "pre-egress, route): Cannot apply --model"],
+  ] as const)("a prompt never sent because %s is unavailable, not failed", (_name, stream, reason) => {
+    const f = fixture()
+    const result = run("claude", f, withBin(stubBin(f, stream)))
+    expect(result.code).toBe(2)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.actual_route).toBeNull()
+    expect(result.result.failure_reason).toContain(`transport unavailable (${reason}`)
+  })
+
+  test.each([
+    ["Node too old", "node", "#!/bin/sh\necho 20.9.0\n", "pre-egress, shared): Node 20.9.0 is too old"],
+    ["jq missing", "jq", null, "pre-egress, shared): jq not found"],
+  ] as const)("%s makes every route unavailable before acpx starts", (_name, tool, body, reason) => {
+    const f = fixture()
+    const bin = stubBin(f)
+    if (body !== null) {
+      writeFileSync(path.join(bin, tool), body)
+      chmodSync(path.join(bin, tool), 0o755)
+    }
+    const result = run("codex", f, { ...cleanEnv(), PATH: isolatedPath(bin, [tool]) })
+    expect(result.code).toBe(2)
+    expect(result.result.failure_reason).toContain(`transport unavailable (${reason}`)
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+  })
+
+  test("an acpx config that replaces the route's agent launch makes the route unavailable", () => {
+    const f = fixture()
+    const bin = stubBin(f)
+    const home = temp("ce-work-home-")
+    mkdirSync(path.join(home, ".acpx"))
+    writeFileSync(path.join(home, ".acpx", "config.json"), JSON.stringify({ agents: { codex: { command: "evil" } } }))
+    const result = run("codex", f, { ...cleanEnv(), PATH: isolatedPath(bin), HOME: home })
+    expect(result.code).toBe(2)
+    expect(result.result.failure_reason).toContain("transport unavailable (pre-egress, route)")
+    expect(result.result.failure_reason).toContain("'codex' agent launch")
+    expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+  })
+
+  test("a missing agent CLI records an unavailable route before acpx starts", () => {
+    const f = fixture()
+    const bin = stubBin(f)
+    rmSync(path.join(bin, "grok"))
+    const result = run("grok-cli", f, { ...cleanEnv(), PATH: isolatedPath(bin) })
+    expect(result.code).toBe(2)
+    expect(result.result.failure_reason).toBe("transport unavailable (pre-egress, route): the agent CLI for route 'grok-cli' is not installed")
+  })
+})
+
 describe("ce-work adapter results, identity, and secret handling", () => {
   test("packet bytes must match the controller-provided digest before egress", () => {
     const f = fixture()
     const expected = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
     writeFileSync(f.packet, "Implement a different and broader unit.\n")
-    const bin = fakeBin("claude", f.capture)
-    const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` }, expected)
+    const bin = stubBin(f)
+    const result = run("claude", f, withBin(bin), expected)
     expect(result.code).toBe(2)
     expect(result.stderr).toContain("packet digest")
     expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
@@ -883,10 +864,11 @@ describe("ce-work adapter results, identity, and secret handling", () => {
       intermediaries: [],
       model_requested: "gpt-forged",
       model_actual: "gpt-forged",
-      model_receipt_status: "verified",
+      model_receipt_status: "asserted",
     })
-    const bin = fakeBin("claude", f.capture, response)
-    const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+    const meta = { quota: { model_usage: [{ model: "claude-fable-5", token_count: { totalTokens: 10 } }] } }
+    const bin = stubBin(f, acpStream({ text: response, meta }))
+    const result = run("claude", f, withBin(bin))
     expect(result.code).toBe(1)
     expect(result.result.terminal_status).toBe("failed")
     expect(result.result.failure_reason).toContain("schema")
@@ -898,27 +880,56 @@ describe("ce-work adapter results, identity, and secret handling", () => {
     expect(result.result.model_actual).toBe("claude-fable-5")
   })
 
-  test("a route failure returns evidence without changing recipient", () => {
+  test("the worker result in the agent's reply is published with the adapter-asserted served model", () => {
     const f = fixture()
-    const bin = fakeBin("grok-cli", f.capture)
-    writeFileSync(path.join(bin, "grok"), `#!/bin/sh\nprintf '%s\\n' "$@" > '${f.capture}/argv'\nprintf 'quota exhausted\\n' >&2\nexit 7\n`)
-    chmodSync(path.join(bin, "grok"), 0o755)
-    const cursorMarker = path.join(f.capture, "cursor-invoked")
-    writeFileSync(path.join(bin, "cursor-agent"), `#!/bin/sh\n: > '${cursorMarker}'\n`)
-    chmodSync(path.join(bin, "cursor-agent"), 0o755)
-    const result = run("grok-cli", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
-    expect(result.code).toBe(1)
-    expect(result.result.terminal_status).toBe("failed")
-    expect(result.result.failure_reason).toContain("exit 7")
-    expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).toContain("quota exhausted")
-    expect(existsSync(cursorMarker)).toBe(false)
+    const meta = { quota: { model_usage: [{ model: "gpt-6.1-sol", token_count: { totalTokens: 900 } }] } }
+    const bin = stubBin(f, acpStream({ text: ["Done. Result:\n```json\n", COMPLETED, "\n```"], meta }))
+    const result = run("codex", f, withBin(bin), undefined, { model_requested: "gpt-6.1-sol" })
+    expect(result.code).toBe(0)
+    expect(result.result).toMatchObject({
+      terminal_status: "completed",
+      summary: "implemented",
+      changed_files: ["result.txt"],
+      model_requested: "gpt-6.1-sol",
+      model_actual: "gpt-6.1-sol",
+      model_receipt_status: "asserted",
+    })
+  })
+
+  test.each([
+    ["grok-cursor", GROK_CURSOR_PRESET, "grok-4.7", "asserted"],
+    ["composer", COMPOSER_PRESET, "grok-4.7", "mismatch"],
+    ["composer", COMPOSER_PRESET, "composer-2.5", "asserted"],
+  ] as const)("%s requesting %s with served label %s records %s", (route, requested, served, receipt) => {
+    const f = fixture()
+    const bin = stubBin(f, acpStream({ meta: { modelId: served } }))
+    const result = run(route, f, withBin(bin))
+    expect(result.result.model_requested).toBe(requested)
+    expect(result.result.model_actual).toBe(served)
+    expect(result.result.model_receipt_status).toBe(receipt)
+  })
+
+  test.each([
+    ["claude-fable-5", "claude-fable-5", "asserted"],
+    ["claude-fable-5\u001b[1m", "claude-fable-5", "asserted"],
+    ["claude-opus-4-8", "claude-opus-4-8", "mismatch"],
+    [null, "unverified", "unverified"],
+  ] as const)("Claude served-model report %s records %s as %s", (served, actual, receipt) => {
+    const f = fixture()
+    // Claude also reports its auxiliary Haiku; the requested family wins over it.
+    const meta = served === null ? undefined : { quota: { model_usage: [
+      { model: "claude-haiku-4-5", token_count: { totalTokens: 5000 } },
+      { model: served, token_count: { totalTokens: 100 } },
+    ] } }
+    const result = run("claude", f, withBin(stubBin(f, acpStream({ meta }))), undefined, { model_requested: "fable" })
+    expect(result.result.model_actual).toBe(receipt === "mismatch" ? "claude-haiku-4-5" : actual)
+    expect(result.result.model_receipt_status).toBe(receipt)
   })
 
   test.each(["adapter-log", "result-dir"] as const)(
     "refuses a worker-substituted %s symlink without touching its outside target",
     (substitution) => {
       const f = fixture()
-      const bin = temp("ce-work-bin-")
       const expectedResultDir = path.join(f.runs, "route-run", "units", "U3", "result")
       const outsideDir = path.join(f.root, "outside")
       const outsideLog = path.join(outsideDir, "adapter.log")
@@ -928,16 +939,9 @@ describe("ce-work adapter results, identity, and secret handling", () => {
       const substitute = substitution === "adapter-log"
         ? `ln -s '${outsideLog}' '${expectedResultDir}/adapter.log'`
         : `mv '${expectedResultDir}' '${expectedResultDir}.original'\nln -s '${outsideDir}' '${expectedResultDir}'`
-      writeFileSync(path.join(bin, "claude"), `#!/bin/sh
-set -eu
-cat > '${f.capture}/stdin'
-${substitute}
-printf '%s\n' '{"type":"system","subtype":"init","model":"claude-fable-5"}'
-printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[],"evidence":[],"scope_expansion":null}'
-`)
-      chmodSync(path.join(bin, "claude"), 0o755)
+      const bin = stubBin(f, acpStream(), substitute)
 
-      const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+      const result = run("claude", f, withBin(bin))
 
       expect(result.code).toBe(2)
       expect(result.stderr).toContain("adapter log retention refused")
@@ -948,12 +952,11 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
 
   test.each([
     ["normal", 0],
-    ["launched-route failure", 7],
+    ["launched-route failure", 1],
   ] as const)(
-    "the %s receipt path fails closed when an exited cooperative route swaps the result dir after log retention",
+    "the %s receipt path fails closed when an exited route swaps the result dir after log retention",
     (_receiptPath, routeExit) => {
       const f = fixture()
-      const bin = temp("ce-work-bin-")
       const expectedResultDir = path.join(f.runs, "route-run", "units", "U3", "result")
       const originalResultDir = `${expectedResultDir}.original`
       const outsideDir = path.join(f.root, "outside")
@@ -965,6 +968,13 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
       writeFileSync(outsideResult, '{"sentinel":"outside"}\n', { mode: 0o644 })
       chmodSync(outsideResult, 0o644)
 
+      const stream = routeExit === 0 ? acpStream() : acpStream({ error: "stub agent failure", exit: 1 })
+      const bin = stubBin(f, stream, `(
+  while [ ! -e '${publishStarted}' ]; do sleep 0.01; done
+  mv '${expectedResultDir}' '${originalResultDir}'
+  ln -s '${outsideDir}' '${expectedResultDir}'
+  : > '${swapDone}'
+) </dev/null >/dev/null 2>&1 &`)
       writeFileSync(path.join(bin, "python3"), `#!/bin/sh
 set -eu
 case "\${2:-}" in
@@ -981,37 +991,22 @@ esac
 exec '${python3}' "$@"
 `)
       chmodSync(path.join(bin, "python3"), 0o755)
-      writeFileSync(path.join(bin, "claude"), `#!/bin/sh
-set -eu
-cat > '${f.capture}/stdin'
-(
-  while [ ! -e '${publishStarted}' ]; do sleep 0.01; done
-  mv '${expectedResultDir}' '${originalResultDir}'
-  ln -s '${outsideDir}' '${expectedResultDir}'
-  : > '${swapDone}'
-) </dev/null >/dev/null 2>&1 &
-printf '%s\n' '{"type":"system","subtype":"init","model":"claude-fable-5"}'
-printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[],"evidence":[],"scope_expansion":null}'
-exit ${routeExit}
-`)
-      chmodSync(path.join(bin, "claude"), 0o755)
 
-      const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+      const result = run("claude", f, withBin(bin))
 
       expect(result.code).toBe(2)
       expect(result.stderr).toContain("result receipt publication refused")
       expect(readFileSync(outsideResult, "utf8")).toBe('{"sentinel":"outside"}\n')
       expect(statSync(outsideResult).mode & 0o777).toBe(0o644)
       expect(existsSync(path.join(originalResultDir, "implementation-result.json"))).toBe(false)
-      expect(readFileSync(path.join(originalResultDir, "adapter.log"), "utf8")).toContain("terminal_status")
+      expect(readFileSync(path.join(originalResultDir, "adapter.log"), "utf8")).toContain("session/prompt")
     },
   )
 
   test("scope expansion is terminalized for host handling", () => {
     const f = fixture()
     const response = '{"terminal_status":"scope_expansion","summary":"shared contract needed","changed_files":[],"evidence":[],"scope_expansion":{"requested_paths":["shared.ts"],"reason":"required by unit"}}'
-    const bin = fakeBin("claude", f.capture, response)
-    const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+    const result = run("claude", f, withBin(stubBin(f, acpStream({ text: response }))))
     expect(result.code).toBe(0)
     expect(result.result.terminal_status).toBe("scope_expansion")
     expect(result.result.scope_expansion.requested_paths).toEqual(["shared.ts"])
@@ -1020,63 +1015,13 @@ exit ${routeExit}
   test("blocked output is terminalized for host handling", () => {
     const f = fixture()
     const response = '{"terminal_status":"blocked","summary":"needs host input","changed_files":[],"evidence":["dependency unavailable"],"scope_expansion":null}'
-    const bin = fakeBin("claude", f.capture, response)
-    const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+    const result = run("claude", f, withBin(stubBin(f, acpStream({ text: response }))))
     expect(result.code).toBe(0)
     expect(result.result).toMatchObject({
       terminal_status: "blocked",
       summary: "needs host input",
       evidence: ["dependency unavailable"],
     })
-  })
-
-  test.each([
-    ["claude-fable-5", "verified"],
-    ["claude-fable-5\\u001b[1m", "verified"],
-    ["claude-opus-4-8", "mismatch"],
-    ["", "unverified"],
-  ] as const)("Claude served-model receipt %s normalizes as %s", (served, receipt) => {
-    const f = fixture()
-    const bin = fakeBin("claude", f.capture)
-    const body = `#!/bin/sh
-cat > '${f.capture}/stdin'
-printf 'READY\\n' > result.txt
-${served ? `printf '%s\\n' '{"type":"system","subtype":"init","model":"${served}"}'` : "printf '%s\\n' '{\"type\":\"activity\"}'"}
-printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":["result.txt"],"evidence":[],"scope_expansion":null}'
-`
-    writeFileSync(path.join(bin, "claude"), body)
-    chmodSync(path.join(bin, "claude"), 0o755)
-    const result = run(
-      "claude",
-      f,
-      { ...process.env, PATH: `${bin}:${process.env.PATH}` },
-      undefined,
-      { model_requested: "fable" },
-    )
-    expect(result.result.model_actual).toBe(served ? served.replace("\\u001b[1m", "") : "unverified")
-    expect(result.result.model_receipt_status).toBe(receipt)
-  })
-
-  test.each([
-    ["Sonnet 5 300K Low No Thinking", "verified"],
-    ["Sonnet 5 300K High No Thinking", "mismatch"],
-  ] as const)("Cursor explicit-model display receipt %s normalizes as %s", (served, receipt) => {
-    const f = fixture()
-    const response = '{"terminal_status":"completed","summary":"done","changed_files":["result.txt"],"evidence":[],"scope_expansion":null}'
-    const bin = fakeBin("cursor", f.capture, response)
-    const script = path.join(bin, "cursor-agent")
-    const body = readFileSync(script, "utf8").replace("model='Cursor Grok 4.6'", `model='${served}'`)
-    writeFileSync(script, body)
-    chmodSync(script, 0o755)
-    const result = run(
-      "cursor",
-      f,
-      { ...process.env, PATH: `${bin}:${process.env.PATH}` },
-      undefined,
-      { model_requested: "claude-sonnet-5-low" },
-    )
-    expect(result.result.model_actual).toBe(served)
-    expect(result.result.model_receipt_status).toBe(receipt)
   })
 
   test("sentinel values are removed from environment, prompt, result, log, and argv", () => {
@@ -1088,17 +1033,12 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
     const redactions = path.join(f.root, "redactions")
     writeFileSync(redactions, `${sentinelPrefix}\n${sentinel}\n${sentinelPrefix}\n`)
     const response = `{"terminal_status":"completed","summary":"saw ${sentinel}","changed_files":["result.txt"],"evidence":[],"scope_expansion":null}`
-    const bin = fakeBin("codex", f.capture, response)
-    const result = run("codex", f, {
-      ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
-      CE_WORK_REDACT_FILE: redactions,
-      SENTINEL_ENV: sentinel,
-    })
+    const bin = stubBin(f, acpStream({ text: response }))
+    const result = run("codex", f, withBin(bin, { CE_WORK_REDACT_FILE: redactions, SENTINEL_ENV: sentinel }))
     expect(result.code).toBe(0)
-    for (const file of ["argv", "stdin", "env"]) {
-      expect(readFileSync(path.join(f.capture, file), "utf8")).not.toContain(sentinel)
-      expect(readFileSync(path.join(f.capture, file), "utf8")).not.toContain(sentinelSuffix)
+    for (const file of ["argv", "prompt", "env"]) {
+      expect(captured(f, file)).not.toContain(sentinel)
+      expect(captured(f, file)).not.toContain(sentinelSuffix)
     }
     for (const file of readdirSync(f.resultDir)) {
       expect(readFileSync(path.join(f.resultDir, file), "utf8")).not.toContain(sentinel)
@@ -1108,7 +1048,70 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
     expect(statSync(f.resultDir).mode & 0o777).toBe(0o700)
     expect(JSON.stringify(result.result)).not.toContain(sentinel)
     expect(result.result.summary).toBe("saw [REDACTED]")
-    expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("[REDACTED]")
+    expect(captured(f, "prompt")).toContain("[REDACTED]")
+  })
+
+  // acpx echoes the outbound prompt and the files the agent reads; both reach
+  // the stream JSON-escaped, and failure evidence quotes the stream.
+  test("a redacted value echoed by acpx is absent from adapter.log and failure evidence", () => {
+    const secret = 'quote"secret-café'
+    const f = fixture()
+    writeFileSync(f.packet, `Implement U3. Token: ${secret}\n`)
+    const redactions = path.join(f.root, "redactions")
+    writeFileSync(redactions, `${secret}\n`)
+    const stream = acpStream({
+      prompt: `Implement U3. Token: ${secret}`,
+      text: `I read config.env: ${secret}`,
+      error: `provider rejected ${secret}`,
+      exit: 1,
+    })
+    expect(readFileSync(`${stream}.stdout`, "utf8")).toContain(JSON.stringify(secret).slice(1, -1))
+    const result = run("codex", f, withBin(stubBin(f, stream), { CE_WORK_REDACT_FILE: redactions }))
+
+    expect(result.code).toBe(1)
+    expect(result.result.terminal_status).toBe("failed")
+    expect(result.result.failure_reason).toContain("provider rejected [REDACTED]")
+    const log = readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")
+    expect(log).toContain("[REDACTED]")
+    for (const observed of [log, JSON.stringify(result.result)]) {
+      expect(observed).not.toContain(secret)
+      expect(observed).not.toContain(JSON.stringify(secret).slice(1, -1))
+      expect(observed).not.toContain("secret-caf")
+    }
+  })
+
+  test("a redacted value in npm's pre-egress error is absent from the unavailable receipt", () => {
+    const secret = "SENTINEL-registry-token"
+    const f = fixture()
+    const redactions = path.join(f.root, "redactions")
+    writeFileSync(redactions, `${secret}\n`)
+    const stream = path.join(temp("ce-work-stream-"), "s")
+    writeFileSync(`${stream}.stderr`, `npm error 401 Unauthorized - GET https://registry.invalid/${secret}/acpx\n`)
+    writeFileSync(`${stream}.exit`, "1\n")
+    const result = run("codex", f, withBin(stubBin(f, stream), { CE_WORK_REDACT_FILE: redactions }))
+
+    expect(result.code).toBe(2)
+    expect(result.result.failure_reason).toContain("transport unavailable (pre-egress, shared): npm error 401")
+    expect(result.result.failure_reason).toContain("[REDACTED]")
+    expect(JSON.stringify(result.result)).not.toContain(secret)
+    expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).not.toContain(secret)
+  })
+
+  // Redaction values are user secrets and can collide with ACP protocol tokens; the
+  // stream is parsed raw and only what is retained or published is redacted.
+  test("a redaction value that collides with ACP protocol text does not corrupt the outcome", () => {
+    const secret = "the-secret-value"
+    const f = fixture()
+    const redactions = path.join(f.root, "redactions")
+    writeFileSync(redactions, `end_turn\n${secret}\n`)
+    const result = run("codex", f, withBin(stubBin(f, acpStream({
+      text: JSON.stringify({ ...JSON.parse(COMPLETED), summary: `done; saw ${secret}` }),
+    })), { CE_WORK_REDACT_FILE: redactions }))
+    expect(result.result.terminal_status).toBe("completed")
+    expect(result.result.summary).toBe("done; saw [REDACTED]")
+    const log = readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")
+    expect(log).not.toContain(secret)
+    expect(log).not.toContain("end_turn")
   })
 
   test("raw output is redacted before retained evidence is capped", () => {
@@ -1118,20 +1121,13 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
     const f = fixture()
     const redactions = path.join(f.root, "redactions")
     writeFileSync(redactions, `${sentinel}\n`)
-    const bin = temp("ce-work-bin-")
     const prefix = "x".repeat(maxRawBytes - sentinelPrefix.length)
-    writeFileSync(path.join(bin, "claude"), `#!/bin/sh
-cat > '${f.capture}/stdin'
-printf '%s' '${prefix}${sentinel}${"y".repeat(maxRawBytes)}'
-`)
-    chmodSync(path.join(bin, "claude"), 0o755)
+    const bin = stubBin(f, acpStream(), `printf '%s' '${prefix}${sentinel}${"y".repeat(maxRawBytes)}'; exit 0`)
 
-    const result = run("claude", f, {
-      ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
+    const result = run("claude", f, withBin(bin, {
       CE_WORK_MAX_RAW_BYTES: String(maxRawBytes),
       CE_WORK_REDACT_FILE: redactions,
-    })
+    }))
 
     expect(result.code).toBe(1)
     expect(result.result.terminal_status).toBe("unavailable")
@@ -1146,19 +1142,12 @@ printf '%s' '${prefix}${sentinel}${"y".repeat(maxRawBytes)}'
   test("oversized raw output still publishes the bounded limit receipt under pipefail", () => {
     const maxRawBytes = 256
     const f = fixture()
-    const bin = temp("ce-work-bin-")
-    writeFileSync(path.join(bin, "claude"), `#!/bin/sh
-cat > '${f.capture}/stdin'
-python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 65536)'
-`)
-    chmodSync(path.join(bin, "claude"), 0o755)
+    const bin = stubBin(f, acpStream(), `python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 65536)'; exit 0`)
 
-    const result = run("claude", f, {
-      ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
+    const result = run("claude", f, withBin(bin, {
       CE_WORK_MAX_RAW_BYTES: String(maxRawBytes),
       CE_WORK_ACTIVITY_POLL_SECS: "1",
-    })
+    }))
 
     expect(result.code).toBe(1)
     expect(result.result.terminal_status).toBe("unavailable")
@@ -1169,8 +1158,7 @@ python3 -c 'import sys; sys.stdout.buffer.write(b"x" * 65536)'
 
   test("malformed terminal output is a schema failure with a redacted log", () => {
     const f = fixture()
-    const bin = fakeBin("cursor", f.capture, "not-json")
-    const result = run("cursor", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+    const result = run("cursor", f, withBin(stubBin(f, acpStream({ text: "not-json" }))))
     expect(result.code).toBe(1)
     expect(result.result.terminal_status).toBe("failed")
     expect(result.result.failure_reason).toContain("schema")

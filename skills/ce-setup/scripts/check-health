@@ -17,14 +17,23 @@ deps=(
   "ffmpeg|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q ffmpeg|https://ffmpeg.org/download.html|media chunking and screenshot extraction for Riffrec analysis"
 )
 
+# Cross-model peers run `npx acpx@<pin>`, which launches the codex and claude
+# adapters below. The version must match ACPX_VERSION in the peer workers; the
+# adapter specs are the ranges that acpx version launches. One line each: the
+# pin-bump canary rewrites them in place.
+ACPX_VERSION="0.19.4"
+ACPX_ADAPTER_SPECS="@agentclientprotocol/codex-acp@^1.1.5 @agentclientprotocol/claude-agent-acp@^0.81.2"
+
 # =====================================================
 #  Args
 # =====================================================
 
 plugin_version=""
+warm_acpx="no"
 while [ $# -gt 0 ]; do
   case "$1" in
     --version) [ -n "$2" ] && plugin_version="$2" && shift 2 || shift ;;
+    --warm-acpx) warm_acpx="yes"; shift ;;
     *) shift ;;
   esac
 done
@@ -347,6 +356,56 @@ read_work_engine_effort_keys() {
   ' "$config_file"
 }
 
+# Same prerequisite the peer workers check before launching acpx. Sets
+# node_version and, when unmet, node_problem.
+check_node_prerequisite() {
+  local major minor
+  node_version=""; node_problem=""
+  if ! command -v node >/dev/null 2>&1; then
+    node_problem="node not found; cross-model peers need Node 22.13 or newer"; return 1
+  fi
+  node_version="$(node -p 'process.versions.node' 2>/dev/null | tr -d '\r')"
+  node_version="${node_version#v}"
+  major="${node_version%%.*}"; minor="${node_version#*.}"; minor="${minor%%.*}"
+  case "$major$minor" in
+    ''|*[!0-9]*) node_problem="cannot read the Node version; cross-model peers need Node 22.13 or newer"; return 1 ;;
+  esac
+  if [ "$major" -lt 22 ] || { [ "$major" -eq 22 ] && [ "$minor" -lt 13 ]; }; then
+    node_problem="Node $node_version is too old; cross-model peers need Node 22.13 or newer"; return 1
+  fi
+  if ! command -v npx >/dev/null 2>&1; then
+    node_problem="npx not found; cross-model peers run acpx through npx"; return 1
+  fi
+}
+
+# Installs each pinned package into npx's cache under the same key a later
+# `npx -y <spec>` uses, then runs `node --version` instead of the package, so the
+# package itself never starts. npm still runs its install lifecycle scripts, as
+# it would on a first peer run.
+if [ "$warm_acpx" = "yes" ]; then
+  echo ""
+  if ! check_node_prerequisite; then
+    warn "Cannot warm the npm cache: $node_problem"
+    echo ""
+    exit 1
+  fi
+  warm_failed=0
+  # Run from an empty directory, as the peer workers do: npx resolves packages
+  # from its working directory's node_modules and .npmrc first.
+  warm_dir="$(mktemp -d "${TMPDIR:-/tmp}/ce-acpx-warm-XXXXXX")" || { warn "Cannot warm the npm cache: no temporary directory"; echo ""; exit 1; }
+  for spec in "acpx@$ACPX_VERSION" $ACPX_ADAPTER_SPECS; do
+    if (cd "$warm_dir" && npx --yes --package="$spec" -- node --version >/dev/null); then
+      ok "cached $spec"
+    else
+      warn "could not fetch $spec"
+      warm_failed=1
+    fi
+  done
+  rmdir "$warm_dir" 2>/dev/null
+  echo ""
+  exit "$warm_failed"
+fi
+
 has_brew=$(command -v brew >/dev/null 2>&1 && echo "yes" || echo "no")
 in_repo=$(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "yes" || echo "no")
 
@@ -387,6 +446,15 @@ for entry in "${deps[@]}"; do
     results+=("$name|missing|$install_cmd|$url|$capability")
   fi
 done
+
+capability_total=$((capability_total + 1))
+if check_node_prerequisite; then
+  capability_ok=$((capability_ok + 1))
+  node_row="ok"
+else
+  capability_missing=$((capability_missing + 1))
+  node_row="missing"
+fi
 
 # =====================================================
 #  Project checks (repo only)
@@ -620,6 +688,14 @@ for result in "${results[@]}"; do
     fi
   fi
 done
+
+if [ "$node_row" = "ok" ]; then
+  ok "node -- cross-model peers (Node $node_version, npx)"
+else
+  warn "node -- unavailable: cross-model peers"
+  detail "$node_problem"
+  detail "https://nodejs.org/en/download"
+fi
 
 if [ "$legacy_codex_map" = "yes" ]; then
   section "Codex instructions"

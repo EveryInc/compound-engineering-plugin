@@ -278,6 +278,10 @@ Distinguish three path cases:
 
 Diagnose before rewriting a path. Trace the skill-to-launcher, shell-to-launcher, and engine-to-resource boundaries. An engine may already locate sibling resources through its own source path. A pattern that looks suspicious is not a defect until the failure is reproduced or a necessary failing path is identified.
 
+### Temp directories
+
+Choose by whether anything must rediscover the directory without being handed its path. A later invocation that resumes state, attaches to a live session, or polls a job it did not start needs a known root, so create that directory under the scratch-root preamble copied from a shipped skill. A directory whose absolute path is passed to everything that uses it, including a worker the run starts and later polls, may be a unique `mktemp -d "${TMPDIR:-/tmp}/<name>-XXXXXX"`: it is created private (0700) and atomically, so the scratch root adds no privacy. Never use a fixed name or a name from an optional tool such as `openssl`; two runs then share a path, or a missing tool collapses every run onto one.
+
 ## Make authority proportional to risk
 
 Most read-only, single-shot, non-delegating skills need no authorization apparatus. Skip it.

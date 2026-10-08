@@ -171,8 +171,8 @@
 # routes through a non-default `model_provider`).
 # Effort levels: claude low|medium|high|xhigh|max, codex low|medium|high|
 # xhigh plus max and ultra on the models that list them, grok low|medium|high|
-# xhigh; cursor/composer routes take none. A value the peer cannot honor skips
-# the pass with a stated reason -- never substituted.
+# xhigh; cursor/composer and OpenCode routes take none. A value the peer
+# cannot honor skips the pass with a stated reason -- never substituted.
 
 # cross_model_review_mode: off   # auto | off (default: auto)
 # cross_model_peer: codex          # codex | claude | grok | cursor | composer | opencode
@@ -202,8 +202,8 @@
 
 # Reasoning effort for the external worker, per harness. Each value is one of
 # that harness's own effort levels. An unset harness keeps its own default:
-# Codex and Claude at high, native Grok at xhigh, OpenCode with no variant.
-# Cursor routes take no effort. A map in config.local.yaml replaces this one.
+# Codex and Claude at high, native Grok at xhigh. OpenCode and Cursor routes
+# take no effort. A map in config.local.yaml replaces this one.
 
 # work_engine_effort:
 #   codex: xhigh

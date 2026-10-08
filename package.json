@@ -1,6 +1,6 @@
 {
   "name": "compound-engineering",
-  "version": "3.30.3",
+  "version": "3.30.4",
   "description": "Official Compound Engineering skills plugin for coding agents",
   "type": "module",
   "private": true,
@@ -24,6 +24,8 @@
     "cli:install": "bun run src/index.ts install",
     "test": "bun run scripts/run-tests.ts",
     "typecheck": "tsc --noEmit",
+    "test:acpx-contract": "ACPX_CONTRACT=1 bun test tests/acpx-contract.test.ts",
+    "acpx:bump": "bun run scripts/bump-acpx-pin.ts",
     "test:skill-guards": "bun run scripts/run-tests.ts skill-conventions codex-skill-prompt-budget repo-local-ce-skill-work contract",
     "test:skill-eval-cell": "bun tests/skill-eval-cell/run.ts",
     "test:skill-eval-pack": "bun tests/skill-eval-cell/pack.ts",

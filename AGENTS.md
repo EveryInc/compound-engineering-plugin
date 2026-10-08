@@ -121,15 +121,9 @@ Keep agent-to-agent or skill-to-skill routing semantic: format formal skill name
 
 At runtime, put the smallest self-contained rendering rule immediately before the smallest section that contains all affected user-copy seams. Do not repeat it in every step; repeat it only in a separately loaded reference that independently owns output.
 
-### Reviewing a skill change (bots and humans)
+### Reviewing a PR (bots and humans)
 
-Review bots read this file when reviewing a PR here. On `skills/**`:
-
-- **A finding is a gap in the goal, the done condition, or the safe failure direction; over-prescription that degrades degrees of freedom; or a mechanism at the wrong owning layer** — commands prescribed in a skill that delegates that work, repeated command blocks where one parameterized recipe would decide the same behavior, a model-invoked description that opens with identity boilerplate or catalogs one branch, a category opener that omits the distinctive mechanism, a quoted-utterance catalog on a model-invoked skill, per-step done checks not protecting a fragile gate, repeated ask-first gates not marking a different external/destructive/scope/user-only boundary, a rule placed where it will not fire, a Claude-only construct in a cross-host skill, a rendering that breaks on another harness.
-- **A case a stated condition already covers is not a finding.** Before filing "what if X" against a rule, check whether the rule's condition decides X. If it does, do not file; if the condition is wrong or missing, file *that*.
-- **State the requested fix as a condition or an owning-layer move, never as a case to add.** "Command X fails in state Y" against a delegating skill is a finding about the representation; the fix is to drop the command and state the condition, not to correct the command.
-- **A block restated to the standard is the expected shape of an edit**, not scope creep, when the restatement covers every path the old text served.
-- Ordinary code under `src/`, `tests/`, and `scripts/` gets ordinary code review; these rules are about instruction prose.
+When reviewing a PR here, read and apply the `CODING_STANDARDS.md` files above each changed file before filing findings: the root `CODING_STANDARDS.md` for every change, `skills/CODING_STANDARDS.md` for `skills/**`, and `tests/CODING_STANDARDS.md` for `tests/**`.
 
 ### Acting on review feedback
 

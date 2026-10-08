@@ -29,8 +29,9 @@ Cases 16-18 cover review seats from a `model_roles` list. They also inject
 `references/dispatch.md` and `references/model-roles.md`, and they run in a
 throwaway repo whose `.compound-engineering/config.yaml` holds the map, in a
 mode that lets the orchestrator run `scripts/model-role-resolve.py`.
-Run them with the fake-CLI harness pattern — stub peer CLIs placed first on
-PATH — and cross-host per the repo's eval default: Claude Code AND Codex.
+Run them with a stub `npx` placed first on PATH that replays canned acpx
+streams (`tests/fixtures/acp-stub-npx.sh`), plus a dummy executable for the
+routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
 
 1. **Activation — at least one trio lens activates (R1, R2).** A document that activates at least one
    trio lens (e.g. a greenfield plan with a high-stakes domain activating
