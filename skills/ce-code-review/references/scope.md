@@ -6,6 +6,11 @@ Read this at Stage 1. It defines how to resolve scope on every invocation path a
 
 Compute the diff range, file list, and diff. Minimize permission prompts by combining into as few commands as possible.
 
+Before collecting that diff, read "Bind the checkout before inspection" in
+`references/finish-input.md`. Capture the checkout binding with the scoped diff
+and retain it through dispatch; the finish handoff carries that original binding,
+not a new snapshot of the checkout after the reviewers finish.
+
 **If `base:` argument is provided (fast path):**
 
 The caller already knows the diff base. Skip all base-branch detection, remote resolution, and merge-base computation. Use the provided value directly:

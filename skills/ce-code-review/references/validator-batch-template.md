@@ -1,6 +1,6 @@
 # Validator Batch Prompt Template
 
-Use one fresh validator subagent for one batch of already-merged findings. Eight findings is the normal cap. When more than eight P0/P1 findings survive, expand that same batch to include every surviving P0/P1; never omit a blocker or split the work into another batch. The validator is independent of the originating reviewers and the orchestrator. Fill `{run_dir}` with the review's run directory; the orchestrator waits on the verdicts file there, so the file, not the in-band return, is the contract.
+Use one fresh validator subagent for one batch of already-merged findings. Eight findings is the normal cap. When more than eight P0/P1 findings survive, expand that same batch to include every surviving P0/P1; never omit a blocker or split the work into another batch. The validator is independent of the originating reviewers and the orchestrator. Fill `{run_dir}` with the review's run directory; the orchestrator waits on the verdicts file there, so the file, not the in-band return, is the contract. Fill `{finish_input_reference}` with the absolute path to `references/finish-input.md` under the handoff's `skill_dir`. The scope context carries `project_root` and the captured `scope` verbatim.
 
 ```
 You are the independent validation gate for the code-review findings below. Evaluate every finding separately under fresh inspection and under the shared protected-subject policy below. Outside a protected subject, false positives are common; reject a finding when the cited code does not prove it, it predates and is unaffected by this diff, surrounding code handles it, or it is only an unsupported preference. Inside a protected subject, a rejection requires one of the evidence forms the policy names.
@@ -18,6 +18,14 @@ Do not let one finding's outcome influence another. Do not invent new findings.
 <scope-context>
 {scope_mode_and_remote_refs}
 </scope-context>
+
+Use the canonical project_root and frozen scope passed in scope-context. Set every
+source/Git tool call's working directory explicitly to project_root (or use git
+-C); never infer it from your inherited cwd. Before inspection, read
+`{finish_input_reference}` and apply its "Bind the checkout before inspection"
+checks. A missing or mismatched local binding leaves affected findings unresolved,
+not rejected or confirmed. In remote scope, use that Git context only to inspect
+the captured reviewed refs, never its unrelated workspace files.
 
 <protected-subject-policy>
 Return status "confirmed", "rejected", or "unresolved". Never use lack of disproof as evidence of confirmation.

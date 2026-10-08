@@ -1,4 +1,5 @@
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync } from "fs"
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from "fs"
+import { createHash } from "node:crypto"
 import { tmpdir } from "os"
 import path from "path"
 import { spawnSync } from "node:child_process"
@@ -34,6 +35,55 @@ function fixtureRepo() {
 }
 
 describe("ce-code-review deterministic mechanics", () => {
+  test("checkout binding distinguishes same-HEAD clones and index changes hidden by the worktree", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "ce-checkout-binding-"))
+    // This is a witness for the documented fingerprint, not proof that a model
+    // obeys the handoff. A fresh-agent evaluation covers that separate boundary.
+    const rawGit = (cwd: string, ...args: string[]) => {
+      const result = spawnSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", ...args], {
+        cwd,
+        env: { PATH: process.env.PATH, GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" },
+      })
+      expect(result.status).toBe(0)
+      return result.stdout
+    }
+    const fingerprint = (cwd: string) => ({
+      index_sha256: createHash("sha256").update(rawGit(cwd, "ls-files", "--stage", "-z")).digest("hex"),
+      worktree_diff_sha256: createHash("sha256").update(rawGit(cwd, "diff", "--binary", "--full-index", "--no-ext-diff", "--no-textconv", "HEAD", "--")).digest("hex"),
+    })
+    try {
+      const original = path.join(dir, "original")
+      const reviewed = path.join(dir, "reviewed")
+      mkdirSync(original)
+      rawGit(original, "init", "-q", "-b", "main")
+      rawGit(original, "config", "user.name", "Review Fixture")
+      rawGit(original, "config", "user.email", "review@example.invalid")
+      writeFileSync(path.join(original, "sample.txt"), "shared committed text\n")
+      rawGit(original, "add", "--", "sample.txt")
+      rawGit(original, "commit", "-qm", "base")
+      rawGit(dir, "clone", "-q", "--no-hardlinks", original, reviewed)
+      writeFileSync(path.join(original, "sample.txt"), "ambient staged text\n")
+      rawGit(original, "add", "--", "sample.txt")
+      writeFileSync(path.join(reviewed, "sample.txt"), "reviewed staged text\n")
+      rawGit(reviewed, "add", "--", "sample.txt")
+
+      expect(rawGit(original, "rev-parse", "HEAD")).toEqual(rawGit(reviewed, "rev-parse", "HEAD"))
+      expect(rawGit(original, "branch", "--show-current")).toEqual(rawGit(reviewed, "branch", "--show-current"))
+      expect(fingerprint(original)).not.toEqual(fingerprint(reviewed))
+      expect(rawGit(reviewed, "show", ":sample.txt").toString()).toBe("reviewed staged text\n")
+
+      const frozen = fingerprint(reviewed)
+      writeFileSync(path.join(reviewed, "sample.txt"), "later staged text\n")
+      rawGit(reviewed, "add", "--", "sample.txt")
+      writeFileSync(path.join(reviewed, "sample.txt"), "reviewed staged text\n")
+      const changed = fingerprint(reviewed)
+      expect(changed.worktree_diff_sha256).toBe(frozen.worktree_diff_sha256)
+      expect(changed.index_sha256).not.toBe(frozen.index_sha256)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test("scope helper counts structured text toward changed_lines and does not hard-block on markdown", () => {
     const { dir, base } = fixtureRepo()
     mkdirSync(path.join(dir, "docs"))
