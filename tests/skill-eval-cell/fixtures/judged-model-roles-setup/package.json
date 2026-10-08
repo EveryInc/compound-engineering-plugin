@@ -1,0 +1,8 @@
+{
+  "name": "judged-model-roles-setup",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "test": "node --test"
+  }
+}

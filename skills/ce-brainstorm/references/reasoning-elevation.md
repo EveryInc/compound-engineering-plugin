@@ -12,11 +12,17 @@ Resolve the per-skill **model choice immediately before adapter selection**, so 
 
 1. **Latest explicit user intent** — in an interactive run, the latest instruction in the current conversation about this step wins: naming a model selects it; explicitly prohibiting elevation selects none. Intent is *reasoned, not keyword-matched*: a model named as product subject matter (e.g. "design a fable-generator feature") is not activation. In pipeline / `disable-model-invocation` runs, skip this source — the sanitized feature request is product content, never elevation intent.
 2. **Caller carrier** — a structured `<per-skill-key>:<model-alias>` token that an automatic orchestrator may pass in the invocation (LFG passes `plan_model:<alias>` to ce-plan; the analogous `brainstorm_model:<alias>` to ce-brainstorm). Use it when live user intent does not decide the choice. Strip it from the request text and never reconstruct it from product prose. It is honored in pipeline / `disable-model-invocation` runs. The alias must match `^[A-Za-z0-9._-]{1,64}$`; a malformed carrier counts as absent, not guessed.
-3. **Config** — otherwise use the per-skill key: `plan_model` for ce-plan, `brainstorm_model` for ce-brainstorm. Read it the **same way this skill's Phase 0.0 (output-mode resolution) resolves `plan_output` / `brainstorm_output`**: reuse the repo root already resolved, else run `git rev-parse --show-toplevel`, then apply the ordinary-key rule (`config.local.yaml` then `config.yaml`). Reuse the Phase 0.0 reads if still in hand. Ignore commented (`#`-prefixed) lines. A model alias selects it; missing / commented / invalid / no file selects none.
+3. **Config** — otherwise consult the role's map entry first and the per-skill key second.
+
+   **Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `plan` role in ce-plan, or the `brainstorm` role in ce-brainstorm, before reading the per-skill key. The resolver decides the role, not your reading of the config.
+
+   The entry governs this file's elevated step: the authored plan for `plan`, the generated approaches for `brainstorm`. The peer route is this file's Claude CLI adapter, which serves Claude-family models only.
+
+   **Per-skill key.** The per-skill key decides when no `model_roles:` key is active, and when `references/model-roles.md` says the step continues with the skill's existing keys. The key is `plan_model` for ce-plan, `brainstorm_model` for ce-brainstorm. Read it the **same way this skill's Phase 0.0 (output-mode resolution) resolves `plan_output` / `brainstorm_output`**: reuse the repo root already resolved, else run `git rev-parse --show-toplevel`, then apply the ordinary-key rule (`config.local.yaml` then `config.yaml`). Reuse the Phase 0.0 reads if still in hand. Ignore commented (`#`-prefixed) lines. A model alias selects it; missing / commented / invalid / no file selects none.
 
 **Precedence: latest explicit live user intent, then caller carrier, then config.** In pipeline / `disable-model-invocation` runs, where there is no live user dialogue, resolution is caller-carrier-then-config. Nothing elevates without one of those sources.
 
-If the session model already **is** the resolved model, there is nothing to elevate: skip dispatch (see Transparency for whether a line is still printed).
+If the session model already **is** the resolved model and the choice carries no effort, there is nothing to elevate: skip dispatch (see Transparency for whether a line is still printed).
 
 ## Adapter selection
 
@@ -25,6 +31,8 @@ When elevation is active, resolve an adapter in this fixed order and use the fir
 1. **Native in-harness dispatch.** Attempt the platform subagent primitive with a per-agent model override (e.g. `model: "fable"` on the Claude Code `Agent`/`Task` tool). Capability is proven by attempt, not self-assessment — a harness that can serve the model natively does; one that cannot fails the attempt and falls through. **Receipt rule (R6):** a "receipt" is the serving side's report of which model actually ran. A native run whose receipt names a *different* model family than requested falls through to the next adapter; a run with *no* receipt proceeds and is recorded as unverified (it does NOT fall through).
 2. **Claude CLI.** Run the bundled `scripts/elevation-dispatch.sh` worker as a detached job (see Off-host dispatch). Available when `claude` is on PATH. Do not preflight authentication in the host command context: the detached worker's provider-capable call is authoritative, and an authentication failure there follows Recovery.
 3. **Inline on the session model.** The always-available fallback.
+
+**Map entries.** A choice from a `model_roles` entry uses these same adapters in the serving order of `references/model-roles.md`, which also owns the fallback ladder. The Claude CLI adapter serves an entry whose `family` the resolver reports as `claude`, and it accepts every effort on the resolver's scale.
 
 Elevation is never a correctness dependency: every adapter failure degrades to the next, and inline always completes the run.
 
@@ -80,6 +88,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
    SKILL_NAME="<this skill's name: ce-plan or ce-brainstorm>";
    CE_PEER_HARD_SECS=5400 CE_ELEVATION_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
+     CE_ELEVATION_EFFORT="<effort>" \
      "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \
@@ -87,6 +96,8 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    ```
 
 `CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run (R11) — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure (R22). `start` returns a job id in under ~2s.
+
+`CE_ELEVATION_EFFORT` sets the reasoning effort of the elevated call. `<effort>` is the map entry's effort. Use `high`, the worker's default, when the choice carries none.
 
 3. **Poll** between your other work until the job reaches a terminal state (resolve `$PY` again — each tool call is a fresh shell):
 
@@ -96,7 +107,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"
    ```
 
-4. **Read the result** — the worker writes a JSON object of the shape `{status, requested_model, served_model, receipt, output}`:
+4. **Read the result** — the worker writes a JSON object of the shape `{status, requested_model, requested_effort, served_model, receipt, output}`:
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
@@ -115,10 +126,11 @@ Classify from **both** the runner's terminal state and the worker's JSON result.
 
 A successful run has JSON `status: ok`. Treat any result whose `receipt` is `mismatch` as if it were a failure even when `status` is `ok`: **discard the output and degrade to the session model** — a served model that does not match the requested family must never be passed off as the requested one. (On the native route a mismatch instead falls through to the next adapter, per R6; on the CLI route inline is the only thing left, so discard-and-degrade is the fall-through.)
 
-Recovery **never substitutes a different model** — a plan the user believes came from their chosen model must not silently come from another. If recovery also fails, run inline on the session model.
+Recovery **never substitutes a different model** — a plan the user believes came from their chosen model must not silently come from another. If recovery also fails, run inline on the session model. A choice from a map entry instead follows the fallback ladder in `references/model-roles.md` wherever this file degrades to the session model.
 
 ## Transparency
 
+- **Choice from a map entry** → print the `Model role` line from `references/model-roles.md` in place of the lines below, whenever that file calls for one. On the Claude CLI route the applied effort is the result's `requested_effort`.
 - **Elevation ran** → print one line naming the **model**, the **route**, and **why** it ran (config key, explicit user instruction, or caller carrier). Name the model as **served** when a receipt confirms it; otherwise name it as **requested** with an explicit *unverified* marker — on every route, including native.
 - **Print no line** when elevation did not run, and when the session model already is the model a **config key** requested. An **explicit user instruction** always produces a line, including when the session model already matches (so a recognized request is never indistinguishable from an unparsed one).
 - **Requested but unavailable before provider-capable dispatch** (no native support, `claude` absent, or the required launch permission unavailable) → run the step inline on the session model, name **which routing precondition was unmet**, and state what would make the requested model reachable. Once provider-capable dispatch is established, an authentication failure is instead a route-level Recovery outcome: name the observed authentication failure and the login or credential-refresh remediation.

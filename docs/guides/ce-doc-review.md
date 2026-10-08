@@ -169,6 +169,12 @@ Peers run through [acpx](https://github.com/openclaw/acpx), which talks to each 
 
 Each peer runs from an empty workspace, and every permission request it makes is denied. This is best effort rather than a sandbox. Claude, the native Grok CLI, and OpenCode cannot read files outside that empty workspace or write files. The native Grok CLI can still search and fetch from the web. Codex and the Cursor routes can still read any file your account can read, because their adapters do not ask permission before a read, and the Codex adapter can still write. Claude peers start in safe mode, so the repository's project settings and hooks do not apply to them. Served models are recorded from what each adapter reports. Codex, Claude, and the native Grok CLI report one; Cursor and OpenCode routes stay unverified.
 
+### Model role
+
+`ce-doc-review` reads the `doc-review` role from the `model_roles` map in CE config. The entry is one model or a list, each with an optional reasoning effort. Every item is a seat: one independent reviewer that reads the whole document on that model. Seats run on every review, beside the persona reviewers, and they take the place of the conditional single-peer pass described above.
+
+`cross_model_review_mode: off` and `CROSS_MODEL_PEERS` still decide which seats may send the document to another provider. A seat that cannot run is dropped and reported, never filled by another model, and the persona review runs either way. Each seat prints its own `Model role doc-review seat <n>:` line naming what was requested, what served it, and the route. See [Model roles](./configuration.md#model-roles) for entry syntax, precedence, and the seat rules.
+
 ---
 
 ## Quick Example

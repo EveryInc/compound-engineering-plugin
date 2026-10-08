@@ -48,6 +48,7 @@
 #   <origin>        the Origin context slot (a path, product_contract_source:<v>,
 #                   or the literal token none)
 #   <run-dir>       an existing dir; output -> <run-dir>/<reviewer-name>-<provider>.json
+#                   (<reviewer-name>-<provider>-s<n>.json when CROSS_MODEL_SEAT=<n> is set)
 #
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-doc-review.sh --emit-adapter <route>
@@ -381,6 +382,20 @@ validate_model_override() {
   target="$(route_target "$route")" || return 1
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
+  # A Claude id may end in exactly one bracketed qualifier of letters and
+  # digits, such as [1m]: the grammar the role resolver accepts. The qualifier
+  # is checked here and the id before it is checked below.
+  if [ "$route" = claude ]; then
+    case "$override" in
+      *\[*|*\]*)
+        local qualifier="${override#*\[}"
+        case "$override" in *\]) ;; *) return 1 ;; esac
+        qualifier="${qualifier%\]}"
+        case "$qualifier" in ''|*[!A-Za-z0-9]*) return 1 ;; esac
+        override="${override%%\[*}"
+        ;;
+    esac
+  fi
   case "$route:$override" in
     codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:grok-*|grok-cursor:cursor-grok-*|composer:composer-*|opencode:*/*) ;;
     *) return 1 ;;
@@ -445,6 +460,22 @@ mkdir -p "$RUN_DIR" 2>/dev/null
 [ -d "$RUN_DIR" ] || skip "run-dir '$RUN_DIR' could not be created; skipping"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
+# --- review seat (model role map) -------------------------------------------
+# CROSS_MODEL_SEAT=<n> marks this invocation as seat <n> of a `model_roles` review
+# list. The config names that recipient, so the two automatic eligibility rules
+# below do not apply to it: the skip on an unattested host family, and the
+# exclusion of a target in the host's own family. The CROSS_MODEL_PEERS allowlist
+# still applies. independence_verified is still computed at normalization and
+# stays false whenever the families match or either is unknown. The seat number
+# also joins the artifact name and the reviewer identity, so two seats on one
+# provider cannot collide. Unset keeps the single-peer names and gates exactly.
+SEAT="${CROSS_MODEL_SEAT:-}"
+case "$SEAT" in
+  '') SEAT_SUFFIX="" ;;
+  0*|*[!0-9]*) skip "seat '$SEAT' invalid (want a positive integer); skipping" ;;
+  *) SEAT_SUFFIX="-s$SEAT" ;;
+esac
+
 # Validate the host identity tuple. An unknown serving family is allowed, but
 # normalization marks every result non-independent.
 case "$HOST_PROVIDER" in
@@ -455,7 +486,7 @@ case "$HOST_HARNESS" in
   codex|claude|grok|cursor|opencode|unknown) ;;
   *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|unknown); skipping cross-model pass" ;;
 esac
-[ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
+[ -n "$SEAT" ] || [ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
 
 # --- derive persona-brief filename from the allowlisted reviewer-name -------
 # Never a caller argument -> no path-traversal / arbitrary-file-read surface.
@@ -495,7 +526,10 @@ OUTPUT_CONTRACT_RULES="$(awk '/<output-contract>/{f=1} f; /<\/output-contract>/{
 [ -n "$OUTPUT_CONTRACT_RULES" ] || log "output-contract not found in $TEMPLATE; peer prompt omits the shared confidence rubric / FP catalog (calibration may differ from the twin)"
 
 # --- resolve which provider(s) to run (exclude host, allowlist, availability) --
-ALLOW="${CROSS_MODEL_PEERS:-}"                 # optional egress allowlist (R19)
+# Read the allowlist the way the role resolver does: lowercase, with only the
+# edges of each entry trimmed. A space inside a name must not repair it into a
+# recipient the environment did not name.
+ALLOW="$(printf '%s' "${CROSS_MODEL_PEERS:-}" | tr '\n\t\r' '   ' | tr '[:upper:]' '[:lower:]' | sed -e 's/ *, */,/g' -e 's/^ *//' -e 's/ *$//')"
 MAX_PEERS="${CROSS_MODEL_MAX_PEERS:-1}"        # default 1; clamped 0..2 (hard cap)
 case "$MAX_PEERS" in ''|*[!0-9]*) MAX_PEERS=1 ;; esac
 [ "$MAX_PEERS" -gt 2 ] && MAX_PEERS=2
@@ -508,6 +542,35 @@ in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # no allowlist is set, or when 'composer' (the Cursor-native provider) is allowlisted
 # -- either way the user has accepted that content may reach Cursor.
 cursor_egress_ok() { [ -z "$ALLOW" ] || in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
+
+# The allowlist names recipients. For a seat, the role resolver has already
+# cleared two targets it does not list: the attested host's own family, where
+# nothing new leaves the machine, and Composer when `cursor` is listed.
+seat_cleared() {
+  [ -n "$SEAT" ] || return 1
+  if [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$1")" = "$HOST_PROVIDER" ]; then return 0; fi
+  [ "$1" = composer ] && in_csv cursor "$ALLOW"
+}
+
+# A seat is one model. A receipt that names a different model than the one the
+# seat requested means the seat was not served, so nothing is published for it.
+# This holds on every route whose adapter returned a receipt; a route without
+# one cannot tell. The family rule matches extract_model_receipt's, except that
+# a Codex id may carry a provider namespace the served id does not.
+seat_model_mismatch() {   # <route>
+  [ -n "$SEAT" ] && [ "$MODEL_ACTUAL" != "unverified" ] || return 1
+  local family
+  family="$(route_model "$1")"
+  [ "$family" != auto ] || return 1
+  family="${family%%\[*}"
+  case "$1:$family" in
+    claude:fable|claude:opus|claude:sonnet|claude:haiku) family="claude-$family" ;;
+    codex:*[./]gpt-*) family="gpt-${family##*[./]gpt-}" ;;
+    codex:*[./]o[0-9]*) family="o${family##*[./]o}" ;;
+  esac
+  case "$MODEL_ACTUAL" in "$family"|"$family"-*|"$family"\[*) return 1 ;; esac
+  return 0
+}
 
 # Soft size gate: peer prompt embeds the full document. Over-budget docs skip
 # cleanly (R11) rather than collapsing silently inside the provider context window.
@@ -555,9 +618,9 @@ for p in $CANDIDATES; do
   p="$(printf '%s' "$p" | tr -d '[:space:]')"
   [ -n "$p" ] || continue
   case "$p" in codex|claude|grok|cursor|composer|opencode) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
-  [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
+  [ -z "$SEAT" ] && [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
   case " $SELECTED " in *" $p "*) continue ;; esac   # dedup
-  if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
+  if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW" && ! seat_cleared "$p"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
   if ! provider_available "$p"; then log "provider '$p' has no installed route; skipping"; continue; fi
   SELECTED="$SELECTED $p"
 done
@@ -938,8 +1001,8 @@ attempt_route() {   # <provider> <route>
 run_provider() {   # <provider>
   local provider="$1" primary="" fixed="${CROSS_MODEL_FIXED_ROUTE:-}"
   local provider_deadline remaining
-  OUT="$RUN_DIR/$REVIEWER_NAME-$provider.json"
-  RAW_OUT="$SCRATCH/$REVIEWER_NAME-$provider.raw.json"
+  OUT="$RUN_DIR/$REVIEWER_NAME-$provider$SEAT_SUFFIX.json"
+  RAW_OUT="$SCRATCH/$REVIEWER_NAME-$provider$SEAT_SUFFIX.raw.json"
   [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
   [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
   if [ "$fixed" = "grok-cursor" ] && ! cursor_egress_ok; then
@@ -1005,6 +1068,10 @@ run_provider() {   # <provider>
   # Publish ONLY the normalized OUT into RUN_DIR. RAW_OUT lives in private scratch
   # and is never a fold-in artifact — if this script dies before normalize
   # (orphaned launch), synthesis finds no .json in RUN_DIR.
+  if seat_model_mismatch "$ACTUAL_ROUTE"; then
+    log "seat $SEAT: requested $(route_model "$ACTUAL_ROUTE"), backend served $MODEL_ACTUAL; a seat is never filled by another model, so no artifact is written"
+    rm -f "$RAW_OUT"
+  fi
   rm -f "$OUT"
   if [ "$RUN_SUCCEEDED" = true ] && [ -s "$RAW_OUT" ]; then
     _norm="$SCRATCH/normalized.json"
@@ -1015,7 +1082,7 @@ run_provider() {   # <provider>
     esac
     _independent=false
     [ "$HOST_PROVIDER" != "unknown" ] && [ "$_target_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$_target_family" ] && _independent=true
-    if jq --arg r "$REVIEWER_NAME-$provider" --arg route "$ACTUAL_ROUTE" \
+    if jq --arg r "$REVIEWER_NAME-$provider$SEAT_SUFFIX" --arg route "$ACTUAL_ROUTE" \
          --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
          --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
@@ -1043,7 +1110,7 @@ run_provider() {   # <provider>
   fi
   if [ -s "$OUT" ] && jq -e '(.reviewer|type=="string") and (.findings|type=="array") and (.residual_risks|type=="array") and (.deferred_questions|type=="array")' "$OUT" >/dev/null 2>&1; then
     n="$(jq '.findings | length' "$OUT" 2>/dev/null || echo '?')"
-    log "wrote $n finding(s) to $OUT (reviewer $REVIEWER_NAME-$provider)"
+    log "wrote $n finding(s) to $OUT (reviewer $REVIEWER_NAME-$provider$SEAT_SUFFIX)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
     # Surface bounded peer output so the orchestrator can

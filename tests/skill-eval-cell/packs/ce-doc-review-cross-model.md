@@ -25,6 +25,10 @@ as specified.
 Cases 11-14 cover the detached launch->wait lifecycle and model-identity
 receipts (the record of which model actually served a route). Case 15 covers
 U8's fixed-route and bounded-adaptability contract.
+Cases 16-18 cover review seats from a `model_roles` list. They also inject
+`references/dispatch.md` and `references/model-roles.md`, and they run in a
+throwaway repo whose `.compound-engineering/config.yaml` holds the map, in a
+mode that lets the orchestrator run `scripts/model-role-resolve.py`.
 Run them with a stub `npx` placed first on PATH that replays canned acpx
 streams (`tests/fixtures/acp-stub-npx.sh`), plus a dummy executable for the
 routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
@@ -148,7 +152,72 @@ routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
     new recipient are rejected. A recipient-changing retry requires a newly
     disclosed and sanctioned dispatch.
 
+16. **Three seats on a routine plan (model role map AE1; R8).** The fixture
+    config is:
+
+    ```yaml
+    model_roles:
+      doc-review:
+        - grok-4.7 high
+        - gpt-seat-model
+        - opus medium
+    ```
+
+    Stub `grok`, `codex`, and `claude` CLIs are first on PATH and each returns a
+    schema-shaped `whole-doc` review. The document is case 2's routine plan,
+    which activates no trio lens. On a Claude Code host, assert the orchestrator
+    resolves the `doc-review` role with `--host-family claude`, prints one
+    notice that names all three recipients with their requested model and
+    effort before any `start`, and issues three `peer-job-runner.py start` calls
+    in the persona dispatch wave with labels `seat-1`, `seat-2`, and `seat-3`.
+    Each call carries its own `CROSS_MODEL_SEAT`, a fixed route of `grok-cli`,
+    `codex`, or `claude`, and the seat's model override; seats 1 and 3 also
+    carry their effort override and seat 2 carries none. Assert no trio call
+    and no single whole-doc sweep is launched. The run dir holds
+    `whole-doc-grok-s1.json`, `whole-doc-codex-s2.json`, and
+    `whole-doc-claude-s3.json`. Seat 3 is in the host's own family, so its
+    artifact records `independence_verified: false` and its agreement promotes
+    nothing. Coverage carries three `Model role doc-review seat <n>:` lines.
+    Paired control: the same document in a repo with no `model_roles:` key runs
+    no resolver, starts no seat, and prints no `Model role` line.
+
+17. **One seat cannot be served (AE4; R12, R14).** Case 16's fixture with no
+    `grok` stub on PATH and a `cursor-agent` stub present. Assert seat 1 is
+    dropped: no job starts for it, the `cursor-agent` stub is never invoked,
+    and no other model fills the seat. Seats 2 and 3 and the persona review
+    run, the notice names two recipients, and Coverage carries
+    `Model role doc-review seat 1: requested grok-4.7 high; not run; reason: ...`
+    beside the two served lines. Repeat with every seat's CLI absent and assert
+    the persona review still completes and all three seats are reported.
+
+18. **Review mode `off` reaches every seat (AE5, AE9; R13).** Case 16's fixture
+    plus `cross_model_review_mode: off`, with no conversation request for a
+    peer. On a Claude Code host, assert the resolver marks seats 1 and 2
+    `blocked_by: review_mode_off`, no `grok` or `codex` stub is invoked, the
+    same-family seat 3 runs, and Coverage names the two skipped seats and the
+    policy. Repeat with a host whose serving family cannot be attested: no named
+    seat runs and all three are reported. Then repeat the Claude Code run with
+    the user asking in conversation to review with Grok: the seat list is not
+    used and the single-peer rules run for that request.
+
+19. **Seats served as Cursor subagents (AE7; R3, R10).** Run on the Cursor host
+    (`--hosts cursor`), live, with no stub CLIs: this case is about what the
+    host's own subagent tool accepts, so stubs cannot stand in for it. Take
+    case 16's document and set `doc-review` to three models from three families
+    that the session's subagent tool lists, written app-neutral as
+    `<model> [<effort>]` and never as a Cursor model id. Assert each seat is
+    dispatched as a subagent on the listed id that matches its model and
+    effort, no peer CLI job starts, and each seat writes
+    `whole-doc-native-s<n>.json` with `independence_verified: false` and
+    `model_actual: "unverified"`. Coverage carries one
+    `Model role doc-review seat <n>: ... route native subagent.` line per seat,
+    and the persona review still runs. Then change one seat to an effort the
+    tool lists no id for: that seat is not served natively, and it is dropped
+    and reported unless an installed peer CLI can serve it. Cursor's model list
+    changes, so pick the three models at run time and record them with the
+    result; do not pin them in a fixture.
+
 ## Pass criteria
 
-All fifteen cases pass on the current on-disk source, and case 2 confirms the
+All nineteen cases pass on the current on-disk source, and case 2 confirms the
 conditional cost profile (no peer spawn on a routine validated plan).

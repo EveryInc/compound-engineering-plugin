@@ -126,8 +126,11 @@ def merge_group(group: list[tuple[dict[str, Any], str, tuple[str, ...]]]) -> dic
     if confidence >= 75 and not has_first_evidence:
         confidence = 50
     # In-process reviewers share one serving model, so their agreement is one
-    # reading repeated; only a verified cross-model peer corroborates.
-    if len(independent) >= 2 and has_first_evidence and any(cross_model_peer(n) for n in independent):
+    # reading repeated; only a verified cross-model peer corroborates. Peers
+    # corroborate an in-process reading, not each other, so several review
+    # seats agreeing alone do not promote.
+    peers = [n for n in independent if cross_model_peer(n)]
+    if peers and len(independent) > len(peers) and has_first_evidence:
         confidence = promote(confidence)
     merged["confidence"] = confidence
     merged["reviewers"] = reviewer_names

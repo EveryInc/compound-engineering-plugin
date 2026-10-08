@@ -157,6 +157,110 @@ const FIX = "tests/skill-eval-cell/fixtures"
 const SETUP_INSTRUCTIONS_TASK =
   "Use the ce-setup skill to check this repository's Compound Engineering setup. For every change it would offer, show the exact text and where in the file it would go."
 
+/**
+ * Model role map rows. Each task asks for the skill's ordinary work up to one decision
+ * and never names the map or its resolver, so a pass shows an unprompted run reached
+ * them. A skill's entry rows and its no-map row share one task; only the fixture differs.
+ */
+const ROLE_REPORT_SHAPE =
+  "Put your whole report between a line that is only RESULT-START and a line that is only RESULT-END, and put the trailers after RESULT-END. In the ACTIONS trailer, list every bundled skill script you ran, by file name, as well as any mutation."
+const ROLE_LINES = "each appearing once in your whole answer, as plain text with no backticks, quotes, or extra words"
+/**
+ * No-map half of every restraint row: no resolver run, and no `Model role` report line.
+ * The needles are the line's two openings for that role, not the bare phrase: the task
+ * asks for the whole resolution walk, and a host that says it checked for the map and
+ * found none has skipped it correctly.
+ */
+const noRoleOutput = (role: string) => ({
+  must_exclude: ["model-role-resolve"],
+  result_must_not_include: [`model role ${role}:`, `model role ${role} seat`],
+})
+
+const roleChoiceLines = (step: string) => `End your report with exactly these five lines, ${ROLE_LINES}. When more than one repo setting names a model for ${step}, report the one that wins.
+
+REQUESTED_MODEL: <the model the deciding repo setting asks for on ${step}, exactly as written there; none when no setting asks for one>
+REQUESTED_EFFORT: <the reasoning effort that same setting names: low, medium, high, xhigh, or max; none when it names no effort>
+SETTING_FILE: <the file the deciding setting is in: config.yaml or config.local.yaml; none when there is no setting>
+SETTING_KEY: <the top-level key of that file the deciding setting sits under, name only, never a nested path or a value; none when there is no setting>
+STEP_ROUTE: <how ${step} would be served: native-subagent, claude-cli, or session>
+
+${ROLE_REPORT_SHAPE}`
+
+const ROLE_PLAN_TASK = `Use ce-plan for this bounded planning checkpoint. Scope and research are already settled: add an optional uppercase greeting mode while preserving the default behavior. You are at the plan-authoring boundary. Before any model dispatch or artifact write, report the resolved authoring model choice, its source, and the route the authoring call would take; then stop. Do not dispatch or write.
+
+${roleChoiceLines("plan authoring")}`
+
+const ROLE_BRAINSTORM_TASK = `Use ce-brainstorm for this bounded checkpoint. The idea is understood and its scope is settled: greet should support localization — multiple languages, pluralized greetings, a fallback chain when a language is missing, and a way for callers to register new languages at runtime. You are about to generate approaches. Before generating them or dispatching any model, report the resolved model choice for approach generation, its source, and the route the generation call would take; then stop. Ask nothing, dispatch nothing, and write nothing.
+
+${roleChoiceLines("approach generation")}`
+
+const ROLE_WORK_TASK = `Use ce-work on docs/plans/widget-plan.md for this bounded checkpoint. Resolve how implementation will run for this plan: complete the engine and route selection, including any preflight it calls for, before selecting a unit. Report the selected route, the requested model and effort, and why; then stop. Do not edit, commit, initialize a run, or dispatch.
+
+End your report with exactly these four lines, ${ROLE_LINES}:
+
+ENGINE_ROUTE: <native when the work runs natively in this session or its subagents; otherwise the external worker's route token: codex, claude, grok-cli, cursor, composer, grok-cursor, or opencode>
+REQUESTED_MODEL: <the model the deciding repo setting asks for, exactly as written there; none when no setting asks for one>
+ROUTE_EFFORT: <the reasoning effort the selected route will be asked to run at: low, medium, high, xhigh, or max; none when no effort will be applied>
+KEPT_NATIVE_BY: <when a setting asks for a model but the work stays native: the top-level config key that keeps it native, name only; otherwise none>
+
+${ROLE_REPORT_SHAPE}`
+
+const roleReviewTeamLines = (personas: string) => `End your report with exactly these three lines, ${ROLE_LINES}:
+
+NOT_RUN_COUNT: <how many configured additional reviewers the review would leave out if it continued past this checkpoint; 0 when it would run every one. Stopping at this checkpoint does not count>
+NOT_RUN_REASON: <why it would leave them out, one of: none, unreachable, invalid-entry, review-mode, peers-allowlist>
+TEAM: <comma-separated reviewers the review would dispatch if it continued past this checkpoint: each ${personas} by its name, each additional reviewer by the model id it was requested on. Never none>
+
+${ROLE_REPORT_SHAPE}`
+
+const roleDocReviewTask = (plan: string) => `Use ce-doc-review with the arguments: mode:non-interactive ${plan}. This is a bounded checkpoint: run the skill until the full review team is settled, then stop. Do not dispatch any reviewer and do not start any job. Report the full team: every persona, and every additional reviewer beyond the personas with the model it was requested on.
+
+${roleReviewTeamLines("persona")}`
+
+const ROLE_DOC_REVIEW_PLAN = "docs/plans/2026-09-28-1100-fix-greeting-name-trim-plan.md"
+
+const ROLE_CODE_REVIEW_TASK = `Use the ce-code-review skill on the staged change in this repo with base:HEAD depth:full. This is a bounded checkpoint: run the skill through scope and reviewer selection until the final review team is settled, then stop. Do not start any detached job and do not dispatch any reviewer. Report the final team: every local reviewer, and every additional independent reviewer with the model it was requested on.
+
+${roleReviewTeamLines("local reviewer")}`
+
+const ROLE_DEBUG_TASK = `Use ce-debug on this bug for a bounded checkpoint: the seat cap check is failing. node tests/seat-cap.check.js exits 1, and SPEC.md is the product contract. Do the setup the skill calls for before its investigation starts, including reading any repo settings it names. Then, before you reproduce or trace anything, state how the investigation will be carried out and by which model, and stop. Do not reproduce, trace, edit, or dispatch.
+
+End your report with exactly these three lines, ${ROLE_LINES}:
+
+INVESTIGATED_BY: <subagent when a subagent will gather the evidence; session when this session investigates itself>
+REQUESTED_MODEL: <the model a repo setting asks for on the investigation, exactly as written there; none when no setting asks for one>
+SESSION_REASON: <when a setting asks for a model but this session investigates: why, in a few words; otherwise none>
+
+${ROLE_REPORT_SHAPE}`
+
+const ROLE_SIMPLIFY_TASK = `Use ce-simplify-code on the staged change in this repo for a bounded checkpoint. Resolve the scope, then state who will apply the simplification findings and verify the result, on which model and at which reasoning effort; then stop. Do not dispatch any reviewer and do not edit anything.
+
+End your report with exactly these four lines, ${ROLE_LINES}:
+
+APPLIED_BY: <subagent when one subagent will apply and verify; session when this session does>
+REQUESTED_MODEL: <the model a repo setting asks for on applying and verifying, exactly as written there; none when no setting asks for one>
+REQUESTED_EFFORT: <the reasoning effort that same setting names: low, medium, high, xhigh, or max; none when it names no effort>
+EFFORT_APPLIED: <yes when whoever applies will run at the requested effort; no when a requested effort will not be applied; none when no effort was requested>
+
+${ROLE_REPORT_SHAPE}`
+
+const ROLE_COMPOUND_TASK = `Use ce-compound with the arguments: mode:non-interactive depth:lightweight
+
+Context for this run, all of it solved and verified earlier in this session:
+
+The nightly rates sync failed about one night in five with "rates sync failed: 409". The ledger API's gateway gives up after 8 seconds and answers 504 even when the ledger has already stored the batch. Our retry then re-sent the same batch id, and the ledger answered 409 Conflict because that id was already stored. We first raised our client timeout from 10 to 60 seconds. That changed nothing, because the 504 comes from the ledger gateway's own limit, not from our client. The fix is in src/post-rates.js: a 409 now counts as delivered (ok: true, duplicate: true) instead of a failure, because on this endpoint a 409 only ever means the batch id is already stored. Verified: npm test passes, including the 504-then-409 case, and replaying last Tuesday's captured failure returned ok.
+
+Put the skill's whole completion report, unchanged, between a line that is only RESULT-START and a line that is only RESULT-END, and put the trailers after RESULT-END. In the ACTIONS trailer, list every bundled skill script you ran, by file name, as well as any mutation.`
+
+/** The non-interactive terminal line is the last line of the report, however the block is closed. */
+const COMPOUND_TERMINAL_LINE_LAST = [
+  "Documentation complete\nRESULT-END",
+  "Documentation complete\n\nRESULT-END",
+  "Documentation complete\n```\nRESULT-END",
+]
+const COMPOUND_SOURCE_UNCHANGED = { path: "src/post-rates.js", needle: "if (status === 409) return { ok: true, duplicate: true }" }
+const ACCESS_TS_UNCHANGED = { path: "src/access.ts", needle: 'if (!membership) return request.action === "read"' }
+
 
 /** Cheap read-only cells that pin a real decision. Live mutation/delegation is not in this set. */
 export const WAVE1 = [
@@ -3571,6 +3675,507 @@ Use "Correct widget limit" as the description in the subject and any required bo
       workspace_read: ["tests/jobs.test.js"],
       must_include: ["retry-once-on-lock.md", "Delete", "jobs.test.js", "header-parse-measured-limit.md", "Keep"],
       actions: "none",
+    },
+  },
+
+  // ---- Model role map: resolution and precedence ----
+  // Write mode, because the resolver is a shell command a read-only cell cannot run.
+  // The model ids are grammar-valid Claude-family fakes, so a declared id can only have
+  // come from the entry that won, never from a model the host would name anyway.
+  {
+    id: "ce-plan/role-entry-reaches-authoring-gate",
+    post_only: true,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-plan-entry`,
+    timeout_secs: 300,
+    why: "The team file sets `plan: claude-ce-eval-a low` and also `plan_model: claude-ce-eval-legacy`. The entry outranks the older key, and an entry with an effort always hands off; a Claude-family model with an effort goes through the Claude CLI adapter wherever the host's subagent tool cannot set effort. STEP_ROUTE assumes `claude` is on PATH and a host whose subagent tool has no effort control, which holds for Claude Code, Codex, and OpenCode today.",
+    pre_contract: "`plan_model` is the only config source for the authoring model, and it carries no effort.",
+    task: ROLE_PLAN_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      declared: {
+        REQUESTED_MODEL: "claude-ce-eval-a",
+        REQUESTED_EFFORT: "low",
+        SETTING_KEY: "model_roles",
+      },
+      // The first route attempted is the host's to decide: a host whose subagent tool
+      // can set effort tries native before the Claude CLI. The invariant is the hand-off.
+      must_include_any: [["STEP_ROUTE: claude-cli", "STEP_ROUTE: native-subagent"]],
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-plan/personal-role-entry-overrides-one-role",
+    post_only: true,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-plan-personal`,
+    timeout_secs: 300,
+    why: "Layering is role by role. The team file sets `plan: claude-ce-eval-a low` and a `work` entry; the personal file sets only `plan: claude-ce-eval-c`. The personal entry replaces the team entry whole, so the team's `low` must not survive: REQUESTED_EFFORT is none.",
+    pre_contract: "A map in the personal file replaces the whole key from the team file.",
+    task: ROLE_PLAN_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      declared: {
+        REQUESTED_MODEL: "claude-ce-eval-c",
+        REQUESTED_EFFORT: "none",
+        SETTING_FILE: "config.local.yaml",
+        SETTING_KEY: "model_roles",
+      },
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-plan/existing-key-decides-when-role-unset",
+    post_only: true,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-plan-existing-key`,
+    timeout_secs: 300,
+    why: "The map is active but holds only a `work` entry, so the `plan` role is unset and `plan_model` decides as it does with no map. The run must resolve the role, because the key is active, and must not attribute the choice to the map.",
+    pre_contract: "`plan_model` selects the authoring model.",
+    task: ROLE_PLAN_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      declared: { REQUESTED_MODEL: "claude-ce-eval-legacy", SETTING_KEY: "plan_model" },
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-brainstorm/role-entry-reaches-approach-gate",
+    post_only: true,
+    skill: "ce-brainstorm",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-brainstorm-entry`,
+    timeout_secs: 300,
+    why: "`brainstorm: claude-ce-eval-a high` governs approach generation. Same route reasoning and host assumption as the ce-plan entry row: an effort forces a hand-off, and the Claude CLI adapter is the first route that can carry it.",
+    pre_contract: "`brainstorm_model` is the only config source for approach generation, and it carries no effort.",
+    task: ROLE_BRAINSTORM_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      declared: {
+        REQUESTED_MODEL: "claude-ce-eval-a",
+        REQUESTED_EFFORT: "high",
+        SETTING_KEY: "model_roles",
+      },
+      must_include_any: [["STEP_ROUTE: claude-cli", "STEP_ROUTE: native-subagent"]],
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-work/role-entry-routes-through-claude-engine",
+    post_only: true,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-work-entry`,
+    timeout_secs: 600,
+    why: "`work: claude-ce-eval-a medium` becomes the one standing candidate: harness `claude`, at `medium`. An entry with an effort is never a route to self, so even a Claude Code session runs it through the `claude` route instead of collapsing to native. Assumes `claude` is on PATH and a host whose subagent tool cannot set effort; where the subagent tool can, the entry is served natively and ENGINE_ROUTE reads native.",
+    pre_contract: "With no `work_engine_*` keys, implementation runs natively on the session model.",
+    task: ROLE_WORK_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      declared: { ENGINE_ROUTE: "claude", REQUESTED_MODEL: "claude-ce-eval-a", ROUTE_EFFORT: "medium" },
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-work/personal-off-keeps-team-entry-native",
+    post_only: true,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-work-personal-off`,
+    timeout_secs: 600,
+    why: "The team file sets `work: claude-ce-eval-a high` and the personal file sets `work_engine_mode: off`. That personal key is the one opt-out a team entry does not outrank: the work stays native and the run names the key as the reason. Only the personal file carries `work_engine_mode`, so the key name alone identifies it.",
+    pre_contract: "`work_engine_mode: off` disables the standing engine preference.",
+    task: ROLE_WORK_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      declared: { ENGINE_ROUTE: "native", REQUESTED_MODEL: "claude-ce-eval-a", KEPT_NATIVE_BY: "work_engine_mode" },
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-doc-review/seat-list-runs-on-routine-plan",
+    post_only: true,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-doc-review-seats`,
+    timeout_secs: 600,
+    why: "Seats do not depend on which personas were selected. The plan is a routine fix with validated provenance, so none of the three judgment lenses activates and the single-peer pass would never have started; both seats of `doc-review: [claude-ce-eval-a high, claude-ce-eval-b]` are still on the team. The cell stops before dispatch, so it grades the settled team, not whether a fake model id can be served.",
+    pre_contract: "A routine plan that activates no judgment lens gets the persona review only.",
+    task: roleDocReviewTask(ROLE_DOC_REVIEW_PLAN),
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      must_include: ["coherence", "feasibility", "claude-ce-eval-a", "claude-ce-eval-b"],
+      // Without this a run that over-activated a lens would pass without showing the routine-plan case.
+      must_not_include: ["adversarial", "product-lens", "security-lens"],
+      declared: { NOT_RUN_COUNT: "0" },
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-doc-review/review-mode-off-skips-other-provider-seats",
+    post_only: true,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-doc-review-mode-off`,
+    timeout_secs: 600,
+    why: "`cross_model_review_mode: off` with seats on Grok, GPT, and Claude models. This grade holds on a host that attests the Claude family: the Claude seat is in the host's own family and runs, and the other two are not run because of the review mode. On a host whose family is unattested, such as OpenCode or Cursor, all three seats are skipped, so the expected TEAM carries no seat and NOT_RUN_COUNT is 3; run this row with `--hosts claude`.",
+    pre_contract: "`cross_model_review_mode: off` skips the single cross-model pass.",
+    task: roleDocReviewTask(ROLE_DOC_REVIEW_PLAN),
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      must_include: ["coherence", "feasibility", "claude-ce-eval-a"],
+      must_not_include: ["grok-ce-eval", "gpt-ce-eval"],
+      declared: { NOT_RUN_COUNT: "2", NOT_RUN_REASON: "review-mode" },
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-doc-review/unattested-host-review-mode-off-skips-every-named-seat",
+    post_only: true,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-doc-review-mode-off`,
+    timeout_secs: 600,
+    why: "The same fixture as the row above, graded for a host whose serving family cannot be attested. Cursor is the host this exists for: its family is unknown by rule, so under `cross_model_review_mode: off` no named seat can be shown to stay with the session's provider and all three are skipped. Run this row with `--hosts cursor` (or `opencode`); on a host that attests a family it fails by design, because one seat runs.",
+    pre_contract: "`cross_model_review_mode: off` skips the single cross-model pass.",
+    task: roleDocReviewTask(ROLE_DOC_REVIEW_PLAN),
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      must_include: ["coherence", "feasibility"],
+      must_not_include: ["grok-ce-eval", "gpt-ce-eval", "claude-ce-eval-a"],
+      declared: { NOT_RUN_COUNT: "3", NOT_RUN_REASON: "review-mode" },
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-code-review/seat-list-and-review-mode",
+    post_only: true,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/access.ts"],
+    fixture: `${FIX}/model-roles-code-review-mode-off`,
+    timeout_secs: 900,
+    why: "`cross_model_review_mode: off` with `code-review: [grok-ce-eval high, claude-ce-eval-a]`. Seats bind at Stage 3d, which only the full spine reaches, so the task passes `depth:full` and leaves the depth decision to its own rows. Like the ce-doc-review policy row, the grade holds on a host that attests the Claude family; on an unattested host both seats are skipped. The staged file keeps `git status` dirty, so the no-write check is the file's content.",
+    pre_contract: "`cross_model_review_mode: off` skips the single cross-model adversarial pass.",
+    task: ROLE_CODE_REVIEW_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      must_include: ["correctness", "claude-ce-eval-a"],
+      must_not_include: ["grok-ce-eval"],
+      declared: { NOT_RUN_COUNT: "1", NOT_RUN_REASON: "review-mode" },
+      delegates: "none",
+      workspace_contains: [ACCESS_TS_UNCHANGED],
+    },
+  },
+  {
+    id: "ce-code-review/lite-review-says-role-not-applied",
+    post_only: true,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/tablefmt.ts"],
+    fixture: `${FIX}/model-roles-code-review-lite`,
+    why: "The `depth-gate-loud-lite` diff with a `code-review` seat list configured. Seats run only where the reviewer team is dispatched, so the review runs no seat and no resolver, and its Coverage must say the role was not applied and that `depth:full` applies it. Lite or focused both pass: the depth judgment has its own rows. The task never mentions model roles; `depth:full` appears in the answer only when that Coverage sentence fires.",
+    pre_contract: "The lite path never looks at the model role map, so a configured seat list is skipped with nothing said.",
+    task: `Use the ce-code-review skill on the staged change in this repo with mode:agent base:HEAD. Resolve the Review depth gate. If the gate selects lite or focused, continue into that path far enough to list each statement its receipt's Coverage must make, one per line. Do not review the diff itself. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+
+End with exactly one line in this form and nothing else on that line:
+
+DEPTH: lite
+
+or
+
+DEPTH: focused
+
+or
+
+DEPTH: full`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
+      must_include: ["depth:full"],
+      must_include_any: [["DEPTH: lite", "DEPTH: focused"]],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-debug/role-entry-hands-off-investigation",
+    post_only: true,
+    skill: "ce-debug",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-debug-entry`,
+    timeout_secs: 300,
+    why: "`debug: claude-ce-eval-a` names a model the session is not on, so the role hands the investigation to one read-only subagent on that model. The role has no peer route: a host whose subagent tool cannot be handed that model investigates in the session and says why. Both outcomes pass; what the grade pins is that the entry was resolved before any investigation. Read SESSION_REASON by hand when the run declares session.",
+    pre_contract: "ce-debug reads no model setting; the session investigates.",
+    task: ROLE_DEBUG_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      declared: { REQUESTED_MODEL: "claude-ce-eval-a" },
+      must_include_any: [["INVESTIGATED_BY: subagent", "INVESTIGATED_BY: session"]],
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-simplify-code/role-entry-governs-apply",
+    post_only: true,
+    skill: "ce-simplify-code",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/totals.js"],
+    fixture: `${FIX}/model-roles-simplify-entry`,
+    timeout_secs: 300,
+    why: "`simplify: claude-ce-eval-a low` governs apply and verify. The only hand-off route is a native subagent. The cell stops before the hand-off, so whether the effort will be applied is a prediction about the host's subagent tool: Codex answered yes in three of six runs and no in the rest, and Claude and Cursor answered no. Either answer passes, and so does applying in the session. The graded facts are the entry's model and effort and the shared reference being read. The staged file keeps `git status` dirty, so the no-edit check is that the duplicated loop is still there.",
+    pre_contract: "ce-simplify-code reads no model setting; the session applies and verifies.",
+    task: ROLE_SIMPLIFY_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      declared: { REQUESTED_MODEL: "claude-ce-eval-a", REQUESTED_EFFORT: "low" },
+      must_include_any: [
+        ["APPLIED_BY: subagent", "APPLIED_BY: session"],
+        ["EFFORT_APPLIED: no", "EFFORT_APPLIED: yes"],
+      ],
+      delegates: "none",
+      workspace_contains: [{ path: "src/totals.js", needle: "function orderTotalWithShipping(order, shipping) {\n  let subtotal = 0" }],
+    },
+  },
+  {
+    id: "ce-compound/lightweight-never-hands-off",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-compound-entry`,
+    timeout_secs: 900,
+    why: "`compound: claude-ce-eval-a` would call for a hand-off, but Lightweight launches no subagents: the session writes the doc and prints the role line with route session. The line sits above the terminal line, which callers parse, so `Documentation complete` is still the last line of the report. Write mode, because the run resolves the role and writes the learning; the doc's path is the run's choice, so the disk checks are a dirty tree and an untouched source file.",
+    pre_contract: "Non-interactive Lightweight writes one doc with no subagents and ends on `Documentation complete`.",
+    task: ROLE_COMPOUND_TASK,
+    grade: {
+      files_read_post: ["references/model-roles.md"],
+      must_include: ["Model role compound: requested claude-ce-eval-a", "route session"],
+      must_include_any: [COMPOUND_TERMINAL_LINE_LAST],
+      delegates: "none",
+      git: "dirty",
+      workspace_contains: [COMPOUND_SOURCE_UNCHANGED],
+    },
+  },
+
+  // ---- Model role map: restraint ----
+  // No `model_roles` key in either config file. Each row runs the same task as its skill's
+  // entry rows and must declare the skill's ordinary decision, run no resolver, and print
+  // nothing about model roles.
+  {
+    id: "ce-brainstorm/no-map-runs-no-resolver",
+    post_only: true,
+    skill: "ce-brainstorm",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/tiny-lib`,
+    timeout_secs: 300,
+    why: "No CE config at all: approach generation stays on the session model, as it did before the map existed.",
+    pre_contract: "With no `brainstorm_model`, the session model generates the approaches.",
+    task: ROLE_BRAINSTORM_TASK,
+    grade: {
+      declared: { REQUESTED_MODEL: "none", STEP_ROUTE: "session" },
+      ...noRoleOutput("brainstorm"),
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-plan/no-map-runs-no-resolver",
+    post_only: true,
+    skill: "ce-plan",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/plan-model-config`,
+    timeout_secs: 300,
+    why: "The write-mode twin of `ce-plan/config-model-reaches-authoring-gate`: `plan_model` alone still resolves at the authoring boundary, now in a cell where the resolver could have run.",
+    pre_contract: "At the authoring boundary, an active plan_model is resolved before any dispatch or write and its source is transparent.",
+    task: ROLE_PLAN_TASK,
+    grade: {
+      declared: { REQUESTED_MODEL: "ce-eval-unavailable", SETTING_KEY: "plan_model" },
+      ...noRoleOutput("plan"),
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-doc-review/no-map-runs-no-resolver",
+    post_only: true,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-routine-fix`,
+    timeout_secs: 600,
+    why: "A config file exists and carries only `cross_model_review_mode: off`, so the hook's condition is false: the team is the personas the document selects and nothing else.",
+    pre_contract: "The team is coherence and feasibility always, plus each activated conditional persona.",
+    task: roleDocReviewTask("docs/plans/2026-07-31-003-fix-portable-windows-path-unit-tests-plan.md"),
+    grade: {
+      must_include: ["coherence", "feasibility"],
+      ...noRoleOutput("doc-review"),
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-debug/no-map-runs-no-resolver",
+    post_only: true,
+    skill: "ce-debug",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/seat-cap`,
+    timeout_secs: 300,
+    why: "No CE config: the session investigates, as it always has.",
+    pre_contract: "ce-debug reads no model setting; the session investigates.",
+    task: ROLE_DEBUG_TASK,
+    grade: {
+      declared: { INVESTIGATED_BY: "session", REQUESTED_MODEL: "none" },
+      ...noRoleOutput("debug"),
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-work/no-map-runs-no-resolver",
+    post_only: true,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/implementation-ready-plan`,
+    timeout_secs: 600,
+    why: "No CE config: native execution stays selected with no preflight of any external route.",
+    pre_contract: "With no directive, caller binding, or enabled config, implementation runs natively.",
+    task: ROLE_WORK_TASK,
+    grade: {
+      declared: { ENGINE_ROUTE: "native", REQUESTED_MODEL: "none" },
+      ...noRoleOutput("work"),
+      delegates: "none",
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-simplify-code/no-map-runs-no-resolver",
+    post_only: true,
+    skill: "ce-simplify-code",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/access.ts"],
+    fixture: `${FIX}/review-depth-auth-full`,
+    timeout_secs: 300,
+    why: "No CE config: the session applies and verifies. The staged file keeps `git status` dirty, so the no-edit check is the file's content.",
+    pre_contract: "ce-simplify-code reads no model setting; the session applies and verifies.",
+    task: ROLE_SIMPLIFY_TASK,
+    grade: {
+      declared: { APPLIED_BY: "session", REQUESTED_MODEL: "none" },
+      ...noRoleOutput("simplify"),
+      delegates: "none",
+      workspace_contains: [ACCESS_TS_UNCHANGED],
+    },
+  },
+  {
+    id: "ce-code-review/no-map-runs-no-resolver",
+    post_only: true,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/access.ts"],
+    fixture: `${FIX}/review-depth-auth-full`,
+    timeout_secs: 900,
+    why: "No CE config: Stage 3d binds the adversarial route the way it did before the map, and the team still has the always-on correctness reviewer. The TEAM trailer may name a single cross-model peer; that is the ordinary single-peer pass, not a seat.",
+    pre_contract: "Correctness always runs; the adversarial lens goes to one cross-model peer or the in-process reviewer.",
+    task: ROLE_CODE_REVIEW_TASK,
+    grade: {
+      must_include: ["correctness"],
+      ...noRoleOutput("code-review"),
+      delegates: "none",
+      workspace_contains: [ACCESS_TS_UNCHANGED],
+    },
+  },
+  {
+    id: "ce-compound/no-map-runs-no-resolver",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/model-roles-compound-nomap`,
+    timeout_secs: 900,
+    why: "The same code and task as `ce-compound/lightweight-never-hands-off` with no CE config: the report is exactly the documented block, with no role line, and it still ends on the terminal line.",
+    pre_contract: "Non-interactive Lightweight writes one doc with no subagents and ends on `Documentation complete`.",
+    task: ROLE_COMPOUND_TASK,
+    grade: {
+      must_include_any: [COMPOUND_TERMINAL_LINE_LAST],
+      ...noRoleOutput("compound"),
+      delegates: "none",
+      git: "dirty",
+      workspace_contains: [COMPOUND_SOURCE_UNCHANGED],
     },
   },
 ]

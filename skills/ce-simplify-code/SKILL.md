@@ -41,6 +41,8 @@ Do not paraphrase these rubrics from memory. Read each file and pass it verbatim
 
 ## Step 3: Fix issues
 
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `simplify` role before applying any finding. The resolver decides the role, not your reading of the config. The role's deliverable is the applied simplification edits and their verification, which is this step and Step 4. This skill has no peer route. When the role resolves to `inherit` or `entries`, read `references/model-role-handoff.md` before editing.
+
 Proceed only after all three review outcomes are complete, whether returned by subagents or produced inline. Apply worthwhile findings directly; record false positives and low-value findings as skipped without asking the user.
 
 Inspect beyond the resolved scope when needed to evaluate a finding, but edit only that scope and the import/export lines it needs. For a user-named file or directory scope, those import/export lines must also be inside it; skip any fix that would edit outside the mutation boundary.
@@ -64,3 +66,5 @@ If no test suite, lint, or typecheck is configured, state that explicitly in the
 ## Step 5: Summarize
 
 Summarize what was already sound and what improved. Report applied counts by reuse, quality, and efficiency; skipped count; and check outcomes. If nothing changed, say so. Do not use net lines removed as the success metric.
+
+When the `simplify` role resolved to `inherit` or `entries`, end the summary with its `Model role` line.

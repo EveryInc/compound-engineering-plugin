@@ -100,6 +100,14 @@ If you want the same wrap-up in ordinary sessions, add a standing instruction to
 
 ---
 
+## Model role
+
+`ce-simplify-code` reads the `simplify` role from the `model_roles` map in CE config. The entry names the model that produces the simplification: one subagent on that model applies the findings and runs the checks. The three reviews keep their own model tier, and the session keeps scope resolution and the summary.
+
+This role is served only by a subagent of your harness. An effort in the entry is reported as not applied where that subagent cannot be given one, and the session applies and verifies itself when the harness cannot hand over the model. The summary ends with one `Model role simplify:` line naming what was requested, what served it, and the route. See [Model roles](./configuration.md#model-roles) for entry syntax, precedence, and fallback.
+
+---
+
 ## See also
 
 - [`ce-work`](./ce-work.md): may run this before its review gate

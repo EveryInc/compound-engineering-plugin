@@ -4,6 +4,18 @@ Read this before editing any file in Phase 3. SKILL.md runs the branch check and
 
 *One change at a time. If you are changing multiple things, stop.*
 
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `debug` role before the first edit. The resolver decides the role, not your reading of the config.
+
+When Phase 1 already resolved the role, use that result.
+
+**Fix hand-off.** When the role hands off and the host can give the entry's model to a subagent, one subagent on that model does steps 1 to 3 below. The branch check, the confirmation for files that carry the user's unstaged work, the pre-fix scope record, steps 4 and 5, the count of failed attempts, and the commit stay with the session. When the host cannot hand over the model, the session does all five steps as this file describes.
+
+- **Before the dispatch**, SKILL.md's Phase 3 preconditions, as this run's mode applies them, are complete for every file the diagnosis names. The session then adds the Phase 2 findings to `handoff.md`: the confirmed causal chain, the proposed fix, the files the fix may change, the test recommendation, and Phase 1's reproduction check. A run that has no run directory yet creates it first, the way `references/investigate.md` does.
+- **The subagent** receives the path of `handoff.md`, the text of steps 1 to 3, and what `references/model-roles.md` says every native subagent is given. It edits only the files `handoff.md` names. When the fix needs another file, it stops and returns that file's name, and the session takes the file through the same preconditions before it dispatches again. The subagent does not commit, change branches, or dispatch anything. It returns the paths it changed and the failure it observed before the fix.
+- **After the return**, the session adds the changed paths to the fix-owned files.
+- **A retry after a failed fix** dispatches again from `handoff.md` once the session has added the new Phase 2 reasoning to it.
+- **A hand-off that fails mid-edit** is finished inline. The session completes steps 1 to 3 from the working tree as it stands, then runs steps 4 and 5.
+
 **Test-first:**
 
 1. Choose the regression test's home. Follow the active project instructions and any applicable subdirectory-scoped instructions, and always inspect existing tests before adding coverage. Use an existing failing test when it already captures the bug, update an existing test when it owns the contract but has the wrong expectation, strengthen an over-mocked test that should have caught the bug, or add a new minimal isolated test only when no existing test is the right home. ("Owns the contract" means that test is the one that defines the behavior the bug broke.) The test must fail on the current bug and pass once the corrected behavior lands. Name it so the failure message explains the bug. Sometimes no available seam can exercise the bug as it actually triggered, because the failure needs a chain of callers or a state the reachable seams cannot set up. In that case do not write a shallow test there for the false confidence. Record the missing seam as a finding in the debug summary, and let defense-in-depth or the post-mortem carry it. SKILL.md's precondition decides whether an existing test may be updated at all: only for a confirmed defect, never for a test whose expectation the change deliberately reverses.

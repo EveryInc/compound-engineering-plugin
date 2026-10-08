@@ -140,6 +140,12 @@ Each peer runs from the repository root so it can read surrounding code. Its rea
 
 This shares the provider/route kernel with `ce-doc-review` but keeps a narrower scope: adversarial-only, diff/work-tree delivery, not doc-review's judgment trio or whole-doc sweep.
 
+## Model role
+
+`ce-code-review` reads the `code-review` role from the `model_roles` map in CE config. The entry is one model or a list, each with an optional reasoning effort. Every item is a seat: one independent reviewer that gives the diff an adversarial read on that model. Seats run on every full review, beside the persona reviewers, and they take the place of the conditional single-peer pass described above. A lite or focused review dispatches no reviewer team, so it does not apply the role. It says so in Coverage, and `depth:full` applies it. The in-process adversarial reviewer still runs alongside them.
+
+`cross_model_review_mode: off` and `CROSS_MODEL_PEERS` still decide which seats may send review content to another provider. A seat that cannot run is dropped and reported, never filled by another model, and the persona review runs either way. Each seat prints its own `Model role code-review seat <n>:` line naming what was requested, what served it, and the route. See [Model roles](./configuration.md#model-roles) for entry syntax, precedence, and the seat rules.
+
 ## Severity and autofix class are orthogonal
 
 Severity answers urgency (P0 = critical breakage, P3 = user discretion). Autofix class describes follow-up shape, not apply permission:

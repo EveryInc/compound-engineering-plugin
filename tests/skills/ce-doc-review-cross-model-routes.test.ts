@@ -890,6 +890,17 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
       expect(r.status).toBe(2)
       expect(r.stderr).toContain("not compatible with route")
     }
+    // A Claude alias may carry one bracketed qualifier, the form a `model_roles` seat can name.
+    const qualified = { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: "opus[1m]" }
+    expect(emitAdapter("claude", qualified)).toContain("--model opus[1m]")
+    // Exactly one qualifier of letters and digits, the grammar the role resolver accepts.
+    for (const malformed of ["opus[]", "opus[a][b]", "opus[1m]junk]", "claude-opus-5-5[1 m]"]) {
+      const bad = spawnSync("bash", [SCRIPT, "--emit-adapter", "claude"], {
+        encoding: "utf8",
+        env: { ...process.env, CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: malformed },
+      })
+      expect(bad.status, malformed).toBe(2)
+    }
   })
 
   test("reply recovery is string-aware — an in-string brace does not let a draft object win", () => {
@@ -961,6 +972,214 @@ describe("cross-model-doc-review fixed-recipient dispatch (R15, R16)", () => {
     })
     expect(r.files).not.toContain("adversarial-grok.json")
     expect(r.stderr).toContain("requires Cursor intermediary sanction")
+    expect(calls(sb)).toBe(0)
+  })
+})
+
+// A `model_roles` review list runs one worker invocation per seat. CROSS_MODEL_SEAT
+// carries the seat number: it names the artifact and reviewer so two seats on one
+// provider cannot collide, and it marks the recipient as explicitly configured, so
+// the automatic same-family and unknown-host skips do not apply to that invocation.
+describe("cross-model-doc-review review seats (CROSS_MODEL_SEAT)", () => {
+  const doc = makeDoc()
+  const seatArgs = (host: string, target: string, runDir: string) => [host, target, "whole-doc", doc, "plan", "none", runDir]
+  const seatOutputs = (files: string[]) => files.filter((file) => /^whole-doc-[a-z]+(-s\d+)?\.json$/.test(file)).sort()
+  const served = (model: string) => ({ quota: { model_usage: [{ model, token_count: { totalTokens: 10 } }] } })
+
+  test("two seats on one provider write two artifacts with distinct reviewer identities", () => {
+    const { env } = sandbox(["claude"])
+    const runDir = makeRunDir()
+    for (const seat of ["1", "2"]) {
+      const r = run(seatArgs("codex", "claude", runDir), runDir, { ...env, CROSS_MODEL_SEAT: seat })
+      expect(r.code).toBe(0)
+    }
+    expect(seatOutputs(readdirSync(runDir))).toEqual(["whole-doc-claude-s1.json", "whole-doc-claude-s2.json"])
+    expect(published(runDir, "whole-doc-claude-s1.json").reviewer).toBe("whole-doc-claude-s1")
+    expect(published(runDir, "whole-doc-claude-s2.json").reviewer).toBe("whole-doc-claude-s2")
+    // A different-family seat still records verified independence.
+    expect(published(runDir, "whole-doc-claude-s1.json").independence_verified).toBe(true)
+
+    // The seat number becomes part of a file name, so only a positive integer is accepted.
+    const bad = makeRunDir()
+    const r = run(seatArgs("codex", "claude", bad), bad, { ...env, CROSS_MODEL_SEAT: "../x" })
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("seat '../x' invalid")
+  })
+
+  test("a seat in the host's own family runs only as an explicit seat and never records independence", () => {
+    const { env } = sandbox(["claude"])
+    let runDir = makeRunDir()
+    let r = run(seatArgs("claude", "claude", runDir), runDir, env)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("no different-provider peer reachable")
+
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "claude", runDir), runDir, { ...env, CROSS_MODEL_SEAT: "3" })
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+    expect(seatOutputs(r.files)).toEqual(["whole-doc-claude-s3.json"])
+    const out = published(runDir, "whole-doc-claude-s3.json")
+    expect(out.serving_family).toBe("claude")
+    expect(out.independence_verified).toBe(false)
+  })
+
+  test("a seat under an unknown host family runs only as an explicit seat and never records independence", () => {
+    const { env } = sandbox(["claude"])
+    const hostEnv = { ...env, CROSS_MODEL_HOST_HARNESS: "cursor" }
+    let runDir = makeRunDir()
+    let r = run(seatArgs("unknown", "claude", runDir), runDir, hostEnv)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("host serving family unattested")
+
+    runDir = makeRunDir()
+    r = run(seatArgs("unknown", "claude", runDir), runDir, { ...hostEnv, CROSS_MODEL_SEAT: "1" })
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+    expect(seatOutputs(r.files)).toEqual(["whole-doc-claude-s1.json"])
+    expect(published(runDir, "whole-doc-claude-s1.json").independence_verified).toBe(false)
+  })
+
+  test("CROSS_MODEL_PEERS refuses a seat only when its provider is a new recipient", () => {
+    const refused = "not in CROSS_MODEL_PEERS allowlist"
+    const { env } = sandbox(["claude", "cursor-agent"])
+    const seat = { ...env, CROSS_MODEL_SEAT: "1" }
+
+    // The role resolver clears a seat in the host's own family: nothing new leaves the machine.
+    let runDir = makeRunDir()
+    let r = run(seatArgs("claude", "claude", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "codex" })
+    expect(r.stderr).not.toContain(refused)
+    expect(r.stderr).toContain("peer run: provider=claude route=claude")
+
+    // `cursor` on the allowlist sanctions Cursor as a recipient, so its Composer seat is not refused.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "cursor" })
+    expect(r.stderr).not.toContain(refused)
+    // The resolver trims and lowercases the allowlist, so the worker reads it the same way.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: " Cursor , grok" })
+    expect(r.stderr).not.toContain(refused)
+
+    // Another provider's seat is still refused, and so is Composer outside a seat.
+    runDir = makeRunDir()
+    r = run(seatArgs("codex", "claude", runDir), runDir, { ...seat, CROSS_MODEL_PEERS: "grok" })
+    expect(r.stderr).toContain(`provider 'claude' ${refused}`)
+    expect(seatOutputs(r.files)).toEqual([])
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "composer", runDir), runDir, { ...env, CROSS_MODEL_PEERS: "cursor" })
+    expect(r.stderr).toContain(`provider 'composer' ${refused}`)
+
+    // Only the edges of each entry are trimmed: a space inside a name never repairs it into a recipient.
+    runDir = makeRunDir()
+    r = run(seatArgs("claude", "codex", runDir), runDir, { ...env, CROSS_MODEL_PEERS: "co dex,claude" })
+    expect(r.stderr).toContain(`provider 'codex' ${refused}`)
+  })
+
+  test("a seat whose receipt names another model writes no artifact", () => {
+    const { env } = sandbox(["claude"], acpStream({ text: review(), meta: served("claude-haiku-4-5-20251001") }))
+    const override = { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude", CROSS_MODEL_MODEL_OVERRIDE: "opus" }
+
+    // A seat is one model: when the receipt says another served, the seat was not served.
+    let runDir = makeRunDir()
+    let r = run(seatArgs("codex", "claude", runDir), runDir, { ...env, ...override, CROSS_MODEL_SEAT: "1" })
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("a seat is never filled by another model")
+
+    // Outside a seat the single-peer pass still publishes and warns, as before.
+    runDir = makeRunDir()
+    r = run(seatArgs("codex", "claude", runDir), runDir, { ...env, ...override })
+    expect(r.stderr).toContain("WARNING: model mismatch")
+    expect(seatOutputs(r.files).length).toBe(1)
+  })
+
+  test("every route that returns a receipt drops a seat served by another model", () => {
+    // Codex and native Grok report the served model too, so a seat on either is held to it.
+    for (const [bin, target, host, model, other] of [
+      ["codex", "codex", "claude", "gpt-seat-model", "gpt-other-model"],
+      ["grok", "grok", "claude", "grok-seat-model", "grok-other-model"],
+    ]) {
+      const seat = { CROSS_MODEL_SEAT: "1", CROSS_MODEL_MODEL_OVERRIDE_TARGET: target, CROSS_MODEL_MODEL_OVERRIDE: model }
+      let sb = sandbox([bin], acpStream({ text: review(), meta: served(other) }))
+      let runDir = makeRunDir()
+      let r = run(seatArgs(host, target, runDir), runDir, { ...sb.env, ...seat })
+      expect(seatOutputs(r.files), target).toEqual([])
+      expect(r.stderr).toContain("a seat is never filled by another model")
+
+      sb = sandbox([bin], acpStream({ text: review(), meta: served(`${model}-20260801`) }))
+      runDir = makeRunDir()
+      r = run(seatArgs(host, target, runDir), runDir, { ...sb.env, ...seat })
+      expect(seatOutputs(r.files), target).toEqual([`whole-doc-${target}-s1.json`])
+    }
+
+    // A Codex id may carry a provider namespace that the served id does not.
+    for (const requested of ["openai/gpt-seat-model", "openai.gpt-seat-model"]) {
+      const sb = sandbox(["codex"], acpStream({ text: review(), meta: served("gpt-seat-model") }))
+      const runDir = makeRunDir()
+      const r = run(seatArgs("claude", "codex", runDir), runDir, {
+        ...sb.env,
+        CROSS_MODEL_SEAT: "1",
+        CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+        CROSS_MODEL_MODEL_OVERRIDE: requested,
+      })
+      expect(seatOutputs(r.files), requested).toEqual(["whole-doc-codex-s1.json"])
+    }
+  })
+
+  test("a Claude alias with a bracketed qualifier is checked against its family's receipt", () => {
+    const { env } = sandbox(["claude"], acpStream({ text: review(), meta: served("claude-opus-5-5-20260801") }))
+    const runDir = makeRunDir()
+    const r = run(seatArgs("codex", "claude", runDir), runDir, {
+      ...env,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "opus[1m]",
+    })
+    expect(r.stderr).not.toContain("model mismatch")
+    expect(published(runDir, "whole-doc-claude-s1.json").model_actual).toBe("claude-opus-5-5-20260801")
+  })
+
+  test("a seat's model and effort reach the claude and codex adapter arguments", () => {
+    let sb = sandbox(["claude"], acpStream({ text: review({ findings: [] }) }))
+    let runDir = makeRunDir()
+    run(seatArgs("codex", "claude", runDir), runDir, {
+      ...sb.env,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "claude",
+      CROSS_MODEL_MODEL_OVERRIDE: "sonnet",
+      CROSS_MODEL_EFFORT_OVERRIDE: "medium",
+    })
+    let args = argv(sb)
+    expect(args[args.indexOf("--model") + 1]).toBe("sonnet")
+    expect(args).toContain("effort=medium")
+    let out = published(runDir, "whole-doc-claude-s1.json")
+    expect(out.model_requested).toBe("sonnet")
+    expect(out.effort_requested).toBe("medium")
+
+    sb = sandbox(["codex"], acpStream({ text: review({ findings: [] }) }))
+    runDir = makeRunDir()
+    run(seatArgs("claude", "codex", runDir), runDir, {
+      ...sb.env,
+      CROSS_MODEL_SEAT: "2",
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "codex",
+      CROSS_MODEL_MODEL_OVERRIDE: "gpt-seat-model",
+      CROSS_MODEL_EFFORT_OVERRIDE: "low",
+    })
+    args = argv(sb)
+    expect(args[args.indexOf("--model") + 1]).toBe("gpt-seat-model")
+    expect(args).toContain("reasoning_effort=low")
+    out = published(runDir, "whole-doc-codex-s2.json")
+    expect(out.model_requested).toBe("gpt-seat-model")
+    expect(out.effort_requested).toBe("low")
+  })
+
+  test("a seat effort on a cursor-agent route ends as a named skip with no artifact", () => {
+    const sb = sandbox(["cursor-agent"])
+    const runDir = makeRunDir()
+    const r = run(seatArgs("claude", "composer", runDir), runDir, {
+      ...sb.env,
+      CROSS_MODEL_SEAT: "1",
+      CROSS_MODEL_EFFORT_OVERRIDE: "high",
+    })
+    expect(r.code).toBe(0)
+    expect(seatOutputs(r.files)).toEqual([])
+    expect(r.stderr).toContain("effort override 'high' not compatible with route 'composer'; skipping")
     expect(calls(sb)).toBe(0)
   })
 })

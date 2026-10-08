@@ -11,6 +11,7 @@ setDefaultTimeout(30000)
 
 const repoRoot = path.join(import.meta.dir, "..", "..")
 const checkHealthScript = path.join(repoRoot, "skills", "ce-setup", "scripts", "check-health")
+const modelRoleResolver = path.join(repoRoot, "skills", "ce-setup", "scripts", "model-role-resolve.py")
 const configTemplate = path.join(repoRoot, "skills", "ce-setup", "references", "config-template.yaml")
 const configExample = path.join(repoRoot, ".compound-engineering", "config.example.yaml")
 const configDocs = path.join(repoRoot, "docs", "guides", "configuration.md")
@@ -158,6 +159,7 @@ describe("ce-setup check-health", () => {
 
     const keys = [...template.matchAll(/^# ([A-Za-z][A-Za-z0-9_]*):(?:\s|$)/gm)].map((match) => match[1])
     expect(keys.length).toBeGreaterThan(0)
+    expect(keys).toContain("model_roles")
     for (const key of keys) {
       expect(docs).toContain(`\`${key}\``)
     }
@@ -171,17 +173,57 @@ describe("ce-setup check-health", () => {
       "ce-brainstorm",
       "ce-code-review",
       "ce-commit-push-pr",
+      "ce-compound",
+      "ce-debug",
       "ce-doc-review",
       "ce-ideate",
       "ce-plan",
       "ce-product-pulse",
       "ce-promote",
+      "ce-simplify-code",
       "ce-sweep",
       "ce-work",
       "lfg",
     ]) {
       const consumerDocs = await readFile(path.join(repoRoot, "docs", "guides", `${consumer}.md`), "utf8")
       expect(consumerDocs).toContain("./configuration.md")
+    }
+  })
+
+  // The Model roles section is the example a developer uncomments, so its role
+  // lines must be a map the resolver accepts as written, one entry per role.
+  test("the template's model_roles example resolves cleanly once uncommented", async () => {
+    const template = await readFile(configTemplate, "utf8")
+    const example = template.match(/^# model_roles:\n(?:#   .*\n)+/m)?.[0] ?? ""
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-model-roles-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await writeFile(path.join(root, ".compound-engineering", "config.yaml"), example.replace(/^# /gm, ""))
+
+      const proc = Bun.spawn(["python3", modelRoleResolver, "--all"], {
+        cwd: root,
+        // The contributor's own allowlist must not decide a seat's blocked_by.
+        env: { ...isolatedGitEnv, CROSS_MODEL_PEERS: "" },
+        stderr: "ignore",
+        stdout: "pipe",
+      })
+      const [exitCode, stdout] = await Promise.all([proc.exited, new Response(proc.stdout).text()])
+      expect(exitCode).toBe(0)
+
+      const resolved = JSON.parse(stdout)
+      expect(resolved.errors).toEqual([])
+      expect(resolved.warnings).toEqual([])
+      expect(resolved.roles).toHaveLength(8)
+      for (const role of resolved.roles) {
+        expect({ role: role.role, from: role.effective.from }).toEqual({ role: role.role, from: "map" })
+        expect(role.warnings).toEqual([])
+        expect(role.errors).toEqual([])
+        expect(role.entries.filter((entry: { invalid?: boolean }) => entry.invalid)).toEqual([])
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true })
     }
   })
 
@@ -834,7 +876,10 @@ describe("ce-setup check-health", () => {
     ).join("\n")
     expect(skill).toContain("Set up a repo config file for this project?")
     expect(skill).toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`")
-    expect(skill).toContain("Do not create `config.local.yaml`")
+    // Scoped to Step 6 on purpose: the model role flow (references/model-roles-setup.md) may
+    // create the personal file, so the bare "Do not create `config.local.yaml`." is no longer true
+    // of setup as a whole. tests/skills/ce-setup-model-roles.test.ts rejects the unscoped line.
+    expect(skill).toContain("Do not create `config.local.yaml` in this step")
     expect(skill).toContain("offer to move it into `config.yaml`")
     expect(skill).not.toContain("Set up a local config file for this project?")
     expect(skill).not.toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`")

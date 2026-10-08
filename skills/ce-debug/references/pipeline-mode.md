@@ -42,7 +42,7 @@ Return each decision in the shared typed residual contract. Its `sources` enumer
 
 ## Structured return
 
-The return in pipeline mode is machine-readable (the caller parses it):
+The return in pipeline mode is machine-readable (the caller parses it). `model_role` is an optional key that no caller requires: it carries the `Model role debug:` line as a string.
 
 ```json
 {
@@ -51,6 +51,7 @@ The return in pipeline mode is machine-readable (the caller parses it):
   "root_cause": "<causal chain, brief>",
   "changed_files": ["..."],
   "head_sha": "<sha of the fix commit, when fixed-and-pushed or fixed-not-pushed>",
+  "model_role": "<the Model role debug: line; leave this key out when no model_roles entry governed the run>",
   "residuals": [
     {
       "type": "needs-human",
