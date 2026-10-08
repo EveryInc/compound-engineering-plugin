@@ -86,6 +86,11 @@ EXISTING_KEYS = {
 }
 STRUCTURED_KEYS = ("work_engine_preferences", "work_engine_effort")
 WORK_ENGINE_MODES = ("off", "prefer", "require")
+# An older key with a closed vocabulary: its consumer skips any other value and reads the next file.
+EXISTING_KEY_VALUES = {
+    "work_engine_mode": WORK_ENGINE_MODES,
+    "cross_model_peer": ("codex", "claude", "grok", "cursor", "composer", "opencode"),
+}
 REVIEW_MODES = ("auto", "off")
 
 # An id may end in one bracketed qualifier, such as a context-window variant: `opus[1m]`.
@@ -338,7 +343,7 @@ def _existing_keys(role: str, layers: list) -> list:
             source = next((s for s, parsed in layers if key in parsed["top"]), None)
             value = None
         else:
-            value, source = _ordinary_scalar(key, layers, WORK_ENGINE_MODES if key == "work_engine_mode" else None)
+            value, source = _ordinary_scalar(key, layers, EXISTING_KEY_VALUES.get(key))
         if source is not None:
             found.append({"key": key, "file": source, "value": value})
     return found
@@ -350,8 +355,12 @@ def _describe(result: dict, existing: list) -> dict:
     if result["state"] == "inherit":
         return {"from": "map", "value": "inherit"}
     if result["state"] == "entries":
-        seats = [e for e in result["entries"] if not e.get("invalid")]
-        return {"from": "map", "value": ", ".join(" ".join(filter(None, (e["model"], e["effort"]))) for e in seats)}
+        # An invalid seat stays visible, with the reason it does not run.
+        seats = (
+            f"{e['raw']} (invalid: {e['reason']})" if e.get("invalid") else " ".join(filter(None, (e["model"], e["effort"])))
+            for e in result["entries"]
+        )
+        return {"from": "map", "value": ", ".join(seats)}
     if existing:
         shown = (f"{k['key']}: {'(set)' if k['value'] is None else k['value']}" for k in existing)
         return {"from": "existing_key", "value": "; ".join(shown)}

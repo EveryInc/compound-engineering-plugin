@@ -396,6 +396,23 @@ describe("--all", () => {
     expect(doc.shadowed).toEqual(["cross_model_peer"])
     expect(byRole(all, "code-review").effective.from).toBe("existing_key")
   })
+
+  test("an older key is reported from the layer its consumer would use", () => {
+    // The review skills skip an unsupported `cross_model_peer` and read the next file.
+    const dir = makeProject("cross_model_peer: codex\n", "cross_model_peer: bogus\n")
+    const doc = byRole(run(dir, ["--all"]), "doc-review")
+    expect(doc.existing_keys).toEqual([{ key: "cross_model_peer", file: "team", value: "codex" }])
+    expect(doc.effective).toEqual({ from: "existing_key", value: "cross_model_peer: codex" })
+  })
+
+  test("an invalid review seat stays in the effective summary with its reason", () => {
+    const dir = makeProject(map("  doc-review: [opus impossible]\n  code-review: [sonnet, opus impossible]\n"))
+    const all = run(dir, ["--all"])
+    const doc = byRole(all, "doc-review")
+    expect(doc.effective.from).toBe("map")
+    expect(doc.effective.value).toContain("opus impossible (invalid: unknown effort `impossible`")
+    expect(byRole(all, "code-review").effective.value).toMatch(/^sonnet, opus impossible \(invalid: /)
+  })
 })
 
 describe("no config to read", () => {
