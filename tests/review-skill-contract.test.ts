@@ -662,7 +662,7 @@ describe("ce-code-review contract", () => {
     // The run-artifact list moved to finish-input.md (plan 2026-09-15-1322, U3).
     expect(handoff).toMatch(/- `finish-input\.json`/)
     // The contract file names every field the finish context may need and the failure direction.
-    for (const field of ["run_id", "skill_dir", "docs_root", "apply_local", "raw-returns.json", "failed_reviewers", "preference_source", "coverage_notes"]) {
+    for (const field of ["run_id", "skill_dir", "project_root", "docs_root", "apply_local", "raw-returns.json", "failed_reviewers", "preference_source", "coverage_notes"]) {
       expect(handoff).toContain(field)
     }
     expect(handoff).toMatch(/emit the report leaf's return verbatim/i)
@@ -701,6 +701,37 @@ describe("ce-code-review contract", () => {
     expect(handoff).toMatch(/step 5 decides which stay as unresolved gates/)
     expect(handoff).toMatch(/still count toward the Stage 6 verdict/)
     expect(handoff).not.toMatch(/drop and validation-degraded rules/)
+  })
+
+  test("finish handoff binds fresh consumers to a checkout and frozen local state", async () => {
+    const handoff = await readRepoFile("skills/ce-code-review/references/finish-input.md")
+    const scope = await readRepoFile("skills/ce-code-review/references/scope.md")
+    const validator = await readRepoFile("skills/ce-code-review/references/validator-batch-template.md")
+    const example = handoff.match(/```json\n([\s\S]*?)\n```/)
+    expect(example).not.toBeNull()
+    const packet = JSON.parse(example![1]!)
+
+    // Same branch and HEAD can name different staged trees. The JSON carrier,
+    // not neighboring prose mentioning a root, must supply the binding.
+    expect(packet.project_root).toEqual(expect.any(String))
+    expect(Object.keys(packet.scope.local_state).sort()).toEqual([
+      "index_sha256", "worktree_diff_sha256",
+    ])
+    expect(packet.scope.local_state.index_sha256).toContain("git ls-files --stage -z")
+    expect(packet.scope.local_state.worktree_diff_sha256).toContain(
+      "git diff --binary --full-index --no-ext-diff --no-textconv HEAD --",
+    )
+    expect(handoff).toContain("validator-input.json.project_root")
+    // The snapshot is needed before the review starts, not when finish first
+    // consumes it. Pin the required read ahead of the first diff-producing path.
+    const capture = scope.indexOf('Before collecting that diff, read "Bind the checkout before inspection"')
+    expect(capture).toBeGreaterThanOrEqual(0)
+    expect(capture).toBeLessThan(scope.indexOf("**If `base:` argument"))
+    expect(scope.slice(capture, scope.indexOf("**If `base:` argument"))).toContain("references/finish-input.md")
+    expect(handoff).toMatch(/scope\.local_state` to null/)
+    expect(validator).toContain("{finish_input_reference}")
+    expect(validator).toMatch(/absolute path to `references\/finish-input\.md`/)
+    expect(validator).toMatch(/scope context carries `project_root` and the captured `scope` verbatim/)
   })
 
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
