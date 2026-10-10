@@ -6,7 +6,7 @@ argument-hint: "[mode:author|edit|detect] [text, file path, or nothing]"
 
 # Write without slop
 
-Prose that carries no AI tells and that a reader understands on the first read, with every fact the source stated still there. Both goals hold at once: text that is free of tells but still dense has failed, and text that is plain but drops a qualifier has failed.
+Prose that carries no AI tells and that a reader understands on the first read, with every fact the source stated still there. Both goals hold at once: text that is free of tells but still dense has failed, and text that is plain but changes how certain a claim is has failed.
 
 **Done:** the mode's output is returned, every fact, number, name, quote, and citation in the input survives, and nothing was added that the source or the caller did not supply.
 

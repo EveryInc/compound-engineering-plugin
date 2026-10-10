@@ -1,0 +1,1 @@
+The new scheduler serves as a key enabler for the platform team. It can help reduce queue delays during peak hours, and it typically keeps p95 wait time under 2 seconds, which is a testament to the team's tireless work. Moreover, it might allow us to retire the legacy cron host next quarter.
