@@ -1075,7 +1075,7 @@ describe("ce-code-review contract", () => {
 
     expect(content).toMatch(/Soft-bucket demotion/i)
     expect(content).toMatch(/single-reviewer P2\/P3 advisory from `testing`/)
-    expect(content).toMatch(/from `maintainability`, `reliability`, or an adversarial reviewer/)
+    expect(content).toMatch(/from `maintainability`, `simplification`, `reliability`, or an adversarial reviewer/)
     expect(content).toMatch(/Inspect both surviving `findings` and `suppressed_findings`/)
 
     // Route demoted findings to soft buckets
@@ -1104,6 +1104,7 @@ describe("ce-code-review contract", () => {
       "correctness-reviewer",
       "testing-reviewer",
       "maintainability-reviewer",
+      "simplification-reviewer",
       "project-standards-reviewer",
       "security-reviewer",
       "performance-reviewer",
@@ -1192,6 +1193,7 @@ describe("ce-code-review contract", () => {
       "correctness-reviewer",
       "testing-reviewer",
       "maintainability-reviewer",
+      "simplification-reviewer",
       "project-standards-reviewer",
       "security-reviewer",
       "performance-reviewer",
