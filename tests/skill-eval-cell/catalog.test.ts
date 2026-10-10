@@ -323,6 +323,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-noslop/dense-paragraph-keeps-every-claim",
       "ce-noslop/detect-names-patterns-without-rewrite",
       "ce-noslop/facts-survive-the-edit",
+      "ce-noslop/fixes-leave-full-sentences",
       "ce-noslop/non-english-runs-tests-only",
       "ce-noslop/protected-spans-stay-byte-identical",
       "ce-noslop/two-devices-stay-unchanged",

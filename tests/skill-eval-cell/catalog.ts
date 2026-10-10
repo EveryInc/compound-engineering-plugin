@@ -100,6 +100,8 @@ export type Grade = {
   must_not_include?: string[]
   /** Text that must be absent from the answer's RESULT-START/RESULT-END block. The run fails when it returned no such block. */
   result_must_not_include?: string[]
+  /** Text that must appear inside the answer's RESULT-START/RESULT-END block, so a summary line that names a kept phrase cannot satisfy it. The run fails when it returned no such block. */
+  result_must_include?: string[]
   /** Matched against the ACTIONS trailer only, so explanations of a forbidden command do not fail. */
   must_exclude?: string[]
   actions?: "none" | "any"
@@ -481,12 +483,12 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
-    baseline_ref: NOSLOP_FIX_LIMITS_BASE_REF,
+    post_only: true,
     fixture: `${FIX}/noslop-drafts`,
-    why: "Removing dashes and fragments can reroute dashes into semicolons or leave a fragment stack. The fixed text must have neither.",
+    why: "Removing dashes and fragments can reroute dashes into semicolons or leave a fragment stack. The fixed text must have neither. Post-only: the semicolon rule is new in rule 29.",
     pre_contract: "Em dashes become a period or a comma, or the sentence is split; dramatic fragments are rewritten as sentences.",
     task: "Use the ce-noslop skill to edit choppy.md for a repo document. Return the full result text in chat between the markers RESULT-START and RESULT-END, then the one-line summary. Do not write files.",
-    grade: { workspace_read: ["choppy.md"], must_include: ["6 minutes", "2 million", "quarantine"], result_must_not_include: ["\u2014", ";", "Fast. Predictable."], actions: "none" },
+    grade: { workspace_read: ["choppy.md"], result_must_include: ["6 minutes", "2 million", "quarantine"], result_must_not_include: ["\u2014", ";", "Fast. Predictable."], actions: "none" },
   },
   {
     id: "ce-noslop/edit-keeps-claim-certainty",
@@ -499,7 +501,7 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     why: "Plainer wording tends to firm up hedged claims. \"can help reduce\", \"typically\", and \"might\" must keep their strength after the puffery goes.",
     pre_contract: "Every fact survives; text that is plain but drops a qualifier has failed.",
     task: "Use the ce-noslop skill to edit certainty.md for a repo document. Return the full result text in chat between the markers RESULT-START and RESULT-END, then the one-line summary. Do not write files.",
-    grade: { workspace_read: ["certainty.md"], must_include: ["2 seconds", "p95"], result_must_not_include: ["testament", "tireless", "Moreover", "will let us retire", "will allow us"], actions: "none" },
+    grade: { workspace_read: ["certainty.md"], result_must_include: ["can help", "typically", "might", "2 seconds", "p95"], result_must_not_include: ["testament", "tireless", "Moreover", "will let us retire", "will allow us"], actions: "none" },
   },
   {
     id: "ce-noslop/long-release-note-keeps-hedged-opinion",
@@ -512,7 +514,7 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     why: "A longer draft mixes puffery with hedged claims. A prose rule telling edit mode to cut unsupported claims made Claude drop the attributed opinion \"We think this is the most significant improvement since 3.0\" in 2 of 2 runs; the opinion and every hedged number must survive.",
     pre_contract: "Every fact survives; nothing is added; text that is plain but drops a qualifier has failed.",
     task: "Use the ce-noslop skill to edit release-notes.md, which goes in our repo's docs. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
-    grade: { workspace_read: ["release-notes.md"], must_include: ["3.0", "40 percent", "500", "7 days", "Q1", "renamed folders"], result_must_not_include: ["\u2014", ";", "eliminate", "Simple. Reliable."], actions: "none" },
+    grade: { workspace_read: ["release-notes.md"], result_must_include: ["most significant", "3.0", "up to 40 percent", "should see bigger gains", "may still slip through", "500", "7 days", "Q1"], result_must_not_include: ["eliminate", "Simple. Reliable."], actions: "none" },
   },
   {
     id: "ce-noslop/long-status-update-keeps-hedges",
@@ -525,7 +527,7 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     why: "A status update whose value is its uncertainty. Filler hedges go, but the real ones (likely, not confirmed in production) and the rollback threshold stay.",
     pre_contract: "Every fact survives; text that is plain but drops a qualifier has failed; one hedge only where the uncertainty is real.",
     task: "Use the ce-noslop skill to clean up status-update.md. It's my update to the team before I post it in Slack. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
-    grade: { workspace_read: ["status-update.md"], must_include: ["likely", "48 of 50", "120", "600 ms", "70 percent", "haven't confirmed"], result_must_not_include: ["It's important to note", "could potentially", ";"], actions: "none" },
+    grade: { workspace_read: ["status-update.md"], result_must_include: ["likely", "seems to account", "haven't ruled out", "should hold up", "haven't confirmed", "48 of 50", "120", "600 ms", "70 percent"], result_must_not_include: ["It's important to note", "could potentially"], actions: "none" },
   },
   {
     id: "ce-noslop/detect-names-patterns-without-rewrite",
