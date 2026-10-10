@@ -501,6 +501,28 @@ describe("skill-eval-cell host grade", () => {
     expect(g.ok).toBe(true)
   })
 
+  test("result_must_include fails when only the summary line keeps the phrase", () => {
+    const dir = hostDir({
+      "stdout.txt": [
+        "RESULT-START",
+        "The scheduler keeps p95 wait time under 2 seconds.",
+        "RESULT-END",
+        "Kept \"typically\" unchanged.",
+        "FILES_READ: certainty.md",
+        "ACTIONS: none",
+        "",
+      ].join("\n"),
+    })
+    const g = gradeHost({
+      host: "claude",
+      hostDir: dir,
+      arm: "post",
+      grade: { result_must_include: ["typically", "2 seconds"], actions: "none" },
+    })
+    expect(g.ok).toBe(false)
+    expect(g.reasons).toEqual(["missing from RESULT block: typically"])
+  })
+
   test("result_must_not_include reads the marker lines, not a later mention of the markers", () => {
     const dir = hostDir({
       "stdout.txt": [

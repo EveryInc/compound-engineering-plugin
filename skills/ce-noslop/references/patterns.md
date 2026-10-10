@@ -43,7 +43,7 @@ Rule numbers are stable ids. A removed rule leaves a gap; never renumber. Each r
 
 ## Formatting
 
-29. **Em dash as a rhythm crutch.** Several per paragraph, or a formulaic "this isn't X — it's Y". Use a period or a comma, or split the sentence. Leave dashes alone in code, ranges, and tables.
+29. **Em dash as a rhythm crutch.** Several per paragraph, or a formulaic "this isn't X — it's Y". Use a period or a comma, or split the sentence. A semicolon is not a substitute. Leave dashes alone in code, ranges, and tables.
 30. **Bold label that restates its line.** "**Performance:** performance improved." Convert to prose. Keep a bold lead-in only when the sentence after it says something the label did not.
 31. **Bold sprinkled for emphasis**, every proper noun or acronym bolded. Bold only what the reader must find.
 32. **Title Case headings.** Sentence case.

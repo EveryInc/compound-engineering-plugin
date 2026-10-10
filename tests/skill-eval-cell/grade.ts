@@ -307,12 +307,15 @@ export function gradeHost(opts: {
       reasons.push(`missing required text (any of): ${options.join(" | ")}`)
     }
   }
-  if (opts.grade.result_must_not_include?.length) {
-    const block = resultBlock(stdout)
+  if (opts.grade.result_must_not_include?.length || opts.grade.result_must_include?.length) {
+    const block = resultBlock(stdout)?.toLowerCase() ?? null
     if (block === null) reasons.push("missing RESULT-START/RESULT-END block")
-    else for (const needle of opts.grade.result_must_not_include) {
-      if (block.toLowerCase().includes(needle.toLowerCase())) {
-        reasons.push(`source phrase survived in RESULT block: ${needle}`)
+    else {
+      for (const needle of opts.grade.result_must_not_include ?? []) {
+        if (block.includes(needle.toLowerCase())) reasons.push(`source phrase survived in RESULT block: ${needle}`)
+      }
+      for (const needle of opts.grade.result_must_include ?? []) {
+        if (!block.includes(needle.toLowerCase())) reasons.push(`missing from RESULT block: ${needle}`)
       }
     }
   }
