@@ -105,6 +105,18 @@ function emittedTrajectoryKeys(script: string): string[] {
 }
 
 describe("ce-babysit-pr cross-skill contract parity", () => {
+  test("ce-debug pipeline resolves the commit format from project conventions", async () => {
+    const producer = await readRepoFile(CEDEBUG_PIPELINE)
+    const projectConventions = producer.indexOf("project's commit message conventions already in context")
+    const recentLog = producer.indexOf("recent log pattern")
+    const conventionalCommits = producer.indexOf("conventional commits")
+    expect(projectConventions).toBeGreaterThan(-1)
+    expect(recentLog).toBeGreaterThan(projectConventions)
+    expect(conventionalCommits).toBeGreaterThan(recentLog)
+    expect(producer).toContain("User override wins.")
+    expect(producer).not.toContain("Commit the fix (`fix(ci): <summary>` for a CI failure, else `fix: <summary>`)")
+  })
+
   test("ce-debug pipeline return-status enum agrees between producer and babysit consumer", async () => {
     const [producer, consumer] = await Promise.all([readRepoFile(CEDEBUG_PIPELINE), readBabysit()])
     for (const status of CEDEBUG_STATUS) {
