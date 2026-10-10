@@ -113,6 +113,14 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
     expect(debugReturn).toMatch(/never pushes and never asks/)
     expect(debugReturn).toMatch(/Branch\*\* rule in Phase 3 applies in full/)
     expect(debugReturn).toContain("mode:pipeline")
+    const projectConventions = debugReturn.indexOf("project's commit message conventions already in context")
+    const recentLog = debugReturn.indexOf("recent log pattern")
+    const conventionalCommits = debugReturn.indexOf("conventional commits")
+    expect(projectConventions).toBeGreaterThan(-1)
+    expect(recentLog).toBeGreaterThan(projectConventions)
+    expect(conventionalCommits).toBeGreaterThan(recentLog)
+    expect(debugReturn).toContain("User override wins.")
+    expect(debugReturn).toContain("conventional commits (`fix: <summary>` for this bug)")
   })
 
   test("both ends name the same statuses and return fields", () => {
