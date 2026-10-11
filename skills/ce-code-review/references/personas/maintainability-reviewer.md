@@ -21,7 +21,7 @@ Where a check below carries a canonical name from the design literature (Ousterh
 ### Classic maintainability
 
 - **Premature abstraction** (Fowler: *Speculative Generality*) — interfaces with one implementor, factories for a single type, extension points with zero consumers.
-- **Unrequested surface** — new public endpoints, flags, config keys, parameters, or exports that neither the intent summary nor the plan calls for. Surface the plan requests is not a finding. The fix names what to remove.
+- **Unrequested surface** — new public endpoints, flags, config keys, parameters, or exports that the stated intent rules out or that fall outside the narrower scope it clearly defines. A brief intent that does not mention the surface is not evidence it was unrequested. The fix names what to remove.
 - **Dependency for a few lines** — a package added in the manifest diff where the standard library, the platform, or an existing repo helper already does the job. The fix names the replacement function or helper path.
 - **Unnecessary indirection** — more than two delegation hops to reach logic; base classes with a single subclass used once.
 - **Dead or unreachable code** — commented-out code, unused exports, unreachable branches, compatibility shims for unreleased paths.
