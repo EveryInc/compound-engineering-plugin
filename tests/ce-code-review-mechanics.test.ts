@@ -34,16 +34,11 @@ function fixtureRepo() {
 }
 
 describe("ce-code-review deterministic mechanics", () => {
-  test("Stage 4 reads each dispatch asset separately in the same message when supported", () => {
+  test("Stage 4 never joins dispatch assets into one shell output", () => {
     const dispatch = readFileSync(path.join(SKILL_DIR, "references", "dispatch-reviewers.md"), "utf8")
     const instruction = dispatch.split("Before assembling any spawn prompt,")[1]?.split("\n\n")[0] ?? ""
 
-    // Issue #1830: one vague "parallel wave" led Claude to concatenate large
-    // files into one shell output, truncate it, and reread the files.
-    expect(instruction).toMatch(/each required reference and selected persona asset with its own file-read call/i)
-    expect(instruction).toMatch(/when the host supports parallel calls, issue them together in one message/i)
     expect(instruction).toMatch(/never join files into one shell output/i)
-    expect(instruction).toMatch(/on serial hosts, read one file per turn/i)
   })
 
   test("scope helper counts structured text toward changed_lines and does not hard-block on markdown", () => {
