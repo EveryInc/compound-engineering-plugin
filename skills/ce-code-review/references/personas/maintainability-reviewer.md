@@ -21,6 +21,8 @@ Where a check below carries a canonical name from the design literature (Ousterh
 ### Classic maintainability
 
 - **Premature abstraction** (Fowler: *Speculative Generality*) — interfaces with one implementor, factories for a single type, extension points with zero consumers.
+- **Unrequested surface** — new public endpoints, flags, config keys, parameters, or exports that neither the intent summary nor the plan calls for. Surface the plan requests is not a finding. The fix names what to remove.
+- **Dependency for a few lines** — a package added in the manifest diff where the standard library, the platform, or an existing repo helper already does the job. The fix names the replacement function or helper path.
 - **Unnecessary indirection** — more than two delegation hops to reach logic; base classes with a single subclass used once.
 - **Dead or unreachable code** — commented-out code, unused exports, unreachable branches, compatibility shims for unreleased paths.
 - **Coupling between unrelated modules** — circular dependencies, shared mutable state, imports of another module's internals.
@@ -54,7 +56,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 
 **Anchor 100** — mechanical: dead code on an unreachable branch; explicit `any` or `@ts-ignore` in new code; file line count crosses 1k in the diff; duplicate helper next to an existing canonical function you can name.
 
-**Anchor 75** — objectively visible in the diff: new wrapper with no added behavior; special-case branch in a busy shared function; refactor that adds indirection without reducing concepts; type cast bypassing a check you can point to; a data-locality smell where you can quote every occurrence of the repeated or misplaced shape.
+**Anchor 75** — objectively visible in the diff: new wrapper with no added behavior; special-case branch in a busy shared function; refactor that adds indirection without reducing concepts; type cast bypassing a check you can point to; a new dependency whose standard-library or in-repo replacement you can name; a data-locality smell where you can quote every occurrence of the repeated or misplaced shape.
 
 **Anchor 50** — judgment-based naming, boundary placement, or whether extraction helped — **suppress unless severity is P0** (the synthesis rules still report a critical structural regression you could not fully verify as P0 at anchor 50).
 
