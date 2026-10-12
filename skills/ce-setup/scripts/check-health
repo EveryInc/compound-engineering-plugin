@@ -21,7 +21,7 @@ deps=(
 # adapters below. The version must match ACPX_VERSION in the peer workers; the
 # adapter specs are the ranges that acpx version launches. One line each: the
 # pin-bump canary rewrites them in place.
-ACPX_VERSION="0.19.4"
+ACPX_VERSION="0.19.5"
 ACPX_ADAPTER_SPECS="@agentclientprotocol/codex-acp@^1.1.5 @agentclientprotocol/claude-agent-acp@^0.81.2"
 
 # =====================================================
