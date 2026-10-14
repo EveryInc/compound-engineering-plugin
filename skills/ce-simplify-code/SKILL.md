@@ -8,7 +8,7 @@ Simplify code for clarity, reuse, quality, and efficiency, and prune tests and c
 
 ## Mode
 
-Strip a `mode:pipeline` token and any `proof-test:<path>` token from the input before reading the rest as the scope. The proof-test path is context for Step 3, never scope.
+Strip a `mode:pipeline` token and every `proof-test:<path>` token from the input before reading the rest as the scope. The proof-test path is context for Step 3, never scope; a caller may pass several.
 
 - **Pipeline** when `mode:pipeline` is present, or when no one asked for this run in their own current message: a step of another skill, or a run the agent starts itself, such as at a completion boundary. Work only on the current work, apply fixes without asking or waiting, and return the Step 5 summary to the caller. That summary is for the caller's record; never paste it into a commit, PR body, or other artifact.
 - **Standalone** when the user's own current message asked for this run. Their request sets the scope and focus. Report findings before editing anything, unless the request says to just fix them. Read `references/standalone-report.md` now, and again before applying any reported finding.
@@ -49,7 +49,7 @@ Read `references/reviewer-dispatch.md` before dispatching; it covers a full harn
 
 ## Step 3: Fix issues
 
-Proceed only after every review outcome is complete, whether returned by subagents or produced inline. In standalone mode without an instruction to fix, report and stop here. Otherwise apply worthwhile findings directly; record false positives and low-value findings as skipped without asking the user.
+Proceed only after every review outcome is complete, whether returned by subagents or produced inline. In standalone mode, unless the request says to just fix them, report and stop here. Otherwise apply worthwhile findings directly; record false positives and low-value findings as skipped without asking the user.
 
 Inspect beyond the resolved scope when needed to evaluate a finding, but edit only that scope and the import/export lines it needs. For a user-named file or directory scope, those import/export lines must also be inside it; skip any fix that would edit outside the mutation boundary.
 
@@ -59,7 +59,7 @@ An interface or data shape that existed only in an earlier iteration of the curr
 
 **Never simplify away a safety check.** Preserve trust-boundary validation, data-loss protection, security checks, and accessibility affordances. Skip any finding that would thin or remove one.
 
-**Protect the proof test.** In pipeline mode, the test the current work used to prove its fix stays exactly as it is: the `proof-test:` path, else the test the session saw fail before the fix. Skip any finding from any reviewer that would delete, weaken, rename, move, merge, or rewrite it, or change code it calls. When you cannot tell which test that is, delete or rewrite none of the tests the current work added.
+**Protect the proof tests.** In pipeline mode, each test the current work used to prove its fix stays exactly as it is: every `proof-test:` path, else the tests the session saw fail before the fix. Skip any finding from any reviewer that would delete, weaken, rename, move, merge, or rewrite one, or remove or rename the test-only code it calls. Behavior-preserving changes to the production code it exercises still apply. When you cannot tell which tests those are, delete or rewrite none of the tests the current work added or changed.
 
 **Honor caller-passed structure pins.** A plan path passed with the structure-pin constraint is context, not scope. Preserve its `session-settled:` Key Technical Decisions, including deliberate duplication or separation.
 

@@ -22,7 +22,7 @@ This is not `ce-polish` (live UX on a working page), not `ce-code-review` (deepe
 
 ## Two modes
 
-**When another skill runs it** (`ce-work`, `lfg`, `ce-debug`'s fix handoff) or the agent runs it at a completion boundary, it works only on the current work, applies fixes without asking, and returns a summary. It prunes only tests and comments the current work added or changed; older ones in the same files stay. It never touches the test that proves the fix. Callers mark these runs with `mode:pipeline` and name that test with `proof-test:<path>`.
+**When another skill runs it** (`ce-work`, `lfg`, `ce-debug`'s fix handoff) or the agent runs it at a completion boundary, it works only on the current work, applies fixes without asking, and returns a summary. It prunes only tests and comments the current work added or changed, plus older tests the change made redundant; other older ones in the same files stay. It never touches the test that proves the fix. Callers mark these runs with `mode:pipeline` and name that test with `proof-test:<path>`.
 
 **When you run it yourself**, your request sets the scope, from your recent changes to the whole repo. It reports numbered findings grouped as delete, refactor, or encode as a test, and changes nothing until you say which to apply. Say "just fix them" or "without asking" to skip the report.
 
@@ -84,11 +84,11 @@ Safety checks stay. The skill will not remove trust-boundary validation, data-lo
 
 ## Worked example
 
-You have been writing a notification-mute feature. Before the PR you run `/ce-simplify-code`. It takes the branch diff vs `origin/main` and runs the three reviews.
+You have been writing a notification-mute feature. Before the PR you run `/ce-simplify-code`. It takes the branch diff vs `origin/main` and runs the focused reviews.
 
 Reuse finds that `formatDuration` near-duplicates `lib/utils/formatTime.ts`, path handling should use `path.join`, and a custom env check should use `isProduction()`. Quality finds string compares against `"active"` / `"paused"` where `SubscriptionStatus` already exists, a nested ternary that early-returns cleanly, and an unused export. The comment review deletes a comment restating the function name and turns a comment explaining a confusing flag into a rename. The test review finds a test whose mock returns the value it asserts and deletes it, since another test covers the same behavior through the real code. Efficiency finds two API calls in one handler that can run together and a polling loop that writes the same state every tick.
 
-The skill applies the fixes, skips one Quality finding as a false positive, and typecheck, lint, and scoped tests pass. The summary lists what was good, what changed, and which checks ran.
+Because you started the run yourself, it reports these as numbered findings and changes nothing. You reply "apply all"; it re-checks each finding against the current code, applies them, skips one Quality finding as a false positive, and typecheck, lint, and scoped tests pass. The summary lists what was good, what changed, and which checks ran.
 
 ---
 

@@ -74,7 +74,7 @@ The user tried two outside approaches that work well: a private test-audit workf
   - any comment a tool, compiler, or runtime reads
   - comments the project's written coding standards explicitly require for that kind of code (doubt about whether a standard applies still deletes the comment)
 - R15. When a comment explains a surprise in our own code, the code is reshaped (rename, extract, type, restructure) and then the comment is deleted. A comment that fails the keep list is never reworded or shortened in place of deletion. When the reshape is out of scope or would change behavior, the comment is deleted and the reshape is reported as open work.
-- R16. When a comment states a live constraint that nothing enforces and R14 does not already keep it:
+- R16. When a comment states a rule the code must keep, one a later change could silently break, that nothing enforces and R14 does not already keep:
   - in pipeline mode, the constraint is encoded as an assertion in a test file inside the scope and the comment is deleted; when that is not possible, the comment stays and the summary names it
   - in standalone mode, the encoding is a finding in the report
 
@@ -158,7 +158,7 @@ Comment decision, per comment in scope:
 | On the keep list (R14) | Keep | Keep |
 | Read by a tool, compiler, or runtime | Keep | Keep |
 | A surprise in our own code | Reshape in scope, then delete; else delete and report the reshape | Refactor finding |
-| A live constraint nothing enforces | Encode in an in-scope test, then delete; else keep and note | Encode-as-test finding |
+| A rule a later change could silently break, that nothing enforces | Encode in an in-scope test, then delete; else keep and note | Encode-as-test finding |
 | Anything else, or unsure | Delete | Delete finding |
 
 ### Assumptions
@@ -274,7 +274,7 @@ Comment decision, per comment in scope:
      - a doc comment on a public API (keep list)
      - a comment the fixture's standards file requires (keep list)
      - a surprise comment in our own code that a small rename or extract can replace
-     - a live constraint comment that nothing enforces, with a test file in scope (encode, then delete)
+     - a comment stating a rule a later change could silently break, that nothing enforces, with a test file in scope (encode, then delete)
      - a mock-supplied-result test, plus the test-only export it alone uses
      - a duplicate of another test at a different layer
      - a source-inspection test guarding a user-facing key or path (never pruned)
@@ -286,7 +286,7 @@ Comment decision, per comment in scope:
   5. **Grading.** Survival and removal are graded from the markers against the matrix. Report content is graded by an independent grader that sees anonymized output and the matrix, never the skill text: numbered findings, grouping, evidence present, git tree clean before apply. Each scenario also runs against the pre-change skill as the baseline.
 - **Execution note:** Run every scenario on Claude, Codex, and Grok, pre and post. Run the pipeline scenarios at least three times per host, since every ce-work and lfg run goes through them.
 - **Test scenarios:**
-  - **Pipeline via a calling skill (`mode:pipeline`):** removes the current work's restating comment, mock-supplied-result test with its export, and duplicate test. Encodes the current work's live constraint and deletes its comment. Reshapes the surprise comment. Leaves every pre-existing item in touched files exactly as it was. Keeps the proof test and its seam unchanged.
+  - **Pipeline via a calling skill (`mode:pipeline`):** removes the current work's restating comment, mock-supplied-result test with its export, and duplicate test. Encodes the current work's unenforced rule and deletes its comment. Reshapes the surprise comment. Leaves every pre-existing item in touched files exactly as it was. Keeps the proof test and its seam unchanged.
   - **Pipeline via lfg** whose original user message was "clean up the tests in src/": same outcome as above, with no report and no wait.
   - **Pipeline via the agent's own completion-boundary run** with no token: same outcome as above.
   - **Standalone, bare `/ce-simplify-code`:** git tree clean; numbered report covering the current work's items only.

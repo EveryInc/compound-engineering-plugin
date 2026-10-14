@@ -35,7 +35,7 @@ Fire when a unit of work has *settled* ("when you finish a coherent unit of work
 
 ## Offer-first is not the safe one
 
-When a skill is safe by construction (behavior-preserving, refuses to weaken tests or types, verifies before finishing, lands edits on a branch the user reviews before commit), auto-run is not the reckless option and offer-first is not the safe one. Present them as peer variants and frame the choice as *interruption preference, not risk*. Reflexively stamping offer-first "recommended" over-weights a risk the skill design already handles.
+When a skill is safe by construction (behavior-preserving, never weakens tests or types to get green and removes a test only when it names the remaining test that covers it, verifies before finishing, lands edits on a branch the user reviews before commit), auto-run is not the reckless option and offer-first is not the safe one. Present them as peer variants and frame the choice as *interruption preference, not risk*. Reflexively stamping offer-first "recommended" over-weights a risk the skill design already handles.
 
 ## Cross-harness phrasing rules
 

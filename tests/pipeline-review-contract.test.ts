@@ -1314,7 +1314,7 @@ describe("ce-simplify-code pipeline callers", () => {
     const skill = await readRepoFile("skills/ce-simplify-code/SKILL.md")
     expect(skill).toContain("mode:pipeline")
     expect(skill).toContain("proof-test:<path>")
-    expect(skill).toContain("The proof-test path is context for Step 3, never scope.")
+    expect(skill).toContain("The proof-test path is context for Step 3, never scope")
   })
 })
 
