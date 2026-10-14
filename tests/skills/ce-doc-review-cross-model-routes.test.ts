@@ -309,6 +309,18 @@ describe("cross-model-doc-review route safety (R17)", () => {
     expect(args[args.indexOf("--file") + 1].startsWith(cwd)).toBe(false)
   })
 
+  test("the peer prompt says the document is embedded so a peer never reads it from disk", () => {
+    const sb = sandbox(["opencode"])
+    const runDir = makeRunDir()
+    const r = run(["claude", "opencode", "adversarial", makeDoc("# embedded body\n"), "plan", "none", runDir], runDir, sb.env)
+    expect(r.files).toContain("adversarial-opencode.json")
+    const sent = readFileSync(`${sb.logs.prompt}.1`, "utf8")
+    expect(sent).toContain("Do not call tools or read files")
+    expect(sent.indexOf("Do not call tools or read files")).toBeLessThan(sent.indexOf("Document content:"))
+    expect(sent).toContain("# embedded body")
+    expect(sent).not.toContain(path.dirname(sb.logs.prompt))
+  })
+
   test("opencode launches with project config disabled and edits and web denied, in plan mode", () => {
     const sb = sandbox(["opencode"])
     const runDir = makeRunDir()

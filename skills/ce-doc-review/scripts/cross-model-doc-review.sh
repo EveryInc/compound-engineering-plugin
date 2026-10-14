@@ -620,6 +620,10 @@ DOC_BASENAME="$(basename "$DOC_PATH")"
   # to, so the peer calibrates like its in-process twin.
   [ -n "$OUTPUT_CONTRACT_RULES" ] && printf '%s\n\n' "$OUTPUT_CONTRACT_RULES"
   printf 'This is an authorized document review of the maintainer\047s own repository.\n'
+  # The whole document is embedded below. Say so, so a peer never goes looking for the
+  # prompt or the document on disk: a read outside its workspace is a permission
+  # request that is denied, and a peer that stops to explain the denial returns no JSON.
+  printf 'The complete document is embedded below under "Document content". Do not call tools or read files; if any read is denied, ignore it and answer from the embedded text.\n'
   printf 'Return ONE JSON object and nothing else (no prose, no code fence) matching this schema:\n\n'
   printf '%s' "$SCHEMA_CONTENT"
   printf '\n\nSet the top-level "reviewer" field to "%s" (it will be namespaced to the peer provider on fold-in).\n' "$REVIEWER_NAME"
