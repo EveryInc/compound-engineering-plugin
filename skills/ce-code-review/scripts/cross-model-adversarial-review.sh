@@ -49,6 +49,13 @@
 # output file. The cross-model pass is additive and must never fail the review;
 # the caller detects success purely by the presence of the output file(s).
 #
+# OPT-IN STRICT MODE: CROSS_MODEL_REQUIRE_PEER=true (config key
+# cross_model_require_peer) inverts that for one case. When no artifact is
+# published (no different-provider peer reachable, or the peer returned nothing
+# usable), the script prints an error naming the lens and the reason and exits 3
+# instead of 0, so the review cannot look cross-model when only one family ran.
+# Unset or any other value keeps the non-blocking behavior above.
+#
 # DATA-EGRESS NOTE: the peer reviews the work tree / diff and sends that content
 # to an external model provider. The log lines below record every send so the
 # egress is auditable even in mode:agent.
@@ -67,8 +74,28 @@ PY_BIN=""
 LARGE_DIFF_MODE=false
 PEER_MAX_TURNS="${PEER_MAX_TURNS:-25}"
 
-log()  { printf '[cross-model] %s\n' "$*" >&2; }
+LAST_LOG=""; SKIP_REASON=""
+log()  {
+  printf '[cross-model] %s\n' "$*" >&2
+  LAST_LOG="$*"
+  case "$*" in *skipping*|*skipped*) SKIP_REASON="$*" ;; esac
+}
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
+
+# Opt-in strict mode (see header). PEER_ARTIFACT_WRITTEN flips once a normalized
+# artifact is published; the EXIT trap turns an otherwise clean exit with no
+# artifact into exit 3. Diagnostic modes (--emit-adapter, CROSS_MODEL_DRY_RUN)
+# clear REQUIRE_PEER because they never run a peer.
+REQUIRE_PEER="${CROSS_MODEL_REQUIRE_PEER:-false}"
+PEER_ARTIFACT_WRITTEN=false
+require_peer_check() {
+  local rc="${1:-0}"
+  if [ "$REQUIRE_PEER" = true ] && [ "$PEER_ARTIFACT_WRITTEN" != true ] && [ "$rc" -eq 0 ]; then
+    log "CROSS_MODEL_REQUIRE_PEER=true: lens 'adversarial' got no artifact from any different-provider peer: ${SKIP_REASON:-${LAST_LOG:-no peer ran}}"
+    exit 3
+  fi
+}
+trap 'require_peer_check $?' EXIT
 
 TRANSIENT_RETRY_DELAY_SECS="${CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS:-5}"
 case "$TRANSIENT_RETRY_DELAY_SECS" in ''|*[!0-9]*) skip "transient retry delay must be an integer from 0 to 60; skipping" ;; esac
@@ -418,6 +445,7 @@ validate_effort_override() {
 
 # --- --emit-adapter <route>: print the argv, no model call, no side effects --
 if [ "${1:-}" = "--emit-adapter" ]; then
+  REQUIRE_PEER=false
   PEER_WORKDIR="<repo-root>"
   PROMPT_FILE="<prompt-file>"; MCP_CONFIG="<mcp-config>"; CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"
   HARD_SECS="${CROSS_MODEL_HARD_SECS:-1200}"
@@ -529,6 +557,7 @@ first_n() {
 }
 
 if [ -n "${CROSS_MODEL_DRY_RUN:-}" ]; then
+  REQUIRE_PEER=false
   printf 'RESOLVED_PEERS: %s\n' "$(first_n "$MAX_PEERS" $SELECTED)"
   exit 0
 fi
@@ -537,7 +566,7 @@ fi
 # Holds the prompt, the staged diff, the ACP stream, and the launch files, all
 # outside the repository. Only the normalized artifact is published to RUN_DIR.
 SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/xmodel-cr-scratch-XXXXXX")" || skip "private peer scratch unavailable; skipping"
-trap 'rm -rf "$SCRATCH"' EXIT
+trap '_rc=$?; rm -rf "$SCRATCH"; require_peer_check "$_rc"' EXIT
 chmod 700 "$SCRATCH" 2>/dev/null || skip "cannot make peer scratch private; skipping"
 BASE_PROMPT="$SCRATCH/base-prompt.md"
 PROMPT_FILE="$SCRATCH/prompt.md"
@@ -1059,6 +1088,7 @@ run_provider() {   # <provider>
   fi
   if [ -s "$OUT" ] && jq -e '(.reviewer|type=="string") and (.findings|type=="array") and (.residual_risks|type=="array") and (.testing_gaps|type=="array")' "$OUT" >/dev/null 2>&1; then
     n="$(jq '.findings | length' "$OUT" 2>/dev/null || echo '?')"
+    PEER_ARTIFACT_WRITTEN=true
     log "wrote $n finding(s) to $OUT (reviewer adversarial-$provider)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"

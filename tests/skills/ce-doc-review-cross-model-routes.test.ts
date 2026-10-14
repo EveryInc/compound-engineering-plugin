@@ -248,7 +248,7 @@ function resolvePeers(host: string, candidates: string, installed: string[], ext
 describe("cross-model-doc-review route safety (R17)", () => {
   test("EXIT cleanup removes private scratch and the peer workspace; reaping stays zombie-aware", () => {
     const source = readFileSync(SCRIPT, "utf8")
-    expect(source).toContain("trap 'cleanup_temp' EXIT")
+    expect(source).toContain(`trap '_rc=$?; cleanup_temp; require_peer_check "$_rc"' EXIT`)
     expect(source).toContain('rm -rf "$SCRATCH"')
     expect(source).toContain('rm -rf "$PEER_WORKDIR"')
     // Zombies report as Z+ on macOS; exact "Z" alone leaves them "alive".
@@ -579,6 +579,66 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
     expect(r.files).not.toContain("adversarial-claude.json")
     expect(r.stderr).toContain("host serving family unattested")
     expect(calls(sb)).toBe(0)
+  })
+})
+
+describe("cross-model-doc-review CROSS_MODEL_REQUIRE_PEER", () => {
+  const lens = "adversarial"
+  const strict = { CROSS_MODEL_REQUIRE_PEER: "true" }
+
+  test("no reachable peer fails with a message naming the lens and the reason", () => {
+    const sb = sandbox(["claude"])
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", lens, makeDoc(), "plan", "none", runDir], runDir, { ...sb.env, ...strict })
+    expect(r.code).toBe(3)
+    expect(r.stderr).toContain(`CROSS_MODEL_REQUIRE_PEER=true: lens '${lens}' got no artifact from any different-provider peer`)
+    expect(r.stderr).toContain("no different-provider peer reachable")
+    expect(calls(sb)).toBe(0)
+  })
+
+  test("a peer that returns nothing usable fails", () => {
+    const sb = sandbox(["codex"], acpStream({ text: "not json" }))
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", lens, makeDoc(), "plan", "none", runDir], runDir, { ...sb.env, ...strict })
+    expect(r.code).toBe(3)
+    expect(r.stderr).toContain("CROSS_MODEL_REQUIRE_PEER=true:")
+    expect(r.stderr).toContain("produced no usable schema-shaped output")
+  })
+
+  test("an early skip before arguments are parsed still fails", () => {
+    const sb = sandbox(["codex"])
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", lens, makeDoc(), "plan", "none", runDir], runDir, {
+      ...sb.env,
+      ...strict,
+      CROSS_MODEL_TRANSIENT_RETRY_DELAY_SECS: "invalid",
+    })
+    expect(r.code).toBe(3)
+    expect(r.stderr).toContain("CROSS_MODEL_REQUIRE_PEER=true: lens 'unresolved'")
+  })
+
+  test("a reachable peer that publishes an artifact still exits 0", () => {
+    const sb = sandbox(["codex"], acpStream({ text: review() }))
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", lens, makeDoc(), "plan", "none", runDir], runDir, { ...sb.env, ...strict })
+    expect(r.code).toBe(0)
+    expect(r.files).toContain("adversarial-codex.json")
+    expect(r.stderr).not.toContain("CROSS_MODEL_REQUIRE_PEER")
+  })
+
+  test.each([["unset", {}], ["false", { CROSS_MODEL_REQUIRE_PEER: "false" }]])("%s keeps the non-blocking skip", (_name, extra) => {
+    const sb = sandbox(["claude"])
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", lens, makeDoc(), "plan", "none", runDir], runDir, { ...sb.env, ...extra })
+    expect(r.code).toBe(0)
+    expect(r.stderr).not.toContain("CROSS_MODEL_REQUIRE_PEER")
+  })
+
+  test("the dry-run diagnostic is not affected", () => {
+    const sb = sandbox(["codex"])
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", lens, makeDoc(), "plan", "none", runDir], runDir, { ...sb.env, ...strict, CROSS_MODEL_DRY_RUN: "1" })
+    expect(r.code).toBe(0)
   })
 })
 

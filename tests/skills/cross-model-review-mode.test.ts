@@ -64,5 +64,8 @@ describe("cross_model_review_mode egress gate", () => {
     expect(read("skills/ce-setup/references/config-template.yaml")).toMatch(
       /# cross_model_review_mode: off\s+# auto \| off \(default: auto\)/,
     )
+    expect(read("skills/ce-setup/references/config-template.yaml")).toMatch(
+      /# cross_model_require_peer: true\s+# true \| false \(default: false\)/,
+    )
   })
 })

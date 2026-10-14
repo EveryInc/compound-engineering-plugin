@@ -127,11 +127,18 @@
 # xhigh plus max and ultra on the models that list them, grok low|medium|high|
 # xhigh; cursor/composer and OpenCode routes take none. A value the peer
 # cannot honor skips the pass with a stated reason -- never substituted.
+#
+# `cross_model_require_peer` makes a missing peer an error. By default a pass
+# that reaches no different-provider peer, or whose peer returns nothing usable,
+# is skipped quietly. With `true` it fails with a message naming the lens and
+# the reason, so a review cannot look cross-model when only one family ran.
+# `cross_model_review_mode: off` is still an explicit opt-out, not an error.
 
 # cross_model_review_mode: off   # auto | off (default: auto)
 # cross_model_peer: codex          # codex | claude | grok | cursor | composer | opencode
 # cross_model_model: fable         # model alias or full id for the resolved peer target (no default)
 # cross_model_effort: xhigh        # reasoning effort for the resolved peer target (no default)
+# cross_model_require_peer: true   # true | false (default: false)
 
 # --- ce-work implementation engine ---
 # Standing preferences for who authors implementation units. Live

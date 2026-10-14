@@ -58,7 +58,7 @@ A capacity rejection is backpressure, not reviewer failure: wait and retry. If c
 
 Run this pass if any of the **conditional judgment trio** was activated: `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer`. Follow `references/cross-model-review.md`, which defines the whole pass: confirming the host, the one target and route used for the whole document, the disclosure before anything leaves the machine, and how peers are launched, collected, and folded in.
 
-The pass is additive and non-blocking: a failure or timeout stops nothing and is named in Coverage. The checkout's `cross_model_review_mode` setting is checked first and can skip the pass with a named reason. Filter recipients only when `CROSS_MODEL_PEERS` is set — unset means unfiltered, not unsanctioned. Never silently change an explicit model or recipient.
+The pass is additive and non-blocking unless `cross_model_require_peer` is `true`: a failure or timeout stops nothing and is named in Coverage. The checkout's `cross_model_review_mode` setting is checked first and can skip the pass with a named reason. Filter recipients only when `CROSS_MODEL_PEERS` is set — unset means unfiltered, not unsanctioned. Never silently change an explicit model or recipient.
 
 ## Phases 3-5: Synthesis, Presentation, and Next Action
 
