@@ -62,13 +62,47 @@ Scope is the main knob. A scope you name is authoritative and never widened.
 | `<file path>` | That file only (seams inside it) |
 | `<description>` | User-named scope, e.g. `the function I just wrote` or `the whole repo`. Never widened. A request about only tests or only comments runs only that review |
 | `mode:pipeline` | Set by calling skills: current work only, fixes applied without a report |
-| `proof-test:<path>` | Set by calling skills: the test proving the fix, left untouched. Context, not scope |
+| `proof-test:<path>` | Set by calling skills, once per test proving the fix: those tests stay untouched. Context, not scope |
 
 Outside git, or with no diff, it uses files named or edited in the conversation. If that is still empty, it asks rather than guessing.
 
 A docs-only, generated, vendored, lockfile, or purely mechanical scope stops with "nothing to simplify." Mixed diffs keep the code files. That is a kind gate, not a size gate: a small function you named still runs. Size floors and cost thresholds belong to callers and standing instructions, not to this skill.
 
 Callers may also pass a plan path as structure-pin context. Its `session-settled:` decisions that name structure (keep this duplication, keep this wrapper) are pins the skill preserves; the plan is not the simplification scope.
+
+---
+
+## Cleaning up tests and comments
+
+Two things in your prompt matter: what it covers, and whether it asks for a report or for changes. A request about only tests or only comments runs only that review. "Find", "audit", "review", or no instruction at all gets a report first. "Without asking", "just fix them", or "no need to check with me" applies the changes directly.
+
+| Prompt | What happens |
+|--------|--------------|
+| `/ce-simplify-code find useless comments across the repo` | Comment review only, whole repo. Reports which comments to delete, which surprising code to rename or restructure so its comment can go, and which unenforced rules to encode as a test. Changes nothing |
+| `/ce-simplify-code remove the useless comments in src/ without asking` | Deletes restating, narrating, and stale comments under `src/`. Renames or extracts code where a comment was explaining a confusing name. Keeps license headers, notes on behavior forced from outside, public API docs, tool directives, and comments your project's standards require |
+| `/ce-simplify-code audit the tests in src/converters` | Test review only. Reports tests that would pass even if the code were broken, near-duplicates to merge, and production exports only tests use. Each deletion names the remaining test that covers the same ground |
+| `/ce-simplify-code prune the useless tests in this repo, no need to check with me` | Deletes or merges those tests, and removes the test-only exports they kept alive. A test that already fails is reported as a possible bug, never deleted |
+| `/ce-simplify-code clean up the tests and comments in src/billing` | Both reviews over `src/billing`, report first. Reply with what to apply |
+| `/ce-simplify-code` | Your recent changes, every review, report first |
+
+A report-first run ends with numbered findings grouped as delete, refactor, and encode as a test, for example:
+
+```text
+Delete
+1. src/dates.ts:22 -- "add one day to the date" restates addDays (and is wrong: it adds n days).
+2. tests/dates.test.ts:5 -- T01 asserts the value its own mock returns; T04 covers formatDate for real.
+
+Refactor
+3. src/dates.ts:29 -- the comment explains what `flag` means. Rename it to `skipWeekends`, then delete the comment.
+
+Encode as a test
+4. src/dates.ts:5 -- "MAX_RANGE_DAYS must stay below 366" is enforced nowhere. Add
+   expect(MAX_RANGE_DAYS).toBeLessThan(366), then delete the comment.
+
+Possible defect: tests/dates.test.ts T05 fails before any change (addBusinessDays skips Friday, not Saturday).
+```
+
+Reply with what to apply: `apply all`, `apply 1, 3`, or a description such as "apply the comment deletions only". Before each edit the skill re-checks that finding against the current code, skips any whose code changed since the report, and runs the usual checks afterward.
 
 ---
 
