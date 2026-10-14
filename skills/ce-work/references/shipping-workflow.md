@@ -10,11 +10,11 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
 2. **Simplify** (conditional; separate from code review)
 
-   Before code review, apply the project’s simplification threshold when one is specified. Otherwise invoke **`ce-simplify-code`** at **>=30 substantive changed code lines**. Count human-authored code, not total diff lines. Skip when the diff is purely mechanical (formatting, dependency bumps, lint-only fixes, generated artifacts) or when substantive code stays under the threshold even though the total diff is larger.
+   Before code review, apply the project’s simplification threshold when one is specified. Otherwise invoke **`ce-simplify-code`** with `mode:pipeline` at **>=30 substantive changed code lines**. Count human-authored code, not total diff lines. Skip when the diff is purely mechanical (formatting, dependency bumps, lint-only fixes, generated artifacts) or when substantive code stays under the threshold even though the total diff is larger.
 
    This step refines reuse, quality, and efficiency on the **current diff** so any later review sees cleaner code. It is not a substitute for code review.
 
-   Pass `plan:<path>` or a scope hint when the plan or user narrowed what changed. If the skill is unavailable on the harness, skip or do a brief manual pass for obvious duplicate/dead code — code review (step 3) still runs regardless.
+   Pass `plan:<path>` or a scope hint when the plan or user narrowed what changed, and `proof-test:<path>` for each test the evidence record observed failing before its fix. If the skill is unavailable on the harness, skip or do a brief manual pass for obvious duplicate/dead code — code review (step 3) still runs regardless.
 
 3. **Code Review**
 

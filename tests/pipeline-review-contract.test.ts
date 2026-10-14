@@ -1281,6 +1281,43 @@ describe("explicit Compound Engineering branding provenance", () => {
   })
 })
 
+describe("ce-simplify-code pipeline callers", () => {
+  // Without the token, a caller's run could be judged user-started and stop at a
+  // report instead of applying fixes. A proof-test path passed bare would read as a
+  // user-named scope and narrow the run to the one test it must not touch.
+  const callsites: Array<[string, string]> = [
+    ["skills/ce-work/references/implementation-loop.md", "invoke it with `mode:pipeline` at phase boundaries"],
+    ["skills/ce-work/references/shipping-workflow.md", "**`ce-simplify-code`** with `mode:pipeline`"],
+    ["skills/lfg/SKILL.md", "Invoke the `ce-simplify-code` skill with `mode:pipeline`"],
+    ["skills/lfg/references/debug-return.md", "pass `mode:pipeline`"],
+    ["skills/ce-debug/references/post-fix-handoff.md", "Invoke `ce-simplify-code` with `mode:pipeline`"],
+  ]
+
+  test("every caller passes mode:pipeline and labels the proof test", async () => {
+    for (const [file, invocation] of callsites) {
+      const content = await readRepoFile(file)
+      expect(content, file).toContain(invocation)
+    }
+    const proofCarriers = [
+      "skills/ce-work/references/implementation-loop.md",
+      "skills/ce-work/references/shipping-workflow.md",
+      "skills/lfg/references/review-followup.md",
+      "skills/lfg/references/debug-return.md",
+      "skills/ce-debug/references/post-fix-handoff.md",
+    ]
+    for (const file of proofCarriers) {
+      expect(await readRepoFile(file), file).toContain("`proof-test:<path>`")
+    }
+  })
+
+  test("the callee documents both tokens and treats the proof test as context", async () => {
+    const skill = await readRepoFile("skills/ce-simplify-code/SKILL.md")
+    expect(skill).toContain("mode:pipeline")
+    expect(skill).toContain("proof-test:<path>")
+    expect(skill).toContain("The proof-test path is context for Step 3, never scope.")
+  })
+})
+
 describe("learnings-researcher local prompt domain-agnostic contract", () => {
   test("local prompt frames as domain-agnostic not bug-focused", async () => {
     const agent = await readRepoFile(
