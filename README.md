@@ -132,7 +132,7 @@ The core loop is six steps: **brainstorm** the requirements, **plan** the implem
 | [`/ce-brainstorm`](docs/guides/ce-brainstorm.md) | Interactive Q&A to think through a feature or problem and write a requirements-only unified plan before planning |
 | [`/ce-plan`](docs/guides/ce-plan.md) | Enrich feature ideas or requirements-only plans into implementation-ready plans |
 | [`/ce-work`](docs/guides/ce-work.md) | Execute implementation-ready plans natively or through a qualified cross-model author while retaining host verification, commits, and shipping |
-| [`/ce-simplify-code`](docs/guides/ce-simplify-code.md) | Refine the freshly written code for clarity and reuse before review |
+| [`/ce-simplify-code`](docs/guides/ce-simplify-code.md) | Refine the freshly written code and prune useless tests and comments before review |
 | [`/ce-code-review`](docs/guides/ce-code-review.md) | Report-only multi-agent review against the plan before merging; local apply is explicit |
 | [`/ce-compound`](docs/guides/ce-compound.md) | Capture the learning into `docs/solutions/` so the next loop starts smarter |
 
