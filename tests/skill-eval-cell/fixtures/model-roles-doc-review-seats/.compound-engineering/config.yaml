@@ -1,0 +1,2 @@
+model_roles:
+  doc-review: [claude-ce-eval-a high, claude-ce-eval-b]

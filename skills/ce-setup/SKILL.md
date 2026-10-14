@@ -1,7 +1,7 @@
 ---
 name: ce-setup
-description: "Check Compound Engineering health and repo-local config, or scaffold a Compound Pack with `pack:<id>`."
-argument-hint: "[pack:<id>]"
+description: "Check Compound Engineering health and repo-local config, scaffold a Compound Pack with `pack:<id>`, or set model roles with `models`."
+argument-hint: "[pack:<id>|models]"
 disable-model-invocation: true
 ---
 
@@ -16,6 +16,10 @@ Ask each question below using the host's blocking question tool already in the c
 ## Pack Scaffold
 
 When the invocation names a Compound Pack to add, create, or scaffold (the `pack:<id>` argument, or the same request in words), read `references/pack-scaffold.md` from this skill's directory and follow it in place of Phases 1-2 (Diagnose and Fix Repo-Local Issues): it writes the pack and its config entry only after the user approves, runs the health check itself, and reports into Phase 3 (Summary).
+
+## Model Roles
+
+When the invocation asks to set up model roles (the `models` argument, or the same request in words), read `references/model-roles-setup.md` from this skill's directory and follow it in place of Phases 1-2. It writes the `model_roles` map only after the user approves, and it reports into Phase 3 (Summary).
 
 ## Artifact Root Resolution
 
@@ -83,8 +87,6 @@ If optional tools are missing, do not offer a bulk install. The diagnostic alrea
 ## Phase 2: Fix Repo-Local Issues
 
 Read `references/repo-fixes.md` from this skill's directory before making any repo-local change. It carries Steps 4-9: removing the obsolete `compound-engineering.local.md`, refreshing the example config, offering to create `config.yaml`, repairing invalid `work_engine_preferences` and `docs_root`, the two `.gitignore` offers, and the agent-instructions offers (a knowledge-store mention, the compounding directive, and the chat-register directive for `ce-noslop`).
-
-All paths there resolve from the repository root (`git rev-parse --show-toplevel`), not the current working directory. Maintaining the generated example files is the work Phase 2 does on its own — refreshing `config.example.yaml` and removing the superseded `config.local.example.yaml`. Every change to a user-owned file is offered and applied only if the user approves.
 
 ## Phase 3: Summary
 

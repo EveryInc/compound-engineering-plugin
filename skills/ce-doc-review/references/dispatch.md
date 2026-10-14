@@ -6,6 +6,10 @@ Respect the harness's active-subagent limit: dispatch only as many selected revi
 
 **Agent lifecycle.** Collect each agent's final outcome, including failures, before cleanup. When the harness lets the caller close or release agents, close or release the agents this review started before refilling slots, advancing stages, or returning. Do not message completed agents with no remaining work. Do not assume capacity was freed just because an agent completed or was interrupted, and do not invent cleanup operations.
 
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `doc-review` role before dispatching the reviewers. The resolver decides the role, not your reading of the config.
+
+**Review seats.** When that key is active, read `references/cross-model-review.md` too, before running the resolver. Its Step 1 host attestation supplies the resolver's `--host-family`, and its review-seat section decides, from the resolver's answer, what runs beside the reviewers below. A seat does not depend on which personas were selected, so a review that activates no conditional persona still runs its seats. The Cross-Model Judgment Pass condition in `SKILL.md` governs only the single-peer pass, which runs when the role has no entry.
+
 For each selected reviewer, read `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.
 
 **Model tiering lives here, not in prompt assets.** Local prompt files have no frontmatter and carry no model metadata. Apply these dispatch-time preferences when the platform exposes a known model override; otherwise omit the override and inherit the parent model rather than guessing a platform-specific model name:

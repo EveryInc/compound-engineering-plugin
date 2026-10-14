@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import os from "node:os"
 import path from "node:path"
-import { attestCurrentHost, cellEnv, peerHosts, planHost, resolveRunHosts, wrapPrompt } from "./hosts"
+import { attestCurrentHost, cellEnv, hostBinary, peerHosts, planHost, resolveRunHosts, wrapPrompt } from "./hosts"
 
 describe("skill-eval-cell host plans pin measured gotchas", () => {
   const cwd = os.tmpdir()
@@ -69,6 +69,50 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(resolved.run).toEqual(["claude", "codex", "opencode"])
     expect(resolved.ownEvalOnly).toBe(false)
     expect(resolved.warnings).toEqual([])
+  })
+
+  test("cursor runs cursor-agent headless in a trusted, sandboxed workspace", () => {
+    const plan = planHost("cursor", { cwd, prompt: "task", promptFile })
+    expect(plan.argv).toEqual([
+      "cursor-agent",
+      "-p",
+      "--output-format",
+      "text",
+      "--trust",
+      "--sandbox",
+      "enabled",
+      "--workspace",
+      cwd,
+      "--force",
+      "task",
+    ])
+    expect(plan.stdin).toBe("null")
+    const readOnly = planHost("cursor", { cwd, prompt: "task", promptFile, readOnly: true })
+    expect(readOnly.argv.slice(readOnly.argv.indexOf("--mode"), readOnly.argv.indexOf("--mode") + 2)).toEqual(["--mode", "ask"])
+    expect(readOnly.argv).not.toContain("--force")
+    expect(readOnly.argv.at(-1)).toBe("task")
+  })
+
+  test("cursor is attested from its markers, and a cell does not inherit them", () => {
+    expect(attestCurrentHost({ CURSOR_AGENT: "1" })).toBe("cursor")
+    expect(attestCurrentHost({ CURSOR_CONVERSATION_ID: "c" })).toBe("cursor")
+    const env = cellEnv({ CURSOR_AGENT: "1", CURSOR_CONVERSATION_ID: "c" })
+    expect(env.CURSOR_AGENT).toBeUndefined()
+    expect(env.CURSOR_CONVERSATION_ID).toBeUndefined()
+  })
+
+  test("cursor is an explicit host, never a default peer, and resolves by its own binary", () => {
+    expect(peerHosts("claude")).toEqual(["codex", "grok", "opencode"])
+    expect(peerHosts("unknown")).not.toContain("cursor")
+    expect(peerHosts("cursor")).toEqual(["claude", "codex", "grok", "opencode"])
+    expect(hostBinary("cursor")).toBe("cursor-agent")
+    expect(hostBinary("claude")).toBe("claude")
+    const explicit = resolveRunHosts({
+      explicit: ["claude", "cursor"],
+      env: { CLAUDECODE: "1" },
+      onPath: () => true,
+    })
+    expect(explicit.run).toEqual(["claude", "cursor"])
   })
 
   test("missing peer CLIs warn and continue; self-only is own-eval", () => {

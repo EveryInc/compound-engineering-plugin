@@ -34,6 +34,19 @@ describe("cross_model_review_mode egress gate", () => {
     })
   }
 
+  // A `model_roles` review list is a second way content can leave for another
+  // provider. `off` (and a set CROSS_MODEL_PEERS) reaches every seat through the
+  // resolver's `blocked_by`, whether the seat would run natively or through a CLI.
+  for (const ref of references) {
+    test(`${ref} applies cross_model_review_mode to every review seat`, () => {
+      const content = read(ref)
+      expect(content).toContain("A seat with `blocked_by` set does not run.")
+      expect(content).toContain(
+        "The resolver has already applied `cross_model_review_mode` and `CROSS_MODEL_PEERS` to every seat",
+      )
+    })
+  }
+
   test("both SKILL.md files wire the gate into their cross-model step", () => {
     for (const p of ["skills/ce-code-review/SKILL.md", "skills/ce-doc-review/SKILL.md"]) {
       expect(read(p)).toContain("cross_model_review_mode")

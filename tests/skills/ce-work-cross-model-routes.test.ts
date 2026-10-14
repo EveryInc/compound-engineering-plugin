@@ -70,6 +70,10 @@ function seedCanonicalRepo(): string {
   writeFileSync(path.join(canonical, "README.md"), "seed\n")
   writeFileSync(path.join(canonical, "docs", "plans", "plan.md"), "# Test plan\n")
   spawnSync("git", ["init", "-q", canonical])
+  // Every fixture is a recursive copy of this repo. A detached `git maintenance`
+  // run after the commit would create and remove lock files while it is copied.
+  spawnSync("git", ["-C", canonical, "config", "gc.auto", "0"])
+  spawnSync("git", ["-C", canonical, "config", "maintenance.auto", "false"])
   spawnSync("git", ["-C", canonical, "config", "user.email", "test@example.com"])
   spawnSync("git", ["-C", canonical, "config", "user.name", "Test"])
   spawnSync("git", ["-C", canonical, "add", "."])
@@ -681,6 +685,74 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.terminal_status).toBe("unavailable")
     expect(result.result.failure_reason).toContain("cooperative")
     expect(existsSync(path.join(f.capture, "argv"))).toBe(false)
+  })
+})
+
+describe("ce-work model role `work` entry", () => {
+  const RESOLVER = path.join(process.cwd(), "skills/ce-work/scripts/model-role-resolve.py")
+  const ENGINES = path.join(process.cwd(), "skills/ce-work/references/execution-engines.md")
+
+  // The resolver reads the repository it runs in, so give it a throwaway one.
+  function resolveWork(entry: string) {
+    const repo = temp("ce-work-role-")
+    spawnSync("git", ["init", "-q", repo])
+    mkdirSync(path.join(repo, ".compound-engineering"))
+    writeFileSync(path.join(repo, ".compound-engineering", "config.yaml"), `model_roles:\n  work: ${entry}\n`)
+    const proc = spawnSync("python3", [RESOLVER, "--role", "work"], { cwd: repo, encoding: "utf8", env: cleanEnv() })
+    expect(proc.status).toBe(0)
+    return JSON.parse(proc.stdout) as { entries: { model: string; effort: string; harness: string }[]; effort_scale: string[] }
+  }
+
+  // The preflight question the reference tells the agent to ask: one route, one level, one answer.
+  const ask = (route: string, level: string) => emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: level })
+  const acceptedLevels = (route: string, scale: string[]) => scale.filter((level) => ask(route, level).status === 0)
+
+  test("Covers AE6: the adapter answers per level, so a max entry steps down on a route that rejects max", () => {
+    const grok = resolveWork("grok-4.7 max")
+    expect(grok.entries[0]).toMatchObject({ model: "grok-4.7", effort: "max", harness: "grok" })
+    const scale = grok.effort_scale
+    expect(scale).toEqual(["low", "medium", "high", "xhigh", "max"])
+
+    // Accepted levels are static per route. Native Grok is the route that rejects max and accepts high.
+    const refused = ask("grok-cli", "max")
+    expect(refused.status).toBe(2)
+    expect(refused.stderr).toContain("effort override 'max' not compatible with route 'grok-cli'")
+    const grokLevels = acceptedLevels("grok-cli", scale)
+    expect(grokLevels).toContain("high")
+    expect(grokLevels).not.toContain("max")
+    // The nearest lower level the route accepts is the one a max entry runs at.
+    expect(grokLevels.at(-1)).toBe("xhigh")
+    expect(ask("grok-cli", "xhigh").stdout).toContain("--config-option reasoning_effort=xhigh")
+
+    // The claude route accepts every level of the resolver's scale, so an `opus max` entry runs there as written.
+    expect(resolveWork("opus max").entries[0]).toMatchObject({ model: "opus", effort: "max", harness: "claude" })
+    expect(acceptedLevels("claude", scale)).toEqual(scale)
+  })
+
+  test.each(["cursor", "composer", "grok-cursor"] as const)(
+    "the %s route has no effort control: the adapter accepts no level and still runs with none",
+    (route) => {
+      expect(acceptedLevels(route, ["low", "medium", "high", "xhigh", "max"])).toEqual([])
+      const plain = emit(route, cleanEnv())
+      expect(plain.status).toBe(0)
+      // Cursor fixes effort inside the model preset, so the adapter passes no effort option.
+      expect(plain.stdout).not.toMatch(/--config-option (reasoning_)?effort=/)
+    },
+  )
+
+  test("the per-checkout configuration step states how a `work` entry routes", () => {
+    const engines = readFileSync(ENGINES, "utf8")
+    // The hook names the shared contract and the role, in the reference the route-resolution gate already loads.
+    expect(engines).toMatch(/\*\*Model role\.\*\*[^\n]*`references\/model-roles\.md`[^\n]*`work` role/)
+    expect(existsSync(path.join(process.cwd(), "skills/ce-work/references/model-roles.md"))).toBe(true)
+    // R5: the entry replaces the existing keys for the run.
+    expect(engines).toContain("`work_engine_mode`, `work_engine_preferences`, and `work_engine_effort` are not consulted")
+    // KTD5: an entry with an effort always hands off, even to the host's own CLI route.
+    expect(engines).toContain("never equivalent to the current host")
+    // KTD4: the personal opt-out keeps a team entry off external engines.
+    expect(engines).toMatch(/`engine_opt_out: true`[^.]*\bnatively\b/)
+    // KTD4: live intent and the lfg carrier still win.
+    expect(engines).toMatch(/typed caller binding[^.]*\boutranks? the entry\b/)
   })
 })
 

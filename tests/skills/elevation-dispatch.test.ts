@@ -56,6 +56,10 @@ const BRAINSTORM_WORKER = path.join(
   __dirname,
   "../../skills/ce-brainstorm/scripts/elevation-dispatch.sh",
 )
+const REFERENCE = path.join(
+  __dirname,
+  "../../skills/ce-plan/references/reasoning-elevation.md",
+)
 
 // Approval/bypass flags the read-only elevation call must never emit.
 const NEVER_FLAGS = [
@@ -109,6 +113,20 @@ function runWorker(
   return { result, stderr: r.stderr ?? "", status: r.status }
 }
 
+/** Print the argv the worker would exec. `effort` sets CE_ELEVATION_EFFORT;
+ *  undefined leaves it unset whatever the developer's shell exports. */
+function emitAdapter(effort?: string) {
+  const env: NodeJS.ProcessEnv = { ...process.env }
+  delete env.CE_ELEVATION_EFFORT
+  if (effort !== undefined) env.CE_ELEVATION_EFFORT = effort
+  const r = spawnSync("bash", [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"], {
+    encoding: "utf8",
+    env,
+  })
+  const argv = (r.stdout ?? "").split("\0").filter(Boolean)
+  return { status: r.status, stderr: r.stderr ?? "", argv }
+}
+
 const RESULT_LINE = (result: string, usage: Record<string, unknown> | null) =>
   JSON.stringify({
     type: "result",
@@ -160,6 +178,49 @@ describe("elevation-dispatch worker", () => {
     expect(argv).not.toContain("--disallowedTools")
     for (const tool of ["Edit", "Write", "Bash", "Task"]) expect(argv).not.toContain(tool)
     for (const flag of NEVER_FLAGS) expect(argv).not.toContain(flag)
+  })
+
+  test("the emitted adapter carries the passed effort, and high when none is passed", () => {
+    const low = emitAdapter("low")
+    expect(low.status).toBe(0)
+    expect(low.argv[low.argv.indexOf("--effort") + 1]).toBe("low")
+    const unset = emitAdapter()
+    expect(unset.status).toBe(0)
+    expect(unset.argv[unset.argv.indexOf("--effort") + 1]).toBe("high")
+  })
+
+  test("an effort the Claude CLI does not document is rejected before launch with a named reason", () => {
+    // `ultra` is a real level on another CLI, so it is the value a caller is
+    // most likely to pass here by mistake.
+    const emitted = emitAdapter("ultra")
+    expect(emitted.status).toBe(2)
+    expect(emitted.argv).toEqual([])
+    expect(emitted.stderr).toContain("effort 'ultra' rejected")
+    expect(emitted.stderr).toContain("low|medium|high|xhigh|max")
+
+    const marker = path.join(mkTempRoot("elevation-launch-"), "launched")
+    const stub = "#!/bin/sh\n" + `: > "${marker}"\n`
+    const { result, stderr, status } = runWorker("fable", stub, {
+      CE_ELEVATION_EFFORT: "ultra",
+    })
+    expect(status).toBe(2)
+    expect(stderr).toContain("effort 'ultra' rejected")
+    expect(existsSync(marker)).toBe(false) // claude was never launched
+    expect(result).toBeNull()
+  })
+
+  test("the result envelope records the requested effort", () => {
+    const ok =
+      "#!/bin/sh\n" +
+      `printf '%s\\n' '${RESULT_LINE("PLAN BODY", { "claude-fable-5": { outputTokens: 5 } })}'\n`
+    const passed = runWorker("fable", ok, { CE_ELEVATION_EFFORT: "low" })
+    expect(passed.result.status).toBe("ok")
+    expect(passed.result.requested_effort).toBe("low")
+    expect(runWorker("fable", ok).result.requested_effort).toBe("high")
+    // A failed run records it too, so a fallback can still name what was asked.
+    const failed = runWorker("fable", "#!/bin/sh\nexit 1\n", { CE_ELEVATION_EFFORT: "low" })
+    expect(failed.result.status).toBe("failed")
+    expect(failed.result.requested_effort).toBe("low")
   })
 
   test("a matching receipt yields a matched envelope with the output", () => {
@@ -252,6 +313,26 @@ describe("elevation-dispatch worker", () => {
     expect(result.receipt).toBe("mismatch")
   })
 
+  test("a full id matches its own receipt and not a longer id that starts the same", () => {
+    const served = (id: string) =>
+      "#!/bin/sh\n" + `printf '%s\\n' '${RESULT_LINE("PLAN BODY", { [id]: { outputTokens: 5 } })}'\n`
+    // The dated form of the requested id is the same model.
+    expect(runWorker("claude-opus-5", served("claude-opus-5-20260801")).result.receipt).toBe("matched")
+    // `claude-opus-50-*` is another model, although it starts with the requested id.
+    const other = runWorker("claude-opus-5", served("claude-opus-50-20260801")).result
+    expect(other.served_model).toBe("claude-opus-50-20260801")
+    expect(other.receipt).toBe("mismatch")
+  })
+
+  test("an alias with a bracketed qualifier matches its family's receipt", () => {
+    const stub =
+      "#!/bin/sh\n" +
+      `printf '%s\\n' '${RESULT_LINE("PLAN BODY", { "claude-opus-4-8": { outputTokens: 5 } })}'\n`
+    const { result } = runWorker("opus[1m]", stub)
+    expect(result.served_model).toBe("claude-opus-4-8")
+    expect(result.receipt).toBe("matched")
+  })
+
   test("picks the requested family's key from a multi-key modelUsage, not keys[0]", () => {
     // jq `keys` is sorted, so keys[0] here is claude-haiku-*, an auxiliary
     // model — the served model for a requested opus is claude-opus-*.
@@ -270,6 +351,23 @@ describe("elevation-dispatch worker", () => {
     expect(result.status).toBe("ok")
     expect(result.served_model).toBe("unverified")
     expect(result.receipt).toBe("unverified")
+  })
+
+  // Corpus pins for the model role map. The Config step is where both skills
+  // consult the map, so the shared reference and both role names must be named
+  // there; the effort variable and envelope field are the worker's interface.
+  test("the reference consults the plan / brainstorm role entry at the Config step", () => {
+    const ref = readFileSync(REFERENCE, "utf8")
+    const start = ref.indexOf("3. **Config**")
+    const end = ref.indexOf("**Precedence:")
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const config = ref.slice(start, end)
+    expect(config).toContain("`references/model-roles.md`")
+    expect(config).toContain("`plan`")
+    expect(config).toContain("`brainstorm`")
+    expect(ref).toContain("CE_ELEVATION_EFFORT=")
+    expect(ref).toContain("requested_effort")
   })
 
   // AE4 mechanism (deterministic): the idle window is a *reset-on-growth* window,

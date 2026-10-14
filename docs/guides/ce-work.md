@@ -279,6 +279,12 @@ A harness left out keeps its default (Codex and Claude at high, native Grok at x
 
 A candidate is usable only after its unattended, write-capable, isolated-workspace route has qualified and the necessary CLI or authentication is available.
 
+### Model Role
+
+`ce-work` reads the `work` role from the `model_roles` map in CE config. The entry names the model, and optionally the reasoning effort, that writes the code. Where your harness cannot give that model and effort to its own subagents, the entry becomes the one preferred external candidate: the model's family picks the harness, and the entry's effort is the effort requested for it. While an entry governs the run, `work_engine_mode`, `work_engine_preferences`, and `work_engine_effort` are not consulted. A current-task instruction or a caller binding still outranks the entry.
+
+`work_engine_mode: off` in your personal `config.local.yaml` keeps a team entry off external engines, so the work runs natively on your session model. The run prints one `Model role work:` line with its closing summary, naming what was requested, what served it, and the route. See [Model roles](./configuration.md#model-roles) for entry syntax, precedence, and fallback.
+
 ### What an External Run Does
 
 Before any repository material leaves the host, `ce-work` discloses the instruction or config source, the fixed recipient, what bounded unit material is exposed, and which restrictions are adapter-enforced versus cooperative. The adapter uses the CLI's existing authentication, receives a minimized environment, and cannot switch recipients, widen scope, push, open a PR, or choose fallback.

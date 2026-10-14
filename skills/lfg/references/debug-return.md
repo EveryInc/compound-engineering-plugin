@@ -10,6 +10,8 @@ Only `status: fixed` advances to step 3. `diagnosed-no-fix`, `needs-human`, and 
 
 Require `status`, `root_cause`, `changed_files`, `head_sha`, `branch`, `pre_fix_scope`, `verification_evidence`, `residuals`, `issue_of_record`, `behavior_change`, and `standalone_shipping_skipped: true`. Empty arrays are valid for `residuals`; `issue_of_record` is `null` when the input carried no ticket.
 
+`model_role` is optional. When the return carries it, it is `ce-debug`'s `Model role debug:` line for this run: relay it unchanged in the close-out. A return without it is complete, and its absence never stops the run.
+
 `verification_evidence` follows the same shape `ce-work` returns: when `behavior_change: true` it must name the regression test used, existing tests inspected, tests added/changed or used unchanged, the red failure or characterization observed before the fix, the verification run, and any deliberate test exception. Do NOT decide the test strategy inside LFG; the evidence is `ce-debug`'s contract. A `fixed` return with `behavior_change: true` and evidence missing or too vague to tell how the fix was proven stops the run as blocked, reporting the missing fields. There is no recovery invocation on this route: `ce-debug` has no reconciliation path, and a second run would reinvestigate.
 
 ## Ship only what the user offered

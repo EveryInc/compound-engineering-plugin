@@ -6,6 +6,56 @@ The trio is the three **conditional** judgment lenses whose output diverges most
 
 The host resolves and approves one concrete route before any document content leaves the machine (this reference calls that egress). The bundled **`scripts/cross-model-doc-review.sh`** enforces that fixed route, composes the prompt, applies least privilege, captures schema-shaped JSON, and normalizes the model-identity records it returns. The pass is non-blocking: a failed route writes no fold-in artifact and never switches recipients internally.
 
+<!-- ce-review-seats:start -->
+## Review seats (model role map)
+
+A review role's `model_roles` entry is a list of *seats*. Each seat is one more reviewer, on the model and at the effort the entry names. The rest of this file describes the *single-peer pass*.
+
+**When this section applies.** It applies only when the model role hook at persona dispatch ran the resolver for this review, and it states what the review does with the resolver's answer. Otherwise skip it, and the rest of this file applies as written.
+
+**The persona review always runs.** It runs when every seat is dropped, blocked, or invalid, and when the map cannot be read.
+
+**A live request outranks the entry.** When the user asks in this conversation for a specific peer or model for this review, the seat list is not used for this run. Follow the single-peer rules with that request as the stated preference.
+
+Otherwise the resolver's answer decides what runs beside the persona review:
+
+| Resolver answer | What runs beside the persona review |
+|---|---|
+| `state` is `unset` | The single-peer pass, under its own conditions. Nothing else in this section applies. |
+| `state` is `entries` | The seats. They replace the single-peer pass for this review. |
+| `state` is `inherit` | Nothing: no seats and no single-peer pass. Print the `inherit` line `references/model-roles.md` defines. |
+| `state` is `invalid`, or no JSON came back | Nothing: no seats and no single-peer pass. Say in Coverage that the model role map could not be used, quoting the resolver's `errors` when it returned any. |
+
+The single-peer rules do not bind a seat unless this section points at them. That covers the one target and one route, the activation and run conditions, the default target order, and any rule that a started peer replaces an in-process reviewer.
+
+**Which seats run.** A seat does not depend on which personas were selected. Take the resolver's `entries` in order.
+
+- A seat marked `invalid` does not run. The other seats are unaffected.
+- A seat with `blocked_by` set does not run. The resolver has already applied `cross_model_review_mode` and `CROSS_MODEL_PEERS` to every seat, however the seat would be served, so do not evaluate either policy again here.
+- Every other seat is one job on this skill's seat brief, with its own seat number `<n>`. The seat brief and its `<brief>` name are stated right after this section.
+
+**Serving a seat.** Use the first of these that can serve the seat's model at the seat's effort:
+
+1. **A native subagent**, when the host can hand a subagent that model at that effort, as `references/model-roles.md` (Serving order) defines it. A seat whose model is `inherit` is always served this way, on the session model. Instruct the subagent to change nothing and to review only the material this review covers. Save its return as `<run-dir>/<brief>-native-s<n>.json` in the shape the worker writes: `reviewer` set to `<brief>-native-s<n>`, `independence_verified: false`, `model_requested` as the entry names it, `model_actual: "unverified"`, and each `safe_auto` finding recorded as `gated_auto`.
+2. **This skill's worker**, as one detached job, when the seat's `family` is `codex`, `claude`, `grok`, or `composer` and that target's own route is installed. The target is the family. The route is that target's token from the Step 1 table, and `grok` uses `grok-cli` only. Start the job with Step 4's start command, changing only these parameters: `--label "seat-<n>"`; `CROSS_MODEL_SEAT="<n>"` added to the `env` prefix; the seat's model as `CROSS_MODEL_MODEL_OVERRIDE_TARGET="<target>"` and `CROSS_MODEL_MODEL_OVERRIDE="<model>"`; and `CROSS_MODEL_EFFORT_OVERRIDE="<effort>"` when the seat has an effort. With the seat number set, the worker accepts a target in the host's own family and an unknown host family, and it writes `<run-dir>/<brief>-<target>-s<n>.json` with reviewer `<brief>-<target>-s<n>`.
+
+A seat that neither route can serve is dropped. So is a seat whose job ends with no artifact, whatever the reason. A dropped seat is never run on another model, at another effort, or through an intermediary route such as Grok through `cursor-agent`. This file's retry, recovery, and replacement-recipient rules are not used for a seat.
+
+**One notice names every recipient.** Before anything is sent, print one notice that lists each seat that will run: its seat number, the provider that receives the reviewed content, the requested model and effort, and the route. It replaces a per-seat announcement. Step 3 still decides which modes print it, and Step 3's disclosure condition holds for every seat.
+
+**Starting and collecting.** Start the seats in the same dispatch wave as the persona reviewers. Bring every started seat job to a terminal outcome under this file's wait, deadline, and cleanup rules, measuring the shared deadline from the last `start`, and read each worker seat's artifact with Step 5's verified read at that seat's own path. Before a job directory is deleted, read a dropped seat's `out.log` for the reason. A re-invocation that reuses completed review results reuses the seat results with them.
+
+**Folding seats in.** Each seat artifact is one reviewer in synthesis under its own reviewer identity. This skill's synthesis rules are unchanged:
+
+- A finding raised only by seats is never applied silently.
+- Agreement between seats does not stack. However many seats agree, a finding gains at most the one promotion step this skill's synthesis allows.
+- Only an artifact that records `independence_verified: true` can promote.
+
+**Reporting.** Print one `Model role <role> seat <n>:` line for every seat in `entries`, whether or not it ran, in the format `references/model-roles.md` defines. A seat that did not run prints `not run` with its reason: why it was dropped, the policy `blocked_by` names, or the invalid seat's `reason`. The lines go in Coverage and in the structured result this skill returns to a caller. For this review they replace the Coverage notes the single-peer pass would have written.
+<!-- ce-review-seats:end -->
+
+**Seats in this skill.** The role is `doc-review`. The seat brief is the existing `whole-doc` brief, so `<brief>` is `whole-doc`, and every seat reviews the full document, never a slice. A worker seat passes `whole-doc` as `<reviewer-name>` and the full document as `<document-path>`. A native seat is a generic subagent seeded with `references/personas/whole-doc-reviewer.md` and the full document, dispatched the way `references/dispatch.md` dispatches the persona reviewers. Step 4's trio calls and its one whole-doc sweep belong to the single-peer pass, so they do not run beside seats.
+
 ## Condition — run only when this holds
 
 Run the cross-model pass for a given trio lens **only when that lens was activated** for this document by the normal Phase 1 persona-selection logic. No new activation triggers are introduced: a routine plan with validated upstream provenance and no high-stakes domain activates none of the trio, so it gets no cross-model pass. Phase 1's missing-document check already guarantees the document is readable on disk. There is no diff and no remote-scope concern, so no additional scope check is needed.

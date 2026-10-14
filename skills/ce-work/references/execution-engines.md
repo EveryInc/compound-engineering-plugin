@@ -37,13 +37,38 @@ A validated recovery run id selects durable state. It never authorizes a fresh d
 - **Do not** use this rule for `docs_root` — that key is `config.yaml` only.
 <!-- ce-config-layers:end -->
 
+**Model role.** Open `.compound-engineering/config.local.yaml` and `.compound-engineering/config.yaml` at the repo root by path, because a file search skips that hidden directory. If neither has an active `model_roles:` key, do not read `references/model-roles.md`, do not run its resolver, and print nothing about model roles. Otherwise, even with no entry for this role, read `references/model-roles.md` now and run its resolver for the `work` role before reading the `work_engine_*` keys below. The resolver decides the role, not your reading of the config.
 
+The role's deliverable is the code the plan's units call for, and its peer route is this skill's cross-model engine routes. "A `work` role entry" below states what is specific to this skill.
 
 Standing configuration selects cross-model execution only when `work_engine_mode` resolves to `prefer` or `require` (`off | prefer | require`) from the two repo files, `config.local.yaml` then `config.yaml`. `off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding.
 
 When no source applies, run native execution and do not load the cross-model reference. When one does, read `references/cross-model-execution.md` and resolve the route there before any content or authority leaves the host. It owns route strength, the target vocabulary, the `work_engine_preferences` and `work_engine_effort` schema, candidate traversal, and preflight. If no candidate qualifies there, continue natively as that reference directs.
 
 For a bare prompt, cross-model execution is eligible only after Phase 0 has established a concrete goal, bounded scope, and authoritative verification. The cross-model reference turns that discovery into a private prompt brief and conservative P-unit packet. An unclear bare prompt returns to clarification or planning before any work is sent to an external worker; it does not fall through to a smarter external worker and ask that worker to invent the scope.
+
+### A `work` role entry
+
+This subsection applies when the resolver reports `inherit` or `entries` for the `work` role. In every other state, routing uses the standing configuration above as it does with no map.
+
+**Precedence.** The entry sits at the per-checkout configuration step of the resolution order. Every source above that step, including live intent and a typed caller binding, outranks the entry. While the entry governs the run, `work_engine_mode`, `work_engine_preferences`, and `work_engine_effort` are not consulted.
+
+**Session model.** Whenever `references/model-roles.md` leaves the work with the session model, the run uses native execution.
+
+**Personal opt-out.** When the resolver reports `engine_opt_out: true`, the entry is not handed to any other model: the work runs natively on the session model, and the `Model role` line gives the personal `work_engine_mode: off` as the reason.
+
+**Serving the entry.** The serving order in `references/model-roles.md` maps onto this skill's engines in this way:
+
+- **Native subagent.** The inline/subagent engine serves the entry: every unit is dispatched to a subagent on the entry's model as `references/execution-strategy.md` describes, no unit runs inline, and no external candidate is formed.
+- **Peer route.** The entry becomes the only standing candidate, at `prefer`. The candidate is the resolver's `harness`, the entry's `model`, and the entry's `effort` as the effort requested for it. Read `references/cross-model-execution.md`, which normalizes and preflights it like any other candidate.
+
+A candidate from an entry that carries an effort is never equivalent to the current host. It is not skipped as a route to self, and it does not collapse to native execution. It runs through the host's own CLI route at that effort: `opus medium` in a Claude Code session already on Opus runs through the `claude` route at `medium`.
+
+A null `harness` means no engine route accepts the entry's model, so no candidate can be formed from the entry. Unless a native subagent serves it, the run ends on native execution on the session model, and the `Model role` line says that no engine route accepts the model.
+
+**Fallback.** A candidate from the entry follows the fallback ladder in `references/model-roles.md`, not the unavailable-candidate rules in `references/cross-model-execution.md`. Walk the ladder at preflight, before any work is sent. `references/cross-model-execution.md` gives the question that asks the adapter script which effort levels a route accepts. The route's default model is the same candidate with no `model`. After dispatch starts, the recipient lock and the single fallback claim in `references/cross-model-execution.md` apply unchanged.
+
+**Report.** Print the `Model role` line with the run's closing summary. In Return-to-Caller Mode, print it immediately before the structured return, which gains no field for it. `requested_model` holds the model the entry names. `requested_effort` holds the entry's effort whenever an external route ran, even when that route ran at a lower effort or with none applied. `fallback_reason` names a step-down, an effort that was not applied, a default-model substitution, the personal opt-out, or a model that no engine route accepts. The binding's `source` names the `model_roles` entry and the file it came from.
 
 ## Run the chosen engine
 

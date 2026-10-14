@@ -68,4 +68,10 @@ describe("task visibility contract", () => {
     expect(lfgTaskVisibility).toMatch(/replace or clear LFG's view.*only the child skill's task surface is visible/)
     expect(lfgTaskVisibility).toMatch(/after it returns, recreate or refresh LFG's remaining pipeline work/)
   })
+
+  test("lfg relays a child's Model role line instead of resolving roles itself", () => {
+    expect(lfgTaskVisibility).toMatch(/LFG resolves no role/)
+    expect(lfgTaskVisibility).toMatch(/`Model role` line.*unchanged/s)
+    expect(lfgTaskVisibility).toMatch(/closing recap lists every `Model role` line/)
+  })
 })

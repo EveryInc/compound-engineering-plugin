@@ -2,7 +2,7 @@
 
 > Check Compound Engineering health, optional tool availability, and repo-local config safety. It does not bulk-install the plugin's dependencies.
 
-`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, and offers to point your agent-instructions file at the knowledge store and add standing compounding and `ce-noslop` chat-register instructions. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
+`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, and offers to point your agent-instructions file at the knowledge store and add standing compounding and `ce-noslop` chat-register instructions. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block. Two arguments start a guided flow instead: `pack:<id>` scaffolds a Compound Pack, and `models` sets the model role map.
 
 It runs only when you invoke it explicitly (`disable-model-invocation: true`). Talking about setup does not start it. Outside a git repository it reports capabilities and stops without writing files.
 
@@ -14,20 +14,21 @@ See [Compound Engineering configuration](./configuration.md) for every option an
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Runs a health check, reports optional tools, refreshes the example config, applies only the repo-local fixes you approve, and scaffolds a Compound Pack on request |
+| What does it do? | Runs a health check, reports optional tools, refreshes the example config, applies only the repo-local fixes you approve, and scaffolds a Compound Pack or sets the model role map on request |
 | When to use it | First install, after an upgrade, when a skill says a tool is missing, or when onboarding a repo |
 | What it produces | A setup report, plus any config or gitignore edits you accepted |
-| What it does not do | Bulk-install optional CE dependencies, update the plugin itself, or create `config.local.yaml` |
+| What it does not do | Bulk-install optional CE dependencies or update the plugin itself. It writes `config.local.yaml` only in the model role flow, when you choose the personal file |
 
 ---
 
 ## Example invocations
 
-Bare, one command covers first install, a re-check after an upgrade, a missing-tool report, and a directory that is not a git repo. The one argument, `pack:<id>`, scaffolds a Compound Pack instead (see [Scaffold a Compound Pack](#scaffold-a-compound-pack)).
+Bare, one command covers first install, a re-check after an upgrade, a missing-tool report, and a directory that is not a git repo. Two arguments start a different flow: `pack:<id>` scaffolds a Compound Pack (see [Scaffold a Compound Pack](#scaffold-a-compound-pack)), and `models` sets the model role map (see [Set model roles](#set-model-roles)).
 
 ```text
 /ce-setup
 /ce-setup pack:house-rules
+/ce-setup models
 ```
 
 On oh-my-pi the invocation is `/skill:ce-setup`. On Codex it is `$ce-setup` when that host uses dollar-prefixed skills.
@@ -49,7 +50,7 @@ The example config refresh happens on its own (it is the committed template copy
 
 - Deletes the obsolete `compound-engineering.local.md` if you say yes.
 - Refreshes `.compound-engineering/config.example.yaml` from the bundled template, always, inside a git repo.
-- Offers to create `.compound-engineering/config.yaml` when missing. Never overwrites an existing `config.yaml` or `config.local.yaml`, and never creates the local override.
+- Offers to create `.compound-engineering/config.yaml` when missing. Never overwrites an existing `config.yaml` or `config.local.yaml` with the template. These fixes do not create `config.local.yaml`: only the [model role flow](#set-model-roles) writes it, when you choose the personal file.
 - Offers to add `.compound-engineering/*.local.yaml` to `.gitignore`, but only when `config.local.yaml` already exists and is not ignored.
 - Offers to add `.context/compound-engineering/` to `.gitignore` whether or not that directory exists yet. An uncovered path is a note, not a project issue.
 - Offers to add a line about the `<root>/solutions/` knowledge store to your root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, or equivalent) when the file does not already convey it, placed in the file's own structure. Then offers the standing compounding instruction from the [ce-compound guide](./ce-compound.md#make-capture-automatic), offer-first or automatic, inserted verbatim. Only when the store is tracked in this repo, and never creates the file. Then offers the `ce-noslop` chat-register instruction, inserted verbatim, so agent reports and summaries to you lead with the outcome and carry no acknowledgements, offers of more help, or process narration. Skipped only when the file already covers the report boundary, that register, and the exclusions (code, config, verbatim quotes, text you asked to post as written); a partial or unrelated writing rule still gets the offer.
@@ -62,6 +63,18 @@ Each question uses the host's blocking question tool when one exists. It never s
 ## Scaffold a Compound Pack
 
 `/ce-setup pack:<id>` (or asking it in words to add or create a pack) starts a [Compound Pack](./packs.md) in the one layout discovery reads. It resolves `compound-packs/<id>/` at the repo root, refuses a directory that already has content, and previews everything before one approval: a `README.md` with a single line saying what the pack governs, a first rule file from a bundled template (`title`, two example `applies_when` situations, `tags`, and a prescriptive body with a placeholder to replace), and `- source: compound-packs/<id>` appended under `packs:` in `.compound-engineering/config.yaml`, created from the template when the file is missing. It then runs the health check and reports the `pack <id>` line, and tells you the layout rule: a rule is discovered only when it is a top-level `.md` with `title` and `applies_when`; `README.md` is the description, and subfolders are storage ([Pack layout](./packs.md#pack-layout)). In a non-interactive run it prints the preview and writes nothing.
+
+## Set model roles
+
+`/ce-setup models` (or asking it in words to set up model roles) builds or edits the [`model_roles` map](./configuration.md#model-roles): which model, at which reasoning effort, produces each pipeline step's deliverable. It runs in place of the health check and its fixes.
+
+- **It shows the current state.** You see all eight roles, each with its effective value and where that value comes from: a map entry in the personal or team file, an older key such as `plan_model`, or the session model. It names every older key that a map entry already replaces, and it prints the resolver's warnings and errors.
+- **It offers what this session can reach.** A model family is offered when the app you are in serves it, or when a peer CLI for it (`claude`, `codex`, `grok`, `cursor-agent`) is installed. `inherit` is always offered. This confirms that a route exists, not that your account may use a given model. You can type any other model. Setup writes it with a trailing `# unconfirmed` comment, and a later run removes the comment once it can confirm the model.
+- **It changes only what you change.** Set a role, clear it, or leave it alone. The review roles, `doc-review` and `code-review`, take a list with one independent reviewer per item. Any entry can carry an effort: `low`, `medium`, `high`, `xhigh`, or `max`. When a new entry replaces an older key for that step, setup says so.
+- **It asks which file receives the map.** The team file, `config.yaml`, is committed, so the map reaches every worktree, clone, and cloud session and applies to your teammates. The personal file, `config.local.yaml`, reaches this checkout only. Before writing, setup tells you when a change would not take effect as asked, such as a team entry that your personal entry shadows.
+- **It previews, then writes.** You see the complete resulting `model_roles` block and the file it goes to, and you approve once. Every unrelated setting and comment in the file is kept. When the write creates `config.local.yaml`, setup offers the gitignore entry for it. It then re-runs the health check and the resolver and shows what each role now resolves to. In a non-interactive run it prints the preview and writes nothing.
+
+To take one role back from a team entry without editing the team file, set it to `inherit` in the personal file.
 
 ## Where artifacts land
 
@@ -115,6 +128,7 @@ Use `ce-setup` when:
 - A workflow reported an optional tool missing and you want the install command
 - You are onboarding a repo to `.compound-engineering/config.yaml`
 - You want to start a Compound Pack with `pack:<id>` in the layout discovery reads
+- You want to choose which model does each pipeline step, with `models`
 - Health marked `docs_root` or the CE Work engine block invalid
 
 Skip it when:
@@ -143,7 +157,7 @@ Skip it when:
 It was the old machine-local config file. Team defaults now live in `.compound-engineering/config.yaml`, and `config.local.yaml` is the optional per-checkout override. Review-agent selection is automatic.
 
 **Why gitignore `.compound-engineering/config.local.yaml`?**
-It is a per-checkout override, so committing it defeats the point. The committed `config.example.yaml` shows the available settings. Setup creates the repo file, never the override.
+It is a per-checkout override, so committing it defeats the point. The committed `config.example.yaml` shows the available settings. Setup's fixes create only the repo file. The model role flow is the one place setup writes the override, when you choose the personal file, and it then offers this gitignore entry.
 
 ---
 

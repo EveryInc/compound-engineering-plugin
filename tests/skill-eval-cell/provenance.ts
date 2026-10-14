@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
+import { HOSTS } from "./hosts"
 
 export const PACK_SCHEMA_VERSION = 2
 // The trusted assessment path, not only gradeArm's immediate dependencies.
@@ -157,7 +158,7 @@ export function verifyEvidence(out: string, expectedManifestHash?: string): void
     throw new Error("no unique host results were collected")
   }
   for (const host of summary.hosts_run) {
-    if (!["claude", "codex", "grok", "opencode"].includes(host)) throw new Error("unknown recorded host")
+    if (!(HOSTS as readonly string[]).includes(host)) throw new Error("unknown recorded host")
     const dir = containedPath(out, `hosts/${host}`)
     for (const name of ["stdout.txt", "stderr.txt", "exit.json", "prompt.md", "argv.json", "git-status.txt", "git-head-files.txt"]) {
       if (!fs.lstatSync(path.join(dir, name)).isFile()) throw new Error(`missing regular host evidence: ${name}`)

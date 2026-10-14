@@ -85,6 +85,20 @@ function scoping(id: string, skill: "ce-brainstorm" | "ce-plan", fixture: string
   }
 }
 
+/**
+ * main before the model role map. `ce-setup` has no model role flow at this ref, so the
+ * base arm shows only that the flow did not exist; run this scenario with `--arm post`.
+ */
+export const MODEL_ROLES_BASE_REF = "1fd12d69812b9c48e0b054bb4a000de2cb37f744"
+
+/**
+ * The map lands in a YAML file, which the judge's result document (`.md` / `.html` only)
+ * never includes, so the task has the assistant print the config directory at the end.
+ */
+export const SETUP_MODEL_ROLES_TASK = `Use ce-setup with me. I'm here and will answer your questions: ask in chat, one question at a time, and wait for my reply. When the flow has finished, list the files under .compound-engineering/ and print the final contents of each one verbatim under its file name.
+
+Request: {opening}`
+
 const JOB_OPENING = "Add a nightly job that charges each customer's saved card for their overdue open invoices and marks them paid."
 const DUNNING_OPENING =
   "Build a complete dunning system for overdue invoices: a nightly job that charges each customer's saved card, a configurable retry schedule (for example day 1, 3 and 7 after the due date), customer emails before each attempt and after a failure, an admin page that lists failed collections with a manual \"retry now\" button, and a per-customer switch to pause collection."
@@ -105,4 +119,19 @@ export const JUDGED_SCENARIOS: JudgedScenario[] = [
   scoping("plan-solo-job", "ce-plan", "judged-billing", "job.md", JOB_OPENING, 2),
   scoping("plan-solo-dunning", "ce-plan", "judged-billing", "dunning.md", DUNNING_OPENING, 2),
   scoping("plan-from-brainstorm", "ce-plan", "judged-billing-planned", "job-planned.md", "Plan docs/plans/2026-09-20-0900-feat-nightly-invoice-charging-plan.md", 2),
+  {
+    id: "ce-setup/model-roles-flow",
+    skill: "ce-setup",
+    companions: [],
+    fixture: `${FIX}/judged-model-roles-setup`,
+    persona: "model-roles-setup.md",
+    opening: "Set up model roles for this repo.",
+    task: SETUP_MODEL_ROLES_TASK,
+    rubric: "model-roles-setup.md",
+    base_ref: MODEL_ROLES_BASE_REF,
+    hosts: ["claude", "codex"],
+    trials: 1,
+    max_turns: 25,
+    timeout_secs: 3600,
+  },
 ]

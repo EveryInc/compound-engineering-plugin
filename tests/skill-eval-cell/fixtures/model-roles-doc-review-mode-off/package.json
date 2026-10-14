@@ -1,0 +1,8 @@
+{
+  "name": "model-roles-greeter",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "test": "node --test"
+  }
+}

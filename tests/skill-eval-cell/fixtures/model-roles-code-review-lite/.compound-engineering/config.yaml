@@ -1,0 +1,2 @@
+model_roles:
+  code-review: [claude-ce-eval-a, grok-ce-eval high]
