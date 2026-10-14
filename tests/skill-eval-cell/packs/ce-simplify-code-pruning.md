@@ -14,8 +14,8 @@ The pack checks both modes in one realistic repo. The fixture has a committed ba
    ```
 
    The fixture directory carries its own `.git`, so the cell copies it as is and does not re-seed it.
-2. Run each scenario with `run-scenario.sh <scenario> <post|pre> <trial>` from inside this repository. `post` uses the working tree; `pre` uses `origin/main`. Every scenario runs on Claude, Codex, and Grok.
-3. Grade each host workspace with `grade.py <workspace> <grade-scenario> <pristine-fixture>`. `pipeline_lfg` grades as `pipeline`. The grader compares item markers (`C01`..`C13` in comments, `T01`..`T13` in test names) against the expected-outcome matrix, and also fails a run that did work beyond the simplification (overreach, below).
+2. Run each scenario with `run-scenario.sh <scenario> <post|pre> <trial>` from inside this repository. `post` uses the working tree; `pre` uses `7a68002`, the last commit before this change. The runner refuses an existing output directory, and the fixture builder refuses an existing destination. Every scenario runs on Claude, Codex, and Grok.
+3. Grade each host workspace with `grade.py <workspace> <grade-scenario> <pristine-fixture>`. `pipeline_lfg` grades as `pipeline`. The grader exits non-zero when any expectation fails. The grader compares item markers (`C01`..`C13` in comments, `T01`..`T13` in test names) against the expected-outcome matrix, and also fails a run that did work beyond the simplification (overreach, below).
 4. Grade standalone report text blind: anonymize the `stdout.txt` of the `s_bare` and `s_audit_comments` cells and give a fresh grader the rubric below with the fixture, never the skill text or the run-to-host map.
 
 ### How each entry path is built
@@ -28,6 +28,7 @@ The eval cell presents its task as the user's message after telling the agent to
 | `pipeline_lfg` | The same token, plus the lfg user's original words "clean up the tests in src/ and ship it" | The token still wins when the user's own words sound like an audit |
 | `pipeline_auto` | `fixture-standing` (its AGENTS.md tells the agent to run the skill when a unit is done) and a task that only says the work is done: hand off | A no-token run the agent starts itself is pipeline |
 | `s_bare` | `/ce-simplify-code` | A bare user invocation reports first and changes nothing |
+| `s_simplify_path` | `/ce-simplify-code simplify src/dates.ts` | A plain request with a path reports first; only an explicit "without asking" applies |
 | `s_audit_comments` | `/ce-simplify-code find the useless comments across the whole repo` | Report only, comment reviewer only, whole repo |
 | `s_fix_comments` | `/ce-simplify-code remove the useless comments in src/ without asking` | Applies, keeps the keep list, reshapes instead of rewording |
 | `s_fix_tests` | `/ce-simplify-code prune the useless tests in this repo, no need to check with me` | Applies test pruning across pre-existing and current tests |
@@ -36,9 +37,9 @@ Keep pipeline tasks to what a caller would actually pass. A task that also asks 
 
 ### What the grader checks
 
-- **Pipeline:** every pre-existing item (`C01`-`C09`, `T01`-`T06`, the `__resetCacheForTests` seam) is byte-for-byte present. The current work's restating comment `C11` is removed. The surprise comment `C12` is removed. `T11` (a mock-supplied-result test) is removed or rewritten into a real assertion. The proof test `T12` and the `__monthLengthForTests` seam it calls are unchanged. With a `proof-test:` token naming the whole file, `T13` may stay. In `pipeline_auto` no proof test is named, so none of the current work's tests may be deleted or rewritten.
-- **Standalone report-first (`s_bare`, `s_audit_comments`):** the working tree is unchanged.
-- **Standalone fix:** keep-list comments (`C02` platform note, `C03` lint directive, `C06` JSDoc the fixture's standards require, `C08` generated file, `C09` license) survive; restating comments go; `C04` and `C12` are reshaped (parameter renamed) and deleted. Test pruning removes `T01`, `T06` with its seam, `T11`, merges or drops one of the `T02` duplicates, keeps one of `T12`/`T13`, and never deletes `T03` (source-inspection of a public route), `T04` (only guard of a stored format), or `T05` (fails before any change).
+- **Pipeline:** every pre-existing item (`C01`-`C09`, `T01`-`T06`, the `__resetCacheForTests` seam) is byte-for-byte present. The current work's restating comment `C11` is removed. The surprise comment `C12` is removed. `T11` (a mock-supplied-result test) is removed or rewritten into a real assertion. The proof test `T12` and the `__monthLengthForTests` seam it calls are unchanged; behavior-preserving changes to `addMonths` itself are allowed. `C13` may be encoded as a test or deleted outright: the fixture gives it a reason that is false (nothing calls `addMonths` or mutates its result), so it only describes current behavior. With a `proof-test:` token naming the whole file, `T13` may stay. In `pipeline_auto` no proof test is named, so none of the current work's tests may be deleted or rewritten.
+- **Standalone report-first (`s_bare`, `s_simplify_path`, `s_audit_comments`):** the working tree is unchanged.
+- **Standalone fix:** keep-list comments (`C02` platform note, `C03` lint directive, `C06` JSDoc the fixture's standards require, `C08` generated file, `C09` license) survive; restating comments go; `C04` and `C12` are reshaped (parameter renamed) and deleted. Test pruning removes `T01`, `T06` with its seam, `T11`, merges or drops one of the `T02` duplicates, keeps one of `T12`/`T13`, and never deletes `T03` (source-inspection of a public route), `T04` (only guard of a stored format), or `T05` (fails before any change). `T05`'s body must be byte-identical to the fixture, so a weakened assertion fails. A removed `C05` must be replaced by a test asserting `MAX_RANGE_DAYS` stays below 366.
 - **Overreach, every applying scenario:** the pre-existing `addBusinessDays` bug that `T05` exposes is left in place, other source files are unchanged, nothing is committed, and no test is added except one that encodes a comment the run deleted. A test that encodes a comment which only describes behavior (for example "n can be negative") counts as overreach.
 
 ## Report rubric (standalone)
@@ -47,17 +48,18 @@ For each anonymized report, record: numbered findings; grouped into delete, refa
 
 ## Reference results (2026-10-14)
 
-Post is the working tree at the tightened comment rule (one run per host per trial). Pre is `ce-simplify-code` on `origin/main` (7a68002), one trial per host. Cells count passing runs across Claude, Codex, and Grok.
+Post is the working tree at the tightened comment rule (one run per host per trial), regraded with the final grader. The pipeline scenarios and `s_bare` also ran once more per host after the code-review fixes to the proof-test rule and the report-first gate; those runs passed and are included in the counts below. Pre is `ce-simplify-code` at `7a68002`, main before this change, one trial per host. Cells count passing runs across Claude, Codex, and Grok.
 
 | Scenario | Pre | Post |
 |---|---|---|
-| `pipeline` | 0 of 3 | 9 of 9 |
-| `pipeline_lfg` | 0 of 3 | 9 of 9 |
-| `pipeline_auto` | 0 of 3 | 9 of 9 |
-| `s_bare` | 0 of 3 | 3 of 3 |
+| `pipeline` | 0 of 3 | 12 of 12 |
+| `pipeline_lfg` | 0 of 3 | 12 of 12 |
+| `pipeline_auto` | 0 of 3 | 12 of 12 |
+| `s_bare` | 0 of 3 | 6 of 6 |
 | `s_audit_comments` | 2 of 3 | 6 of 6 |
 | `s_fix_comments` | 0 of 3 | 6 of 6 |
 | `s_fix_tests` | 0 of 3 | 3 of 3 |
+| `s_simplify_path` | not run | 3 of 3 |
 
 What the pre arm got wrong:
 - **Pipeline:** kept the surprise comment `C12` in every run. In 3 of 6 caller-started runs and all 3 agent-started runs it rewrote the proof test or removed the seam it calls. With no proof test named it also deleted or rewrote the current work's own tests.
@@ -68,6 +70,7 @@ No pre run touched a pre-existing item in pipeline mode, because its scope was a
 
 Two findings from building the pack changed the skill or the pack:
 - **Descriptive comments became new tests.** An earlier comment rule told the reviewer to encode any "live constraint". Seven of 24 pipeline runs across all three hosts turned the descriptive comment "n can be negative" into a new test. The rule now encodes only a rule a later change could silently break, and that overreach did not recur in 27 later pipeline runs.
+- **The first proof-test rule froze the fix itself.** It skipped any finding that would change code the proof test calls, which includes the production code under test. Narrowed to the test-only code it calls, pipeline runs went from never applying the `clamp` rename to applying it in 5 of 9 runs, with the proof test and its seam still unchanged.
 - **A loose task invited extra work.** The first `pipeline_auto` task asked the agent to confirm tests and finish the work, which invited extra edits. The task now only says the work is done.
 
 The blind report grader passed all nine standalone reports (`s_bare` and two `s_audit_comments` trials, post): no keep-list comment recommended for deletion, `T05` always reported as a possible defect, and no test findings in a comments-only audit. Grok's reports include its working narration before the final report; one Codex report deleted `C12` without proposing the rename first.
@@ -85,7 +88,8 @@ Not exercised: the follow-up "apply 1 and 3" turn. The cell runs one turn on Cla
 # Usage: build-fixture.sh <dest-dir> [--standing-instruction]
 set -euo pipefail
 D="$1"; STANDING="${2:-}"
-rm -rf "$D"; mkdir -p "$D/src/api" "$D/src/generated" "$D/tests"
+[ -e "$D" ] && { echo "$D exists; pass a new directory" >&2; exit 2; }
+mkdir -p "$D/src/api" "$D/src/generated" "$D/tests"
 cd "$D"
 cat > AGENTS.md <<'EOF'
 # acme-dates
@@ -291,14 +295,16 @@ case "$S" in
   pipeline_lfg) TASK=$'mode:pipeline proof-test:tests/months.test.ts\n\nInvoked as step 3 of an lfg run, on the branch diff. The user started that run with: "clean up the tests in src/ and ship it". ce-work has finished implementing addMonths. No one is available to answer questions.' ;;
   pipeline_auto) TASK='addMonths is implemented in the working tree and its tests pass. Hand off.' ;;
   s_bare) TASK='/ce-simplify-code' ;;
+  s_simplify_path) TASK='/ce-simplify-code simplify src/dates.ts' ;;
   s_audit_comments) TASK='/ce-simplify-code find the useless comments across the whole repo' ;;
   s_fix_comments) TASK='/ce-simplify-code remove the useless comments in src/ without asking' ;;
   s_fix_tests) TASK='/ce-simplify-code prune the useless tests in this repo, no need to check with me' ;;
+  *) echo "unknown scenario: $S" >&2; exit 2 ;;
 esac
-REF=(); [ "$ARM" = pre ] && REF=(--ref origin/main)
-OUT=${EVAL_DIR:-/tmp/ce-simplify-eval}/runs/$S-$ARM-$T; rm -rf "$OUT"
+REF=(); [ "$ARM" = pre ] && REF=(--ref 7a68002fc24139fe4876c759c9e5a3ebff976ad4)
+mkdir -p ${EVAL_DIR:-/tmp/ce-simplify-eval}/runs; OUT=${EVAL_DIR:-/tmp/ce-simplify-eval}/runs/$S-$ARM-$T; [ -e "$OUT" ] && { echo "$OUT exists; remove it first" >&2; exit 2; }
 cd "$REPO" && bun run test:skill-eval-cell -- --skill ce-simplify-code --fixture "$FIX" --hosts "$HOSTS" --timeout-secs 1500 ${REF[@]+"${REF[@]}"} --task "$TASK" --out "$OUT" > ${EVAL_DIR:-/tmp/ce-simplify-eval}/runs/$S-$ARM-$T.log 2>&1
-echo "done $S $ARM $T"
+STATUS=$?; echo "done $S $ARM $T (exit $STATUS)"; exit $STATUS
 ```
 
 ### grade.py
@@ -306,7 +312,7 @@ echo "done $S $ARM $T"
 ```python
 #!/usr/bin/env python3
 """Grade one ce-simplify-code pruning cell workspace against the expected matrix.
-Usage: grade.py <workspace> <scenario> <pristine-fixture-dir>   (scenario: pipeline | pipeline_auto | s_bare | s_audit_comments | s_fix_comments | s_fix_tests)
+Usage: grade.py <workspace> <scenario> <pristine-fixture-dir>   (scenario: pipeline | pipeline_auto | s_bare | s_simplify_path | s_audit_comments | s_fix_comments | s_fix_tests)
 Prints one line per item: id, observed, expected, OK/FAIL."""
 import json, os, re, subprocess, sys
 ws, scenario, ref = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -335,8 +341,12 @@ obs["seam_reset"] = "kept" if "__resetCacheForTests" in src["src/dates.ts"] else
 obs["seam_month"] = "kept" if "export function __monthLengthForTests" in src["src/dates.ts"] else "removed"
 obs["C04_reshaped"] = "yes" if not re.search(r"addBusinessDays\([^)]*\bflag\b", src["src/dates.ts"]) else "no"
 obs["C12_reshaped"] = "yes" if not re.search(r"addMonths\([^)]*\bclamp: boolean", src["src/dates.ts"]) else "no"
-obs["C05_encoded"] = "yes" if re.search(r"MAX_RANGE_DAYS", alltests) else "no"
-obs["C13_encoded"] = "yes" if re.search(r"not\.toBe\(", alltests) else "no"
+obs["C05_encoded"] = "yes" if re.search(r"MAX_RANGE_DAYS[^\n]*toBeLessThan\(\s*366", alltests) else "no"
+obs["C13_encoded"] = "yes" if re.search(r"addMonths\([\s\S]{0,120}?\)\)?\.not\.toBe\(|expect\(\s*addMonths\([^;]*\.not\.toBe\(", alltests) else "no"
+def body(text, tid):
+    m = re.search(r'test\("' + tid + r'\b[\s\S]*?\n\}\)', text); return m.group(0) if m else None
+ref_alltests = "".join(open(os.path.join(ref, r)).read() for r in tests)
+obs["T05_unchanged"] = "yes" if body(alltests, "T05") == body(ref_alltests, "T05") else "no"
 t12 = re.search(r'test\("T12[\s\S]*?\n\}\)', tests["tests/months.test.ts"])
 obs["T12_unchanged"] = "yes" if t12 and t12.group(0) == 'test("T12 addMonths clamps Jan 31 plus one month to Feb 28", () => {\n  expect(__monthLengthForTests(2026, 1)).toBe(28)\n  expect(formatDate(addMonths(new Date(2026, 0, 31), 1, true))).toBe("2026-02-28")\n})' else "no"
 def snapshot(d):
@@ -363,7 +373,7 @@ obs["tests_added"] = str(len(added))
 obs["tests_added_names"] = "; ".join(added) or "none"
 PRE = {k: "kept" for k in ["C01","C02","C03","C04","C05","C06","C07","C09","T01","T03","T04","T05","T06"]}
 PRE.update({"C08":"kept","T02":"both","seam_reset":"kept"})
-KEEP_ALWAYS = {"C02":"kept","C03":"kept","C06":"kept","C08":"kept","C09":"kept","T03":"kept","T04":"kept","T05":"kept"}
+KEEP_ALWAYS = {"C02":"kept","C03":"kept","C06":"kept","C08":"kept","C09":"kept","T03":"kept","T04":"kept","T05":"kept","T05_unchanged":"yes"}
 E = {}
 if scenario in ("pipeline", "pipeline_auto"):
     E.update(PRE); E.update(KEEP_ALWAYS)
@@ -374,7 +384,7 @@ if scenario in ("pipeline", "pipeline_auto"):
         E["T11"] = {"removed","rewritten"}
     else:
         E.update({"T11":"kept","T13":"kept"})
-elif scenario in ("s_bare", "s_audit_comments"):
+elif scenario in ("s_bare", "s_audit_comments", "s_simplify_path"):
     E = {k: "kept" for k in ["C01","C02","C03","C04","C05","C06","C07","C09","C11","C12","C13","T01","T03","T04","T05","T06","T11","T12","T13"]}
     E.update({"C08":"kept","T02":"both","tree":"unchanged","seam_reset":"kept","seam_month":"kept"})
 elif scenario == "s_fix_comments":
@@ -385,6 +395,10 @@ elif scenario == "s_fix_tests":
     E.update(KEEP_ALWAYS)
     E.update({"T01":"removed","T02":{"one","merged"},"T06":"removed","seam_reset":"removed","T11":{"removed","rewritten"},"T12|T13":"kept"})
     E.update({k:"kept" for k in ["C01","C04","C05","C07","C11","C12","C13"]})
+# C13 states a reason the fixture makes false, so deleting it unencoded is defensible; C05 is a live limit.
+for c, e in (("C05","C05_encoded"),):
+    if scenario in ("s_fix_comments","pipeline","pipeline_auto") and obs.get(c) == "removed" and c in E:
+        E[e] = "yes"
 if scenario.startswith("pipeline") or scenario.startswith("s_fix"):
     E.update({"bug_untouched":"yes","other_src_untouched":"yes" if scenario.startswith("pipeline") else {"yes","no"},"commits":"1"})
     encodable = sum(1 for c, e in (("C05","C05_encoded"),("C13","C13_encoded")) if obs[c] == "removed" and obs[e] == "yes")
@@ -401,4 +415,5 @@ for k, exp in E.items():
 info = {k: obs[k] for k in ("C04_reshaped","C12_reshaped","C05_encoded","C13_encoded","tree","new_files","tests_added","tests_added_names") if k not in E}
 print("info:", json.dumps(info))
 print(f"RESULT {scenario}: {'PASS' if fails==0 else f'{fails} FAIL'}")
+sys.exit(1 if fails else 0)
 ```
