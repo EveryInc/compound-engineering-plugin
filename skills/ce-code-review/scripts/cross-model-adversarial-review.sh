@@ -78,11 +78,11 @@ LAST_LOG=""; SKIP_REASON=""
 log()  {
   printf '[cross-model] %s\n' "$*" >&2
   LAST_LOG="$*"
-  case "$*" in *skipping*|*skipped*) SKIP_REASON="$*" ;; esac
 }
-skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
+skip() { SKIP_REASON="$*"; log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
 
-# Opt-in strict mode (see header). PEER_ARTIFACT_WRITTEN flips once a normalized
+# Opt-in strict mode (see header). SKIP_REASON is set where skip() is called and
+# where a peer returns nothing usable; other early returns fall back to LAST_LOG. PEER_ARTIFACT_WRITTEN flips once a normalized
 # artifact is published; the EXIT trap turns an otherwise clean exit with no
 # artifact into exit 3. Diagnostic modes (--emit-adapter, CROSS_MODEL_DRY_RUN)
 # clear REQUIRE_PEER because they never run a peer.
@@ -1091,6 +1091,7 @@ run_provider() {   # <provider>
     PEER_ARTIFACT_WRITTEN=true
     log "wrote $n finding(s) to $OUT (reviewer adversarial-$provider)"
   else
+    SKIP_REASON="provider $provider produced no usable schema-shaped output"
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
     # Surface bounded evidence so the orchestrator can tell quota or auth
     # exhaustion from an ordinary empty review. Provider errors arrive as ACP
