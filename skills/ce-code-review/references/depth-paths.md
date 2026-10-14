@@ -17,6 +17,8 @@ Coverage states that the lite path ran and no reviewer agents were dispatched; n
 
 Write the receipt and `metadata.json` (## Run artifacts in `references/modes-and-output.md`) into the run directory Stage 1b created, then record `--end review --start receipt --candidates <count of findings you retained from your own read>` and, once `metadata.json` is on disk, `--end receipt` followed by `summarize` as that section states, and emit the receipt as the response. In `mode:agent`, the receipt is the JSON object the JSON output format in `references/modes-and-output.md` defines, written to `review.json`. In default mode, it is every retained finding (stable `#`, severity, `file:line`, route), then Actionable Findings, Coverage, and Verdict, written to `report.md`; a retained finding that is not actionable still appears in the findings list.
 
+That emission (lite or focused) is the last thing this skill writes. It ends this skill, not the turn: when a caller such as `lfg` invoked this review inline, the caller runs in this same session, and its next step follows the receipt.
+
 ### Focused path
 
 Focused is the lite review plus one independent adversarial read of the same diff, merged in this context. It exists for a change that can fail silently but does not need the full roster: the defects it targets are the ones a second, differently-seated reader finds and a single reader rationalizes away. No finish leaves run; the round is small enough to finish where it was dispatched.

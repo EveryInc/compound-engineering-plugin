@@ -172,7 +172,7 @@ The protected-artifact rule is part of the finding contract in `references/actio
 
 ## After Review
 
-After Stage 6, stop dispatching and emit the report or JSON object below as the last thing this skill writes. When local apply was explicitly authorized, Stage 5c may already have applied and, on a clean pre-review tree, committed verified fixes. Otherwise the caller or user decides what to apply from the report and artifacts. That emission ends this skill, not the turn: when a caller such as `lfg` invoked this review inline, the caller runs in this same session, and its next step follows the report.
+After Stage 6, stop. When local apply was explicitly authorized, Stage 5c may already have applied and, on a clean pre-review tree, committed verified fixes. Otherwise the caller or user decides what to apply from the report and artifacts.
 
 ### Emit actionable findings summary (default mode only)
 
