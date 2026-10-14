@@ -223,6 +223,14 @@ describe("inline child returns do not end the caller's turn", () => {
     "skills/ce-plan/references/plan-handoff.md": readRepoFile("skills/ce-plan/references/plan-handoff.md"),
     "skills/ce-pov/references/invocation.md": readRepoFile("skills/ce-pov/references/invocation.md"),
     "skills/ce-doc-review/references/synthesis-and-presentation.md": readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md"),
+    // lfg's shipping steps (3, 4, 8, 9, 10) invoke these five inline too; they
+    // carried no resume language at all until WOR-57, so a child's own
+    // "stop"/"report"/"summarize" ending read as the final word of the turn.
+    "skills/ce-simplify-code/SKILL.md": readRepoFile("skills/ce-simplify-code/SKILL.md"),
+    "skills/ce-code-review/references/finish-review.md": readRepoFile("skills/ce-code-review/references/finish-review.md"),
+    "skills/ce-test-browser/SKILL.md": readRepoFile("skills/ce-test-browser/SKILL.md"),
+    "skills/ce-commit-push-pr/references/apply-and-handoff.md": readRepoFile("skills/ce-commit-push-pr/references/apply-and-handoff.md"),
+    "skills/ce-babysit-pr/references/pipeline.md": readRepoFile("skills/ce-babysit-pr/references/pipeline.md"),
   }
 
   test("callee return contracts say the return ends the skill, not the turn", () => {

@@ -13,7 +13,7 @@ Run end-to-end browser tests on pages affected by a PR or branch using the best 
 ## Modes
 
 - **Manual (default):** the user controls the dev server. When the fallback driver is `agent-browser`, ask whether to run headed or headless.
-- **Pipeline (`mode:pipeline`):** invoked by LFG or another automated runner. The run is unattended — never block on a question. Read `references/pipeline-orchestration.md` from this skill's directory and follow it; it overrides port selection (step 4, Determine the dev server port), dev-server startup (step 5, Verify the dev server is running), and visibility prompts (step 6, Set visibility), running the same port script with `--free` inside the block that starts the server.
+- **Pipeline (`mode:pipeline`):** invoked by LFG or another automated runner. The run is unattended — never block on a question. Read `references/pipeline-orchestration.md` from this skill's directory and follow it; it overrides port selection (step 4, Determine the dev server port), dev-server startup (step 5, Verify the dev server is running), and visibility prompts (step 6, Set visibility), running the same port script with `--free` inside the block that starts the server. The step 10 summary is the last thing this mode writes. It ends this skill, not the turn: the caller runs in this same session, and its next step follows the summary.
 
 ## Browser Driver Policy
 

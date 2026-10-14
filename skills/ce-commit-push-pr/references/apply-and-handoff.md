@@ -57,6 +57,8 @@ A draft-only stack submit is a hard residual before babysit when babysit is on.
 - **A head branch you cannot push to.** **Fork PRs are drivable — not a hard-off** when you can push the head (common for a branch this skill just pushed): babysit reads state on the **base** repo and pushes fixes to the **head** repo. Hard-off only when the head is not pushable.
 **Soft-degrade (after successful handoff only):** `ce-babysit-pr` decides whether checkpoint mode applies and owns its report and resume invocation. Checkpoint is not a substitute for a failed handoff.
 
+**When the automatic handoff does not fire**, the PR URL already reported above is the last thing this skill writes. That report ends this skill, not the turn: when a caller such as `lfg` invoked this skill inline — the ordinary `mode:pipeline` case, where `lfg` owns the `ce-babysit-pr` handoff itself — the caller runs in this same session, and its next step follows the report.
+
 ## Applying via gh
 
 The body **must** be written to a temp file and passed via `--body-file <path>`. Never use `--body-file -`, stdin pipes, heredoc-to-stdin, or `--body "$(cat ...)"` — wrappers and stdin handling can silently produce an empty PR body while `gh` still exits 0 and returns a URL.
