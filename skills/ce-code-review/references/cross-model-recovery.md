@@ -21,7 +21,7 @@ Read this only from the branch that sends you here: Stage 3d's no-job-id start f
 
 ## Trust boundary (maintainers)
 
-The peer reviews the **current work tree** against `git diff <base-ref>`. Reviewed code/diff content is sent to an external model provider (OpenAI, Anthropic, xAI, or Cursor, depending on the resolved peer). `CROSS_MODEL_PEERS` restricts which providers may receive content.
+The peer reviews the **current work tree** against `git diff <base-ref>`. Reviewed code/diff content is sent to an external model provider (OpenAI, Anthropic, xAI, Google, or Cursor, depending on the resolved peer). `CROSS_MODEL_PEERS` restricts which providers may receive content.
 
 **Isolation differs from ce-doc-review by design.** Doc-review embeds a self-contained document and denies every permission from an empty workspace. Code-review needs surrounding code context, so peers run **in-tree**: every route runs through acpx (an Agent Client Protocol client, which needs Node 22.13 or newer with `npx`) from the repository root, and acpx passes it no MCP servers. acpx approves the peer's read and search requests and denies every other permission request, and each adapter runs in its read-only mode where it has one. That removes a tool only where the agent asks permission before using it, so the routes differ in what the peer can still do:
 
@@ -32,5 +32,6 @@ The peer reviews the **current work tree** against `git diff <base-ref>`. Review
 | `grok-cursor`, `cursor`, `composer` | Allowed | Reads and searches anywhere |
 | `grok-cli` | Small diff: refused (it reads through acpx, which rejects paths outside the repository). Large diff: allowed, through its own read tool | Reads inside the repository; web fetch and web search, which its ACP server cannot disable. On a large diff its own tools also write without asking |
 | `opencode` | Allowed (its config allows external-directory reads) | Reads anywhere; edits, web, and subagents are denied in its config |
+| `antigravity` | Allowed (a read permission, which acpx approves) | Reads and searches. Shell commands and edits ask permission and are denied. It loads skills only from its private per-run home and the repository's `.agents/skills` and `.gemini/skills` |
 
 On a diff too large to inline, every route gets the staged diff's private path instead of the diff. `grok-cli` then runs with its own file tools, because acpx's file access refuses that path. Claude starts in safe mode and OpenCode with `OPENCODE_DISABLE_PROJECT_CONFIG=1`, so the reviewed repository's Claude settings and hooks and its `.opencode/{plugin,agent}` do not load. The worst case is disclosure of the reviewed content, except on the codex route, and on `grok-cli` with a large diff, where a peer could also change files. The script's stderr audit log records each send so every transfer is auditable even in `mode:agent`.
