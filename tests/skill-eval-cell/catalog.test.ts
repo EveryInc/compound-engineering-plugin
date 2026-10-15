@@ -247,6 +247,12 @@ describe("skill-eval-cell catalog", () => {
         "ce-work/requirements-only-stops:references/input-triage.md",
         "ce-work/return-to-caller-no-pr:references/input-triage.md",
         "ce-work/return-to-caller-no-pr:references/return-to-caller.md",
+        "ce-code-review/antigravity-last-automatic-target:references/cross-model-review.md",
+        "ce-code-review/composer-not-auto-selected:references/cross-model-review.md",
+        "ce-code-review/gemini-request-binds-antigravity:references/cross-model-review.md",
+        "ce-doc-review/antigravity-last-automatic-target:references/cross-model-review.md",
+        "ce-pov/oracle-default-order-reaches-antigravity:references/cross-model-panel.md",
+        "ce-work/antigravity-default-candidates:references/cross-model-execution.md",
         "lfg/plan-first:references/plan-brief.md",
       ].sort(),
     )

@@ -49,6 +49,8 @@ export const STRUCTURAL_FIX_BASE_REF = "2b4cacd32d3e8c19a91e1c50c318172ec1d2f160
 export const RELIABILITY_CONTEXT_BASE_REF = "8d9a236dc91b17e114562bd65e9e137d171f39ab"
 /** main before ce-work dropped its goal/workflow engines, ran chained units inline, and ce-plan stopped offering /goal. */
 const WORK_ENGINES_BASE_REF = "030188b4ba27f2dc33fbc4d5a112d3c8cc893e8c"
+/** main before the Antigravity cross-model peer route and the codex, claude, grok, antigravity automatic order. */
+const ANTIGRAVITY_PEER_BASE_REF = "bdc53d034ccfa5baf01b6139cd46082145ff95cc"
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -3627,6 +3629,109 @@ Use "Correct widget limit" as the description in the subject and any required bo
       workspace_read: ["tests/jobs.test.js"],
       must_include: ["retry-once-on-lock.md", "Delete", "jobs.test.js", "header-parse-measured-limit.md", "Keep"],
       actions: "none",
+    },
+  },
+  {
+    id: "ce-code-review/antigravity-last-automatic-target",
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: ANTIGRAVITY_PEER_BASE_REF,
+    why: "With only the Antigravity runtime installed and no preference, the automatic order must reach antigravity as its last target.",
+    pre_contract: "The automatic order is codex, claude, grok, composer; Gemini has no standalone target.",
+    task: "Use the ce-code-review skill as far as its cross-model route resolution and stop there. The working tree is the reviewed head and Stage 3 selected the adversarial lens. Attest your own host as the skill says. These are the only facts about installed peer CLIs; do not probe PATH or run `command -v` yourself. Installed: `agy_acp_server.par` and its `localharness_external` helper. Not installed: `codex`, `claude` (as a peer CLI), `grok`, `cursor-agent`, `opencode`. No peer preference is stated in conversation, config, or project instructions, and CROSS_MODEL_PEERS is unset. This is a read-only probe: do not start a peer job, do not dispatch reviewers, and do not write files. Resolve which target and concrete route the cross-model pass would use, or that it would not run.\n\nEnd with exactly two lines in this form and nothing else on those lines:\n\nPEER_TARGET: <target token, or none>\nPEER_ROUTE: <route token, or none>",
+    grade: {
+      files_read_post: ["references/cross-model-review.md"],
+      declared: { PEER_TARGET: "antigravity", PEER_ROUTE: "antigravity" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/composer-not-auto-selected",
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: ANTIGRAVITY_PEER_BASE_REF,
+    why: "Composer left the automatic order. With the allowlist permitting only Composer and Antigravity, automatic selection must skip Composer and land on antigravity.",
+    pre_contract: "The automatic order ends with composer.",
+    task: "Use the ce-code-review skill as far as its cross-model route resolution and stop there. The working tree is the reviewed head and Stage 3 selected the adversarial lens. Attest your own host as the skill says. These are the only facts about installed peer CLIs; do not probe PATH or run `command -v` yourself. Installed: `cursor-agent`, `agy_acp_server.par`, and its `localharness_external` helper. Not installed: `codex`, `claude` (as a peer CLI), `grok`, `opencode`. No peer preference is stated in conversation, config, or project instructions. CROSS_MODEL_PEERS=composer,antigravity. This is a read-only probe: do not start a peer job, do not dispatch reviewers, and do not write files. Resolve which target and concrete route the cross-model pass would use, or that it would not run.\n\nEnd with exactly two lines in this form and nothing else on those lines:\n\nPEER_TARGET: <target token, or none>\nPEER_ROUTE: <route token, or none>",
+    grade: {
+      files_read_post: ["references/cross-model-review.md"],
+      declared: { PEER_TARGET: "antigravity", PEER_ROUTE: "antigravity" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/gemini-request-binds-antigravity",
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: ANTIGRAVITY_PEER_BASE_REF,
+    why: "A conversational request for a Gemini peer binds target antigravity, never a Cursor route.",
+    pre_contract: "Gemini participates only through Cursor when cursor-agent attests a Gemini serving family.",
+    task: "Use the ce-code-review skill as far as its cross-model route resolution and stop there. The working tree is the reviewed head and Stage 3 selected the adversarial lens. Attest your own host as the skill says. These are the only facts about installed peer CLIs; do not probe PATH or run `command -v` yourself. Installed: `cursor-agent`, `agy_acp_server.par`, and its `localharness_external` helper. Not installed: `codex`, `claude` (as a peer CLI), `grok`, `opencode`. CROSS_MODEL_PEERS is unset. The user said: \"use Gemini for the cross-model pass\". This is a read-only probe: do not start a peer job, do not dispatch reviewers, and do not write files. Resolve which target and concrete route the cross-model pass would use, or that it would not run.\n\nEnd with exactly two lines in this form and nothing else on those lines:\n\nPEER_TARGET: <target token, or none>\nPEER_ROUTE: <route token, or none>",
+    grade: {
+      files_read_post: ["references/cross-model-review.md"],
+      declared: { PEER_TARGET: "antigravity", PEER_ROUTE: "antigravity" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-doc-review/antigravity-last-automatic-target",
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: ANTIGRAVITY_PEER_BASE_REF,
+    why: "Doc review shares the automatic order: with only the Antigravity runtime installed and no preference, the pass resolves antigravity.",
+    pre_contract: "The automatic order is codex, claude, grok, composer; Gemini has no standalone target.",
+    task: "Use the ce-doc-review skill as far as its cross-model route resolution and stop there. The document under review activated the adversarial lens. Attest your own host as the skill says. These are the only facts about installed peer CLIs; do not probe PATH or run `command -v` yourself. Installed: `agy_acp_server.par` and its `localharness_external` helper. Not installed: `codex`, `claude` (as a peer CLI), `grok`, `cursor-agent`, `opencode`. No peer preference is stated in conversation, config, or project instructions, and CROSS_MODEL_PEERS is unset. This is a read-only probe: do not start a peer job, do not dispatch reviewers, and do not write files. Resolve which target and concrete route the cross-model pass would use, or that it would not run.\n\nEnd with exactly two lines in this form and nothing else on those lines:\n\nPEER_TARGET: <target token, or none>\nPEER_ROUTE: <route token, or none>",
+    grade: {
+      files_read_post: ["references/cross-model-review.md"],
+      declared: { PEER_TARGET: "antigravity", PEER_ROUTE: "antigravity" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-pov/oracle-default-order-reaches-antigravity",
+    skill: "ce-pov",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: ANTIGRAVITY_PEER_BASE_REF,
+    why: "The panel reference now declares its default order. A bare oracle with only the Antigravity runtime installed must select antigravity.",
+    pre_contract: "Bare oracle uses an undeclared default order and has no antigravity target.",
+    task: "Use the ce-pov skill with a bare `oracle` request on this question: \"Should a small CLI store its config in TOML or YAML?\". Resolve the panel's peer selection and stop there. Attest your own host as the skill says. These are the only facts about installed peer CLIs; do not probe PATH or run `command -v` yourself. Installed: `agy_acp_server.par` and its `localharness_external` helper. Not installed: `codex`, `claude` (as a peer CLI), `grok`, `cursor-agent`, `opencode`. No peer preference is stated in conversation, config, or project instructions, and CROSS_MODEL_PEERS is unset. This is a read-only probe: do not dispatch any peer and do not write files.\n\nEnd with exactly one line in this form and nothing else on that line:\n\nPEERS: <comma-separated target tokens the panel would consult, or none>",
+    grade: {
+      files_read_post: ["references/cross-model-panel.md"],
+      declared: { PEERS: "antigravity" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-work/antigravity-default-candidates",
+    skill: "ce-work",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: ANTIGRAVITY_PEER_BASE_REF,
+    fixture: `${FIX}/antigravity-work-config`,
+    why: "An antigravity work_engine_preferences candidate with no model expands to two exact candidates, Argon then Flash, settled by a preflight model check before init.",
+    pre_contract: "antigravity is not a work_engine_preferences harness.",
+    task: "Use the ce-work skill to resolve the implementation engine for this checkout's standing configuration (`.compound-engineering/config.yaml`) and stop before any preflight runs. These are the only facts about installed peer CLIs; do not probe PATH or run `command -v` yourself. Installed: `agy_acp_server.par` and its `localharness_external` helper. This is a read-only probe: do not run any script, do not start a controller run, and do not write files.\n\nEnd with exactly three lines in this form and nothing else on those lines:\n\nROUTE: <controller route token for the first candidate, or native>\nFIRST_MODEL: <model the first candidate requests, or none>\nSECOND_MODEL: <model the next candidate requests, or none>",
+    grade: {
+      files_read_post: ["references/cross-model-execution.md"],
+      declared: { ROUTE: "antigravity", FIRST_MODEL: "gemini-4-argon", SECOND_MODEL: "gemini-3.8-flash" },
+      actions: "none",
+      delegates: "none",
     },
   },
 ]
