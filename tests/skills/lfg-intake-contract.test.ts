@@ -223,10 +223,11 @@ describe("inline child returns do not end the caller's turn", () => {
     "skills/ce-plan/references/plan-handoff.md": readRepoFile("skills/ce-plan/references/plan-handoff.md"),
     "skills/ce-pov/references/invocation.md": readRepoFile("skills/ce-pov/references/invocation.md"),
     "skills/ce-doc-review/references/synthesis-and-presentation.md": readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md"),
-    // lfg's shipping steps (3, 4, 8, 9, 10) invoke these five inline too; they
+    // lfg's shipping steps (4, 8, 9, 10) invoke these four inline too; they
     // carried no resume language at all until WOR-57, so a child's own
     // "stop"/"report"/"summarize" ending read as the final word of the turn.
-    "skills/ce-simplify-code/SKILL.md": readRepoFile("skills/ce-simplify-code/SKILL.md"),
+    // (Step 3's ce-simplify-code had the same gap, independently closed by
+    // #1859 with its own equivalent wording before this branch could land.)
     // ce-code-review's dispatch context (the one inline in lfg's turn) never
     // opens finish-review.md -- that file is read only by the ephemeral
     // report-leaf subagent on the full spine (SKILL.md: "which the leaves
