@@ -16,7 +16,7 @@ Never recommend deleting:
 - in pipeline mode, a proof test, or the test-only code it calls
 - a test only because it is slow, static, or looks like the implementation
 
-Before flagging, read the whole test, the code it covers, that code's callers, and the tests that overlap it. When a test claims behavior of a dependency, read the dependency's source or types. In standalone mode, check the test's history when it may explain why the test exists. A deletion finding must name the remaining test that covers the same ground, or say why no proof is needed; without that, do not flag it. Prefer a few well-evidenced findings over a long speculative list, and do not recommend new tests except as the replacement in a rewrite.
+Before flagging, run the test and read the whole test, the code it covers, that code's callers, and the tests that overlap it. Recommend deleting a test only after seeing it pass; one that fails or cannot be run is a possible defect, never a deletion candidate. When a test claims behavior of a dependency, read the dependency's source or types. In standalone mode, check the test's history when it may explain why the test exists. A deletion finding must name the remaining test that covers the same ground, or show that the test asserts nothing that could fail, so no coverage is lost; without one of those, do not flag it. Prefer a few well-evidenced findings over a long speculative list, and do not recommend new tests except as the replacement in a rewrite.
 
 In pipeline mode, flag only tests the current work added or changed.
 

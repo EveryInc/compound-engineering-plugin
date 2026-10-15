@@ -67,7 +67,7 @@ An interface or data shape that existed only in an earlier iteration of the curr
 
 Run project-wide typecheck and lint. Run tests matched to blast radius: scoped tests for local changes, broader tests for shared or wide-reach changes, and the full suite when the runner cannot scope tests.
 
-Report failures with the check name and relevant output. Fix simplification-caused failures or revert the responsible change. Never weaken or remove a test to make a check pass. A test is removed only as a test-value finding, and the remaining tests that finding named must still pass afterwards.
+Report failures with the check name and relevant output. Fix simplification-caused failures or revert the responsible change. Never weaken or remove a test to make a check pass. A test is removed only as a test-value finding, and any remaining tests that finding named must still pass afterwards.
 
 If no test suite, lint, or typecheck is configured, state that explicitly in the summary; do not silently skip verification.
 
