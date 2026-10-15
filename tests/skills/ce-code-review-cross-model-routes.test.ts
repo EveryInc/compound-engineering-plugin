@@ -275,7 +275,7 @@ function run(args: string[], runDir: string, env: NodeJS.ProcessEnv = process.en
   }
 }
 function peerOutputs(files: string[]): string[] {
-  return files.filter((file) => /^adversarial-(codex|claude|grok|cursor|composer|opencode)\.json$/.test(file))
+  return files.filter((file) => /^adversarial-(codex|claude|grok|cursor|composer|opencode|antigravity)\.json$/.test(file))
 }
 function published(runDir: string, name: string) {
   return JSON.parse(readFileSync(path.join(runDir, name), "utf8"))
@@ -1156,6 +1156,136 @@ function blockBetween(script: string, startMarker: string, endMarker: string): s
 // override validation, run loop, and overload handling stay byte-identical.
 // What differs is posture: doc-review denies every permission from an empty
 // workspace, while code-review approves reads from the repository root.
+// The Antigravity ACP runtime and its helper, staged as stubs on the sandbox PATH.
+const ANTIGRAVITY_BINS = ["agy_acp_server.par", "localharness_external"]
+// What acpx@0.19.4 prints when --model names a model the session did not
+// advertise: the session opens, then the run ends before any prompt is sent.
+function unadvertisedStream(model: string, available: string, base = path.join(temp("xmodel-cr-stream-"), "s")) {
+  const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+    rpc({ id: 1, result: { sessionId: "stub-session-1" } }),
+    rpc({ id: null, error: { code: -32603, message: `Cannot apply --model "${model}": the ACP agent did not advertise that model. Available models: ${available}.`, data: { acpxCode: "RUNTIME" } } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.exit`, "1\n")
+  return base
+}
+// The runtime answers initialize, then holds session/new open while it waits
+// for a browser sign-in.
+function signInWaitStream(base = path.join(temp("xmodel-cr-stream-"), "s")) {
+  const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [{ id: "oauth-personal" }] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.sleep`, "30\n")
+  return base
+}
+
+describe("cross-model-adversarial-review antigravity route", () => {
+  test("--emit-adapter antigravity requests Argon read-only, strips Google credentials, and isolates GEMINI_HOME", () => {
+    const command = emitAdapter("antigravity")
+    expect(command).toStartWith("env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_APPLICATION_CREDENTIALS -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u GOOGLE_GENAI_USE_VERTEXAI -u AGY_LLM_GATEWAY_URL npm_config_prefer_offline=true")
+    expect(command).toContain("GEMINI_HOME=<gemini-home>")
+    expect(command).toContain("--approve-reads --non-interactive-permissions deny --model gemini-4-argon antigravity exec --config-option mode=default --config-option thinking_level=high")
+    const tokens = command.split(/\s+/)
+    for (const bad of NEVER_FLAGS) expect(tokens).not.toContain(bad)
+  })
+
+  test("Argon unoffered falls back once to Flash before any prompt; the receipt names Flash as requested", () => {
+    const base = path.join(temp("xmodel-cr-stream-"), "s")
+    unadvertisedStream("gemini-4-argon", "gemini-3.8-flash", `${base}.1`)
+    acpStream({ text: review() }, `${base}.2`)
+    const sb = sandbox(ANTIGRAVITY_BINS, base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "antigravity", "HEAD", runDir], runDir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(r.stderr).toContain("Antigravity does not offer gemini-4-argon on this account; falling back to gemini-3.8-flash")
+    expect(argv(sb)).toContain("gemini-3.8-flash")
+    const out = published(runDir, "adversarial-antigravity.json")
+    expect(out.model_requested).toBe("gemini-3.8-flash")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.serving_family).toBe("gemini")
+    expect(out.receipt_supported).toBe(false)
+    expect(out.independence_verified).toBe(true)
+  })
+
+  test("a pinned Argon on an account without it skips naming the offered models and never runs Flash", () => {
+    const sb = sandbox(ANTIGRAVITY_BINS, unadvertisedStream("gemini-4-argon", "gemini-3.8-flash"))
+    const runDir = makeRunDir()
+    const r = run(["claude", "antigravity", "HEAD", runDir], runDir, {
+      ...sb.env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "antigravity",
+      CROSS_MODEL_MODEL_OVERRIDE: "gemini-4-argon",
+    })
+    expect(calls(sb)).toBe(1)
+    expect(r.stderr).toMatch(/transport unavailable \(pre-egress, route\): Cannot apply --model "gemini-4-argon".*Available models: gemini-3\.8-flash/)
+    expect(r.stderr).not.toContain("falling back")
+    expect(peerOutputs(r.files)).toEqual([])
+  })
+
+  test("a non-Gemini model pin or an effort Antigravity lacks skips before launch", () => {
+    for (const env of [
+      { CROSS_MODEL_MODEL_OVERRIDE_TARGET: "antigravity", CROSS_MODEL_MODEL_OVERRIDE: "claude-sonnet-4-6" },
+      { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" },
+    ]) {
+      const sb = sandbox(ANTIGRAVITY_BINS)
+      const runDir = makeRunDir()
+      const r = run(["claude", "antigravity", "HEAD", runDir], runDir, { ...sb.env, ...env })
+      expect(r.stderr).toContain("not compatible with route 'antigravity'; skipping")
+      expect(calls(sb)).toBe(0)
+    }
+    expect(emitAdapter("antigravity", SCRIPT, { CROSS_MODEL_EFFORT_OVERRIDE: "medium" })).toContain("thinking_level=medium")
+  })
+
+  test("a runtime waiting for sign-in is reaped before any prompt with a sign-in remedy", () => {
+    const sb = sandbox(ANTIGRAVITY_BINS, signInWaitStream())
+    const runDir = makeRunDir()
+    const r = run(["claude", "antigravity", "HEAD", runDir], runDir, { ...sb.env, CROSS_MODEL_SESSION_START_SECS: "1" })
+    expect(r.stderr).toContain("transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in")
+    expect(calls(sb)).toBe(1)
+    expect(peerOutputs(r.files)).toEqual([])
+  })
+
+  test("the peer gets a private oauth-personal GEMINI_HOME and the helper beside the runtime, never ambient Google keys", () => {
+    const sb = sandbox(ANTIGRAVITY_BINS)
+    const runDir = makeRunDir()
+    run(["claude", "antigravity", "HEAD", runDir], runDir, { ...sb.env, GEMINI_API_KEY: "ambient-key", GOOGLE_CLOUD_PROJECT: "ambient-project" })
+    const env = envLog(sb)
+    expect(env).toContain("GEMINI_API_KEY=<unset>")
+    expect(env).toContain("GOOGLE_CLOUD_PROJECT=<unset>")
+    expect(env).toContain(`ANTIGRAVITY_HARNESS_PATH=${path.join(sb.bin, "localharness_external")}`)
+    expect(env).toMatch(/GEMINI_HOME=\S*xmodel-cr-scratch-\S*\/gemini-home/)
+    expect(env).toContain('{"auth":{"type":"oauth-personal"}}')
+  })
+
+  test("a runtime without its helper is a route pre-egress skip", () => {
+    const sb = sandbox(["agy_acp_server.par"])
+    const runDir = makeRunDir()
+    const r = run(["claude", "antigravity", "HEAD", runDir], runDir, sb.env)
+    expect(r.stderr).toContain("transport unavailable (pre-egress, route): Antigravity's localharness_external helper is not beside agy_acp_server.par")
+    expect(calls(sb)).toBe(0)
+  })
+
+  test("the default order reaches Antigravity last and never picks Composer", () => {
+    const order = "codex,claude,grok,antigravity"
+    expect(resolvePeers("claude", order, ANTIGRAVITY_BINS)).toBe("antigravity")
+    expect(resolvePeers("claude", order, [...ANTIGRAVITY_BINS, "codex"])).toBe("codex")
+    // cursor-agent still reaches Grok through Cursor, ahead of Antigravity.
+    expect(resolvePeers("claude", order, [...ANTIGRAVITY_BINS, "cursor-agent"])).toBe("grok")
+  })
+
+  test("a Gemini-served or Antigravity-hosted session never selects Antigravity", () => {
+    const order = "codex,claude,grok,antigravity"
+    expect(resolvePeers("gemini", order, ANTIGRAVITY_BINS)).toBe("")
+    expect(resolvePeers("claude", order, ANTIGRAVITY_BINS, { CROSS_MODEL_HOST_HARNESS: "antigravity" })).toBe("")
+    expect(resolvePeers("gemini", order, [...ANTIGRAVITY_BINS, "codex"])).toBe("codex")
+  })
+})
+
 describe("cross-model provider kernel parity (code-review vs doc-review)", () => {
   test.each([
     ["route mapping", "route_effort() {", "# --- acpx transport"],

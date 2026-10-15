@@ -29,6 +29,14 @@ if [ -n "${ACP_STUB_NPX_ENV_LOG:-}" ]; then
     printf 'CLAUDE_CODE_EXECUTABLE=%s\n' "${CLAUDE_CODE_EXECUTABLE-<unset>}"
     printf 'OPENCODE_DISABLE_PROJECT_CONFIG=%s\n' "${OPENCODE_DISABLE_PROJECT_CONFIG-<unset>}"
     printf 'OPENCODE_CONFIG_CONTENT=%s\n' "${OPENCODE_CONFIG_CONTENT-<unset>}"
+    printf 'GEMINI_HOME=%s\n' "${GEMINI_HOME-<unset>}"
+    printf 'ANTIGRAVITY_HARNESS_PATH=%s\n' "${ANTIGRAVITY_HARNESS_PATH-<unset>}"
+    printf 'GEMINI_API_KEY=%s\n' "${GEMINI_API_KEY-<unset>}"
+    printf 'GOOGLE_CLOUD_PROJECT=%s\n' "${GOOGLE_CLOUD_PROJECT-<unset>}"
+    if [ -n "${GEMINI_HOME:-}" ] && [ -f "$GEMINI_HOME/antigravity-acp/settings.json" ]; then
+      printf -- '--- GEMINI_HOME settings ---\n'
+      cat "$GEMINI_HOME/antigravity-acp/settings.json"
+    fi
     printf 'PWD=%s\n' "$(pwd -P)"
     if [ -n "${CLAUDE_CODE_EXECUTABLE:-}" ] && [ -f "$CLAUDE_CODE_EXECUTABLE" ]; then
       printf -- '--- CLAUDE_CODE_EXECUTABLE contents ---\n'

@@ -760,6 +760,43 @@ describe("cross-model-doc-review acpx transport preflight", () => {
   })
 })
 
+const ANTIGRAVITY_BINS = ["agy_acp_server.par", "localharness_external"]
+function unadvertisedStream(model: string, available: string, base: string) {
+  const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+    rpc({ id: 1, result: { sessionId: "stub-session-1" } }),
+    rpc({ id: null, error: { code: -32603, message: `Cannot apply --model "${model}": the ACP agent did not advertise that model. Available models: ${available}.`, data: { acpxCode: "RUNTIME" } } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.exit`, "1\n")
+}
+
+describe("cross-model-doc-review antigravity route", () => {
+  test("--emit-adapter antigravity denies every permission and isolates GEMINI_HOME", () => {
+    const command = emitAdapter("antigravity")
+    expect(command).toContain("GEMINI_HOME=<gemini-home>")
+    expect(command).toContain("--deny-all --model gemini-4-argon antigravity exec --config-option mode=default --config-option thinking_level=high")
+  })
+
+  test("Argon unoffered falls back once to Flash, and a Gemini host never selects Antigravity", () => {
+    const base = path.join(temp("xmodel-doc-stream-"), "s")
+    unadvertisedStream("gemini-4-argon", "gemini-3.8-flash", `${base}.1`)
+    acpStream({ text: review() }, `${base}.2`)
+    const sb = sandbox(ANTIGRAVITY_BINS, base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "antigravity", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(r.stderr).toContain("falling back to gemini-3.8-flash")
+    const out = published(runDir, "adversarial-antigravity.json")
+    expect(out.model_requested).toBe("gemini-3.8-flash")
+    expect(out.serving_family).toBe("gemini")
+    expect(resolvePeers("gemini", "codex,claude,grok,antigravity", ANTIGRAVITY_BINS)).not.toContain("antigravity")
+    expect(resolvePeers("claude", "codex,claude,grok,antigravity", ANTIGRAVITY_BINS, { CROSS_MODEL_HOST_HARNESS: "antigravity" })).not.toContain("antigravity")
+  })
+})
+
 describe("cross-model-doc-review normalization (R18, KTD5)", () => {
   test("forces reviewer to <lens>-<provider>, backfills soft arrays, and records route receipts", () => {
     const meta = { quota: { model_usage: [{ model: "claude-opus-5-5-20260801", token_count: { totalTokens: 10 } }] } }

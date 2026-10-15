@@ -100,8 +100,29 @@ acpx_agent() {   # <route> -> acpx built-in agent name
     grok-cli) printf 'grok-build' ;;
     grok-cursor|cursor|composer) printf 'cursor' ;;
     opencode) printf 'opencode' ;;
+    antigravity) printf 'antigravity' ;;
     *) return 1 ;;
   esac
+}
+
+# acpx launches Google's Antigravity ACP runtime by name. It is a separate
+# download from the agy CLI and needs its localharness_external helper from the
+# same release, beside it or named by ANTIGRAVITY_HARNESS_PATH.
+acpx_antigravity_helper() {
+  local runtime
+  if [ -n "${ANTIGRAVITY_HARNESS_PATH:-}" ]; then printf '%s' "$ANTIGRAVITY_HARNESS_PATH"; return 0; fi
+  runtime="$(command -v agy_acp_server.par 2>/dev/null)" || return 1
+  printf '%s/localharness_external' "$(dirname "$runtime")"
+}
+
+# The runtime reads skills and settings from GEMINI_HOME and copies its sign-in
+# token there, so every run gets a private one, deleted with the caller's
+# scratch. The settings select the personal Google login the runtime reuses.
+acpx_antigravity_home() {   # <private-dir> -> GEMINI_HOME path
+  local home="$1/gemini-home"
+  (umask 077; mkdir -p "$home/antigravity-acp") || return 1
+  printf '{"auth":{"type":"oauth-personal"}}\n' > "$home/antigravity-acp/settings.json" || return 1
+  printf '%s' "$home"
 }
 
 acpx_unavailable() {   # <shared|route> <reason>
@@ -137,6 +158,13 @@ acpx_preflight() {   # <route> <cwd>; nothing is sent to a provider here
     return 1
   fi
   command -v npx >/dev/null 2>&1 || { acpx_unavailable shared "npx not found; acpx runs through npx"; return 1; }
+  if [ "$1" = antigravity ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "the Antigravity route is not yet supported on native Windows"; return 1 ;;
+    esac
+    route_available "$1" || { acpx_unavailable route "Antigravity's ACP runtime (agy_acp_server.par) is not on PATH; it is a separate download from the agy CLI (run ce-setup for the link)"; return 1; }
+    [ -x "$(acpx_antigravity_helper)" ] || { acpx_unavailable route "Antigravity's localharness_external helper is not beside agy_acp_server.par or at ANTIGRAVITY_HARNESS_PATH; install both from the same release (run ce-setup for the link)"; return 1; }
+  fi
   route_available "$1" || { acpx_unavailable route "the agent CLI for route '$1' is not installed"; return 1; }
   if [ "$1" = opencode ]; then
     case "$(uname -s 2>/dev/null)" in
@@ -159,11 +187,19 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
 # flags; the worker appends permission flags, `--model`, the agent, and exec options.
 # The codex and claude adapters are pointed at the installed CLIs so the pin
 # governs the transport, not which models the agent can serve.
-acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper>
-  printf '%s\0' env npm_config_prefer_offline=true npm_config_fetch_retries=0
+acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home>
+  printf '%s\0' env
+  # An ambient Google API key or cloud project would bill it instead of the
+  # Antigravity subscription. env takes -u only before its first assignment.
+  case "$1" in
+    antigravity) printf '%s\0' -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_APPLICATION_CREDENTIALS \
+      -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u GOOGLE_GENAI_USE_VERTEXAI -u AGY_LLM_GATEWAY_URL ;;
+  esac
+  printf '%s\0' npm_config_prefer_offline=true npm_config_fetch_retries=0
   case "$1" in
     codex) printf '%s\0' "CODEX_PATH=$(command -v codex)" ;;
     claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
+    antigravity) printf '%s\0' "GEMINI_HOME=$6" "ANTIGRAVITY_HARNESS_PATH=$(acpx_antigravity_helper)" ;;
   esac
   printf '%s\0' npx -y "acpx@$ACPX_VERSION" --cwd "$2" --format json --mcp-config "$3" --timeout "$4"
 }
@@ -183,6 +219,21 @@ acpx_outcome() {   # <stream-log> -> end_turn | <other stopReason> | error | inc
   [ -n "$id" ] || { printf 'not-sent'; return 0; }
   outcome="$(jq -rR --argjson id "$id" 'fromjson? | select(.method == null and .id == $id) | if .error then "error" else (.result.stopReason // "error") end' "$1" 2>/dev/null | tail -1)"
   printf '%s' "${outcome:-incomplete}"
+}
+
+# Antigravity holds session/new open while it waits for a browser sign-in it
+# will never get, so a run without a usable login would otherwise sit out the
+# whole idle cap. Nothing has been sent while the session is pending.
+ACPX_SESSION_START_SECS="${CROSS_MODEL_SESSION_START_SECS:-60}"
+acpx_session_state() {   # <stream-log> -> starting | pending | open
+  local id
+  jq -eR 'fromjson? | select(.result.protocolVersion? != null)' "$1" >/dev/null 2>&1 || { printf 'starting'; return 0; }
+  id="$(jq -R 'fromjson? | select(.method == "session/new") | .id' "$1" 2>/dev/null | tail -1)"
+  if [ -n "$id" ] && jq -eR --argjson id "$id" 'fromjson? | select(.method == null and .id == $id)' "$1" >/dev/null 2>&1; then
+    printf 'open'
+  else
+    printf 'pending'
+  fi
 }
 
 acpx_text() {   # <stream-log> <outfile>: the agent's reply text
