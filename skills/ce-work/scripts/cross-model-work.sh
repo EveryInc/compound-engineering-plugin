@@ -300,9 +300,10 @@ validate_model_override() {
 }
 
 # Accept an effort only where the route's ACP adapter exposes an effort option
-# and lists the value (claude effort, codex and grok reasoning_effort; checked
-# 2026-10-06 through acpx 0.19.4; antigravity thinking_level, checked 2026-10-14). Codex levels vary per model, so a listed
-# level can still be refused before the prompt is sent. Cursor fixes effort in
+# and lists the value (claude effort, codex and grok reasoning_effort, checked
+# 2026-10-06 through acpx 0.19.4; antigravity thinking_level, checked
+# 2026-10-14). Codex levels vary per model, so a listed level can still be
+# refused before the prompt is sent. Cursor fixes effort in
 # the model preset and OpenCode has no effort option over ACP, so any effort
 # there makes the route unavailable instead of being dropped.
 validate_effort_override() {
@@ -320,10 +321,10 @@ validate_effort_override() {
 # The worker runs in the prepared workspace with every permission request
 # approved. Each adapter runs in its write-capable mode (codex agent, claude
 # default, cursor agent, opencode build, antigravity auto_edit, since its
-# default mode waits on approvals that never come); none of them confines writes to the
-# workspace, which references/cross-model-execution.md records per route.
-# Codex, Claude, and Antigravity run at high effort and native Grok at xhigh unless the
-# authorization requests another level.
+# default mode waits on approvals that never come); none of them confines
+# writes to the workspace, which references/cross-model-execution.md records
+# per route. Codex, Claude, and Antigravity run at high effort and native Grok
+# at xhigh unless the authorization requests another level.
 adapter_argv() {
   local route="$1" model
   acpx_agent "$route" >/dev/null || return 1
@@ -369,6 +370,8 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   exit 0
 fi
 
+SIGN_IN_STALL_REASON="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; sign in once with the agy CLI or the Antigravity app, then retry"
+
 # --check-model antigravity <model>: acpx checks --model against the models the
 # session advertises before any prompt, so opening a session answers whether the
 # account offers the model. acpx records the session under $HOME/.acpx; the
@@ -409,7 +412,7 @@ if [ "${1:-}" = "--check-model" ]; then
     kill -TERM -- -"$CHECK_PID" 2>/dev/null || kill -TERM "$CHECK_PID" 2>/dev/null
     wait "$CHECK_PID" 2>/dev/null
     [ "$ACPX_STATE_EXISTED" = true ] || { rmdir "$ACPX_STATE/sessions" "$ACPX_STATE" 2>/dev/null || true; }
-    echo "transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; sign in once with the agy CLI or the Antigravity app, then retry" >&2
+    echo "$SIGN_IN_STALL_REASON" >&2
     exit 2
   fi
   wait "$CHECK_PID"
@@ -1141,7 +1144,7 @@ case "$OUTCOME" in
     if [ -n "$REASON" ]; then
       REASON="transport unavailable (pre-egress, shared): ${REASON:0:200}"
     elif [ -f "$SESSION_STALL_MARKER" ]; then
-      REASON="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; sign in once with the agy CLI or the Antigravity app, then retry"
+      REASON="$SIGN_IN_STALL_REASON"
     else
       REASON="$(acpx_failure_evidence "$STREAM")"
       REASON="transport unavailable (pre-egress, route): ${REASON:-acpx exited $ROUTE_EXIT before sending the prompt}"
