@@ -22,7 +22,7 @@ This is not `ce-polish` (live UX on a working page), not `ce-code-review` (deepe
 
 ## Two modes
 
-**When another skill runs it** (`ce-work`, `lfg`, `ce-debug`'s fix handoff) or the agent runs it at a completion boundary, it works only on the current work, applies fixes without asking, and returns a summary. It prunes only tests and comments the current work added or changed, plus older tests the change made redundant; other older ones in the same files stay. It never touches the test that proves the fix. Callers mark these runs with `mode:pipeline` and name that test with `proof-test:<path>`.
+**When another skill runs it** (`ce-work`, `lfg`, `ce-debug`'s fix handoff) or the agent runs it at a completion boundary, it works only on the current work, applies fixes without asking, and returns a summary. It prunes only tests and comments the current work added or changed; older ones in the same files stay, and a standalone audit is the way to reach them. It never touches the tests that prove the work. Callers mark these runs with `mode:pipeline` and name that test with `proof-test:<path>`.
 
 **When you run it yourself**, your request sets the scope, from your recent changes to the whole repo. It reports numbered findings grouped as delete, refactor, or encode as a test, and changes nothing until you say which to apply. Say "just fix them" or "without asking" to skip the report.
 

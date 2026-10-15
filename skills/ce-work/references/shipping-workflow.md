@@ -14,7 +14,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
    This step refines reuse, quality, and efficiency on the **current diff** so any later review sees cleaner code. It is not a substitute for code review.
 
-   Pass `plan:<path>` or a scope hint when the plan or user narrowed what changed, and `proof-test:<path>` for each test the evidence record observed failing before its fix. If the skill is unavailable on the harness, skip or do a brief manual pass for obvious duplicate/dead code — code review (step 3) still runs regardless.
+   Pass `plan:<path>` or a scope hint when the plan or user narrowed what changed, and `proof-test:<path>` for each test the evidence record names as proving the work. If the skill is unavailable on the harness, skip or do a brief manual pass for obvious duplicate/dead code — code review (step 3) still runs regardless.
 
 3. **Code Review**
 

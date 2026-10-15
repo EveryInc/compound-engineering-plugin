@@ -13,11 +13,11 @@ Never recommend deleting:
 - a test that fails before any change; report it as a possible defect
 - a source-inspection test that fails when a user-facing key, byte, or path changes and survives an identifier-only rename
 - the only test guarding a public API, protocol, config or schema, migration or storage format, security behavior, or release or package contract
-- in pipeline mode, the proof test or anything it calls
+- in pipeline mode, a proof test, or the test-only code it calls
 - a test only because it is slow, static, or looks like the implementation
 
 Before flagging, read the whole test, the code it covers, that code's callers, and the tests that overlap it. When a test claims behavior of a dependency, read the dependency's source or types. In standalone mode, check the test's history when it may explain why the test exists. A deletion finding must name the remaining test that covers the same ground, or say why no proof is needed; without that, do not flag it. Prefer a few well-evidenced findings over a long speculative list, and do not recommend new tests except as the replacement in a rewrite.
 
-In pipeline mode, flag only tests the current work added or changed, plus existing tests the change made redundant.
+In pipeline mode, flag only tests the current work added or changed.
 
 Return each finding as: location (`file:line`), category, recommended action (delete, merge, rewrite, or report as defect), the failure the test can catch, the remaining test that covers it, any seam its deletion unlocks, and how you checked. If there is nothing to flag, say so explicitly.
