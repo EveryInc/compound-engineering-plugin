@@ -223,12 +223,18 @@ describe("inline child returns do not end the caller's turn", () => {
     "skills/ce-plan/references/plan-handoff.md": readRepoFile("skills/ce-plan/references/plan-handoff.md"),
     "skills/ce-pov/references/invocation.md": readRepoFile("skills/ce-pov/references/invocation.md"),
     "skills/ce-doc-review/references/synthesis-and-presentation.md": readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md"),
+    "skills/ce-simplify-code/SKILL.md": readRepoFile("skills/ce-simplify-code/SKILL.md"),
+    "skills/ce-code-review/references/depth-paths.md": readRepoFile("skills/ce-code-review/references/depth-paths.md"),
+    "skills/ce-code-review/references/finish-input.md": readRepoFile("skills/ce-code-review/references/finish-input.md"),
+    "skills/ce-test-browser/references/route-and-report.md": readRepoFile("skills/ce-test-browser/references/route-and-report.md"),
+    "skills/ce-commit-push-pr/references/apply-and-handoff.md": readRepoFile("skills/ce-commit-push-pr/references/apply-and-handoff.md"),
+    "skills/ce-babysit-pr/references/pipeline.md": readRepoFile("skills/ce-babysit-pr/references/pipeline.md"),
   }
 
   test("callee return contracts say the return ends the skill, not the turn", () => {
     for (const [file, body] of Object.entries(calleeReturns)) {
       expect(body, `${file} must not present the return as the final output`).not.toMatch(/as the final output/)
-      expect(body, `${file} must state the return ends the skill, not the turn`).toMatch(/ends this skill, not the turn/)
+      expect(body, `${file} must state the return ends the skill, not the turn`).toMatch(/ends (?:this|the) skill, not the turn/)
     }
   })
 

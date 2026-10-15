@@ -99,6 +99,8 @@ Read `finish-input.json`, `synthesized-findings.json`, `validator-outcome.json` 
 
 Emit the report leaf's return verbatim as this skill's final response. Do not summarize, reformat, or add to it; in `mode:agent` the response must begin with the JSON object. A leaf that fails to launch, returns a tool error, or returns something other than its contract (the merge receipt, or the report) is a failed finish: in `mode:agent` emit `{"status":"failed","reason":"<one sentence>"}`; otherwise say the round could not finish, name the run directory so a re-run can finish from it, and no peer job is outstanding, because the dispatch context reaped it before launching the leaves.
 
+That emission is the dispatch context's last write. It ends this skill, not the turn. When a caller invoked this skill, the caller runs in this same session, and its next step follows the return; otherwise end the turn.
+
 ## Run artifacts
 
 Always write run artifacts under the resolved `<run-dir>`:

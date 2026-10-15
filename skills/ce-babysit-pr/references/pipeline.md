@@ -11,3 +11,5 @@ A terminal-but-red check, a racing, pending, or unproven current-base identity, 
 ## Pipeline stop
 
 **In `mode:pipeline`, use the bounded pipeline stop** once no actionable backlog remains. Report success only when `needs_human_residuals` is empty, `all_checks_ok`, `mergeability_certain`, `merge_state_status == "CLEAN"`, `base_ref_blocker` and `stack_blocker` are null, `branch_currency_blocker` is null, and `unrequested_base_merge` is null. A non-empty canonical set with no autonomous work returns `{ status: "needs-human", checks_terminal, fixes_applied, residuals: needs_human_residuals }` immediately. Otherwise keep working independent streams until they clear or a budget ends the run with residuals. The terminal and blocked conditions still apply.
+
+The structured result at this stop is the last thing this skill writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the result.
