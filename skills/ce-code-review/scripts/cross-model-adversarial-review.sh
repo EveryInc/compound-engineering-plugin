@@ -1080,10 +1080,15 @@ run_provider() {   # <provider>
      [ "${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" != antigravity ]; then
     case "$PRE_EGRESS" in
       *"did not advertise"*)
-        log "Antigravity does not offer $M_ANTIGRAVITY on this account; falling back to $M_ANTIGRAVITY_FALLBACK"
-        ANTIGRAVITY_MODEL="$M_ANTIGRAVITY_FALLBACK"
-        PRE_EGRESS=""
-        attempt_route "$provider" "$primary"
+        # The fallback shares the original deadline, as the overload retry does.
+        remaining=$(( provider_deadline - $(date +%s) ))
+        if [ "$remaining" -gt 0 ]; then
+          log "Antigravity does not offer $M_ANTIGRAVITY on this account; falling back to $M_ANTIGRAVITY_FALLBACK"
+          ANTIGRAVITY_MODEL="$M_ANTIGRAVITY_FALLBACK"
+          PRE_EGRESS=""
+          HARD_SECS="$remaining"
+          attempt_route "$provider" "$primary"
+        fi
         ;;
     esac
   fi

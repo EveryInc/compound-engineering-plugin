@@ -863,6 +863,23 @@ describe("ce-work antigravity route", () => {
     expect(proc.stderr).toContain("Antigravity is waiting for a Google sign-in")
   }, 60_000)
 
+  test("a model check whose acpx exits still stops a runtime left in its group", async () => {
+    const f = fixture()
+    const pidFile = path.join(f.root, "left-behind.pid")
+    const ensured = stream((base) => {
+      writeFileSync(`${base}.stdout`, `${JSON.stringify({ action: "session_ensured", created: true, acpxRecordId: "rec-left" })}\n`)
+      writeFileSync(`${base}.exit`, "0\n")
+      return base
+    })
+    const bin = stubBin(f, ensured, `(sleep 30 & echo $! > '${pidFile}'; wait) &`)
+    const proc = checkModel(FLASH, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, HOME: temp("ce-work-check-home-") })
+    expect(proc.status).toBe(0)
+    const leftBehind = Number(readFileSync(pidFile, "utf8").trim())
+    const stopped = Date.now() + 10_000
+    while (alive(leftBehind) && Date.now() < stopped) await Bun.sleep(100)
+    expect(alive(leftBehind)).toBe(false)
+  }, 60_000)
+
   test("interrupting the model check stops its detached acpx group", async () => {
     const f = fixture()
     const pidFile = path.join(f.root, "check-grandchild.pid")

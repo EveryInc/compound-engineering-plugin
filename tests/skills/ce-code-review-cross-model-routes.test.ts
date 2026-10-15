@@ -1213,6 +1213,19 @@ describe("cross-model-adversarial-review antigravity route", () => {
     expect(out.independence_verified).toBe(true)
   })
 
+  test("the Flash fallback never starts once the Argon refusal used up the shared deadline", () => {
+    const base = path.join(temp("xmodel-cr-stream-"), "s")
+    unadvertisedStream("gemini-4-argon", "gemini-3.8-flash", `${base}.1`)
+    writeFileSync(`${base}.1.sleep`, "3\n")
+    acpStream({ text: review() }, `${base}.2`)
+    const sb = sandbox(ANTIGRAVITY_BINS, base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "antigravity", "HEAD", runDir], runDir, { ...sb.env, CROSS_MODEL_HARD_SECS: "2" })
+    expect(calls(sb)).toBe(1)
+    expect(r.stderr).not.toContain("falling back")
+    expect(peerOutputs(r.files)).toEqual([])
+  })
+
   test("a pinned Argon on an account without it skips naming the offered models and never runs Flash", () => {
     const sb = sandbox(ANTIGRAVITY_BINS, unadvertisedStream("gemini-4-argon", "gemini-3.8-flash"))
     const runDir = makeRunDir()

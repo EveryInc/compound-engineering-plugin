@@ -395,9 +395,11 @@ if [ "${1:-}" = "--check-model" ]; then
   # what the check created.
   check_cleanup() {
     local i
-    if [ -n "$CHECK_PID" ] && kill -0 "$CHECK_PID" 2>/dev/null; then
-      kill -TERM -- -"$CHECK_PID" 2>/dev/null || kill -TERM "$CHECK_PID" 2>/dev/null
-      for i in 1 2 3 4 5; do kill -0 "$CHECK_PID" 2>/dev/null || break; sleep 1; done
+    # Probe the whole group, not the leader: acpx can exit and leave the
+    # runtime running in its group.
+    if [ -n "$CHECK_PID" ] && kill -0 -- -"$CHECK_PID" 2>/dev/null; then
+      kill -TERM -- -"$CHECK_PID" 2>/dev/null
+      for i in 1 2 3 4 5; do kill -0 -- -"$CHECK_PID" 2>/dev/null || break; sleep 1; done
       kill -KILL -- -"$CHECK_PID" 2>/dev/null || true
     fi
     rm -rf "$CHECK_DIR"
