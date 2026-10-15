@@ -1692,7 +1692,7 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
     expect(r.status, r.stderr).toBe(0)
     const result = JSON.parse(r.stdout)
-    expect(result.calls[0].join(" ")).toContain("baseRefOid")
+    expect(result.calls[0].join(" ")).not.toContain("baseRefOid")
     const refCalls = result.calls.filter((call: string[]) => call.includes("repos/o/r/git/ref/heads/main"))
     expect(refCalls).toHaveLength(5)
     for (const call of refCalls) {
@@ -1704,6 +1704,7 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     for (const call of identityCalls) {
       expect(call).toContain("--hostname")
       expect(call).toContain("ghe.acme.test")
+      expect(call.join(" ")).toContain("baseRefOid")
     }
     expect(result.current.base).toEqual({
       host: "ghe.acme.test",

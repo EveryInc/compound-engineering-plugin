@@ -843,7 +843,7 @@ def fetch(pr, repo, light=False):
     downstack signature never reads (merge identity/base ref, eyes reactions, awaiting-approval)."""
     repo_args = ["--repo", repo] if repo else []
     view = _run_checked(["gh", "pr", "view", str(pr), *repo_args, "--json",
-                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,baseRefOid,baseRefName,headRefName,url,number,isDraft,"
+                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,baseRefName,headRefName,url,number,isDraft,"
                          "statusCheckRollup,author,comments,reviews"],
                         "gh pr view")
     v = json.loads(view.stdout)
