@@ -19,12 +19,13 @@
 #                   the peer-key of the host's OWN serving family, attested by
 #                   the calling skill (it knows its harness). A peer-key, never
 #                   a provider name: openai->codex, anthropic->claude,
-#                   xai->grok, cursor/composer->composer.
-#                   Used only to verify independence. `unknown` is allowed for an
+#                   xai->grok, cursor/composer->composer, google->gemini.
+#                   Used to verify independence. `unknown` is allowed for an
 #                   explicitly named peer, but its receipt remains unverified;
 #                   automatic discovery must exclude it before calling this worker.
 #   <fixed-route>   one host-resolved and pre-sanctioned route: codex, claude,
-#                   grok-cli, grok-cursor, cursor, or composer. A route failure
+#                   grok-cli, grok-cursor, cursor, composer, opencode, or
+#                   antigravity. A route failure
 #                   returns no artifact; only the host may disclose and retry a
 #                   different recipient.
 #   <subject-payload> framed question plus any conversation-only subject material.
@@ -38,7 +39,8 @@
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-pov.sh --emit-adapter <route>
 #     prints the exact argv the given route would run (route in:
-#     codex | claude | grok-cli | grok-cursor | cursor | composer). Both this mode and the
+#     codex | claude | grok-cli | grok-cursor | cursor | composer | opencode |
+#     antigravity). Both this mode and the
 #     live run build their argv from adapter_argv(), so the U7 route-safety test
 #     asserts on the same command string the peer actually runs.
 #
@@ -70,6 +72,8 @@ PEERLOG=""
 PEERERR=""
 RAW_OUT=""
 RUN_SUCCEEDED=false
+PEER_ROUTE=""
+SESSION_STALLED=false
 
 cleanup_private_scratch() {
   [ -n "${PEER_WORKDIR:-}" ] && rm -rf "$PEER_WORKDIR"
@@ -89,6 +93,12 @@ M_GROK="grok-4.7"              # grok CLI  (reasoning_effort=xhigh)
 # so grok-cursor runs at high/fast and composer at its fast tier.
 M_GROK_CURSOR="grok-4.7[context=256k,reasoning_effort=high,fast=true]"
 M_COMPOSER="composer-2.5[fast=true]"
+# Antigravity offers only the models the account is entitled to. Argon is
+# preferred; an account without it falls back once to Flash before any prompt,
+# and the non-final retry reuses whichever model was selected.
+M_ANTIGRAVITY="gemini-4-argon"            # antigravity (thinking_level=high)
+M_ANTIGRAVITY_FALLBACK="gemini-3.8-flash"
+ANTIGRAVITY_MODEL=""   # set by the fallback; empty requests M_ANTIGRAVITY
 
 route_model() {   # <route> -> the M_* constant that route requests
   local target
@@ -107,12 +117,13 @@ route_model() {   # <route> -> the M_* constant that route requests
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
     opencode)    printf 'auto' ;;
+    antigravity) printf '%s' "${ANTIGRAVITY_MODEL:-$M_ANTIGRAVITY}" ;;
   esac
 }
 
 route_target() {
   case "$1" in
-    codex|claude|cursor|composer) printf '%s' "$1" ;;
+    codex|claude|cursor|composer|antigravity) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
     opencode) printf 'opencode' ;;
   esac
@@ -125,12 +136,14 @@ route_harness() {
     grok-cli) printf 'grok' ;;
     grok-cursor|cursor|composer) printf 'cursor-agent' ;;
     opencode) printf 'opencode' ;;
+    antigravity) printf 'antigravity' ;;
   esac
 }
 
 target_serving_family() {
   case "$1" in
     codex|claude|grok|composer) printf '%s' "$1" ;;
+    antigravity) printf 'gemini' ;;
     cursor) printf 'unknown' ;;
     opencode) printf 'unknown' ;;
   esac
@@ -143,6 +156,7 @@ route_available() {
     grok-cli) command -v grok >/dev/null 2>&1 ;;
     grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
     opencode) command -v opencode >/dev/null 2>&1 ;;
+    antigravity) command -v agy_acp_server.par >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -356,10 +370,10 @@ EOF
 # Read-only intent on every route: reads are approved, every other permission
 # request is denied, and each adapter runs in its read-only mode where it has
 # one (codex mode=read-only, claude mode=default, cursor mode=ask, opencode
-# mode=plan with edits denied). Claude's --allowed-tools is an auto-approve
+# mode=plan with edits denied, antigravity mode=default). Claude's --allowed-tools is an auto-approve
 # list, not a restriction: its other tools still ask and are denied. The
 # codex adapter does not enforce its read-only mode, so write denial is best
-# effort. PEER_WORKDIR / PROMPT_FILE / MCP_CONFIG / CLAUDE_WRAPPER are resolved
+# effort. PEER_WORKDIR / PROMPT_FILE / MCP_CONFIG / CLAUDE_WRAPPER / GEMINI_HOME_DIR are resolved
 # by the caller (placeholders in --emit-adapter mode).
 adapter_argv() {
   local route="$1" model
@@ -371,7 +385,7 @@ adapter_argv() {
     opencode) printf '%s\0' env OPENCODE_DISABLE_PROJECT_CONFIG=1 \
       'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","webfetch":"deny","task":"deny"}}' ;;
   esac
-  acpx_base_argv "$route" "$READ_ROOT" "$MCP_CONFIG" "$HARD_SECS" "$CLAUDE_WRAPPER"
+  acpx_base_argv "$route" "$READ_ROOT" "$MCP_CONFIG" "$HARD_SECS" "$CLAUDE_WRAPPER" "$GEMINI_HOME_DIR"
   printf '%s\0' --approve-reads --non-interactive-permissions deny
   case "$route" in
     claude) printf '%s\0' --allowed-tools Read,Glob,Grep,WebSearch,WebFetch --max-turns 15 ;;
@@ -384,6 +398,7 @@ adapter_argv() {
     grok-cli) printf '%s\0' --config-option reasoning_effort=xhigh ;;
     grok-cursor|cursor|composer) printf '%s\0' --config-option mode=ask ;;
     opencode) printf '%s\0' --config-option mode=plan ;;
+    antigravity) printf '%s\0' --config-option mode=default --config-option thinking_level=high ;;
   esac
   printf '%s\0' --file "$PROMPT_FILE"
 }
@@ -405,6 +420,7 @@ apply_model_override() {
     grok-cursor:grok-*|grok-cursor:cursor-grok-* ) ;;
     composer:composer-* ) ;;
     opencode:*/* ) ;;
+    antigravity:gemini-* ) ;;
     *) return 1 ;;
   esac
 }
@@ -412,13 +428,13 @@ apply_model_override() {
 # --- --emit-adapter <route>: print the argv, no model call, no side effects --
 if [ "${1:-}" = "--emit-adapter" ]; then
   READ_ROOT="<read-root>"
-  PROMPT_FILE="<prompt-file>"; MCP_CONFIG="<mcp-config>"; CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"
+  PROMPT_FILE="<prompt-file>"; MCP_CONFIG="<mcp-config>"; CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"; GEMINI_HOME_DIR="<gemini-home>"
   HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
   route="${2:-}"
   apply_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -464,20 +480,24 @@ INCLUDE_PATHS="${CROSS_MODEL_INCLUDE_PATHS:-}"
 EXCLUDE_PATHS="${CROSS_MODEL_EXCLUDE_PATHS:-}"
 
 case "$HOST_PROVIDER" in
-  codex|claude|grok|composer|unknown) ;;
-  *) skip "host serving family '$HOST_PROVIDER' invalid (want codex|claude|grok|composer|unknown)" ;;
+  codex|claude|grok|composer|gemini|unknown) ;;
+  *) skip "host serving family '$HOST_PROVIDER' invalid (want codex|claude|grok|composer|gemini|unknown)" ;;
 esac
 case "$HOST_HARNESS" in
-  codex|claude|grok|cursor|opencode|unknown) ;;
-  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|unknown)" ;;
+  codex|claude|grok|cursor|opencode|antigravity|unknown) ;;
+  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|antigravity|unknown)" ;;
 esac
 
 case "$FIXED_ROUTE" in
-  codex|claude|grok-cli|grok-cursor|cursor|composer|opencode) ;;
+  codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity) ;;
   *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;
 esac
 TARGET="$(route_target "$FIXED_ROUTE")" || skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress"
 apply_model_override "$FIXED_ROUTE" || skip "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$FIXED_ROUTE'"
+# An Antigravity host can serve several families; never send it to itself.
+if [ "$FIXED_ROUTE" = antigravity ] && { [ "$HOST_PROVIDER" = gemini ] || [ "$HOST_HARNESS" = antigravity ]; }; then
+  skip "fixed route 'antigravity' is the host's own Gemini family or Antigravity harness; skipping before egress"
+fi
 
 # --- self-locate skill root + canonical sibling files ----------------------
 SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || skip "cannot resolve skill root; skipping"
@@ -522,7 +542,7 @@ route_allowlisted() {
     grok-cursor)
       in_csv grok "$ALLOW" && { in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
       ;;
-    opencode) in_csv opencode "$ALLOW" ;;
+    opencode|antigravity) in_csv "$1" "$ALLOW" ;;
     *) return 1 ;;
   esac
 }
@@ -577,6 +597,10 @@ chmod 600 "$PROMPT_FILE" "$PEERLOG" "$PEERERR" "$MCP_CONFIG" 2>/dev/null || { cl
 CLAUDE_WRAPPER=""
 if [ "$FIXED_ROUTE" = claude ]; then
   CLAUDE_WRAPPER="$(acpx_claude_wrapper "$PEER_WORKDIR")" || { cleanup_private_scratch; skip "transport unavailable (pre-egress, route): cannot prepare the Claude --safe-mode launcher"; }
+fi
+GEMINI_HOME_DIR=""
+if [ "$FIXED_ROUTE" = antigravity ]; then
+  GEMINI_HOME_DIR="$(acpx_antigravity_home "$PEER_WORKDIR")" || { cleanup_private_scratch; skip "transport unavailable (pre-egress, route): cannot prepare a private Antigravity home"; }
 fi
 trap 'cleanup_private_scratch' EXIT
 {
@@ -719,8 +743,9 @@ stop_heartbeat() {
   _HEARTBEAT_PID=""
 }
 
-run_peer_cmd() {   # CMD already built; streams to PEERLOG, diagnostics to PEERERR
+run_peer_cmd() {   # CMD already built for PEER_ROUTE; streams to PEERLOG, diagnostics to PEERERR
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
+  SESSION_STALLED=false
   set -m
   # Start npx from private scratch: npx resolves packages from its working
   # directory's node_modules and .npmrc first, and acpx gets the agent's cwd from --cwd.
@@ -729,7 +754,8 @@ run_peer_cmd() {   # CMD already built; streams to PEERLOG, diagnostics to PEERE
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m
   start_heartbeat
-  local start last=-1 lastchg now size
+  local start last=-1 lastchg now size session=open
+  [ "$PEER_ROUTE" = antigravity ] && session=starting
   start="$(date +%s)"; lastchg="$start"
   while peer_alive "$pid"; do
     now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
@@ -739,6 +765,13 @@ run_peer_cmd() {   # CMD already built; streams to PEERLOG, diagnostics to PEERE
     fi
     if [ $(( now - start )) -ge "$HARD_SECS" ]; then
       log "peer exceeded hard cap ${HARD_SECS}s; reaping peer process group"; reap "$pid"; break
+    fi
+    if [ "$session" != open ] && [ $(( now - start )) -ge "$ACPX_SESSION_START_SECS" ]; then
+      session="$(acpx_session_state "$PEERLOG")"
+      if [ "$session" = pending ]; then
+        SESSION_STALLED=true
+        log "Antigravity opened no session within ${ACPX_SESSION_START_SECS}s; reaping peer process group"; reap "$pid"; break
+      fi
     fi
     sleep 1
   done
@@ -839,6 +872,7 @@ attempt_route() {   # <provider> <route>
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT" "$TEXT_OUT"
   RUN_SUCCEEDED=false
   build_cmd "$route"
+  PEER_ROUTE="$route"
   log "peer run: provider=$provider route=$route model=$(route_model "$route") transport=acpx@$ACPX_VERSION POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s)"
   run_peer_cmd
   outcome="$(acpx_outcome "$PEERLOG")"
@@ -854,6 +888,8 @@ attempt_route() {   # <provider> <route>
       if grep -q '^npm error' "$PEERERR" 2>/dev/null; then
         reason="$(grep -m1 '^npm error' "$PEERERR")"
         PRE_EGRESS="transport unavailable (pre-egress, shared): ${reason:0:200}"
+      elif [ "$SESSION_STALLED" = true ]; then
+        PRE_EGRESS="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; sign in once with the agy CLI or the Antigravity app, then retry"
       else
         reason="$(acpx_failure_evidence "$PEERLOG")"
         PRE_EGRESS="transport unavailable (pre-egress, route): ${reason:-acpx exited $PEER_EXIT before sending the prompt}"
@@ -872,6 +908,18 @@ run_fixed_route() {
   ROUTE_STARTED_AT="$(date +%s)"
   PRE_EGRESS=""
   attempt_route "$provider" "$FIXED_ROUTE"
+  # A configured model is exact; only the editorial Argon request falls back.
+  if [ "$FIXED_ROUTE" = antigravity ] && [ "$(route_model antigravity)" = "$M_ANTIGRAVITY" ] &&
+     [ "${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" != antigravity ]; then
+    case "$PRE_EGRESS" in
+      *"did not advertise"*)
+        log "Antigravity does not offer $M_ANTIGRAVITY on this account; falling back to $M_ANTIGRAVITY_FALLBACK"
+        ANTIGRAVITY_MODEL="$M_ANTIGRAVITY_FALLBACK"
+        PRE_EGRESS=""
+        attempt_route "$provider" "$FIXED_ROUTE"
+        ;;
+    esac
+  fi
   [ -z "$PRE_EGRESS" ] || { cleanup_private_scratch; skip "$PRE_EGRESS"; }
   # One bounded retry on the same route, target, model, and scope; the only
   # change is a final-answer instruction. The retry gets only what is left of

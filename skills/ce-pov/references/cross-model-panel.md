@@ -15,8 +15,8 @@ materially change the POV and context cannot distinguish them.
 
 Keep four identities separate for the host and every peer:
 
-- **target** — the user-facing choice (`codex`, `claude`, `grok`, `cursor`, or
-  `composer`);
+- **target** — the user-facing choice (`codex`, `claude`, `grok`, `cursor`,
+  `composer`, `opencode`, or `antigravity`);
 - **harness/intermediary route** — the CLI or intermediary that runs it;
 - **requested model** — an explicit model or the route's declared default; and
 - **served model** — the model the worker's receipt (the route's adapter
@@ -52,8 +52,9 @@ else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 
 Both tokens come from the same peer-key vocabulary as the targets above, never
 from a provider's corporate name: `<host-serving-family>` (`XHOST_FAMILY`) is
-`codex`, `claude`, `grok`, `composer`, or `unknown`. `<host-harness>`
-(`XHOST_HARNESS`) is `codex`, `claude`, `grok`, `cursor`, `opencode`, or `unknown`. The
+`codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`. `<host-harness>`
+(`XHOST_HARNESS`) is `codex`, `claude`, `grok`, `cursor`, `opencode`,
+`antigravity`, or `unknown`. The
 snippet is evidence, not the verdict: it resolves the harnesses whose
 environment markers it already names, and where it yields `unknown` on a harness
 you can identify from your own runtime, attest what you know instead. A harness
@@ -62,7 +63,7 @@ the snippet does not name needs no new branch here.
 Cursor is the one identity self-knowledge cannot complete, because the harness
 does not determine the serving model: it keeps harness `cursor` and family
 `unknown` unless an observable serving-family attestation lets you set
-`XHOST_FAMILY` to `codex`, `claude`, `grok`, or `composer`.
+`XHOST_FAMILY` to `codex`, `claude`, `grok`, `composer`, or `gemini`.
 Never infer serving family from the Cursor brand.
 
 Section 4 passes `XHOST_FAMILY` as the worker's first argument and
@@ -80,6 +81,11 @@ job and produce no artifact.
   `cursor-agent`.
 - `grok` prefers the native Grok CLI; Grok through Cursor is a different route
   and recipient. Section 3 binds which token.
+- `antigravity` runs a Gemini model through Google Antigravity's ACP runtime,
+  and its serving family is `gemini`. A request for a Gemini peer binds this
+  target. `CROSS_MODEL_PEERS` sanctions it only through the literal token
+  `antigravity`, so a skip there names that token. It is never a peer when the
+  host's serving family is `gemini` or its harness is `antigravity`.
 
 Apply exactly one participation branch:
 
@@ -94,7 +100,8 @@ when the request never says `oracle`. A request for ce-pov's take alone does not
   replace an explicitly named model with another model.
 - **Bare `oracle`:** select up to two reachable, attestably different-model
   targets using conversation preference, local configuration, active project
-  conventions, then the declared default order; announce the selection and run
+  conventions, then the default order `codex -> claude -> grok -> antigravity`;
+  announce the selection and run
   it. Invoking `oracle` authorizes this ordinary read-only consultation against
   the current project.
 - **Explicit unnamed cross-check:** skip the correction-cost check and use the
@@ -108,9 +115,8 @@ when the request never says `oracle`. A request for ce-pov's take alone does not
 For the count rule: zero reachable means solo plus one availability line. One
 or more auto-selected peers means one concise progress line naming the selected
 targets before dispatch.
-Cursor-default counts automatically only when its serving family can be
-attested as different from the host; it remains eligible when explicitly named
-or configured as a preference.
+Cursor default and Composer are never selected automatically; they run when
+named or configured as a preference.
 
 **Prior-opinion subjects.** When the subject is an already-formed position —
 ce-pov's own prior POV or the user's stated view — that position is the subject
@@ -173,7 +179,10 @@ For each peer:
 3. If that default is observed unavailable, obsolete, or incompatible, choose
    only the closest compatible equivalent in the same requested target, model
    family, and reasoning tier. Record the observed local fact and substitute.
-   An explicit user model request cannot become another model.
+   An explicit user model request cannot become another model. For
+   `antigravity`, the worker's own fallback from `gemini-4-argon` to
+   `gemini-3.8-flash` is the preferred mapping, so the host passes no
+   replacement model for it.
 4. Resolve one concrete target, model choice, harness route, provider, and every
    intermediary. Confirm every actual recipient is on the allowlist of permitted
    external recipients.
@@ -190,6 +199,7 @@ refuses anything else (including route-shaped guesses like `codex-cli`):
 | `cursor` | `cursor` |
 | `composer` | `composer` |
 | `opencode` | `opencode` |
+| `antigravity` | `antigravity` |
 
 The host harness does not choose the Grok route. Target `grok` binds `grok-cli` when that CLI is installed. Bind `grok-cursor` only when the user asked for Grok through Cursor, or when the grok CLI is absent and Cursor is a sanctioned recipient.
 
@@ -330,9 +340,10 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 CE_PEER_HARD_SECS= "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-pov --run-id "<run-id>" --label "<target>" --result-path "<run-dir>/pov-<target>.json" -- env CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_REPO_ROOT="<repo-root>" CROSS_MODEL_READ_ROOT="<read-root>" CROSS_MODEL_SCRATCH_PARENT="<scratch-dir>" bash "$SKILL_DIR/scripts/cross-model-pov.sh" "<host-serving-family>" "<fixed-route>" "<payload-path>" "<run-dir>"
 ```
 
-- `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, or
-  `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`, or
-  `unknown`. Both are the Section 1 attestation, not a provider name.
+- `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, `gemini`,
+  or `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`,
+  `opencode`, `antigravity`, or `unknown`. Both are the Section 1 attestation,
+  not a provider name.
 - `<fixed-route>` is the sanctioned route token from Section 3's table;
   `<target>` is its resolved target, with `grok-cli` and `grok-cursor`
   collapsing to `grok`.

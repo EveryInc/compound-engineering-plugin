@@ -30,7 +30,7 @@ afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true
 const SCRIPT = path.join(__dirname, "../../skills/ce-pov/scripts/cross-model-pov.sh")
 const STUB_NPX = path.join(__dirname, "../fixtures/acp-stub-npx.sh")
 const STREAMS = path.join(__dirname, "../fixtures/acpx-streams")
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer", "opencode"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer", "opencode", "antigravity"] as const
 const ROUTE_BIN: Record<string, string> = {
   codex: "codex",
   claude: "claude",
@@ -762,6 +762,121 @@ describe("ce-pov acpx transport preflight and launch", () => {
     expect(result.stderr).toMatch(/transport unavailable \(pre-egress, route\): Cannot apply --model .*Available models: stub-model-a, stub-model-b/)
     expect(calls(sb)).toBe(1)
     expect(result.files).toEqual([])
+  })
+})
+
+const ANTIGRAVITY_BINS = ["agy_acp_server.par", "localharness_external"]
+// What acpx@0.19.4 prints when --model names a model the session did not
+// advertise: the session opens, then the run ends before any prompt is sent.
+function unadvertisedStream(model: string, available: string, base: string) {
+  const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+    rpc({ id: 1, result: { sessionId: "stub-session-1" } }),
+    rpc({ id: null, error: { code: -32603, message: `Cannot apply --model "${model}": the ACP agent did not advertise that model. Available models: ${available}.`, data: { acpxCode: "RUNTIME" } } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.exit`, "1\n")
+  return base
+}
+// The stub overwrites its argv log per call; this wrapper keeps each call's --model.
+function logModelsPerCall(sb: Sandbox) {
+  const log = path.join(path.dirname(sb.bin), "npx-models.log")
+  replaceTool(sb.bin, "npx", `#!/bin/sh\nprev=""\nfor a in "$@"; do [ "$prev" = "--model" ] && printf '%s\\n' "$a" >> "${log}"; prev="$a"; done\nexec "${STUB_NPX}" "$@"\n`)
+  return () => existsSync(log) ? readFileSync(log, "utf8").split("\n").slice(0, -1) : []
+}
+
+describe("ce-pov antigravity route", () => {
+  test("--emit-adapter antigravity requests Argon read-only at thinking_level=high with a private GEMINI_HOME", () => {
+    const command = emit("antigravity")
+    expect(command).toStartWith("env -u GEMINI_API_KEY -u GOOGLE_API_KEY")
+    expect(command).toContain("GEMINI_HOME=<gemini-home>")
+    expect(command).toContain("--approve-reads --non-interactive-permissions deny --model gemini-4-argon antigravity exec --config-option mode=default --config-option thinking_level=high")
+  })
+
+  test("Argon unoffered falls back to Flash, and the non-final retry reuses Flash without another Argon attempt", () => {
+    const base = path.join(temp("pov-stream-"), "s")
+    unadvertisedStream("gemini-4-argon", "gemini-3.8-flash", `${base}.1`)
+    acpStream({ text: pov({ position: "pending: reading the tree", final: false }) }, `${base}.2`)
+    acpStream({ text: pov() }, `${base}.3`)
+    const sb = sandbox(ANTIGRAVITY_BINS, base)
+    const models = logModelsPerCall(sb)
+    const dir = runDir()
+    const result = run(["claude", "antigravity", payload(), dir], dir, sb.env)
+    expect(calls(sb)).toBe(3)
+    expect(models()).toEqual(["gemini-4-argon", "gemini-3.8-flash", "gemini-3.8-flash"])
+    expect(result.stderr).toContain("Antigravity does not offer gemini-4-argon on this account; falling back to gemini-3.8-flash")
+    expect(readFileSync(`${sb.logs.prompt}.3`, "utf8")).toContain("This response is the final one")
+    expect(published(dir, "antigravity").model_requested).toBe("gemini-3.8-flash")
+  })
+
+  test("a final POV is published with family gemini, an unverified served model, and independence from a Claude host", () => {
+    const sb = sandbox(ANTIGRAVITY_BINS, acpStream({ text: pov() }))
+    const dir = runDir()
+    run(["claude", "antigravity", payload(), dir], dir, sb.env)
+    const out = published(dir, "antigravity")
+    expect(out.final).toBe(true)
+    expect(out.cross_model_harness).toBe("antigravity")
+    expect(out.serving_family).toBe("gemini")
+    expect(out.model_requested).toBe("gemini-4-argon")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.independence_verified).toBe(true)
+  })
+
+  test("a Gemini host and an Antigravity-harness host both skip the route before acpx", () => {
+    for (const [host, harness] of [["gemini", "unknown"], ["claude", "antigravity"]]) {
+      const sb = sandbox(ANTIGRAVITY_BINS)
+      const dir = runDir()
+      const result = run([host, "antigravity", payload(), dir], dir, { ...sb.env, CROSS_MODEL_HOST_HARNESS: harness })
+      expect(result.stderr).toContain("skipping before egress")
+      expect(calls(sb)).toBe(0)
+      expect(result.files).toEqual([])
+    }
+    // A Gemini host is a valid attestation for every other target.
+    const sb = sandbox(["claude"])
+    const dir = runDir()
+    run(["gemini", "claude", payload(), dir], dir, sb.env)
+    expect(published(dir, "claude").independence_verified).toBe(true)
+  })
+
+  test("a runtime waiting for sign-in is reaped before any prompt with a sign-in remedy", () => {
+    const base = path.join(temp("pov-stream-"), "s")
+    const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
+    writeFileSync(`${base}.stdout`, [
+      rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+      rpc({ id: 0, result: { protocolVersion: 1, authMethods: [{ id: "oauth-personal" }] } }),
+      rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+    ].join("\n") + "\n")
+    writeFileSync(`${base}.sleep`, "30\n")
+    const sb = sandbox(ANTIGRAVITY_BINS, base)
+    const dir = runDir()
+    const result = run(["claude", "antigravity", payload(), dir], dir, { ...sb.env, CROSS_MODEL_SESSION_START_SECS: "1" })
+    expect(result.stderr).toContain("transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in")
+    expect(calls(sb)).toBe(1)
+    expect(result.files).toEqual([])
+  })
+
+  test("a pinned non-Gemini model skips before acpx", () => {
+    const sb = sandbox(ANTIGRAVITY_BINS)
+    const dir = runDir()
+    const result = run(["claude", "antigravity", payload(), dir], dir, {
+      ...sb.env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "antigravity",
+      CROSS_MODEL_MODEL_OVERRIDE: "claude-sonnet-4-6",
+    })
+    expect(result.stderr).toContain("not compatible with route 'antigravity'")
+    expect(calls(sb)).toBe(0)
+  })
+
+  test("the egress allowlist sanctions the route only by the literal antigravity token", () => {
+    for (const [allow, allowed] of [["antigravity", true], ["gemini", false]] as const) {
+      const sb = sandbox(ANTIGRAVITY_BINS)
+      const dir = runDir()
+      const result = run(["claude", "antigravity", payload(), dir], dir, { ...sb.env, CROSS_MODEL_PEERS: allow })
+      expect(result.files.includes("pov-antigravity.json")).toBe(allowed)
+      expect(calls(sb)).toBe(allowed ? 1 : 0)
+    }
   })
 })
 

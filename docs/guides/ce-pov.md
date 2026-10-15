@@ -47,7 +47,7 @@ A requested write-up expands the judgment in the needed format. Ordinary answers
 
 ## Oracle panels
 
-The skill forms its own position before consulting peers. Bare oracle selects up to two reachable different-model peers; named peers are honored exactly without that cap. Peer opinions inform the decision rather than voting on it. Material disagreement receives bounded reconciliation, and the result reports alignment or dissent honestly.
+The skill forms its own position before consulting peers. Bare oracle selects up to two reachable different-model peers, using your stated or configured preference first and then the order Codex, Claude, Grok, Antigravity. Cursor and Composer run only when you name or configure them. Named peers are honored exactly without the two-peer cap. Peer opinions inform the decision rather than voting on it. Material disagreement receives bounded reconciliation, and the result reports alignment or dissent honestly.
 
 A failed peer does not block the solo judgment, but the result discloses who ran and who could not. Serving-model attribution comes from receipts, not requested model names. Ongoing workflows do not get unsolicited panel offers; explicit requests still take the panel path.
 
@@ -60,14 +60,17 @@ Target names distinguish models from harnesses and are not aliases for each othe
 | `Cursor` | `cursor-agent` using its configured default/Auto model |
 | `Composer` | A Composer model through Cursor |
 | `Grok` | Native grok CLI when installed; Grok through Cursor only when asked, or when the grok CLI is missing and Cursor is allowed |
+| `Antigravity` (or `Gemini`) | A Gemini model through Google Antigravity: `gemini-4-argon` when your account offers it, otherwise `gemini-3.8-flash`. Never chosen when the session itself runs on Gemini or inside Antigravity. An egress allowlist (`CROSS_MODEL_PEERS`) must name it as `antigravity` |
 
 Cursor Auto is labeled unverified unless a serving-model receipt exists. Without that proof it does not count as independent cross-model corroboration.
 
 ### Requirements and trust boundary
 
-Peers run through [acpx](https://github.com/openclaw/acpx), which talks to each agent CLI over the Agent Client Protocol. It needs Node 22.13 or newer with `npx`, `jq`, and the peer's own CLI. On native Windows, OpenCode is reported unavailable, because acpx cannot launch it there. The first run fetches a pinned acpx version from npm; later runs reuse the npm cache. When a prerequisite is missing, that peer is reported as not run and nothing is sent.
+Peers run through [acpx](https://github.com/openclaw/acpx), which talks to each agent CLI over the Agent Client Protocol. It needs Node 22.13 or newer with `npx`, `jq`, and the peer's own CLI. On native Windows, OpenCode and Antigravity are reported unavailable, because acpx cannot yet launch them there. The first run fetches a pinned acpx version from npm; later runs reuse the npm cache. When a prerequisite is missing, that peer is reported as not run and nothing is sent.
 
-Peers read the repository you are already working in. Each route denies the peer's write requests and uses the agent's read-only mode where it has one, but this is best effort rather than a sandbox: the Codex adapter can still write. Claude peers start in safe mode, so the repository's project settings and hooks do not apply to them. Served models are recorded from what each adapter reports. Codex, Claude, and the native Grok CLI report one; Cursor and OpenCode routes stay unverified.
+Antigravity needs Google's Antigravity ACP runtime (`agy_acp_server.par`) on `PATH` and its `localharness_external` helper from the same release beside it, or at `ANTIGRAVITY_HARNESS_PATH`. The runtime is a separate download from the `agy` CLI; `ce-setup` links to it. The peer reuses the Google sign-in you already made with the `agy` CLI or the Antigravity app. If you have not signed in, the peer is skipped before anything is sent. Each run gets a private Gemini home that is deleted afterward, and Google API key and cloud project variables are removed from its environment, so it bills your Antigravity subscription.
+
+Peers read the repository you are already working in. Each route denies the peer's write requests and uses the agent's read-only mode where it has one, but this is best effort rather than a sandbox: the Codex adapter can still write. Claude peers start in safe mode, so the repository's project settings and hooks do not apply to them. Served models are recorded from what each adapter reports. Codex, Claude, and the native Grok CLI report one; Cursor and OpenCode routes stay unverified. Antigravity reports no served model either, so its receipt records the model as unverified. It still counts as an independent Gemini voice, because the route requests an explicit Gemini model that the runtime must offer before anything is sent.
 
 ---
 
