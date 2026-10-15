@@ -630,6 +630,7 @@ ROUTE_CONTRACTS = {
     "composer": {"target": "composer", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "composer-2.5[fast=true]", "restriction_posture": "cooperative"},
     "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "grok-4.7[context=256k,reasoning_effort=high,fast=true]", "restriction_posture": "cooperative"},
     "opencode": {"target": "opencode", "harness": "opencode", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
+    "antigravity": {"target": "antigravity", "harness": "antigravity", "intermediaries": [], "default_model": "gemini-4-argon", "restriction_posture": "cooperative"},
 }
 # Cursor's ACP model ids may carry a bracketed preset; route families apply to
 # the id before the bracket.
@@ -658,6 +659,9 @@ def route_model_allowed(route: str, model: str) -> bool:
         return model == "auto" or bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
     if route == "opencode":
         return model == "auto" or bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+", model))
+    if route == "antigravity":
+        # Antigravity also serves Claude and gpt-oss models; this route exists for Gemini.
+        return bool(re.fullmatch(r"gemini-[A-Za-z0-9._-]+", model))
     return False
 
 

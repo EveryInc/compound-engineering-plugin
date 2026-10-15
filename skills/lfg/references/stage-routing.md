@@ -24,7 +24,7 @@ Requirement strength is inferred from the whole instruction, not one word: "use 
 When implementation resolves to one candidate, retain one transient `implementation_engine` object with exactly these four fields:
 
 - `mode`: `prefer` or `require`
-- `target`: exactly one of `codex`, `claude`, `grok`, `cursor`, `composer`, or `opencode` — a **harness** name, never a model name
+- `target`: exactly one of `codex`, `claude`, `grok`, `cursor`, `composer`, `opencode`, or `antigravity` — a **harness** name, never a model name
 - `model`: the explicit model pin, otherwise `null`
 - `source`: a caller-visible string saying where the binding came from, identifying the current LFG instruction
 

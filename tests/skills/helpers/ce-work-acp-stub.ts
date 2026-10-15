@@ -3,10 +3,13 @@ import path from "node:path"
 import { ACPX_PIN } from "../../helpers/acpx-pin"
 
 const STUB_NPX = path.join(process.cwd(), "tests/fixtures/acp-stub-npx.sh")
-const AGENT_BINARIES = ["codex", "claude", "grok", "cursor-agent", "opencode"]
+// The Antigravity route needs its ACP runtime and the helper beside it.
+const AGENT_BINARIES = ["codex", "claude", "grok", "cursor-agent", "opencode", "agy_acp_server.par", "localharness_external"]
 
 export const COMPLETED_RESULT =
   '{"terminal_status":"completed","summary":"implemented","changed_files":["result.txt"],"evidence":["focused test passed"],"scope_expansion":null}'
+
+const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
 
 // Shaped like the captured acpx@0.19.4 streams in tests/fixtures/acpx-streams/:
 // acpx echoes the outbound prompt into the stream before the agent replies, and
@@ -24,7 +27,6 @@ export type StreamSpec = {
 
 /** Writes a canned acpx stream at `<base>.stdout` (plus exit/stderr/sleep) and returns `base`. */
 export function acpStream(base: string, spec: StreamSpec = {}): string {
-  const rpc = (body: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", ...body })
   const sessionId = "stub-session-1"
   const lines = [
     rpc({ id: 0, method: "initialize", params: { protocolVersion: 1, clientInfo: { name: "acpx", version: ACPX_PIN } } }),
@@ -48,6 +50,30 @@ export function acpStream(base: string, spec: StreamSpec = {}): string {
   writeFileSync(`${base}.exit`, `${spec.exit ?? 0}\n`)
   if (spec.stderr !== undefined) writeFileSync(`${base}.stderr`, spec.stderr)
   if (spec.sleep !== undefined) writeFileSync(`${base}.sleep`, `${spec.sleep}\n`)
+  return base
+}
+
+/** What acpx@0.19.4 prints when --model names a model the session did not advertise: no prompt is sent. */
+export function unadvertisedStream(base: string, model: string, available: string): string {
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+    rpc({ id: 1, result: { sessionId: "stub-session-1" } }),
+    rpc({ id: null, error: { code: -32603, message: `Cannot apply --model "${model}": the ACP agent did not advertise that model. Available models: ${available}.`, data: { acpxCode: "RUNTIME" } } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.exit`, "1\n")
+  return base
+}
+
+/** Antigravity answers initialize, then holds session/new open while it waits for a browser sign-in. */
+export function signInWaitStream(base: string): string {
+  writeFileSync(`${base}.stdout`, [
+    rpc({ id: 0, method: "initialize", params: { protocolVersion: 1 } }),
+    rpc({ id: 0, result: { protocolVersion: 1, authMethods: [{ id: "oauth-personal" }] } }),
+    rpc({ id: 1, method: "session/new", params: { cwd: "/tmp/cwd", mcpServers: [] } }),
+  ].join("\n") + "\n")
+  writeFileSync(`${base}.sleep`, "30\n")
   return base
 }
 

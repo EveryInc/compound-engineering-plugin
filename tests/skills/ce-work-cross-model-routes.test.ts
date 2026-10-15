@@ -19,7 +19,9 @@ import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { ACPX_PIN } from "../helpers/acpx-pin"
 import { alive } from "../helpers/process"
-import { acpNpxBin, acpStream as acpStreamAt, COMPLETED_RESULT as COMPLETED, type StreamSpec } from "./helpers/ce-work-acp-stub"
+import {
+  acpNpxBin, acpStream as acpStreamAt, COMPLETED_RESULT as COMPLETED, signInWaitStream, type StreamSpec, unadvertisedStream,
+} from "./helpers/ce-work-acp-stub"
 
 setDefaultTimeout(20_000)
 
@@ -33,7 +35,7 @@ const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspa
 const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementation-result-schema.json")
 const STREAMS = path.join(process.cwd(), "tests/fixtures/acpx-streams")
 type PreparedUnit = { authorization_path: string; workspace: string; packet_path: string; result_dir: string }
-const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor", "opencode"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor", "opencode", "antigravity"] as const
 type Route = typeof ROUTES[number]
 const GROK_CURSOR_PRESET = "grok-4.7[context=256k,reasoning_effort=high,fast=true]"
 const COMPOSER_PRESET = "composer-2.5[fast=true]"
@@ -45,6 +47,7 @@ const ROUTE_CONTRACTS = {
   composer: { target: "composer", intermediaries: ["cursor"] },
   "grok-cursor": { target: "grok", intermediaries: ["cursor"] },
   opencode: { target: "opencode", intermediaries: [] },
+  antigravity: { target: "antigravity", intermediaries: [] },
 } as const
 const roots: string[] = []
 const templateRoots: string[] = []
@@ -258,6 +261,10 @@ describe("ce-work fixed write routes", () => {
     composer: { contains: ["cursor exec --config-option mode=agent"], model: COMPOSER_PRESET },
     "grok-cursor": { contains: ["cursor exec --config-option mode=agent"], model: GROK_CURSOR_PRESET },
     opencode: { contains: [" acp exec --config-option mode=build"] },
+    antigravity: {
+      contains: ["GEMINI_HOME=<gemini-home>", "antigravity exec --config-option mode=auto_edit --config-option thinking_level=high"],
+      model: "gemini-4-argon",
+    },
   }
 
   test.each([...ROUTES])("%s runs through the pinned acpx with every permission approved in the workspace", (route) => {
@@ -278,6 +285,7 @@ describe("ce-work fixed write routes", () => {
     ["claude", "low", "effort=low"],
     ["claude", "max", "effort=max"],
     ["grok-cli", "medium", "reasoning_effort=medium"],
+    ["antigravity", "low", "thinking_level=low"],
   ])("CROSS_MODEL_EFFORT_OVERRIDE retunes %s to %s", (route, value, option) => {
     expect(emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value }).stdout).toContain(option)
   })
@@ -292,6 +300,7 @@ describe("ce-work fixed write routes", () => {
     ["composer", "high"],
     ["grok-cursor", "high"],
     ["opencode", "max"],
+    ["antigravity", "xhigh"],
   ])("CROSS_MODEL_EFFORT_OVERRIDE rejects %s at %s, failing closed before dispatch", (route, value) => {
     const proc = emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
     expect(proc.status).toBe(2)
@@ -493,6 +502,7 @@ describe("ce-work fixed write routes", () => {
     ["composer", null],
     ["grok-cursor", null],
     ["opencode", null],
+    ["antigravity", "thinking_level=high"],
   ] as const)("%s without an authorized effort keeps the 13-key schema and its default effort argv", (route, effort) => {
     const f = fixture()
     const result = run(route, f, withBin(stubBin(f)))
@@ -504,7 +514,7 @@ describe("ce-work fixed write routes", () => {
     ])
     const args = argv(f)
     if (effort) expect(args).toContain(effort)
-    else expect(args.filter((arg) => /^(reasoning_)?effort=/.test(arg))).toEqual([])
+    else expect(args.filter((arg) => /^(reasoning_)?effort=|^thinking_level=/.test(arg))).toEqual([])
     expect(result.result.effort_requested).toBeNull()
   })
 
@@ -512,6 +522,7 @@ describe("ce-work fixed write routes", () => {
     ["codex", "xhigh", "reasoning_effort=xhigh"],
     ["claude", "max", "effort=max"],
     ["grok-cli", "low", "reasoning_effort=low"],
+    ["antigravity", "low", "thinking_level=low"],
   ] as const)("%s builds its effort option from the authorized effort %s", (route, effort, expected) => {
     const f = fixture()
     const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
@@ -542,6 +553,7 @@ describe("ce-work fixed write routes", () => {
     ["cursor", "high"],
     ["grok-cli", "max"],
     ["opencode", "max"],
+    ["antigravity", "xhigh"],
   ] as const)("an authorized effort the %s route cannot honor publishes an unavailable receipt", (route, effort) => {
     const f = fixture()
     const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
@@ -761,6 +773,139 @@ describe("ce-work acpx outcomes", () => {
     const result = run("grok-cli", f, { ...cleanEnv(), PATH: isolatedPath(bin) })
     expect(result.code).toBe(2)
     expect(result.result.failure_reason).toBe("transport unavailable (pre-egress, route): the agent CLI for route 'grok-cli' is not installed")
+  })
+})
+
+describe("ce-work antigravity route", () => {
+  const ARGON = "gemini-4-argon"
+  const FLASH = "gemini-3.8-flash"
+  const stream = (make: (base: string) => string) => make(path.join(temp("ce-work-stream-"), "s"))
+
+  function checkModel(model: string, env: NodeJS.ProcessEnv) {
+    return spawnSync("bash", [SCRIPT, "--check-model", "antigravity", model], { encoding: "utf8", env })
+  }
+
+  test("--emit-adapter strips Google credentials and runs Argon in auto_edit mode with a private GEMINI_HOME", () => {
+    const out = emit("antigravity", cleanEnv()).stdout
+    expect(out).toStartWith("env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_APPLICATION_CREDENTIALS -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u GOOGLE_GENAI_USE_VERTEXAI -u AGY_LLM_GATEWAY_URL ")
+    expect(out).toContain(`--approve-all --model ${ARGON} antigravity exec --config-option mode=auto_edit --config-option thinking_level=high`)
+  })
+
+  // Covers AE1: the preflight check disqualifies Argon before any prompt, and
+  // init binds the Flash candidate, which runs as authorized.
+  test("an account offering only Flash fails the Argon check without a prompt and runs the Flash authorization", () => {
+    const f = fixture()
+    const realHome = temp("ce-work-real-home-")
+    const argonBin = stubBin(f, stream((base) => unadvertisedStream(base, ARGON, FLASH)))
+    const checkEnv = { ...cleanEnv(), PATH: isolatedPath(argonBin), HOME: realHome }
+    const argon = checkModel(ARGON, checkEnv)
+    expect(argon.status).toBe(2)
+    expect(argon.stderr).toContain(`did not advertise that model. Available models: ${FLASH}`)
+    const args = argv(f)
+    expect(args.join(" ")).toContain(`--model ${ARGON} antigravity sessions new --name `)
+    expect(args).not.toContain("--file")
+    expect(args).not.toContain("exec")
+    // A refused model opens no session record, and the check leaves no ~/.acpx behind.
+    expect(readdirSync(realHome)).toEqual([])
+
+    // An offered model: acpx records the session under $HOME/.acpx. The check
+    // deletes only its own record and keeps a pre-existing directory.
+    const sessions = path.join(realHome, ".acpx", "sessions")
+    mkdirSync(sessions, { recursive: true })
+    writeFileSync(path.join(sessions, "rec-check.json"), "{}")
+    writeFileSync(path.join(sessions, "rec-other.json"), "{}")
+    const flashBin = stubBin(f, stream((base) => {
+      writeFileSync(`${base}.stdout`, `${JSON.stringify({ action: "session_ensured", created: true, acpxRecordId: "rec-check" })}\n`)
+      writeFileSync(`${base}.exit`, "0\n")
+      return base
+    }))
+    expect(checkModel(FLASH, { ...cleanEnv(), PATH: isolatedPath(flashBin), HOME: realHome }).status).toBe(0)
+    expect(readdirSync(sessions)).toEqual(["rec-other.json"])
+
+    const result = run("antigravity", f, withBin(stubBin(f)), undefined, { model_requested: FLASH })
+    expect(result.code).toBe(0)
+    expect(JSON.parse(readFileSync(f.prepared!.authorization_path, "utf8")).model_requested).toBe(FLASH)
+    expect(flagValue(argv(f), "--model")).toBe(FLASH)
+    expect(result.result.terminal_status).toBe("completed")
+    expect(result.result.model_requested).toBe(FLASH)
+    expect(result.result.actual_route).toBe("antigravity")
+    expect(result.result.model_actual).toBe("unverified")
+  })
+
+  test("an Argon authorization on an account without Argon is unavailable before any prompt", () => {
+    const f = fixture()
+    const result = run("antigravity", f, withBin(stubBin(f, stream((base) => unadvertisedStream(base, ARGON, FLASH)))))
+    expect(result.code).toBe(2)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.model_requested).toBe(ARGON)
+    expect(result.result.actual_route).toBeNull()
+    expect(result.result.failure_reason).toStartWith(`transport unavailable (pre-egress, route): Cannot apply --model "${ARGON}"`)
+    expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).not.toContain("session/prompt")
+  })
+
+  test("a runtime waiting for a Google sign-in is stopped before any prompt with a sign-in remedy", () => {
+    const f = fixture()
+    const started = Date.now()
+    const result = run("antigravity", f, withBin(stubBin(f, stream(signInWaitStream)), {
+      CROSS_MODEL_SESSION_START_SECS: "1", CE_WORK_ACTIVITY_POLL_SECS: "1",
+    }))
+    expect(result.code).toBe(2)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.failure_reason).toContain("transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in")
+    expect(Date.now() - started).toBeLessThan(25_000)
+  }, 60_000)
+
+  test("the model check reports a session still waiting for sign-in as not offered", () => {
+    const f = fixture()
+    const bin = stubBin(f, stream(signInWaitStream))
+    const proc = checkModel(FLASH, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, CROSS_MODEL_SESSION_START_SECS: "1" })
+    expect(proc.status).toBe(2)
+    expect(proc.stderr).toContain("Antigravity is waiting for a Google sign-in")
+  }, 60_000)
+
+  test("a non-Gemini model is refused alike by the controller, the worker, and the model check", () => {
+    const model = "claude-sonnet-4-6"
+    const f = fixture()
+    const plan = path.join(f.canonical, "docs", "plans", "plan.md")
+    const init = spawnSync("python3", [
+      CONTROLLER, "init", "--run-id", "non-gemini", "--repo", f.canonical, "--plan", plan,
+      "--plan-digest", createHash("sha256").update(readFileSync(plan)).digest("hex"),
+      "--binding-json", JSON.stringify({ mode: "prefer", target: "antigravity", model, source: "test" }),
+      "--egress-json", JSON.stringify({ sanction_source: "test", route: "antigravity", intermediaries: [], exposed_material: ["U3"], restrictions: [] }),
+    ], { encoding: "utf8", env: { ...process.env, CE_WORK_RUNS_ROOT: f.runs } })
+    expect(init.status).not.toBe(0)
+    expect(`${init.stdout}${init.stderr}`).toContain("binding model is not compatible with the sanctioned fixed route")
+
+    const g = fixture()
+    const digest = createHash("sha256").update(readFileSync(g.packet)).digest("hex")
+    const forged = run("antigravity", g, withBin(stubBin(g)), digest, { model_requested: model }, true)
+    expect(forged.code).toBe(2)
+    expect(forged.stderr).toContain("authorization model is incompatible with the fixed route")
+    expect(existsSync(path.join(g.capture, "argv"))).toBe(false)
+
+    const override = emit("antigravity", { ...cleanEnv(), CE_WORK_MODEL_OVERRIDE_TARGET: "antigravity", CE_WORK_MODEL_OVERRIDE: model })
+    expect(override.status).toBe(2)
+    expect(override.stderr).toContain("not compatible with route 'antigravity'")
+    const h = fixture()
+    const check = checkModel(model, withBin(stubBin(h)))
+    expect(check.status).toBe(2)
+    expect(existsSync(path.join(h.capture, "argv"))).toBe(false)
+  })
+
+  test("the env -i child gets a private oauth-personal GEMINI_HOME and the helper, never an ambient Google key", () => {
+    const f = fixture()
+    const bin = stubBin(f)
+    const result = run("antigravity", f, withBin(bin, { GEMINI_API_KEY: "SENTINEL-gemini", GOOGLE_CLOUD_PROJECT: "SENTINEL-project" }), undefined, { model_requested: FLASH })
+    expect(result.code).toBe(0)
+    const launch = captured(f, "launch-env")
+    expect(launch).toContain("GEMINI_API_KEY=<unset>")
+    expect(launch).toContain("GOOGLE_CLOUD_PROJECT=<unset>")
+    expect(launch).toContain(`ANTIGRAVITY_HARNESS_PATH=${path.join(bin, "localharness_external")}`)
+    expect(launch).toContain('{"auth":{"type":"oauth-personal"}}')
+    const geminiHome = launch.match(/^GEMINI_HOME=(.*)$/m)?.[1] ?? ""
+    expect(path.basename(path.dirname(geminiHome))).toStartWith("ce-work-adapter-")
+    expect(existsSync(geminiHome)).toBe(false)
+    expect(captured(f, "env")).not.toContain("SENTINEL-")
   })
 })
 
