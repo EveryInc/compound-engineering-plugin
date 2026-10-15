@@ -24,7 +24,8 @@ as specified.
 
 Cases 11-14 cover the detached launch->wait lifecycle and model-identity
 receipts (the record of which model actually served a route). Case 15 covers
-U8's fixed-route and bounded-adaptability contract.
+U8's fixed-route and bounded-adaptability contract. Cases 16-19 cover the
+Antigravity route, the automatic order, and Composer restraint.
 Run them with a stub `npx` placed first on PATH that replays canned acpx
 streams (`tests/fixtures/acp-stub-npx.sh`), plus a dummy executable for the
 routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
@@ -148,7 +149,29 @@ routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
     new recipient are rejected. A recipient-changing retry requires a newly
     disclosed and sanctioned dispatch.
 
+16. **Antigravity is the last automatic target.** On a Claude host with only
+    `agy_acp_server.par` and its helper on PATH (no `codex`, `grok`, or
+    `cursor-agent`) and no preference, every activated lens and the whole-doc
+    sweep resolve target and route `antigravity`, and the announce names a
+    Gemini model with full-document egress to Google.
+
+17. **Restraint when Antigravity is absent.** With `codex` absent, the grok CLI
+    on PATH, and no Antigravity runtime, the pass picks `grok`. With no peer
+    installed at all, it reports the pass as not run. Neither run mentions
+    Gemini or an Antigravity fallback.
+
+18. **Composer runs only when named.** With `cursor-agent` and Antigravity on
+    PATH, no `codex` or grok CLI, and no preference, the pass never selects
+    target `composer` (it may bind Grok through Cursor). With
+    `cross_model_peer: composer`, or "use composer for the cross-model pass" in
+    conversation, it resolves target and route `composer`.
+
+19. **"Gemini" binds `antigravity`.** "Use Gemini for the cross-model pass"
+    resolves target and route `antigravity`, never a Cursor route. With
+    `CROSS_MODEL_PEERS=gemini` the route is not sanctioned and the skip is
+    named; `CROSS_MODEL_PEERS=antigravity` sanctions it.
+
 ## Pass criteria
 
-All fifteen cases pass on the current on-disk source, and case 2 confirms the
+All nineteen cases pass on the current on-disk source, and case 2 confirms the
 conditional cost profile (no peer spawn on a routine validated plan).
