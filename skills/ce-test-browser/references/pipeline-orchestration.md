@@ -2,6 +2,8 @@
 
 Read and follow this file only when invoked with `mode:pipeline` (LFG or another automated runner). It overrides visibility prompts, free-port selection, and dev-server startup. It does not change browser-driver selection. In pipeline mode you run unattended — never block on a question.
 
+The run's report, either the summary or the preflight blocker that stopped testing, is the last thing this skill writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the report.
+
 ## 1. No visibility question
 
 Unattended execution does not mean hidden execution. Do not ask a visibility question:

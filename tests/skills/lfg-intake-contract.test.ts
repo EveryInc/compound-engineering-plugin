@@ -226,7 +226,7 @@ describe("inline child returns do not end the caller's turn", () => {
     "skills/ce-simplify-code/SKILL.md": readRepoFile("skills/ce-simplify-code/SKILL.md"),
     "skills/ce-code-review/references/depth-paths.md": readRepoFile("skills/ce-code-review/references/depth-paths.md"),
     "skills/ce-code-review/references/finish-input.md": readRepoFile("skills/ce-code-review/references/finish-input.md"),
-    "skills/ce-test-browser/references/route-and-report.md": readRepoFile("skills/ce-test-browser/references/route-and-report.md"),
+    "skills/ce-test-browser/references/pipeline-orchestration.md": readRepoFile("skills/ce-test-browser/references/pipeline-orchestration.md"),
     "skills/ce-commit-push-pr/references/apply-and-handoff.md": readRepoFile("skills/ce-commit-push-pr/references/apply-and-handoff.md"),
     "skills/ce-babysit-pr/references/pipeline.md": readRepoFile("skills/ce-babysit-pr/references/pipeline.md"),
   }

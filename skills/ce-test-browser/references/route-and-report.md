@@ -127,5 +127,3 @@ Did it work correctly?
 
 ### Result: [PASS / FAIL / PARTIAL]
 ```
-
-In `mode:pipeline`, this summary is the last thing this skill writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the summary.
