@@ -45,7 +45,7 @@ Emit a one-line failure reason. In `mode:agent`, return JSON: `{"status":"failed
 
 Default and `mode:agent` are **report-only**. `mode:agent` changes only the serialization from markdown to JSON for programmatic callers; it does not change reviewer selection, merge logic, or scope rules. `apply:local` is separate mutation authority, not an output mode. The default markdown is the human view; keep it ASCII-safe (pipe tables, `->` not middot `·`, no box-drawing) so it degrades gracefully across terminals.
 
-Whatever this skill returns, including a failed, degraded, or skipped result, is the last thing it writes. It ends this skill, not the turn. When a caller invoked this skill, the caller runs in this same session, and its next step follows the return; otherwise end the turn.
+Whatever this skill returns, including a failed, degraded, or skipped result, is the last thing it writes. It ends this skill, not the turn. When a caller invoked this skill, control returns to the caller in this same session, and the caller's own handling of the result decides whether its run continues or stops; otherwise end the turn.
 
 ## Quick Review Short-Circuit
 
