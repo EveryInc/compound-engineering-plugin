@@ -122,14 +122,16 @@
 # mapping. The model must belong to that target's family (an alias such as
 # `fable` or a full id such as `claude-opus-5-5` for claude; `gpt-*` for codex,
 # optionally namespace-qualified such as `openai.gpt-6.1-sol` when the codex CLI
-# routes through a non-default `model_provider`).
+# routes through a non-default `model_provider`; a `gemini-*` id such as
+# `gemini-3.8-flash` for antigravity).
 # Effort levels: claude low|medium|high|xhigh|max, codex low|medium|high|
 # xhigh plus max and ultra on the models that list them, grok low|medium|high|
-# xhigh; cursor/composer and OpenCode routes take none. A value the peer
+# xhigh, antigravity low|medium|high; cursor/composer and OpenCode routes take
+# none. A value the peer
 # cannot honor skips the pass with a stated reason -- never substituted.
 
 # cross_model_review_mode: off   # auto | off (default: auto)
-# cross_model_peer: codex          # codex | claude | grok | cursor | composer | opencode
+# cross_model_peer: codex          # codex | claude | grok | antigravity | cursor | composer | opencode
 # cross_model_model: fable         # model alias or full id for the resolved peer target (no default)
 # cross_model_effort: xhigh        # reasoning effort for the resolved peer target (no default)
 
@@ -140,7 +142,7 @@
 # `prefer` tries candidates in order, then falls back natively with disclosure.
 # `require` keeps the requested external identity fixed while viable, then also
 # falls back natively with disclosure if the route is unavailable. Harnesses:
-# codex | claude | grok | cursor | opencode. Omit model to use that harness's configured
+# codex | claude | grok | antigravity | cursor | opencode. Omit model to use that harness's configured
 # default. Composer is a model
 # family through Cursor: { harness: cursor, model: composer }. Do not put CLI flags
 # or commands here. A candidate equivalent to the current host/default is skipped;
@@ -156,8 +158,8 @@
 
 # Reasoning effort for the external worker, per harness. Each value is one of
 # that harness's own effort levels. An unset harness keeps its own default:
-# Codex and Claude at high, native Grok at xhigh. OpenCode and Cursor routes
-# take no effort. A map in config.local.yaml replaces this one.
+# Codex and Claude at high, native Grok at xhigh, Antigravity at high (it takes
+# low|medium|high). OpenCode and Cursor routes take no effort. A map in config.local.yaml replaces this one.
 
 # work_engine_effort:
 #   codex: xhigh

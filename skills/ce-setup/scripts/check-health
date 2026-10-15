@@ -295,10 +295,11 @@ read_work_engine_preferences() {
   ' "$config_file"
 }
 
-# Emits KEY<TAB>harness per map entry, or ERROR when the value is not a map.
-# An entry is exactly `harness: token`, optionally quoted, because an effort must
-# be a plain token; this is the data contract, not a YAML parser. Effort levels
-# are not checked: they belong to the ce-work adapter, which this skill cannot call.
+# Emits KEY<TAB>harness<TAB>effort per map entry, or ERROR when the value is not
+# a map. An entry is exactly `harness: token`, optionally quoted, because an
+# effort must be a plain token; this is the data contract, not a YAML parser.
+# Only Antigravity's levels are checked here: its three thinking levels are
+# fixed, while other harnesses' levels belong to the ce-work adapter.
 read_work_engine_effort_keys() {
   local config_file="$1"
   awk '
@@ -309,9 +310,11 @@ read_work_engine_effort_keys() {
       token = "[A-Za-z0-9][A-Za-z0-9_-]*"
       quoted = "(" token "|\"" token "\"|\047" token "\047)"
       if (entry !~ ("^" quoted "[[:space:]]*:[[:space:]]*" quoted "$")) not_a_map()
-      sub(/[[:space:]]*:.*$/, "", entry)
       gsub(/["\047]/, "", entry)
-      print "KEY\t" entry
+      key = entry
+      sub(/[[:space:]]*:.*$/, "", key)
+      sub(/^[^:]*:[[:space:]]*/, "", entry)
+      print "KEY\t" key "\t" entry
       entries++
     }
     function not_a_map() {
@@ -478,6 +481,7 @@ docs_root_error=""
 docs_root_local_ignored=""
 tracked_cfg="skip"
 project_issues=0
+antigravity_configured="no"
 
 if [ "$in_repo" = "yes" ]; then
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -507,6 +511,9 @@ if [ "$in_repo" = "yes" ]; then
 
   tracked_cfg="missing"
   [ -f "$tracked_config_path" ] && tracked_cfg="present"
+
+  resolve_ordinary_scalar "$local_config_path" "$tracked_config_path" "cross_model_peer"
+  [ "$ordinary_value" = "antigravity" ] && antigravity_configured="yes"
 
   resolve_ordinary_scalar "$local_config_path" "$tracked_config_path" "work_engine_mode"
   work_engine_mode="$ordinary_value"
@@ -549,6 +556,7 @@ if [ "$in_repo" = "yes" ]; then
           work_engine_preferences_count=$((work_engine_preferences_count + 1))
           case "$preference_harness" in
             codex|claude|grok|cursor|opencode) ;;
+            antigravity) antigravity_configured="yes" ;;
             *)
               [ -z "$work_engine_preferences_error" ] && work_engine_preferences_error="invalid harness '$preference_harness' in work_engine_preferences"
               ;;
@@ -584,11 +592,14 @@ if [ "$in_repo" = "yes" ]; then
   work_engine_effort_notes=()
   resolve_structured_layer "$local_config_path" "$tracked_config_path" "work_engine_effort"
   if [ -n "$structured_file" ]; then
-    while IFS=$'\t' read -r effort_kind effort_harness; do
+    while IFS=$'\t' read -r effort_kind effort_harness effort_value; do
       case "$effort_kind:$effort_harness" in
         ERROR:*) effort_problem="is not a map of harness to effort; ce-work ignores the value and keeps each harness default" ;;
         KEY:cursor) effort_problem="names 'cursor', which takes no effort; ce-work treats Cursor entries as unavailable while it is set" ;;
         KEY:codex|KEY:claude|KEY:grok|KEY:opencode) continue ;;
+        KEY:antigravity)
+          case "$effort_value" in low|medium|high) continue ;; esac
+          effort_problem="sets antigravity to '${effort_value}'; Antigravity takes low, medium, or high, so ce-work treats Antigravity entries as unavailable while it is set" ;;
         KEY:*) effort_problem="names unknown harness '${effort_harness}'; ce-work ignores that entry" ;;
         *) continue ;;
       esac
@@ -663,6 +674,28 @@ if [ "$in_repo" = "yes" ]; then
   done
 fi
 
+# Same runtime and helper the peer workers resolve before launching the
+# antigravity route. Reported only when the user configured it or installed it.
+antigravity_row="skip"
+antigravity_problem=""
+antigravity_runtime="$(command -v agy_acp_server.par 2>/dev/null)"
+if [ "$antigravity_configured" = "yes" ] || [ -n "$antigravity_runtime" ]; then
+  capability_total=$((capability_total + 1))
+  antigravity_helper="${ANTIGRAVITY_HARNESS_PATH:-$(dirname "${antigravity_runtime:-.}")/localharness_external}"
+  if [ -z "$antigravity_runtime" ]; then
+    antigravity_problem="agy_acp_server.par not found on PATH; install Antigravity's ACP runtime"
+  elif [ ! -x "$antigravity_helper" ]; then
+    antigravity_problem="localharness_external not found at ${antigravity_helper}; install it from the same release as the runtime"
+  fi
+  if [ -z "$antigravity_problem" ]; then
+    capability_ok=$((capability_ok + 1))
+    antigravity_row="ok"
+  else
+    capability_missing=$((capability_missing + 1))
+    antigravity_row="missing"
+  fi
+fi
+
 # =====================================================
 #  Output
 # =====================================================
@@ -695,6 +728,14 @@ else
   warn "node -- unavailable: cross-model peers"
   detail "$node_problem"
   detail "https://nodejs.org/en/download"
+fi
+
+if [ "$antigravity_row" = "ok" ]; then
+  ok "antigravity -- Gemini cross-model peer (runtime and helper found)"
+elif [ "$antigravity_row" = "missing" ]; then
+  warn "antigravity -- unavailable: Gemini cross-model peer"
+  detail "$antigravity_problem"
+  detail "https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json"
 fi
 
 if [ "$legacy_codex_map" = "yes" ]; then

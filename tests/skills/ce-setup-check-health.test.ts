@@ -1286,3 +1286,94 @@ describe("ce-setup check-health cross-model peers prerequisite", () => {
     expect(reference).toMatch(/only (after|if) the user approves/i)
   })
 })
+
+describe("ce-setup check-health Antigravity peer", () => {
+  const registry = "https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json"
+  const enabledAntigravity = "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: antigravity\n"
+
+  async function runAntigravity(
+    opts: { config?: string; runtime?: boolean; helperBeside?: boolean; explicitHelper?: boolean },
+  ): Promise<RunResult & { root: string }> {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-agy-"))
+    const stubBin = path.join(root, "stub-bin")
+    await mkdir(stubBin)
+    const writeExecutable = async (file: string) => {
+      await writeFile(file, "#!/bin/sh\nexit 0\n")
+      await chmod(file, 0o755)
+    }
+    if (opts.runtime) await writeExecutable(path.join(stubBin, "agy_acp_server.par"))
+    if (opts.helperBeside) await writeExecutable(path.join(stubBin, "localharness_external"))
+    const extraEnv: Record<string, string> = {}
+    if (opts.explicitHelper) {
+      const helper = path.join(root, "elsewhere", "localharness_external")
+      await mkdir(path.dirname(helper))
+      await writeExecutable(helper)
+      extraEnv.ANTIGRAVITY_HARNESS_PATH = helper
+    }
+    if (opts.config === undefined) {
+      await initGitRepo(root)
+    } else {
+      await initConfiguredRepo(root, opts.config)
+    }
+    try {
+      const result = await runCheckHealth(root, `${stubBin}:/usr/bin:/bin`, extraEnv)
+      return { ...result, root }
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+
+  test("an antigravity work_engine_preferences entry validates clean", async () => {
+    const result = await runAntigravity({ config: enabledAntigravity, runtime: true, helperBeside: true })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("CE Work implementation engine: prefer -> antigravity@default")
+    expect(result.stdout).not.toContain("invalid harness")
+    expect(result.stdout).toContain("Project config healthy")
+  })
+
+  test("an antigravity effort outside low|medium|high warns with the allowed levels", async () => {
+    const result = await runAntigravity({ config: `${enabledAntigravity}work_engine_effort:\n  antigravity: xhigh\n` })
+
+    expect(result.stdout).toContain(
+      "work_engine_effort in config.local.yaml sets antigravity to 'xhigh'; Antigravity takes low, medium, or high",
+    )
+    expect(result.stdout).not.toContain("Project config healthy")
+  })
+
+  test("an antigravity effort within its levels adds no warning", async () => {
+    const result = await runAntigravity({ config: `${enabledAntigravity}work_engine_effort: {antigravity: "medium"}\n` })
+
+    expect(result.stdout).not.toContain("work_engine_effort")
+  })
+
+  test("a configured peer with no runtime on PATH reports the missing runtime and the download", async () => {
+    const result = await runAntigravity({ config: "cross_model_peer: antigravity\n" })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain("🟡  antigravity -- unavailable: Gemini cross-model peer")
+    expect(result.stdout).toContain("agy_acp_server.par not found on PATH")
+    expect(result.stdout).toContain(registry)
+  })
+
+  test("the runtime on PATH with no helper reports the missing helper", async () => {
+    const result = await runAntigravity({ runtime: true })
+
+    expect(result.stdout).toContain("🟡  antigravity -- unavailable: Gemini cross-model peer")
+    expect(result.stdout).toContain(`localharness_external not found at ${path.join(result.root, "stub-bin", "localharness_external")}`)
+    expect(result.stdout).toContain(registry)
+  })
+
+  test("an explicit ANTIGRAVITY_HARNESS_PATH to a working helper is usable", async () => {
+    const result = await runAntigravity({ runtime: true, explicitHelper: true })
+
+    expect(result.stdout).toContain("🟢  antigravity -- Gemini cross-model peer (runtime and helper found)")
+    expect(result.stdout).not.toContain(registry)
+  })
+
+  test("says nothing about Antigravity when it is neither configured nor installed", async () => {
+    const result = await runAntigravity({ config: enabledAntigravity.replace("antigravity", "codex") })
+
+    expect(result.stdout).not.toMatch(/antigravity/i)
+  })
+})

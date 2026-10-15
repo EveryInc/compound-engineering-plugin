@@ -79,6 +79,7 @@ The health report includes the resolved artifact root (`docs/` by default, or a 
 | `ast-grep` | Syntax-aware structural code search |
 | `ffmpeg` | Media chunking and screenshot extraction for Riffrec analysis |
 | `node` | Cross-model peers: Node 22.13 or newer with `npx`, which runs the pinned acpx transport |
+| `antigravity` | Gemini cross-model peer. Shown only when `cross_model_peer` or a `work_engine_preferences` entry names `antigravity`, or when `agy_acp_server.par` is on `PATH`. It checks that the Antigravity ACP runtime is on `PATH` and that its `localharness_external` helper is executable at `ANTIGRAVITY_HARNESS_PATH` or beside the runtime. When either is missing, it links the [official ACP registry download](https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json). The runtime is not an npm package, so the cache warm does not fetch it. |
 
 ---
 
