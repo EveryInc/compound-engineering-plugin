@@ -863,6 +863,24 @@ describe("ce-work antigravity route", () => {
     expect(proc.stderr).toContain("Antigravity is waiting for a Google sign-in")
   }, 60_000)
 
+  test("interrupting the model check stops its detached acpx group", async () => {
+    const f = fixture()
+    const pidFile = path.join(f.root, "check-grandchild.pid")
+    const bin = stubBin(f, stream(signInWaitStream), `sleep 30 & echo $! > '${pidFile}'`)
+    const proc = Bun.spawn(["bash", SCRIPT, "--check-model", "antigravity", FLASH], {
+      env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}` }, stdout: "ignore", stderr: "ignore",
+    })
+    const deadline = Date.now() + 20_000
+    while (!existsSync(pidFile) && Date.now() < deadline) await Bun.sleep(100)
+    const grandchild = Number(readFileSync(pidFile, "utf8").trim())
+    expect(alive(grandchild)).toBe(true)
+    proc.kill("SIGTERM")
+    await proc.exited
+    const stopped = Date.now() + 10_000
+    while (alive(grandchild) && Date.now() < stopped) await Bun.sleep(100)
+    expect(alive(grandchild)).toBe(false)
+  }, 60_000)
+
   test("a non-Gemini model is refused alike by the controller, the worker, and the model check", () => {
     const model = "claude-sonnet-4-6"
     const f = fixture()

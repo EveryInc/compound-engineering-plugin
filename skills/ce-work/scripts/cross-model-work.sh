@@ -388,7 +388,23 @@ if [ "${1:-}" = "--check-model" ]; then
   }
   command -v jq >/dev/null 2>&1 || { echo "transport unavailable (pre-egress, shared): jq not found; the ACP stream is read with jq" >&2; exit 2; }
   CHECK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ce-work-model-check-XXXXXX")" || exit 2
-  trap 'rm -rf "$CHECK_DIR"' EXIT
+  CHECK_PID=""
+  ACPX_STATE="${HOME:-}/.acpx"
+  ACPX_STATE_EXISTED=false; [ -d "$ACPX_STATE" ] && ACPX_STATE_EXISTED=true
+  # Every exit path stops the detached acpx group (TERM, then KILL) and removes
+  # what the check created.
+  check_cleanup() {
+    local i
+    if [ -n "$CHECK_PID" ] && kill -0 "$CHECK_PID" 2>/dev/null; then
+      kill -TERM -- -"$CHECK_PID" 2>/dev/null || kill -TERM "$CHECK_PID" 2>/dev/null
+      for i in 1 2 3 4 5; do kill -0 "$CHECK_PID" 2>/dev/null || break; sleep 1; done
+      kill -KILL -- -"$CHECK_PID" 2>/dev/null || true
+    fi
+    rm -rf "$CHECK_DIR"
+    [ "$ACPX_STATE_EXISTED" = true ] || { rmdir "$ACPX_STATE/sessions" "$ACPX_STATE" 2>/dev/null || true; }
+  }
+  trap check_cleanup EXIT
+  trap 'exit 130' INT TERM HUP QUIT
   mkdir "$CHECK_DIR/cwd" || exit 2
   acpx_preflight antigravity "$CHECK_DIR/cwd" || {
     printf 'transport unavailable (pre-egress, %s): %s\n' "$ACPX_SCOPE" "$ACPX_UNAVAILABLE" >&2
@@ -396,8 +412,6 @@ if [ "${1:-}" = "--check-model" ]; then
   }
   GEMINI_HOME_DIR="$(acpx_antigravity_home "$CHECK_DIR")" || { echo "cannot prepare a private Antigravity home" >&2; exit 2; }
   printf '{"mcpServers":[]}\n' > "$CHECK_DIR/mcp.json"
-  ACPX_STATE="${HOME:-}/.acpx"
-  ACPX_STATE_EXISTED=false; [ -d "$ACPX_STATE" ] && ACPX_STATE_EXISTED=true
   ARGS=()
   while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(
     acpx_base_argv antigravity "$CHECK_DIR/cwd" "$CHECK_DIR/mcp.json" "$ACPX_TIMEOUT" "" "$GEMINI_HOME_DIR")
@@ -409,9 +423,6 @@ if [ "${1:-}" = "--check-model" ]; then
   CHECK_DEADLINE=$(( $(date +%s) + ACPX_SESSION_START_SECS ))
   while kill -0 "$CHECK_PID" 2>/dev/null && [ "$(date +%s)" -lt "$CHECK_DEADLINE" ]; do sleep 1; done
   if kill -0 "$CHECK_PID" 2>/dev/null; then
-    kill -TERM -- -"$CHECK_PID" 2>/dev/null || kill -TERM "$CHECK_PID" 2>/dev/null
-    wait "$CHECK_PID" 2>/dev/null
-    [ "$ACPX_STATE_EXISTED" = true ] || { rmdir "$ACPX_STATE/sessions" "$ACPX_STATE" 2>/dev/null || true; }
     echo "$SIGN_IN_STALL_REASON" >&2
     exit 2
   fi
@@ -419,7 +430,6 @@ if [ "${1:-}" = "--check-model" ]; then
   CHECK_EXIT=$?
   RECORD_ID="$(jq -r 'select(.action? == "session_ensured") | .acpxRecordId // empty' "$CHECK_DIR/stdout" 2>/dev/null | tail -1)"
   case "$RECORD_ID" in ''|*[!A-Za-z0-9-]*) ;; *) rm -f "$ACPX_STATE/sessions/$RECORD_ID.json" ;; esac
-  [ "$ACPX_STATE_EXISTED" = true ] || { rmdir "$ACPX_STATE/sessions" "$ACPX_STATE" 2>/dev/null || true; }
   [ "$CHECK_EXIT" -eq 0 ] && exit 0
   REASON="$(grep -m1 '^npm error' "$CHECK_DIR/stderr" 2>/dev/null)"
   if [ -n "$REASON" ]; then
