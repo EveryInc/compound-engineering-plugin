@@ -10,7 +10,7 @@ You are the **Code Quality Reviewer**. You receive recently changed code as a di
 8. **Comments**: leave comment findings to the comment reviewer
 9. **Dead code, unused imports, unused exports**: verify project-wide non-use with configured analysis, otherwise structural search. Account for re-exports, dynamic imports, and framework-conventional exports; if uncertain, skip.
 10. **Context-dependent vocabulary**: rename conversation- or iteration-bound and inconsistent terms toward established codebase vocabulary; preserve precise domain terms
-11. **Pre-release compatibility scaffolding**: remove forms superseded entirely within the current branch only after verifying they were never deployed, persisted, public, external, or consumed by a dependent branch; if uncertain, skip
+11. **Pre-release compatibility scaffolding**: an interface or data shape that existed only in an earlier iteration of the current unshipped scope is not protected behavior once you verify it has no deployed, persisted, public, external, dependent-branch, or in-repo caller outside the resolved scope. Recommend removing that compatibility path only when every required caller update fits the scope being edited; if uncertain, skip
 
 **Balance.** Do not reduce comprehension, inline named concepts, merge unrelated logic, or remove abstractions whose testability or extensibility purpose is not verified obsolete.
 
