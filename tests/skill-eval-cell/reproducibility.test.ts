@@ -260,6 +260,11 @@ test("unsafe grading paths cannot read outside the evidence", () => fixture(({ p
   pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
   save()
   expect(() => regradePack(packPath, "original")).toThrow(/unsafe/)
+  scenario.grade.workspace_contains = undefined
+  scenario.grade.json_field = [{ path: "../../../private.json", field: "secret", any_of: ["x"] }]
+  pack.scenarios[scenario.id].scenario_sha256 = valueHash(scenario)
+  save()
+  expect(() => regradePack(packPath, "original")).toThrow(/unsafe/)
 }))
 
 test("excluded git contents cannot become historical grading evidence", () => fixture(({ hostDir, out, pack, scenario, save, packPath }) => {

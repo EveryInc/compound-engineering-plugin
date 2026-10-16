@@ -4,7 +4,7 @@ import path from "node:path"
 import { scenarioById, type Grade, type Scenario } from "./catalog"
 import { REPO_ROOT } from "./extract"
 import { gradeArm, type EvalArm, type ArmGrade } from "./grade"
-import { PACK_SCHEMA_VERSION, containedPath, fingerprint, graderFingerprint, sha256, valueHash, verifyEvidence, verifyWorkspaceGradePaths, writeJSON } from "./provenance"
+import { PACK_SCHEMA_VERSION, containedPath, fingerprint, graderFingerprint, sha256, valueHash, verifyEvidence, verifyWorkspaceGradePaths, workspaceGradePaths, writeJSON } from "./provenance"
 
 export type RegradeMode = "current" | "original"
 
@@ -34,7 +34,7 @@ function missingObservations(out: string, scenario: Scenario, grade: Grade): str
         return `${host}: command shims required by the criteria were not installed`
       }
     }
-    if (grade.workspace_contains?.length && !fs.existsSync(path.join(dir, "workspace"))) {
+    if (workspaceGradePaths(grade).length && !fs.existsSync(path.join(dir, "workspace"))) {
       return `${host}: workspace observations required by the criteria were not collected`
     }
   }
@@ -105,7 +105,7 @@ export function regradePack(packPath: string, mode: RegradeMode = "current"): { 
         }
       }
       if (usedGrade) {
-        verifyWorkspaceGradePaths((usedGrade.workspace_contains ?? []).map((check) => check.path))
+        verifyWorkspaceGradePaths(workspaceGradePaths(usedGrade))
         if (mode === "current") unavailable ??= missingObservations(out, original, usedGrade)
       }
       if (unavailable || !usedGrade) {

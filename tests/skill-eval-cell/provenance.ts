@@ -69,6 +69,17 @@ export function graderFingerprint(dir = import.meta.dir): Fingerprint {
   return fingerprint(dir, GRADER_FILES)
 }
 
+/** Every workspace file a grade reads, so containment cannot miss a criterion kind. */
+export function workspaceGradePaths(grade: {
+  workspace_contains?: Array<{ path: string }>
+  json_field?: Array<{ path?: string }>
+}): string[] {
+  return [
+    ...(grade.workspace_contains ?? []).map((check) => check.path),
+    ...(grade.json_field ?? []).flatMap((check) => (check.path === undefined ? [] : [check.path])),
+  ]
+}
+
 /** Workspace criteria may read only paths covered by the evidence fingerprint. */
 export function verifyWorkspaceGradePaths(paths: string[]): void {
   for (const relative of paths) {
