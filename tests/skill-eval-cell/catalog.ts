@@ -26,6 +26,8 @@ export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
 export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e2632c"
 /** main after #1514 merged: the product-lens activation leg still read "alternatives plausibly exist". */
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
+/** main before ce-doc-review recorded the cross-model peer outcome in non-interactive output. */
+const PEER_OUTCOME_BASE_REF = "fac349c0c31a543d497fd4825af9b44bdb7e7dfe"
 /** main before Goal Capsule required a holdable goal, not only a user-checkable outcome. */
 export const HOLDABLE_OBJECTIVE_BASE_REF = "0e758b60b35cec165470443fde5acf60db8bdae9"
 const PLAN_CONTENT_BASE_REF = "5c32ef92339b95348d6a12000e814d4877902557"
@@ -150,6 +152,8 @@ export type Scenario = {
   preview_ref?: string
   /** Scenario-specific A/B base when the contract was frozen after the corpus sweep. */
   baseline_ref?: string
+  /** Extra environment for the host CLI, e.g. a peer time budget that forces a degradation path. */
+  env?: Record<string, string>
 }
 
 const UNDERSTANDING_BASE_REF = "8df67793b9733d2220fa9a7fc37139931471af62"
@@ -2950,6 +2954,83 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     grade: {
       files_read_post: ["references/persona-selection.md"],
       must_include: ["coherence", "feasibility", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/peer-outcome-folded",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-peer-outcome`,
+    timeout_secs: 2700,
+    why: "Live different-provider peer on an activated trio lens: the non-interactive result must say the peer folded, and the review must still complete.",
+    pre_contract: "Non-interactive mode emits no prose about the cross-model pass.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-08-20-1100-feat-free-tier-greeting-api-plan.md`,
+    grade: {
+      declared: { "peer.outcome": "folded" },
+      must_include: ["Review complete"],
+    },
+  },
+  {
+    id: "ce-doc-review/peer-outcome-disabled-by-config",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-staked-position`,
+    timeout_secs: 1500,
+    why: "Checkout config turns the cross-model pass off while product-lens activates: a clean never-started skip that the caller must still see.",
+    pre_contract: "A clean skip stays silent in non-interactive mode.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-08-20-1100-feat-free-tier-greeting-api-plan.md`,
+    grade: {
+      declared: { "peer.outcome": "in-process-fallback" },
+      must_include: ["whole-doc: not run", "Review complete"],
+    },
+  },
+  {
+    id: "ce-doc-review/peer-outcome-started-no-artifact",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-peer-outcome`,
+    // The real peer starts, then the worker's own hard cap stops it; the job settles done with nothing to fold.
+    env: { CROSS_MODEL_HARD_SECS: "5" },
+    timeout_secs: 1500,
+    why: "A peer that starts but leaves nothing to fold must not read as folded, and each owed lens gets the fixed not-run line a caller can parse.",
+    pre_contract: "A clean skip stays silent in non-interactive mode.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-08-20-1100-feat-free-tier-greeting-api-plan.md`,
+    grade: {
+      declared: { "peer.outcome": "in-process-fallback" },
+      must_include: ["in-process fallback (cross-model peer not run:", "whole-doc: not run (cross-model peer not run:", "Review complete"],
+    },
+  },
+  {
+    id: "ce-doc-review/peer-outcome-started-failed",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-peer-outcome`,
+    // A one-byte log cap makes the runner kill each worker on its first output, so every started job ends failed.
+    env: { CE_PEER_LOG_MAX_BYTES: "1" },
+    timeout_secs: 1500,
+    why: "A started job that ends failed folds nothing; the outcome must still have a value and the lens must be named with its terminal state.",
+    pre_contract: "A started job that ends non-done is named in Coverage with its terminal state.",
+    task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-08-20-1100-feat-free-tier-greeting-api-plan.md`,
+    grade: {
+      declared: { "peer.outcome": "in-process-fallback" },
+      must_include_any: [["peer: failed", "peer: timeout", "peer: died-without-result"]],
+      must_include: ["Review complete"],
     },
   },
   {

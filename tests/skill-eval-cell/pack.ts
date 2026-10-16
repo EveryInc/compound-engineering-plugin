@@ -86,6 +86,7 @@ function runCell(scenario: Scenario, arm: EvalArm, out: string, hosts?: string) 
   if (hosts) argv.push("--hosts", hosts)
   const r = spawnSync(argv[0], argv.slice(1), {
     cwd: REPO_ROOT,
+    env: { ...process.env, ...scenario.env },
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   })

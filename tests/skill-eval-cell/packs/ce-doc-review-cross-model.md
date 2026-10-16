@@ -100,8 +100,9 @@ routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
    interactive host. In non-interactive mode an eligible pass that produced no
    peer artifact records `peer.outcome: in-process-fallback` and a Coverage line
    naming each owed lens and the reason; a lens that was not activated stays
-   absent. A started failed pass is named with its terminal state. No
-   worker-internal recipient fallback is attempted.
+   absent. A started failed pass is named with its terminal state, and in
+   non-interactive mode it also records `peer.outcome: in-process-fallback`.
+   No worker-internal recipient fallback is attempted.
 
 10. **Whole-document sweep + trio slicing (R20, KTD6, KTD3).** When the pass runs,
     assert exactly **one** additional `whole-doc` call is launched (not one per
