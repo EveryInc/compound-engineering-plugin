@@ -49,7 +49,12 @@ function resolutionScript(tempRoot: string, fallbackRoot = `${tempRoot}-fallback
 // $XDG_CONFIG_HOME/git/ignore that applies with no config set, so a developer who ignores
 // .context/compound-engineering/ globally would make the "unignored" fixture read as ignored.
 const isolatedHome = mkdtempSync(path.join(os.tmpdir(), "ce-proto-home-"))
-const GIT_ENV = { ...process.env, HOME: isolatedHome, XDG_CONFIG_HOME: isolatedHome, GIT_CONFIG_NOSYSTEM: "1" }
+const GIT_ENV = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(GIT_|CLAUDE|CODEX_)|_PROXY$/i.test(key))),
+  HOME: isolatedHome,
+  XDG_CONFIG_HOME: isolatedHome,
+  GIT_CONFIG_NOSYSTEM: "1",
+}
 
 function run(script: string, cwd: string): { status: number | null; stdout: string; stderr: string } {
   const result = spawnSync(SHELL, ["-c", script], { cwd, encoding: "utf8", env: GIT_ENV })
