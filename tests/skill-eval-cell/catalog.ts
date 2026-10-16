@@ -26,8 +26,6 @@ export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
 export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e2632c"
 /** main after #1514 merged: the product-lens activation leg still read "alternatives plausibly exist". */
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
-/** main before ce-doc-review recorded the cross-model peer outcome in non-interactive output. */
-const PEER_OUTCOME_BASE_REF = "fac349c0c31a543d497fd4825af9b44bdb7e7dfe"
 /** main before Goal Capsule required a holdable goal, not only a user-checkable outcome. */
 export const HOLDABLE_OBJECTIVE_BASE_REF = "0e758b60b35cec165470443fde5acf60db8bdae9"
 const PLAN_CONTENT_BASE_REF = "5c32ef92339b95348d6a12000e814d4877902557"
@@ -2958,7 +2956,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
   },
   {
     id: "ce-doc-review/peer-outcome-folded",
-    baseline_ref: PEER_OUTCOME_BASE_REF,
+    post_only: true,
     skill: "ce-doc-review",
     cohort: "untouched",
     key_behavior: "delegation",
@@ -2976,7 +2974,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
   },
   {
     id: "ce-doc-review/peer-outcome-disabled-by-config",
-    baseline_ref: PEER_OUTCOME_BASE_REF,
+    post_only: true,
     skill: "ce-doc-review",
     cohort: "untouched",
     key_behavior: "delegation",
@@ -2994,7 +2992,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
   },
   {
     id: "ce-doc-review/peer-outcome-started-no-artifact",
-    baseline_ref: PEER_OUTCOME_BASE_REF,
+    post_only: true,
     skill: "ce-doc-review",
     cohort: "untouched",
     key_behavior: "delegation",
@@ -3014,7 +3012,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
   },
   {
     id: "ce-doc-review/peer-outcome-started-failed",
-    baseline_ref: PEER_OUTCOME_BASE_REF,
+    post_only: true,
     skill: "ce-doc-review",
     cohort: "untouched",
     key_behavior: "delegation",
