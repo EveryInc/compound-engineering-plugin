@@ -27,7 +27,17 @@ PATH-prefixed shim directory per cell:
   reaches the host session.
 
 The skills delete peer scratch on completion, so grade the log and the
-final answer, not the job directories.
+final answer, not the job directories. Codex runs its commands in a login
+shell that rebuilds PATH, so the shims never fire there; grade a Codex cell
+from its stderr transcript, which records each command and its output.
+
+For a live `ce-pov` cell on Codex, add a sentence to the task permitting the
+panel's private scratch outside the workspace. Without it Codex reads the
+driver's "Stay inside it" line as forbidding that scratch and skips the panel.
+
+Codex often attests its host from its own knowledge without running the
+snippet. A live Codex cell then confirms peer selection but does not exercise
+the snippet; the case 5 probes, which ask the agent to run it, do.
 
 ## Cases
 
