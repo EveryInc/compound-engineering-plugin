@@ -1,0 +1,85 @@
+{
+  "skill_dir": "<skill_dir>",
+  "run_dir": "run-failed",
+  "run_id": "20261016-failed",
+  "docs_root": "docs",
+  "mode": {
+    "agent": true,
+    "apply_local": false
+  },
+  "invocation": {
+    "constraints": []
+  },
+  "scope": {
+    "mode": "standalone",
+    "base": "main",
+    "branch": "feat/session-refresh",
+    "head_sha": "3f2a9c1",
+    "files": "run-failed/files.txt",
+    "diff": "run-failed/full.diff",
+    "tree_is_reviewed_head": true,
+    "untracked_excluded": []
+  },
+  "intent": {
+    "summary": "Add a session refresh helper that extends expiry by 30 minutes.",
+    "confidence": "inferred"
+  },
+  "plan": {
+    "path": null,
+    "source": "none",
+    "requirements": [],
+    "implementation_units": [],
+    "settled_decisions": []
+  },
+  "roster": {
+    "selected": [
+      {
+        "reviewer": "correctness",
+        "tier": "session",
+        "reason": "selected"
+      },
+      {
+        "reviewer": "testing",
+        "tier": "session",
+        "reason": "selected"
+      },
+      {
+        "reviewer": "adversarial",
+        "tier": "session",
+        "reason": "selected"
+      }
+    ],
+    "standards": {
+      "criteria": [],
+      "fallback_named": false,
+      "not_run_reason": "no criteria files govern src/session.js"
+    },
+    "packs": {
+      "roots": [],
+      "errors": [],
+      "warnings": []
+    }
+  },
+  "collection": {
+    "returns": "run-failed/raw-returns.json",
+    "unstructured_returns": [],
+    "failed_reviewers": [],
+    "bound_exceeded": [],
+    "fast_pass": {
+      "emitted_preliminary": false,
+      "candidates": []
+    }
+  },
+  "peer": {
+    "selected": true,
+    "target": "codex",
+    "route": "codex",
+    "preference_source": "default",
+    "outcome": "failed",
+    "artifact": null,
+    "coverage": "cross-model adversarial peer codex: timeout (reaped at the shared peer deadline after 900s); in-process adversarial-reviewer covered the lens"
+  },
+  "coverage_notes": [
+    "No project standards files govern the changed path."
+  ]
+}

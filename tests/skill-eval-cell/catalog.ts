@@ -51,6 +51,12 @@ export const RELIABILITY_CONTEXT_BASE_REF = "8d9a236dc91b17e114562bd65e9e137d171
 const WORK_ENGINES_BASE_REF = "030188b4ba27f2dc33fbc4d5a112d3c8cc893e8c"
 /** main before the Antigravity cross-model peer route and the codex, claude, grok, antigravity automatic order. */
 const ANTIGRAVITY_PEER_BASE_REF = "bdc53d034ccfa5baf01b6139cd46082145ff95cc"
+/** main before the mode:agent JSON carried the cross-model peer outcome: the A/B base for the peer-outcome rows. */
+const PEER_OUTCOME_BASE_REF = "fac349c0c31a543d497fd4825af9b44bdb7e7dfe"
+const PEER_OUTCOME_LIVE_TASK =
+  "Use ce-code-review mode:agent to review the staged change. Run the actual review workflow, including any reviewers or peers it dispatches. Do not apply fixes, commit, publish, or create tickets."
+const peerOutcomeReportLeafTask = (runDir: string) =>
+  `You are the report leaf of the ce-code-review skill. The run directory is ./${runDir}. Read ${runDir}/finish-input.json, ${runDir}/synthesized-findings.json, and ${runDir}/validator-outcome.json, then read the skill's references/finish-input.md (its report leaf section) and references/finish-review.md, and do the report leaf's work. Do not write the stage log, metadata.json, or run summarize; the only file to write is ${runDir}/review.json. Return the final report exactly as the report leaf returns it.`
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -2663,6 +2669,126 @@ PROMOTION: not-allowed`,
       declared: { LENS: "folded", PROMOTION: "allowed" },
       actions: "none",
       delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/report-leaf-peer-outcome-folded",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    fixture: `${FIX}/review-report-peer-outcome`,
+    timeout_secs: 420,
+    why: "A peer whose artifact folded must reach the caller as outcome folded with the dispatch context's Coverage sentence, not a null coverage.",
+    pre_contract: "The mode:agent JSON had no peer field; a cross-model outcome reached only markdown Coverage.",
+    task: peerOutcomeReportLeafTask("run-folded"),
+    grade: {
+      workspace_contains: [
+        { path: "run-folded/review.json", needle: `"peer"` },
+        { path: "run-folded/review.json", needle: `"folded"` },
+        { path: "run-folded/review.json", needle: `receipt_supported true; model_actual gpt-6.1-sol` },
+      ],
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/report-leaf-peer-outcome-failed",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    fixture: `${FIX}/review-report-peer-outcome`,
+    timeout_secs: 420,
+    why: "A started peer that timed out is recorded as failed by the dispatch context. The JSON must carry that outcome and sentence rather than drop it or rename it to a value the JSON enum happens to allow.",
+    pre_contract: "The mode:agent JSON had no peer field; a cross-model outcome reached only markdown Coverage.",
+    task: peerOutcomeReportLeafTask("run-failed"),
+    grade: {
+      workspace_contains: [
+        { path: "run-failed/review.json", needle: `"peer"` },
+        { path: "run-failed/review.json", needle: `"failed"` },
+        { path: "run-failed/review.json", needle: `reaped at the shared peer deadline after 900s` },
+      ],
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/report-leaf-peer-outcome-not-run",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    fixture: `${FIX}/review-report-peer-outcome`,
+    timeout_secs: 420,
+    why: "A peer that never started (disabled by checkout config) must still appear in the mode:agent JSON so a caller can tell it from a folded peer.",
+    pre_contract: "The mode:agent JSON had no peer field; a cross-model outcome reached only markdown Coverage.",
+    task: peerOutcomeReportLeafTask("run-not-run"),
+    grade: {
+      workspace_contains: [
+        { path: "run-not-run/review.json", needle: `"peer"` },
+        { path: "run-not-run/review.json", needle: `"in-process-fallback"` },
+        { path: "run-not-run/review.json", needle: `cross-model peer not run: disabled by checkout config` },
+      ],
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/live-peer-outcome-full-folded",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/access.ts"],
+    fixture: `${FIX}/review-depth-auth-full`,
+    timeout_secs: 2400,
+    why: "On the full path with a reachable different-provider peer, the peer runs and the mode:agent JSON records it as folded, while the rest of the receipt stays what consumers parse.",
+    pre_contract: "The mode:agent JSON had no peer field, and a never-started peer stayed silent in mode:agent.",
+    task: PEER_OUTCOME_LIVE_TASK,
+    grade: {
+      must_include_any: [[`"outcome": "folded"`, `"outcome":"folded"`], [`"status": "complete"`, `"status":"complete"`]],
+      delegates: "some",
+    },
+  },
+  {
+    id: "ce-code-review/live-peer-outcome-full-disabled",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/access.ts"],
+    fixture: `${FIX}/review-depth-auth-full-peer-off`,
+    timeout_secs: 2400,
+    why: "With cross_model_review_mode: off the peer never starts. The mode:agent JSON must still carry a non-folded peer outcome instead of looking like a folded review.",
+    pre_contract: "The mode:agent JSON had no peer field, and a never-started peer stayed silent in mode:agent.",
+    task: PEER_OUTCOME_LIVE_TASK,
+    grade: {
+      must_include_any: [[`"outcome": "in-process-fallback"`, `"outcome":"in-process-fallback"`, `"outcome": "not-run"`, `"outcome":"not-run"`], [`"status": "complete"`, `"status":"complete"`]],
+      delegates: "some",
+    },
+  },
+  {
+    id: "ce-code-review/live-peer-outcome-focused-folded",
+    baseline_ref: PEER_OUTCOME_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/landing.ts"],
+    fixture: `${FIX}/review-depth-focused`,
+    timeout_secs: 2400,
+    why: "The focused path fills peer itself with no finish-input.json; a real peer run must still reach the JSON as folded.",
+    pre_contract: "The mode:agent JSON had no peer field, and a never-started peer stayed silent in mode:agent.",
+    task: PEER_OUTCOME_LIVE_TASK,
+    grade: {
+      must_include_any: [[`"outcome": "folded"`, `"outcome":"folded"`], [`"status": "complete"`, `"status":"complete"`]],
+      delegates: "some",
     },
   },
   {

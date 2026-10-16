@@ -1,0 +1,13 @@
+{
+  "reviewer": "adversarial-codex",
+  "findings": [],
+  "residual_risks": [],
+  "testing_gaps": [],
+  "cross_model_route": "codex",
+  "model_requested": "gpt-6.1-sol",
+  "effort_requested": "high",
+  "receipt_supported": true,
+  "model_actual": "gpt-6.1-sol",
+  "effort_actual": "high",
+  "independence_verified": true
+}

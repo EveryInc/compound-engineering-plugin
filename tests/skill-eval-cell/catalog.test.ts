@@ -29,8 +29,14 @@ function gitPathExists(ref: string, gitPath: string): boolean {
   return spawnSync("git", ["cat-file", "-e", `${ref}:${gitPath}`], { cwd: REPO_ROOT }).status === 0
 }
 
+const skillAtRef = new Map<string, boolean>()
 function gitShowExists(ref: string, skill: string): boolean {
-  return gitPathExists(ref, `skills/${skill}/SKILL.md`)
+  const key = `${ref}:${skill}`
+  const cached = skillAtRef.get(key)
+  if (cached !== undefined) return cached
+  const exists = gitPathExists(ref, `skills/${skill}/SKILL.md`)
+  skillAtRef.set(key, exists)
+  return exists
 }
 
 describe("skill-eval-cell catalog", () => {

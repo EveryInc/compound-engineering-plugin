@@ -1,0 +1,38 @@
+{
+  "findings": [
+    {
+      "#": 1,
+      "title": "refreshSession dereferences a missing session for an unknown token",
+      "severity": "P2",
+      "file": "src/session.js",
+      "line": 3,
+      "confidence": 75,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": false,
+      "pre_existing": false,
+      "suggested_fix": "Return null (or throw a typed error) when store.get(token) is undefined before touching expiresAt.",
+      "first_evidence": "session.expiresAt = Date.now() + 30 * 60 * 1000;",
+      "why_it_matters": "An expired or forged token makes the refresh endpoint throw a TypeError and return 500 instead of 401.",
+      "evidence": [
+        "src/session.js:2 store.get(token) can return undefined",
+        "src/session.js:3 writes expiresAt with no guard"
+      ],
+      "reviewers": [
+        "correctness"
+      ],
+      "independent_reviewers": [
+        "correctness"
+      ]
+    }
+  ],
+  "pre_existing_findings": [],
+  "residual_risks": [],
+  "testing_gaps": [
+    "No test covers an unknown token."
+  ],
+  "triage_groups": [],
+  "coverage": [
+    "Fold-in outcome: adversarial lens: in-process fallback (cross-model peer not run: disabled by checkout config)"
+  ]
+}
