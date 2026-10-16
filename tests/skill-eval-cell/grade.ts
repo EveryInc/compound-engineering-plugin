@@ -194,28 +194,40 @@ export function parseTrailers(...parts: string[]): Trailer | null {
   return null
 }
 
-/** The first balanced `{...}` in `text` that parses as JSON; trailers may follow it. */
-export function firstJsonObject(text: string): unknown {
-  for (let start = text.indexOf("{"); start !== -1; start = text.indexOf("{", start + 1)) {
-    let depth = 0
-    let inString = false
-    for (let i = start; i < text.length; i++) {
-      const ch = text[i]
-      if (inString) {
-        if (ch === "\\") i++
-        else if (ch === '"') inString = false
-      } else if (ch === '"') inString = true
-      else if (ch === "{") depth++
-      else if (ch === "}" && --depth === 0) {
-        try {
-          return JSON.parse(text.slice(start, i + 1))
-        } catch {
-          break
-        }
+/**
+ * The JSON object the answer opens with, parsed up to its closing brace so the eval
+ * trailers after it are ignored. An answer that starts with anything else has none:
+ * a mode:agent caller cannot parse a receipt that prose precedes.
+ */
+export function leadingJsonObject(text: string): unknown {
+  const body = text.trimStart()
+  if (!body.startsWith("{")) return undefined
+  let depth = 0
+  let inString = false
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i]
+    if (inString) {
+      if (ch === "\\") i++
+      else if (ch === '"') inString = false
+    } else if (ch === '"') inString = true
+    else if (ch === "{") depth++
+    else if (ch === "}" && --depth === 0) {
+      try {
+        return JSON.parse(body.slice(0, i + 1))
+      } catch {
+        return undefined
       }
     }
   }
   return undefined
+}
+
+function parseJsonFile(file: string): unknown {
+  try {
+    return JSON.parse(readText(file))
+  } catch {
+    return undefined
+  }
 }
 
 function readText(file: string): string {
@@ -412,9 +424,9 @@ export function gradeHost(opts: {
   }
   for (const check of opts.grade.json_field ?? []) {
     const source = check.path ?? "answer"
-    const parsed = firstJsonObject(check.path ? readText(path.join(workspace, check.path)) : stdout)
+    const parsed = check.path ? parseJsonFile(path.join(workspace, check.path)) : leadingJsonObject(stdout)
     if (parsed === undefined) {
-      reasons.push(`${source} has no parseable JSON object`)
+      reasons.push(check.path ? `${source} is not valid JSON` : "answer does not begin with a JSON object")
       continue
     }
     const value = check.field.split(".").reduce<unknown>(

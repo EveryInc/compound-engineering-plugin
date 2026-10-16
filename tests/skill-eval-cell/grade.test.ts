@@ -155,6 +155,12 @@ describe("skill-eval-cell host grade", () => {
     const nestedGrade = gradeHost({ host: "claude", hostDir: nested, arm: "post", grade })
     expect(nestedGrade.ok).toBe(false)
     expect(nestedGrade.reasons[0]).toContain("peer.outcome is undefined")
+    const prefixed = hostDir({
+      "stdout.txt": 'Here is the result:\n{"status":"complete","peer":{"outcome":"folded"}}\n',
+    })
+    const prefixedGrade = gradeHost({ host: "claude", hostDir: prefixed, arm: "post", grade })
+    expect(prefixedGrade.ok).toBe(false)
+    expect(prefixedGrade.reasons[0]).toContain("does not begin with a JSON object")
     const top = hostDir({
       "stdout.txt": '{"status":"complete","peer":{"outcome":"folded","coverage":"a {brace} \\" quote"}}\nFILES_READ: SKILL.md\n',
     })

@@ -126,8 +126,8 @@ export type Grade = {
   workspace_contains?: Array<{ path: string; needle: string }>
   /**
    * A field of a parsed JSON object must equal one of `any_of`. The object is the
-   * workspace file at `path`, or the first JSON object in the answer when `path` is
-   * absent. `field` is dotted (`peer.outcome`), so a value nested elsewhere in the
+   * workspace file at `path` (the whole file must be JSON), or the JSON object the
+   * answer begins with when `path` is absent. `field` is dotted (`peer.outcome`), so a value nested elsewhere in the
    * object cannot satisfy it the way a substring needle can. Unparseable JSON fails.
    */
   json_field?: Array<{ path?: string; field: string; any_of: string[] }>
@@ -2771,7 +2771,7 @@ PROMOTION: not-allowed`,
     git_staged: ["src/access.ts"],
     fixture: `${FIX}/review-depth-auth-full-peer-off`,
     timeout_secs: 2400,
-    why: "With cross_model_review_mode: off the peer never starts. The mode:agent JSON must still carry a non-folded peer outcome instead of looking like a folded review.",
+    why: "With cross_model_review_mode: off, the mode:agent JSON must record a non-folded peer outcome whose Coverage names the checkout policy, instead of looking like a folded review. Whether the policy blocks egress is existing behavior this row does not grade.",
     pre_contract: "The mode:agent JSON had no peer field, and a never-started peer stayed silent in mode:agent.",
     task: PEER_OUTCOME_LIVE_TASK,
     grade: {
@@ -2779,6 +2779,7 @@ PROMOTION: not-allowed`,
         { field: "peer.outcome", any_of: ["in-process-fallback", "not-run"] },
         { field: "status", any_of: ["complete"] },
       ],
+      must_include: ["disabled by checkout config"],
       delegates: "some",
     },
   },
