@@ -3002,12 +3002,13 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     // The real peer starts, then the worker's own hard cap stops it; the job settles done with nothing to fold.
     env: { CROSS_MODEL_HARD_SECS: "5" },
     timeout_secs: 1500,
-    why: "A peer that starts but leaves nothing to fold must not read as folded, and each owed lens gets the fixed not-run line a caller can parse.",
+    why: "A peer that starts but leaves nothing to fold must not read as folded, and the whole-doc sweep must still get a line saying what happened to it.",
     pre_contract: "A clean skip stays silent in non-interactive mode.",
     task: `Use ce-doc-review with the arguments: mode:non-interactive docs/plans/2026-08-20-1100-feat-free-tier-greeting-api-plan.md`,
     grade: {
       declared: { "peer.outcome": "in-process-fallback" },
-      must_include: ["in-process fallback (cross-model peer not run:", "whole-doc: not run (cross-model peer not run:", "Review complete"],
+      must_include_any: [["cross-model whole-doc peer:", "whole-doc: not run (cross-model peer not run:"]],
+      must_include: ["Review complete"],
     },
   },
   {

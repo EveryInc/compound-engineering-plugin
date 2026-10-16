@@ -870,7 +870,7 @@ describe("ce-doc-review contract", () => {
     expect(nonInteractive).toContain("peer.outcome: folded")
     expect(nonInteractive).toContain("peer.outcome: in-process-fallback")
     expect(template).toContain("peer.outcome: <folded | in-process-fallback>")
-    expect(template).toContain("cross-model <lens> peer: <failed | timeout | died-without-result>")
+    expect(template).toContain("cross-model <lens> peer: <what happened to the peer's result>")
     expect(template).toContain("<lens>: in-process fallback (cross-model peer not run: <reason>)")
     expect(template).toContain("whole-doc: not run (cross-model peer not run: <reason>)")
 
