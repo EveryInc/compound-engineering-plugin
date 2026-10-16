@@ -18,7 +18,8 @@ Keep requested **target**, CLI **harness/intermediary**, serving **family/provid
 Attest both the host harness and its serving family:
 
 ```bash
-if [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=claude;
+if [ -n "${OMPCODE:-}" ]; then XHOST_HARNESS=omp; XHOST_FAMILY=unknown;
+elif [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=unknown;
 elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST_HARNESS=codex; XHOST_FAMILY=codex;
 elif [ "${GROK_AGENT:-}" = "1" ] || [ -n "${GROK_SESSION_ID:-}" ]; then XHOST_HARNESS=grok; XHOST_FAMILY=grok;
 elif [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST_HARNESS=cursor; XHOST_FAMILY=unknown;
@@ -26,9 +27,9 @@ elif [ -n "${OPENCODE_TERMINAL:-}" ]; then XHOST_HARNESS=opencode; XHOST_FAMILY=
 else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 ```
 
-Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the first worker argument. The snippet is evidence, not the verdict: it resolves the harnesses whose environment markers it already names, and where it yields `unknown` on a harness you can identify from your own runtime, attest what you know instead. A harness the snippet does not name needs no new branch here. Both tokens must be peer keys the worker accepts, never a provider's company name. Family is `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`. Harness is `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, or `unknown`. A company name such as `anthropic`, `openai`, or `xai` in either slot makes the worker refuse the job and write no artifact.
+Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the first worker argument. The snippet is evidence, not the verdict: it resolves the harnesses whose environment markers it already names, and where it yields `unknown` on a harness you can identify from your own runtime, attest what you know instead. A harness the snippet does not name needs no new branch here. Both tokens must be peer keys the worker accepts, never a provider's company name. Family is `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`. Harness is `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, `omp`, or `unknown`. A company name such as `anthropic`, `openai`, or `xai` in either slot makes the worker refuse the job and write no artifact.
 
-Cursor is the one harness where your own knowledge cannot fill in the family, because the Cursor harness does not decide which model serves it. Keep family `unknown` unless an observable attestation of the serving family supplies one of the known families above. Never infer serving family from the Cursor brand. An unknown host family cannot pass the automatic same-family check, so skip the automatic cross-model pass.
+A harness marker attests the harness that owns the session. A marker another harness copies attests that owning harness, not the product named by the copy, and it never attests serving family. Pass a family the snippet names. Where the snippet leaves family `unknown`, set it only from a model id the runtime publishes as the model serving this session, and only when that id maps to `codex`, `claude`, `grok`, `composer`, or `gemini`. A requested model, the model's own claim, and the product name are not that id. Never infer serving family from the Cursor brand. An unknown host family cannot pass the automatic same-family check, so skip the automatic cross-model pass.
 
 <!-- ce-config-layers:start -->
 **Resolve ordinary CE yaml keys from the two repo files.**
@@ -136,7 +137,7 @@ The three nested time windows are one budget controlled by one setting (the "kno
 **Do not forward `CROSS_MODEL_HARD_SECS` to the worker.** The runner already passes the ambient environment through, so a knob the user actually set reaches the worker on its own. Re-exporting the orchestrator's *resolved* value would turn a fallback into an explicit override and strip the worker of its own default.
 
 - `<run-id>` = the Stage 1b run id (the same one that forms `<run-dir>`); job state lives under `<run-dir>/jobs/<job-id>/`.
-- `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, or `unknown`.
+- `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, `omp`, or `unknown`.
 - `<target>` is one of `codex`, `claude`, `grok`, `cursor`, `composer`, `opencode`, or `antigravity`; `<fixed-route>` is its already-sanctioned concrete route token from the Step 1 table (`codex`, `claude`, `grok-cli`, `grok-cursor`, `cursor`, `composer`, `opencode`, or `antigravity`).
 - `<base-ref>` = the Stage 1 `BASE` (the diff base the peer reviews via `git diff <base-ref>`).
 - `<run-dir>` = the absolute Stage 4 run dir. The script writes `adversarial-<provider>.json` there **only after** forcing `reviewer` to `adversarial-<provider>` and downgrading peer `safe_auto` → `gated_auto`.

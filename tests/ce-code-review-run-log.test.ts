@@ -16,6 +16,7 @@ const SCRIPT = path.join(process.cwd(), "skills", "ce-code-review", "scripts", "
 // Every host attestation variable run-log.py recognizes; the suite may itself
 // run inside one of these hosts, so the unknown-host test must clear them all.
 const HOST_ATTESTATION_VARS = [
+  "OMPCODE",
   "CLAUDECODE",
   "CODEX_SANDBOX",
   "CODEX_SANDBOX_NETWORK_DISABLED",
@@ -171,5 +172,11 @@ describe("ce-code-review run-log", () => {
     })
     expect(claude.status).toBe(0)
     expect(metadata(dir).cost.host).toBe("claude")
+    const copied = spawnSync("python3", [SCRIPT, "summarize", "--run-dir", dir], {
+      encoding: "utf8",
+      env: hostlessEnv({ OMPCODE: "1", CLAUDECODE: "1" }),
+    })
+    expect(copied.status).toBe(0)
+    expect(metadata(dir).cost.host).toBe("omp")
   })
 })

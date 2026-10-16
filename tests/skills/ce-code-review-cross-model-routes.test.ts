@@ -749,6 +749,16 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     expect(r.stderr).toContain("host serving family unattested")
     expect(calls(sb)).toBe(0)
   })
+
+  test("harness omp with an unattested family skips instead of being rejected", () => {
+    const sb = sandbox(["claude"])
+    const runDir = makeRunDir()
+    const r = run(["unknown", "claude", "HEAD", runDir], runDir, { ...sb.env, CROSS_MODEL_HOST_HARNESS: "omp" })
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("host serving family unattested")
+    expect(r.stderr).not.toContain("invalid")
+    expect(calls(sb)).toBe(0)
+  })
 })
 
 describe("cross-model-adversarial-review outcome classification", () => {

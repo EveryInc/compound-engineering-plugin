@@ -17,7 +17,8 @@ Keep four identities separate: requested **target**, CLI **harness/intermediary*
 Attest both the host harness and its serving family:
 
 ```bash
-if [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=claude;
+if [ -n "${OMPCODE:-}" ]; then XHOST_HARNESS=omp; XHOST_FAMILY=unknown;
+elif [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=unknown;
 elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST_HARNESS=codex; XHOST_FAMILY=codex;
 elif [ "${GROK_AGENT:-}" = "1" ] || [ -n "${GROK_SESSION_ID:-}" ]; then XHOST_HARNESS=grok; XHOST_FAMILY=grok;
 elif [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST_HARNESS=cursor; XHOST_FAMILY=unknown;
@@ -25,9 +26,9 @@ elif [ -n "${OPENCODE_TERMINAL:-}" ]; then XHOST_HARNESS=opencode; XHOST_FAMILY=
 else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 ```
 
-Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the first worker argument. The snippet is evidence, not the verdict: it resolves the harnesses whose environment markers it already names, and where it yields `unknown` on a harness you can identify from your own runtime, attest what you know instead. A harness the snippet does not name needs no new branch here. Both tokens come from the peer-key vocabulary the worker accepts, never a provider's corporate name: family `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`; harness `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, or `unknown`. A name such as `anthropic`, `openai`, or `xai` in either slot makes the worker stop with no artifact.
+Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the first worker argument. The snippet is evidence, not the verdict: it resolves the harnesses whose environment markers it already names, and where it yields `unknown` on a harness you can identify from your own runtime, attest what you know instead. A harness the snippet does not name needs no new branch here. Both tokens come from the peer-key vocabulary the worker accepts, never a provider's corporate name: family `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`; harness `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, `omp`, or `unknown`. A name such as `anthropic`, `openai`, or `xai` in either slot makes the worker stop with no artifact.
 
-Cursor is the one identity self-knowledge cannot complete, because the harness does not determine the serving model: it keeps family `unknown` unless an observable serving-family attestation supplies one of the known families above. Never infer serving family from the Cursor brand. An unknown host family cannot satisfy automatic same-family exclusion, so skip the automatic cross-model pass.
+A harness marker attests the harness that owns the session. A marker another harness copies attests that owning harness, not the product named by the copy, and it never attests serving family. Pass a family the snippet names. Where the snippet leaves family `unknown`, set it only from a model id the runtime publishes as the model serving this session, and only when that id maps to `codex`, `claude`, `grok`, `composer`, or `gemini`. A requested model, the model's own claim, and the product name are not that id. Never infer serving family from the Cursor brand. An unknown host family cannot satisfy automatic same-family exclusion, so skip the automatic cross-model pass.
 
 <!-- ce-config-layers:start -->
 **Resolve ordinary CE yaml keys from the two repo files.**
@@ -139,7 +140,7 @@ The nested windows are one budget with one knob, `CROSS_MODEL_HARD_SECS`. The ru
 
 Omit `--result-path`; `done` means only that the worker exited. The fixed target determines the expected `<reviewer-name>-<target>.json` filename.
 
-- `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, or `unknown`.
+- `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, `omp`, or `unknown`.
 - `<target>` is exactly one of `codex`, `claude`, `grok`, `cursor`, `composer`, `opencode`, or `antigravity`; `<fixed-route>` is its already-sanctioned concrete route token from the Step 1 table (`codex`, `claude`, `grok-cli`, `grok-cursor`, `cursor`, `composer`, `opencode`, or `antigravity`).
 - `<reviewer-name>` = the activated lens (`security-lens`, `adversarial`, or `product-lens`). The script derives the persona-brief filename and (per provider) model from this allowlisted value — the brief path is never caller-controlled.
 - `<document-path>` = the document under review.

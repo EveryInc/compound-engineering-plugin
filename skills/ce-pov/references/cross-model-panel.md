@@ -42,7 +42,8 @@ verified rather than guessing.
 Attest the host harness and its serving family as two separate tokens:
 
 ```bash
-if [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=claude;
+if [ -n "${OMPCODE:-}" ]; then XHOST_HARNESS=omp; XHOST_FAMILY=unknown;
+elif [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=unknown;
 elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST_HARNESS=codex; XHOST_FAMILY=codex;
 elif [ "${GROK_AGENT:-}" = "1" ] || [ -n "${GROK_SESSION_ID:-}" ]; then XHOST_HARNESS=grok; XHOST_FAMILY=grok;
 elif [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST_HARNESS=cursor; XHOST_FAMILY=unknown;
@@ -54,16 +55,19 @@ Both tokens come from the same peer-key vocabulary as the targets above, never
 from a provider's corporate name: `<host-serving-family>` (`XHOST_FAMILY`) is
 `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`. `<host-harness>`
 (`XHOST_HARNESS`) is `codex`, `claude`, `grok`, `cursor`, `opencode`,
-`antigravity`, or `unknown`. The
+`antigravity`, `omp`, or `unknown`. The
 snippet is evidence, not the verdict: it resolves the harnesses whose
 environment markers it already names, and where it yields `unknown` on a harness
 you can identify from your own runtime, attest what you know instead. A harness
 the snippet does not name needs no new branch here.
 
-Cursor is the one identity self-knowledge cannot complete, because the harness
-does not determine the serving model: it keeps harness `cursor` and family
-`unknown` unless an observable serving-family attestation lets you set
-`XHOST_FAMILY` to `codex`, `claude`, `grok`, `composer`, or `gemini`.
+A harness marker attests the harness that owns the session. A marker another
+harness copies attests that owning harness, not the product named by the copy,
+and it never attests serving family. Pass a family the snippet names. Where the
+snippet leaves family `unknown`, set it only from a model id the runtime
+publishes as the model serving this session, and only when that id maps to
+`codex`, `claude`, `grok`, `composer`, or `gemini`. A requested model, the
+model's own claim, and the product name are not that id.
 Never infer serving family from the Cursor brand.
 
 Section 4 passes `XHOST_FAMILY` as the worker's first argument and
@@ -342,7 +346,7 @@ CE_PEER_HARD_SECS= "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start --skill c
 
 - `<host-serving-family>` is `codex`, `claude`, `grok`, `composer`, `gemini`,
   or `unknown`; `<host-harness>` is `codex`, `claude`, `grok`, `cursor`,
-  `opencode`, `antigravity`, or `unknown`. Both are the Section 1 attestation,
+  `opencode`, `antigravity`, `omp`, or `unknown`. Both are the Section 1 attestation,
   not a provider name.
 - `<fixed-route>` is the sanctioned route token from Section 3's table;
   `<target>` is its resolved target, with `grok-cli` and `grok-cursor`

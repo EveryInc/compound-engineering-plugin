@@ -44,6 +44,8 @@ def parse_iso(value: str) -> datetime | None:
 def host_from_env() -> str:
     """The same attestation the cross-model reference uses, host only."""
     env = os.environ
+    if env.get("OMPCODE"):
+        return "omp"
     if env.get("CLAUDECODE") == "1":
         return "claude"
     if any(env.get(k) for k in ("CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "CODEX_SESSION_ID", "CODEX_THREAD_ID", "CODEX_CI")):
