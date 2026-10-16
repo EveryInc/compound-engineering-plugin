@@ -267,6 +267,7 @@ Dropped: N (anchors 0/25 suppressed)
 Restated: N (residual/deferred items suppressed as duplicates of actionable findings)
 
 peer.outcome: <folded | in-process-fallback>
+cross-model <lens> peer: <failed | timeout | died-without-result>
 <lens>: in-process fallback (cross-model peer not run: <reason>)
 whole-doc: not run (cross-model peer not run: <reason>)
 
@@ -275,7 +276,7 @@ Review complete
 
 Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned. "Applied N fixes" reports what already changed. The obligations block and "Proposed fixes" together render the grouped confirmation: obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule. The caller re-narrates this result to a reader who has seen none of it, so a flat list here becomes a flat list there. "Decisions" carries the decisions the user must still make, and "FYI observations" carries anchor `50`. End with "Review complete" as the final line so callers can detect completion.
 
-When a cross-model pass was eligible, keep `peer.outcome` even though empty sections are omitted. An owed lens is an activated trio lens, plus the whole-doc sweep. `peer.outcome: folded` means every owed lens folded a different-provider peer artifact; omit the Coverage lines then. `peer.outcome: in-process-fallback` means the pass cleanly produced no peer artifact (it never started, or returned nothing a fold-in can use). Name each activated trio lens and the observed reason in exactly this form: `<lens>: in-process fallback (cross-model peer not run: <reason>)`. The whole-doc sweep has no in-process reviewer, so its line is exactly `whole-doc: not run (cross-model peer not run: <reason>)`. A started job already named with its terminal state keeps that line and does not also get one of these. Omit `peer.outcome` and these lines when no trio lens was activated.
+When a trio lens was activated, keep `peer.outcome` even though empty sections are omitted; omit it and its lens lines when none was. The owed lenses are each activated trio lens plus the whole-doc sweep. Write `peer.outcome: folded` only when every owed lens folded a different-provider peer artifact. Any other result, including a peer that started and then failed or timed out, is `peer.outcome: in-process-fallback`. Under it, give each owed lens that did not fold exactly one line. A started job that ended `failed`, `timeout`, or `died-without-result` uses `cross-model <lens> peer: <terminal state>`. Any other trio lens uses `<lens>: in-process fallback (cross-model peer not run: <reason>)`. The whole-doc sweep has no in-process reviewer, so it uses `whole-doc: not run (cross-model peer not run: <reason>)`.
 
 **Count findings by their final route.** Obligations still awaiting grouped confirmation count as proposed fixes; grouping changes presentation, not the count. Obligations already applied count only as applied fixes. Do not export a separate obligation count: the caller uses the proposed-fixes count to detect pending approval, so it must include every pending edit and exclude edits that already landed.
 

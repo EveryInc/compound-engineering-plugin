@@ -852,11 +852,6 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("Review complete")
   })
 
-  // Issue #1855: a clean cross-model skip in non-interactive mode used to be
-  // indistinguishable from a pass whose different-provider peer actually
-  // reviewed. The outcome sentence belongs on the emitter (the structured
-  // result), in the same shape ce-code-review records: peer.outcome plus a
-  // Coverage line that names the lens and the reason.
   test("non-interactive result records a cleanly skipped cross-model peer", async () => {
     const synthesis = await readRepoFile(
       "skills/ce-doc-review/references/synthesis-and-presentation.md",
@@ -878,9 +873,8 @@ describe("ce-doc-review contract", () => {
     expect(nonInteractive).toContain(
       "whole-doc: not run (cross-model peer not run: <reason>)",
     )
+    expect(nonInteractive).toContain("cross-model <lens> peer: <failed | timeout | died-without-result>")
 
-    // The classifier must not keep the silence, and it must not restate the
-    // line: the emitter owns the wording.
     expect(review).not.toContain("stay silent in non-interactive mode")
     expect(review).not.toContain("emit no user-facing prose")
     expect(review).toContain("references/synthesis-and-presentation.md")
