@@ -124,6 +124,13 @@ export type Grade = {
   /** Text that must not appear in the PATH shim log. */
   shim_log_must_not?: string[]
   workspace_contains?: Array<{ path: string; needle: string }>
+  /**
+   * A field of a parsed JSON object must equal one of `any_of`. The object is the
+   * workspace file at `path`, or the first JSON object in the answer when `path` is
+   * absent. `field` is dotted (`peer.outcome`), so a value nested elsewhere in the
+   * object cannot satisfy it the way a substring needle can. Unparseable JSON fails.
+   */
+  json_field?: Array<{ path?: string; field: string; any_of: string[] }>
 }
 
 export type Scenario = {
@@ -2684,10 +2691,9 @@ PROMOTION: not-allowed`,
     pre_contract: "The mode:agent JSON had no peer field; a cross-model outcome reached only markdown Coverage.",
     task: peerOutcomeReportLeafTask("run-folded"),
     grade: {
-      workspace_contains: [
-        { path: "run-folded/review.json", needle: `"peer"` },
-        { path: "run-folded/review.json", needle: `"folded"` },
-        { path: "run-folded/review.json", needle: `receipt_supported true; model_actual gpt-6.1-sol` },
+      json_field: [
+        { path: "run-folded/review.json", field: "peer.outcome", any_of: ["folded"] },
+        { path: "run-folded/review.json", field: "peer.coverage", any_of: ["adversarial lens: cross-model peer codex (route codex; requested gpt-6.1-sol at high; receipt_supported true; model_actual gpt-6.1-sol; effort_actual high; independence_verified true), no additional issues"] },
       ],
       delegates: "none",
     },
@@ -2705,10 +2711,9 @@ PROMOTION: not-allowed`,
     pre_contract: "The mode:agent JSON had no peer field; a cross-model outcome reached only markdown Coverage.",
     task: peerOutcomeReportLeafTask("run-failed"),
     grade: {
-      workspace_contains: [
-        { path: "run-failed/review.json", needle: `"peer"` },
-        { path: "run-failed/review.json", needle: `"failed"` },
-        { path: "run-failed/review.json", needle: `reaped at the shared peer deadline after 900s` },
+      json_field: [
+        { path: "run-failed/review.json", field: "peer.outcome", any_of: ["failed"] },
+        { path: "run-failed/review.json", field: "peer.coverage", any_of: ["cross-model adversarial peer codex: timeout (reaped at the shared peer deadline after 900s); in-process adversarial-reviewer covered the lens"] },
       ],
       delegates: "none",
     },
@@ -2726,10 +2731,9 @@ PROMOTION: not-allowed`,
     pre_contract: "The mode:agent JSON had no peer field; a cross-model outcome reached only markdown Coverage.",
     task: peerOutcomeReportLeafTask("run-not-run"),
     grade: {
-      workspace_contains: [
-        { path: "run-not-run/review.json", needle: `"peer"` },
-        { path: "run-not-run/review.json", needle: `"in-process-fallback"` },
-        { path: "run-not-run/review.json", needle: `cross-model peer not run: disabled by checkout config` },
+      json_field: [
+        { path: "run-not-run/review.json", field: "peer.outcome", any_of: ["in-process-fallback"] },
+        { path: "run-not-run/review.json", field: "peer.coverage", any_of: ["adversarial lens: in-process fallback (cross-model peer not run: disabled by checkout config)"] },
       ],
       delegates: "none",
     },
@@ -2749,7 +2753,10 @@ PROMOTION: not-allowed`,
     pre_contract: "The mode:agent JSON had no peer field, and a never-started peer stayed silent in mode:agent.",
     task: PEER_OUTCOME_LIVE_TASK,
     grade: {
-      must_include_any: [[`"outcome": "folded"`, `"outcome":"folded"`], [`"status": "complete"`, `"status":"complete"`]],
+      json_field: [
+        { field: "peer.outcome", any_of: ["folded"] },
+        { field: "status", any_of: ["complete"] },
+      ],
       delegates: "some",
     },
   },
@@ -2768,7 +2775,10 @@ PROMOTION: not-allowed`,
     pre_contract: "The mode:agent JSON had no peer field, and a never-started peer stayed silent in mode:agent.",
     task: PEER_OUTCOME_LIVE_TASK,
     grade: {
-      must_include_any: [[`"outcome": "in-process-fallback"`, `"outcome":"in-process-fallback"`, `"outcome": "not-run"`, `"outcome":"not-run"`], [`"status": "complete"`, `"status":"complete"`]],
+      json_field: [
+        { field: "peer.outcome", any_of: ["in-process-fallback", "not-run"] },
+        { field: "status", any_of: ["complete"] },
+      ],
       delegates: "some",
     },
   },
@@ -2787,7 +2797,10 @@ PROMOTION: not-allowed`,
     pre_contract: "The mode:agent JSON had no peer field, and a never-started peer stayed silent in mode:agent.",
     task: PEER_OUTCOME_LIVE_TASK,
     grade: {
-      must_include_any: [[`"outcome": "folded"`, `"outcome":"folded"`], [`"status": "complete"`, `"status":"complete"`]],
+      json_field: [
+        { field: "peer.outcome", any_of: ["folded"] },
+        { field: "status", any_of: ["complete"] },
+      ],
       delegates: "some",
     },
   },
@@ -3893,7 +3906,7 @@ export function scenarioHasDecisionGrade(s: Scenario): boolean {
   if (g.declared && Object.keys(g.declared).length) return true
   if (g.delegates_must_not_include?.length) return true
   if (g.classification || g.structured_status || g.delegates === "some") return true
-  if (g.workspace_contains?.length || g.committed_must_not?.length) return true
+  if (g.workspace_contains?.length || g.json_field?.length || g.committed_must_not?.length) return true
   if (g.workspace_read?.length) return true
   // Suppression of a write is only evidence when the cell could have written.
   if (!s.read_only && g.git === "clean") return true

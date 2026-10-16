@@ -194,6 +194,30 @@ export function parseTrailers(...parts: string[]): Trailer | null {
   return null
 }
 
+/** The first balanced `{...}` in `text` that parses as JSON; trailers may follow it. */
+export function firstJsonObject(text: string): unknown {
+  for (let start = text.indexOf("{"); start !== -1; start = text.indexOf("{", start + 1)) {
+    let depth = 0
+    let inString = false
+    for (let i = start; i < text.length; i++) {
+      const ch = text[i]
+      if (inString) {
+        if (ch === "\\") i++
+        else if (ch === '"') inString = false
+      } else if (ch === '"') inString = true
+      else if (ch === "{") depth++
+      else if (ch === "}" && --depth === 0) {
+        try {
+          return JSON.parse(text.slice(start, i + 1))
+        } catch {
+          break
+        }
+      }
+    }
+  }
+  return undefined
+}
+
 function readText(file: string): string {
   try {
     return fs.readFileSync(file, "utf8")
@@ -384,6 +408,21 @@ export function gradeHost(opts: {
     const contents = readText(path.join(workspace, check.path))
     if (!contents.includes(check.needle)) {
       reasons.push(`${check.path} does not contain ${JSON.stringify(check.needle)}`)
+    }
+  }
+  for (const check of opts.grade.json_field ?? []) {
+    const source = check.path ?? "answer"
+    const parsed = firstJsonObject(check.path ? readText(path.join(workspace, check.path)) : stdout)
+    if (parsed === undefined) {
+      reasons.push(`${source} has no parseable JSON object`)
+      continue
+    }
+    const value = check.field.split(".").reduce<unknown>(
+      (node, key) => (node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined),
+      parsed,
+    )
+    if (typeof value !== "string" || !check.any_of.includes(value)) {
+      reasons.push(`${source} ${check.field} is ${JSON.stringify(value)}, expected one of ${JSON.stringify(check.any_of)}`)
     }
   }
   for (const needle of opts.grade.shim_log_must_not ?? []) {

@@ -147,6 +147,20 @@ describe("skill-eval-cell host grade", () => {
     expect(fail.ok).toBe(false)
   })
 
+  test("json_field reads a top-level field of the parsed answer, not a nested match", () => {
+    const grade = { json_field: [{ field: "peer.outcome", any_of: ["folded"] }] }
+    const nested = hostDir({
+      "stdout.txt": '{"status":"complete","coverage":{"peer":{"outcome":"folded"}}}\nFILES_READ: SKILL.md\n',
+    })
+    const nestedGrade = gradeHost({ host: "claude", hostDir: nested, arm: "post", grade })
+    expect(nestedGrade.ok).toBe(false)
+    expect(nestedGrade.reasons[0]).toContain("peer.outcome is undefined")
+    const top = hostDir({
+      "stdout.txt": '{"status":"complete","peer":{"outcome":"folded","coverage":"a {brace} \\" quote"}}\nFILES_READ: SKILL.md\n',
+    })
+    expect(gradeHost({ host: "claude", hostDir: top, arm: "post", grade }).ok).toBe(true)
+  })
+
   test("workspace_read fails when FILES_READ omits the fixture file", () => {
     const dir = hostDir({
       "stdout.txt": "What should retry cover?\nFILES_READ: SKILL.md, references/interaction-rules.md\nACTIONS: none\n",
