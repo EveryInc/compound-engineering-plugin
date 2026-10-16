@@ -865,15 +865,14 @@ describe("ce-doc-review contract", () => {
       "**Interactive mode:**",
     )
 
+    const template = sliceSection(nonInteractive, "```", "Review complete\n```")
+
     expect(nonInteractive).toContain("peer.outcome: folded")
     expect(nonInteractive).toContain("peer.outcome: in-process-fallback")
-    expect(nonInteractive).toContain(
-      "<lens>: in-process fallback (cross-model peer not run: <reason>)",
-    )
-    expect(nonInteractive).toContain(
-      "whole-doc: not run (cross-model peer not run: <reason>)",
-    )
-    expect(nonInteractive).toContain("cross-model <lens> peer: <failed | timeout | died-without-result>")
+    expect(template).toContain("peer.outcome: <folded | in-process-fallback>")
+    expect(template).toContain("cross-model <lens> peer: <failed | timeout | died-without-result>")
+    expect(template).toContain("<lens>: in-process fallback (cross-model peer not run: <reason>)")
+    expect(template).toContain("whole-doc: not run (cross-model peer not run: <reason>)")
 
     expect(review).not.toContain("stay silent in non-interactive mode")
     expect(review).not.toContain("emit no user-facing prose")
