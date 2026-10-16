@@ -91,14 +91,17 @@ routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
    document-content egress scope. Call it independent only when serving families are attestably
    different. A failed route never changes recipients internally; any retry is
    a new host decision requiring a new disclosure and sanction.
-   Non-interactive mode → no user-facing prose about the pass (the script still emits the
-   stderr egress audit log).
+   Non-interactive mode → no announce about the pass (the script still emits the
+   stderr egress audit log). The structured result still records `peer.outcome`.
 
 9. **Non-blocking (R11).** With the peer CLI absent/unauthed, or with the fixed
    route failing after dispatch, assert the review completes with all in-process
-   findings. A never-started pass reports "cross-model pass: not run"; a started
-   failed pass is named with its terminal state. No worker-internal recipient
-   fallback is attempted.
+   findings. A never-started pass reports "cross-model pass: not run" on an
+   interactive host. In non-interactive mode an eligible pass that produced no
+   peer artifact records `peer.outcome: in-process-fallback` and a Coverage line
+   naming each owed lens and the reason; a lens that was not activated stays
+   absent. A started failed pass is named with its terminal state. No
+   worker-internal recipient fallback is attempted.
 
 10. **Whole-document sweep + trio slicing (R20, KTD6, KTD3).** When the pass runs,
     assert exactly **one** additional `whole-doc` call is launched (not one per
@@ -131,8 +134,10 @@ routed CLI, and cross-host per the repo's eval default: Claude Code AND Codex.
     stub peer CLI that never finishes, assert the job is reaped at the
     deadline and **named** in Coverage with its lens and terminal state (e.g.
     "cross-model security-lens peer: timeout") — it never silently vanishes —
-    while a lens that was never started (activation condition not met, or
-    skipped) remains silently absent, as before.
+    while a lens that was never started because its activation condition was
+    not met remains absent. An eligible pass that produced no peer artifact is
+    not that case: the non-interactive result records `peer.outcome` and the
+    Coverage line.
 
 14. **Requested-not-served disclosure (lifecycle R8).** On a route that returns
     no record of which model served, assert the announce/reconcile wording names
