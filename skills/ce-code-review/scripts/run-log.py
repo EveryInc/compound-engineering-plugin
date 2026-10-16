@@ -44,14 +44,21 @@ def parse_iso(value: str) -> datetime | None:
 def host_from_env() -> str:
     """The same attestation the cross-model reference uses, host only."""
     env = os.environ
+    seen = [
+        host
+        for host, present in (
+            ("claude", env.get("CLAUDECODE") == "1"),
+            ("codex", any(env.get(k) for k in ("CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "CODEX_SESSION_ID", "CODEX_THREAD_ID", "CODEX_CI"))),
+            ("grok", env.get("GROK_AGENT") == "1" or bool(env.get("GROK_SESSION_ID"))),
+        )
+        if present
+    ]
     if env.get("OMPCODE"):
         return "omp"
-    if env.get("CLAUDECODE") == "1":
-        return "claude"
-    if any(env.get(k) for k in ("CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "CODEX_SESSION_ID", "CODEX_THREAD_ID", "CODEX_CI")):
-        return "codex"
-    if env.get("GROK_AGENT") == "1" or env.get("GROK_SESSION_ID"):
-        return "grok"
+    if len(seen) == 1:
+        return seen[0]
+    if seen:
+        return "unknown"
     if env.get("CURSOR_AGENT") or env.get("CURSOR_CONVERSATION_ID"):
         return "cursor"
     if env.get("OPENCODE_TERMINAL"):

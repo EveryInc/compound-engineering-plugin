@@ -1843,7 +1843,7 @@ describe("cross-model peer skip legibility", () => {
 
   function extractHostAttestation(src: string): string {
     const m = src.match(
-      /if \[ -n "\$\{OMPCODE:-\}" \]; then XHOST_HARNESS=omp; XHOST_FAMILY=unknown;\nelif \[ "\$\{CLAUDECODE:-\}" = "1" \]; then XHOST_HARNESS=claude; XHOST_FAMILY=unknown;\n(?:elif .+\n)*else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi/,
+      /XHOST_SEEN=;\n(?:.+\n)*?else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi/,
     )
     expect(m).toBeTruthy()
     return m![0]
@@ -1868,7 +1868,6 @@ describe("cross-model peer skip legibility", () => {
     )
     for (const snippet of snippets) {
       expect(snippet).toBe(snippets[0])
-      expect(snippet).toContain('XHOST_HARNESS=grok; XHOST_FAMILY=grok')
       expect(snippet).toContain("GROK_AGENT")
       expect(snippet).toContain("GROK_SESSION_ID")
     }
@@ -1876,12 +1875,15 @@ describe("cross-model peer skip legibility", () => {
     expect(attestHost(snippet, {})).toBe("unknown unknown")
     expect(attestHost(snippet, { GROK_AGENT: "1" })).toBe("grok grok")
     expect(attestHost(snippet, { GROK_SESSION_ID: "sess" })).toBe("grok grok")
-    expect(attestHost(snippet, { CLAUDECODE: "1" })).toBe("claude unknown")
-    expect(attestHost(snippet, { CLAUDECODE: "1", GROK_AGENT: "1" })).toBe("claude unknown")
-    expect(attestHost(snippet, { OMPCODE: "1", CLAUDECODE: "1" })).toBe("omp unknown")
-    expect(attestHost(snippet, { OMPCODE: "1", CLAUDECODE: "1", GROK_AGENT: "1" })).toBe("omp unknown")
-    expect(attestHost(snippet, { CODEX_SESSION_ID: "sess", GROK_AGENT: "1" })).toBe("codex codex")
+    expect(attestHost(snippet, { CLAUDECODE: "1" })).toBe("claude claude")
+    expect(attestHost(snippet, { CODEX_THREAD_ID: "t" })).toBe("codex codex")
+    expect(attestHost(snippet, { CLAUDECODE: "1", CURSOR_AGENT: "1" })).toBe("claude claude")
     expect(attestHost(snippet, { CURSOR_AGENT: "1" })).toBe("cursor unknown")
+    expect(attestHost(snippet, { OMPCODE: "1", CLAUDECODE: "1" })).toBe("omp unknown")
+    expect(attestHost(snippet, { OMPCODE: "1", CLAUDECODE: "1", CODEX_THREAD_ID: "t" })).toBe("omp unknown")
+    expect(attestHost(snippet, { CLAUDECODE: "1", CODEX_THREAD_ID: "t" })).toBe("unknown unknown")
+    expect(attestHost(snippet, { CLAUDECODE: "1", GROK_AGENT: "1" })).toBe("unknown unknown")
+    expect(attestHost(snippet, { CODEX_SESSION_ID: "sess", GROK_AGENT: "1" })).toBe("unknown unknown")
   })
 
   for (const { worker } of routeTokenPairs) {

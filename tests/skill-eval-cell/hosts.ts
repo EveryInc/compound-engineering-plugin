@@ -100,6 +100,7 @@ export function cellEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEn
   // Each cell's CLI re-sets its own attestation markers; an inherited marker
   // from the launching harness makes the child attest as the wrong host.
   delete env.CLAUDECODE
+  delete env.OMPCODE
   delete env.CODEX_SANDBOX
   delete env.CODEX_SANDBOX_NETWORK_DISABLED
   delete env.CODEX_SESSION_ID

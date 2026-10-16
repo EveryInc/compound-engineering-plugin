@@ -178,5 +178,11 @@ describe("ce-code-review run-log", () => {
     })
     expect(copied.status).toBe(0)
     expect(metadata(dir).cost.host).toBe("omp")
+    const inherited = spawnSync("python3", [SCRIPT, "summarize", "--run-dir", dir], {
+      encoding: "utf8",
+      env: hostlessEnv({ CLAUDECODE: "1", CODEX_THREAD_ID: "t" }),
+    })
+    expect(inherited.status).toBe(0)
+    expect(metadata(dir).cost.host).toBe("unknown")
   })
 })

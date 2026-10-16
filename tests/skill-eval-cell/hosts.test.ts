@@ -8,8 +8,9 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
   const promptFile = path.join(cwd, "prompt.md")
 
   test("every host unsets CLAUDECODE and forces NO_COLOR", () => {
-    const env = cellEnv({ CLAUDECODE: "1", CLICOLOR_FORCE: "1", GH_FORCE_TTY: "1" })
+    const env = cellEnv({ CLAUDECODE: "1", OMPCODE: "1", CLICOLOR_FORCE: "1", GH_FORCE_TTY: "1" })
     expect(env.CLAUDECODE).toBeUndefined()
+    expect(env.OMPCODE).toBeUndefined()
     expect(env.CLICOLOR_FORCE).toBeUndefined()
     expect(env.GH_FORCE_TTY).toBeUndefined()
     expect(env.NO_COLOR).toBe("1")

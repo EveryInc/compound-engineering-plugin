@@ -18,10 +18,13 @@ Keep requested **target**, CLI **harness/intermediary**, serving **family/provid
 Attest both the host harness and its serving family:
 
 ```bash
+XHOST_SEEN=;
+if [ "${CLAUDECODE:-}" = "1" ]; then XHOST_SEEN="$XHOST_SEEN claude"; fi;
+if [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST_SEEN="$XHOST_SEEN codex"; fi;
+if [ "${GROK_AGENT:-}" = "1" ] || [ -n "${GROK_SESSION_ID:-}" ]; then XHOST_SEEN="$XHOST_SEEN grok"; fi;
 if [ -n "${OMPCODE:-}" ]; then XHOST_HARNESS=omp; XHOST_FAMILY=unknown;
-elif [ "${CLAUDECODE:-}" = "1" ]; then XHOST_HARNESS=claude; XHOST_FAMILY=unknown;
-elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST_HARNESS=codex; XHOST_FAMILY=codex;
-elif [ "${GROK_AGENT:-}" = "1" ] || [ -n "${GROK_SESSION_ID:-}" ]; then XHOST_HARNESS=grok; XHOST_FAMILY=grok;
+elif [ "$XHOST_SEEN" = " claude" ] || [ "$XHOST_SEEN" = " codex" ] || [ "$XHOST_SEEN" = " grok" ]; then XHOST_HARNESS="${XHOST_SEEN# }"; XHOST_FAMILY="$XHOST_HARNESS";
+elif [ -n "$XHOST_SEEN" ]; then XHOST_HARNESS=unknown; XHOST_FAMILY=unknown;
 elif [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST_HARNESS=cursor; XHOST_FAMILY=unknown;
 elif [ -n "${OPENCODE_TERMINAL:-}" ]; then XHOST_HARNESS=opencode; XHOST_FAMILY=unknown;
 else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
@@ -29,7 +32,7 @@ else XHOST_HARNESS=unknown; XHOST_FAMILY=unknown; fi
 
 Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the first worker argument. The snippet is evidence, not the verdict: it resolves the harnesses whose environment markers it already names, and where it yields `unknown` on a harness you can identify from your own runtime, attest what you know instead. A harness the snippet does not name needs no new branch here. Both tokens must be peer keys the worker accepts, never a provider's company name. Family is `codex`, `claude`, `grok`, `composer`, `gemini`, or `unknown`. Harness is `codex`, `claude`, `grok`, `cursor`, `opencode`, `antigravity`, `omp`, or `unknown`. A company name such as `anthropic`, `openai`, or `xai` in either slot makes the worker refuse the job and write no artifact.
 
-A harness marker attests the harness that owns the session. A marker another harness copies attests that owning harness, not the product named by the copy, and it never attests serving family. Pass a family the snippet names. Where the snippet leaves family `unknown`, set it only from a model id the runtime publishes as the model serving this session, and only when that id maps to `codex`, `claude`, `grok`, `composer`, or `gemini`. A requested model, the model's own claim, and the product name are not that id. Never infer serving family from the Cursor brand. An unknown host family cannot pass the automatic same-family check, so skip the automatic cross-model pass.
+Claude Code, Codex, and Grok each serve their own model family, so the snippet takes the family from that harness's marker when it is the only such marker present. Another harness can copy one of those markers (oh-my-pi sets `CLAUDECODE=1` whatever model serves it), and a session started from inside another harness inherits that harness's marker. So the snippet leaves family `unknown` under `OMPCODE` or when more than one of those markers is present. Pass a family the snippet names. Where it leaves family `unknown`, set it only from a model id the runtime publishes as the model serving this session, and only when that id maps to `codex`, `claude`, `grok`, `composer`, or `gemini`. A requested model, the model's own claim, and the product name are not that id. Never infer serving family from the Cursor brand. An unknown host family cannot pass the automatic same-family check, so skip the automatic cross-model pass.
 
 <!-- ce-config-layers:start -->
 **Resolve ordinary CE yaml keys from the two repo files.**
