@@ -39,7 +39,11 @@ and Codex with a stub `npx` first on PATH that replays canned acpx streams
    apply authority.
 
 5. **Failures are additive and non-blocking.** A missing CLI means no job starts;
-   a human-facing markdown review reports the pass as not run. A started timeout, failure,
+   a human-facing markdown review reports the pass as not run. In `mode:agent`, when
+   this run selected the adversarial lens and the peer produced no artifact, the
+   result records `peer.outcome: in-process-fallback` and the Coverage line
+   `adversarial lens: in-process fallback (cross-model peer not run: <reason>)`.
+   A run that did not select that lens leaves `peer` absent. A started timeout, failure,
    or unusable return is named in Coverage and the in-process review completes.
    The worker never changes recipients internally; any recipient-changing retry
    requires a new disclosure and sanction.
@@ -61,7 +65,8 @@ and Codex with a stub `npx` first on PATH that replays canned acpx streams
    serving families differ attestably. Receiptless routes say "requested
    <model> at <effort>" with no serving caveat; a caveat appears only on a
    receipt mismatch or a route that requested no model. `mode:agent` emits no
-   user-facing prose but retains the worker's stderr audit record.
+   user-facing prose but retains the worker's stderr audit record. The structured
+   result still records `peer.outcome`.
 
 9. **Oversized diffs recover without one giant prompt.** A fixture above the
    inline token or file-count limit sends the peer the orchestrator's compact
@@ -80,7 +85,9 @@ and Codex with a stub `npx` first on PATH that replays canned acpx streams
 
 11. **Restraint when Antigravity is absent.** With `codex` absent, the grok CLI
     on PATH, and no Antigravity runtime, the pass picks `grok`. With no peer
-    installed at all, it reports the pass as not run. Neither run mentions
+    installed at all, a human-facing review reports the pass as not run, and
+    `mode:agent` records `peer.outcome: in-process-fallback` with the Coverage
+    line when this run selected the adversarial lens. Neither run mentions
     Gemini or an Antigravity fallback.
 
 12. **Composer runs only when named.** With `cursor-agent` and Antigravity on
