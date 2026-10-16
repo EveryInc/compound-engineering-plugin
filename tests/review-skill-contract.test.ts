@@ -318,29 +318,20 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("**Deprecated alias**")
   })
 
-  // A clean cross-model skip in mode:agent used to stay out of the JSON a caller
-  // parses, so a headless review whose peer never started looked the same as one
-  // whose peer folded an artifact. The outcome sentence belongs on the emitter.
-  test("mode:agent result records a cleanly skipped cross-model peer", async () => {
+  test("mode:agent JSON records the peer outcome in finish-input's vocabulary", async () => {
     const modes = await readRepoFile("skills/ce-code-review/references/modes-and-output.md")
+    const finishInput = await readRepoFile("skills/ce-code-review/references/finish-input.md")
     const review = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
-    const recovery = await readRepoFile("skills/ce-code-review/references/cross-model-recovery.md")
     const json = modes.split("## JSON output format (`mode:agent` only)")[1] ?? ""
+    const outcomes = (text: string) =>
+      (text.match(/"peer": \{[^}]*?"outcome": "([^"]+)"/)?.[1] ?? "")
+        .split(" | ")
+        .filter((value) => value !== "null")
 
-    expect(json.length).toBeGreaterThan(0)
-    expect(json).toContain("peer.outcome: folded")
-    expect(json).toContain("peer.outcome: in-process-fallback")
-    expect(json).toContain(
-      "adversarial lens: in-process fallback (cross-model peer not run: <reason>)",
-    )
-    expect(json).toContain("does not fail the review")
-
-    // The classifier must not keep the result silence, and it must not restate
-    // the line: the emitter owns the wording. Announce silence may stay.
+    expect(outcomes(json).length).toBeGreaterThan(0)
+    expect(outcomes(json)).toEqual(outcomes(finishInput))
+    expect(json).toContain("copy `outcome` and `coverage` verbatim from the `peer` record in `finish-input.json`")
     expect(review).not.toContain("stay silent in `mode:agent`")
-    expect(review).toContain("emit no user-facing prose")
-    expect(review).toContain("references/modes-and-output.md")
-    expect(recovery).not.toContain("Saying nothing is correct only for passes that never started")
   })
 
   test("documents policy-driven routing and actionable handoff", async () => {
