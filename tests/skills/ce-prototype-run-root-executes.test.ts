@@ -45,16 +45,22 @@ function resolutionScript(tempRoot: string, fallbackRoot = `${tempRoot}-fallback
     .replace(/\/tmp\/compound-engineering-\$\(id -u\)/g, tempRoot)
 }
 
+// `git check-ignore` also reads the user's global excludes, including the XDG default
+// $XDG_CONFIG_HOME/git/ignore that applies with no config set, so a developer who ignores
+// .context/compound-engineering/ globally would make the "unignored" fixture read as ignored.
+const isolatedHome = mkdtempSync(path.join(os.tmpdir(), "ce-proto-home-"))
+const GIT_ENV = { ...process.env, HOME: isolatedHome, XDG_CONFIG_HOME: isolatedHome, GIT_CONFIG_NOSYSTEM: "1" }
+
 function run(script: string, cwd: string): { status: number | null; stdout: string; stderr: string } {
-  const result = spawnSync(SHELL, ["-c", script], { cwd, encoding: "utf8" })
+  const result = spawnSync(SHELL, ["-c", script], { cwd, encoding: "utf8", env: GIT_ENV })
   return { status: result.status, stdout: (result.stdout ?? "").trim(), stderr: (result.stderr ?? "").trim() }
 }
 
 function initRepo(root: string, gitignore: string): void {
   mkdirSync(root, { recursive: true })
   writeFileSync(path.join(root, ".gitignore"), gitignore)
-  for (const args of [["init", "-q"], ["add", "-A"]]) spawnSync("git", args, { cwd: root })
-  spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: root })
+  for (const args of [["init", "-q"], ["add", "-A"]]) spawnSync("git", args, { cwd: root, env: GIT_ENV })
+  spawnSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init"], { cwd: root, env: GIT_ENV })
 }
 
 describe("ce-prototype run-root resolution executes", () => {
