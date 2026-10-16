@@ -21,6 +21,8 @@ export type HostResolution = {
 }
 
 export function attestCurrentHost(env: NodeJS.ProcessEnv = process.env): CurrentHost {
+  // oh-my-pi copies CLAUDECODE=1 into every session, and omp is not an eval host.
+  if (env.OMPCODE) return "unknown"
   if (env.CLAUDECODE === "1") return "claude"
   if (
     env.CODEX_SANDBOX ||

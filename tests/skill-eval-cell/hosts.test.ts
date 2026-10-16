@@ -60,6 +60,12 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(attestCurrentHost({ OPENCODE_TERMINAL: "1" })).toBe("opencode")
   })
 
+  test("under omp the copied CLAUDECODE does not drop claude from the default peers", () => {
+    const env = { OMPCODE: "1", CLAUDECODE: "1" }
+    expect(attestCurrentHost(env)).toBe("unknown")
+    expect(resolveRunHosts({ env, onPath: () => true }).run).toContain("claude")
+  })
+
   test("from grok the default peers are claude, codex, and opencode", () => {
     expect(attestCurrentHost({ GROK_AGENT: "1" })).toBe("grok")
     expect(peerHosts("grok")).toEqual(["claude", "codex", "opencode"])
