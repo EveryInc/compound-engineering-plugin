@@ -99,6 +99,7 @@ route_available() {
 ACPX_VERSION="0.19.5"
 ACPX_UNAVAILABLE=""   # pre-egress reason; ACPX_SCOPE says whether every route shares it
 ACPX_SCOPE=""
+ACPX_NPM_REFRESH=false
 
 acpx_agent() {   # <route> -> acpx built-in agent name
   case "$1" in
@@ -190,6 +191,15 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
   printf '%s' "$wrapper"
 }
 
+# npm resolves offline-first, so cached metadata older than the acpx pin or a
+# version an adapter's dependencies need fails with ETARGET before anything is
+# sent. One launch with fresh metadata heals the cache. npm ignores
+# prefer_online while prefer_offline is set, so the refresh turns it off.
+acpx_stale_npm_metadata() {   # <stderr-log> <stream-log>
+  [ "$ACPX_NPM_REFRESH" = true ] && return 1
+  grep -qE 'ETARGET|notarget|No matching version found' "$1" "$2" 2>/dev/null
+}
+
 # Prints the NUL-delimited argv prefix through `npx acpx@<pin>` and its global
 # flags; the worker appends permission flags, `--model`, the agent, and exec options.
 # The codex and claude adapters are pointed at the installed CLIs so the pin
@@ -202,7 +212,11 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
     antigravity) printf '%s\0' -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_APPLICATION_CREDENTIALS \
       -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u GOOGLE_GENAI_USE_VERTEXAI -u AGY_LLM_GATEWAY_URL ;;
   esac
-  printf '%s\0' npm_config_prefer_offline=true npm_config_fetch_retries=0
+  if [ "$ACPX_NPM_REFRESH" = true ]; then
+    printf '%s\0' npm_config_prefer_offline=false npm_config_fetch_retries=0 npm_config_prefer_online=true
+  else
+    printf '%s\0' npm_config_prefer_offline=true npm_config_fetch_retries=0
+  fi
   case "$1" in
     codex) printf '%s\0' "CODEX_PATH=$(command -v codex)" ;;
     claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
@@ -414,22 +428,30 @@ if [ "${1:-}" = "--check-model" ]; then
   }
   GEMINI_HOME_DIR="$(acpx_antigravity_home "$CHECK_DIR")" || { echo "cannot prepare a private Antigravity home" >&2; exit 2; }
   printf '{"mcpServers":[]}\n' > "$CHECK_DIR/mcp.json"
-  ARGS=()
-  while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(
-    acpx_base_argv antigravity "$CHECK_DIR/cwd" "$CHECK_DIR/mcp.json" "$ACPX_TIMEOUT" "" "$GEMINI_HOME_DIR")
-  ARGS+=(--model "$CE_WORK_MODEL_OVERRIDE" antigravity sessions new --name "ce-work-model-check-$$")
-  set -m
-  (cd "$CHECK_DIR" && exec "${ARGS[@]}" < /dev/null > "$CHECK_DIR/stdout" 2> "$CHECK_DIR/stderr") &
-  CHECK_PID=$!
-  set +m
-  CHECK_DEADLINE=$(( $(date +%s) + ACPX_SESSION_START_SECS ))
-  while kill -0 "$CHECK_PID" 2>/dev/null && [ "$(date +%s)" -lt "$CHECK_DEADLINE" ]; do sleep 1; done
-  if kill -0 "$CHECK_PID" 2>/dev/null; then
-    echo "$SIGN_IN_STALL_REASON" >&2
-    exit 2
+  open_check_session() {
+    ARGS=()
+    while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(
+      acpx_base_argv antigravity "$CHECK_DIR/cwd" "$CHECK_DIR/mcp.json" "$ACPX_TIMEOUT" "" "$GEMINI_HOME_DIR")
+    ARGS+=(--model "$CE_WORK_MODEL_OVERRIDE" antigravity sessions new --name "ce-work-model-check-$$")
+    set -m
+    (cd "$CHECK_DIR" && exec "${ARGS[@]}" < /dev/null > "$CHECK_DIR/stdout" 2> "$CHECK_DIR/stderr") &
+    CHECK_PID=$!
+    set +m
+    CHECK_DEADLINE=$(( $(date +%s) + ACPX_SESSION_START_SECS ))
+    while kill -0 "$CHECK_PID" 2>/dev/null && [ "$(date +%s)" -lt "$CHECK_DEADLINE" ]; do sleep 1; done
+    if kill -0 "$CHECK_PID" 2>/dev/null; then
+      echo "$SIGN_IN_STALL_REASON" >&2
+      exit 2
+    fi
+    wait "$CHECK_PID"
+    CHECK_EXIT=$?
+  }
+  open_check_session
+  if [ "$CHECK_EXIT" -ne 0 ] && acpx_stale_npm_metadata "$CHECK_DIR/stderr" "$CHECK_DIR/stdout"; then
+    log "npm resolved against stale cached package metadata; retrying the model check once with fresh metadata"
+    ACPX_NPM_REFRESH=true
+    open_check_session
   fi
-  wait "$CHECK_PID"
-  CHECK_EXIT=$?
   RECORD_ID="$(jq -r 'select(.action? == "session_ensured") | .acpxRecordId // empty' "$CHECK_DIR/stdout" 2>/dev/null | tail -1)"
   case "$RECORD_ID" in ''|*[!A-Za-z0-9-]*) ;; *) rm -f "$ACPX_STATE/sessions/$RECORD_ID.json" ;; esac
   [ "$CHECK_EXIT" -eq 0 ] && exit 0
@@ -1080,51 +1102,66 @@ trap 'terminate_route' TERM INT
 set +e
 # npx resolves packages from its working directory's node_modules and .npmrc first;
 # acpx gets the agent's cwd from --cwd, so start it from private scratch.
-set -m
-(cd "$SCRATCH" && exec "${MIN_ENV[@]}" "${ARGS[@]}" < /dev/null > "$RAW_STDOUT" 2> "$RAW_STDERR") &
-ACTIVE_ROUTE_PID=$!
-set +m
-(
-  # A foreground sleep would outlive this subshell's TERM and hold the script's
-  # output open, so callers (bun 1.4 spawnSync) would wait out the poll interval.
-  # Kill every background job, so a TERM between `sleep &` and `$!` still reaps it.
-  trap 'kill $(jobs -p) 2>/dev/null; exit 0' TERM
-  previous=0
-  session=open
-  [ "$ROUTE" = antigravity ] && session=starting
-  started="$(date +%s)"
-  while kill -0 "$ACTIVE_ROUTE_PID" 2>/dev/null; do
-    current="$(raw_byte_count)"
-    if [ "$current" -gt "$MAX_RAW_BYTES" ]; then
-      : > "$RAW_LIMIT_MARKER"
-      log "activity route=$ROUTE raw-output-limit bytes=$current cap=$MAX_RAW_BYTES"
-      stop_route "$ACTIVE_ROUTE_PID"
-      break
-    fi
-    if [ "$session" != open ] && [ $(( $(date +%s) - started )) -ge "$ACPX_SESSION_START_SECS" ]; then
-      session="$(acpx_session_state "$RAW_STDOUT")"
-      if [ "$session" = pending ]; then
-        : > "$SESSION_STALL_MARKER"
-        log "Antigravity opened no session within ${ACPX_SESSION_START_SECS}s; stopping the route"
+launch_route() {
+  set -m
+  (cd "$SCRATCH" && exec "${MIN_ENV[@]}" "${ARGS[@]}" < /dev/null > "$RAW_STDOUT" 2> "$RAW_STDERR") &
+  ACTIVE_ROUTE_PID=$!
+  set +m
+  (
+    # A foreground sleep would outlive this subshell's TERM and hold the script's
+    # output open, so callers (bun 1.4 spawnSync) would wait out the poll interval.
+    # Kill every background job, so a TERM between `sleep &` and `$!` still reaps it.
+    trap 'kill $(jobs -p) 2>/dev/null; exit 0' TERM
+    previous=0
+    session=open
+    [ "$ROUTE" = antigravity ] && session=starting
+    started="$(date +%s)"
+    while kill -0 "$ACTIVE_ROUTE_PID" 2>/dev/null; do
+      current="$(raw_byte_count)"
+      if [ "$current" -gt "$MAX_RAW_BYTES" ]; then
+        : > "$RAW_LIMIT_MARKER"
+        log "activity route=$ROUTE raw-output-limit bytes=$current cap=$MAX_RAW_BYTES"
         stop_route "$ACTIVE_ROUTE_PID"
         break
       fi
-    fi
-    if [ "$current" != "$previous" ]; then
-      log "activity route=$ROUTE output-updated"
-      previous="$current"
-    fi
-    sleep "$ACTIVITY_POLL_SECS" &
-    wait $!
-  done
-) &
-ACTIVITY_PID=$!
-wait "$ACTIVE_ROUTE_PID"
-ROUTE_EXIT=$?
-kill "$ACTIVITY_PID" 2>/dev/null || true
-wait "$ACTIVITY_PID" 2>/dev/null || true
-ACTIVE_ROUTE_PID=""
-ACTIVITY_PID=""
+      if [ "$session" != open ] && [ $(( $(date +%s) - started )) -ge "$ACPX_SESSION_START_SECS" ]; then
+        session="$(acpx_session_state "$RAW_STDOUT")"
+        if [ "$session" = pending ]; then
+          : > "$SESSION_STALL_MARKER"
+          log "Antigravity opened no session within ${ACPX_SESSION_START_SECS}s; stopping the route"
+          stop_route "$ACTIVE_ROUTE_PID"
+          break
+        fi
+      fi
+      if [ "$current" != "$previous" ]; then
+        log "activity route=$ROUTE output-updated"
+        previous="$current"
+      fi
+      sleep "$ACTIVITY_POLL_SECS" &
+      wait $!
+    done
+  ) &
+  ACTIVITY_PID=$!
+  wait "$ACTIVE_ROUTE_PID"
+  ROUTE_EXIT=$?
+  kill "$ACTIVITY_PID" 2>/dev/null || true
+  wait "$ACTIVITY_PID" 2>/dev/null || true
+  ACTIVE_ROUTE_PID=""
+  ACTIVITY_PID=""
+}
+LAUNCH_STARTED="$(date +%s)"
+launch_route
+if acpx_stale_npm_metadata "$RAW_STDERR" "$RAW_STDOUT" && [ "$(acpx_outcome "$RAW_STDOUT")" = not-sent ]; then
+  REMAINING=$(( ACPX_TIMEOUT - ( $(date +%s) - LAUNCH_STARTED ) ))
+  if [ "$REMAINING" -gt 0 ]; then
+    log "npm resolved against stale cached package metadata; retrying the same route once with fresh metadata in the ${REMAINING}s left (nothing was sent)"
+    ACPX_NPM_REFRESH=true
+    ACPX_TIMEOUT="$REMAINING"
+    ARGS=()
+    while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(adapter_argv "$ROUTE")
+    launch_route
+  fi
+fi
 RAW_BYTES="$(raw_byte_count)"
 [ "$RAW_BYTES" -gt "$MAX_RAW_BYTES" ] && : > "$RAW_LIMIT_MARKER"
 # acpx echoes the outbound prompt and the contents of files the agent reads, so

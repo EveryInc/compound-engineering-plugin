@@ -84,8 +84,10 @@ export function signInWaitStream(base: string): string {
  * environment. The `npx` wrapper bakes them in, records what the acpx child sees
  * in `capture` (cwd, environment, argv, launch variables, prompt), runs `hook`
  * from the `--cwd` workspace the way the agent would, then replays the stream.
+ * `numbered` counts launches in `<capture>/calls` and replays `<stream>.<N>.*`,
+ * suffixing the prompt log the same way.
  */
-export function acpNpxBin(bin: string, capture: string, stream: string, hook = ""): string {
+export function acpNpxBin(bin: string, capture: string, stream: string, hook = "", numbered = false): string {
   for (const binary of AGENT_BINARIES) {
     writeFileSync(path.join(bin, binary), "#!/bin/sh\nexit 0\n")
     chmodSync(path.join(bin, binary), 0o755)
@@ -102,7 +104,7 @@ for arg in "$@"; do [ "$prev" = --cwd ] && agent_cwd="$arg"; prev="$arg"; done
 ( cd "$agent_cwd" || exit 1
 ${hook}
 ) || exit 1
-ACP_STUB_NPX_STREAM='${stream}' ACP_STUB_NPX_ARGV_LOG='${capture}/argv' ACP_STUB_NPX_ENV_LOG='${capture}/launch-env' ACP_STUB_NPX_PROMPT_LOG='${capture}/prompt' exec '${STUB_NPX}' "$@"
+ACP_STUB_NPX_STREAM='${stream}' ${numbered ? `ACP_STUB_NPX_CALLS='${capture}/calls' ` : ""}ACP_STUB_NPX_ARGV_LOG='${capture}/argv' ACP_STUB_NPX_ENV_LOG='${capture}/launch-env' ACP_STUB_NPX_PROMPT_LOG='${capture}/prompt' exec '${STUB_NPX}' "$@"
 `)
   chmodSync(path.join(bin, "npx"), 0o755)
   return bin

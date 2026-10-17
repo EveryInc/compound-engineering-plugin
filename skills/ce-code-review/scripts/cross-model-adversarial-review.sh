@@ -182,6 +182,7 @@ route_available() {
 ACPX_VERSION="0.19.5"
 ACPX_UNAVAILABLE=""   # pre-egress reason; ACPX_SCOPE says whether every route shares it
 ACPX_SCOPE=""
+ACPX_NPM_REFRESH=false
 
 acpx_agent() {   # <route> -> acpx built-in agent name
   case "$1" in
@@ -273,6 +274,15 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
   printf '%s' "$wrapper"
 }
 
+# npm resolves offline-first, so cached metadata older than the acpx pin or a
+# version an adapter's dependencies need fails with ETARGET before anything is
+# sent. One launch with fresh metadata heals the cache. npm ignores
+# prefer_online while prefer_offline is set, so the refresh turns it off.
+acpx_stale_npm_metadata() {   # <stderr-log> <stream-log>
+  [ "$ACPX_NPM_REFRESH" = true ] && return 1
+  grep -qE 'ETARGET|notarget|No matching version found' "$1" "$2" 2>/dev/null
+}
+
 # Prints the NUL-delimited argv prefix through `npx acpx@<pin>` and its global
 # flags; the worker appends permission flags, `--model`, the agent, and exec options.
 # The codex and claude adapters are pointed at the installed CLIs so the pin
@@ -285,7 +295,11 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
     antigravity) printf '%s\0' -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_APPLICATION_CREDENTIALS \
       -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u GOOGLE_GENAI_USE_VERTEXAI -u AGY_LLM_GATEWAY_URL ;;
   esac
-  printf '%s\0' npm_config_prefer_offline=true npm_config_fetch_retries=0
+  if [ "$ACPX_NPM_REFRESH" = true ]; then
+    printf '%s\0' npm_config_prefer_offline=false npm_config_fetch_retries=0 npm_config_prefer_online=true
+  else
+    printf '%s\0' npm_config_prefer_offline=true npm_config_fetch_retries=0
+  fi
   case "$1" in
     codex) printf '%s\0' "CODEX_PATH=$(command -v codex)" ;;
     claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
@@ -994,7 +1008,7 @@ record_codex_usage() {
 # Success is the prompt's own end_turn result: acpx exits 5 when a permission
 # request was denied even though the turn completed, and exits 0 on a cancelled one.
 attempt_route() {   # <provider> <route>
-  local provider="$1" route="$2" outcome reason
+  local provider="$1" route="$2" outcome reason started remaining
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT" "$TEXT_OUT"
   RUN_SUCCEEDED=false
   PROVIDER_OUTCOME="failed"
@@ -1002,7 +1016,18 @@ attempt_route() {   # <provider> <route>
   build_cmd "$route"
   PEER_ROUTE="$route"
   log "peer run: provider=$provider route=$route model=$(route_model "$route") (effort $(route_effort "$route")) transport=acpx@$ACPX_VERSION lens=adversarial read-only in-tree (idle ${IDLE_SECS}s / hard ${HARD_SECS}s); reviewed code/diff egresses to this provider via this route"
+  started="$(date +%s)"
   run_peer_cmd
+  if acpx_stale_npm_metadata "$PEERERR" "$PEERLOG" && [ "$(acpx_outcome "$PEERLOG")" = not-sent ]; then
+    remaining=$(( HARD_SECS - ( $(date +%s) - started ) ))
+    if [ "$remaining" -gt 0 ]; then
+      log "npm resolved against stale cached package metadata; retrying the same route once with fresh metadata in the ${remaining}s left (nothing was sent)"
+      ACPX_NPM_REFRESH=true
+      HARD_SECS="$remaining"
+      build_cmd "$route"
+      run_peer_cmd
+    fi
+  fi
   [ "$route" = codex ] && record_codex_usage
   outcome="$(acpx_outcome "$PEERLOG")"
   case "$outcome" in

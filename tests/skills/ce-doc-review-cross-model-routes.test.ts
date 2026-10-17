@@ -733,6 +733,28 @@ describe("cross-model-doc-review acpx transport preflight", () => {
     expect(r.stderr).not.toContain("peer skip evidence")
   })
 
+  test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {
+    const base = path.join(temp("xmodel-doc-stale-"), "s")
+    for (const ext of ["stderr", "exit"]) writeFileSync(`${base}.1.${ext}`, readFileSync(path.join(STREAMS, `stale-npm-metadata.${ext}`)))
+    acpStream({ text: review() }, `${base}.2`)
+    const sb = sandbox(["codex"], base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(r.files).toContain("adversarial-codex.json")
+    expect(envLog(sb)).toContain("npm_config_prefer_offline=false\nnpm_config_fetch_retries=0\nnpm_config_prefer_online=true\n")
+    expect(r.stderr).not.toContain("transport unavailable")
+  })
+
+  test("stale-metadata text after the prompt was sent is not retried", () => {
+    const sb = sandbox(["codex"], acpStream({ error: "No matching version found", stderr: readFileSync(path.join(STREAMS, "stale-npm-metadata.stderr"), "utf8"), exit: 1 }))
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(calls(sb)).toBe(1)
+    expect(envLog(sb)).toContain("npm_config_prefer_offline=true\n")
+    expect(r.files).not.toContain("adversarial-codex.json")
+  })
+
   test("a codex agent override in ~/.acpx/config.json fails only that route; a replacement route still runs", () => {
     const sb = sandbox(["codex", "claude"])
     mkdirSync(path.join(sb.home, ".acpx"))

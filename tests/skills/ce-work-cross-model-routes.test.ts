@@ -109,6 +109,16 @@ function acpStream(spec: StreamSpec = {}) {
   return acpStreamAt(path.join(temp("ce-work-stream-"), "s"), spec)
 }
 
+function staleThenStream(second: (spec: StreamSpec) => string) {
+  const base = path.join(temp("ce-work-stale-"), "s")
+  for (const ext of ["stderr", "exit"]) writeFileSync(`${base}.1.${ext}`, readFileSync(path.join(STREAMS, `stale-npm-metadata.${ext}`)))
+  const replay = second({})
+  for (const ext of ["stdout", "stderr", "exit"]) {
+    if (existsSync(`${replay}.${ext}`)) writeFileSync(`${base}.2.${ext}`, readFileSync(`${replay}.${ext}`))
+  }
+  return base
+}
+
 function stubBin(f: Fixture, stream: string = acpStream(), hook = "") {
   return acpNpxBin(temp("ce-work-bin-"), f.capture, stream, hook)
 }
@@ -737,6 +747,24 @@ describe("ce-work acpx outcomes", () => {
     expect(result.result.failure_reason).toContain(`transport unavailable (${reason}`)
   })
 
+  test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {
+    const f = fixture()
+    const result = run("codex", f, withBin(acpNpxBin(temp("ce-work-bin-"), f.capture, staleThenStream(acpStream), "", true)))
+    expect(captured(f, "calls").trim()).toBe("2")
+    expect(result.code).toBe(0)
+    expect(result.result.terminal_status).toBe("completed")
+    expect(captured(f, "launch-env")).toContain("npm_config_prefer_offline=false\nnpm_config_fetch_retries=0\nnpm_config_prefer_online=true\n")
+  })
+
+  test("stale-metadata text after the prompt was sent is not retried", () => {
+    const f = fixture()
+    const stream = acpStream({ error: "No matching version found", stderr: readFileSync(path.join(STREAMS, "stale-npm-metadata.stderr"), "utf8"), exit: 1 })
+    const result = run("codex", f, withBin(acpNpxBin(temp("ce-work-bin-"), f.capture, stream, "", true)))
+    expect(captured(f, "calls").trim()).toBe("1")
+    expect(result.result.terminal_status).toBe("failed")
+    expect(captured(f, "launch-env")).toContain("npm_config_prefer_offline=true\n")
+  })
+
   test.each([
     ["Node too old", "node", "#!/bin/sh\necho 20.9.0\n", "pre-egress, shared): Node 20.9.0 is too old"],
     ["jq missing", "jq", null, "pre-egress, shared): jq not found"],
@@ -784,6 +812,20 @@ describe("ce-work antigravity route", () => {
   function checkModel(model: string, env: NodeJS.ProcessEnv) {
     return spawnSync("bash", [SCRIPT, "--check-model", "antigravity", model], { encoding: "utf8", env })
   }
+
+  test("--check-model retries once with fresh npm metadata when the cached metadata is stale", () => {
+    const f = fixture()
+    const bin = acpNpxBin(temp("ce-work-bin-"), f.capture, staleThenStream(() => {
+      const base = path.join(temp("ce-work-stream-"), "s")
+      writeFileSync(`${base}.stdout`, `${JSON.stringify({ action: "session_ensured", created: true, acpxRecordId: "rec-check" })}\n`)
+      writeFileSync(`${base}.exit`, "0\n")
+      return base
+    }), "", true)
+    const check = checkModel(FLASH, { ...cleanEnv(), PATH: isolatedPath(bin), HOME: temp("ce-work-real-home-") })
+    expect(check.stderr).not.toContain("transport unavailable")
+    expect(check.status).toBe(0)
+    expect(captured(f, "calls").trim()).toBe("2")
+  })
 
   test("--emit-adapter strips Google credentials and runs Argon in auto_edit mode with a private GEMINI_HOME", () => {
     const out = emit("antigravity", cleanEnv()).stdout
