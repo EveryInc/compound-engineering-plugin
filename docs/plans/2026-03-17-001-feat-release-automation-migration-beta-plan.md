@@ -66,7 +66,7 @@ The current repo mixes one automated root CLI release line with manual plugin re
 
 ### Institutional Learnings
 
-- `docs/solutions/plugin-versioning-requirements.md` already encodes an important constraint: version bumps and changelog entries should be release-owned, not added in routine feature PRs. The migration should preserve that principle while moving the authority into CI.
+- `docs/solutions/workflow/plugin-versioning-requirements.md` already encodes an important constraint: version bumps and changelog entries should be release-owned, not added in routine feature PRs. The migration should preserve that principle while moving the authority into CI.
 
 ### External References
 
@@ -354,7 +354,7 @@ The dry-run summary should include:
 
 **Patterns to follow:**
 - Existing repo-level config files at the root (`package.json`, `.releaserc.json`, `.github/workflows/*.yml`)
-- Current release ownership documented in `docs/solutions/plugin-versioning-requirements.md`
+- Current release ownership documented in `docs/solutions/workflow/plugin-versioning-requirements.md`
 
 **Test scenarios:**
 - A plugin-only change maps to that plugin component without implying CLI or marketplace bump.
@@ -503,7 +503,7 @@ The dry-run summary should include:
 - Modify: `AGENTS.md`
 - Modify: `CLAUDE.md`
 - Modify: `plugins/compound-engineering/AGENTS.md`
-- Modify: `docs/solutions/plugin-versioning-requirements.md`
+- Modify: `docs/solutions/workflow/plugin-versioning-requirements.md`
 - Delete: `.claude/commands/release-docs.md` or replace with a deprecation stub
 
 **Approach:**
@@ -599,7 +599,7 @@ The dry-run summary should include:
 - **Origin document:** [docs/brainstorms/2026-03-17-release-automation-requirements.md](docs/brainstorms/2026-03-17-release-automation-requirements.md)
 - Existing release workflow: `.github/workflows/publish.yml`
 - Existing semantic-release config: `.releaserc.json`
-- Existing release-owned guidance: `docs/solutions/plugin-versioning-requirements.md`
+- Existing release-owned guidance: `docs/solutions/workflow/plugin-versioning-requirements.md`
 - Legacy repo-maintenance command to retire: `.claude/commands/release-docs.md`
 - Install behavior reference: `src/commands/install.ts`
 - External docs: `release-please` manifest and release PR documentation, GitHub Actions `workflow_dispatch`

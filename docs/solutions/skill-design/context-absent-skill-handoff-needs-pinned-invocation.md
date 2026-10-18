@@ -99,5 +99,5 @@ pr-snapshot watch --pr 1933 --repo OWNER/REPO --state-dir DIR \
 ## Related
 
 - `docs/solutions/skill-design/cross-harness-cross-model-tool-invocation.md` — same principle (pin portable outcomes and host adapters rather than letting an agent invent a substitute), applied to tool selection across harnesses instead of skill-to-skill handoff.
-- `docs/solutions/agent-friendly-cli-principles.md` — Principle 4 (fail fast with actionable errors) is the general rubric that the `pr-snapshot` refusal hint instantiates concretely.
+- `docs/solutions/best-practices/agent-friendly-cli-principles.md` — Principle 4 (fail fast with actionable errors) is the general rubric that the `pr-snapshot` refusal hint instantiates concretely.
 - `docs/solutions/skill-design/dispatch-script-failure-degrade-outcome-not-boundary.md` — shares the "never weaken the enforced boundary on failure" shape in a different subsystem.

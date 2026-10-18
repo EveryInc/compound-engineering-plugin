@@ -2,7 +2,7 @@
 title: "Colon-namespaced skill names break filesystem paths on Windows"
 date: 2026-03-26
 last_refreshed: 2026-06-20
-category: integration-issues
+category: integrations
 module: cli-converter
 problem_type: integration_issue
 component: tooling

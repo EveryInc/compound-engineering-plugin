@@ -61,7 +61,7 @@ Generic skill names (`setup`, `plan`, `review`) collide when users install multi
 ### Institutional Learnings
 
 - `docs/solutions/integrations/colon-namespaced-names-break-windows-paths.md` — Documents the colon/hyphen duality and three-layer sanitization (target writers, sync paths, converter dedupe sets). After this rename, the duality is eliminated for CE skills but sanitization stays for other plugins.
-- `docs/solutions/codex-skill-prompt-entrypoints.md` — Codex derives skill names from directory basenames. The `isCanonicalCodexWorkflowSkill()` function identifies which skills get prompt wrappers. After rename, ALL skills start with `ce-`, so prefix-based detection breaks — needs frontmatter-field-based detection instead.
+- `docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md` — Codex derives skill names from directory basenames. The `isCanonicalCodexWorkflowSkill()` function identifies which skills get prompt wrappers. After rename, ALL skills start with `ce-`, so prefix-based detection breaks — needs frontmatter-field-based detection instead.
 - `docs/solutions/skill-design/beta-skills-framework.md` — Validates that stale cross-references after rename cause routing bugs. Must search all SKILL.md files for old names after rename.
 
 ## Key Technical Decisions
@@ -469,5 +469,5 @@ Generic skill names (`setup`, `plan`, `review`) collide when users install multi
 - **Origin document:** [docs/brainstorms/2026-03-27-ce-skill-prefix-rename-requirements.md](docs/brainstorms/2026-03-27-ce-skill-prefix-rename-requirements.md)
 - Related issue: [#337](https://github.com/EveryInc/compound-engineering-plugin/issues/337)
 - Related learning: `docs/solutions/integrations/colon-namespaced-names-break-windows-paths.md`
-- Related learning: `docs/solutions/codex-skill-prompt-entrypoints.md`
+- Related learning: `docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md`
 - Related learning: `docs/solutions/skill-design/beta-skills-framework.md`

@@ -1,6 +1,6 @@
 ---
 title: Adding New Converter Target Providers
-category: architecture
+category: architecture-patterns
 tags: [converter, target-provider, plugin-conversion, multi-platform, pattern]
 created: 2026-02-23
 last_refreshed: 2026-06-23
@@ -699,4 +699,4 @@ Use this checklist when adding a new target provider:
 - `.claude-plugin/plugin.json` — Version and component counts
 - `CHANGELOG.md` — Pointer to canonical GitHub release history
 - `README.md` — Usage examples for all targets
-- `docs/solutions/plugin-versioning-requirements.md` — Checklist for releases
+- `docs/solutions/workflow/plugin-versioning-requirements.md` — Checklist for releases

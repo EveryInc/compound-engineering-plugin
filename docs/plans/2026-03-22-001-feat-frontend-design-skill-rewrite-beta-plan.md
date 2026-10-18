@@ -56,7 +56,7 @@ Two external sources informed the redesign: Anthropic's official frontend-design
 
 - **Cross-platform tool references** (`docs/solutions/skill-design/compound-refresh-skill-improvements.md`): Never hardcode a single tool name with an escape hatch. Use capability-first language with platform examples and plain-text fallback. Anti-pattern table directly applicable.
 - **Beta skills framework** (`docs/solutions/skill-design/beta-skills-framework.md`): frontend-design is NOT a beta skill -- it is a stable skill being improved. ce-work-beta should reference it by its stable name.
-- **Codex skill conversion** (`docs/solutions/codex-skill-prompt-entrypoints.md`): Skills are copied as-is to Codex. Slash references inside SKILL.md are NOT rewritten. Use semantic wording ("load the `agent-browser` skill") rather than slash syntax.
+- **Codex skill conversion** (`docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md`): Skills are copied as-is to Codex. Slash references inside SKILL.md are NOT rewritten. Use semantic wording ("load the `agent-browser` skill") rather than slash syntax.
 - **Context token budget** (`docs/plans/2026-02-08-refactor-reduce-plugin-context-token-usage-plan.md`): Description field's only job is discovery. The proposed 6-line description is well-sized for the budget.
 - **Script-first architecture** (`docs/solutions/skill-design/script-first-skill-architecture.md`): When a skill's core value IS the model's judgment, script-first does not apply. Frontend-design is judgment-based. Detection checklist should be inline, not in reference files.
 
@@ -187,4 +187,4 @@ Two external sources informed the redesign: Anthropic's official frontend-design
 - **Origin document:** [docs/brainstorms/2026-03-22-frontend-design-skill-improvement.md](docs/brainstorms/2026-03-22-frontend-design-skill-improvement.md)
 - Related code: `plugins/compound-engineering/skills/frontend-design/SKILL.md`, `plugins/compound-engineering/skills/ce-work-beta/SKILL.md`
 - External inspiration: Anthropic official frontend-design skill, OpenAI "Designing Delightful Frontends with GPT-5.4" skill (March 2026)
-- Institutional learnings: `docs/solutions/skill-design/compound-refresh-skill-improvements.md`, `docs/solutions/skill-design/beta-skills-framework.md`, `docs/solutions/codex-skill-prompt-entrypoints.md`
+- Institutional learnings: `docs/solutions/skill-design/compound-refresh-skill-improvements.md`, `docs/solutions/skill-design/beta-skills-framework.md`, `docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md`

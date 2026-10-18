@@ -55,7 +55,7 @@ The current plugin still treats repo-local `.context/compound-engineering/...` a
 
 - [docs/solutions/skill-design/compound-refresh-skill-improvements.md](/Users/tmchow/conductor/workspaces/compound-engineering-plugin/freetown-v1/docs/solutions/skill-design/compound-refresh-skill-improvements.md): keep skill instructions platform-agnostic, avoid hardcoded tool names, and prefer dedicated file tools over shell exploration to reduce prompts.
 - [docs/solutions/workflow/todo-status-lifecycle.md](/Users/tmchow/conductor/workspaces/compound-engineering-plugin/freetown-v1/docs/solutions/workflow/todo-status-lifecycle.md): todo status is load-bearing; any path migration must preserve the pending/ready/complete pipeline rather than flattening it.
-- [docs/solutions/codex-skill-prompt-entrypoints.md](/Users/tmchow/conductor/workspaces/compound-engineering-plugin/freetown-v1/docs/solutions/codex-skill-prompt-entrypoints.md): copied `SKILL.md` content is often passed through mostly as-is, so skill wording must remain meaningful without target-specific rewriting assumptions.
+- [docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md](/Users/tmchow/conductor/workspaces/compound-engineering-plugin/freetown-v1/docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md): copied `SKILL.md` content is often passed through mostly as-is, so skill wording must remain meaningful without target-specific rewriting assumptions.
 
 ### External References
 
@@ -322,7 +322,7 @@ Action model:
 - Keep path rewriting logic minimal; if the new wording is sufficiently target-agnostic, prefer updating fixtures/tests over adding new target-specific rewriting behavior.
 
 **Patterns to follow:**
-- [docs/solutions/codex-skill-prompt-entrypoints.md](/Users/tmchow/conductor/workspaces/compound-engineering-plugin/freetown-v1/docs/solutions/codex-skill-prompt-entrypoints.md)
+- [docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md](/Users/tmchow/conductor/workspaces/compound-engineering-plugin/freetown-v1/docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md)
 - Existing converter tests in [tests/converter.test.ts](/Users/tmchow/conductor/workspaces/compound-engineering-plugin/freetown-v1/tests/converter.test.ts)
 
 **Test scenarios:**

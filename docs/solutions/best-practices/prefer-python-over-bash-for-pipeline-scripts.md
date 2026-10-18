@@ -123,4 +123,4 @@ step = max(2, (len(frames) - 1) // 2)
 ## Related
 
 - `docs/solutions/skill-design/script-first-skill-architecture.md`: covers when to use scripts vs agent logic (complementary: that doc answers "should a script do this?", this doc answers "which language?")
-- `docs/solutions/agent-friendly-cli-principles.md`: CLI design from the consumer side (overlaps on exit code and stderr patterns)
+- `docs/solutions/best-practices/agent-friendly-cli-principles.md`: CLI design from the consumer side (overlaps on exit code and stderr patterns)

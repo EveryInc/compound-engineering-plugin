@@ -129,4 +129,4 @@ These files reference stable `ce:plan` or `deepen-plan` and require **no changes
 ## Sources
 
 - **Promotion checklist:** `docs/solutions/skill-design/beta-skills-framework.md` (steps 1-9)
-- **Versioning rules:** `docs/solutions/plugin-versioning-requirements.md` (no manual version bumps)
+- **Versioning rules:** `docs/solutions/workflow/plugin-versioning-requirements.md` (no manual version bumps)

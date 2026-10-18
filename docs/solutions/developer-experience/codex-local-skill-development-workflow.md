@@ -170,7 +170,7 @@ cursor-agent --plugin-dir "$PWD"
 
 - [Branch-based plugin installation and testing](branch-based-plugin-install-and-testing.md) covers testing unpublished remote branches through Claude's marketplace cache; this workflow instead loads the exact current Codex worktree, including dirty files.
 - [Native plugin install strategy](../integrations/native-plugin-install-strategy.md) describes the broader platform installation model and is a candidate for a focused refresh now that Codex has a native plugin surface.
-- [Codex skill prompt entrypoints](../codex-skill-prompt-entrypoints.md) explains how installed Codex skills are invoked.
-- [Plugin versioning requirements](../plugin-versioning-requirements.md) explains why local development must not depend on hand-bumping the release-owned manifest version.
+- [Codex skill prompt entrypoints](../architecture-patterns/codex-skill-prompt-entrypoints.md) explains how installed Codex skills are invoked.
+- [Plugin versioning requirements](../workflow/plugin-versioning-requirements.md) explains why local development must not depend on hand-bumping the release-owned manifest version.
 - [Preserve user content across destructive paths](../best-practices/preserve-user-content-across-all-destructive-paths.md) supplies the safety precedent for managing only an exact owned symlink.
 - [GitHub issue #1048](https://github.com/EveryInc/compound-engineering-plugin/issues/1048) records an adjacent user-state preservation failure that reinforces the same ownership boundary.

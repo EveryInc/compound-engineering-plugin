@@ -246,5 +246,5 @@ Run the full suite after any source fix in U2. Do not bump versions or hand-edit
 - `src/utils/slash-command.ts` — shared reserved path-root list.
 - `tests/codex-converter.test.ts` — existing converter coverage baseline.
 - `tests/slash-command.test.ts`, `tests/frontmatter.test.ts`, `tests/resolve-output.test.ts` — utility test style conventions.
-- `docs/solutions/adding-converter-target-providers.md` — "Content transformation is fragile — test extensively" and normalize/slash pattern guidance.
-- `docs/solutions/codex-skill-prompt-entrypoints.md` — Codex converter default mode and `transformContentForCodex` role.
+- `docs/solutions/architecture-patterns/adding-converter-target-providers.md` — "Content transformation is fragile — test extensively" and normalize/slash pattern guidance.
+- `docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md` — Codex converter default mode and `transformContentForCodex` role.

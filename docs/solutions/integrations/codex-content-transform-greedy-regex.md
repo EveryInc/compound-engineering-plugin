@@ -71,4 +71,4 @@ A `@` that follows a word character is part of an email handle, username, or oth
 
 ## Related
 
-- `docs/solutions/codex-skill-prompt-entrypoints.md` — broader Codex converter architecture and the rule to preserve unknown slash references.
+- `docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md` — broader Codex converter architecture and the rule to preserve unknown slash references.

@@ -1,3 +1,19 @@
+---
+title: "Building Agent-Friendly CLIs: Practical Principles"
+category: best-practices
+problem_type: best_practice
+component: tooling
+severity: low
+module: agent-facing CLI design
+tags:
+  - cli
+  - agent-friendly
+  - rubric
+  - mcp
+  - developer-tooling
+  - output-design
+---
+
 # Building Agent-Friendly CLIs: Practical Principles
 
 CLIs are a natural fit for agents — text in, text out, composable by design. They're also more practical than MCP for most developer-facing agent work: LLMs already know common CLI tools from training data, so there's no schema overhead. An MCP server can burn tens of thousands of tokens just loading its tool definitions before a single question is asked, while a CLI call costs only the command and its output. MCP earns its complexity when agents need per-user auth and structured governance, but for the tools developers build and use day-to-day, a well-designed CLI is faster, cheaper, and more reliable.

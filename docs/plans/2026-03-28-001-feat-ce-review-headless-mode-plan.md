@@ -47,7 +47,7 @@ ce:review has three modes (interactive, autofix, report-only), but none is desig
 - `docs/solutions/skill-design/beta-promotion-orchestration-contract.md` — contract tests must be extended atomically with new mode flags
 - `docs/solutions/skill-design/compound-refresh-skill-improvements.md` — explicit opt-in only for autonomous modes (no auto-detection from tool availability); conservative treatment of borderline cases
 - `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` — walk all mode x state combinations when adding a new mode branch
-- `docs/solutions/agent-friendly-cli-principles.md` — structured parseable output with stable field contracts for programmatic callers
+- `docs/solutions/best-practices/agent-friendly-cli-principles.md` — structured parseable output with stable field contracts for programmatic callers
 
 ## Key Technical Decisions
 

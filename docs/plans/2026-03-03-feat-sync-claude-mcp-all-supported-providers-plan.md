@@ -59,7 +59,7 @@ I checked recent brainstorms in `docs/brainstorms/` and found no relevant docume
 
 ### Institutional Learnings
 
-`docs/solutions/adding-converter-target-providers.md:20-32` and `docs/solutions/adding-converter-target-providers.md:208-214` reinforce the right pattern for this feature:
+`docs/solutions/architecture-patterns/adding-converter-target-providers.md:20-32` and `docs/solutions/architecture-patterns/adding-converter-target-providers.md:208-214` reinforce the right pattern for this feature:
 
 - keep target mappings explicit,
 - treat MCP conversion as target-specific,
@@ -610,8 +610,8 @@ Rejected for this feature:
 - `src/targets/kiro.ts:5-93`
 - `src/targets/openclaw.ts:6-95`
 - `src/targets/qwen.ts:5-64`
-- `docs/solutions/adding-converter-target-providers.md:20-32`
-- `docs/solutions/adding-converter-target-providers.md:208-214`
+- `docs/solutions/architecture-patterns/adding-converter-target-providers.md:20-32`
+- `docs/solutions/architecture-patterns/adding-converter-target-providers.md:208-214`
 - `README.md:89-123`
 
 ### External References

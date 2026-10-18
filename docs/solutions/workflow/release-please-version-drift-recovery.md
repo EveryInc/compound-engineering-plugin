@@ -142,7 +142,7 @@ Optional guards:
 ## Related docs
 
 - `docs/solutions/workflow/manual-release-please-github-releases.md` -- big-picture release model.
-- `docs/solutions/plugin-versioning-requirements.md` -- plugin-scoped contributor rules.
+- `docs/solutions/workflow/plugin-versioning-requirements.md` -- plugin-scoped contributor rules.
 - `AGENTS.md` -- repo-level release versioning rules.
 - `.github/release-please-config.json` -- package and extra-file configuration.
 - `src/release/metadata.ts` -- metadata sync and validation implementation.

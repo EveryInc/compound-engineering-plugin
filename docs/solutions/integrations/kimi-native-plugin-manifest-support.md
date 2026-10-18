@@ -86,7 +86,7 @@ Those are signs the platform support belongs in native metadata and release vali
 ## Related
 
 - [Native plugin install strategy](./native-plugin-install-strategy.md)
-- [Plugin versioning requirements](../plugin-versioning-requirements.md)
-- [Adding converter target providers](../adding-converter-target-providers.md)
+- [Plugin versioning requirements](../workflow/plugin-versioning-requirements.md)
+- [Adding converter target providers](../architecture-patterns/adding-converter-target-providers.md)
 - [PR #997: original Kimi support proposal](https://github.com/EveryInc/compound-engineering-plugin/pull/997)
 - [PR #998: native Kimi plugin support](https://github.com/EveryInc/compound-engineering-plugin/pull/998)

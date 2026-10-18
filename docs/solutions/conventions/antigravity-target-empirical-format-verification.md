@@ -18,7 +18,7 @@ tags: [antigravity, agy, new-target, plugin-format, empirical-verification, conv
 
 ## Context
 
-Adding a new converter Target (see [adding-converter-target-providers.md](../adding-converter-target-providers.md)
+Adding a new converter Target (see [adding-converter-target-providers.md](../architecture-patterns/adding-converter-target-providers.md)
 for the structural 6-phase checklist) assumes you know the target's plugin format: its
 manifest schema, directory layout, MCP/hook config shape, and install command. The usual
 source for that is the platform's documentation.

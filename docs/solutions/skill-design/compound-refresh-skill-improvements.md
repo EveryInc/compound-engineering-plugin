@@ -14,7 +14,7 @@ tags:
 severity: medium
 description: "Redesign ce-compound-refresh to handle autonomous drift triage, in-skill replacement via subagents, and smart scoping without relying on live problem-solving context that ce-compound expects."
 related:
-  - docs/solutions/plugin-versioning-requirements.md
+  - docs/solutions/workflow/plugin-versioning-requirements.md
   - https://github.com/EveryInc/compound-engineering-plugin/pull/260
   - https://github.com/EveryInc/compound-engineering-plugin/issues/204
   - https://github.com/EveryInc/compound-engineering-plugin/issues/221

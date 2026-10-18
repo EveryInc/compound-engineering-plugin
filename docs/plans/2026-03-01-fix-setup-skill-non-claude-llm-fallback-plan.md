@@ -137,4 +137,4 @@ Add to the "Skill Compliance Checklist" in `plugins/compound-engineering/CLAUDE.
 - `src/converters/claude-to-pi.ts:106` — Pi converter (reference pattern)
 - `plugins/compound-engineering/skills/brainstorming/SKILL.md` — gold standard cross-platform skill (no AskUserQuestion)
 - `plugins/compound-engineering/skills/create-agent-skills/workflows/add-workflow.md:12,37` — existing "DO NOT use AskUserQuestion" policy
-- `docs/solutions/adding-converter-target-providers.md`
+- `docs/solutions/architecture-patterns/adding-converter-target-providers.md`

@@ -67,8 +67,8 @@ The ce:* workflow pipeline has a gap at the very beginning. `ce:brainstorm` requ
 
 ### Institutional Learnings
 
-- `docs/solutions/plugin-versioning-requirements.md` — Do not bump versions or cut changelog entries in feature PRs. Do update README counts and plugin.json descriptions.
-- `docs/solutions/codex-skill-prompt-entrypoints.md` (from PR #277) — for compound-engineering workflows in Codex, prompts are the canonical user-facing entrypoints and copied skills are the reusable implementation units underneath them
+- `docs/solutions/workflow/plugin-versioning-requirements.md` — Do not bump versions or cut changelog entries in feature PRs. Do update README counts and plugin.json descriptions.
+- `docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md` (from PR #277) — for compound-engineering workflows in Codex, prompts are the canonical user-facing entrypoints and copied skills are the reusable implementation units underneath them
 
 ## Key Technical Decisions
 
@@ -382,6 +382,6 @@ focus: <focus area if provided, omit if open>
 
 - **Origin document:** [docs/brainstorms/2026-03-15-ce-ideate-skill-requirements.md](docs/brainstorms/2026-03-15-ce-ideate-skill-requirements.md)
 - Related code: `plugins/compound-engineering/skills/ce-brainstorm/SKILL.md`, `plugins/compound-engineering/skills/ce-plan/SKILL.md`, `plugins/compound-engineering/skills/ce-work/SKILL.md`
-- Related institutional learning: `docs/solutions/plugin-versioning-requirements.md`
+- Related institutional learning: `docs/solutions/workflow/plugin-versioning-requirements.md`
 - Related PR: #277 (`fix: codex workflow conversion for compound-engineering`) — upstream Codex workflow model this plan now depends on
-- Related institutional learning: `docs/solutions/codex-skill-prompt-entrypoints.md`
+- Related institutional learning: `docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md`

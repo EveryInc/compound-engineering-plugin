@@ -349,6 +349,8 @@ Prioritize:
 
 Do not imply a full model-by-harness suite for every edit. Choose fixtures tied to the biggest gotchas in the change.
 
+The eval-methodology learnings form a family — index for the maintainer assembling them: `paired-old-vs-new-injection-skill-evals.md` (A/B variant injection), `strong-models-mask-defensive-skill-fixes.md` (confounds and masking), `validate-skill-prose-behavior-with-cross-host-evals.md` (harness coverage), `safe-auto-rubric-calibration.md` (variance-first, N>=3 methodology), `frozen-finding-sets-cannot-see-emission-changes.md` (freeze-point blindness), `authored-eval-corpora-contain-the-happy-path.md` (corpus-design bias), `dedup-and-obligation-eval-results.md` and `benchmark-review-peer-model-and-reasoning-tier.md` (applied records), and `fake-cli-harness-for-skill-judgment-evals.md` (fake boundaries for side-effecting skills).
+
 Use fresh context for behavioral prose evaluation. Some harnesses cache skill content at session start, so invoking the edited skill in the authoring session may test stale content.
 
 For side-effecting skills, evaluate in layers:

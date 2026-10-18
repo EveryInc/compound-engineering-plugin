@@ -50,7 +50,7 @@ The ce:plan and deepen-plan skills form a sequential workflow where the user is 
 
 - `docs/solutions/skill-design/beta-skills-framework.md` — The workflow chain is `ce:brainstorm` -> `ce:plan` -> `deepen-plan` -> `ce:work`, orchestrated by lfg and slfg. When removing a skill, all callers must be updated atomically in one PR
 - `docs/solutions/skill-design/beta-promotion-orchestration-contract.md` — Treat the merge as an orchestration contract change. Update every workflow that invokes deepen-plan in the same PR to avoid a broken intermediate state
-- `docs/solutions/plugin-versioning-requirements.md` — Do not manually bump versions. Update README counts and tables. Run `bun run release:validate`
+- `docs/solutions/workflow/plugin-versioning-requirements.md` — Do not manually bump versions. Update README counts and tables. Run `bun run release:validate`
 
 ## Key Technical Decisions
 
@@ -321,4 +321,4 @@ The ce:plan and deepen-plan skills form a sequential workflow where the user is 
 - **Origin document:** [docs/brainstorms/2026-03-26-merge-deepen-into-plan-requirements.md](docs/brainstorms/2026-03-26-merge-deepen-into-plan-requirements.md)
 - Deepen-plan source: `plugins/compound-engineering/skills/deepen-plan/SKILL.md`
 - Ce:plan source: `plugins/compound-engineering/skills/ce-plan/SKILL.md`
-- Learnings: `docs/solutions/skill-design/beta-skills-framework.md`, `docs/solutions/skill-design/beta-promotion-orchestration-contract.md`, `docs/solutions/plugin-versioning-requirements.md`
+- Learnings: `docs/solutions/skill-design/beta-skills-framework.md`, `docs/solutions/skill-design/beta-promotion-orchestration-contract.md`, `docs/solutions/workflow/plugin-versioning-requirements.md`

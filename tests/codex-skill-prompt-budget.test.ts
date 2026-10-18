@@ -7,7 +7,8 @@ import path from "node:path"
  * and both break this plugin when they do:
  *
  * - Codex >= 0.147 (openai/codex#37027, #1412) injects only the first MAX_SKILL_PROMPT_BYTES
- *   (8000) of each Agent Plugin SKILL.md; 26 skills exceed that.
+ *   (8000) of each Agent Plugin SKILL.md; 8 skills exceed that (down from 26 at introduction —
+ *   the OVER_BUDGET ratchet is working; skills leave the set as they are restructured).
  * - oh-my-pi >= 17.3 (#1411) rejects any SKILL.md whose frontmatter has a key outside the
  *   Agent Skills closed set; the Claude Code keys `argument-hint` / `disable-model-invocation`
  *   are load-bearing, so 30 skills vanish. omp has no per-host override.

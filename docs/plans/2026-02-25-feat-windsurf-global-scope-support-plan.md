@@ -623,5 +623,5 @@ Test the shared `resolveTargetOutputRoot` function:
 - Windsurf MCP docs: https://docs.windsurf.com/windsurf/cascade/mcp
 - Windsurf Skills global path: https://docs.windsurf.com/windsurf/cascade/skills
 - Windsurf MCP tutorial: https://windsurf.com/university/tutorials/configuring-first-mcp-server
-- Adding converter targets (learning): [docs/solutions/adding-converter-target-providers.md](../solutions/adding-converter-target-providers.md)
-- Plugin versioning (learning): [docs/solutions/plugin-versioning-requirements.md](../solutions/plugin-versioning-requirements.md)
+- Adding converter targets (learning): [docs/solutions/architecture-patterns/adding-converter-target-providers.md](../solutions/architecture-patterns/adding-converter-target-providers.md)
+- Plugin versioning (learning): [docs/solutions/workflow/plugin-versioning-requirements.md](../solutions/workflow/plugin-versioning-requirements.md)

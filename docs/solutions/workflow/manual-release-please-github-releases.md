@@ -155,6 +155,6 @@ After merging a generated release PR:
 
 ## Related docs
 
-- `docs/solutions/plugin-versioning-requirements.md`
-- `docs/solutions/adding-converter-target-providers.md`
+- `docs/solutions/workflow/plugin-versioning-requirements.md`
+- `docs/solutions/architecture-patterns/adding-converter-target-providers.md`
 - `AGENTS.md`

@@ -100,4 +100,4 @@ This is worth doing for orchestration-heavy skills where instructions drive sear
 
 - `docs/solutions/skill-design/compound-refresh-skill-improvements.md` — establishes "no shell commands for file operations in subagents"; complementary pattern about letting sub-agents use appropriate tools rather than orchestrating reads on their behalf
 - `docs/solutions/skill-design/script-first-skill-architecture.md` — complementary pattern: scripts pre-process large datasets so orchestrators don't load raw data
-- `docs/solutions/agent-friendly-cli-principles.md` — Principle #7 (Bounded, High-Signal Responses) reinforces that agents pay real cost for extra output; paths are bounded, content is not
+- `docs/solutions/best-practices/agent-friendly-cli-principles.md` — Principle #7 (Bounded, High-Signal Responses) reinforces that agents pay real cost for extra output; paths are bounded, content is not

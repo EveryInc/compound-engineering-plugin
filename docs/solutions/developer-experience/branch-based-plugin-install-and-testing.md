@@ -34,8 +34,8 @@ verification_steps:
   - "Test install --branch flag clones from the specified branch for non-Claude targets"
   - "Verify re-running plugin-path on same branch updates via fetch+reset rather than re-cloning"
 related_docs:
-  - docs/solutions/adding-converter-target-providers.md
-  - docs/solutions/plugin-versioning-requirements.md
+  - docs/solutions/architecture-patterns/adding-converter-target-providers.md
+  - docs/solutions/workflow/plugin-versioning-requirements.md
 ---
 
 ## Problem

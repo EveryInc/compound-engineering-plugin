@@ -72,7 +72,7 @@ The skill is plugin-only (filters out `cli-v*`, `coding-tutor-v*`, `marketplace-
 - `docs/solutions/best-practices/prefer-python-over-bash-for-pipeline-scripts.md` — strong guidance to write the multi-tool fallback orchestration in Python, not bash. macOS bash 3.2 + `set -euo pipefail` is a footgun for the `gh`-fails-then-fallback control flow.
 - `docs/solutions/skill-design/script-first-skill-architecture.md` — the helper produces structured data, SKILL.md presents it. Keeps the model from spending tokens on parsing.
 - `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` — capture both stdout and exit code; treat "gh missing", "gh unauthed", "rate-limited" as state transitions, not errors.
-- `docs/solutions/codex-skill-prompt-entrypoints.md` — Codex skill frontmatter supports only `name` and `description`; `argument-hint` and `disable-model-invocation` are dropped on the Codex side; the colon-form `name` triggers a Codex prompt wrapper.
+- `docs/solutions/architecture-patterns/codex-skill-prompt-entrypoints.md` — Codex skill frontmatter supports only `name` and `description`; `argument-hint` and `disable-model-invocation` are dropped on the Codex side; the colon-form `name` triggers a Codex prompt wrapper.
 - `docs/solutions/integrations/colon-namespaced-names-break-windows-paths.md` — the established convention: directory uses dash form (`ce-release-notes/`), frontmatter uses colon form (`ce:release-notes`). Converter handles sanitization.
 - `AGENTS.md` "Platform-Specific Variables in Skills" and "File References in Skills" — relative paths only, no `${CLAUDE_PLUGIN_ROOT}` without a fallback, no cross-skill references.
 

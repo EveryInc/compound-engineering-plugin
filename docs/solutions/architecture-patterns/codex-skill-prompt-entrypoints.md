@@ -1,6 +1,6 @@
 ---
 title: Codex native skills, legacy prompts, and converter entry points
-category: architecture
+category: architecture-patterns
 tags: [codex, converter, skills, prompts, workflows, deprecation]
 created: 2026-03-15
 last_refreshed: 2026-06-20
