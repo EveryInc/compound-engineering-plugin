@@ -34,7 +34,7 @@ This came up when [PR #997](https://github.com/EveryInc/compound-engineering-plu
 
 Prefer Kimi's native plugin metadata over a converter target:
 
-- Commit `.kimi-plugin/plugin.json` with the Kimi manifest fields that describe this plugin, including `interface`, `skills`, `sessionStart.skill`, and `skillInstructions`.
+- Commit `.kimi-plugin/plugin.json` with the Kimi manifest fields that describe this plugin, including `interface` and `skills`. (Update 2026-10: `sessionStart.skill` and `skillInstructions` were dropped/never landed — the committed manifest lacks both, and `docs/specs/kimi.md` is authoritative: it states CE does not declare them.)
 - Commit `.kimi-plugin/marketplace.json` using Kimi marketplace schema version `2`.
 - Keep `.kimi-plugin/plugin.json` in the root release component so release automation bumps it with the canonical plugin version.
 - Treat `.kimi-plugin/marketplace.json` as static catalog metadata, and validate it instead of version-bumping it.

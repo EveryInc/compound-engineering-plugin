@@ -99,12 +99,14 @@ git log <upstream>..HEAD --oneline
 
 This avoids conflating "no upstream configured yet" with "nothing to push."
 
+> **Update (2026-10):** the shipped probe no longer goes through `@{u}` — `ce-commit-push-pr` now checks for unpushed work with `git log origin/<base>..HEAD --oneline` (`skills/ce-commit-push-pr/references/branch-creation.md:18`), comparing against the remote base rather than a configured upstream. The two-state split this section teaches (does a comparison target exist vs. is there unpushed content) is unchanged; the commands above are the original spelling.
+
 ### 4. Detect an existing PR with `gh pr list`, and read its exit status as state
 
 For "does this branch already have a PR?" use a command that separates "no PR" from "lookup failed":
 
 ```bash
-gh pr list --head <branch> --state open --json number,url,title,body,state,headRefName,headRepositoryOwner
+gh pr list --head <branch> --state open --json number,url,title,body,state,isDraft,headRefName,headRepositoryOwner
 ```
 
 Interpret the result as a state check:
@@ -116,6 +118,8 @@ Interpret the result as a state check:
 Pass the branch **name only** — `gh pr list --head` does not accept `<owner>:<branch>` syntax (it silently returns `[]` for it, which reads as "no PR" and opens a duplicate). On a fork checkout the PR lives on the base repo, so target the base via `gh`'s default-repo resolution or `-R <base-owner>/<repo>`. Skip this check entirely on detached HEAD (empty branch): `gh pr list` with an empty `--head` drops the filter and lists unrelated PRs.
 
 **Known tradeoff (branch-name collision).** `gh pr list --head <branch>` filters by head-branch *name*, so in a busy multi-fork repo two open PRs from different owners can share a branch name, and this command cannot disambiguate them the way `gh pr view` (current-branch-aware) can. It is chosen anyway for its clean exit semantics: `gh pr view` exits 1 on the normal no-PR state, conflating "no PR" with a real failure — harder to interpret, and fatal if the check ever runs at skill *load* time (see [no-load-time-pre-resolution-for-fallible-context.md](no-load-time-pre-resolution-for-fallible-context.md)). Bound the collision by re-verifying immediately before `gh pr create` and inspecting the returned entry rather than assuming the first match is yours.
+
+> **Update (2026-10):** the workflow this doc describes now lives in `skills/ce-commit-push-pr/references/` — the argv command table in `context.md`, the branch-creation flow in `branch-creation.md`, push mechanics in `commit-and-push.md`, and PR apply/handoff in `apply-and-handoff.md` — rather than inline in `SKILL.md`. The `--json` field list above includes `isDraft`, added after this doc was written (`references/context.md`).
 
 ### 5. Keep the default-branch safety gate ahead of push/PR transitions
 

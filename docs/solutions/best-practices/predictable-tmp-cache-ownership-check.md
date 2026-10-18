@@ -31,7 +31,7 @@ When a cache/scratch file in shared `/tmp` will be **read back into an agent's c
 - This composes with the cache's existing principle that it is **never a correctness dependency**: a rejected entry simply degrades to "derive fresh," never blocks.
 - Write side is already safe if you use `tempfile.mkstemp` (`O_EXCL`, mode `0600`) + `os.replace` (atomic). The exposure is purely on the *read* path.
 
-Alternatives considered and why ownership-check won: per-uid namespacing the cache root (`/tmp/compound-engineering-$(id -u)/...`) also works but deviates from the project's `/tmp/compound-engineering/` convention and the deliberate choice of `/tmp` over `$TMPDIR` for user-inspectability. The fstat-on-read check is minimal, keeps the path convention, and closes both the planted-file and planted-symlink cases.
+Alternatives considered: per-uid namespacing the cache root (`/tmp/compound-engineering-$(id -u)/...`) was weighed against the fstat-on-read check. Update (2026-10): the project convention has since flipped — the AGENTS.md Scratch Space rule now mandates a per-uid root (`/tmp/compound-engineering-<effective-uid>/` with a `${TMPDIR:-/tmp}/compound-engineering-<effective-uid>` fallback), and `tests/scratch-root-contract.test.ts:21-33` forbids the legacy shared root in runtime assets. Both defenses now apply in this repo: per-uid namespacing at the root level *and* ownership-check reads. The durable lesson stands for any shared/predictable artifact elsewhere: content gates alone are not authenticity — verify the file is yours on the read path (`fstat` on the opened fd, not a pre-open `stat`).
 
 ## Why This Matters
 
@@ -65,4 +65,4 @@ with open(path) as f:
 
 - `docs/solutions/skill-design/cross-skill-shared-cache-primitive.md` — the cache this hardened
 - `docs/solutions/best-practices/cache-invalidation-input-set-completeness.md` — the cache's correctness (separate) property
-- AGENTS.md "Scratch Space" (the `/tmp/compound-engineering/` convention)
+- AGENTS.md "Scratch Space" (the `/tmp/compound-engineering-<effective-uid>/` per-uid convention now in force)

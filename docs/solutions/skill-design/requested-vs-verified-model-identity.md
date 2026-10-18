@@ -18,9 +18,11 @@ tags: [cross-model, delegation, model-identity, verification, receipts, subagent
 
 ## Context
 
-The cross-model review passes in this plugin announce a concrete peer model to the user ("independent cross-model adversarial review by <model> at high reasoning" -- `skills/ce-code-review/SKILL.md` requires the announce line to name the concrete model) and pin per-provider model IDs as script constants: `M_CODEX="gpt-5.6-luna"`, `M_CLAUDE="opus"`, `M_GROK="grok-4.6"`, `M_GROK_CURSOR="cursor-grok-4.6-high"`, `M_COMPOSER="composer-2.5-fast"` at `skills/ce-code-review/scripts/cross-model-adversarial-review.sh` lines 73-77, with byte-identical constants at `skills/ce-doc-review/scripts/cross-model-doc-review.sh` lines 85-89.
+The cross-model review passes in this plugin announce a concrete peer model to the user ("independent cross-model adversarial review by <model> at high reasoning" -- `skills/ce-code-review/SKILL.md` requires the announce line to name the concrete model) and pin per-provider model IDs as script constants: `M_CODEX="gpt-5.6-luna"`, `M_CLAUDE="claude-opus-5"`, `M_GROK="grok-4.6"`, `M_GROK_CURSOR="cursor-grok-4.6-high"`, `M_COMPOSER="composer-2.5-fast"` at `skills/ce-code-review/scripts/cross-model-adversarial-review.sh` lines 80-84, with byte-identical constants at `skills/ce-doc-review/scripts/cross-model-doc-review.sh` lines 92-96.
 
-The durable fold-in artifacts record the ROUTE that produced them -- the `cross_model_route` field, set in each script's normalize step (`cross-model-adversarial-review.sh` line 441, `cross-model-doc-review.sh` line 531). But nothing anywhere verifies which model actually served the run: neither script parses any model-identity field out of the peer CLI's response envelope. Route- and provider-level reconciliation already exists: both skills' references require announcing the egress scope and reconciling the actual provider from the fold-in filename and the `cross_model_route` field ("Fallback egress must not be silent" in `skills/ce-code-review/references/cross-model-review.md` and `skills/ce-doc-review/references/cross-model-review.md`). The unfilled gap is one level deeper: everything we tell the user and record about the *model* is derived from what we *requested*, not from what *happened*.
+The durable fold-in artifacts record the ROUTE that produced them -- the `cross_model_route` field, set in each script's normalize step. When this was written, nothing anywhere verified which model actually served the run: neither script parsed any model-identity field out of the peer CLI's response envelope. Route- and provider-level reconciliation already existed: both skills' references require announcing the egress scope and reconciling the actual provider from the fold-in filename and the `cross_model_route` field ("Fallback egress must not be silent" in `skills/ce-code-review/references/cross-model-review.md` and `skills/ce-doc-review/references/cross-model-review.md`). The gap was one level deeper: everything we told the user and recorded about the *model* was derived from what we *requested*, not from what *happened*.
+
+**Status (2026-10): that gap is now CLOSED.** The receipt pattern below shipped: the scripts emit `model_requested` / `model_actual` / `model_receipt_status` in the fold-in artifacts (`cross-model-doc-review.sh:941-942`, `cross-model-work.sh:638`, `:898-899`), and `receipt_supported` + `independence_verified` are wired into `skills/ce-code-review/references/cross-model-review.md:157-158` and the Coverage contract in `skills/ce-code-review/SKILL.md:53` — agreement promotion is allowed only when `independence_verified` is true, and Coverage must carry the literal `unverified` rather than compressing a request into a serving claim.
 
 The core insight: **"which model ran" is a claim about a remote system's behavior, and we have been treating our own request parameters as proof of it.** Requested identity and served identity are separate facts, and only the serving backend can attest to the second one.
 
@@ -61,8 +63,9 @@ The general form of the lesson: whenever a system's logic assigns extra weight t
 {
   "reviewer": "adversarial-claude",
   "cross_model_route": "claude",
-  "model_requested": "opus",
-  "model_actual": "claude-opus-4-8-20260115",
+  "model_requested": "claude-opus-5",
+  "model_actual": "claude-opus-5",
+  "model_receipt_status": "verified",
   "findings": []
 }
 ```
@@ -72,7 +75,7 @@ On a route with no authoritative identity report, `model_actual` is the literal 
 **Parse-compare-warn sketch:**
 
 ```bash
-requested="opus"
+requested="claude-opus-5"
 actual="$(jq -r '.modelUsage | keys[0] // empty' "$RAW_OUT")"
 if [ -z "$actual" ]; then
   actual="unverified"

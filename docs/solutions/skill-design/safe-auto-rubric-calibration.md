@@ -21,6 +21,8 @@ related_pr: "PR #685 (suggested_fix push that this builds on)"
 
 # safe_auto rubric calibration: variance reduction beats safe_auto-rate-as-target
 
+> **Update (2026-10 — staleness header): `safe_auto` has been REMOVED from `ce-code-review`.** Its `findings-schema.json` `autofix_class` enum is now `["gated_auto", "manual", "advisory"]` (:56) and the skill no longer applies fixes — `autofix_class` is routing signal for the caller only (`skills/ce-code-review/SKILL.md:149`). The four-bucket claim in Context and the "What shipped" file claims below are historical. `safe_auto` survives in `ce-doc-review`'s *different* enum (`safe_auto`/`gated_auto`/`manual`, with advisory handled as an FYI presentation layer — `tests/pipeline-review-contract.test.ts:568`), and the variance-first methodology in this doc still applies to that enum and to any rubric calibration generally.
+
 ## TL;DR
 
 Issue #686 hypothesized that personas were *under*-classifying findings as `safe_auto` and proposed tightening the rubric to push more findings into auto-apply. The 60-trial eval showed:

@@ -329,9 +329,9 @@ export async function backupFile(filePath: string): Promise<string | null> {
    - OpenCode: `.md` for commands
    - Codex/Antigravity/Pi: preserve the target's native skill or extension filenames exactly
 
-6. **Permissions for sensitive files** — MCP config with API keys should use `0o600`:
+6. **Permissions for sensitive files** — MCP config with API keys should use `0o600`. Use the dedicated secure helpers in `src/utils/files.ts` (`writeJsonSecure()` at line 56, `writeTextSecure()` at line 44) rather than a `mode` option on the plain helpers — `writeJson()`/`writeText()` take no mode argument:
    ```typescript
-   await writeJson(mcpPath, config, { mode: 0o600 })
+   await writeJsonSecure(mcpPath, config)
    ```
 
 **Reference Implementations:**
@@ -364,19 +364,21 @@ export const targets: Record<string, TargetHandler<any>> = {
 }
 ```
 
-**File: `src/commands/convert.ts` and `src/commands/install.ts`**
+**File: `src/utils/resolve-output.ts` and `src/commands/convert.ts` / `src/commands/install.ts`**
 
-Add output root resolution:
+Per-target output root resolution lives in `resolveTargetOutputRoot()` in `src/utils/resolve-output.ts` (imported by both `convert.ts` and `install.ts`) — add a branch for the new target there:
 
 ```typescript
-// In resolveTargetOutputRoot()
+// In resolveTargetOutputRoot() in src/utils/resolve-output.ts
 if (targetName === "{target}") {
   return path.join(outputRoot, ".{target}")
 }
 
-// Update --to flag description
+// Update --to flag description in convert.ts/install.ts
 const toDescription = "Target format (opencode | codex | pi | antigravity | all)"
 ```
+
+**`--scope` / `TargetScope` (`src/targets/index.ts:11-35`):** targets may declare `supportedScopes` (`"global" | "workspace"`) and a `defaultScope` on their `TargetHandler`. `validateScope()` resolves the user's `--scope` flag: no flag → the target's `defaultScope`; a flag on a target without `supportedScopes` → error. Set these on the new target's registry entry if it supports both install scopes, and thread the resolved `scope` through the `write` signature.
 
 ---
 
@@ -416,7 +418,7 @@ export async function syncTo{Target}(outputRoot: string): Promise<void> {
         ...personalSettings.mcpServers,
       },
     }
-    await writeJson(mcpPath, merged, { mode: 0o600 })
+    await writeJsonSecure(mcpPath, merged)
   }
 }
 ```
@@ -443,9 +445,11 @@ case "{target}":
 
 **File: `tests/{target}-converter.test.ts`**
 
-Test converter using inline `ClaudePlugin` fixtures:
+Test converter using inline `ClaudePlugin` fixtures (the suite runs on `bun:test`):
 
 ```typescript
+import { describe, expect, it, spyOn } from "bun:test"
+
 describe("convertClaudeTo{Target}", () => {
   it("converts agents to {target} format", () => {
     const plugin: ClaudePlugin = {
@@ -504,7 +508,7 @@ describe("convertClaudeTo{Target}", () => {
   })
 
   it("warns when hooks are present", () => {
-    const spy = jest.spyOn(console, "warn")
+    const spy = spyOn(console, "warn").mockImplementation(() => {})
     const plugin: ClaudePlugin = {
       name: "test",
       agents: [],
@@ -646,7 +650,7 @@ Use this checklist when adding a new target provider:
 - [ ] Manual test: `bun run src/index.ts convert --to {target} .`
 
 ### Documentation
-- [ ] Create `docs/specs/{target}.md` with format specification
+- [ ] Create `docs/specs/{target}.md` with format specification — note this is aspirational rather than universal: several shipped targets currently have no spec file (e.g. there is no `docs/specs/codex.md` or `docs/specs/pi.md`), so treat the spec as strongly recommended for new targets, not a retroactive requirement
 - [ ] Update `README.md` with target in list and usage examples
 - [ ] Do not hand-add release notes; release automation owns GitHub release notes and release-owned versions
 
@@ -671,16 +675,22 @@ Use this checklist when adding a new target provider:
 ### Key Utilities
 
 - `src/utils/frontmatter.ts` — `formatFrontmatter()` and `parseFrontmatter()`
-- `src/utils/files.ts` — `writeText()`, `writeJson()`, `copyDir()`, `backupFile()`, `ensureDir()`
+- `src/utils/files.ts` — `writeText()`, `writeJson()`, `writeTextSecure()`/`writeJsonSecure()` (0o600 for secret-bearing files), `copyDir()`, `backupFile()`, `ensureDir()`
 - `src/utils/resolve-home.ts` — `expandHome()` for `~/.{target}` path resolution
 
 ### Existing Tests
 
 - `tests/opencode-writer.test.ts` — Writer tests with temp directories and merge behavior
 - `tests/codex-writer.test.ts` — Codex writer layout and cleanup behavior
+- `tests/codex-converter.test.ts` — Codex converter tests
+- `tests/pi-writer.test.ts` — Pi writer output
+- `tests/pi-converter.test.ts` — Pi converter tests
 - `tests/antigravity-writer.test.ts` — Antigravity writer output
 - `tests/antigravity-converter.test.ts` — Antigravity converter tests
+- `tests/copilot-converter.test.ts` — Compatibility converter coverage
+- `tests/droid-converter.test.ts` — Compatibility converter coverage
 - `tests/kiro-writer.test.ts` — Compatibility writer coverage for a historical target
+- `tests/kiro-converter.test.ts` — Compatibility converter coverage for a historical target
 
 ---
 

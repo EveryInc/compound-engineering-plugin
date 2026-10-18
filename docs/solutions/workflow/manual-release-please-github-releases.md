@@ -49,7 +49,7 @@ Release-please does not allow package changelog paths that traverse upward with 
 The practical fix:
 
 - Treat GitHub Releases as the canonical release-notes surface.
-- Keep root `CHANGELOG.md` as a pointer to GitHub Releases.
+- Freeze root `CHANGELOG.md`: `skip-changelog: true` in `.github/release-please-config.json` stops new entries, so the file is a legacy changelog (last entry 3.13.1) rather than a pointer to GitHub Releases.
 - Validate `.github/release-please-config.json` in CI so unsupported changelog paths fail before the workflow reaches GitHub Actions.
 
 ## Resulting release process
@@ -74,9 +74,11 @@ File paths determine component ownership:
 
 | Component | Paths |
 |---|---|
-| `compound-engineering` | `skills/`, `src/`, `tests/`, `package.json`, root plugin manifests, `.opencode/`, `.pi/`, `.agy/plugin.json`, `README.md`, instruction shims |
+| `compound-engineering` | `skills/`, `src/`, `tests/`, `package.json`, root plugin manifests, `.opencode/`, `.pi/`, `README.md`, instruction shims |
 | `marketplace` | `.claude-plugin/marketplace.json` |
 | `cursor-marketplace` | `.cursor-plugin/marketplace.json` |
+
+The `.` component's release-please `extra-files` (version-bumped in lockstep) are: `package.json`, root `plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.kimi-plugin/plugin.json`, `.grok-plugin/plugin.json`, `.devin-plugin/plugin.json`, and `.omp-plugin/marketplace.json` (`$.plugins[0].version`). Note `.agy/plugin.json` does not exist as a real file — `.agy/` contains only `INSTALL.md` plus a `plugin.json` symlink to the root `plugin.json`, so the Antigravity manifest version rides the root file.
 
 Docs-only, CI-only, and build-only changes are non-releasable unless their conventional type says otherwise and a releasable component path changed.
 
@@ -90,7 +92,7 @@ Docs-only, CI-only, and build-only changes are non-releasable unless their conve
 
 ### Root packaging release
 
-- A `fix:` PR changes `.codex-plugin/plugin.json` or `.agy/plugin.json`
+- A `fix:` PR changes `.codex-plugin/plugin.json`, `.kimi-plugin/plugin.json`, `.grok-plugin/plugin.json`, or `.devin-plugin/plugin.json` (or `.agy/plugin.json`, which resolves through its symlink to the root `plugin.json`)
 - `compound-engineering` bumps because those files are root package/plugin extra-files
 - `bun run release:validate` must pass so all root package/plugin versions remain aligned
 
@@ -104,7 +106,7 @@ Docs-only, CI-only, and build-only changes are non-releasable unless their conve
 
 - Pending release state is visible in one standing release PR.
 - Published release history is canonical in GitHub Releases.
-- Root `CHANGELOG.md` is only a pointer to GitHub Releases and is not the canonical source for new releases.
+- Root `CHANGELOG.md` is a frozen legacy changelog (last entry 3.13.1; `skip-changelog: true` in `.github/release-please-config.json`) and is not the canonical source for new releases.
 
 ## Key files
 

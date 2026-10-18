@@ -32,8 +32,8 @@ Embedded plugin versions are release-owned metadata. Release automation prepares
 Contributors should:
 
 1. **Avoid release bookkeeping in normal PRs**
-   - Do not manually bump `package.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, or `.agy/plugin.json`
-   - Do not manually bump the `compound-engineering` entry in `.claude-plugin/marketplace.json`
+   - Do not manually bump `package.json`, `.claude-plugin/plugin.json`, root `plugin.json`, `.kimi-plugin/plugin.json`, `.grok-plugin/plugin.json`, `.devin-plugin/plugin.json`, `.cursor-plugin/plugin.json`, or `.codex-plugin/plugin.json` (the version-checked set per `src/release/components.ts:186-194`; `.agy/plugin.json` is a symlink to the root `plugin.json`, not an independently bumped manifest)
+   - Do not manually bump the `compound-engineering` entry in `.claude-plugin/marketplace.json` or `.cursor-plugin/marketplace.json`
    - Do not cut release sections in the root `CHANGELOG.md`
 
 2. **Keep substantive docs accurate**
@@ -48,7 +48,7 @@ Contributors should:
 Before committing changes to compound-engineering plugin:
 
 - [ ] No manual version bump in root package/plugin manifests
-- [ ] No manual version bump in the `compound-engineering` entry inside `.claude-plugin/marketplace.json`
+- [ ] No manual version bump in the `compound-engineering` entry inside `.claude-plugin/marketplace.json` or `.cursor-plugin/marketplace.json`
 - [ ] No manual release section added to `CHANGELOG.md`
 - [ ] README.md component counts verified
 - [ ] README.md tables updated (if adding/removing/renaming)
@@ -58,8 +58,8 @@ Before committing changes to compound-engineering plugin:
 
 ## File Locations
 
-- Plugin version is release-owned: `package.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, and `.agy/plugin.json`
-- Marketplace entry is release-owned: `.claude-plugin/marketplace.json`
+- Plugin version is release-owned: `package.json`, `.claude-plugin/plugin.json`, root `plugin.json`, `.kimi-plugin/plugin.json`, `.grok-plugin/plugin.json`, `.devin-plugin/plugin.json`, `.cursor-plugin/plugin.json`, and `.codex-plugin/plugin.json` (version-checked in `src/release/components.ts:186-194`). `.agy/plugin.json` is a symlink to the root `plugin.json` — it carries the version but is never bumped independently.
+- Marketplace entries are release-owned: `.claude-plugin/marketplace.json` and `.cursor-plugin/marketplace.json`
 - Release notes are release-owned: GitHub release PRs and GitHub Releases
 - Readme: `README.md`
 
@@ -84,9 +84,12 @@ This documentation serves as a reminder. When maintainers or agents work on this
 ## Related Files
 
 - `.claude-plugin/plugin.json`
+- `plugin.json` (root; `.agy/plugin.json` symlinks here)
+- `.kimi-plugin/plugin.json`
+- `.grok-plugin/plugin.json`
+- `.devin-plugin/plugin.json`
 - `.cursor-plugin/plugin.json`
 - `.codex-plugin/plugin.json`
-- `.agy/plugin.json`
 - `README.md`
 - `package.json`
 - `CHANGELOG.md`

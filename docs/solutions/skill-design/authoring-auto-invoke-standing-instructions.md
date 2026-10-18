@@ -70,11 +70,13 @@ Apply when adding a "Make It Automatic" section to any CE skill's docs page, or 
 
 The self-guard is verifiable: a cross-host routing eval (5 resolved-scope scenarios × Claude + Codex, fresh subagents reading the on-disk `SKILL.md`) scored 10/10 — docs-only and lockfile/generated scopes short-circuited, a mixed diff narrowed to its code file, and both a ~5-line explicit-scope case and a normal code diff ran, confirming the guard keys on change kind, not size.
 
-Standing-instruction shape (auto-run variant, from `docs/skills/ce-simplify-code.md`):
+Standing-instruction shape (auto-run variant, originally shipped in `docs/skills/ce-simplify-code.md`'s "Make It Automatic" section — see the update below):
 
 > When you finish a coherent unit of work — a feature is complete, or you're wrapping up to open a PR — and before you review, commit, or hand it off, automatically invoke the `ce-simplify-code` skill on the changed code. Do this at that completion checkpoint only, not after every individual edit or intermediate fix while you're still building. Run it only when the accumulated diff has at least 10 substantive code lines and the skill hasn't already run since the last code edit. Never run it for documentation- or Markdown-only changes; formatting-, lint-, or dependency/lockfile-only changes; generated or vendored files; other purely mechanical changes; or code you've said to keep as written.
 
 Skill-side preflight (from `skills/ce-simplify-code/SKILL.md` Step 1): if the resolved scope contains no substantive human-authored code, stop with a one-line "nothing to simplify" note; on a mixed diff, narrow to the code files. Gates on kind of change only, never size.
+
+**Update (2026-10):** the `docs/skills/ce-simplify-code.md` "Make It Automatic" section has been retired — the docs page now just notes that callers own the floors and exclusions (`docs/skills/ce-simplify-code.md` ~:136). The activation gate moved into the caller skills themselves: `ce-work` invokes on a >=30-substantive-changed-code-lines floor with mechanical-diff exclusions (`skills/ce-work/references/shipping-workflow.md:21`), `lfg` invokes on the branch diff skipping docs-only or roughly-under-10-line changes (`skills/lfg/SKILL.md:77-81`), and `ce-debug` applies a >=30-changed-lines floor with an explicit fix-owned-file scope (`skills/ce-debug/references/post-fix-handoff.md:15`). The two-layer split is unchanged — the caller-owned gates are the standing instruction, inlined where the work actually settles.
 
 ## See Also
 

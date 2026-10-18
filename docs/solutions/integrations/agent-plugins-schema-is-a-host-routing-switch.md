@@ -78,7 +78,7 @@ test("root plugin.json never carries an Agent Plugins $schema", () => {
 })
 ```
 
-plus a set-based `OVER_BUDGET` allowlist (26 names) that is shrink-only: no new skill may exceed 8000 CRLF-adjusted bytes, and a name must be removed once its SKILL.md fits. Membership is a set rather than pinned sizes so ordinary edits to already-truncated skills do not churn the list. `tests/release-metadata.test.ts` (`agentPluginsManifestErrors`) accepts an absent `$schema` and still rejects any value other than the exact Agent Plugins URL when present. `docs/specs/agent-plugins.md` records the decision: root stays schema-less indefinitely; a strict client gets a separately emitted package (Claude keys under `metadata:`, `allowed-tools` as a string) from its own marketplace source.
+plus a set-based `OVER_BUDGET` allowlist (26 names at introduction) that is shrink-only: no new skill may exceed 8000 CRLF-adjusted bytes, and a name must be removed once its SKILL.md fits. Update (2026-10): the list is down to 8 names — `ce-brainstorm`, `ce-code-review`, `ce-compound`, `ce-debug`, `ce-explain`, `ce-plan`, `ce-work`, `lfg` — so the ratchet is working: skills have been restructured under the cap and come off the list. Membership is a set rather than pinned sizes so ordinary edits to already-truncated skills do not churn the list. `tests/release-metadata.test.ts` (`agentPluginsManifestErrors`) accepts an absent `$schema` and still rejects any value other than the exact Agent Plugins URL when present. `docs/specs/agent-plugins.md` records the decision: root stays schema-less indefinitely; a strict client gets a separately emitted package (Claude keys under `metadata:`, `allowed-tools` as a string) from its own marketplace source.
 
 ## Why This Works
 

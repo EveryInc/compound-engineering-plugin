@@ -108,6 +108,8 @@ Key design decisions:
 - **Detailed report as deliverable.** Since no user was present, the output report includes full rationale for each action so a human can review after the fact.
 - **Process everything.** No scope narrowing questions — if no scope hint provided, process all docs. For broad scope, process clusters in impact order without asking.
 
+> **Update (2026-10):** `mode:headless` is now a deprecated alias of `mode:non-interactive` (`skills/ce-compound-refresh/references/modes.md:3`) — new invocations should use the `non-interactive` token. The skill's phase structure has also been reorganized: the phase bodies described above now live in named sections plus `references/` files (`investigate.md`, `classify.md`, `report.md`, `modes.md`, `scope.md`, `schema.yaml`, ...), so "Phase 2"/"Phase 3" references in this doc map onto those reference files rather than numbered phases in `SKILL.md`.
+
 ## Prevention
 
 ### Skill review checklist additions

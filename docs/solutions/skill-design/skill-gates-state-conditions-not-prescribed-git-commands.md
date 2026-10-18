@@ -35,7 +35,7 @@ related_pr: https://github.com/EveryInc/compound-engineering-plugin/pull/1385
 
 ## Context
 
-`ce-debug` Phase 4 has to decide one thing at the end of a fix: does this verified change go out as a PR, or does it stay as a local commit? The skill does not do the git work itself — it invokes `ce-commit-push-pr` or `ce-commit` and lets that skill handle branch, remote, and PR mechanics (`skills/ce-debug/SKILL.md:263-271`).
+`ce-debug` Phase 4 has to decide one thing at the end of a fix: does this verified change go out as a PR, or does it stay as a local commit? The skill does not do the git work itself — it invokes `ce-commit-push-pr` or `ce-commit` and lets that skill handle branch, remote, and PR mechanics (`skills/ce-debug/SKILL.md:110-123`).
 
 The gate was originally written as skill prose that prescribed the git commands the agent should run to decide. Over nine rounds of automated review on PR #1385 (merged), it went through six revisions, and every one of them was wrong for some ordinary git configuration:
 
@@ -52,12 +52,12 @@ Across all nine rounds and 22 review threads, **not one reviewer said the intent
 
 When a skill delegates the actual work to another skill, state **the condition that must hold** plus **the domain facts the reading agent cannot derive**. Do not prescribe the commands that establish the condition.
 
-The shipped gate does exactly that (`skills/ce-debug/SKILL.md:265-269`). It names three conditions — the pre-fix tree was clean, nothing on the branch is work the user has not already offered, and `origin` is somewhere `gh` can actually open a PR against — and then says: "Establish those however fits the repo in front of you." No `git log` range, no `@{u}`, no branch-provenance heuristic.
+The shipped gate does exactly that (`skills/ce-debug/SKILL.md:110-123`). It names three conditions — the pre-fix tree was clean, nothing on the branch is work the user has not already offered, and `origin` is somewhere `gh` can actually open a PR against — and then says: "Establish those however fits the repo in front of you." No `git log` range, no `@{u}`, no branch-provenance heuristic.
 
 What it *does* keep is the knowledge an agent cannot reason its way to from first principles:
 
-- `ce-commit-push-pr` pushes the **whole branch** (`skills/ce-commit-push-pr/SKILL.md:101`, `git push -u origin HEAD`) and its PR spans every commit on that branch, not just the fix. So the question is about the branch, not about the diff.
-- It pushes **before** creating the PR (push is Step 3 at `skills/ce-commit-push-pr/SKILL.md:101`; `gh pr create` is Step 5 at `skills/ce-commit-push-pr/SKILL.md:140`). A remote `gh` cannot open a PR against therefore leaves the branch published with no PR to show for it.
+- `ce-commit-push-pr` pushes the **whole branch** (`skills/ce-commit-push-pr/references/commit-and-push.md:23`, `git push -u origin HEAD` — the push/PR flow moved from `SKILL.md` into `references/` after this gate shipped) and its PR spans every commit on that branch, not just the fix. So the question is about the branch, not about the diff.
+- It pushes **before** creating the PR (push in `references/commit-and-push.md`; `gh pr create` in `references/apply-and-handoff.md`). A remote `gh` cannot open a PR against therefore leaves the branch published with no PR to show for it.
 - Already pushed is not already **offered**. Commits in an open PR are under review and count as offered; a bare push for backup or CI does not.
 - A local ref can be ahead of the remote, including the default branch the fix was branched from — so compare against the remote, not a local ref.
 - `git checkout -b` carries uncommitted work forward, so how the branch came to exist proves nothing about what is on it.
@@ -70,7 +70,7 @@ Then give the failure direction explicitly: if the condition cannot be establish
 
 `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` was cited *against* this simplification twice during review. Reading it settles the conflict: its subject is **observation freshness** — "Re-run the command that answers the current question at the point of decision. Do not rely on values gathered earlier if a mutating command may have changed them" (line 236) — for skills whose job *is* git mechanics, named in its own frontmatter as `ce-commit` and `ce-commit-push-pr`.
 
-It is not a mandate to enumerate every branch/upstream/PR permutation in the prose of a skill that *delegates* the git work. Conflating "re-check state at the decision point" with "enumerate every state in prose" is what cost six revisions. Note that `ce-debug`'s gate still honors the freshness rule — it says to answer both questions "from the pre-fix scope Phase 3 recorded, checked now rather than inferred from how the branch came to exist" (`skills/ce-debug/SKILL.md:256`). Freshness survived; enumeration went away.
+It is not a mandate to enumerate every branch/upstream/PR permutation in the prose of a skill that *delegates* the git work. Conflating "re-check state at the decision point" with "enumerate every state in prose" is what cost six revisions. Note that `ce-debug`'s gate still honors the freshness rule — it says to answer both questions "from the pre-fix scope Phase 3 recorded, checked now rather than inferred from how the branch came to exist" (`skills/ce-debug/SKILL.md:86`, `:110`). Freshness survived; enumeration went away.
 
 ### Prescribed commands also carry a security surface
 
@@ -106,7 +106,7 @@ shows only your fix commits. Otherwise commit locally.
 
 Fails when: `git checkout -b` carried the user's WIP onto the branch; the branch already has an open PR (its commits are in the range, so the fix never reaches the PR); the local default branch is ahead of the remote (range reads empty, publishes those commits). The later `git log @{u}..HEAD` variant additionally errors on a branch with no upstream — the most common case.
 
-**After** (shipped in PR #1385, `skills/ce-debug/SKILL.md:265-269`, condensed):
+**After** (shipped in PR #1385, `skills/ce-debug/SKILL.md:110-123`, condensed):
 
 ```text
 Ships — the pre-fix tree was clean, nothing on the branch is work the user has not

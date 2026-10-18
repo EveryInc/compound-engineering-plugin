@@ -73,7 +73,7 @@ Rules that travel with the tiers:
 Two independent levers:
 
 - **Reference extraction pays only for CONDITIONAL or LATE-SEQUENCE content.** Early unconditional content gains nothing — it would be read at start and carried anyway, plus a read round-trip. The test: *how many turns of other work happen before this content executes, and might it never execute?* ce-ideate's Phase 2 (~100 lines, ~22% of the file, runs after 5-8 turns of grounding) qualified; Phase 0 gating did not.
-- **Data flows usually dominate prose.** Measure both: 5 scouts × 150-line dossiers ≈ 10k tokens carried every subsequent turn if returned inline — more than the entire SKILL.md (~6k). Fix: subagents write outputs to scratch files (`/tmp/compound-engineering/<skill>/<run-id>/...`), return a 3-5-line gist; downstream agents receive paths and read the files themselves. This extends the established path-passing pattern (`skill-design/pass-paths-not-content-to-subagents.md`) with the gist refinement: the orchestrator keeps just enough orientation to route, never the bulk.
+- **Data flows usually dominate prose.** Measure both: 5 scouts × 150-line dossiers ≈ 10k tokens carried every subsequent turn if returned inline — more than the entire SKILL.md (~6k). Fix: subagents write outputs to scratch files (`/tmp/compound-engineering-<uid>/<skill>/<run-id>/...` — the per-effective-UID private root, with a `$TMPDIR` fallback), return a 3-5-line gist; downstream agents receive paths and read the files themselves. This extends the established path-passing pattern (`skill-design/pass-paths-not-content-to-subagents.md`) with the gist refinement: the orchestrator keeps just enough orientation to route, never the bulk.
 
 ### 6. Load-stub design: make extracted references information-asymmetric
 
@@ -116,6 +116,7 @@ Measured outcomes from the ce-ideate application:
 - Context math: inlined dossiers would have cost ~10k tokens carried every turn — more than the whole SKILL.md (~6k). The file+gist pattern removed that entirely from the orchestrator's window.
 - Eval: 6/8 mechanical assertions passed, 2 correctly reported untestable (nested-dispatch assertions in a dispatch-less harness), 0 failures. The degradation rule fired as designed. Degraded inline run: 14 minutes, 208k tokens.
 - Cost architecture: cheap extraction scouts feeding quote+pointer dossiers to ceiling-tier choke points was both cheaper and better grounded than a uniform inherited-model fleet fed a thin summary.
+- **Update (2026-10):** ce-ideate was later cut much further — to ~86 lines — under the `OVER_BUDGET` skill-prompt-budget sweep (Codex's 8,000-byte SKILL.md budget). That validates rather than refutes this methodology: the later pass is the same PROTOCOL/JUDGMENT split taken further down the same gradient. The scratch-root convention has also moved: run paths now live under the per-user root `/tmp/compound-engineering-<effective-uid>/<skill>/<run-id>/` (falling back to `${TMPDIR:-/tmp}/compound-engineering-<effective-uid>` when `/tmp` is not writable), not the shared `/tmp/compound-engineering/` prefix the original examples used.
 
 ---
 
@@ -165,7 +166,7 @@ in your final message.
 After:
 
 ```
-Write your dossier to /tmp/compound-engineering/<skill>/<run-id>/evidence-<axis-slug>.md.
+Write your dossier to /tmp/compound-engineering-<uid>/<skill>/<run-id>/evidence-<axis-slug>.md.
 Return only a 3-5 line gist plus the file path. Downstream agents read
 the file themselves; the orchestrator never does.
 ```

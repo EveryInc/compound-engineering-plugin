@@ -135,13 +135,15 @@ Each output surface has different reading patterns. The trigger bar and diagram 
 | Surface | Reading pattern | Trigger bar | Abstraction level | Typical diagram size |
 |---|---|---|---|---|
 | Requirements (ce-brainstorm) | Studied deeply | Standard | Conceptual/product-level: user flows, information flows, mode comparisons | 5-20 nodes |
-| Plan -- Technical Design (ce-plan 3.4) | Studied deeply | Work-characteristic-driven | Solution architecture: component interactions, data flow, state machines | 5-15 nodes |
-| Plan -- Readability (ce-plan 4.4) | Studied deeply | Standard | Document structure: unit dependencies, impact surfaces, mode overviews | 5-15 nodes |
-| PR description (git-commit-push-pr) | Scanned quickly | High | Change impact: what changed architecturally, what flows differently | 5-10 nodes |
+| Plan -- High-Level Technical Design (ce-plan 3.4) | Studied deeply | Work-characteristic-driven | Solution architecture: component interactions, data flow, state machines | 5-15 nodes |
+| Plan -- Readability (ce-plan self-review audit question) | Studied deeply | Standard | Document structure: unit dependencies, impact surfaces, mode overviews | 5-15 nodes |
+| PR description (ce-commit-push-pr) | Scanned quickly | High | Change impact: what changed architecturally, what flows differently | 5-10 nodes |
+
+(Update 2026-10: ce-plan's section 3.4 is now titled "High-Level Technical Design" (`skills/ce-plan/SKILL.md:540`, with a `3.4b` Output Structure sibling at :550). The former section 4.4 no longer exists as a numbered section; the readability check survives as an audit question in ce-plan's self-review checklist — "Would a visual aid ... help a reader grasp the plan structure faster than scanning prose alone?" at ~`SKILL.md:697`.)
 
 Key distinctions:
 - **Brainstorm**: conceptual level only. No implementation architecture, data schemas, or code structure.
-- **Plan Technical Design vs. Plan Readability**: Section 3.4 diagrams describe *what's being built*. Section 4.4 diagrams help readers *comprehend the plan document itself*. These are complementary, not overlapping.
+- **Plan High-Level Technical Design vs. plan-readability audit**: Section 3.4 diagrams describe *what's being built*. The readability audit question covers visuals that help readers *comprehend the plan document itself*. These are complementary, not overlapping.
 - **PR description**: highest bar. Only include when the change involves structural complexity a reviewer would struggle to reconstruct from prose alone. Derived from the branch diff, not from upstream plan/brainstorm artifacts.
 
 ### 4. Layout and Cross-Device Optimization
@@ -215,8 +217,8 @@ Concrete guidance for any skill that generates documents with visual aids:
 
 ## Related Issues
 
-- `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` -- related but distinct: covers git-commit-push-pr state machine correctness, not output content quality
+- `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` -- related but distinct: covers ce-commit-push-pr state machine correctness, not output content quality
 - GitHub issue #44 -- mermaid dark mode rendering, relevant when considering diagram styling
 - PR #437 -- ce-brainstorm visual aids implementation
 - PR #440 -- ce-plan visual aids implementation
-- `docs/plans/2026-03-29-003-feat-pr-description-visual-aids-plan.md` -- git-commit-push-pr visual aids plan
+- `docs/plans/2026-03-29-003-feat-pr-description-visual-aids-plan.md` -- ce-commit-push-pr visual aids plan

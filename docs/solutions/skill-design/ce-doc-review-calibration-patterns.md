@@ -82,7 +82,7 @@ Synthesis defaults to picking a single root when multiple candidates match. A ph
 
 Advisory observations with no articulable consequence need somewhere to land, or they get either promoted above the gate (appearing as real decisions) or suppressed entirely. The FYI bucket gives them a home, but it stays empty unless two changes are made together:
 
-1. **Per-persona advisory band** tailored to each persona's scope. Each of the 7 skill-local personas needs its own band; a single template-level rule doesn't override persona-specific calibrations.
+1. **Per-persona advisory band** tailored to each persona's scope. Each of the skill-local personas (7 at calibration time; now 8 — `whole-doc-reviewer.md` was added later) needs its own band; a single template-level rule doesn't override persona-specific calibrations.
 2. **Template-level advisory rule** in `subagent-template.md`'s output-contract using the "what actually breaks if we don't fix this?" heuristic. Anchors the scoring decision when a persona's own rubric doesn't make the band's applicability obvious.
 
 Either alone is insufficient. Persona bands without the template rule produce inconsistent results across personas; the template rule without per-persona bands has nothing to calibrate against.
@@ -120,6 +120,6 @@ Across 7+ runs on the rename fixture, the same document produced user-engagement
 - `skills/ce-doc-review/references/synthesis-and-presentation.md` — canonical synthesis pipeline spec. It no longer contains 3.5c chain linking or the 3.3b cascade step; read it, not this doc, for the current pipeline
 - `skills/ce-doc-review/references/rendering-floor.md` — the presentation contract, including the report-versus-question grammar that governs whether a finding is asked about at all
 - `skills/ce-doc-review/references/subagent-template.md` — output contract with schema conformance block and advisory routing rule
-- `skills/ce-doc-review/references/personas/` — the 7 doc-review persona prompts (`coherence-reviewer.md`, `feasibility-reviewer.md`, `design-lens-reviewer.md`, `security-lens-reviewer.md`, `scope-guardian-reviewer.md`, `product-lens-reviewer.md`, `adversarial-document-reviewer.md`) with their confidence calibration bands
-- `tests/fixtures/ce-doc-review/` — three seeded fixtures (rename, auth, feature) for manual calibration testing; see each fixture's header comment for its specific seed map
+- `skills/ce-doc-review/references/personas/` — the 8 doc-review persona prompts (`coherence-reviewer.md`, `feasibility-reviewer.md`, `design-lens-reviewer.md`, `security-lens-reviewer.md`, `scope-guardian-reviewer.md`, `product-lens-reviewer.md`, `adversarial-document-reviewer.md`, `whole-doc-reviewer.md`) with their confidence calibration bands
+- `tests/fixtures/ce-doc-review/` — five seeded fixture pairs (`seeded-plan`, `seeded-auth-plan`, `seeded-feature-plan`, `seeded-advisory-plan`, `negative-control-plan`) for manual calibration testing; see each fixture's `.expectations.md` companion for its specific seed map
 - `docs/solutions/developer-experience/branch-based-plugin-install-and-testing.md` — how to run the skill from a branch checkout for testing

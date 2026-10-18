@@ -26,15 +26,15 @@ The first attempt, PR #1304 (closed 2026-08-02), told the refresh: "for each con
 
 Bound a guidance-contradiction check to guidance the learning itself **names or links**. Never search the guidance layer for an "owning" file.
 
-The shape as shipped in `skills/ce-compound-refresh/SKILL.md`:
+The shape as shipped in `skills/ce-compound-refresh/` (after the skill's `references/` restructure, the section bodies live in reference files; `SKILL.md` restates the bound at ~:55-59):
 
-- **Trigger** — knowledge-track learnings only, defined by `problem_type` in the knowledge track of the skill's `skills/ce-compound-refresh/references/schema.yaml` (`best_practice`, `convention`, `workflow_issue`, ...). Stated once, on the Investigate dimension that performs the comparison (`SKILL.md:81`).
-- **Scope** — "compare only guidance the learning names, never search the guidance layer for one" (`SKILL.md:81`). The refresh already opens named files for path-existence checks, so the incremental cost is one comparison per named file, not a scan.
-- **On a hit** — return both conflicting quotes plus which side current code follows, or that "code witnesses neither" (`SKILL.md:91`).
-- **Resolution** (`SKILL.md:110`) — guidance right, learning wrong: the learning takes the normal Update/Replace/stale-mark path. Learning right, guidance wrong: the guidance path becomes the recommended action in that file's report entry (under **Recommended** in non-interactive mode, `SKILL.md:175`); the refresh never edits skills, runbooks, or root instruction files. Neither witnessed by code: ask (interactive) or stale-mark and report (non-interactive).
-- **Placement** — the bound has one owner (the Investigate dimension). It is duplicated only into the investigation-subagent blockquote (`SKILL.md:91`), because a fresh subagent sees only that prompt and does not inherit the orchestrator's skill text or root instruction files.
+- **Trigger** — knowledge-track learnings only, defined by `problem_type` in the knowledge track of the skill's `references/schema.yaml` (`best_practice`, `convention`, `workflow_issue`, ...). Stated once, on the Investigate dimension that performs the comparison (`references/investigate.md`, opening paragraph).
+- **Scope** — "compare only guidance the learning names, never search the guidance layer for one" (`references/investigate.md:3`). The refresh already opens named files for path-existence checks, so the incremental cost is one comparison per named file, not a scan.
+- **On a hit** — return both conflicting quotes plus which side current code follows, or that "code witnesses neither" (the third investigation-subagent clause, `references/investigate.md:17`).
+- **Resolution** (`references/classify.md`, the Update/Replace boundary, ~:16) — guidance right, learning wrong: the learning takes the normal Update/Replace/stale-mark path. Learning right, guidance wrong: the guidance path becomes the recommended action in that file's report entry (under **Recommended** in non-interactive mode, `references/report.md:23`); the refresh never edits skills, runbooks, or root instruction files. Neither witnessed by code: ask (interactive) or stale-mark and report (non-interactive).
+- **Placement** — the bound has one owner (the Investigate reference). It is duplicated only into the investigation-subagent blockquote (`references/investigate.md:17`, restated in `SKILL.md` ~:59), because a fresh subagent sees only that prompt and does not inherit the orchestrator's skill text or root instruction files.
 
-The mechanical guard in `tests/compound-support-files.test.ts:146-161` pins the smallest falsifiable units:
+The mechanical guard in `tests/compound-support-files.test.ts:191-203` pins the smallest falsifiable units:
 
 ```ts
 expect(investigate).toMatch(/guidance file[^\n]*(names|links)/i)

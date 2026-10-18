@@ -55,7 +55,10 @@ The probing loop that worked for `agy` v1.0.10:
    without leaving residue: `agy plugin install <dir>` requires a **local directory** (no
    install-from-URL), and installed plugins live in an internal registry
    (`agy plugin list --json` shows `source ∈ {antigravity, gemini-cli, claude}`), not a
-   readable `plugins/` tree.
+   readable `plugins/` tree. (Update 2026-10: both findings are superseded by a later `agy`
+   version — `.agy/INSTALL.md:5-20` now documents `agy plugin install
+   https://github.com/...` and staging under
+   `~/.gemini/antigravity-cli/plugins/compound-engineering/`.)
 5. **Mine the binary and its bundled assets** for what probing can't surface
    (`~/.gemini/antigravity-cli/builtin/skills/.../cli.md` documented `/permissions` and the
    `toolPermission` setting).
@@ -97,14 +100,17 @@ by every later converter change.
 | Question | Docs/agent guess | Probe result |
 | --- | --- | --- |
 | Remote MCP field | `url` / `httpUrl` | **`serverUrl`** (validator: "must have either command or serverUrl") |
-| Install source | repo URL | **local directory** with a root `plugin.json` (`agy plugin install <dir>`) |
+| Install source | repo URL | **local directory** with a root `plugin.json` (`agy plugin install <dir>`) — superseded 2026-10: current `agy` accepts `agy plugin install https://github.com/...` (`.agy/INSTALL.md:5-20`) |
 | Commands | a command primitive | **converted to skills on install** |
 | Interactive tool | `ask_user` | **`ask_question`** (confirmed in live use; absent from binary strings) |
 | Minimal manifest | unknown | **`{ name, version }`** |
 
 **Converter consequence:** `src/converters/claude-to-antigravity.ts` maps the Claude remote-MCP
 `url` to `serverUrl`, and `src/targets/antigravity.ts` emits the verified bundle layout. The
-spec drove these mappings; the docs could not have.
+spec drove these mappings; the docs could not have. (The two probe findings marked
+"superseded 2026-10" above are exactly why the convention holds: a later `agy` release
+changed install behavior, so probe results are version-stamped facts — re-probe rather than
+trusting the prior record.)
 
 **Packaging consequence — committed `.agy/` bundle with a symlink:** because `agy plugin install`
 resolves component dirs relative to the `plugin.json` location, this plugin ships a committed

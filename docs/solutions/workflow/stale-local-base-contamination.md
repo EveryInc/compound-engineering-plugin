@@ -52,6 +52,8 @@ Prevent at branch creation rather than detect at push or PR time.
 
 `ce-commit-push-pr` Step 4 — the branch-creation path used when the user invokes the skill while on the default branch with working-tree changes — was changed from:
 
+(Update 2026-10: this flow has since moved out of the SKILL.md step list into `skills/ce-commit-push-pr/references/branch-creation.md:7-55`.)
+
 ```bash
 git checkout -b <branch-name>
 ```
@@ -69,6 +71,8 @@ This makes the skill's branch-creation path safe by construction:
 
 - Drift type 1 (local behind remote): the new branch starts at fresh remote `<base>`, not stale local `<base>`.
 - Drift type 2 (local ahead of remote with unpushed work): unpushed local commits stay on local `<base>` (recoverable via reflog or branch ref); the new feature branch starts clean.
+
+(Update 2026-10: "safe by construction" is now complemented by a detection check at creation time. `branch-creation.md:15-29` runs `git log origin/<base>..HEAD` after the fetch and, when unpushed commits are present, interactively asks the user whether to carry them onto the feature branch or leave them on local `<base>` — never defaulting silently. This is a creation-time prompt over a fresh remote base, not the push/PR-time heuristic rejected below.)
 
 The principle generalizes cleanly to stacked PRs: when a user wants to stack on top of an open PR, the same `git fetch && git checkout -b <name> origin/<parent>` pattern works — `<parent>` is just a different ref. Nothing about prevention depends on detecting "is this commit suspicious."
 
@@ -96,3 +100,5 @@ The reporter framed their issue as "a pattern, not a request for a merge." Takin
 - No detection heuristic that risks being obsoleted by stacked PRs
 
 A detection check at push or PR time was not free even when scoped tightly: it adds a prompt to a frictionless workflow, false-positives on legitimate workflows that share commits across branches, and would require ongoing tuning as stacked-PR conventions evolve. Prevention at the right layer avoids all of that.
+
+(Update 2026-10: a detection check did later land — but at branch-creation time, in `skills/ce-commit-push-pr/references/branch-creation.md:15-29`, asking the user what to do with unpushed commits on local `<base>` before branching. That prompt runs once per branch creation against a freshly fetched `origin/<base>`, which sidesteps the reachability/author heuristics rejected above; the rejection still stands for push- and PR-time checks.)

@@ -38,9 +38,9 @@ The production adapters confine the worker to that workspace:
 
 A sandboxed `git add` or `git commit` therefore tries to write the index in the common dir the sandbox cannot reach. The worker either fails the commit, treats a sandbox `EPERM` as a host-capability failure, or reports `blocked` after the unit is otherwise done.
 
-The worker does not need that write. Host `unit-workspace.py terminalize` snapshots the complete working tree after the process is authoritatively `done` (`skills/ce-work/scripts/unit_workspace_jobs.py:1111-1134`). Worker commits are optional intermediate evidence only for a sandbox that can write the linked-worktree Git admin dir; they are never required (`skills/ce-work/references/cross-model-execution.md:43`).
+The worker does not need that write. Host `unit-workspace.py terminalize` snapshots the complete working tree after the process is authoritatively `done` (`skills/ce-work/scripts/unit_workspace_jobs.py:1109-1132`). Worker commits are optional intermediate evidence only for a sandbox that can write the linked-worktree Git admin dir; they are never required (`skills/ce-work/references/cross-model-execution.md:43`).
 
-Issue #1318 is the originating report. The contract, persona, adapter appendix, and eval fixture landed in PR #1382 (opened, unmerged as of this writing).
+Issue #1318 is the originating report. The contract, persona, adapter appendix, and eval fixture landed in PR #1382 (merged).
 
 ## Guidance
 
@@ -50,9 +50,9 @@ Issue #1318 is the originating report. The contract, persona, adapter appendix, 
 
 **Host `terminalize` is the snapshot.** On authoritative `done`, the host calls `unit-workspace.py terminalize`. That path, not the worker, stages the complete tree and pins a synthetic transport commit:
 
-1. `git add -A -- .` in the worker workspace (`unit_workspace_jobs.py:1111`).
-2. `write-tree` of that index (`unit_workspace_jobs.py:1112`).
-3. `commit-tree` of that tree, parented only on the recorded unit or wave base (`unit_workspace_jobs.py:1134`).
+1. `git add -A -- .` in the worker workspace (`unit_workspace_jobs.py:1109`).
+2. `write-tree` of that index (`unit_workspace_jobs.py:1110`).
+3. `commit-tree` of that tree, parented only on the recorded unit or wave base (`unit_workspace_jobs.py:1132`).
 
 The serial protocol requires that pinned transport commit to have the recorded base as sole parent and the complete final workspace tree (`cross-model-execution.md:95`). Worker commits, if any, are never the transport.
 
@@ -60,7 +60,7 @@ The serial protocol requires that pinned transport commit to have the recorded b
 
 **Do not weaken this into "commit if you can."** Worker commits are never required. Instructing any external worker to commit is a protocol error even if a particular sandbox happens to succeed.
 
-**Keep native and external commit ownership distinct.** Ordinary native workers also do not commit — the orchestrator owns staging, committing, and authoritative tests (`skills/ce-work/SKILL.md:239`). Shared-workspace native workers additionally must not `git add` because concurrent index writes corrupt the shared index (`SKILL.md:241`). That is a different failure class.
+**Keep native and external commit ownership distinct.** Ordinary native workers also do not commit — the orchestrator owns staging, committing, and authoritative tests (`skills/ce-work/SKILL.md:197`). Shared-workspace native workers additionally must not `git add` because concurrent index writes corrupt the shared index (`SKILL.md:199`). That is a different failure class.
 
 ## Why This Matters
 
@@ -80,7 +80,7 @@ The cost of the wrong instruction is a finished unit that reports `blocked`, a w
 - Reviewing a worker prompt, unit packet, or eval fixture that still says the worker should `git add` / `git commit` when files and scoped checks are done.
 - Diagnosing a Codex or Cursor unit that finished edits then failed or blocked on a Git index write, or that treated a sandbox `EPERM` as proof the host cannot bind a socket or read peer credentials.
 - Do not apply this as a reason to skip host `terminalize`. The host still snapshots. Do not apply it to host-side `git add` / `commit-tree` in `terminalize` or to host-only canonical commits after `integrate`.
-- Do not confuse it with native shared-workspace "no concurrent `git add`" (`SKILL.md:241`) or with `ce-commit`'s named-file staging rule.
+- Do not confuse it with native shared-workspace "no concurrent `git add`" (`SKILL.md:199`) or with `ce-commit`'s named-file staging rule.
 
 ## Examples
 
@@ -109,7 +109,7 @@ outside the workspace.
 **Host snapshot (the sequence the worker must not duplicate).**
 
 ```python
-# skills/ce-work/scripts/unit_workspace_jobs.py:1111-1134
+# skills/ce-work/scripts/unit_workspace_jobs.py:1109-1132
 git(workspace, "add", "-A", "--", ".")
 tree = git_text(workspace, "write-tree")
 # ...
@@ -132,7 +132,7 @@ fi
 ## Related
 
 - Issue #1318 — originating report.
-- PR #1382 — contract, persona, Codex appendix, and E40 fixture (opened, unmerged as of this writing).
+- PR #1382 — contract, persona, Codex appendix, and E40 fixture (merged).
 - `skills/ce-work/references/agents/implementation-worker.md` — worker-facing forbid; host snapshots.
 - `skills/ce-work/references/cross-model-execution.md` — Bound worker authority and serial terminalize step.
 - `skills/ce-work/scripts/unit_workspace_jobs.py` — host `terminalize()` `git add -A` / `write-tree` / `commit-tree`.

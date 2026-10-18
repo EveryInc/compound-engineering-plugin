@@ -29,7 +29,7 @@ files_changed:
   - tests/plugin-path.test.ts
   - tests/cli.test.ts
 verification_steps:
-  - "Run bun test to confirm all tests pass including 5 new plugin-path tests and 1 new CLI test"
+  - "Run bun test to confirm all tests pass including 6 new plugin-path tests and 1 new CLI test"
   - "Test plugin-path subcommand outputs correct deterministic cache path for a given branch"
   - "Test install --branch flag clones from the specified branch for non-Claude targets"
   - "Verify re-running plugin-path on same branch updates via fetch+reset rather than re-cloning"
@@ -87,7 +87,7 @@ bun run src/index.ts plugin-path compound-engineering --branch feat/new-agents
 Key implementation details in `src/commands/plugin-path.ts`:
 
 - Cache path: `~/.cache/compound-engineering/branches/<plugin>-<sanitized-branch>/`
-- Branch sanitization: `/` → `~`, then strip remaining non-`[a-zA-Z0-9._~-]` chars. This is injective because `~` is illegal in git branch names (`git-check-ref-format` reserves it for reflog notation), so no valid branch input contains `~` and the mapping is 1:1.
+- Branch sanitization: `/` → `~`, then percent-encode any remaining non-`[a-zA-Z0-9._~-]` chars as `%XX` (`src/commands/plugin-path.ts:32`). This is injective because `~` is illegal in git branch names (`git-check-ref-format` reserves it for reflog notation), so no valid branch input contains `~` and the mapping is 1:1.
 - First run: `git clone --depth 1 --branch <name> <source> <dest>`
 - Re-run: `git fetch origin <branch>` + `git reset --hard origin/<branch>`
 

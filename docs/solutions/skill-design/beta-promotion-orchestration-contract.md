@@ -33,6 +33,9 @@ Treat promotion as an orchestration contract change, not a file rename.
 This pattern was applied when promoting the review beta (`ce-review-beta`, tracked as the legacy artifact `ce:review-beta`/`ce-review-beta` in the cleanup registry) into the stable `ce-code-review` skill. The caller contract at the time:
 
 - `lfg` -> `/ce-code-review mode:autofix` (enforced by `tests/review-skill-contract.test.ts`)
+
+**Update (2026-10):** the autofix-era contract above is now historical. `mode:autofix` is deprecated — `ce-code-review` ignores the token and proceeds report-only (`skills/ce-code-review/SKILL.md:90`, `:126`). The current caller contract is `lfg` -> `/ce-code-review mode:agent` (`skills/lfg/SKILL.md:83`), enforced by `tests/review-skill-contract.test.ts:853-855`, which asserts the call carries `mode:agent` and explicitly *not* `mode:autofix`.
+
 `slfg` has since been removed, but the durable rule remains: every orchestrator that invokes the promoted skill must pass the intended mode explicitly and have contract coverage where the caller still exists.
 
 ## Prevention

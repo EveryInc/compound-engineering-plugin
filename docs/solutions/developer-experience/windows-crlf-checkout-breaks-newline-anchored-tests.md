@@ -37,6 +37,16 @@ plain substring is insensitive to line endings; a newline-anchored regex is not.
 passes and the other fails on identical input, the discriminator is the anchoring, not the
 content.
 
+> **Update (2026-10): resolved.** The repo now carries a `.gitattributes` that pins
+> `*.sh`, `*.py`, and three extensionless bundled scripts
+> (`skills/ce-babysit-pr/scripts/pr-snapshot`, `skills/ce-resolve-pr-feedback/scripts/*`,
+> `skills/ce-setup/scripts/check-health`) to `eol=lf` (see issue #1251), and the failing
+> regex itself was hardened to `\r?\n` anchors
+> (`tests/peer-job-runner-parity.test.ts:50`). Script files can no longer arrive CRLF on a
+> Windows checkout; residual exposure is limited to non-script file types a
+> newline-anchored test might read. The durable lesson below stands: diagnose the
+> environment before touching the source.
+
 ## Guidance
 
 **Diagnose before fixing.** A local-only failure that CI does not reproduce is an
@@ -67,8 +77,11 @@ clean diff and a whole-file line-ending rewrite that buries the real change.
 
 **When the assertion is worth hardening**, prefer `\r?\n` in the regex or normalize before
 matching — a test that only passes on one platform's checkout is a latent contributor
-blocker. Adding a `.gitattributes` with `* text=auto eol=lf` fixes it repo-wide but is a
-broader decision than a single test warrants.
+blocker. Both remedies ultimately landed here: the regex was hardened
+(`tests/peer-job-runner-parity.test.ts:50`) and a scoped `.gitattributes` now pins script
+files to `eol=lf` repo-wide (issue #1251). The pin deliberately covers only script file
+types; a blanket `* text=auto eol=lf` remains the broader decision, so non-script files
+can still arrive CRLF.
 
 ## Why This Matters
 
@@ -97,6 +110,8 @@ Failure that is an artifact — assertion anchors on `\n`:
 const match = body.match(/start_heartbeat\(\) \{[\s\S]*?\n\}\n(?=\nrun_codex_cmd\(\))/)
 expect(match).not.toBeNull()          // fails on a CRLF checkout, passes on CI
 ```
+
+(The live regex has since been hardened to `\r?\n` anchors — `tests/peer-job-runner-parity.test.ts:50`.)
 
 Assertion on the same file that is immune — plain substring:
 

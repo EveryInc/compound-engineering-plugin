@@ -10,11 +10,22 @@ A distributable bundle of Skills, Agents, Commands, and Hooks (optionally MCP se
 ### Skill
 A user-invoked capability defined in its own directory, and the primary entry point a user reaches for. A Skill orchestrates: it can progressively pull in its own reference files as needed and dispatch generic subagents seeded with Specialist prompt assets. Distinct from an Agent in that a Skill is user-invoked and coordinates, whereas an Agent or subagent is dispatched to perform scoped work.
 
+### Manual-only skill
+A Skill that carries the `disable-model-invocation` flag, so only the human can invoke it — the model can never fire it through the skill-invocation primitive, and a Skill that wants its effect must direct the user to run it rather than invoking it itself.
+
 ### Agent
 A specialized, single-purpose worker running in its own isolated context and returning a result, rather than conversing with the user. Also called a subagent. In the current plugin design, most CE specialist behavior is not exposed as standalone Agent definitions; Skills seed generic subagents with Skill-local prompt material instead.
 
 ### Specialist prompt asset
 An internal prompt file owned by one Skill that defines a specialist persona or research/review role for a generic subagent. It is not an externally exposed plugin component: the owning Skill controls when it is loaded, which model or tool policy applies, and how its output is merged.
+
+### Byte-duplicated shared asset
+A file copied verbatim into several Skills because the plugin has no cross-skill import mechanism — the duplication is mandated, not drift — with one copy treated as canonical and a parity test pinning every copy byte-identical to it so they cannot diverge.
+
+Because each copy appears in a diff, correctness is reviewed once against the canonical copy while propagation is checked mechanically; the duplication itself is never a finding, and extracting a shared module is the one fix the constraint forbids.
+
+### OVER_BUDGET ratchet
+The test-pinned exemption list naming the Skills that still exceed the skill-prompt byte budget: a name comes off only when its Skill has been restructured to fit, and no new name is ever added, so the list can only shrink. It exists so over-budget Skills can be whittled down one restructure at a time while no new Skill quietly crosses the bound.
 
 ## Conversion
 
@@ -23,8 +34,16 @@ A destination coding-agent platform other than Claude Code (OpenCode, Codex, Pi,
 
 A Plugin is installed to a Target at one of two scopes: global (user-wide) or per-workspace.
 
+### Harness
+The agent CLI or host platform a Skill or Plugin actually runs on — a looser term than Target: a Target names a conversion destination, while a Harness is whatever hosts the run, reached by a converted Bundle, a native plugin surface, or direct install of the repo root.
+
 ### Native plugin surface
 A platform-provided install contract that can consume this repo's committed plugin manifest or marketplace metadata directly, without generating a converted Bundle. When a Target has a native plugin surface, user-facing support usually belongs in platform metadata, release validation, and docs instead of a new Converter and Writer.
+
+### Agent Plugins
+The vendor-neutral plugin manifest specification the root plugin manifest is authored against; on that manifest its `$schema` declaration doubles as a host routing switch — hosts that key on it apply the spec's stricter skill-loading rules and can truncate or drop Skills written against looser host-native frontmatter.
+
+Whether the root manifest carries the declaration is therefore a load-bearing distribution decision, not metadata hygiene: on hosts whose routing offers no override, declaring it can silently remove most of the skill inventory.
 
 ### Converter
 The step that transforms a parsed Plugin into one Target's in-memory form, mapping tools, permissions, hooks, and model names explicitly rather than by convention.
@@ -40,8 +59,19 @@ A per-plugin ledger, written by a Writer at install time, of exactly which skill
 
 The load-bearing invariant is that a Writer never claims a path it did not write: a path the user has replaced (a symlink into a personal fork, a hand-authored directory) is excluded from the manifest and preserved on reinstall rather than overwritten, and the ledger is self-healing — removing the override lets the next install resume tracking that path. A path with no manifest entry — including one from an install predating the mechanism — reads as unowned and is therefore preserved.
 
+### Legacy-artifact sweep
+The cleanup an install performs to remove stale flat-install artifacts earlier plugin versions left behind — old skill directories, agent names, and prompt files stranded by renames, plus named per-plugin extras — driven by explicit registries of those stale names so upgrading users are not left with dead duplicates alongside current content.
+
+A removed or renamed Skill is not gone for upgrading users until its old name is registered for the sweep, which is why the registries live outside any single Skill and the sweep itself is idempotent.
+
 ### Marketplace
 The catalog metadata listing installable plugins and their versions for distribution, kept consistent with each Plugin's manifest by release validation.
+
+### Release component
+A unit of release ownership: one versioned grouping of plugin artifacts — the root plugin/package component and each marketplace component — whose version bumps and release notes release automation prepares after deciding which merged changes ship together. The artifacts a component covers are called release-owned; ordinary change work never hand-bumps their versions or hand-authors their release notes.
+
+### Extra-files
+The per-Release-component list of additional files in the release automation's manifest-mode configuration, naming the places a release-owned version lives outside the component's primary manifest so the automated release bumps them too. Other machinery treats those fields as detect-only — it may flag a drifted version but never writes it, because the write belongs to the component's extra-files.
 
 ## Compound engineering
 
@@ -97,7 +127,12 @@ A semantic cost class for a dispatched sub-agent — extraction (cheapest capabl
 When a platform cannot select models per agent, every role runs on the inherited model and cost control falls back to structure: read budgets and output caps.
 
 ### Evidence dossier
-A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap scout agent — written to scratch storage instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
+A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap scout agent — written under the scratch root instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
+
+### Scratch root
+The per-user temporary directory a Skill resolves once at the start of a run so all of its scratch artifacts — run directories, job directories, dossiers — sit beneath one namespaced path.
+
+Resolution prefers a fixed temp location scoped to the invoking user and falls back to the platform's configured temp directory when the first choice fails safety checks; the result is probed for symlink substitution, ownership, and writability before use, and a root that fails the probes aborts the run rather than writing scratch somewhere unsafe.
 
 ### Load stub
 The inline remnant left in a Skill when load-bearing content moves to a reference file: a load instruction that names what the reference contains and the failure mode of skipping it, while keeping no detail an agent could improvise from — making the load structurally necessary rather than advisory.
@@ -108,6 +143,14 @@ A delegated worker process launched into its own session so it outlives the shel
 The launching call returns as soon as the job exists; supervision (idle and hard limits, process-tree reaping) runs inside the detached worker, while the caller keeps its own aggregate deadline and proceeds without the job when that passes. A job publishes exactly one terminal record, atomically, and nothing in the detached path may prompt for input. Process-tree reaping is a guarantee supplied by the host operating system's process-grouping primitive rather than one the job contract can assume: where a grouping does not outlive the process that leads it, reaping must be re-derived from a primitive that does, or descendants survive the terminal record.
 
 Liveness and progress are distinct signals, and an idle window detects only whichever one its watched stream actually carries. A worker-emitted heartbeat proves the supervising process is alive while saying nothing about whether the delegate is producing; conversely a delegate that buffers its output until completion looks identical to a wedged one. Which signal a given delegate can supply is a property of that delegate to be measured, not assumed, before an idle window is trusted to distinguish a working run from a stalled one.
+
+### Peer job
+A Detached job specialized for cross-model delegation: a Dispatch skill launches it to run a different provider's model CLI as a review or fix peer, supervised through its job directory — output-log growth as the liveness signal — with idle and budget bounds that reap it when the peer wedges or overruns.
+
+### Blocked-external
+A watch-loop terminal state for "blocked on a third party neither the loop nor the user can move, on an unbounded timeline" — distinct from a needs-human state, where the user could act, and from ordinary waiting, which is expected to clear on its own.
+
+On reaching it a loop drains whichever streams remain independently actionable for a bounded window, then exits with the reason and a resume path — a true stop rather than an indefinite spin or a false green — and it never acts on the external gate itself.
 
 ### Cross-model pass
 An additive delegated run that sends the host workflow's review or judgment brief through a different model-provider route and folds the structured result back into the host's synthesis. It stays non-blocking when the peer cannot run, and it counts as independent corroboration only when the serving model family can be verified rather than merely requested.
@@ -156,19 +199,27 @@ The classification of a review finding by how safely its proposed fix can be app
 The single, surface-agnostic contract for how a review finding is presented for a human decision across every output surface a Skill emits — interactive walkthrough, batch report, unattended envelope, one-line preview. It fixes a decision-first field order (recommendation and a plain-language consequence first; mechanism capped and last) and a domain-agnostic policy for opaque tokens: identifiers a reader cannot resolve without opening the reviewed document or code are glossed by their function (navigation, provenance, or mechanism) or moved out of the decision block. Each surface maps its own layout onto the floor instead of carrying its own copy of the rules, so strengthening one surface cannot silently leave the others behind.
 
 ### Headless mode
-An explicit opt-in mode that runs a Skill unattended, with no user prompts — it produces a written report as its deliverable and conservatively defers genuinely ambiguous decisions rather than guessing. A Skill may expose a separate depth selector inside headless mode when automations need an explicit coverage tradeoff; the non-interactive contract and the work depth remain distinct decisions.
+An explicit opt-in mode that runs a Skill unattended, with no user prompts — it produces a written report as its deliverable and conservatively defers genuinely ambiguous decisions rather than guessing. A Skill may expose a separate depth selector inside headless mode when automations need an explicit coverage tradeoff; the non-interactive contract and the work depth remain distinct decisions. Token naming is per-Skill: the common token is `mode:non-interactive` with `headless` kept only as a deprecated alias, while ce-code-review instead uses `mode:agent` for agent-driven invocation, with `apply:local` as the separate grant of apply authority.
 
 ### Session-settled decision
-A decision examined and chosen by the user in the invoking conversation — a surfaced tradeoff or alternative followed by the user's choice — carried through the Pipeline as a provenance-labeled constraint (annotation stem `session-settled:`, classes `user-directed` and `user-approved`) that downstream skills augment but never re-ask, and contradict only on evidence. An unexamined assertion is a directive, not a settled decision, and receives exactly one in-pipeline challenge; agents never label their own unexamined proposals.
+A decision examined and chosen by the user in the invoking conversation — a surfaced tradeoff or alternative followed by the user's choice — carried through the Pipeline as a provenance-labeled constraint — a labeled annotation distinguishing decisions the user directed from ones they approved — that downstream skills augment but never re-ask, and contradict only on evidence. An unexamined assertion is a directive, not a settled decision, and receives exactly one in-pipeline challenge; agents never label their own unexamined proposals.
 
 ### Settlement test
-The classification judgment a writer skill (ce-plan, ce-brainstorm) applies to conversation-carried decisions: settled if the decision survived examination in the conversation record, a directive if merely asserted, unlabeled if only ever agent-inferred. The test's outcome rules are protocol; the classification itself is agent judgment.
+The classification judgment a writer skill applies to conversation-carried decisions: settled if the decision survived examination in the conversation record, a directive if merely asserted, unlabeled if only ever agent-inferred. The test's outcome rules are protocol; the classification itself is agent judgment.
 
 ### Feedback source
-A configured origin of customer or user feedback — a Slack channel, a GitHub Issues repo, an email inbox — declared in repo CE config (`config.yaml`, optionally overridden in `config.local.yaml`) under a generic key so any Skill can read the list. Each source entry has its own identity and ingestion cursor; the Skill that ingests from it owns the per-item state, not the source declaration.
+A configured origin of customer or user feedback — a Slack channel, a GitHub Issues repo, an email inbox — declared in the repo's CE config under a generic key so any Skill can read the list, optionally overridden by a checkout-local config file. Each source entry has its own identity and ingestion cursor; the Skill that ingests from it owns the per-item state, not the source declaration.
 
 ### Beta skill
-A parallel copy of a stable Skill, suffixed `-beta`, used to trial a new version alongside the stable one without disrupting users. Invoked manually (model auto-invocation is disabled); promoting it to stable is more than a rename — every caller must move in the same change so none silently inherits stale defaults, and the retired beta name must be registered for stale-artifact cleanup so upgrading users don't keep a dead duplicate of the skill alongside the promoted one.
+A parallel copy of a stable Skill, suffixed `-beta`, used to trial a new version alongside the stable one without disrupting users. It is manual-only — model auto-invocation is disabled — and promoting it to stable is more than a rename: every caller must move in the same change so none silently inherits stale defaults, and the retired beta name must be registered for the legacy-artifact sweep so upgrading users don't keep a dead duplicate of the skill alongside the promoted one.
+
+### Frozen finding set
+An eval corpus made by capturing an upstream stage's output once and replaying it into every trial, pinned before the mechanism under test changes so run-to-run variance cannot masquerade as the change's effect.
+
+The freeze makes everything upstream of the capture point structurally invisible: a change to what the frozen stage emits cannot register, yet the run completes and reports normally — an unmeasurable change and an ineffective one produce identical output — so the set must be re-captured whenever the emitting layer changes.
+
+### Paired injection
+An eval method for proving a Skill's prose change moved behavior: the real pre- and post-change excerpts are injected into two blind agents running an identical scenario, and the artifacts each returns are compared. Only a designed discriminating case — the old excerpt fails where the new one succeeds — counts as demonstrated improvement; identical correct output proves no-regression, and the old excerpt succeeding on its own reasoning means the rule buys determinism rather than a behavior flip.
 
 ### Offered work
 Work the user has put up for review, as distinct from work that merely exists in the tree or on a remote. Commits in an open pull request are offered; uncommitted edits, local commits, and commits pushed only for backup or to trigger CI are not.

@@ -1,7 +1,7 @@
 ---
 title: "Native plugin install strategy for supported harnesses"
 date: 2026-06-19
-last_updated: 2026-06-30
+last_updated: 2026-10-18
 category: integrations
 module: installer
 problem_type: integration_decision
@@ -41,7 +41,7 @@ The install strategy follows from that: prefer each harness's native plugin/pack
 | Harness | Current install path | Bun CLI needed? | Notes |
 | --- | --- | --- | --- |
 | Claude Code | Native plugin marketplace using `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json` | No | Claude remains the source plugin format. |
-| Codex | Native Codex plugin install from a custom marketplace pointing at this repository root | No | Codex App users add the marketplace manually with no sparse path; Codex CLI users register the repo and install through `/plugins`. Skill-local personas avoid the old custom-agent copy step. |
+| Codex | Native Codex plugin install from a custom marketplace pointing at this repository root | No | Codex App users add the marketplace manually with no sparse path; Codex CLI users register the repo and install through `/plugins`. A committed Codex marketplace catalog lives at `.agents/plugins/marketplace.json`. Skill-local personas avoid the old custom-agent copy step. |
 | Cursor | Native Cursor Plugin Marketplace using `.cursor-plugin/marketplace.json` and `.cursor-plugin/plugin.json` | No | Users install from Cursor Agent chat with `/add-plugin compound-engineering` or marketplace search. |
 | GitHub Copilot CLI | Native plugin marketplace using the existing Claude plugin metadata | No | Copilot translates the Claude plugin metadata itself. |
 | Factory Droid | Native plugin marketplace pointed at the CE GitHub repository | No | Droid translates Claude Code plugins automatically. |
@@ -50,6 +50,9 @@ The install strategy follows from that: prefer each harness's native plugin/pack
 | OpenCode | Git-backed OpenCode plugin entry in `opencode.json` | No | `.opencode/plugins/compound-engineering.js` registers the CE skills directory directly. |
 | Pi | Git-backed Pi package install from this repository | No | Root `package.json` exposes `.pi/extensions/compound-engineering.ts` and the CE skills directory. `pi-ask-user` is a recommended companion for richer prompts. |
 | Antigravity CLI | Native plugin install from root `plugin.json` + `skills/`, or bundled `.agy/` entry point | No | `agy plugin install https://github.com/EveryInc/compound-engineering-plugin` for one-command remote install. `.agy/plugin.json` symlinks to the root manifest; `.agy/skills` symlinks to `skills/`. |
+| Grok | Native plugin install from this repository using `.grok-plugin/plugin.json` + `.grok-plugin/marketplace.json` | No | Committed Grok manifest and marketplace catalog; see release-please extra-files for version parity. |
+| oh-my-pi | Native omp plugin install via `.omp-plugin/marketplace.json` | No | omp reads `.omp-plugin/marketplace.json` first and falls back to `.claude-plugin/marketplace.json` when absent; the root `package.json#pi` manifest doubles as the omp discovery gate. See `docs/specs/omp.md`. |
+| Devin CLI | Native plugin install using `.devin-plugin/plugin.json` | No | Devin requires the manifest at exactly `<plugin_root>/.devin-plugin/plugin.json` — no root-level alternative. See `docs/specs/devin.md`. |
 | Cline | Native skills install via `.cline/scripts/install-skills.sh` | No | Symlinks invocable CE skills into `~/.cline/skills/` or `.cline/skills/`, skipping manual-only skills (`disable-model-invocation: true`). Enable Skills in the Cline extension settings. |
 
 Kiro is no longer a documented CE install target. Historical converter and cleanup code may remain for regression coverage or old artifact handling, but user-facing install docs should not advertise Kiro.
@@ -148,7 +151,7 @@ For local development from a checkout:
 /path/to/compound-engineering-plugin/.cline/scripts/install-skills.sh --global
 ```
 
-Enable **Settings -> Features -> Enable Skills** in the Cline extension, then start a new task. The install script skips manual-only skills marked `disable-model-invocation: true` in frontmatter (for example `lfg`, `ce-dogfood`, `ce-polish`) because Cline auto-activates skills from description matching alone. Pass `--include-manual` to link those skills for slash-command use, accepting that Cline may still auto-activate them. CE does not ship a separate Cline CLI `AgentPlugin` entry point; skills are the install surface.
+Enable **Settings -> Features -> Enable Skills** in the Cline extension, then start a new task. The install script skips manual-only skills marked `disable-model-invocation: true` in frontmatter (for example `ce-dogfood`, `ce-polish`) because Cline auto-activates skills from description matching alone. Pass `--include-manual` to link those skills for slash-command use, accepting that Cline may still auto-activate them. CE does not ship a separate Cline CLI `AgentPlugin` entry point; skills are the install surface.
 
 ## Kimi Code CLI
 

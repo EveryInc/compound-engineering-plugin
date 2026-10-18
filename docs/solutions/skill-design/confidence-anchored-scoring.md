@@ -132,6 +132,13 @@ Re-evaluation with the tightened criterion shifted cli-printing-press from 21 De
 
 ## ce-code-review migration (2026-04-21)
 
+> **Update (2026-10): the ce-code-review *mechanics* in this section are superseded; the rubric anchors and threshold remain current.** What changed since this was written:
+>
+> - **Stage 5b is now ONE deterministic validator batch** via `references/validator-batch-template.md` (8-finding normal cap) — a direct reversal of the "per-finding parallel dispatch, not batched" prescription below. Treat the per-finding design discussion as history.
+> - **PR skip-conditions changed**: draft PRs are reviewed normally (`skills/ce-code-review/SKILL.md` ~:264), the already-has-a-report-comment check is gone, and trivial-PR detection is now subagent-judged rather than pattern-matched.
+> - **Mode-aware demotion broadened**: it now also covers `reliability` and adversarial reviewers, not just `testing`/`maintainability` (`references/finish-review.md` ~:27).
+> - **Mode names superseded**: `headless`, `autofix`, and `report-only` are deprecated — `mode:agent` is the report-only JSON mode and `mode:autofix` is ignored (`SKILL.md` mode table ~:67-70, `:90`, `:126`). Read mode names below as their historical equivalents.
+
 Ported the same anchored-rubric structure into `ce-code-review` and bundled it with three additional code-review-specific precision controls. The two skills now share calibration discipline but diverge on threshold and on how independent verification is implemented.
 
 ### Threshold: `>= 75` (not `>= 50` like ce-doc-review, not `>= 80` like Anthropic)

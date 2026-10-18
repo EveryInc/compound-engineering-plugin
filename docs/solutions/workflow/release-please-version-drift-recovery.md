@@ -40,17 +40,17 @@ The current root-native repo has three release components. Release-please reads 
 
 .github/release-please-config.json
 └── packages
-    ├── "." extra-files
-    │   ├── package.json
-    │   ├── .claude-plugin/plugin.json
-    │   ├── .cursor-plugin/plugin.json
-    │   ├── .codex-plugin/plugin.json
-    │   └── gemini-extension.json
+    ├── "." extra-files            -> see canonical inventory in
+    │                                 docs/solutions/workflow/manual-release-please-github-releases.md
+    │                                 (the "." extra-files list there tracks
+    │                                 .github/release-please-config.json)
     ├── ".claude-plugin" extra-files
     │   └── marketplace.json ($.metadata.version)
     └── ".cursor-plugin" extra-files
         └── marketplace.json ($.metadata.version)
 ```
+
+The root `.` component's extra-file set changes as new plugin surfaces are added, so this playbook deliberately does not re-list it — `docs/solutions/workflow/manual-release-please-github-releases.md` owns the component/extra-files inventory, and `.github/release-please-config.json` is the machine-readable source of truth. A second stale inventory in a recovery playbook is the riskiest kind: it would tell you to sync a removed file or miss a new manifest mid-incident.
 
 Key invariants:
 
@@ -67,7 +67,7 @@ Release-please treats the manifest as the source of truth for "last released ver
 
 `bun run release:validate` runs on PRs and pushes to `main`. It fails when:
 
-- Root package/plugin versions disagree across `package.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, and `gemini-extension.json`.
+- Root package/plugin versions disagree across the `.` component's extra-files (current set: `package.json`, root `plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.kimi-plugin/plugin.json`, `.grok-plugin/plugin.json`, `.devin-plugin/plugin.json`, and `.omp-plugin/marketplace.json` — verify against `.github/release-please-config.json`, which is authoritative).
 - Marketplace plugin lists diverge across Claude, Cursor, and Codex marketplace metadata.
 - A Codex manifest is missing required fields or points at a missing `skills/` directory.
 - Release-owned descriptions drift across plugin manifests or marketplace entries.
@@ -100,16 +100,11 @@ release:validate reports drift
 
 ### Path A: Forward-sync
 
-Use when any user may have installed the drifted version locally. For the root `.` component, update every root extra-file to the drifted higher version:
+Use when any user may have installed the drifted version locally. For the root `.` component, update every root extra-file to the drifted higher version — take the authoritative list from `.github/release-please-config.json` `packages."."`.extra-files (enumerated in `docs/solutions/workflow/manual-release-please-github-releases.md`) — plus:
 
-- `package.json`
-- `.claude-plugin/plugin.json`
-- `.cursor-plugin/plugin.json`
-- `.codex-plugin/plugin.json`
-- `gemini-extension.json`
 - `.github/.release-please-manifest.json` entry for `.`
 
-For marketplace drift, sync the affected marketplace `marketplace.json` metadata version and matching manifest entry.
+Every configured extra-file must be updated; skipping a new manifest re-creates the drift on the next release PR. For marketplace drift, sync the affected marketplace `marketplace.json` metadata version and matching manifest entry.
 
 Why the manifest edit is necessary: without it, the next release-please run reads the stale last-released value and may write a lower next version to extra-files, regressing users at the forward-synced version.
 
