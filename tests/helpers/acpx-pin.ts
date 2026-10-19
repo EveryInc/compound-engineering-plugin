@@ -1,1 +1,1 @@
-export const ACPX_PIN = "0.19.5"
+export const ACPX_PIN = "0.19.6"
