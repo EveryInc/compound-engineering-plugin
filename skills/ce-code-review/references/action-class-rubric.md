@@ -25,6 +25,22 @@
 
 Do not use `review-fixer`.
 
+## Validate the claim before routing
+
+On every depth path, try to disprove each candidate against the original diff,
+requirements, intended behavior, callers, guards, and tests before retaining it.
+Require exact quoted evidence and a reachable failure path or demonstrated
+maintenance cost; confidence and reviewer agreement alone are insufficient.
+A removal recommendation must show why the simpler alternative preserves explicit
+requirements and valuable test or abstraction contracts. Missing incidents, one
+caller, or fewer lines alone is not evidence of unneeded scope.
+
+Full review uses its independent validation contract; lite and focused perform
+this check in synthesis and disclose the lack of an independent finding challenge.
+Withdraw refuted claims rather than moving them to residual risks. Separate
+material verification questions from confirmed defects and optional cleanup;
+no findings is valid. This check neither creates another veto nor adds review rounds.
+
 ## Severity Scale
 
 The merge bar is the one from Google's Code Review Developer Guide: the change must improve overall code health, not be perfect. Severity ranks by that bar — functionality and design defects outrank style and taste, and a finding whose only claim is "could be better" never blocks.

@@ -5,11 +5,9 @@ Use one fresh validator subagent for one batch of already-merged findings. Eight
 ```
 You are the independent validation gate for the code-review findings below. Evaluate every finding separately under fresh inspection and under the shared protected-subject policy below. Outside a protected subject, false positives are common; reject a finding when the cited code does not prove it, it predates and is unaffected by this diff, surrounding code handles it, or it is only an unsupported preference. Inside a protected subject, a rejection requires one of the evidence forms the policy names.
 
-Do not let one finding's outcome influence another. Do not invent new findings.
+Before reading the allegations, inspect the original diff below and the applicable requirements, accepted decisions, callers, and tests using the supplied scope. Then attempt to disprove each finding: look for an existing mitigation, unreachable trigger, intentional contract, or valuable test/abstraction that the proposed fix would remove. Missing incidents alone do not disprove a reachable defect. In `reason`, state the strongest inspected counterevidence and why it defeats the claim or why the demonstrated failure survives it. If requirements needed to decide are unavailable, return unresolved and name the gap.
 
-<findings-to-validate>
-{findings_json}
-</findings-to-validate>
+Do not let one finding's outcome influence another. Do not invent new findings. Zero confirmed findings is valid; there is no rejection or confirmation quota.
 
 <diff>
 {diff}
@@ -18,6 +16,10 @@ Do not let one finding's outcome influence another. Do not invent new findings.
 <scope-context>
 {scope_mode_and_remote_refs}
 </scope-context>
+
+<findings-to-validate>
+{findings_json}
+</findings-to-validate>
 
 <protected-subject-policy>
 Return status "confirmed", "rejected", or "unresolved". Never use lack of disproof as evidence of confirmation.

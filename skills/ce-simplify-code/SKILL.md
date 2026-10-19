@@ -49,11 +49,11 @@ Read `references/reviewer-dispatch.md` before dispatching; it covers a full harn
 
 ## Step 3: Fix issues
 
-Proceed only after every review outcome is complete, whether returned by subagents or produced inline. In standalone mode, unless the request says to just fix them, report and stop here. Otherwise apply worthwhile findings directly; record false positives and low-value findings as skipped without asking the user.
+After every review outcome is complete, read and run the finding challenge in `references/reviewer-dispatch.md` before reporting or applying. In standalone mode, unless the request says to just fix them, report and stop here. Otherwise apply worthwhile findings that survive; record false positives and low-value findings as skipped without asking the user.
 
 Inspect beyond the resolved scope when needed to evaluate a finding, but edit only that scope and the import/export lines it needs. For a user-named file or directory scope, those import/export lines must also be inside it; skip any fix that would edit outside the mutation boundary.
 
-Each fix must preserve outputs, errors, side effects, and ordering. If that cannot be established, skip it.
+Each fix must preserve outputs, errors, side effects, and ordering. If that cannot be established, skip it. For a deletion, name its concrete benefit and the required contract that remains protected; one caller, missing incidents, or line count alone is insufficient. Never remove requested functionality to optimize simplicity.
 
 **Never simplify away a safety check.** Preserve trust-boundary validation, data-loss protection, security checks, and accessibility affordances. Skip any finding that would thin or remove one.
 
