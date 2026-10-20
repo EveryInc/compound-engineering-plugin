@@ -125,6 +125,8 @@ Sub-agent dispatch is tiered by task shape, never hardcoded to a model name:
 
 If model names are unknown, omit the override and inherit rather than guessing.
 
+A model named for this subagent in the user's or project's active instructions or the live prompt, by its tier, by its prompt-asset name, or for the subagents being dispatched, wins over a model configured for that role, which wins over the default tier above.
+
 **Degradation rule.** When the platform's subagent primitive does not support per-agent model selection, dispatch everything on the inherited model and keep the read budgets and dossier caps — cost control then comes from structure, not tiering.
 
 For every native dispatch in this skill, classify rejection by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and send any other failure to that phase's stated degraded path.

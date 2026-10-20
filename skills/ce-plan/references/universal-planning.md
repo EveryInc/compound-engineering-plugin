@@ -84,6 +84,8 @@ Evaluate two things before planning:
 | **None** | Generic, timeless, or conceptual plan (study curriculum methodology, project management approach, personal goal breakdown) | Skip research. Model knowledge is sufficient. After structuring the plan, offer: "I based this on general knowledge. Want me to search for [specific thing research would improve]?" — e.g., sourced recipes, current product recommendations, expert frameworks. Only if the user accepts. |
 | **Recommended** | Plan references specific locations, venues, dates, prices, schedules, seasonal availability, or current events — anything where stale information would break the plan (closed restaurants, changed prices, cancelled events, wrong seasonal dates). | Research before planning. Decompose into 2-5 focused research questions and dispatch parallel web searches. In Claude Code, use the Agent tool with `model: "haiku"` for each search to reduce cost. Collate findings before structuring the plan. |
 
+A model named for this subagent in the user's or project's active instructions or the live prompt, by its tier, by its prompt-asset name, or for the subagents being dispatched, wins over a model configured for that role, which wins over the default tier above.
+
 When research is recommended, do it — don't just offer. Stale recommendations (closed restaurants, rethemed attractions, outdated prices) are worse than no recommendations. The user invoked `ce-plan` because they want a good plan, not a disclaimer about training data.
 
 **Research decomposition pattern:**
