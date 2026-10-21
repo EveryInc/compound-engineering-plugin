@@ -44,6 +44,8 @@ Then run `validate --state <state>`. This is a lease-agnostic repair. Note in th
 
 #### 2b. Fetch each source
 
+A generic subagent is one whose whole brief is the prompt you send it. When the host's subagent tool makes you name an agent, use only a name you have seen the host list, and list its agents before the first dispatch if you have not. Pick the plain one that adds no role of its own, which still counts as a generic subagent. Never pick a specialist, such as a reviewer or worker agent, whose own role prompt, output format, or tool limits would replace or narrow your prompt.
+
 For each entry in `feedback_sources`, dispatch a generic subagent at the **extraction tier** (`references/model-tiers.md`) seeded with:
 - the matching persona file contents (`references/sources/<type>.md`),
 - the source's config entry verbatim,

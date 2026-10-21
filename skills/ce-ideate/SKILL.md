@@ -62,6 +62,8 @@ Read `references/output-mode.md` whenever a format is resolved. The read is requ
 
 Read `references/grounding.md` before dispatching any grounding agent. The read is required. That reference defines every dispatch in this phase, including the routing test that runs *before* either dispatch block. Grounding runs in parallel, in the **foreground**.
 
+A generic subagent is one whose whole brief is the prompt you send it. When the host's subagent tool makes you name an agent, use only a name you have seen the host list, and list its agents before the first dispatch if you have not. Pick the plain one that adds no role of its own, which still counts as a generic subagent. Never pick a specialist, such as a reviewer or worker agent, whose own role prompt, output format, or tool limits would replace or narrow your prompt.
+
 Scratch lives beneath the effective user's private CE root: `/tmp/compound-engineering-<uid>` when that is usable, else the validated `$TMPDIR` fallback, and never `.context/`. Generate one 8-hex `<run-id>` and reuse it for the cache and for every checkpoint.
 
 ## Phase 1.5: Topic-Surface Decomposition

@@ -6,6 +6,8 @@ Read this after the spec is saved and follow it through the approval gate. A gat
 
 When `<root>/solutions/` holds at least one markdown file, read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt to search for prior optimization work on similar topics. An empty or missing store has nothing to search, so skip this step. Do not dispatch a standalone agent by type/name. If relevant learnings exist, incorporate them into the approach.
 
+A generic subagent is one whose whole brief is the prompt you send it. When the host's subagent tool makes you name an agent, use only a name you have seen the host list, and list its agents before the first dispatch if you have not. Pick the plain one that adds no role of its own, which still counts as a generic subagent. Never pick a specialist, such as a reviewer or worker agent, whose own role prompt, output format, or tool limits would replace or narrow your prompt.
+
 ### 0.4 Run Identity Detection
 
 Check if `optimize/<spec-name>` branch already exists:
