@@ -602,6 +602,7 @@ case "$SCRATCH_PARENT/" in "$REPO_ROOT/"*) skip "private scratch parent must be 
 if ! PEER_WORKDIR="$(mktemp -d "$SCRATCH_PARENT/xmodel-pov-peer-XXXXXX")"; then
   skip "provider $TARGET workspace isolation unavailable; skipping provider"
 fi
+trap 'cleanup_private_scratch' EXIT
 chmod 700 "$PEER_WORKDIR" 2>/dev/null || { cleanup_private_scratch; skip "cannot make peer scratch private"; }
 PROMPT_FILE="$PEER_WORKDIR/prompt.md"
 PEERLOG="$PEER_WORKDIR/stdout.log"
@@ -621,7 +622,6 @@ GEMINI_HOME_DIR=""
 if [ "$FIXED_ROUTE" = antigravity ]; then
   GEMINI_HOME_DIR="$(acpx_antigravity_home "$PEER_WORKDIR")" || { cleanup_private_scratch; skip "transport unavailable (pre-egress, route): cannot prepare a private Antigravity home"; }
 fi
-trap 'cleanup_private_scratch' EXIT
 {
   cat "$PERSONA"
   printf '\n\n---\n\n'
