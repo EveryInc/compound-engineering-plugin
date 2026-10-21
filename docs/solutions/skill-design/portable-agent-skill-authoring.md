@@ -391,6 +391,8 @@ Verify load-bearing harness claims live on the runtimes that depend on them. Lea
 
 Read a tie honestly. If old and new prose both succeed on a strong model, the test shows no regression but not improvement. Test the claimed determinism or weaker-model insurance at the layer where it matters.
 
+After any change that writes or rewrites skill prose, have a fresh reader, a subagent that did not author the change, quote every sentence it had to read twice and any rewritten sentence whose meaning drifted. The author can't see these, and evals and review bots pass them too. Size the read to the change: a restructure gets the whole always-loaded body; a new or rewritten sentence gets read once in place, even when it's copied into several files. `ce-skill-work`'s `references/evaluate.md` carries the procedure.
+
 Measure the outcome the skill exists to improve, not proxy volume:
 
 - creative work: grounded novelty, diversity of surviving decisions, and downstream usefulness;
