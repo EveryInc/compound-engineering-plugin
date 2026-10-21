@@ -50,7 +50,7 @@ Skip dispatch only when the completed-review reuse condition in `references/docu
 
 The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each activated conditional persona. Announce the team with a per-persona justification before any dispatch.
 
-Dispatch generic subagents with **bounded parallelism** through the platform's subagent primitive. Seed each one with the full content of its `references/personas/<reviewer-name>.md`. Never dispatch a standalone agent by type or name.
+Dispatch subagents with **bounded parallelism** through the platform's subagent primitive. On Pi, use the built-in `reviewer` agent for every selected persona and pass the persona prompt as task context; `general` is unavailable. Seed each one with the full content of its `references/personas/<reviewer-name>.md`. Never dispatch a standalone agent by persona type or name.
 
 A capacity rejection is backpressure, not reviewer failure: wait and retry. If capacity cannot recover and selected reviewers remain undispatched, collect and clean up any started cross-model jobs as `references/cross-model-review.md` describes, then stop as incomplete without synthesis, fixes, or a success handoff. Preserve collected outcomes and report which reviewers completed, failed, or could not run, and why.
 
