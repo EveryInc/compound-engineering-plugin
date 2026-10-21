@@ -18,7 +18,7 @@ const repoRoot = process.cwd()
 const skillsRoot = path.join(repoRoot, "skills")
 
 const PRECEDENCE_SENTENCE =
-  "If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for all dispatched subagents. Without such an instruction, a model configured for this subagent's role comes before the default tier."
+  "If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for the subagents being dispatched. Without such an instruction, a model configured for this subagent's role takes precedence over the default tier."
 
 const TIER_OVERRIDE_PATTERNS = [
   /cheapest capable model/,
