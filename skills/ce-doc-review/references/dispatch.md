@@ -14,7 +14,7 @@ For each selected reviewer, read `references/personas/<reviewer-name>.md` and pa
 - `security-lens-reviewer`, `feasibility-reviewer`, `product-lens-reviewer`, `adversarial-document-reviewer`: inherit the parent model unless the harness has an established high-capability review tier.
 - `design-lens-reviewer`, `scope-guardian-reviewer`: platform mid-tier model.
 
-A model named for this subagent in the user's or project's active instructions or the live prompt, by its tier, by its prompt-asset name, or for the subagents being dispatched, wins over a model configured for that role, which wins over the default tier above.
+If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for all dispatched subagents. Without such an instruction, a model configured for this subagent's role comes before the default tier.
 
 Each subagent receives the prompt built from the subagent template included below, with these variables filled:
 

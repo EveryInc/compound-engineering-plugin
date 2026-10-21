@@ -125,7 +125,7 @@ Sub-agent dispatch is tiered by task shape, never hardcoded to a model name:
 
 If model names are unknown, omit the override and inherit rather than guessing.
 
-A model named for this subagent in the user's or project's active instructions or the live prompt, by its tier, by its prompt-asset name, or for the subagents being dispatched, wins over a model configured for that role, which wins over the default tier above.
+If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for all dispatched subagents. Without such an instruction, a model configured for this subagent's role comes before the default tier.
 
 **Degradation rule.** When the platform's subagent primitive does not support per-agent model selection, dispatch everything on the inherited model and keep the read budgets and dossier caps — cost control then comes from structure, not tiering.
 

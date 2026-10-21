@@ -10,7 +10,7 @@ Dispatch is tiered by task shape, never hardcoded to a model name:
 - **Generation tier** — the external-evidence researcher: web/docs retrieval and entailment checking. Use the platform's mid-tier model when a known override exists; otherwise inherit.
 - **Ceiling tier** — the final assessment stays with the agent running `ce-pov`, even when another agent delegated the task to it. That agent checks whether the evidence is sufficient, weighs skeptical findings, and produces the required result. Research subagents gather evidence; they do not make this final assessment.
 
-A model named for this subagent in the user's or project's active instructions or the live prompt, by its tier, by its prompt-asset name, or for the subagents being dispatched, wins over a model configured for that role, which wins over the default tier above.
+If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for all dispatched subagents. Without such an instruction, a model configured for this subagent's role comes before the default tier.
 
 **When per-agent models cannot be chosen.** If the platform's subagent mechanism cannot select a model per agent, dispatch every scout on the inherited model and keep their read budgets. Cost control then comes from the read budgets and the tier-sensitive scout count, not from tiering.
 

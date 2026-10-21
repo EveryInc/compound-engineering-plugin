@@ -18,7 +18,7 @@ const repoRoot = process.cwd()
 const skillsRoot = path.join(repoRoot, "skills")
 
 const PRECEDENCE_SENTENCE =
-  "A model named for this subagent in the user's or project's active instructions or the live prompt, by its tier, by its prompt-asset name, or for the subagents being dispatched, wins over a model configured for that role, which wins over the default tier above."
+  "If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for all dispatched subagents. Without such an instruction, a model configured for this subagent's role comes before the default tier."
 
 const TIER_OVERRIDE_PATTERNS = [
   /cheapest capable model/,
@@ -108,7 +108,7 @@ describe("subagent model-tier precedence (#1875)", () => {
     expect(dispatch).toContain("Model override at dispatch time")
     expect(dispatch).toContain(PRECEDENCE_SENTENCE)
     expect(dispatch).toContain(
-      "Following a named model is not a missed override, and neither is a model configured for that role.",
+      "Following a named model is not a missed override, and neither is a model configured for this subagent's role.",
     )
   })
 })
