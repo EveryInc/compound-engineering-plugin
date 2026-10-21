@@ -31,11 +31,13 @@ const TIER_OVERRIDE_PATTERNS = [
   /model:\s*"opus"/,
   /established cheaper capable tier/,
   /established high-capability review tier/,
+  /inherits? the session model/,
 ]
 
 const EXPECTED_EMITTERS = [
   "skills/ce-brainstorm/references/model-tiers.md",
   "skills/ce-code-review/references/dispatch-reviewers.md",
+  "skills/ce-code-review/references/finish-input.md",
   "skills/ce-code-review/references/scope.md",
   "skills/ce-compound/references/grounding-validation.md",
   "skills/ce-doc-review/references/dispatch.md",
