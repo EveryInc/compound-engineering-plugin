@@ -175,7 +175,7 @@ That split is intentional. See `docs/solutions/skill-design/portable-agent-skill
 
 ### Right-size new mechanical guards
 
-When a review bot or human finds a greppable invariant that `bun test` missed:
+When you add a guard for an invariant `bun test` misses, whether a review found it or you did:
 
 1. Prefer **tightening an existing guard** over adding a new suite (e.g. widen a regex that already documents the rule).
 2. Pin the **smallest falsifiable unit** — a token, enum, path, heading, or one fixture that would have failed on the regressing diff. Do not snapshot whole skill bodies or pin incidental wording.

@@ -30,9 +30,9 @@ For cross-model output guidance, include a restraint check that the authored ski
 
 **Read the result honestly.** If old and new prose both succeed on a strong model, that is no regression, not improvement — test the claimed insurance at the layer where it matters (the weaker tier or the other harness). Measure the outcome the skill exists to improve, not proxy volume: routing, state, authority, and completion for an orchestrator; claim support for research; clarification burden and execution errors for planning. For a side-effecting skill, grade intended and suppressed actions first, then use fake boundaries or dry-run contracts before anything live.
 
-## Reader pass for restructures
+## Reader pass for new or rewritten prose
 
-After a size or placement restructure, have a fresh reader — a subagent that did not author the change, given the new body and the pre-change body — read the always-loaded body once and quote every sentence it had to read twice, plus any rewritten sentence whose meaning drifted from its origin. The author cannot see this: an independent audit of the 2026-08-18 sweep found dense or meaning-shifted sentences in thirteen of nineteen bodies that their authors, three harness evals, and two review bots had all passed. Fix by restating plainly or relocating, never by shortening again.
+After any change that writes or rewrites skill prose, have a fresh reader — a subagent that did not author the change, given the new text and the pre-change text — quote every sentence it had to read twice, plus any rewritten sentence whose meaning drifted from its origin. Size the read to the change: a size or placement restructure gets the whole always-loaded body read once; a new or rewritten sentence gets that sentence read in place. If the sentence is copied into several files, read it once. The author cannot see this: an independent audit of the 2026-08-18 sweep found dense or meaning-shifted sentences in thirteen of nineteen bodies that their authors, three harness evals, and two review bots had all passed. Fix by restating plainly or relocating, never by shortening again.
 
 ## Record
 
