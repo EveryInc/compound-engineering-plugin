@@ -64,7 +64,7 @@ Before assembling any spawn prompt, read these three files from this skill's dir
 
 A generic subagent is one whose whole brief is the prompt you send it. When the host's subagent tool makes you name an agent, use only a name you have seen the host list, and list its agents before the first dispatch if you have not. Pick the plain one that adds no role of its own, which still counts as a generic subagent. Never pick a specialist, such as a reviewer or worker agent, whose own role prompt, output format, or tool limits would replace or narrow your prompt.
 
-For each selected reviewer, and only for those, read the corresponding local prompt asset from `references/personas/<reviewer-name>.md` and spawn a generic subagent using the subagent template. Do not use `subagent_type`, typed `Agent` names, or platform-level CE agent registration. Each persona subagent receives:
+For each selected reviewer, and only for those, read the corresponding local prompt asset from `references/personas/<reviewer-name>.md` and spawn a generic subagent using the subagent template. Do not name a persona or CE agent through `subagent_type`, typed `Agent` names, or platform-level CE agent registration; when the host requires an agent-name field, it carries the plain generic agent. Each persona subagent receives:
 
 1. Their persona file content (identity, failure modes, calibration, suppress conditions)
 2. Shared diff-scope rules from `references/diff-scope.md`
