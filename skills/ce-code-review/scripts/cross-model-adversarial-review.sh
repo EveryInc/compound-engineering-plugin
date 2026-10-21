@@ -206,13 +206,18 @@ acpx_antigravity_helper() {
   printf '%s/localharness_external' "$(dirname "$runtime")"
 }
 
-# The runtime reads skills and settings from GEMINI_HOME and copies its sign-in
-# token there, so every run gets a private one, deleted with the caller's
-# scratch. The settings select the personal Google login the runtime reuses.
+# The runtime reads skills and settings from GEMINI_HOME, so every run gets a
+# private one, deleted with the caller's scratch. A file-backed login (no macOS
+# keychain) is read only from there, so it is copied in; refreshes are not
+# written back, so concurrent peers cannot clobber the user's token.
 acpx_antigravity_home() {   # <private-dir> -> GEMINI_HOME path
   local home="$1/gemini-home"
+  local token="${GEMINI_HOME:-${HOME:-}/.gemini}/antigravity-acp/acp_token.json"
   (umask 077; mkdir -p "$home/antigravity-acp") || return 1
   printf '{"auth":{"type":"oauth-personal"}}\n' > "$home/antigravity-acp/settings.json" || return 1
+  if [ -f "$token" ]; then
+    (umask 077; cp "$token" "$home/antigravity-acp/acp_token.json") || return 1
+  fi
   printf '%s' "$home"
 }
 
@@ -1044,7 +1049,7 @@ attempt_route() {   # <provider> <route>
       if [ -n "$reason" ]; then
         PRE_EGRESS="transport unavailable (pre-egress, shared): ${reason:0:200}"
       elif [ "$SESSION_STALLED" = true ]; then
-        PRE_EGRESS="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; sign in once with the agy CLI or the Antigravity app, then retry"
+        PRE_EGRESS="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; the agy CLI's sign-in does not carry over, so sign the ACP runtime in once: put {\"auth\":{\"type\":\"oauth-personal\"}} in ${GEMINI_HOME:-~/.gemini}/antigravity-acp/settings.json, run npx acpx@$ACPX_VERSION antigravity exec ok in a terminal and finish the browser sign-in, then retry"
       else
         reason="$(acpx_failure_evidence "$PEERLOG")"
         PRE_EGRESS="transport unavailable (pre-egress, route): ${reason:-acpx exited $PEER_EXIT before sending the prompt}"

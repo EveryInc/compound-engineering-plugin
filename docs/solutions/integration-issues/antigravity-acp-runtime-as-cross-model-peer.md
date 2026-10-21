@@ -10,6 +10,7 @@ symptoms:
   - "an Antigravity peer run never opens a session and sits until the 480s idle cap when no Google login is usable"
   - "`acpx antigravity sessions new` never returns when HOME points at a scratch directory"
   - "a ce-work unit on Antigravity stalls until timeout with mode=default and --approve-all"
+  - "a signed-in user's Antigravity peer opens no session within 60s and reports a Google sign-in wait"
 root_cause: wrong_api
 resolution_type: code_fix
 severity: medium
@@ -48,7 +49,7 @@ The `antigravity` peer route runs Google's Antigravity ACP runtime (`agy_acp_ser
 
 All in the byte-identical acpx transport block shared by the four worker scripts, plus per-worker route cases:
 
-- **Private `GEMINI_HOME` per run** that selects the personal login: `acpx_antigravity_home` writes the runtime's settings file (the `antigravity-acp` folder inside that home) with `{"auth":{"type":"oauth-personal"}}` inside the run's private scratch (`skills/ce-code-review/scripts/cross-model-adversarial-review.sh:211-214`). The real `HOME` stays, so npm's cache and the macOS keychain login keep working.
+- **Private `GEMINI_HOME` per run** that selects the personal login: `acpx_antigravity_home` writes the runtime's settings file (the `antigravity-acp` folder inside that home) with `{"auth":{"type":"oauth-personal"}}` inside the run's private scratch, and copies the user's file login (`acp_token.json` from `${GEMINI_HOME:-~/.gemini}/antigravity-acp/`) in at mode 0600 when it exists (`skills/ce-code-review/scripts/cross-model-adversarial-review.sh`, `acpx_antigravity_home`). The real `HOME` stays, so npm's cache and the macOS keychain login keep working.
 - **Strip Google credential variables** with `env -u` before the first assignment, so an ambient API key or cloud project never bills instead of the subscription (`cross-model-adversarial-review.sh:285`).
 - **Session-start check**: `acpx_session_state` reports `starting | pending | open`; a session still `pending` after `ACPX_SESSION_START_SECS` (default 60s, `cross-model-adversarial-review.sh:317-318`) is reaped and reported as a pre-egress sign-in skip, since nothing has been sent.
 - **Model choice before egress**: request `gemini-4-argon`; when acpx ends before the prompt with "did not advertise that model. Available models: …", run once more with `gemini-3.8-flash` (`cross-model-adversarial-review.sh:1082`). A configured model is exact.
@@ -57,20 +58,23 @@ All in the byte-identical acpx transport block shared by the four worker scripts
 ## Why This Works
 
 - The runtime resolves skills and settings from `GEMINI_HOME` (plus the working directory's `.agents/skills` and `.gemini/skills`), not from `HOME`. In a live probe with the real `HOME` and a private `GEMINI_HOME`, the peer listed only the private skill directories, and nothing was read from or written to the user's `~/.gemini` config. Conversations and transcripts land in the runtime's `antigravity-acp` folder inside `GEMINI_HOME`, so deleting the scratch deletes them.
-- The runtime copies the sign-in token (`acp_token.json`) into `GEMINI_HOME`, which is why that directory must be private and removed with the run.
-- The keychain login is found without any setting beyond `auth.type`; without `auth.type`, `session/new` refuses before trying it.
+- The runtime stores its login in one of two places. On macOS with a working default keychain it uses the keychain (service `gemini`, account `antigravity-acp`), which does not depend on `GEMINI_HOME`. Otherwise it uses the file `<GEMINI_HOME>/antigravity-acp/acp_token.json`: always on Linux, when `AGY_ACP_FORCE_FILE_STORAGE=1` is set, or when the keychain probe fails. The runtime's `_default_token_path` docstring says it performs no migration from other locations. So a private home must be given a copy of the file login, or a file-backed user stalls on a browser sign-in (#1879). The original version of this doc claimed the runtime copied the token in by itself. That was wrong, and the probe that seemed to confirm it ran on a keychain login.
+- The copy is not written back. A refreshed access token is dropped with the scratch, which costs one refresh per run against the long-lived refresh token. Writing back could race concurrent peers or overwrite a newer sign-in.
+- The `agy` CLI keeps its own token under `~/.gemini/antigravity-cli/`, and the runtime does not read it. To sign the runtime in, put `{"auth":{"type":"oauth-personal"}}` in `~/.gemini/antigravity-acp/settings.json` and run `npx acpx@<pin> antigravity exec` once in a terminal.
+- Without `auth.type`, `session/new` refuses with "Authentication required" before trying any login.
 - acpx validates `--model` against the session's advertised bare ids (`configOptions[id=model]`, e.g. `gemini-3.8-flash`; `models.availableModels` lists tier-suffixed ids that `--model` does not accept) and fails before `session/prompt`. That makes the Argon-to-Flash walk free of egress. The advertised list is account-dependent and differs from `agy models`.
 - acpx always records sessions under `$HOME/.acpx` (no override variable), and under a scratch `HOME` the runtime never opened the session, so the no-prompt model check has to run with the real `HOME` and clean up its own record.
 
 ## Prevention
 
-- Re-probe live when the acpx pin or the runtime version changes: auth with a private `GEMINI_HOME`, the unadvertised-model message (the fallback keys on "did not advertise"), the write mode, and that nothing new appears under `~/.gemini` beyond the runtime's own binary cache (`~/.gemini/antigravity/bin`).
+- Re-probe live when the acpx pin or the runtime version changes: auth with a private `GEMINI_HOME` on both credential backends (force the file one with `AGY_ACP_FORCE_FILE_STORAGE=1`; a keychain login hides a missing file token), the unadvertised-model message (the fallback keys on "did not advertise"), the write mode, and that nothing new appears under `~/.gemini` beyond the runtime's own binary cache (`~/.gemini/antigravity/bin`).
 - Keep the route tests that pin the isolated environment: `tests/skills/ce-code-review-cross-model-routes.test.ts` (the `antigravity route` block) asserts `GEMINI_HOME` with `oauth-personal`, stripped `GEMINI_API_KEY`/`GOOGLE_CLOUD_PROJECT`, the fallback, and the sign-in stall skip.
 - Treat a long session start as sign-in until proven otherwise, but expect false positives on a cold npx cache or a saturated machine: the 60s window counts from launch.
 
 ## Related Issues
 
 - GitHub issue #1798 (add Antigravity as a cross-model peer).
+- GitHub issue #1879 (file-backed logins never reached the private `GEMINI_HOME`).
 - [Quiet-interval floors for streaming peer routes](../skill-design/quiet-interval-floors-for-streaming-peer-routes.md): the shared idle cap the session-start check sits in front of.
 - [Requested vs verified model identity](../skill-design/requested-vs-verified-model-identity.md): the route reports no served model, so receipts record `unverified`.
 - [Verify a new target platform's format against the CLI binary](../conventions/antigravity-target-empirical-format-verification.md): the converter target for Antigravity, a separate surface with the same verify-live lesson.

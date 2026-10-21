@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawnSync } from "node:child_process"
+import { createHash } from "node:crypto"
 import {
   chmodSync,
   existsSync,
@@ -157,6 +158,7 @@ function sandbox(providers: string[], stream = acpStream({ text: review() }), ex
       ...process.env,
       PATH: bin,
       HOME: home,
+      GEMINI_HOME: "",
       // Mask any real Codex.app bundle so discovery sees only what the test stages.
       CROSS_MODEL_CODEX_APP_DIRS: temp("xmodel-cr-nobundle-"),
       ACP_STUB_NPX_STREAM: stream,
@@ -1304,6 +1306,8 @@ describe("cross-model-adversarial-review antigravity route", () => {
     const runDir = makeRunDir()
     const r = run(["claude", "antigravity", "HEAD", runDir], runDir, { ...sb.env, CROSS_MODEL_SESSION_START_SECS: "1" })
     expect(r.stderr).toContain("transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in")
+    expect(r.stderr).toContain('{"auth":{"type":"oauth-personal"}} in ~/.gemini/antigravity-acp/settings.json, run npx acpx@')
+    expect(r.stderr).toContain("antigravity exec ok in a terminal")
     expect(calls(sb)).toBe(1)
     expect(peerOutputs(r.files)).toEqual([])
   })
@@ -1318,6 +1322,25 @@ describe("cross-model-adversarial-review antigravity route", () => {
     expect(env).toContain(`ANTIGRAVITY_HARNESS_PATH=${path.join(sb.bin, "localharness_external")}`)
     expect(env).toMatch(/GEMINI_HOME=\S*xmodel-cr-scratch-\S*\/gemini-home/)
     expect(env).toContain('{"auth":{"type":"oauth-personal"}}')
+    expect(env).not.toContain("--- GEMINI_HOME token")
+  })
+
+  test.each([
+    ["the default home", false],
+    ["the user's own GEMINI_HOME", true],
+  ])("the private GEMINI_HOME gets a 0600 copy of the runtime sign-in token from %s", (_name, customHome) => {
+    const sb = sandbox(ANTIGRAVITY_BINS)
+    const userHome = customHome ? temp("xmodel-cr-user-gemini-") : path.join(sb.home, ".gemini")
+    mkdirSync(path.join(userHome, "antigravity-acp"), { recursive: true })
+    const token = path.join(userHome, "antigravity-acp", "acp_token.json")
+    writeFileSync(token, '{"refresh_token":"stub"}\n')
+    const runDir = makeRunDir()
+    run(["claude", "antigravity", "HEAD", runDir], runDir, { ...sb.env, ...(customHome ? { GEMINI_HOME: userHome } : {}) })
+    const env = envLog(sb)
+    expect(env).toMatch(/GEMINI_HOME=\S*xmodel-cr-scratch-\S*\/gemini-home/)
+    const digest = createHash("sha256").update('{"refresh_token":"stub"}\n').digest("hex")
+    expect(env).toContain(`--- GEMINI_HOME token 0600 sha256:${digest} ---`)
+    expect(readFileSync(token, "utf8")).toBe('{"refresh_token":"stub"}\n')
   })
 
   test("a runtime without its helper is a route pre-egress skip", () => {

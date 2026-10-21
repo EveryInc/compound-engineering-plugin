@@ -38,6 +38,11 @@ if [ -n "${ACP_STUB_NPX_ENV_LOG:-}" ]; then
       printf -- '--- GEMINI_HOME settings ---\n'
       cat "$GEMINI_HOME/antigravity-acp/settings.json"
     fi
+    if [ -n "${GEMINI_HOME:-}" ] && [ -f "$GEMINI_HOME/antigravity-acp/acp_token.json" ]; then
+      printf -- '--- GEMINI_HOME token %s sha256:%s ---\n' \
+        "$(perl -e 'printf "%04o", (stat shift)[2] & 07777' "$GEMINI_HOME/antigravity-acp/acp_token.json")" \
+        "$(perl -MDigest::SHA=sha256_hex -0777 -ne 'print sha256_hex($_)' "$GEMINI_HOME/antigravity-acp/acp_token.json")"
+    fi
     printf 'PWD=%s\n' "$(pwd -P)"
     if [ -n "${CLAUDE_CODE_EXECUTABLE:-}" ] && [ -f "$CLAUDE_CODE_EXECUTABLE" ]; then
       printf -- '--- CLAUDE_CODE_EXECUTABLE contents ---\n'
