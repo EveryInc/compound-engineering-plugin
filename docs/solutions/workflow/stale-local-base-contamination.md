@@ -37,4 +37,4 @@ A detection check is also not free even when scoped tightly: it adds a prompt to
 
 - Branches created outside the skill (manual `git checkout -b`, IDE branch creation without a fetch). The skill's path is safe; the user's general workflow is not. An opt-in user-side pre-push hook remains reasonable for individuals but is not shipped from the plugin, because getting stacked-PR semantics right in a hook costs more than it is worth at the plugin level.
 - Already-contaminated branches. Recovery is manual: identify the foreign commits, drop them via rebase or `git reset` to a clean base, force-push.
-- The Step 1 "rescue" path, where the user is on the default branch with unpushed commits and wants a feature branch that *carries* them -- the opposite intent, and unchanged.
+- The opposite intent, where the user is on the default branch with unpushed commits and wants a feature branch that *carries* them. That is not a separate path: it is the "Carry forward" answer in the same `branch-creation.md` decision flow, which branches from local `HEAD`.

@@ -32,13 +32,13 @@ The relevant history: the anti-poll discipline (`docs/solutions/skill-design/det
 
 ## Guidance
 
-Two rules, both grounded in `skills/ce-code-review/references/dispatch-reviewers.md` (the "Bounded foreground dispatch" paragraph) and the execution spine at `skills/ce-code-review/SKILL.md:27` (step 4).
+Two rules, both grounded in the collection paragraphs of `skills/ce-code-review/references/dispatch-reviewers.md` and the Stage 4 step of the execution spine in `skills/ce-code-review/SKILL.md`.
 
 ### 1. Scope the anti-poll ban to detached delegates, not harness-managed subagents
 
 The "no background / no polling / no wakeups" discipline governs *detached* delegates — a background bash/CLI invocation (e.g. `codex exec` for the cross-model peer) that the orchestrator must poll with foreground `sleep`/status-file loops or scheduled "still waiting" turns. It does **not** govern harness-managed subagents (Claude Code `Agent`, Codex `spawn_agent`), which return on their own tool call with no poll loop.
 
-Conflating the two is what made #1159 serialize local reviewer dispatch one-at-a-time, costing 45-70 minutes of wall-clock on large diffs for zero determinism or token benefit — reviewers are independent by construction (none is fed another's output), so batch composition and completion order cannot change any finding. `dispatch-reviewers.md` now draws the line explicitly: the detached cross-model peer "is the only detached work and overlaps with this batch; it does not require serializing harness-managed subagents, which return on their own tool call with no poll loop."
+Conflating the two is what made #1159 serialize local reviewer dispatch one-at-a-time, costing 45-70 minutes of wall-clock on large diffs for zero determinism or token benefit — reviewers are independent by construction (none is fed another's output), so batch composition and completion order cannot change any finding. The skill now draws the line explicitly. `SKILL.md` Stage 4: "Detaching local review into a polled background job is forbidden. The cross-model peer is the only detached work, and it may overlap this batch." `dispatch-reviewers.md`: "These harness-managed blocking collection waits gather the batch; they are not the forbidden detached-delegate poll loop."
 
 ### 2. Collect by observed return shape
 
@@ -56,7 +56,7 @@ For an asynchronous primitive, the rule still needs three explicit clauses:
 - **Release collected agents when the primitive retains slots.** A completed agent can keep occupying its concurrency slot until explicitly closed; release it before refilling and before the validator stage.
 - **Guard the transition.** Synthesis cannot begin on launch receipts or a partial roster. If complete collection is unavailable, return the mode-appropriate failure instead.
 
-On a harness that does not run same-message calls concurrently, this identical dispatch degrades to serial automatically — the correct floor, not a failure.
+On a harness that does not run same-message calls concurrently, this identical dispatch degrades to serial automatically — the correct floor, not a failure. `skills/ce-code-review/references/dispatch-reviewers.md` owns the live rule (its collection paragraphs and the **Agent lifecycle** rule).
 
 ## Why This Matters
 

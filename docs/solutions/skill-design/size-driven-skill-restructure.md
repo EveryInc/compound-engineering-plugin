@@ -31,9 +31,7 @@ The procedure lives in `.agents/skills/ce-skill-work/references/edit-skill.md` (
 
 ## The two bounds, and why ordering is load-bearing
 
-8000 is Codex's `MAX_SKILL_PROMPT_BYTES`, not an Agent Plugins requirement; the spec has no size limit. A separate bound applies on Claude Code regardless of manifest: auto-compaction re-attaches each invoked skill keeping only its **first 5,000 tokens**, within a 25,000-token combined budget filled from the most recently invoked, so older skills drop entirely. The byte ratchet approximates only the per-skill half (8000 bytes is ~2000 tokens at prose density; a token-dense body erodes the margin); nothing bounds the combined half. `docs/specs/agent-plugins.md` carries the provenance table.
-
-**Both truncations keep the start of the file**, so body ordering is load-bearing: put what must survive above what may be cut, and never let a stop class or boundary rule sit below a long routing block.
+The two bounds (Codex's 8,000-byte `MAX_SKILL_PROMPT_BYTES` and Claude Code's 5,000-token per-skill / 25,000-token combined compaction budget), their provenance, and why both make body ordering load-bearing are in `docs/specs/agent-plugins.md`. In practice: never let a stop class or boundary rule sit below a long routing block.
 
 "The cap does not bite today" is true of the shipping path (root manifest schema-less) and not an argument that a body over it is fine: forced onto Codex 0.147's Agent Plugins path, `lfg`'s 28,520-byte body was cut at 8,000 bytes inside its routing section, so steps 1-10 were never injected (#1479). That cell still opened a PR only because the eval harness had the whole plugin installed and the model reconstructed the pipeline from the child skills -- a confound, not evidence the truncation is survivable.
 
@@ -73,19 +71,19 @@ Issue #1482 then showed the large cross-skill contracts did not have to stay inl
 
 ### A size-driven restatement overshoots into an absolute
 
-When a byte budget forces a rule shorter, the short form tends to come out absolute, and an absolute forbids paths the original allowed. `ce-optimize` (#1456) ran two rounds on one sentence: "no phase is skipped" let a resume overwrite the baseline checkpoint; the fix "never re-entering an earlier phase" then forbade the Phase 0.4 marker-recovery scan. Both were proxies for "never redo a phase whose checkpoint already exists". **On the second round against one sentence, stop shortening and state the condition it was a proxy for**, paying for the bytes by deleting what the restatement makes redundant elsewhere.
+The rule is in `edit-skill.md` ("A shortened rule comes out absolute"). The case behind it: `ce-optimize` (#1456) ran two rounds on one sentence. "No phase is skipped" let a resume overwrite the baseline checkpoint; the fix "never re-entering an earlier phase" then forbade the Phase 0.4 marker-recovery scan. Both were proxies for "never redo a phase whose checkpoint already exists".
 
 ## Eval the delegation, not the recognition
 
-A fake-boundary run (dispatch, `git`, `gh` forbidden; graded on the trigger recognized and the right reference in `FILES_READ`) is a cheap, honest first pass for a skill whose job is judgment inside the window. **It cannot validate a skill whose key behavior is live delegation**: it sees neither whether the delegate was dispatched, what payload it received, whether attribution was gated on a receipt, nor whether the reconciliation was a synthesis or a narration of one. `ce-pov` (#1440) shipped as "eval green" on that basis; a live A/B afterwards (four cells, real `codex` and `grok` peers, graded on worker logs and on-disk artifacts) happened to pass, but nothing in the shipping eval had established it. If the skill delegates, the eval dispatches for real, pre- and post-change, on at least two harnesses, graded on subprocess and artifact evidence, in a throwaway subject repo.
+Why a fake-boundary run cannot validate a delegating skill, and what the eval must do instead, is in `references/evaluate.md`. The case behind it: `ce-pov` (#1440) shipped as "eval green" on a fake-boundary run; a live A/B afterwards (four cells, real `codex` and `grok` peers, graded on worker logs and on-disk artifacts) happened to pass, but nothing in the shipping eval had established it.
 
 ### Size the eval to the skill's reach
 
-One scenario is not an eval for a skill people run every day. Enumerate entry paths and modes; run each pre and post on Claude, Codex, and Grok, with at least three trials on the most-used paths and an independent grader for the most-used skills (`ce-plan` #1470: 9 scenarios x 3 harnesses x pre/post, 60 runs; `ce-work` #1478: 72 runs; `ce-code-review` #1471: a 13-path matrix built after a 6-cell eval had already passed, which is what caught `review.json` written with no `report.md` on a clean diff). "Unexercised" means tried and could not force, with the reason. A defect review finds on a path the matrix skipped joins the matrix before the next push.
+The matrix rule (entry paths and modes, pre and post on Claude, Codex, and Grok, trials, grader, "unexercised") is in `edit-skill.md` ("Eval the extraction itself"). The runs it rests on: `ce-plan` #1470: 9 scenarios x 3 harnesses x pre/post, 60 runs; `ce-work` #1478: 72 runs; `ce-code-review` #1471: a 13-path matrix built after a 6-cell eval had already passed, which is what caught `review.json` written with no `report.md` on a clean diff.
 
 ## Eval-harness gotchas
 
-Headless invocations of the local harnesses, measured 2026-08-17; none are skill defects, all look like one. `tests/skill-eval-cell/hosts.ts` bakes these in.
+Headless invocations of the local harnesses, measured 2026-08-17; none are skill defects, all look like one. `tests/skill-eval-cell/hosts.ts` bakes these in, along with unsetting `CLAUDECODE` for a Codex cell launched from a Claude Code shell.
 
 | Harness | Invocation that worked | Gotcha |
 |---|---|---|
@@ -93,7 +91,6 @@ Headless invocations of the local harnesses, measured 2026-08-17; none are skill
 | Codex CLI 0.147 | `codex exec --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check -C <dir> "<prompt>" < /dev/null` (`--sandbox read-only` for fake-boundary) | **Without `< /dev/null` it blocks forever on "Reading additional input from stdin"**. Streams the transcript to stderr and only the final message to stdout -- a 0-byte stdout means still running or an empty final. Link the worktree's skills first with `bun run codex:dev -- local`. |
 | Grok CLI (grok-4.6) | `grok -p "<prompt>" --cwd <dir> --always-approve --disable-web-search` (`--deny "Bash"` for read-only) | Progress narration is printed to stdout **before** the answer with no separator; grep for the answer structure. `-p` sustains a background watch (12-min watches completed). |
 | Cursor agent | `cursor-agent -p "<prompt>" --output-format text --sandbox enabled --trust` | Hangs with no output on a fresh workspace (trust/auth prompt not surfaced under `-p`); trust the workspace interactively once first, and do not count a hung run as a result. |
-| `codex exec` from a Claude Code shell | `env -u CLAUDECODE codex exec ...` | Inherits `CLAUDECODE=1` and the peer attests itself as running under Claude Code, corrupting host receipts. |
 | Any, under orca | -- | orca exports `CLICOLOR_FORCE`/`GH_FORCE_TTY`, which makes `gh ... --json` emit colored, unparsable JSON. Scripts that parse `gh` output pin `NO_COLOR=1` (`pr-snapshot` does in `_run`). |
 
 Live fixtures: give each harness its own worktree on the PR head branch (delegates push the current branch); a running `bash run.sh` re-reads the script when edited mid-run -- copy before editing; Bugbot re-reviews every push, so expect a second review round on any PR the resolver touched, and it did not review `gh stack submit` PRs at all (seed human threads for stack fixtures).

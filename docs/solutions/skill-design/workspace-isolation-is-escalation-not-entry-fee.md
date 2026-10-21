@@ -41,7 +41,7 @@ So isolation is the escalation: a worker that must commit, must run its own auth
 
 ## Rejected alternative: self-provisioned peer worktrees
 
-Teaching the native orchestrator to run `git worktree add` for its workers was rejected. `git worktree add` writes the shared Git common dir (`$GIT_DIR/worktrees`), which the same workspace-scoped sandboxes that lack native isolation typically cannot write -- it helps least exactly where it is needed. `cross-model-execution.md` forbids `ce-work` creating worktrees for native execution; only the external cross-model controller may create detached sibling worktrees, and eval E1 in `cross-model-work-eval.md` pins that restraint.
+Teaching the native orchestrator to run `git worktree add` for its workers was rejected. `git worktree add` writes the shared Git common dir (`$GIT_DIR/worktrees`), which the same workspace-scoped sandboxes that lack native isolation typically cannot write -- it helps least exactly where it is needed. `cross-model-execution.md` forbids `ce-work` creating worktrees for native execution; only the external cross-model controller may create detached sibling worktrees, and eval E1 in `tests/skill-eval-cell/packs/ce-work-cross-model.md` pins that restraint.
 
 Validation: a cross-model panel (Codex and Grok, independent) both chose the conditioned contract over serial-only and over self-provisioned worktrees, and a two-host decision probe (four disjoint units, one adding a dependency) had both hosts dispatch the three clean units as one wave, serialize the lockfile-owning unit, and forbid worker Git operations.
 

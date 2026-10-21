@@ -22,6 +22,8 @@ tags:
 
 # Keep structured-output schemas portable across model CLIs
 
+Since the acpx transport (#1843), no cross-model worker passes `--json-schema` or any other schema flag: each one embeds the schema in the prompt text, so no CLI validates it at startup today. The facts below are why the schema guard still exists and what returns the moment a route adopts native structured output again.
+
 A schema passed to an external model CLI is a wire-format contract, not an extensible JSON container: it must stay inside the target validator's supported draft and vocabulary. Human-only metadata placed beside schema keywords made Claude reject the code-review request at startup, before the peer reviewed anything, and the failure surfaced as a silent empty peer result. The mechanical guard now lives in `tests/review-skill-contract.test.ts` and `tests/pov-skill-contract.test.ts` (recursive draft-07 keyword check over the code-review, doc-review, and POV schemas); the workers classify the provider's terminal outcome before accepting schema-shaped output. Three measured facts drove that design.
 
 ## Fact 1: Claude rejects unknown keywords under strict mode, and renaming does not help
@@ -30,7 +32,7 @@ Claude Code 2.1.211 rejected both the incident's `_meta` member and an unrelated
 
 ## Fact 2: `--output-format` does not change schema validation
 
-Default output and `--output-format text`, `json`, and `stream-json` all stayed strict whenever `--json-schema` was present; the CLI validates the schema payload before response formatting matters ([Agent SDK structured-output contract](https://code.claude.com/docs/en/agent-sdk/structured-outputs#output-format-configuration)). Omitting `--json-schema` avoided validation but returned prompt-only or fenced JSON, abandoning the validated guarantee the workers depend on. Test schema acceptance and response serialization as separate contracts.
+Every output format stayed strict whenever `--json-schema` was present ([Agent SDK structured-output contract](https://code.claude.com/docs/en/agent-sdk/structured-outputs#output-format-configuration)), so schema acceptance and response serialization are separate contracts.
 
 ## Fact 3: `${value: -300}` is empty on a short string
 
@@ -38,7 +40,7 @@ A bounded-tail expression like `${value: -300}` asks Bash to start 300 character
 
 ## Prevention
 
-- Target the strictest vocabulary shared by the actual providers, not the most permissive behavior of a local JSON Schema library. Smoke-test the exact production schema against each installed CLI at startup, probing custom keywords and representative standard annotations separately so a vocabulary failure is not misdiagnosed as a field-name bug.
+- Target the strictest vocabulary shared by the actual providers, not the most permissive behavior of a local JSON Schema library. When probing a CLI's schema support, test custom keywords and representative standard annotations separately so a vocabulary failure is not misdiagnosed as a field-name bug.
 - Guard every cross-model schema consumer in the shared test loop; the incident hit one of three workers that all bind file contents to `SCHEMA_REF`.
 - Schema-shaped output does not prove a successful route. Classify the terminal outcome independently, with stream boundaries and event order preserved, before publishing.
 

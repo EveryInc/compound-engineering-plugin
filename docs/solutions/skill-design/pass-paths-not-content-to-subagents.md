@@ -13,7 +13,7 @@ date: 2026-03-26
 
 ## Pattern
 
-When a sub-agent needs repo reference material (config files, standards docs), the orchestrator discovers paths (glob/search, cheap) and passes the path list; the sub-agent reads only the files and sections it needs (expensive, and it is closer to the task so it knows what is relevant). Include a standalone fallback: if the paths block is absent, the sub-agent discovers paths itself, so the same persona works orchestrated or alone. `ce-code-review` does this with its `<standards-paths>` block (`skills/ce-code-review/references/dispatch-reviewers.md`).
+The orchestrator discovers paths and the sub-agent reads what it needs, with a standalone fallback when no paths are passed. The live form is `ce-code-review`'s `<standards-paths>` block (`skills/ce-code-review/references/dispatch-reviewers.md`, "Large shared context: pass paths, not contents") and the fallback in `skills/ce-code-review/references/personas/project-standards-reviewer.md`.
 
 Passing full contents instead makes the orchestrator do read work that may go unused, inflates every sub-agent prompt linearly with the number of reference files, and takes away the sub-agent's judgment about relevance.
 
@@ -37,4 +37,4 @@ codex exec --json --full-auto "instruction here" > out.jsonl
 
 ## Related
 
-- `docs/solutions/agent-friendly-cli-principles.md` — Principle #7 (bounded, high-signal responses): agents pay real cost for extra output; paths are bounded, content is not.
+- `docs/solutions/agent-friendly-cli-principles.md` — bounded output is left to the public agent-CLI guidance it cites; paths are bounded, content is not.

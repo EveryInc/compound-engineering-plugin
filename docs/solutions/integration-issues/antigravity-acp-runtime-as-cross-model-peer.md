@@ -50,10 +50,10 @@ The `antigravity` peer route runs Google's Antigravity ACP runtime (`agy_acp_ser
 All in the byte-identical acpx transport block shared by the four worker scripts, plus per-worker route cases:
 
 - **Private `GEMINI_HOME` per run** that selects the personal login: `acpx_antigravity_home` writes the runtime's settings file (the `antigravity-acp` folder inside that home) with `{"auth":{"type":"oauth-personal"}}` inside the run's private scratch, and copies the user's file login (`acp_token.json` from `${GEMINI_HOME:-~/.gemini}/antigravity-acp/`) in at mode 0600 when it exists (`skills/ce-code-review/scripts/cross-model-adversarial-review.sh`, `acpx_antigravity_home`). The real `HOME` stays, so npm's cache and the macOS keychain login keep working.
-- **Strip Google credential variables** with `env -u` before the first assignment, so an ambient API key or cloud project never bills instead of the subscription (`cross-model-adversarial-review.sh:285`).
-- **Session-start check**: `acpx_session_state` reports `starting | pending | open`; a session still `pending` after `ACPX_SESSION_START_SECS` (default 60s, `cross-model-adversarial-review.sh:317-318`) is reaped and reported as a pre-egress sign-in skip, since nothing has been sent.
-- **Model choice before egress**: request `gemini-4-argon`; when acpx ends before the prompt with "did not advertise that model. Available models: …", run once more with `gemini-3.8-flash` (`cross-model-adversarial-review.sh:1082`). A configured model is exact.
-- **ce-work**: `--config-option mode=auto_edit` for writes (`skills/ce-work/scripts/cross-model-work.sh:343`), and a `--check-model` preflight that opens a session with `acpx … --model <m> antigravity sessions new` (no prompt) under the real `HOME`, then deletes the session record it created under `~/.acpx` (`cross-model-work.sh:393`, `:418`, `:432`).
+- **Strip Google credential variables** with `env -u` before the first assignment, so an ambient API key or cloud project never bills instead of the subscription (the `antigravity)` case of the transport's `env -u` list in `cross-model-adversarial-review.sh`).
+- **Session-start check**: `acpx_session_state` reports `starting | pending | open`; a session still `pending` after `ACPX_SESSION_START_SECS` (default 60s, overridable with `CROSS_MODEL_SESSION_START_SECS`) is reaped and reported as a pre-egress sign-in skip, since nothing has been sent.
+- **Model choice before egress**: request `M_ANTIGRAVITY` (`gemini-4-argon`); when acpx ends before the prompt with "did not advertise that model. Available models: …", run once more with `M_ANTIGRAVITY_FALLBACK` (`gemini-3.8-flash`) inside the original deadline (the `*"did not advertise"*` case after the first `attempt_route`). A configured model is exact.
+- **ce-work**: `--config-option mode=auto_edit` for writes (the `antigravity)` arm of the adapter options in `skills/ce-work/scripts/cross-model-work.sh`), and a `--check-model` preflight that opens a session with `acpx … --model <m> antigravity sessions new` (no prompt) under the real `HOME`, then deletes the session record it created under `~/.acpx` (the `--check-model` block in `cross-model-work.sh`).
 
 ## Why This Works
 
@@ -75,6 +75,6 @@ All in the byte-identical acpx transport block shared by the four worker scripts
 
 - GitHub issue #1798 (add Antigravity as a cross-model peer).
 - GitHub issue #1879 (file-backed logins never reached the private `GEMINI_HOME`).
-- [Quiet-interval floors for streaming peer routes](../skill-design/quiet-interval-floors-for-streaming-peer-routes.md): the shared idle cap the session-start check sits in front of.
+- [Headless output buffering and progress detection](../skill-design/cli-output-buffering-for-progress-detection.md): the shared idle cap the session-start check sits in front of.
 - [Requested vs verified model identity](../skill-design/requested-vs-verified-model-identity.md): the route reports no served model, so receipts record `unverified`.
 - [Verify a new target platform's format against the CLI binary](../conventions/antigravity-target-empirical-format-verification.md): the converter target for Antigravity, a separate surface with the same verify-live lesson.

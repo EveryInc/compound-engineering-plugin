@@ -34,11 +34,11 @@ tags:
 
 Treat the skill as a small state machine: at each transition, run the command that answers the next question, then branch on that result instead of carrying state forward in prose. The current commands and their exit-status readings live in `skills/ce-commit-push-pr/references/context.md`; the transitions they must protect are:
 
-1. **Cleanliness from `git status`, never `git diff HEAD`.** `git diff HEAD` is empty for untracked-only work, which is one of the most common commit cases.
-2. **Re-read branch state after every branch-changing transition.** A `git branch --show-current` captured before `git checkout -b` is stale (and empty on detached HEAD); run it again at the moment of decision. The second read converts "the skill thinks it created branch X" into "Git says the current branch is X."
-3. **Upstream existence before unpushed-commit checks.** An error from `git log @{u}..HEAD` on a branch with no upstream is not "nothing to push"; that branch needs its first push.
+1. **Cleanliness from `git status`, never `git diff HEAD`** — stated in `skills/ce-commit/SKILL.md` (Nothing to commit).
+2. **Re-read branch state after every branch-changing transition** — stated in `context.md` (Detached HEAD) and `skills/ce-commit-push-pr/references/commit-and-push.md` (re-confirm before pushing).
+3. **A missing upstream is work to publish, not "nothing to push."** The skills no longer probe `@{u}`: on the default branch, no upstream counts as work and forces a feature branch, and the push is always `git push -u origin HEAD`, which also creates the upstream.
 4. **PR detection reads exit status as state** (tradeoff below).
-5. **Default-branch safety ahead of every push/PR transition**, including the clean-tree-but-unpushed-commits shortcut. In `ce-commit-push-pr`, declining feature-branch creation on the default branch is a stop condition, not a continue — otherwise the flow pushes the default branch and then tries to open a PR from it to itself.
+5. **Default-branch safety ahead of every push/PR transition**, including the clean-tree-but-unpushed-commits shortcut. Detached HEAD, or the default branch with work on it, auto-creates a feature branch without asking; the default branch with no work reports and stops. The skill must never push the default branch and then try to open a PR from it to itself.
 
 ### The PR-detection tradeoff (§4)
 
@@ -52,7 +52,7 @@ The skills keep `gh pr list` for the exit semantics and bound the collision: pas
 ## Prevention
 
 - Only skills that *own* Git/GitHub mechanics get a state machine. A delegating skill states the condition and lets the owner run the machine — see [skill-gates-state-conditions-not-prescribed-git-commands.md](skill-gates-state-conditions-not-prescribed-git-commands.md).
-- Model expected non-zero CLI exits as state transitions, not failures; when a tool highlights non-zero exits, capture the exit code yourself so correct logic does not look broken to the user.
+- Model expected non-zero CLI exits as state transitions, not failures (`context.md` states the rule).
 - Any change to one transition triggers a walkthrough of the adjacent states before the change is considered done: detached HEAD with uncommitted changes; detached HEAD with committed but unpushed work; untracked-only files; feature branch with no upstream; feature branch with upstream and no PR; feature branch with an existing PR; default branch with unpushed commits; non-`main` default branch names such as `develop` or `trunk`.
 
 ## Related

@@ -22,7 +22,7 @@ tags:
 
 ## Context
 
-`ce-simplify-code` gained two modes: a pipeline mode for runs another skill or the agent starts (prune only the current work, apply without asking) and a standalone mode for runs the user asks for (report first). The behavioral eval for it, `tests/skill-eval-cell/packs/ce-simplify-code-pruning.md`, ran seven scenarios on Claude, Codex, and Grok. Four things about evaluating a callee skill only showed up while building that pack. None of them is recoverable from the pack's final scripts, because the scripts encode the fix, not the failure that forced it.
+`ce-simplify-code` gained two modes: a pipeline mode for runs another skill or the agent starts (prune only the current work, apply without asking) and a standalone mode for runs the user asks for (report first). The behavioral eval for it, `tests/skill-eval-cell/packs/ce-simplify-code-pruning.md`, ran seven scenarios on Claude, Codex, and Grok. Four things about evaluating a callee skill only showed up while building that pack. The pack records them for `ce-simplify-code`; this doc states them for any callee skill.
 
 ## Guidance
 

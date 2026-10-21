@@ -70,6 +70,6 @@ Wrong, in a callee's frontmatter:
 disable-model-invocation: true
 ```
 
-Right, in the callee's description: state the condition that should fire it ("Use when text is handed over to fix ... and when a skill about to compose a PR body, plan, finding, or reply names this skill") and add the skill to `REQUIRED_MODEL_INVOKED_CALLEES`.
+Right, in the callee's description: state the condition that should fire it (for example, "Use when asked to make writing plainer or to check it for AI writing tells"), so the description restrains over-triggering while siblings can still invoke the skill, and add the skill to `REQUIRED_MODEL_INVOKED_CALLEES`.
 
 Wrong, in a caller: "Invoke the target skill; do not open its SKILL.md with a file-reading tool." Right: "Invoke the `<target>` skill through this harness's skill mechanism."

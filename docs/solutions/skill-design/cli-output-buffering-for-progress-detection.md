@@ -54,6 +54,10 @@ Three flag-level gotchas surfaced alongside the sizes:
 
 `codex exec --json` is a distinct third category: it is neither fully buffered nor progressive. It emits events at *item* boundaries, so the log grows between completed steps but stays flat for the entire duration of any single reasoning turn.
 
+A later measurement (2026-07-30, macOS, schema-shaped review of a small snippet, sampled every 3s) timed the longest quiet interval under the streaming candidates. claude 2.1.220 with `stream-json --verbose` + `--json-schema` peaked at 47 / 37 / 44s quiet (n=3), against 80s flat under `json`. cursor-agent 2026.07.23-e383d2b with `stream-json` peaked at 15 / 13 / 13s (n=3), against 54s flat under `json`. grok 0.2.101 with `json` + `--json-schema` stayed flat for its whole 31s run. Inputs were small, so large-diff stream gaps were not measured.
+
+The review workers (`cross-model-adversarial-review.sh`, `cross-model-doc-review.sh`, `cross-model-pov.sh`) and `cross-model-work.sh` now reach every route through acpx, whose ACP stream is progressive on every route, so the per-CLI table governs direct CLI invocations such as `skills/ce-{plan,brainstorm}/scripts/elevation-dispatch.sh` and any future route that bypasses acpx. The shared idle cap's rationale (the slowest silent reasoning turn) lives in the comment above `IDLE_SECS` in each worker.
+
 ## Guidance
 
 **Never treat stdout byte growth as a proxy for progress without first measuring that CLI in the exact flag combination you ship.** Pick the liveness mechanism per CLI:
@@ -62,7 +66,7 @@ Three flag-level gotchas surfaced alongside the sizes:
 
 2. **Item-boundary streaming is only partial coverage.** `codex exec --json` gives you progress signal between steps but not within one. An idle window shorter than a single long reasoning turn will kill a healthy peer.
 
-3. **Choose the safe signal when streaming is foreclosed.** On Grok, requesting a JSON schema forces non-streaming output, so stdout cannot provide in-turn progress. A trusted worker that already owns an out-of-band status channel may use it when that channel is part of the route contract. The review peers deliberately remain tool-less, so granting a new tool merely for heartbeat would weaken their boundary; their Grok route therefore uses a hard-only window and accepts that no in-turn progress signal exists.
+3. **Choose the safe signal when streaming is foreclosed.** On Grok, requesting a JSON schema forces non-streaming output, so stdout cannot provide in-turn progress. A trusted worker that already owns an out-of-band status channel may use it when that channel is part of the route contract. The review peers deliberately remain tool-less, so granting a new tool merely for heartbeat would weaken their boundary. They now reach Grok through acpx, whose ACP stream supplies the progress signal the native schema route could not; a direct grok call with a schema still has only a hard window.
 
 4. **Never instruct a model to print periodic status to stdout.** Under a buffered output format the status lines are buffered into the same final envelope and arrive all at once at the end. This mechanism does not degrade gracefully — it fails completely and silently.
 
@@ -77,9 +81,7 @@ Three flag-level gotchas surfaced alongside the sizes:
 Stdout buffering decides whether a `$PEERLOG` idle poll is meaningful. Under
 buffered `--output-format json`, mid-run byte growth is zero, so an idle poll
 would reap every healthy run. Under `stream-json`, progressive events keep the
-window alive. Measure the quiet interval before choosing `CROSS_MODEL_IDLE_SECS`
-— see `docs/solutions/skill-design/quiet-interval-floors-for-streaming-peer-routes.md`
-for the #1270 floors.
+window alive. Measure the quiet interval before choosing `CROSS_MODEL_IDLE_SECS`.
 
 The failure is also asymmetric in cost. Killing a healthy peer discards an entire multi-minute model call with zero partial output to recover from. And the outer layer compounds this: `peer-job-runner.py` enforces `CE_PEER_LOG_MAX_BYTES` (10MB) mid-run by **killing the worker**, not by truncating the log — so a chatty streaming format traded for better liveness signal introduces a new way to lose the run. Choosing a streaming format is therefore a two-sided decision: it improves progress detection but raises byte volume against a cap whose enforcement is fatal.
 
@@ -120,18 +122,5 @@ claude -p --output-format stream-json --verbose --json-schema "$SCHEMA_REF" ...
 `--verbose` is mandatory here; without it the invocation fails outright with `Error: When using --print, --output-format=stream-json requires --verbose`, exit 1. `--include-partial-messages` is not required — `system/thinking_tokens` events already arrive every ~200-300ms and are sufficient to keep an idle window alive.
 
 **The grok dead end.** `grok --output-format streaming-json` streams, and `grok --json-schema` implies `--output-format json`. There is no combination that gives both structured output and progressive bytes, so a route needing a schema on grok must use an out-of-band mechanism or accept that no in-turn liveness signal exists — the hard cap is the only guard available.
-
-**Post-#1270 dispatch shape** (measure before changing floors):
-
-```
-codex                                  -> run_codex_cmd (idle + HARD_SECS)
-claude / cursor / composer / grok-cursor
-  (stream-json)                        -> run_timeout_cmd idle + HARD_SECS
-grok-cli (schema + json)               -> run_timeout_cmd no-idle + UNGUARDED_HARD_SECS
-```
-
-Adding streaming flags without an idle poll (or an idle poll without streaming)
-is still unsafe — both halves are required. Shared `CROSS_MODEL_IDLE_SECS`
-still clears the codex Luna quiet floor.
 
 **External precedent for the mechanism shape.** Anthropic ships `CLAUDE_ASYNC_AGENT_STALL_TIMEOUT_MS` (default 10 minutes), which resets on each streaming progress event and aborts the subagent only if no progress arrives within the window. That is a progress-reset idle window layered on a streaming transport — the same combination recommended above, and evidence that wall-clock caps alone are not the industry answer either.

@@ -35,7 +35,8 @@ Never let one tool call span a delegate's runtime. Split the lifecycle so every 
 
    ```
    /tmp/compound-engineering-<effective-uid>/<skill>/<run-id>/jobs/<job-id>/
-     status      # terminal only: done | failed | timeout; absence means running
+     status      # terminal only: done | failed | timeout | died-without-result;
+                 # absence means running
      pid         # detached worker's pid
      out.log     # raw delegate stream (also the liveness signal)
      meta.json   # job identity: run id, lens/provider or work unit,
@@ -61,13 +62,7 @@ Never let one tool call span a delegate's runtime. Split the lifecycle so every 
 
 7. **NO PROMPTS.** Nothing in the detached path may ask a question. The worker has no terminal and no user; every input is resolved before detach (headless/CI posture throughout).
 
-The detach itself must create a new session, because plain `nohup` is not sufficient (see the spike below). macOS ships no `setsid(1)` utility, so use a POSIX::setsid double-fork:
-
-```bash
-perl -e 'use POSIX qw(setsid); exit if fork; setsid(); exit if fork; open(STDIN,"<","/dev/null"); open(STDOUT,">","/dev/null"); open(STDERR,">>","/dev/null"); exec "/bin/bash","-c",$ARGV[0];' "$CMD"
-```
-
-This double-forks, calls `setsid()` between the forks (new session, no controlling terminal, reparented to init), redirects all three standard streams away from the tool call's pipes, and execs the worker. The launching tool call can then return immediately.
+The detach itself must create a new session, because plain `nohup` is not sufficient (see the spike below). `peer-job-runner.py` does this in `detach_supervisor`: a double fork with `os.setsid()` between the forks (new session, no controlling terminal, reparented to init), all three standard streams on `/dev/null`, and the launching call returning once the supervisor acknowledges its pid file. macOS ships no `setsid(1)` utility, which is why the detach lives in the runner rather than in a shell one-liner.
 
 ## Why This Matters
 
@@ -110,12 +105,7 @@ Interpretation: those harness shell tools reap the tool call's process group on 
 
 Caveats stated plainly: codex was tested with its sandbox disabled (`danger-full-access`); default-sandboxed codex may behave differently and needs its own verification. cursor-agent was tested under its default shell tool.
 
-**The launch snippet** (new-session detach, works on all three tested hosts; macOS has no `setsid(1)`, hence perl):
-
-```bash
-CMD='bash /path/to/worker.sh --job-dir /tmp/compound-engineering-<effective-uid>/<skill>/<run-id>/jobs/<job-id>'
-perl -e 'use POSIX qw(setsid); exit if fork; setsid(); exit if fork; open(STDIN,"<","/dev/null"); open(STDOUT,">","/dev/null"); open(STDERR,">>","/dev/null"); exec "/bin/bash","-c",$ARGV[0];' "$CMD"
-```
+The spike used a perl `POSIX::setsid` double-fork; the shipped equivalent is `detach_supervisor` in `peer-job-runner.py`, with a separate Windows path (`detach_supervisor_windows`).
 
 ## Related
 

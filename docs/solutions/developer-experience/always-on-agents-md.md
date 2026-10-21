@@ -28,7 +28,7 @@ Root `AGENTS.md` (also `CLAUDE.md`) loads on every turn. Keep invariants there. 
 
 ## Scratch-root layout
 
-Default to OS temp. Use `.context/` only when the artifact is repo-bound and user-curated, branch-inseparable, or the path is core UX. Copy the scratch-root preamble from any shipped skill (for example `skills/ce-code-review/SKILL.md`); do not re-derive it. `tests/scratch-root-preamble-executes.test.ts` runs every copy, including the fallback.
+The when-to-use rule lives in AGENTS.md "Scratch Space". A shipped copy of the preamble to start from: `skills/ce-explain/SKILL.md` (ce-code-review keeps its copy in `skills/ce-code-review/references/scope.md`). `tests/scratch-root-preamble-executes.test.ts` runs every copy, including the fallback.
 
 - **Per-run throwaway:** `mktemp -d "${TMPDIR:-/tmp}/<prefix>-XXXXXX"`. Always pass an explicit template under `${TMPDIR:-/tmp}`. Do not use bare `mktemp`, `mktemp -d`, `mktemp -t`, or `mktemp -d -t`: those ignore `$TMPDIR` on macOS.
 - **Cross-invocation reusable:** `/tmp/compound-engineering-<effective-uid>/<skill-name>/`. Derive the UID with `id -u`, reject a symlink or path not owned by the current user, and create or repair the top-level root to mode `0700`. Probe writability (`[ -w ]`) before committing to `/tmp`; if that root cannot be created, is not yours, or is not writable, use `${TMPDIR:-/tmp}/compound-engineering-<effective-uid>` instead. Claude Code's macOS sandbox allowlists `$TMPDIR` (`/tmp/claude-<uid>`) but not `/tmp` itself.
@@ -42,15 +42,15 @@ Default to OS temp. Use `.context/` only when the artifact is repo-bound and use
 
 Load when changing test-file layout, worker counts, or CI proxies.
 
-The `test` script is `scripts/run-tests.ts`: one `bun test --parallel` pass (implies `--isolate`), then a TimeoutError-only serial re-run in a fresh process. Do not pin a worker count. `--parallel` with no value tracks the runner's core count. The re-run contract: `docs/solutions/developer-experience/bun-parallel-worker-loses-subprocess-exit.md`.
+AGENTS.md "CI and Quality Gates" owns the test-script contract and the no-pinned-worker-count rule. `--parallel` with no value tracks the runner's core count. The re-run contract: `docs/solutions/developer-experience/bun-parallel-worker-loses-subprocess-exit.md`.
 
 Raising it looks free — the suite is idle-bound — but it was measured on CI and it is not: at `--parallel=8` on a 4-core runner, wall time improved ~9% (102s -> 93s) while total test-CPU inflated from 223s to 343s, and five tests crossed the 5000ms default per-test timeout. A file that legitimately runs for seconds should call `setDefaultTimeout`.
 
-A file never splits across workers, so an oversized file sets a floor. `tests/skills/ce-work-unit-workspace.test.ts` was 4,564 lines and 86 tests under one `describe`; it is now five `ce-work-unit-workspace-*.test.ts` files sharing `tests/skills/helpers/ce-work-workspace-harness.ts`. Measured with three `workflow_dispatch` runs per ref, the `Run tests` step went from a median of 88s (87/112/88) to 81s (83/80/81).
+A file never splits across workers, so an oversized file sets a floor. `tests/skills/ce-work-unit-workspace.test.ts` was 4,564 lines and 86 tests under one `describe`; it was split into five `ce-work-unit-workspace-*.test.ts` files (six today) sharing `tests/skills/helpers/ce-work-workspace-harness.ts`. Measured with three `workflow_dispatch` runs per ref on the five-file split, the `Run tests` step went from a median of 88s (87/112/88) to 81s (83/80/81).
 
 Splitting bought ~8% of CI wall time and most of the run-to-run variance — baseline spread 25s, split spread 3s. Do not use `bun test --parallel=4` on a many-core laptop as a CI proxy. It predicted a 26% CI win where the real number was 8%. Dispatch the real workflow on both refs instead.
 
-Size a test file by its measured time, not its line count. A file is a wall-time problem when it approaches the suite's slowest-file ceiling. Get per-file times with:
+A file is a wall-time problem when it approaches the suite's slowest-file ceiling. Get per-file times with:
 
 ```bash
 bun test --parallel --reporter=junit --reporter-outfile=/tmp/t.xml
@@ -58,7 +58,7 @@ bun test --parallel --reporter=junit --reporter-outfile=/tmp/t.xml
 
 The `ce-work-unit-workspace-*` shards run 10-23s each against a ~36s ceiling (`tests/ce-babysit-pr-snapshot.test.ts`). Put shared fixtures in `tests/skills/helpers/`.
 
-A test that runs a bundled script which inspects the repository must point that script at a throwaway repo, never this checkout. The fixture pattern is `dirtyFixtureRepo()` in `tests/skills/ce-code-review-cross-model-routes.test.ts`.
+For the AGENTS.md throwaway-repo rule, the fixture pattern is `dirtyFixtureRepo()` in `tests/skills/ce-code-review-cross-model-routes.test.ts`.
 
 ## Plugin-cache confirmation
 

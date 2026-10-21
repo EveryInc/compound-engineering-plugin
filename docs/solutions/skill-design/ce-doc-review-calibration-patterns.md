@@ -30,13 +30,13 @@ The naive read of the tier spec says `safe_auto` = "one clear correct fix, appli
 
 **External stale cross-reference goes to `gated_auto`, not `safe_auto`.** `see Unit 7` where Unit 7 does not exist in the same document is internal: coherence can verify from the document text alone and apply `safe_auto`. `see docs/guides/keyboard-nav.md Section 4` is external: silently deleting the reference risks masking a legitimate doc, so the fix is "verify before applying" under `gated_auto`.
 
-**Multi-surface terminology drift goes to `gated_auto`.** Two synonyms in prose only (`data store` / `database`) normalize under `safe_auto`. Drift that crosses surfaces (UI copy, aria-labels, toasts, analytics events, file names, code identifiers) exceeds prose normalization and warrants confirmation. Security-adjacent terms (`token` / `credential` / `secret` / `API key`) carry different semantic weight and route to `gated_auto` with a glossary-fix recommendation.
+**Multi-surface terminology drift goes to `gated_auto`.** Two synonyms in prose only (`data store` / `database`) normalize under `safe_auto`. Drift that crosses surfaces (UI copy, aria-labels, toasts, analytics events, file names, code identifiers) exceeds prose normalization and warrants confirmation. Security-adjacent terms (`token` / `credential` / `secret` / `API key`) carry different semantic weight and route to `gated_auto` with a glossary-fix recommendation when they may name distinct things; two names for one API-key concept are ordinary synonym drift (`safe_auto`, per the coherence persona).
 
 Do not tighten coherence's `safe_auto` guidance to force these into `safe_auto`. The reclassification is reviewer judgment doing useful work.
 
 ## Schema compliance needs inline enum callouts, not just `{schema}` injection
 
-The subagent template injects the full JSON schema into each persona's prompt. Conformance still broke on longer personas (adversarial at 89 lines, scope-guardian at 54): severity emitted as `"high"/"medium"/"low"` instead of `P0..P3`, evidence as strings instead of arrays. Schema injection gets pushed down in attention by dense persona rubrics. What worked is the "Schema conformance — hard constraints" block at the top of the output contract in `references/subagent-template.md`, naming the exact enum values and forbidding common deviations, plus a translation rule so a persona's informal "critical/important/low-signal" language maps to `P0..P3` at emit time instead of leaking into JSON.
+The subagent template injects the full JSON schema into each persona's prompt. Conformance still broke on longer personas (adversarial at 89 lines, scope-guardian at 54): severity emitted as `"high"/"medium"/"low"` instead of `P0..P3`, evidence as strings instead of arrays. Schema injection gets pushed down in attention by dense persona rubrics. What worked is the "Schema conformance — hard constraints" block at the top of the output contract in `skills/ce-doc-review/references/subagent-template.md`, naming the exact enum values and forbidding common deviations, plus a translation rule so a persona's informal "critical/important/low-signal" language maps to `P0..P3` at emit time instead of leaking into JSON.
 
 ## Reviewer variance is inherent; single runs are not baselines
 
@@ -46,7 +46,7 @@ Across 7+ runs on the rename fixture, the same document produced `safe_auto`-app
 - root selection when multiple candidates exist
 - confidence on borderline findings: the same finding lands in FYI on one run and manual on the next because the anchor choice flips at the boundary
 
-Validate calibration changes against multiple runs. A single bad run is likely noise; a pattern across 3+ runs is signal. Seeded fixtures under `tests/fixtures/ce-doc-review/` document expected tier distributions as targets, not pass/fail assertions.
+Validate calibration changes against multiple runs; the method (N>=3, variance first, a negative control) is technique 8 in [paired-old-vs-new-injection-skill-evals.md](./paired-old-vs-new-injection-skill-evals.md). Seeded fixtures under `tests/fixtures/ce-doc-review/` document expected tier distributions as targets, not pass/fail assertions.
 
 ## Related documentation
 

@@ -19,7 +19,7 @@ tags:
 
 Persona review originally used a continuous `confidence` (0.0-1.0) against per-severity gates (0.50 / 0.60 / 0.65 / 0.75) and a 0.40 FYI floor. The scale invited false precision: personas clustered on round values (0.60, 0.65, 0.72, 0.80, 0.85) and gate boundaries became coin-flip bands where trivial shifts moved findings in and out of the actionable tier. The model cannot calibrate self-reported confidence at that granularity.
 
-Both review skills now use 5 discrete anchors (`0`, `25`, `50`, `75`, `100`), each tied to a behavioral criterion, ported from Anthropic's code-review plugin (`anthropics/claude-plugins-official/plugins/code-review/commands/code-review.md`). The live anchor definitions, routing, and promotion rules are in each skill's `references/findings-schema.json`, `subagent-template.md`, and synthesis reference, pinned by `tests/pipeline-review-contract.test.ts` and `tests/review-skill-contract.test.ts`. This doc keeps the threshold reasoning those files do not carry.
+Both review skills now use 5 discrete anchors (`0`, `25`, `50`, `75`, `100`), each tied to a behavioral criterion, ported from Anthropic's code-review plugin (`anthropics/claude-plugins-official/plugins/code-review/commands/code-review.md`). The live anchor definitions, routing, and promotion rules are in each skill's `findings-schema.json`, `subagent-template.md`, and synthesis reference, pinned by `tests/pipeline-review-contract.test.ts` and `tests/review-skill-contract.test.ts`. This doc keeps the threshold reasoning those files do not carry.
 
 ## Why the doc-review threshold is `>= 50`, not Anthropic's `>= 80`
 
@@ -31,7 +31,7 @@ Anthropic's `>= 80` is load-bearing for code review because of three constraints
 | Frequency and visibility | Every finding is a public PR comment; a reviewer who cries wolf gets muted | One private review per plan |
 | Verifiability | "The code does X" is provable; a 75 often means "could not verify" | "Is the motivation valid?" has no ground truth, so premise/strategy personas legitimately cap at 50-75; `>= 80` would silence them |
 
-So `ce-doc-review` gates at `>= 50` and `ce-code-review` at `>= 75` (with P0 escaping at 50). Anthropic's `>= 80` on a discrete scale would collapse to "anchor 100 only," which silences findings where a persona can construct the trace but cannot literally read the bug off the code, hence 75 rather than 80 for code.
+So `ce-doc-review` surfaces findings at `>= 50` (anchor `50` as FYI; the actionable tier is `75` and `100`) and `ce-code-review` gates at `>= 75` (with P0 escaping at 50). Anthropic's `>= 80` on a discrete scale would collapse to "anchor 100 only," which silences findings where a persona can construct the trace but cannot literally read the bug off the code, hence 75 rather than 80 for code.
 
 **Correction (2026-08-13).** This reasoning originally continued "let the routing menu handle volume; dismissing a surfaced finding is cheap." That second half was wrong, and it produced a 34-finding review no human would read. Dismissing one finding is cheap; being asked thirty times is not, because the cost is the reader holding thirty open questions at once. A permissive gate is only safe when something downstream converts volume into few decisions. The threshold survives because settled corrections are batched into one grouped confirmation, so a low gate feeds a short question list. Keep `>= 50`; do not keep the reasoning that the menu absorbs volume.
 

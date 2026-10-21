@@ -54,13 +54,7 @@ When a skill delegates the actual work to another skill, state **the condition t
 
 The shipped gate does exactly that (`skills/ce-debug/SKILL.md`, "Ships"). It names three conditions — the pre-fix tree was clean, nothing on the branch is work the user has not already offered, and `origin` is somewhere `gh` can actually open a PR against — and then says: "Establish those however fits the repo in front of you." No `git log` range, no `@{u}`, no branch-provenance heuristic.
 
-What it *does* keep is the knowledge an agent cannot reason its way to from first principles:
-
-- `ce-commit-push-pr` pushes the **whole branch** (`skills/ce-commit-push-pr/SKILL.md:101`, `git push -u origin HEAD`) and its PR spans every commit on that branch, not just the fix. So the question is about the branch, not about the diff.
-- It pushes **before** creating the PR (push is Step 3 at `skills/ce-commit-push-pr/SKILL.md:101`; `gh pr create` is Step 5 at `skills/ce-commit-push-pr/SKILL.md:140`). A remote `gh` cannot open a PR against therefore leaves the branch published with no PR to show for it.
-- Already pushed is not already **offered**. Commits in an open PR are under review and count as offered; a bare push for backup or CI does not.
-- A local ref can be ahead of the remote, including the default branch the fix was branched from — so compare against the remote, not a local ref.
-- `git checkout -b` carries uncommitted work forward, so how the branch came to exist proves nothing about what is on it.
+What it *does* keep is the knowledge an agent cannot reason its way to from first principles. The gate states those callee facts itself: `ce-commit-push-pr` pushes the whole branch (`skills/ce-commit-push-pr/references/commit-and-push.md`) before it creates the PR (`skills/ce-commit-push-pr/references/apply-and-handoff.md`), already pushed is not already offered, and a local ref can be ahead of the remote. It also answers from the recorded pre-fix scope rather than from how the branch came to exist, because `git checkout -b` carries uncommitted work forward, so branch provenance proves nothing about what is on it.
 
 Then give the failure direction explicitly: if the condition cannot be established, fall to the safe route (here, a local commit) rather than guessing.
 
@@ -68,9 +62,9 @@ Then give the failure direction explicitly: if the condition cannot be establish
 
 ### Do not read "state machine" as "enumerate outcomes in prose"
 
-`docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` was cited *against* this simplification twice during review. Reading it settles the conflict: its subject is **observation freshness** — "Re-run the command that answers the current question at the point of decision. Do not rely on values gathered earlier if a mutating command may have changed them" (line 236) — for skills whose job *is* git mechanics, named in its own frontmatter as `ce-commit` and `ce-commit-push-pr`.
+`docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` was cited *against* this simplification twice during review. Reading it settles the conflict: its subject is **observation freshness** — "at each transition, run the command that answers the next question, then branch on that result instead of carrying state forward in prose" (its Solution) — for skills whose job *is* git mechanics, named in its own frontmatter as `ce-commit` and `ce-commit-push-pr`.
 
-It is not a mandate to enumerate every branch/upstream/PR permutation in the prose of a skill that *delegates* the git work. Conflating "re-check state at the decision point" with "enumerate every state in prose" is what cost six revisions. Note that `ce-debug`'s gate still honors the freshness rule — it says to answer both questions "from the pre-fix scope Phase 3 recorded, checked now rather than inferred from how the branch came to exist". Freshness survived; enumeration went away.
+It is not a mandate to enumerate every branch/upstream/PR permutation in the prose of a skill that *delegates* the git work. Conflating "re-check state at the decision point" with "enumerate every state in prose" is what cost six revisions. Note that `ce-debug`'s gate still decides from observed state rather than inference — it says to answer both questions "from the pre-fix scope Phase 3 recorded, not from how the branch came to exist". Observation survived; enumeration went away.
 
 ### Prescribed commands also carry a security surface
 

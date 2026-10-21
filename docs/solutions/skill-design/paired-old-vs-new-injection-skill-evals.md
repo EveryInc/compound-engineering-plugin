@@ -44,7 +44,7 @@ Tooling: inject the current on-disk prose into a fresh agent at dispatch time (`
 
 ### 1. Paired old-vs-new blind injection
 
-Extract the **actual** pre-change excerpt from `git HEAD~1` and the post-change excerpt from the working tree — real bytes, not a paraphrase. Dispatch two subagents, one seeded with each, **both blind** to which version they hold and to the expected answer, given an **identical** realistic scenario, each returning a **concrete decision plus an artifact** (ordered steps, the structured return object, the next pipeline action) — not an opinion. Then compare.
+Run both arms from real bytes, not a paraphrase: `bun run test:skill-eval-pack -- --id <scenario> --arm ab` runs the pre arm at the scenario's `baseline_ref` and the post arm from the working tree, and `bun run test:skill-eval-cell -- --ref <ref>` runs a single arm at any ref. The arms are blind to which version they hold; keep them blind to the expected answer too, give both an **identical** realistic scenario, and have each return a **concrete decision plus an artifact** (ordered steps, the structured return object, the next pipeline action) — not an opinion. Then compare.
 
 - Both produce the same correct decision -> **no-regression only**. Real, but not improvement.
 - Old fails / new succeeds -> **improvement**. Design for this discriminating case explicitly; if you cannot find one, the honest conclusion is that the change is not an improvement at this tier.
@@ -53,7 +53,7 @@ Complement with **new-only restraint negatives**: a plain case with no triggerin
 
 ### 2. Read a non-discriminating result honestly
 
-At a capable tier, many prose rules buy determinism, weaker-model insurance, and variance reduction — not a behavior flip. When old and new both do the right thing (and the old-prose agent even justifies it on its own reasoning), record it as "already emergent at this tier; the rule locks in determinism and protects weaker models." Both kinds are worth shipping; only the discriminating kind is a behavior change you can demonstrate.
+The rule is "Read a tie honestly" in `portable-agent-skill-authoring.md` ("Evaluate proportionally"): a tie on a strong model is no regression, not improvement. Both kinds of change are worth shipping; only the discriminating kind is a behavior change you can demonstrate.
 
 ### 3. Standardize the field NAME, not just the information
 
@@ -61,26 +61,13 @@ When one skill's output is gated by another skill or a test, the value of the ed
 
 ### 4. Prove the parity test fails on one-sided drift
 
-Prose-presence tests guard each skill in isolation and stay green when the producer renames a field the consumer still gates on. A structural parity test **scopes** its assertions to the owning section of each file via string-slice anchors (an unscoped match passes on an incidental mention elsewhere) and **cross-checks a shared facts map** so both ends name the same facts. Then do the step almost always skipped: rename the field on the producer side only, run the parity test, confirm it goes red, restore. A parity test you have never seen fail on injected drift may be asserting a tautology.
-
-```ts
-const EVIDENCE_FACTS = {
-  existing_tests_inspected: "existing tests inspected",   // producer token -> consumer prose
-  tests_added_or_changed:   "tests added/changed",
-};
-const producerBlock = slice(ceWorkSrc, "## Return-to-Caller Mode", "Engine selection (");
-const consumerGate  = slice(lfgSrc, "2. Invoke the `ce-work`", "3. Invoke the `ce-simplify-code`");
-for (const [token, prose] of Object.entries(EVIDENCE_FACTS)) {
-  expect(producerBlock).toContain(token);
-  expect(consumerGate).toContain(prose);
-}
-```
+Prose-presence tests guard each skill in isolation and stay green when the producer renames a field the consumer still gates on. A structural parity test **scopes** its assertions to the owning section of each file via string-slice anchors (an unscoped match passes on an incidental mention elsewhere) and **cross-checks a shared facts map** so both ends name the same facts. Then do the step almost always skipped: rename the field on the producer side only, run the parity test, confirm it goes red, restore. A parity test you have never seen fail on injected drift may be asserting a tautology. The worked example is `EVIDENCE_FACTS` in `tests/pipeline-review-contract.test.ts`, which pairs each `ce-work` return token with the prose `lfg`'s gate uses for it.
 
 ### 5. Seal the injection — the excerpt must be the only source
 
 Four leaks produce a **falsely green** result because the agent found the answer somewhere other than the prose under test.
 
-**Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access; in one run, agents given an excerpt read the *installed* plugin's `SKILL.md` instead. Run with a read-only sandbox *and* state the constraint in the prompt, then **verify compliance** by grepping each transcript for paths outside the eval directory before grading. This bites harder in a plugin repo because the installed skill is usually a different checkout: measured once, installed `ce-doc-review` was 3,746 words against the worktree's 2,886. Inject the file; never invoke the installed skill.
+**Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access; in one run, agents given an excerpt read the *installed* plugin's `SKILL.md` instead. The eval cell now states the constraint in every prompt (`wrapPrompt` in `tests/skill-eval-cell/hosts.ts`) and `--read-only` enforces the sandbox; still **verify compliance** by grepping each transcript (and its `FILES_READ:` trailer) for paths outside the eval directory before grading. This bites harder in a plugin repo because the installed skill is usually a different checkout: measured once, installed `ce-doc-review` was 3,746 words against the worktree's 2,886. Inject the file; never invoke the installed skill.
 
 **Leak B — the fixture carries the answer key.** Stripping HTML comments is not enough: `ce-doc-review` fixtures also carried inline `(Seeded gated_auto: …)` markers in body prose. Grep the *stripped* fixture for the vocabulary you grade on. (Closed for this repo's fixtures 2026-08-13: answer keys live in sibling `tests/fixtures/ce-doc-review/<name>.expectations.md`; keep the grep for new fixtures, since nothing enforces the separation.)
 

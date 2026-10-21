@@ -15,20 +15,16 @@ tags: [cross-model, delegation, model-identity, verification, receipts, subagent
 
 # Requested-vs-Verified Model Identity: Treat "Which Model Ran" as a Claim That Needs a Receipt
 
-"Which model ran" is a claim about a remote system's behavior; our own request parameters (`--model`, the `M_CLAUDE` / `M_CODEX` / `M_GROK` pins in the cross-model review scripts) are not evidence of it. Requested identity and served identity are separate facts, and only the serving backend can attest to the second one. The receipt fields (`model_requested`, `model_actual`, `independence_verified`) and the promotion gate that depends on them live in `skills/ce-code-review/references/cross-model-review.md` and `skills/ce-pov/scripts/cross-model-pov.sh`; this doc keeps the measurements behind that design.
+The principle is the "Model identity receipt" entry in `CONCEPTS.md`: request parameters (`--model`, the `M_CLAUDE` / `M_CODEX` / `M_GROK` pins in the cross-model scripts) are not evidence of which model served, and agreement weighting follows the receipt, not the request. The receipt fields (`model_requested`, `model_actual`, `independence_verified`), the verified / mismatch / unverified labeling, and the promotion gate live in `skills/ce-code-review/references/cross-model-review.md` and `skills/ce-pov/scripts/cross-model-pov.sh`. This doc keeps the measurements behind that design.
 
-## The three outcomes
+One labeling lesson the reference states but not its cause: "unknown model" is the wrong rendering of a missing receipt. The requested model is always known, and showing a receipt-less run as unknown identity confused users (2026-09-21); `model_actual: unverified` means no receipt, not an unknown model.
 
-- **verified** -- the backend's own identity report matches the requested model (alias resolution to a dated full ID counts as a match).
-- **mismatch** -- the receipt disagrees with the request. Warn prominently, do not label the output with the requested model, void independence assumptions for this run.
-- **unverified** -- the backend exposes no authoritative identity report. The record keeps `model_actual: unverified`; user-facing prose names the peer by target and requested model, and adds a serving caveat only on a mismatch or when no model was requested (Cursor default/Auto). "Unknown model" is wrong: the requested model is always known, and rendering the missing receipt as unknown identity confused users (2026-09-21). This is honest labeling, not an error state.
-
-Any logic that weights cross-model agreement more than same-model agreement (promotion bonuses, consensus gates, "strongest corroboration" wording) must either require a verified receipt or downgrade its weight and wording to match. Agreement between two unverified runs is agreement between two processes, not necessarily two model families.
+Since the acpx transport (#1843) the receipt is the adapter's report in the prompt result's `_meta` (`quota.model_usage` / `modelId`, read by `acpx_served_models`). acpx documents `_meta` as adapter-defined, so the workers treat it as the adapter's assertion rather than a backend attestation; routes whose adapter reports nothing (Antigravity) record `unverified`.
 
 ## Why a self-report is not a receipt (measured 2026-07-14)
 
 - Asked to name its serving model, the codex CLI's model answered "GPT-5 (exact serving model name/version not exposed to me)" -- it cannot see its own serving identity even on a healthy run, so it cannot detect a substitution either.
-- The claude CLI's model named itself exactly, but its harness injects the model name into context, so the self-report is not independent evidence. The same route already provides a real receipt: `claude -p --model haiku --output-format json` returns an envelope whose `modelUsage` object is keyed by the full ID that actually served the run (requesting the alias `haiku` yielded `claude-haiku-4-5-20251001`).
+- The claude CLI's model named itself exactly, but its harness injects the model name into context, so the self-report is not independent evidence. Before acpx, the same route already provided a real receipt: `claude -p --model haiku --output-format json` returns an envelope whose `modelUsage` object is keyed by the full ID that actually served the run (requesting the alias `haiku` yielded `claude-haiku-4-5-20251001`).
 - Prompt-injecting identity ("you are X") does not make a model X. Identity comes only from an out-of-band serving-side report: a response-envelope field, usage metadata, or an API-level attestation -- never from the model's text output.
 
 ## Where requested-vs-served actually diverges (measured 2026-07-14)

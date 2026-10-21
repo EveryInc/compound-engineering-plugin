@@ -2,7 +2,7 @@
 title: "A shape assertion cannot prove a shell primitive exists — execute the documented block"
 date: 2026-07-30
 category: conventions
-module: "skills (scratch-root preamble in 12 skills) and tests/scratch-root-contract.test.ts"
+module: "skills (shared scratch-root preamble) and tests/scratch-root-contract.test.ts"
 problem_type: convention
 component: tooling
 severity: high
@@ -18,41 +18,16 @@ tags: [windows, git-bash, portability, shell, coreutils, testing, silent-failure
 
 ## Context
 
-Twelve skills opened their scratch space with the same guarded preamble:
-
-```bash
-SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
-[ ! -L "$SCRATCH_ROOT" ] && install -d -m 700 "$SCRATCH_ROOT" && [ ! -L "$SCRATCH_ROOT" ] \
-  && [ -O "$SCRATCH_ROOT" ] && chmod 700 "$SCRATCH_ROOT" || { echo "unsafe scratch root" >&2; exit 1; }
-```
-
-`tests/scratch-root-contract.test.ts` enforced it, asserting each block *contained*
-`install -d -m 700 "$SCRATCH_ROOT"`, an `-L` symlink guard, an `-O` ownership guard, and the
-closing `chmod`. Every skill matched. The suite was green.
-
-On native Windows Git Bash — a **supported** shell per `AGENTS.md` — that line fails:
-
-```
-$ install -d -m 700 /tmp/compound-engineering-197612
-install: cannot change permissions of '/tmp/compound-engineering-197612': Permission denied
-$ echo $?
-1
-```
-
-`install` is MSYS coreutils shelling out to a `chmod` that NTFS will not honor. The non-zero
-status trips the block's own `|| exit 1`, so **all twelve skills aborted scratch setup before
-doing any work**. Discovered while validating the `ce-babysit-pr` native-Windows port (#1280):
-the Python half was fixed and verified, and babysit still could not start, because the failure
-was one layer up in the shell preamble the fix never touched.
-
-The fix is the pattern the very next line of each block already used for its sub-directories:
-
-```bash
-[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") && ...
-```
-
-Identical end state on POSIX — created `0700`, then re-asserted by the existing `chmod` — and
-it works on Git Bash. The `-L` and `-O` guards are untouched.
+The shared scratch-root preamble created its root with `install -d -m 700`, and
+`tests/scratch-root-contract.test.ts` asserted the block *contained* that line, so the suite was
+green. On native Windows Git Bash `install` is MSYS coreutils shelling out to a `chmod` NTFS will
+not honor; it exits non-zero, trips the block's own `|| exit 1`, and every skill using the
+preamble aborted scratch setup before doing any work. It surfaced while validating the
+`ce-babysit-pr` native-Windows port (#1280): the Python half was fixed and verified, and babysit
+still could not start, because the failure was one layer up in a shell preamble the fix never
+touched. The fix is `(umask 077; mkdir -p "$SCRATCH_ROOT")`. Incident detail and the regression
+pins: the header of `tests/scratch-root-preamble-executes.test.ts` and the comment in
+`tests/scratch-root-contract.test.ts`.
 
 ## Guidance
 

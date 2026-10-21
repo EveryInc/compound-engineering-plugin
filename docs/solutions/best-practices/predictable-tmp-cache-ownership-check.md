@@ -1,7 +1,7 @@
 ---
 title: A predictable-path cache in shared /tmp is a prompt-injection vector — ownership-check reads
 date: 2026-06-29
-category: docs/solutions/best-practices/
+category: best-practices
 module: scratch-space
 problem_type: best_practice
 component: tooling

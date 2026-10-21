@@ -59,6 +59,8 @@ fsmonitor is a per-repository watcher meant for one long-lived checkout. A test 
 
 - Before blaming load for git-test timeouts, check `git config --global --get core.fsmonitor`; a `true` there explains a rotating set of timeouts in git-heavy files.
 - When running the suite inside a Cursor cloud agent, pass `GIT_CONFIG_GLOBAL` pointing at a minimal config as above, or run `git config --global --unset core.fsmonitor` for the session. CI runners do not carry the setting, so CI results were never affected.
+- Some fixtures now isolate global git config themselves: the ce-work workspace harness (`tests/skills/helpers/ce-work-workspace-harness.ts`, which also forces `core.fsmonitor=false`), the packs fixtures (`tests/skills/helpers/packs-fixtures.ts`), and `tests/skills/ce-code-review-cross-model-routes.test.ts`. The rest of the suite, including `cli.test.ts` and `codex-dev.test.ts`, still inherits the host config.
+- Tell this apart from the bun lost-exit defect ([bun-parallel-worker-loses-subprocess-exit.md](bun-parallel-worker-loses-subprocess-exit.md)), which shares the `killed 1 dangling process` line: fsmonitor gives a slow suite with rotating timeouts in git-heavy files that pass in isolation, while the bun defect fails at exactly the per-test timeout with empty child output, or leaves a zombie child under a wedged worker.
 
 ## Related Issues
 

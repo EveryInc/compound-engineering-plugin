@@ -18,8 +18,9 @@ tags: [antigravity, agy, new-target, plugin-format, empirical-verification, conv
 
 ## Context
 
-Adding a new converter Target (see [adding-converter-target-providers.md](../adding-converter-target-providers.md)
-for the structural 6-phase checklist) assumes you know the target's plugin format: its
+Adding a new converter Target (see "Adding a target provider" in
+[always-on-agents-md.md](../developer-experience/always-on-agents-md.md) for the structural checklist,
+and [adding-converter-target-providers.md](../adding-converter-target-providers.md) for past pitfalls) assumes you know the target's plugin format: its
 manifest schema, directory layout, MCP/hook config shape, and install command. The usual
 source for that is the platform's documentation.
 
@@ -105,13 +106,15 @@ by every later converter change.
 `url` to `serverUrl`, and `src/targets/antigravity.ts` emits the verified bundle layout. The
 spec drove these mappings; the docs could not have.
 
-**Packaging consequence — committed `.agy/` bundle with a symlink:** because `agy plugin install`
-resolves component dirs relative to the `plugin.json` location, this plugin ships a committed
-`.agy/` directory holding `plugin.json` plus a `skills -> ../skills` symlink (verified:
-`agy plugin validate ./.agy` processes all skills through the symlink). This keeps the repo root
-uncluttered while reusing the canonical root `skills/` rather than duplicating it — and lets users
-`git clone … && agy plugin install ./compound-engineering-plugin/.agy`. (See also the per-platform
-choices in [native-plugin-install-strategy.md](../integrations/native-plugin-install-strategy.md).)
+**Packaging consequence — root manifest plus a symlinked `.agy/` bundle:** `agy plugin install`
+resolves component dirs relative to the `plugin.json` location. The repo root carries `plugin.json`
+and `skills/`, so a remote Git install works without a clone step. The committed `.agy/` directory
+holds only symlinks (`plugin.json -> ../plugin.json`, `skills -> ../skills`) for explicit local
+`agy plugin install ./compound-engineering-plugin/.agy` installs, reusing the canonical root
+`skills/` rather than duplicating it (verified: `agy plugin validate ./.agy` processes all skills
+through the symlink). The current install layout is in
+[docs/specs/antigravity.md](../../specs/antigravity.md) under "Install model". (See also the
+per-platform choices in [native-plugin-install-strategy.md](../integrations/native-plugin-install-strategy.md).)
 
 Related: GitHub issue #911 (Transition to Antigravity CLI); plan
 `docs/plans/2026-06-22-001-feat-antigravity-target-remove-gemini-plan.md`.

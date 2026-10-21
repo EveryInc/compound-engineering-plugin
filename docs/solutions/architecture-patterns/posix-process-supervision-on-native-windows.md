@@ -249,4 +249,4 @@ the existing CI.
 
 - Interpreter resolution is a separate Windows trap in the same family: bare `python3`
   resolves to a Microsoft Store stub that satisfies `command -v` but exits without running
-  Python. Tracked in issue #1247.
+  Python. See [Resolve the Python interpreter by probing execution](../conventions/resolve-python-interpreter-not-python3.md).

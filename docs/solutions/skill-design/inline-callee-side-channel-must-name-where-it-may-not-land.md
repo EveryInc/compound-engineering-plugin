@@ -42,19 +42,17 @@ Fix the callee, not the consumers. When an inline-invoked skill's contract carri
 1. When the channel is produced. Default to only when the caller asks.
 2. Where it may land. Outside the primary output and out of any artifact. A requester who asked for it receives it, separately from the text.
 
-The fix in `skills/ce-noslop/SKILL.md` (shipped in the same change as this learning, 2026-09-13) applies this to the edit bullet under `## Mode`. At the current tree, `skills/ce-noslop/SKILL.md:20` reads: "Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks for it, and keep that line outside the rewritten text and out of any artifact." The non-English notice at `skills/ce-noslop/SKILL.md:23` rides the same channel: it appears in detect findings, and in edit only inside a change line that was asked for. `docs/guides/ce-noslop.md` was updated to match.
+The fix in `skills/ce-noslop/SKILL.md` (shipped in the same change as this learning, 2026-09-13) applies this to the edit bullet under `## Mode`. The edit bullet now reads: "Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks for it, and keep that line outside the rewritten text and out of any artifact." The non-English notice in the same section rides the same channel: it appears in detect findings, and in edit only inside a change line that was asked for. `docs/guides/ce-noslop.md` was updated to match.
 
-Detect mode is unchanged on purpose. `skills/ce-noslop/SKILL.md:21` still says to name each pattern found, quote the line, and give the fix. Naming patterns is the output of detect, not a side channel.
+Detect mode is unchanged on purpose. Its bullet under `## Mode` still says to name each pattern found, quote the line, and give the fix. Naming patterns is the output of detect, not a side channel.
 
 Catalog cells in `tests/skill-eval-cell/catalog.ts` that explicitly ask for "the one-line summary" remain valid. The caller asked, so the condition is met.
 
 ## Why This Matters
 
-The contract looked correct if you imagined a process boundary. There is none. Any return-value framing in a skill ("return X plus Y") is really an instruction about what the agent writes next, and the agent's next write is often the user's message. A side channel that is safe across a subagent boundary becomes a leak when the skill runs inline.
+The general rule (no subagent boundary, so a "returned" side channel is what the caller writes next; fix it once at the callee) is stated in `portable-agent-skill-authoring.md`, "Build the skill around an outcome spine".
 
 The leak is doubly bad here because `ce-noslop` exists to remove exactly this class of sentence. The skill was producing the pattern it is supposed to cut.
-
-Fixing at the callee is the only fix that scales. Consumers do not know the callee's internal contract, and a new consumer added later would inherit the defect.
 
 ## When to Apply
 
@@ -75,7 +73,7 @@ Before, the `ce-noslop` edit bullet:
 
 > Rewrite only the sentences a test fails on, and return the text plus one line saying what changed. A sentence that passes stays as written, so a second pass on the returned text changes nothing.
 
-After (`skills/ce-noslop/SKILL.md:20`):
+After (`skills/ce-noslop/SKILL.md`, edit bullet under `## Mode`):
 
 > Rewrite only the sentences a test fails on, and return the text. A sentence that passes stays as written, so a second pass on the returned text changes nothing. Say what changed in one line only when the caller asks for it, and keep that line outside the rewritten text and out of any artifact.
 
