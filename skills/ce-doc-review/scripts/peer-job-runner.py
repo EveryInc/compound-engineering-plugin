@@ -2120,6 +2120,16 @@ def cmd_status(args) -> int:
     return 0
 
 
+def _finite_secs(raw: str) -> float:
+    try:
+        value = float(raw)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number of seconds: {raw!r}")
+    if not math.isfinite(value) or value < 0:
+        raise argparse.ArgumentTypeError(f"must be a finite, nonnegative number of seconds: {raw!r}")
+    return value
+
+
 def _job_meta(job_dir: str) -> dict:
     try:
         meta = json.loads(read_owned(os.path.join(job_dir, "meta.json"), META_READ_CAP))
@@ -2199,8 +2209,9 @@ def cmd_wait(args) -> int:
         starts = [s for s in (_started_epoch(d, metas[ref]) for ref, d in dirs) if s is not None]
         # No start time anywhere means no way to measure the window: let it pass
         # now rather than restart it on every call.
-        last_start = max(starts) if starts else time.time() - args.deadline_secs
-        deadline_at = last_start + max(0.0, args.deadline_secs)
+        window = args.deadline_secs + args.deadline_grace_secs
+        last_start = max(starts) if starts else time.time() - window
+        deadline_at = last_start + window
         until_deadline = deadline_at - time.time()
         if until_deadline > 0:
             deadline = min(deadline, time.monotonic() + until_deadline)
@@ -2505,12 +2516,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_wait.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_wait.add_argument("--max-secs", type=float, default=30.0, dest="max_secs")
     p_wait.add_argument(
-        "--deadline-secs", type=float, default=None, dest="deadline_secs",
+        "--deadline-secs", type=_finite_secs, default=None, dest="deadline_secs",
         help=(
             "aggregate deadline, counted from the last job's start; prints each "
             "job's label, state and elapsed time, then one line: 'all settled', "
             "'waiting: ...', or 'deadline passed: reap ...'"
         ),
+    )
+    p_wait.add_argument(
+        "--deadline-grace-secs", type=_finite_secs, default=0.0, dest="deadline_grace_secs",
+        help="added to --deadline-secs, so a caller can pass a worker cap unchanged",
     )
     p_wait.add_argument("--json", action="store_true")
     p_wait.add_argument("jobs", nargs="+", help="job ids or job dir paths")

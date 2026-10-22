@@ -341,6 +341,22 @@ describe("peer-job-runner lifecycle", () => {
     expect(unsettled.at(-1)).toBe("all settled")
   }, 25000)
 
+  test("deadline wait: grace extends the window; non-finite or malformed seconds are usage errors", () => {
+    const root = makeRoot()
+    const slow = startJob(root, FAST, [writeStub(`sleep 60\nexit 0\n`)])
+    trackJob(slow.dir)
+    const graced = runner(root, FAST, [
+      "wait", "--max-secs", "0", "--deadline-secs", "0", "--deadline-grace-secs", "600", slow.id,
+    ])
+    expect(graced.stdout.trim().split("\n").at(-1)).toMatch(/^waiting: 1 of 1 still running; \d+s left before the deadline$/)
+    for (const bad of ["inf", "nan", "-1", "x[$(touch pwn)]"]) {
+      const res = runner(root, FAST, ["wait", "--max-secs", "0", "--deadline-secs", bad, slow.id])
+      expect(res.code).toBe(2)
+      expect(res.stderr).toContain("--deadline-secs")
+    }
+    expect(runner(root, FAST, ["reap", slow.id]).code).toBe(0)
+  }, 20000)
+
   test("idle reap: silent worker classified timeout, whole tree gone", () => {
     const root = makeRoot()
     const env = { ...FAST, CE_PEER_IDLE_SECS: "1", CE_PEER_HARD_SECS: "60" }

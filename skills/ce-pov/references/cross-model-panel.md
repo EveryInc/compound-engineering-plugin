@@ -369,7 +369,7 @@ Record every job id. Then wait for all of them with the runner prefix and this
 command, which polls for up to 30 seconds per call:
 
 ```bash
-"$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --deadline-secs "$(( ${CROSS_MODEL_HARD_SECS:-600} + 10 ))" <job-ids...>
+"$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --deadline-secs "${CROSS_MODEL_HARD_SECS:-600}" --deadline-grace-secs 10 <job-ids...>
 ```
 
 Each call prints one row per job (label, job id, state, seconds since start,
@@ -392,9 +392,11 @@ says what to do next:
 Job ids or job-directory paths are positional. `--skill`, `--run-id`, and
 `--label` are start-only; never pass them to `wait` or `reap`. The deadline is
 the worker's own cap plus 10 seconds (610s by default). It is counted from the
-last job's start. The command reads the cap from `CROSS_MODEL_HARD_SECS` in
-the host's environment, which the workers inherit, so a user who exported a
-larger value keeps their wider window. Never add `CROSS_MODEL_HARD_SECS` to the
+last job's start. The command passes the cap from `CROSS_MODEL_HARD_SECS` in
+the host's environment to the runner, which adds the 10 seconds itself and
+rejects a value that is not a plain number of seconds. The workers inherit the
+same environment, so a user who exported a larger value keeps their wider
+window. Never add `CROSS_MODEL_HARD_SECS` to the
 start command's `env` prefix: the worker would see a cap this wait does not.
 Never set a smaller `CROSS_MODEL_HARD_SECS` to finish sooner: some peers routinely need about four minutes, and a shorter cap drops
 them after they have spent their run. Let each wait call run its full slice:

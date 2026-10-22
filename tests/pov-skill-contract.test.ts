@@ -326,7 +326,7 @@ describe("ce-pov cross-model panel contract", () => {
 
     // The runner owns the deadline and names the next step, so agents never hand-roll the poll loop.
     expect(panel).toContain(
-      'wait --max-secs 30 --deadline-secs "$(( ${CROSS_MODEL_HARD_SECS:-600} + 10 ))" <job-ids...>',
+      'wait --max-secs 30 --deadline-secs "${CROSS_MODEL_HARD_SECS:-600}" --deadline-grace-secs 10 <job-ids...>',
     )
     for (const line of ["`all settled`", "`waiting: ...`", "`deadline passed: reap <job-ids>, then wait once more; ...`"]) {
       expect(panel).toContain(line)

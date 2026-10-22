@@ -156,6 +156,7 @@ describe("cross-model peer budget", () => {
   test("ce-pov states its aggregate-deadline default", () => {
     const { hard } = caps(SCRIPTS["ce-pov"])
     expect(read(POV_REF)).toContain(`${hard + DEADLINE_GRACE}s by default`)
+    expect(read(POV_REF)).toContain(`--deadline-secs "\${CROSS_MODEL_HARD_SECS:-${hard}}" --deadline-grace-secs ${DEADLINE_GRACE}`)
   })
 
   test("ce-pov does not ask the orchestrator to raise CE_PEER_HARD_SECS", () => {
