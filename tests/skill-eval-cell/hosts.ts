@@ -213,7 +213,7 @@ export function wrapPrompt(opts: {
       (c) =>
         `When it tells you to invoke the \`${c.name}\` skill, invoke it by reading ${path.join(c.dir, "SKILL.md")} and following it, resolving its references from that directory. Do not use an installed plugin copy of \`${c.name}\`.`,
     ),
-    `The project workspace is ${opts.workspace}. Stay inside it.`,
+    `The project workspace is ${opts.workspace}. Stay inside it, except for private scratch files the skill tells you to create under the system temp directory.`,
     ``,
     `Task:`,
     opts.task,
