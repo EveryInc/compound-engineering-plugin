@@ -324,8 +324,13 @@ describe("ce-pov cross-model panel contract", () => {
     const panel = await skillFile("references/cross-model-panel.md")
     const prose = compact(panel)
 
-    expect(panel).toContain("wait --max-secs 30 --json <job-ids...>")
-    expect(panel).toContain("wait --max-secs 10 --json <job-ids...>")
+    // The runner owns the deadline and names the next step, so agents never hand-roll the poll loop.
+    expect(panel).toContain(
+      'wait --max-secs 30 --deadline-secs "$(( ${CROSS_MODEL_HARD_SECS:-600} + 10 ))" <job-ids...>',
+    )
+    for (const line of ["`all settled`", "`waiting: ...`", "`deadline passed: reap <job-ids>, then wait once more; ...`"]) {
+      expect(panel).toContain(line)
+    }
     expect(prose).toMatch(/`--skill`, `--run-id`, and `--label` are start-only/)
     expect(prose).toMatch(/Do not add a separate shell sleep.*`wait` itself provides the bounded polling delay/)
   })

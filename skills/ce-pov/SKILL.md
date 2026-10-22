@@ -15,7 +15,7 @@ Produce a decisive, project-grounded point of view in the subject's own shape: a
 
 ## Consumer and interaction
 
-Deliver a supported position in the form the intended consumer can use. Lead with the decision and preserve the evidence, material tradeoffs, uncertainty, and conditions that determine it. Make identifiers understandable without requiring the reader to reopen the subject. A person's request may need a brief answer or a shareable document; another workflow may need a decision embedded in its own work.
+Deliver a supported position in the form the intended consumer can use. Lead with the decision and preserve the evidence, material tradeoffs, uncertainty, and conditions that determine it. Make identifiers understandable without requiring the reader to reopen the subject. In progress updates, say in plain words what you are checking and which model or helper is checking it. Never name this skill's machinery there (payloads, scouts, dossiers, tiers, round numbers, scratch files).
 
 When contributing to an ongoing workflow, return the result and leave continuation to its owner, the calling workflow. Do not add follow-up or panel offers to that return. An explicit oracle or named-peer request still runs the panel, including when it comes from a calling workflow.
 

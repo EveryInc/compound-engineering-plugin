@@ -11,7 +11,7 @@ Read this before reasoning about the POV (SKILL.md Phase 2, Verify Grounding). I
 
 ## Two cross-cutting properties (not phases)
 
-- **Skeptic stance.** At every step, seek disconfirming evidence and name the real alternatives — including "keep the incumbent" and "do nothing." "No", "Reject", and "Not-our-problem" are first-class outcomes, not failures to complete. Do not let the framing (or, in warm mode, where the question grew out of the ongoing conversation, that conversation's momentum) pull the grade upward.
+- **Skeptic stance.** At every step, seek disconfirming evidence and name the real alternatives — including "keep the incumbent" and "do nothing." "No", "Reject", and "Not-our-problem" are first-class outcomes, not failures to complete. Do not let the framing (or, in warm mode, where the question grew out of the ongoing conversation, that conversation's momentum) pull the grade upward. When the POV goes against something the user backed with evidence, answer that evidence directly rather than leaving it out.
 - **Reversibility-tiered effort.** Scale evidence gathering and verification with the cost of being wrong. The tier assigned at intake sets how deep research goes; presentation follows the consumer's needs. Preserve material alternatives and the conditions that would change a consequential judgment.
 
 ## The grounding gate
@@ -19,6 +19,8 @@ Read this before reasoning about the POV (SKILL.md Phase 2, Verify Grounding). I
 The project floor (the minimum verified project evidence a POV needs) always applies. The external floor (at least one verified outside source) applies in full to an external-adoption question. For a document or approach set, it applies only to external claims that materially support the POV's bottom line; when the bottom line depends on no external claim, no external source is required. A conversation claim (warm mode) never satisfies either floor until a scout or a bounded inline read of the authoritative source corroborated it — it sits in the *conversation hypotheses* bucket, never the *verified facts* bucket.
 
 A call to another function establishes that the call occurs, not how that function behaves. Verify guarantees against the implementation or tests that establish them. When those sources are unavailable, keep the guarantee unknown in the explanation or recommendation. Label inferred purpose where you state it; a later caveat does not make an unsupported claim safe to use.
+
+A recommended change is also a claim about the project. Before recommending one, find what already does that job (a skill, script, setting, or recorded decision) and name it, or say that nothing does. This applies to every recommendation, including ones added after the main verdict.
 
 ### External-adoption questions: the two-floor Invalid-Verdict gate
 
@@ -44,6 +46,8 @@ Every verdict preserves the grade vocabulary so decisions remain comparable and 
 - **Hold** — a complete, valid decision to *wait* (promising but unstable, migration cost exceeds current pain, category moving too fast). "Hold — insufficient project grounding" and "Hold — external evidence unavailable" are the two gate-failure subtypes.
 - **Reject** — judged not worth it for us.
 - **Not-our-problem** — for an exposure question (CVE / deprecation) that does not reach us — avoids forcing an adopt/reject.
+
+When a test that takes a few minutes and changes no project files would settle a **Trial**, or a **Hold** that is not a gate failure, name that test as the next step, specifically enough to run. For a Trial, that test is the scoped spike.
 
 Preserve the grade and its meaning, incumbent or integration point, verified project and external evidence, material conditions, and what would change a consequential verdict. Keep unverified conversation claims distinguishable from evidence. These are content requirements, not mandatory headings or a fixed layout. A recommended next action is useful only when the result calls for one; it is not permission to execute it.
 
