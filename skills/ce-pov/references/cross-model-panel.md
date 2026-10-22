@@ -377,7 +377,9 @@ and the reason for any job that ended without a result), then one line that
 says what to do next:
 
 - `all settled` — no job is still running. Collect results from the rows that
-  say `done`; every other row is a peer that did not answer, with its reason.
+  say `done`. Every other row is a peer that did not answer; its reason is only
+  the runner's view, so take the cause you report from that job's log, as
+  described below.
 - `waiting: ...` — run the same command again. Do not add a separate shell
   sleep; `wait` itself provides the bounded polling delay.
 - `deadline passed: reap <job-ids>, then wait once more; ...` — reap every
