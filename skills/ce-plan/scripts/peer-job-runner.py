@@ -13,9 +13,11 @@ lives on disk:
           older than 24 hours (best-effort, owner-checked).
   status  print each job's state word without blocking.
   wait    bounded poll (~1s cadence, never longer than --max-secs) that
-          returns early once every watched job has settled.
+          returns early once every watched job has settled. With
+          --deadline-secs it also ends at the aggregate deadline and closes
+          with one line naming what to do next.
   result  ownership-checked bounded read of a done job's published artifact.
-  reap    ask the detached supervisor to terminate the job now; returns fast.
+  reap    ask each job's detached supervisor to terminate it now; returns fast.
           If the supervisor itself is gone, reap kills the worker tree and
           writes the terminal record itself. Reaping a terminal job is a
           safe no-op.
@@ -123,8 +125,10 @@ POSIX path is behaviorally unchanged:
 Pure stdlib. No third-party dependencies.
 """
 import argparse
+import calendar
 import glob
 import json
+import math
 import os
 import re
 import shutil
@@ -172,6 +176,8 @@ CLAIM_ATTEMPTS = 16
 STATUS_READ_CAP = 256
 REASON_READ_CAP = 1024
 META_READ_CAP = 64 * 1024
+STARTED_AT_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+REAP_SETTLE_SECS = 15
 
 EXIT_CODES_DOC = """\
 exit codes:
@@ -179,7 +185,8 @@ exit codes:
      it says nothing about job outcomes — parse stdout (or --json) for states.
      For `result` it means a done job's artifact (or a --path file) was emitted;
      for reap it includes the safe no-op on an already-terminal job.
-  1  runtime error (preflight failure, unknown job, detach failure)
+  1  runtime error (preflight failure, unknown job, detach failure); for a
+     multi-job reap, also the code when its jobs failed in different ways
   2  usage error; for `result`: the job is still running
   3  for `result`: job settled but not done (failed / timeout /
      died-without-result / never-started), or the result file is missing
@@ -2054,7 +2061,7 @@ def cmd_start(args, worker_argv) -> int:
         "run_id": args.run_id,
         "label": args.label,
         "input_digest": args.input_digest,
-        "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "started_at": time.strftime(STARTED_AT_FORMAT, time.gmtime()),
         "worker_argv": argv,
         "result_path": result_path,
         "sweep_enabled": not args.no_sweep,
@@ -2113,9 +2120,94 @@ def cmd_status(args) -> int:
     return 0
 
 
+def _job_meta(job_dir: str) -> dict:
+    try:
+        meta = json.loads(read_owned(os.path.join(job_dir, "meta.json"), META_READ_CAP))
+    except (Unreadable, OSError, ValueError):
+        return {}
+    return meta if isinstance(meta, dict) else {}
+
+
+def _started_epoch(job_dir: str, meta: dict):
+    try:
+        return calendar.timegm(time.strptime(meta["started_at"], STARTED_AT_FORMAT))
+    except (KeyError, TypeError, ValueError):
+        pass
+    try:
+        return os.lstat(os.path.join(job_dir, "meta.json")).st_mtime
+    except OSError:
+        return None
+
+
+def _summary_reason(job_dir: str, state: str) -> str:
+    if state == "unreadable":
+        # Never read `reason` from a directory that failed its ownership check.
+        return "state unreadable (ownership or corruption); no result"
+    if state == "never-started":
+        return job_reason(job_dir) or "never started; no result"
+    if state in TERMINAL_STATES and state != "done":
+        return job_reason(job_dir)
+    return ""
+
+
+def _emit_deadline_summary(rows, metas, deadline_at, as_json: bool) -> None:
+    now = time.time()
+    jobs = []
+    for ref, d, state in rows:
+        meta = metas[ref]
+        started = _started_epoch(d, meta)
+        jobs.append({
+            "ref": ref,
+            "job_dir": d,
+            "label": meta.get("label") or "-",
+            "state": state,
+            "elapsed_secs": int(now - started) if started is not None else None,
+            "reason": _summary_reason(d, state),
+        })
+    running = [j["ref"] for j in jobs if j["state"] == "running"]
+    secs_left = max(0, math.ceil(deadline_at - now))
+    deadline_passed = bool(running) and now >= deadline_at
+    if as_json:
+        print(json.dumps({
+            "jobs": jobs,
+            "all_settled": not running,
+            "deadline_passed": deadline_passed,
+            "secs_left": secs_left,
+        }))
+        return
+    for j in jobs:
+        elapsed = "?" if j["elapsed_secs"] is None else f"{j['elapsed_secs']}s"
+        print(f"{j['label']}\t{j['ref']}\t{j['state']}\t{elapsed}" + (f"\t{j['reason']}" if j["reason"] else ""))
+    if not running:
+        print("all settled")
+    elif deadline_passed:
+        print(
+            f"deadline passed: reap {' '.join(running)}, then wait once more; "
+            "a job still running after that counts as timed out"
+        )
+    else:
+        print(f"waiting: {len(running)} of {len(jobs)} still running; {secs_left}s left before the deadline")
+
+
 def cmd_wait(args) -> int:
     dirs = [(ref, resolve_job_dir(ref, args.skill)) for ref in args.jobs]
     deadline = time.monotonic() + max(0.0, args.max_secs)
+    metas = {}
+    deadline_at = None
+    if args.deadline_secs is not None:
+        metas = {ref: _job_meta(d) for ref, d in dirs}
+        starts = [s for s in (_started_epoch(d, metas[ref]) for ref, d in dirs) if s is not None]
+        # No start time anywhere means no way to measure the window: let it pass
+        # now rather than restart it on every call.
+        last_start = max(starts) if starts else time.time() - args.deadline_secs
+        deadline_at = last_start + max(0.0, args.deadline_secs)
+        until_deadline = deadline_at - time.time()
+        if until_deadline > 0:
+            deadline = min(deadline, time.monotonic() + until_deadline)
+        else:
+            # Past the deadline, poll briefly so jobs just reaped can record
+            # their terminal state before the summary prints.
+            deadline = min(deadline, time.monotonic() + REAP_SETTLE_SECS)
     rows = [(ref, d, "running") for ref, d in dirs]
     while True:
         # Settled states are final; only still-running jobs get re-read.
@@ -2129,7 +2221,10 @@ def cmd_wait(args) -> int:
         if remaining <= 0:
             break
         time.sleep(min(1.0, remaining))
-    _emit_states(rows, args.json)
+    if args.deadline_secs is not None:
+        _emit_deadline_summary(rows, metas, deadline_at, args.json)
+    else:
+        _emit_states(rows, args.json)
     return 0
 
 
@@ -2243,7 +2338,23 @@ def cmd_result(args) -> int:
 
 
 def cmd_reap(args) -> int:
-    job_dir = resolve_job_dir(args.job, args.skill)
+    codes = set()
+    for ref in args.jobs:
+        try:
+            rc = _reap_one(ref, args.skill)
+        except RunnerError as exc:
+            sys.stderr.write(f"peer-job-runner: {exc}\n")
+            rc = 1
+        if rc:
+            sys.stderr.write(f"peer-job-runner: reap {ref}: exit {rc}\n")
+            codes.add(rc)
+    # Exit codes are categories, so a mixed set reports the generic failure and
+    # leaves the per-job detail on stderr.
+    return codes.pop() if len(codes) == 1 else (1 if codes else 0)
+
+
+def _reap_one(ref: str, skill) -> int:
+    job_dir = resolve_job_dir(ref, skill)
     state = job_state(job_dir)
     if state in TERMINAL_STATES or state == "never-started":
         return 0
@@ -2325,12 +2436,7 @@ def cmd_reap(args) -> int:
     # declared result_path and classify from the artifact, mirroring
     # classify_exit. Only with no usable result do we fall back to timeout (leader
     # was alive) / died-without-result (leader gone).
-    result_path = None
-    try:
-        meta = json.loads(read_owned(os.path.join(job_dir, "meta.json"), META_READ_CAP))
-        result_path = meta.get("result_path") if isinstance(meta, dict) else None
-    except (Unreadable, OSError, ValueError):
-        result_path = None
+    result_path = _job_meta(job_dir).get("result_path")
     result_size = None
     if result_path:
         try:
@@ -2398,6 +2504,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_wait.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_wait.add_argument("--max-secs", type=float, default=30.0, dest="max_secs")
+    p_wait.add_argument(
+        "--deadline-secs", type=float, default=None, dest="deadline_secs",
+        help=(
+            "aggregate deadline, counted from the last job's start; prints each "
+            "job's label, state and elapsed time, then one line: 'all settled', "
+            "'waiting: ...', or 'deadline passed: reap ...'"
+        ),
+    )
     p_wait.add_argument("--json", action="store_true")
     p_wait.add_argument("jobs", nargs="+", help="job ids or job dir paths")
 
@@ -2418,10 +2532,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p_reap = sub.add_parser(
-        "reap", help="terminate a running job now; no-op if already terminal"
+        "reap", help="terminate running jobs now; no-op for any already terminal"
     )
     p_reap.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
-    p_reap.add_argument("job")
+    p_reap.add_argument("jobs", nargs="+", help="job ids or job dir paths")
     return parser
 
 

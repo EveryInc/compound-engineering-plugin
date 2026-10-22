@@ -297,6 +297,50 @@ describe("peer-job-runner lifecycle", () => {
     ).toContain(waitState(root, FAST, b.id, 10).stdout.trim())
   }, 25000)
 
+  test("deadline wait: labels each job and names the next step; reap takes several ids", () => {
+    const root = makeRoot()
+    const quick = startJob(root, FAST, [writeStub(`exit 0\n`)], { extra: ["--label", "codex"] })
+    const slow = startJob(root, FAST, [writeStub(`sleep 60\nexit 0\n`)], { extra: ["--label", "grok"] })
+    trackJob(quick.dir)
+    trackJob(slow.dir)
+
+    const waiting = runner(root, FAST, [
+      "wait", "--max-secs", "1", "--deadline-secs", "600", quick.id, slow.id,
+    ])
+    const lines = waiting.stdout.trim().split("\n")
+    expect(lines[0]).toMatch(new RegExp(`^codex\\t${quick.id}\\tdone\\t\\d+s$`))
+    expect(lines[1]).toMatch(new RegExp(`^grok\\t${slow.id}\\trunning\\t\\d+s$`))
+    expect(lines[2]).toMatch(/^waiting: 1 of 2 still running; \d+s left before the deadline$/)
+
+    const passed = runner(root, FAST, [
+      "wait", "--max-secs", "30", "--deadline-secs", "4", quick.id, slow.id,
+    ])
+    expect(passed.ms).toBeLessThan(8000)
+    expect(passed.stdout.trim().split("\n").at(-1)).toBe(
+      `deadline passed: reap ${slow.id}, then wait once more; a job still running after that counts as timed out`,
+    )
+
+    expect(runner(root, FAST, ["reap", quick.id, slow.id]).code).toBe(0)
+    const settled = runner(root, FAST, [
+      "wait", "--json", "--max-secs", "10", "--deadline-secs", "600", quick.id, slow.id,
+    ])
+    const doc = JSON.parse(settled.stdout)
+    expect(doc.all_settled).toBe(true)
+    expect(doc.deadline_passed).toBe(false)
+    expect(doc.jobs.map((j: { label: string }) => j.label)).toEqual(["codex", "grok"])
+    expect(doc.jobs[1].reason).toMatch(/reaped (on|by) request/)
+
+    runner(root, FAST, ["start", "--skill", "ce-doc-review", "--run-id", "run1", "--", "/nonexistent/worker-xyz"])
+    const neverStarted = readdirSync(path.join(root, "ce-doc-review", "run1", "jobs"))
+      .map((id) => path.join(root, "ce-doc-review", "run1", "jobs", id))
+      .find((dir) => !existsSync(path.join(dir, "pid")))!
+    const unsettled = runner(root, FAST, [
+      "wait", "--max-secs", "1", "--deadline-secs", "600", neverStarted,
+    ]).stdout.trim().split("\n")
+    expect(unsettled[0]).toMatch(/\tnever-started\t\S+\t\S/)
+    expect(unsettled.at(-1)).toBe("all settled")
+  }, 25000)
+
   test("idle reap: silent worker classified timeout, whole tree gone", () => {
     const root = makeRoot()
     const env = { ...FAST, CE_PEER_IDLE_SECS: "1", CE_PEER_HARD_SECS: "60" }
