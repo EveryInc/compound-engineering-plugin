@@ -4439,6 +4439,9 @@ print(json.dumps(signals))
   // _WatchSuperseded it raises there orphans the child, which then holds this
   // test's stdout pipe open for the full spawnSync timeout. Fire the takeover
   // from inside communicate() instead, so it can only land in the reaping region.
+  // The fetch keeps a timeout so Popen.wait polls: an untimed wait is one blocking
+  // waitpid, and a signal landing just before it enters the syscall stalls for the
+  // whole sleep.
   test("watch: takeover interrupts and reaps an active fetch subprocess", () => {
     const python = `
 import os, signal, subprocess, sys, threading, time
@@ -4454,7 +4457,7 @@ def communicate_and_announce(self, *args, **kwargs):
     return real_communicate(self, *args, **kwargs)
 subprocess.Popen.communicate = communicate_and_announce
 def fake_snapshot(args, now, advance_trajectory=True, watch_generation=None):
-    subprocess.run(["sleep", "30"], check=True)
+    subprocess.run(["sleep", "30"], check=True, timeout=60)
     return {"counts": {}, "pr_state": "OPEN", "session_seconds": 0}
 def stop_when_fetch_waits():
     if not fetch_waiting.wait(5):

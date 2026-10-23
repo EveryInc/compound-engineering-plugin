@@ -1,7 +1,7 @@
 ---
 title: "A bun test worker that loses one subprocess exit turns the rest of its file into exact-timeout failures"
 date: 2026-09-11
-last_updated: 2026-09-29
+last_updated: 2026-10-23
 category: developer-experience
 module: test-suite
 problem_type: test_failure
@@ -36,7 +36,7 @@ From 2026-09-09 the CI `test` job (`bun run test`, which was `bun test --paralle
 - Hung tests fail at exactly the per-test timeout. Tests before the first hang pass at normal speed (300-600ms). Later tests in the same file often still pass: the lost child-exit is per spawn, not a permanently dead worker (PR 1680 CI: `ce-work-unit-workspace-fallback.test.ts` passed two tests between 30s timeouts; `ce-code-review-cross-model-routes.test.ts` timed out once and then passed the next test in 209ms).
 - The hung call is the harness `spawnSync` of `python3 skills/ce-work/scripts/unit-workspace.py`. It returns `status: null` with empty `stdout` and `stderr`. Later in the same file a bare `git add` from the harness fails the same way, so the hang is not in the controller script.
 - bun prints `killed 1 dangling process` when the first timeout fires: it killed the child it had stopped waiting for.
-- Occasionally a second file in the same run also times out (`tests/ce-babysit-pr-snapshot.test.ts` "watch: takeover interrupts and reaps an active fetch subprocess" at 5s).
+- A recurring 5s timeout in `tests/ce-babysit-pr-snapshot.test.ts` "watch: takeover interrupts and reaps an active fetch subprocess" was first listed here. It was a different cause: a signal racing an untimed `waitpid` in the test itself (`signal-during-untimed-subprocess-wait-stalls-test.md`).
 - Suite wall time on red runs was 195s to 1451s against 120-150s on green runs; the extra time is the stack of timeouts.
 
 ## What Didn't Work
@@ -61,7 +61,7 @@ Two consequences shape the fix. The wedge lives in the worker's event loop state
 ## Prevention
 
 - When a subprocess-heavy file shows one or more failures at exactly the timeout with empty child output, read it as a lost child-exit notification, not as a slow child. Later tests in the same file may still pass.
-- The workspace harness uses a 20s `spawnSync` timeout. If that fires first, `ctl()` used to return `word: ""` and the test failed as an assertion, which blocked the TimeoutError-only re-run. CI has also returned that empty-stdio shape with no signal, and the babysit takeover spawn as `status: 120`. Those paths now throw `TimeoutError` via `tests/helpers/lost-child-exit.ts`.
+- The workspace harness uses a 20s `spawnSync` timeout. If that fires first, `ctl()` used to return `word: ""` and the test failed as an assertion, which blocked the TimeoutError-only re-run. CI has also returned that empty-stdio shape with no signal, and the babysit takeover spawn as `status: 120` (that takeover case was later traced to the test race in `signal-during-untimed-subprocess-wait-stalls-test.md`, not a lost exit). Those paths now throw `TimeoutError` via `tests/helpers/lost-child-exit.ts`.
 - Keep every failure in an affected file a `TimeoutError`. On 2026-09-18 (`main`) and 2026-09-20 (PR 1748) the red runs carried 19 `TimeoutError`s plus about ten `ENOENT: ... lstat '/tmp/ce-work-repo-template-*/repo'`: the workspace harness's cached repo template had gone missing mid-file, every later `makeRepo` threw `ENOENT`, and that one non-timeout error kind blocked the re-run. `seedTemplate` now reseeds when the cached directory is gone. What removes the directory is not established.
 - Do not raise timeouts or add `retry` for this signature; both re-run inside the same wedged worker.
 - Keep the re-run inside the package `test` script so CI and local runs stay the same command, as `AGENTS.md` already requires for `--parallel`.
