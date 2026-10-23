@@ -1,6 +1,6 @@
 # Document Review Sub-agent Prompt Template
 
-This template is used by the ce-doc-review orchestrator to spawn each reviewer sub-agent. Variable substitution slots are filled at dispatch time.
+This template is used by the ce-doc-review orchestrator to spawn each reviewer sub-agent. Variable substitution slots are filled at dispatch time. When the spawn prompt names this file instead of inlining it, the reviewer reads it and fills the slots itself: the files the prompt names supply `{persona_file}` and `{schema}`, and the prompt supplies every other slot.
 
 ---
 

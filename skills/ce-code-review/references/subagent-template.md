@@ -1,6 +1,6 @@
 # Sub-agent Prompt Template
 
-This template is used by the orchestrator to spawn each reviewer sub-agent. Variable substitution slots are filled at spawn time.
+This template is used by the orchestrator to spawn each reviewer sub-agent. Variable substitution slots are filled at spawn time. When the spawn prompt names this file instead of inlining it, the reviewer reads it and fills the slots itself: the files the prompt names supply `{persona_file}`, `{diff_scope_rules}`, and `{schema}`, and the prompt or the staged file it names supplies every other slot.
 
 ---
 
@@ -195,9 +195,9 @@ Diff:
 
 | Variable | Source | Description |
 |----------|--------|-------------|
-| `{persona_file}` | Agent markdown file content | The full persona definition (identity, failure modes, calibration, suppress conditions) |
-| `{diff_scope_rules}` | `references/diff-scope.md` content | Primary/secondary/pre-existing tier rules |
-| `{schema}` | `references/findings-schema.json` content | The JSON schema reviewers must conform to |
+| `{persona_file}` | Agent markdown file content, inlined or read by the reviewer from the path its prompt names | The full persona definition (identity, failure modes, calibration, suppress conditions) |
+| `{diff_scope_rules}` | `references/diff-scope.md` content, inlined or read by the reviewer | Primary/secondary/pre-existing tier rules |
+| `{schema}` | `references/findings-schema.json` content, inlined or read by the reviewer | The JSON schema reviewers must conform to |
 | `{intent_summary}` | Stage 2 output | 2-3 line description of what the change is trying to accomplish |
 | `{pr_metadata}` | Stage 1 output | PR title, body, and URL when reviewing a PR. Empty string when reviewing a branch or standalone checkout |
 | `{file_list}` | Stage 1 output | Changed-file list — inline, or a staged file path to Read for a large review |

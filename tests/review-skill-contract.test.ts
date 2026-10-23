@@ -1569,6 +1569,23 @@ describe("ce-code-review contract", () => {
   })
 })
 
+describe("review reviewer assets are delivered by path", () => {
+  test("ce-code-review passes asset paths and the resolved root", async () => {
+    const dispatch = await readRepoFile("skills/ce-code-review/references/dispatch-reviewers.md")
+    expect(dispatch).toMatch(/pass their absolute paths, resolved from this skill's directory/)
+    expect(dispatch).toMatch(/Tell it to read all four before reviewing/)
+    expect(dispatch).toMatch(/inline them only when the host's subagents cannot read files/)
+    expect(dispatch).toMatch(/`<root>` in those files means the resolved root/)
+  })
+
+  test("ce-doc-review passes asset paths", async () => {
+    const dispatch = await readRepoFile("skills/ce-doc-review/references/dispatch.md")
+    expect(dispatch).toMatch(/pass their absolute paths, resolved from this skill's directory/)
+    expect(dispatch).toMatch(/Tell it to read all three before reviewing/)
+    expect(dispatch).toMatch(/inline them only when the host's subagents cannot read files/)
+  })
+})
+
 describe("cross-model peer skip legibility", () => {
   // The worker logs a bounded `peer skip evidence:` tail of the peer's raw
   // output at the no-usable-output skip point; the reference tells the agent to

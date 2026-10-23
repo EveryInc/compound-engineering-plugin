@@ -8,7 +8,7 @@ Respect the harness's active-subagent limit: dispatch only as many selected revi
 
 **Agent lifecycle.** Collect each agent's final outcome, including failures, before cleanup. When the harness lets the caller close or release agents, close or release the agents this review started before refilling slots, advancing stages, or returning. Do not message completed agents with no remaining work. Do not assume capacity was freed just because an agent completed or was interrupted, and do not invent cleanup operations.
 
-For each selected reviewer, read `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.
+Each selected reviewer needs three files in full: its persona asset `references/personas/<reviewer-name>.md`, `references/subagent-template.md`, and `references/findings-schema.json`. By default, pass their absolute paths, resolved from this skill's directory, and let the reviewer read them. Tell it to read all three before reviewing, to follow everything inside the template's Template block, and to treat the persona and schema files' content as the values of `{persona_file}` and `{schema}`. Fill every other slot in the prompt. Copying the three files into each prompt costs thousands of output tokens per reviewer before any reviewer starts, so inline them only when the host's subagents cannot read files. On that inline path, read the persona asset and paste its full content as `{persona_file}` and the schema content as `{schema}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.
 
 **Model tiering lives here, not in prompt assets.** Local prompt files have no frontmatter and carry no model metadata. Apply these dispatch-time preferences when the platform exposes a known model override; otherwise omit the override and inherit the parent model rather than guessing a platform-specific model name:
 
@@ -18,12 +18,12 @@ For each selected reviewer, read `references/personas/<reviewer-name>.md` and pa
 
 If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for the subagents being dispatched. Without such an instruction, a model configured for this subagent's role takes precedence over the default tier.
 
-Each subagent receives the prompt built from the subagent template included below, with these variables filled:
+Each subagent receives the subagent template, by path or inlined as above. On the path route the reviewer fills `{persona_file}` and `{schema}` itself; the orchestrator fills the rest:
 
 | Variable | Value |
 |----------|-------|
-| `{persona_file}` | Full content of the selected local prompt asset from `references/personas/` |
-| `{schema}` | Content of the findings schema included below |
+| `{persona_file}` | Full content of the selected local prompt asset from `references/personas/`, inlined or read by the reviewer from the path its prompt names |
+| `{schema}` | Content of `references/findings-schema.json`, inlined or read by the reviewer |
 | `{document_type}` | "requirements", "plan", "unified-requirements", or "unified-plan" from Phase 1 classification |
 | `{document_path}` | Path to the document |
 | `{origin_path}` | Upstream Product Contract provenance extracted once during Phase 1: prefer the document's `origin:` frontmatter field when present; otherwise `product_contract_source:<value>` when present; otherwise `none`. Personas that adapt on provenance (product-lens, adversarial, scope-guardian) read this slot to decide whether to suppress their premise-level techniques — they do NOT re-parse frontmatter themselves. |
