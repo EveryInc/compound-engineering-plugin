@@ -283,6 +283,21 @@ acpx_failure_evidence() {   # <stream-log>
   [ "${#evidence}" -gt 300 ] && evidence="${evidence:0:147} ... ${evidence: -147}"
   printf '%s' "$evidence"
 }
+
+# codex-acp streams a provider rejection (such as a model the account may not
+# use) as reply text and still ends the turn with end_turn, so only the reply
+# carries it. Bounded inside jq so a long reply never enters a bash string.
+acpx_reply_evidence() {   # <stream-log>
+  jq -nrR '[inputs | fromjson? | select(.method == "session/update" and .params.update.sessionUpdate == "agent_message_chunk") | .params.update.content.text // empty]
+    | join("") | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")
+    | if length > 300 then .[0:147] + " ... " + .[-147:] else . end' "$1" 2>/dev/null
+}
+
+acpx_advertised_models() {   # <stream-log>
+  jq -nrR '[inputs | fromjson? | .result.models.availableModels[]?.modelId | sub("\\[.*$"; "")]
+    | reduce .[] as $m ([]; if any(.[]; . == $m) then . else . + [$m] end)
+    | join(", ") | if length > 300 then .[0:296] + " ..." else . end' "$1" 2>/dev/null
+}
 # --- end acpx transport -----------------------------------------------------
 
 # Cursor routes take Cursor's ACP model ids, which may carry a bracketed preset
@@ -1222,9 +1237,10 @@ acpx_served_models "$RAW_STDOUT" > "$SERVED_MODELS"
 set +e
 CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" "$PY" - \
   "$REPLY_TEXT" "$SERVED_MODELS" "$ROUTE" "$TARGET" "$HARNESS" \
-  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$EFFORT_REQUESTED" <<'PY' | write_result_receipt
+  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$EFFORT_REQUESTED" \
+  "$(acpx_reply_evidence "$RAW_STDOUT")" "$(acpx_advertised_models "$RAW_STDOUT")" <<'PY' | write_result_receipt
 import json, os, re, sys
-reply, served_models, route, target, harness, requested, packet_digest, log, activity, restriction, effort = sys.argv[1:]
+reply, served_models, route, target, harness, requested, packet_digest, log, activity, restriction, effort, reply_evidence, advertised = sys.argv[1:]
 
 def redactions():
     p=os.environ.get("CE_WORK_REDACT_FILE", "")
@@ -1326,7 +1342,9 @@ if valid:
 else:
     base_receipt.update({"terminal_status":"failed", "summary":"Adapter terminal output failed result schema",
       "changed_files":[], "evidence":[], "scope_expansion":None,
-      "failure_reason":"terminal output failed implementation result schema"})
+      "failure_reason":"; ".join(["terminal output failed implementation result schema"]
+        + ([f"reply: {reply_evidence}"] if reply_evidence else [])
+        + ([f"advertised models: {advertised}"] if advertised else []))})
 base_receipt=redact(base_receipt)
 json.dump(base_receipt,sys.stdout,indent=2)
 sys.stdout.write("\n")

@@ -723,6 +723,15 @@ describe("ce-work acpx outcomes", () => {
     expect(ok.result.terminal_status).toBe("completed")
   })
 
+  test("a model the provider rejects in reply text is named in the failure reason with the advertised models", () => {
+    const f = fixture()
+    const result = run("codex", f, withBin(stubBin(f, path.join(STREAMS, "model-rejected-end-turn"))))
+    expect(result.code).toBe(1)
+    expect(result.result.terminal_status).toBe("failed")
+    expect(result.result.failure_reason).toContain("The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account.")
+    expect(result.result.failure_reason).toContain("advertised models: gpt-6.1-sol, gpt-6-sol, gpt-6-luna, gpt-5.6-sol")
+  })
+
   test.each([
     ["cancelled", acpStream({ stopReason: "cancelled" }), "ended with cancelled"],
     ["errored", acpStream({ error: "quota exhausted", exit: 1 }), "quota exhausted"],

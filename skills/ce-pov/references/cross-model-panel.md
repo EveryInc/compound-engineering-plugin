@@ -438,7 +438,17 @@ with the reason. Scope `shared` (Node, `npx`, or the npm fetch of acpx) fails
 every route the same way, so another route cannot replace it. Scope `route`
 (that route's CLI is missing, an acpx config file replaces its launch command,
 or the model was rejected, with the available models listed) affects only that
-route; any replacement follows Section 3's recipient rules.
+route. A rejected model follows the refused-model rule below; any other
+replacement follows Section 3's recipient rules.
+
+When the requested model itself was refused (the adapter did not offer it, or
+the provider rejected it for this account, which `peer skip evidence (reply):`
+carries when the provider sent it as reply text), only the model failed and
+the route is still usable. If the worker ran its own default model rather than
+one the user named, start one new job for that voice on the same route, with
+no new recipient. Give it Section 3's closest same-family substitute, picked
+from `peer skip evidence (advertised models):` when that line is present. The
+note says which model was rejected. A model the user named is never swapped.
 
 If a job yields no usable artifact, use bounded `peer skip evidence`
 from its log to state an observed quota, authentication, or route failure; never
