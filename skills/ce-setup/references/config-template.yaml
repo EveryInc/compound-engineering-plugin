@@ -126,8 +126,8 @@
 # `gemini-3.8-flash` for antigravity).
 # Effort levels: claude low|medium|high|xhigh|max, codex low|medium|high|
 # xhigh plus max and ultra on the models that list them, grok low|medium|high|
-# xhigh, antigravity low|medium|high; cursor/composer and OpenCode routes take
-# none. A value the peer
+# xhigh, antigravity low|medium|high, OpenCode 2.x none|low|medium|high|xhigh|
+# max as each model lists them; cursor/composer routes take none. A value the peer
 # cannot honor skips the pass with a stated reason -- never substituted.
 
 # cross_model_review_mode: off   # auto | off (default: auto)
@@ -159,7 +159,9 @@
 # Reasoning effort for the external worker, per harness. Each value is one of
 # that harness's own effort levels. An unset harness keeps its own default:
 # Codex and Claude at high, native Grok at xhigh, Antigravity at high (it takes
-# low|medium|high). OpenCode and Cursor routes take no effort. A map in config.local.yaml replaces this one.
+# low|medium|high). OpenCode (2.x) keeps its own per-model default and takes
+# none|low|medium|high|xhigh|max as each model lists them. Cursor routes take no
+# effort. A map in config.local.yaml replaces this one.
 
 # work_engine_effort:
 #   codex: xhigh

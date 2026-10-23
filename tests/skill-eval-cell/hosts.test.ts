@@ -51,11 +51,11 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(plan.stdin).toBe("null")
   })
 
-  test("opencode uses run --dir and omits --auto when read-only", () => {
+  test("opencode runs a private --standalone server and omits --auto when read-only", () => {
     const plan = planHost("opencode", { cwd, prompt: "task", promptFile })
-    expect(plan.argv).toEqual(["opencode", "run", "--dir", cwd, "task", "--auto"])
+    expect(plan.argv).toEqual(["opencode", "run", "--standalone", "task", "--auto"])
     const readOnly = planHost("opencode", { cwd, prompt: "task", promptFile, readOnly: true })
-    expect(readOnly.argv).toEqual(["opencode", "run", "--dir", cwd, "task"])
+    expect(readOnly.argv).toEqual(["opencode", "run", "--standalone", "task"])
     expect(readOnly.argv).not.toContain("--auto")
     expect(attestCurrentHost({ OPENCODE_TERMINAL: "1" })).toBe("opencode")
   })

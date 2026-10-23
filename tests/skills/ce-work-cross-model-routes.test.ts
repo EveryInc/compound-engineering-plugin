@@ -296,11 +296,13 @@ describe("ce-work fixed write routes", () => {
     ["claude", "max", "effort=max"],
     ["grok-cli", "medium", "reasoning_effort=medium"],
     ["antigravity", "low", "thinking_level=low"],
+    ["opencode", "max", "mode=build --config-option effort=max"],
+    ["opencode", "none", "mode=build --config-option effort=none"],
   ])("CROSS_MODEL_EFFORT_OVERRIDE retunes %s to %s", (route, value, option) => {
     expect(emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value }).stdout).toContain(option)
   })
 
-  // Cursor fixes effort in its model preset and OpenCode has no effort option over ACP.
+  // Cursor fixes effort in its model preset.
   test.each([
     ["codex", "minimal"],
     ["codex", "none"],
@@ -309,7 +311,7 @@ describe("ce-work fixed write routes", () => {
     ["cursor", "high"],
     ["composer", "high"],
     ["grok-cursor", "high"],
-    ["opencode", "max"],
+    ["opencode", "minimal"],
     ["antigravity", "xhigh"],
   ])("CROSS_MODEL_EFFORT_OVERRIDE rejects %s at %s, failing closed before dispatch", (route, value) => {
     const proc = emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
@@ -533,6 +535,7 @@ describe("ce-work fixed write routes", () => {
     ["claude", "max", "effort=max"],
     ["grok-cli", "low", "reasoning_effort=low"],
     ["antigravity", "low", "thinking_level=low"],
+    ["opencode", "high", "effort=high"],
   ] as const)("%s builds its effort option from the authorized effort %s", (route, effort, expected) => {
     const f = fixture()
     const digest = createHash("sha256").update(readFileSync(f.packet)).digest("hex")
@@ -562,7 +565,7 @@ describe("ce-work fixed write routes", () => {
   test.each([
     ["cursor", "high"],
     ["grok-cli", "max"],
-    ["opencode", "max"],
+    ["opencode", "minimal"],
     ["antigravity", "xhigh"],
   ] as const)("an authorized effort the %s route cannot honor publishes an unavailable receipt", (route, effort) => {
     const f = fixture()

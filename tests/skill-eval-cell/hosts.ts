@@ -154,7 +154,9 @@ export function planHost(
     return { host, argv, env, stdin: "null", notes }
   }
   if (host === "opencode") {
-    const argv = ["opencode", "run", "--dir", opts.cwd, opts.prompt]
+    // OpenCode 2.x routes a plain `run` through its background service, which
+    // ignores this process's OPENCODE_CONFIG_CONTENT deny; --standalone keeps it.
+    const argv = ["opencode", "run", "--standalone", opts.prompt]
     // Always disable project config: a fixture's .opencode/{plugins,agents} load
     // as trusted runtime before wrapPrompt's "don't use project .opencode" can
     // apply, contaminating the eval (and, in a reviewed repo, overriding the deny).

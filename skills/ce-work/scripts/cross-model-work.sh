@@ -321,10 +321,11 @@ validate_model_override() {
 # Accept an effort only where the route's ACP adapter exposes an effort option
 # and lists the value (claude effort, codex and grok reasoning_effort, checked
 # 2026-10-06 through acpx 0.19.4; antigravity thinking_level, checked
-# 2026-10-14). Codex levels vary per model, so a listed level can still be
-# refused before the prompt is sent. Cursor fixes effort in
-# the model preset and OpenCode has no effort option over ACP, so any effort
-# there makes the route unavailable instead of being dropped.
+# 2026-10-14; opencode 2.x effort, checked 2026-10-23). Codex and OpenCode
+# levels vary per model, and OpenCode 1.x has no effort option, so a listed
+# level can still be refused before the prompt is sent. Cursor fixes effort in
+# the model preset, so any effort there makes the route unavailable instead of
+# being dropped.
 validate_effort_override() {
   local route="$1" effort="${EFFORT_REQUESTED:-}"
   [ -n "$effort" ] || return 0
@@ -333,6 +334,7 @@ validate_effort_override() {
     codex:low|codex:medium|codex:high|codex:xhigh|codex:max|codex:ultra) ;;
     grok-cli:low|grok-cli:medium|grok-cli:high|grok-cli:xhigh) ;;
     antigravity:low|antigravity:medium|antigravity:high) ;;
+    opencode:none|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max) ;;
     *) return 1 ;;
   esac
 }
@@ -358,7 +360,8 @@ adapter_argv() {
     claude) printf '%s\0' --config-option mode=default --config-option "effort=${EFFORT_REQUESTED:-high}" ;;
     grok-cli) printf '%s\0' --config-option "reasoning_effort=${EFFORT_REQUESTED:-xhigh}" ;;
     cursor|composer|grok-cursor) printf '%s\0' --config-option mode=agent ;;
-    opencode) printf '%s\0' --config-option mode=build ;;
+    opencode) printf '%s\0' --config-option mode=build
+      [ -z "${EFFORT_REQUESTED:-}" ] || printf '%s\0' --config-option "effort=$EFFORT_REQUESTED" ;;
     antigravity) printf '%s\0' --config-option mode=auto_edit --config-option "thinking_level=${EFFORT_REQUESTED:-high}" ;;
   esac
   printf '%s\0' --file "$PROMPT_FILE"

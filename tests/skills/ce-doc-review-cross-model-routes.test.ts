@@ -890,6 +890,14 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(r.stderr.includes("model mismatch")).toBe(mismatch)
   })
 
+  test("an OpenCode effort override sets its ACP effort option", () => {
+    expect(emitAdapter("opencode", { CROSS_MODEL_EFFORT_OVERRIDE: "xhigh" })).toContain("--config-option mode=plan --config-option effort=xhigh --file")
+  })
+
+  test("without an effort override OpenCode keeps its own default", () => {
+    expect(emitAdapter("opencode")).not.toContain("effort=")
+  })
+
   test("a valid effort override reaches the adapter; an unsupported level is rejected before launch", () => {
     let sb = sandbox(["claude"])
     let runDir = makeRunDir()
@@ -902,7 +910,7 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(argv(sb)).toContain("effort=xhigh")
     expect(r.stderr).toContain("(effort xhigh)")
 
-    for (const [route, effort] of [["claude", "minimal"], ["grok-cli", "max"], ["opencode", "high"], ["composer", "high"]]) {
+    for (const [route, effort] of [["claude", "minimal"], ["grok-cli", "max"], ["opencode", "minimal"], ["composer", "high"]]) {
       sb = sandbox([ROUTE_BIN[route]])
       runDir = makeRunDir()
       const target = route.startsWith("grok") ? "grok" : route

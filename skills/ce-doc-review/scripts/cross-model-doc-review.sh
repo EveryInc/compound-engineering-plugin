@@ -115,7 +115,7 @@ ANTIGRAVITY_MODEL=""   # set by the fallback; empty requests M_ANTIGRAVITY
 route_effort() {   # <route> -> requested effort: the override where the route takes one, else editorial
   if [ -n "${CROSS_MODEL_EFFORT_OVERRIDE:-}" ]; then
     case "$1" in
-      codex|claude|grok-cli|antigravity) printf '%s' "$CROSS_MODEL_EFFORT_OVERRIDE"; return 0 ;;
+      codex|claude|grok-cli|antigravity|opencode) printf '%s' "$CROSS_MODEL_EFFORT_OVERRIDE"; return 0 ;;
     esac
   fi
   case "$1" in
@@ -445,7 +445,8 @@ adapter_argv() {
     claude)   printf '%s\0' --config-option mode=default --config-option "effort=$(route_effort claude)" ;;
     grok-cli) printf '%s\0' --config-option "reasoning_effort=$(route_effort grok-cli)" ;;
     grok-cursor|cursor|composer) printf '%s\0' --config-option mode=ask ;;
-    opencode) printf '%s\0' --config-option mode=plan ;;
+    opencode) printf '%s\0' --config-option mode=plan
+      [ -z "${CROSS_MODEL_EFFORT_OVERRIDE:-}" ] || printf '%s\0' --config-option "effort=$(route_effort opencode)" ;;
     antigravity) printf '%s\0' --config-option mode=default --config-option "thinking_level=$(route_effort antigravity)" ;;
   esac
   printf '%s\0' --file "$PROMPT_FILE"
@@ -474,12 +475,13 @@ validate_model_override() {
 # effort option and the value is one it advertises (claude effort:
 # low|medium|high|xhigh|max; codex reasoning_effort: low|medium|high|xhigh|max|ultra;
 # grok reasoning_effort: low|medium|high|xhigh; antigravity thinking_level:
-# low|medium|high, checked 2026-10-14). Checked 2026-10-06 against the
+# low|medium|high, checked 2026-10-14; opencode 2.x effort: none|low|medium|
+# high|xhigh|max, checked 2026-10-23). Checked 2026-10-06 against the
 # session options each adapter reports through acpx 0.19.4. Codex levels vary
-# per model, so a listed level can still be refused before the prompt is sent.
-# Cursor routes fix effort in the model preset and OpenCode exposes no effort
-# option over ACP, so any override there is invalid for the route rather than
-# silently dropped. Empty means "no override".
+# and OpenCode levels vary per model, and OpenCode 1.x has no effort option,
+# so a listed level can still be refused before the prompt is sent.
+# Cursor routes fix effort in the model preset, so any override there is
+# invalid for the route rather than silently dropped. Empty means "no override".
 validate_effort_override() {
   local route="$1" effort="${CROSS_MODEL_EFFORT_OVERRIDE:-}"
   [ -n "$effort" ] || return 0
@@ -488,6 +490,7 @@ validate_effort_override() {
     codex:low|codex:medium|codex:high|codex:xhigh|codex:max|codex:ultra) ;;
     grok-cli:low|grok-cli:medium|grok-cli:high|grok-cli:xhigh) ;;
     antigravity:low|antigravity:medium|antigravity:high) ;;
+    opencode:none|opencode:low|opencode:medium|opencode:high|opencode:xhigh|opencode:max) ;;
     *) return 1 ;;
   esac
 }
