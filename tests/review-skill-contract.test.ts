@@ -1253,6 +1253,18 @@ describe("ce-code-review contract", () => {
     expect(content).not.toContain("git diff -U10 HEAD")
     expect(content).not.toContain("git diff --cached")
 
+    // #1836: deleted-file bodies stay out of the shared diff on every scope path,
+    // and every reviewer gets the deletion manifest instead.
+    expect(content).not.toMatch(/git diff -U10 (?!--irreversible-delete)/)
+    expect(content).not.toMatch(/gh pr diff [^`]*\| awk/)
+    expect(content).toMatch(/awk '[^`]*deleted file mode/)
+    expect(content).toContain('<deleted-files base="<ref>">')
+    expect(content).toMatch(/`deleted_band: large` rules out lite/)
+    const peerScript = await readRepoFile(
+      "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+    )
+    expect(peerScript).toMatch(/diff --no-ext-diff --no-color --irreversible-delete "\$BASE"/)
+
     // PR mode uses remote diff API, not checkout
     expect(content).toContain("gh pr diff")
     expect(content).toMatch(/Do not fall back to checkout/i)

@@ -646,7 +646,7 @@ PROVIDER_OUTCOME="failed"
 # Measure once and retain one exact private artifact. Semantic divisions belong
 # to the orchestrator; the peer reads only the ranges needed for those divisions.
 DIFF_SOURCE="$SCRATCH/review.diff"
-git -C "$REPO_ROOT" diff --no-ext-diff --no-color "$BASE" -- > "$DIFF_SOURCE" 2>/dev/null || skip "cannot stage reviewed diff; skipping"
+git -C "$REPO_ROOT" diff --no-ext-diff --no-color --irreversible-delete "$BASE" -- > "$DIFF_SOURCE" 2>/dev/null || skip "cannot stage reviewed diff; skipping"
 chmod 600 "$DIFF_SOURCE" "$MCP_CONFIG" || skip "cannot secure staged diff; skipping"
 DIFF_BYTES=$(( $(wc -c < "$DIFF_SOURCE" 2>/dev/null || echo 0) ))
 # An empty diff (valid base, no changes) still composes a structurally valid
