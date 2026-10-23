@@ -148,6 +148,8 @@ export type Scenario = {
    * uses this rather than git_untracked.
    */
   git_staged?: string[]
+  /** Paths committed in the seed and then deleted as the staged change (a pruning diff). */
+  git_deleted?: string[]
   shim_git_push?: true | { requiredHeadMarkerPath: string }
   shim_gh_pr?: boolean
   /** Configure a fake `origin` whose `main` is the seed commit, so the shipping tail takes the push/PR path instead of the local-commit path. Pair with shim_git_push. */
@@ -2137,6 +2139,54 @@ Include exactly one line \`ROUTE: verdict\` or \`ROUTE: brainstorm\` in your ans
       workspace_read: ["PR.md"],
       declared: { TIMEOUT: "flagged" },
       actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/prune-deletions-do-not-force-full",
+    baseline_ref: "6cbd949fcd531b43d5eadc937d225855d8919c24",
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    post_only: true,
+    git_init: true,
+    git_staged: ["src/screens/Home.tsx"],
+    git_deleted: [
+      "src/widgets/LegacyBanner.tsx",
+      "src/widgets/PromoCarouselCard.tsx",
+      "src/widgets/OldStatsTile.tsx",
+      "src/widgets/BetaFeedbackPrompt.tsx",
+      "src/widgets/SeasonalHeader.tsx",
+      "src/widgets/TipOfTheDay.tsx",
+    ],
+    fixture: `${FIX}/review-prune-gate`,
+    timeout_secs: 300,
+    why: "#1836: whole-file deletions counted toward exec_nontest_lines, so a UI-only pruning change with ~300 deleted lines hit the full floor on deletions alone. They now band separately: they forbid lite but never force full.",
+    pre_contract: "Added and deleted lines both count toward exec_nontest_lines; at 200 the helper sets size_band large and hard_block_full.",
+    task: "Use ce-code-review to review the staged change. Run it through the Review depth gate, then stop: do not run the review itself, dispatch reviewers, or start a cross-model peer. Reply with exactly one line `DEPTH: <lite | focused | full>` naming the path the gate chose.",
+    grade: {
+      declared: { DEPTH: "focused" },
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/prune-deleted-route-still-reached",
+    baseline_ref: "6cbd949fcd531b43d5eadc937d225855d8919c24",
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/utils/formatDate.ts"],
+    git_deleted: ["app/legacy-settings.tsx", "src/utils/formatLegacyDate.ts"],
+    fixture: `${FIX}/review-prune-routed`,
+    timeout_secs: 400,
+    why: "#1836: deleted-file bodies left the shared diff. The correctness reviewer must still catch a deleted expo-router screen that a surviving screen pushes to by string, and must not flag the helper that really was dead.",
+    pre_contract: "The shared diff carried each deleted file's full body; no reviewer was asked whether a deleted file was dead.",
+    task: "Use ce-code-review's correctness reviewer on the staged change described in PR.md. Build the review context that reviewer would receive, as the skill's references/scope.md and references/dispatch-reviewers.md describe, then read references/subagent-template.md and references/personas/correctness-reviewer.md and review as that persona would. Do not dispatch, edit anything, or invoke another skill. Return the persona's findings JSON, then exactly one line `STILL_REACHED: <comma-separated deleted paths that a finding at confidence 75 or higher says are still used, or none>`.",
+    grade: {
+      declared: { STILL_REACHED: "app/legacy-settings.tsx" },
       delegates: "none",
     },
   },

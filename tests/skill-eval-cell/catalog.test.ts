@@ -323,6 +323,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-code-review/depth-gate-standards-violation",
       "ce-code-review/depth-gate-unlisted-language",
       "ce-code-review/depth-gate-yaml-lite",
+      "ce-code-review/prune-deletions-do-not-force-full",
       "ce-code-review/validator-veto-routes-protected-rejections",
       "ce-commit-push-pr/babysit-off-preserves-human-decision",
       "ce-commit-push-pr/project-publishing-gate",

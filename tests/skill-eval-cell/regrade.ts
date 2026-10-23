@@ -15,6 +15,7 @@ function collectionContext(scenario: Scenario) {
     read_only: scenario.read_only, timeout_secs: scenario.timeout_secs ?? 600,
     git_init: scenario.git_init ?? false, git_remote: scenario.git_remote ?? false,
     git_untracked: scenario.git_untracked ?? [], git_staged: scenario.git_staged ?? [],
+    ...(scenario.git_deleted?.length ? { git_deleted: scenario.git_deleted } : {}),
     shim_git_push: scenario.shim_git_push ?? false, shim_gh_pr: scenario.shim_gh_pr ?? false,
   }
 }

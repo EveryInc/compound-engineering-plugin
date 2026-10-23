@@ -212,7 +212,7 @@ async function main() {
   const taskFile = arg("--task-file")
   if (!skill) {
     console.error(
-      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--with-skill name,name] [--persona file --max-turns 20 (claude, codex)] [--reasoning-effort level (grok)] [--read-only] [--git-init] [--git-untracked p,p] [--git-staged p,p] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
+      "usage: bun run test:skill-eval-cell -- --skill <name> --task \"...\" [--task-file p] [--ref WORKTREE|<git-ref>] [--hosts claude,codex,grok] [--fixture dir] [--out dir] [--timeout-secs 600] [--with-skill name,name] [--persona file --max-turns 20 (claude, codex)] [--reasoning-effort level (grok)] [--read-only] [--git-init] [--git-untracked p,p] [--git-staged p,p] [--git-deleted p,p] [--shim-git-push] [--shim-gh-pr]\n       default --hosts is the other two harnesses from this session; missing CLIs warn and continue",
     )
     process.exit(2)
   }
@@ -291,6 +291,12 @@ async function main() {
     for (const rel of staged) {
       spawnSync("git", ["add", "--", rel], { cwd: workspace })
     }
+    // Deleted paths stay in the seed commit and are then removed from the index and
+    // tree, so a cell can review a pruning change.
+    for (const rel of (arg("--git-deleted") ?? "").split(",").map((p) => p.trim()).filter(Boolean)) {
+      const removed = spawnSync("git", ["rm", "-q", "--", rel], { cwd: workspace, encoding: "utf8" })
+      if (removed.status !== 0) throw new Error(`--git-deleted ${rel}: git rm failed: ${removed.stderr.trim()}`)
+    }
   }
   const seedRev = spawnSync("git", ["rev-parse", "HEAD"], { cwd: workspace, encoding: "utf8" })
   const seedSha = seedRev.status === 0 ? seedRev.stdout.trim() : ""
@@ -319,6 +325,7 @@ async function main() {
     read_only: readOnly,
     git_init: flag("--git-init"), git_remote: flag("--git-remote"),
     git_untracked: arg("--git-untracked") ?? null, git_staged: arg("--git-staged") ?? null,
+    ...(arg("--git-deleted") ? { git_deleted: arg("--git-deleted") } : {}),
     requested_model: null,
     observed_model: null,
     limits: ["model/configuration inherited from host; not captured", "provider state and external resources are not frozen", ".git internals and symlink target contents are not hashed"],
