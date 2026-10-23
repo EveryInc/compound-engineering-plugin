@@ -46,7 +46,7 @@ Snapshot first, then in this order:
 2. **Capture the head SHA**; in a confirmed managed stack also record the pre-push baseline (`references/stack.md`).
 3. **Feedback before CI.** Threads or non-thread candidates present → invoke `ce-resolve-pr-feedback mode:pipeline` once with the PR ref; persist typed decisions through the shared atomic mark and dispatch every other passed comment; pass `trajectory` when a trigger is crossed; never declare non-convergence yourself.
 4. **Stale-SHA cancellation.** Head moved since step 2 → this snapshot's CI is dead; skip.
-5. **CI on the current head**, one pass for all failures: flaky/infra → `gh run rerun <run-id> --failed -R <host>/<owner>/<repo>`; real failure → `ce-debug mode:pipeline` once; mark each check acted on; unfixed checks stay red residuals.
+5. **CI on the current head**, one pass for all failures, each routed by its cause (`references/tick.md`: re-run, `needs-human`, or `ce-debug mode:pipeline` once); mark each check acted on; unfixed checks stay red residuals.
 6. **Branch currency** — consume the exact emitted item (`references/branch-currency.md`); no item → nothing. `unrequested_base_merge` is a defect to report, never undo.
 7. **Managed upstack maintenance** after a delegate pushed a confirmed managed target (`references/stack.md`).
 

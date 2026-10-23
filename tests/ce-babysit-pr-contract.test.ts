@@ -117,6 +117,15 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(producer).not.toContain("Commit the fix (`fix(ci): <summary>` for a CI failure, else `fix: <summary>`)")
   })
 
+  test("a check blocked by a repository setting is re-run alone after the fix, not left parked (#1889)", async () => {
+    const setup = await readRepoFile("skills/ce-babysit-pr/references/setup.md")
+    const tick = await readRepoFile("skills/ce-babysit-pr/references/tick.md")
+    expect(setup).toContain("--jq .allow_auto_merge")
+    const settingClass = tick.split("\n").find((line) => line.includes("**Blocked by a repository setting or permission**"))
+    expect(settingClass).toContain("`needs-human`")
+    expect(settingClass).toContain("gh run rerun --job <databaseId>")
+  })
+
   test("ce-debug pipeline return-status enum agrees between producer and babysit consumer", async () => {
     const [producer, consumer] = await Promise.all([readRepoFile(CEDEBUG_PIPELINE), readBabysit()])
     for (const status of CEDEBUG_STATUS) {
