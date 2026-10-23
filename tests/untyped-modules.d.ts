@@ -31,10 +31,20 @@ declare module "*/ce-optimize/scripts/decide.mjs" {
     comparisons: Record<string, ObjectiveComparison>
     primary_delta: number | null
     rank_score: number
+    regressions: string[]
+    holdout: {
+      agrees: boolean
+      decision: string
+      reason: string | null
+      comparisons: Record<string, ObjectiveComparison>
+      improved_objectives: string[]
+      violated_objectives: string[]
+    } | null
     reason?: string
   }
   export function median(values: number[]): number | null
   export function gatePasses(value: unknown, check: string): boolean
   export function compareObjective(input: Record<string, unknown>): ObjectiveComparison
+  export function regressions(baseline: Record<string, unknown>, candidate: Record<string, unknown>): string[]
   export function decide(input: Record<string, unknown>): DecideResult
 }

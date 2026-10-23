@@ -1,0 +1,47 @@
+name: dedupe-comparisons
+description: Reduce the element comparisons dedupe performs on the fixed workload without changing its output
+
+metric:
+  primary:
+    type: hard
+    name: comparisons
+    direction: minimize
+  degenerate_gates:
+    - name: correct
+      check: "== 1"
+      description: Output matches the reference in value and order
+
+measurement:
+  command: "node tools/measure.js"
+  timeout_seconds: 60
+  working_directory: "."
+  stability:
+    mode: stable
+
+scope:
+  mutable:
+    - "src/dedupe.js"
+  immutable:
+    - "tools/"
+    - "optimize-spec.yaml"
+
+execution:
+  mode: serial
+  backend: worktree
+  max_concurrent: 1
+
+dependencies:
+  approved: []
+
+constraints:
+  - "Keep the dedupe(items, count) signature and first-seen output order"
+  - "Every element comparison or lookup the function performs must still call count() once"
+
+stopping:
+  max_iterations: 2
+  max_hours: 1
+  max_wall_hours: 72
+  plateau_iterations: 2
+  target_reached: true
+
+max_runner_up_merges_per_batch: 0
