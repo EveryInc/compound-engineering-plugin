@@ -430,6 +430,13 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
     expect(r.files).toContain("adversarial-codex.json")
   })
 
+  test("the codex route disables the user's Codex plugins so the peer cannot pick up ce-doc-review (issue #1788)", () => {
+    const sb = sandbox(["codex"])
+    const runDir = makeRunDir()
+    run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, { ...sb.env, CODEX_CONFIG: '{"features":{"plugins":true}}' })
+    expect(envLog(sb)).toContain('CODEX_CONFIG={"features":{"plugins":false}}\n')
+  })
+
   test("reference states the unset-allowlist contract the script implements", () => {
     // Regression: without this sentence, hosts read "verify against CROSS_MODEL_PEERS"
     // + unset allowlist as a fail-closed gate and skipped the pass in non-interactive

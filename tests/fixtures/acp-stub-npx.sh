@@ -27,6 +27,7 @@ if [ -n "${ACP_STUB_NPX_ENV_LOG:-}" ]; then
     printf 'npm_config_fetch_retries=%s\n' "${npm_config_fetch_retries-<unset>}"
     printf 'npm_config_prefer_online=%s\n' "${npm_config_prefer_online-<unset>}"
     printf 'CODEX_PATH=%s\n' "${CODEX_PATH-<unset>}"
+    printf 'CODEX_CONFIG=%s\n' "${CODEX_CONFIG-<unset>}"
     printf 'CLAUDE_CODE_EXECUTABLE=%s\n' "${CLAUDE_CODE_EXECUTABLE-<unset>}"
     printf 'OPENCODE_DISABLE_PROJECT_CONFIG=%s\n' "${OPENCODE_DISABLE_PROJECT_CONFIG-<unset>}"
     printf 'OPENCODE_CONFIG_CONTENT=%s\n' "${OPENCODE_CONFIG_CONTENT-<unset>}"

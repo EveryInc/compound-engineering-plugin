@@ -698,6 +698,14 @@ describe("ce-work fixed write routes", () => {
     expect(captured(f, "launch-env")).toContain(`CODEX_PATH=${path.join(bundle, "codex")}`)
   })
 
+  test("the codex route disables the user's Codex plugins so the peer cannot pick up CE skills (issue #1788)", () => {
+    const f = fixture()
+    const bin = stubBin(f)
+    const result = run("codex", f, { ...cleanEnv(), PATH: isolatedPath(bin) })
+    expect(result.result.terminal_status).toBe("completed")
+    expect(captured(f, "launch-env")).toContain('CODEX_CONFIG={"features":{"plugins":false}}\n')
+  })
+
   test.each([...ROUTES])("%s is unavailable when enforceable confinement is required", (route) => {
     const f = fixture()
     const bin = stubBin(f)

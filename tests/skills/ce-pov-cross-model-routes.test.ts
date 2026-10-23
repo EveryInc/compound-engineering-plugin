@@ -737,11 +737,12 @@ describe("ce-pov acpx transport preflight and launch", () => {
     expect(log).toContain("CODEX_PATH=<unset>")
   })
 
-  test("the codex route points the adapter at the installed codex CLI", () => {
+  test("the codex route points the adapter at the installed codex CLI with the user's plugins disabled (issue #1788)", () => {
     const sb = sandbox(["codex"])
     const dir = runDir()
-    run(["claude", "codex", payload(), dir], dir, sb.env)
+    run(["claude", "codex", payload(), dir], dir, { ...sb.env, CODEX_CONFIG: '{"features":{"plugins":true}}' })
     expect(envLog(sb)).toContain(`CODEX_PATH=${path.join(sb.bin, "codex")}\n`)
+    expect(envLog(sb)).toContain('CODEX_CONFIG={"features":{"plugins":false}}\n')
     expect(envLog(sb)).toContain("npm_config_prefer_offline=true\nnpm_config_fetch_retries=0\n")
   })
 

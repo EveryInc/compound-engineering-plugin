@@ -619,6 +619,13 @@ describe("cross-model-adversarial-review provider selection", () => {
     expect(envLog(sb)).toContain(`CODEX_PATH=${path.join(sb.bin, "codex")}\n`)
   })
 
+  test("the codex route disables the user's Codex plugins so the peer cannot pick up ce-code-review (issue #1788)", () => {
+    const sb = sandbox(["codex"])
+    const runDir = makeRunDir()
+    run(["claude", "codex", "HEAD", runDir], runDir, { ...sb.env, CODEX_CONFIG: '{"features":{"plugins":true}}' })
+    expect(envLog(sb)).toContain('CODEX_CONFIG={"features":{"plugins":false}}\n')
+  })
+
   test("a front-loaded preference overrides the default order", () => {
     expect(resolvePeers("claude", "grok,codex,claude,composer", ["codex", "claude", "grok", "cursor-agent"])).toBe("grok")
   })
