@@ -483,6 +483,33 @@ describe("cross-model-adversarial-review diff delivery", () => {
     expect(text).not.toContain("Run: git diff")
   })
 
+  // codex-acp's only refusal option is `cancel`, which ends the turn, so one
+  // escalation request leaves the review with no artifact (#1896).
+  test.each([...ROUTES] as string[])("only the codex prompt rules out escalation requests (%s)", (route) => {
+    const sb = sandbox([ROUTE_BIN[route]])
+    const runDir = makeRunDir()
+    const target = route.startsWith("grok") ? "grok" : route
+    const r = run(["claude" === target ? "codex" : "claude", target, "HEAD", runDir], runDir, {
+      ...sb.env,
+      CROSS_MODEL_FIXED_ROUTE: route,
+      ...(route === "grok-cursor" ? { CROSS_MODEL_PEERS: "grok,cursor" } : {}),
+    })
+    expect(peerOutputs(r.files)).toHaveLength(1)
+    const rule = "never request escalated or out-of-sandbox permissions"
+    if (route === "codex") expect(prompt(sb)).toContain(rule)
+    else expect(prompt(sb)).not.toContain(rule)
+  })
+
+  test("the codex large-diff prompt also rules out escalation requests", () => {
+    const sb = sandbox(["codex"])
+    const runDir = makeRunDir("- Review the changed fixture.\n")
+    const r = run(["claude", "codex", "HEAD~1", runDir], runDir, { ...sb.env, CROSS_MODEL_INLINE_MAX_TOKENS: "1" })
+    expect(r.files).toContain("adversarial-codex.json")
+    const text = prompt(sb)
+    expect(text).toContain("too large to inline safely")
+    expect(text).toContain("never request escalated or out-of-sandbox permissions")
+  })
+
   test("a large diff sends the orchestrator map and the staged diff's path to a route that can read it", () => {
     const sb = sandbox(["claude"])
     const runDir = makeRunDir(

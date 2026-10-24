@@ -998,6 +998,11 @@ provider_overloaded() {
 compose_prompt() {   # <route>
   local mark
   cp "$BASE_PROMPT" "$PROMPT_FILE" && chmod 600 "$PROMPT_FILE" || return 1
+  # codex-acp's only refusal option is `cancel`, which ends the turn, so one
+  # escalation request (e.g. to launch a browser) leaves no artifact (#1896).
+  if [ "$1" = codex ]; then
+    printf '\nYour sandbox is read-only and no approval is available: never request escalated or out-of-sandbox permissions (for example to launch a browser, use the network, or write outside the repository). Any permission request ends this review with no result. When a check needs more access than the sandbox gives, reason from the source instead and name the unrun check in residual_risks.\n' >> "$PROMPT_FILE"
+  fi
   if [ "$LARGE_DIFF_MODE" = true ]; then
     printf '\nThis change is too large to inline safely (%s files; conservative estimate %s tokens).\n' \
       "$DIFF_FILES" "$ESTIMATED_DIFF_TOKENS" >> "$PROMPT_FILE"
