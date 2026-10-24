@@ -740,6 +740,14 @@ describe("ce-work acpx outcomes", () => {
     expect(result.result.failure_reason).toContain("advertised models: gpt-6.1-sol, gpt-6-sol, gpt-6-luna, gpt-5.6-sol")
   })
 
+  test("a cancelled turn after a refused permission names that refusal", () => {
+    const f = fixture()
+    const result = run("codex", f, withBin(stubBin(f, acpStream({ stopReason: "cancelled", exit: 5, text: "partial" }))))
+    expect(result.code).toBe(1)
+    expect(result.result.failure_reason).toContain("permission request cancelled the turn")
+    expect(result.result.failure_reason).not.toContain("stopReason=cancelled")
+  })
+
   test.each([
     ["cancelled", acpStream({ stopReason: "cancelled" }), "ended with cancelled"],
     ["errored", acpStream({ error: "quota exhausted", exit: 1 }), "quota exhausted"],
@@ -753,6 +761,19 @@ describe("ce-work acpx outcomes", () => {
     expect(result.result.failure_reason).toContain(reason)
     expect(readFileSync(path.join(f.resultDir, "adapter.log"), "utf8")).toContain("session/prompt")
     expect(argv(f)).toContain("grok-build")
+  })
+
+  test("the first line of a Node startup error is the pre-egress reason", () => {
+    const f = fixture()
+    const base = path.join(temp("ce-work-node-"), "s")
+    const line = "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '@openclaw/fs-safe/dist/advanced.js'"
+    writeFileSync(`${base}.stderr`, `node:internal/modules/esm/resolve:275\n${line}\n    at Function._resolveFilename (node:internal/modules/cjs/loader:1207:15)\n`)
+    writeFileSync(`${base}.exit`, "1\n")
+    const result = run("claude", f, withBin(stubBin(f, base)))
+    expect(result.code).toBe(2)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.failure_reason).toContain(`transport unavailable (pre-egress, route): ${line}`)
+    expect(result.result.failure_reason).not.toContain("acpx exited")
   })
 
   test.each([

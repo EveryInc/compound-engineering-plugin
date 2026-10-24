@@ -640,6 +640,15 @@ describe("cross-model-doc-review outcome classification", () => {
     expect(r.stderr).toContain("peer skip evidence: stopReason=cancelled")
   })
 
+  test("a cancelled turn after a refused permission names that refusal", () => {
+    const sb = sandbox(["codex"], acpStream({ text: review(), stopReason: "cancelled", exit: 5 }))
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(r.files).not.toContain("adversarial-codex.json")
+    expect(r.stderr).toContain("peer skip evidence: permission request cancelled the turn")
+    expect(r.stderr).not.toContain("peer skip evidence: stopReason=cancelled")
+  })
+
   test("a provider error is classified failed with bounded evidence that never echoes the prompt", () => {
     const marker = "PROMPT-MARKER-c0ffee"
     const prompt = `${marker} ${"lorem ipsum ".repeat(2100)} ${marker}`
@@ -747,6 +756,39 @@ describe("cross-model-doc-review acpx transport preflight", () => {
     expect(calls(sb)).toBe(1)
     expect(r.files).toEqual([])
     expect(r.stderr).not.toContain("peer skip evidence")
+  })
+
+  test("the first line of a Node startup error is the pre-egress reason", () => {
+    const base = path.join(temp("xmodel-doc-node-"), "s")
+    const line = "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '@openclaw/fs-safe/dist/advanced.js'"
+    writeFileSync(`${base}.stderr`, `node:internal/modules/esm/resolve:275\n${line}\n    at Function._resolveFilename (node:internal/modules/cjs/loader:1207:15)\n`)
+    writeFileSync(`${base}.exit`, "1\n")
+    const sb = sandbox(["codex"], base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
+    expect(r.stderr).toContain(`transport unavailable (pre-egress, route): ${line}`)
+    expect(r.stderr).not.toContain("acpx exited 1 before sending the prompt")
+    expect(r.files).toEqual([])
+  })
+
+  test.each([...ROUTES] as string[])("only the codex prompt rules out escalation requests (%s)", (route) => {
+    const sb = sandbox([ROUTE_BIN[route]])
+    const runDir = makeRunDir()
+    const target = route.startsWith("grok") ? "grok" : route
+    const r = run([target === "claude" ? "codex" : "claude", target, "adversarial", makeDoc(), "plan", "none", runDir], runDir, {
+      ...sb.env,
+      CROSS_MODEL_FIXED_ROUTE: route,
+      ...(route === "grok-cursor" ? { CROSS_MODEL_PEERS: "grok,cursor" } : {}),
+    })
+    expect(r.files.some((file) => file.startsWith("adversarial-"))).toBe(true)
+    const sent = readFileSync(`${sb.logs.prompt}.1`, "utf8")
+    const rule = "never request escalated or out-of-sandbox permissions"
+    if (route === "codex") {
+      expect(sent).toContain(rule)
+      expect(sent).toContain("name the unrun check in residual_risks")
+    } else {
+      expect(sent).not.toContain(rule)
+    }
   })
 
   test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {

@@ -837,6 +837,15 @@ describe("cross-model-adversarial-review outcome classification", () => {
     expect(r.stderr).toContain("peer skip evidence: stopReason=cancelled")
   })
 
+  test("a cancelled turn after a refused permission names that refusal", () => {
+    const sb = sandbox(["codex"], acpStream({ text: review(), stopReason: "cancelled", exit: 5 }))
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, sb.env)
+    expect(r.files).not.toContain("adversarial-codex.json")
+    expect(r.stderr).toContain("peer skip evidence: permission request cancelled the turn")
+    expect(r.stderr).not.toContain("peer skip evidence: stopReason=cancelled")
+  })
+
   test("a turn that ran out of turns is not published", () => {
     const sb = sandbox(["claude"], acpStream({ text: review(), stopReason: "max_turn_requests" }))
     const runDir = makeRunDir()
@@ -940,6 +949,19 @@ describe("cross-model-adversarial-review acpx transport preflight", () => {
     expect(calls(sb)).toBe(1)
     expect(peerOutputs(r.files)).toEqual([])
     expect(r.stderr).not.toContain("peer skip evidence")
+  })
+
+  test("the first line of a Node startup error is the pre-egress reason", () => {
+    const base = path.join(temp("xmodel-cr-node-"), "s")
+    const line = "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '@openclaw/fs-safe/dist/advanced.js'"
+    writeFileSync(`${base}.stderr`, `node:internal/modules/esm/resolve:275\n${line}\n    at Function._resolveFilename (node:internal/modules/cjs/loader:1207:15)\n`)
+    writeFileSync(`${base}.exit`, "1\n")
+    const sb = sandbox(["codex"], base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, sb.env)
+    expect(r.stderr).toContain(`transport unavailable (pre-egress, route): ${line}`)
+    expect(r.stderr).not.toContain("acpx exited 1 before sending the prompt")
+    expect(peerOutputs(r.files)).toEqual([])
   })
 
   test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {

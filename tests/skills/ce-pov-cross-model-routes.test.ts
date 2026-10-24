@@ -563,6 +563,15 @@ describe("ce-pov output gate and receipts", () => {
     expect(result.stderr).toContain("peer skip evidence: stopReason=cancelled")
   })
 
+  test("a cancelled turn after a refused permission names that refusal", () => {
+    const sb = sandbox(["codex"], acpStream({ text: pov(), stopReason: "cancelled", exit: 5 }))
+    const dir = runDir()
+    const result = run(["claude", "codex", payload(), dir], dir, sb.env)
+    expect(result.files).not.toContain("pov-codex.json")
+    expect(result.stderr).toContain("peer skip evidence: permission request cancelled the turn")
+    expect(result.stderr).not.toContain("peer skip evidence: stopReason=cancelled")
+  })
+
   test.each([
     ["prompt-error", "stub agent failure"],
     ["timeout", "Timed out after 2000ms"],
@@ -763,6 +772,36 @@ describe("ce-pov acpx transport preflight and launch", () => {
     expect(result.stderr).toContain("transport unavailable (pre-egress, shared): npm error code ECONNREFUSED")
     expect(calls(sb)).toBe(1)
     expect(result.files).toEqual([])
+  })
+
+  test("the first line of a Node startup error is the pre-egress reason", () => {
+    const base = path.join(temp("pov-node-"), "s")
+    const line = "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '@openclaw/fs-safe/dist/advanced.js'"
+    writeFileSync(`${base}.stderr`, `node:internal/modules/esm/resolve:275\n${line}\n    at Function._resolveFilename (node:internal/modules/cjs/loader:1207:15)\n`)
+    writeFileSync(`${base}.exit`, "1\n")
+    const sb = sandbox(["codex"], base)
+    const dir = runDir()
+    const result = run(["claude", "codex", payload(), dir], dir, sb.env)
+    expect(result.stderr).toContain(`transport unavailable (pre-egress, route): ${line}`)
+    expect(result.stderr).not.toContain("acpx exited 1 before sending the prompt")
+    expect(result.files).toEqual([])
+  })
+
+  test.each(ROUTES.filter((route) => route in ROUTE_BIN))("only the codex prompt rules out escalation requests (%s)", (route) => {
+    const sb = sandbox([ROUTE_BIN[route]])
+    const dir = runDir()
+    const host = route === "claude" ? "codex" : "claude"
+    const result = run([host, route, payload(), dir], dir, sb.env)
+    expect(result.files.some((file) => file.startsWith("pov-"))).toBe(true)
+    const sent = readFileSync(`${sb.logs.prompt}.1`, "utf8")
+    const rule = "never request escalated or out-of-sandbox permissions"
+    if (route === "codex") {
+      expect(sent).toContain(rule)
+      expect(sent).toContain("name the unrun check in reasoning")
+      expect(sent).not.toContain("name the unrun check in residual_risks")
+    } else {
+      expect(sent).not.toContain(rule)
+    }
   })
 
   test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {
