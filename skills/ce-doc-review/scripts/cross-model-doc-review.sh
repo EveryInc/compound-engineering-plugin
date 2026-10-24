@@ -192,7 +192,7 @@ route_available() {
 # Every route reaches its agent through acpx, which speaks the Agent Client
 # Protocol and prints the JSON-RPC stream, so one parser covers every CLI.
 # The calling worker supplies route_available, route_model, and log.
-ACPX_VERSION="0.19.6"
+ACPX_VERSION="0.21.0"
 ACPX_UNAVAILABLE=""   # pre-egress reason; ACPX_SCOPE says whether every route shares it
 ACPX_SCOPE=""
 ACPX_NPM_REFRESH=false
