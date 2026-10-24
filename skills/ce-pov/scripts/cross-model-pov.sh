@@ -368,6 +368,21 @@ acpx_advertised_models() {   # <stream-log>
     | reduce .[] as $m ([]; if any(.[]; . == $m) then . else . + [$m] end)
     | join(", ") | if length > 300 then .[0:296] + " ..." else . end' "$1" 2>/dev/null
 }
+
+# Exit 5 is acpx's permission refusal. Paired with stopReason cancelled, the
+# refusal ended the turn. Exit 5 with end_turn means the turn finished. A
+# cancelled turn with any other exit is an interrupt.
+acpx_permission_cancel_reason() {   # <stream-log> <exit-code>
+  [ "$(acpx_outcome "$1")" = cancelled ] && [ "$2" = 5 ] || return 0
+  printf '%s' "permission request cancelled the turn"
+}
+
+acpx_node_startup_line() {   # <stderr-log>
+  local line=""
+  line="$(grep -m1 -E '^Error ' "$1" 2>/dev/null)"
+  [ -n "$line" ] || line="$(grep -m1 -E '^node:' "$1" 2>/dev/null)"
+  printf '%s' "$line"
+}
 # --- end acpx transport -----------------------------------------------------
 
 # --- model-identity receipt ---------------------------------------------------
@@ -652,6 +667,10 @@ fi
   cat "$PAYLOAD_PATH"
   printf '\n</subject-payload>\n'
 } > "$PROMPT_FILE"
+# codex-acp's only refusal option is cancel, which ends the turn.
+if [ "$FIXED_ROUTE" = codex ]; then
+  printf '\nYour sandbox is read-only and no approval is available: never request escalated or out-of-sandbox permissions (for example to launch a browser, use the network, or write outside the repository). Any permission request ends this review with no result. When a check needs more access than the sandbox gives, reason from the source instead and name the unrun check in reasoning.\n' >> "$PROMPT_FILE"
+fi
 
 # --- run machinery -----------------------------------------------------------
 # Every route streams the ACP session, so the idle cap is the liveness guard and
@@ -900,10 +919,9 @@ bounded_failure_evidence() {   # <logfile>; bounded head+tail of a plain-text lo
 }
 
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
-# Success is the prompt's own end_turn result: acpx exits 5 when a permission
-# request was denied even though the turn completed, and exits 0 on a cancelled one.
+# Success is the prompt's own end_turn result, not acpx's exit status.
 attempt_route() {   # <provider> <route>
-  local provider="$1" route="$2" outcome reason started remaining
+  local provider="$1" route="$2" outcome reason started remaining node_line cancel_reason
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT" "$TEXT_OUT"
   RUN_SUCCEEDED=false
   build_cmd "$route"
@@ -938,11 +956,23 @@ attempt_route() {   # <provider> <route>
       elif [ "$SESSION_STALLED" = true ]; then
         PRE_EGRESS="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; the agy CLI's sign-in does not carry over, so sign the ACP runtime in once: put {\"auth\":{\"type\":\"oauth-personal\"}} in ${GEMINI_HOME:-~/.gemini}/antigravity-acp/settings.json, run npx acpx@$ACPX_VERSION antigravity exec ok in a terminal and finish the browser sign-in, then retry"
       else
-        reason="$(acpx_failure_evidence "$PEERLOG")"
-        PRE_EGRESS="transport unavailable (pre-egress, route): ${reason:-acpx exited $PEER_EXIT before sending the prompt}"
+        node_line="$(acpx_node_startup_line "$PEERERR")"
+        if [ -n "$node_line" ]; then
+          PRE_EGRESS="transport unavailable (pre-egress, route): ${node_line:0:200}"
+        else
+          reason="$(acpx_failure_evidence "$PEERLOG")"
+          PRE_EGRESS="transport unavailable (pre-egress, route): ${reason:-acpx exited $PEER_EXIT before sending the prompt}"
+        fi
       fi
       ;;
-    *) log "peer run ended with $outcome (acpx exit $PEER_EXIT)" ;;
+    *)
+      cancel_reason="$(acpx_permission_cancel_reason "$PEERLOG" "$PEER_EXIT")"
+      if [ -n "$cancel_reason" ]; then
+        log "peer run ended: $cancel_reason (acpx exit $PEER_EXIT)"
+      else
+        log "peer run ended with $outcome (acpx exit $PEER_EXIT)"
+      fi
+      ;;
   esac
 }
 
@@ -1060,7 +1090,8 @@ run_fixed_route() {
     # empty review) and, in a repeated-pass session, deprioritize an exhausted
     # route. Provider errors arrive as ACP error messages or as reply text on
     # stdout; npm and adapter diagnostics on stderr.
-    _pt="$(acpx_failure_evidence "$PEERLOG")"
+    _pt="$(acpx_permission_cancel_reason "$PEERLOG" "$PEER_EXIT")"
+    [ -n "$_pt" ] || _pt="$(acpx_failure_evidence "$PEERLOG")"
     [ -n "$_pt" ] && log "  peer skip evidence: $_pt"
     _pr="$(acpx_reply_evidence "$PEERLOG")"
     [ -n "$_pr" ] && log "  peer skip evidence (reply): $_pr"

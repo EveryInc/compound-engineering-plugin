@@ -299,6 +299,21 @@ acpx_advertised_models() {   # <stream-log>
     | reduce .[] as $m ([]; if any(.[]; . == $m) then . else . + [$m] end)
     | join(", ") | if length > 300 then .[0:296] + " ..." else . end' "$1" 2>/dev/null
 }
+
+# Exit 5 is acpx's permission refusal. Paired with stopReason cancelled, the
+# refusal ended the turn. Exit 5 with end_turn means the turn finished. A
+# cancelled turn with any other exit is an interrupt.
+acpx_permission_cancel_reason() {   # <stream-log> <exit-code>
+  [ "$(acpx_outcome "$1")" = cancelled ] && [ "$2" = 5 ] || return 0
+  printf '%s' "permission request cancelled the turn"
+}
+
+acpx_node_startup_line() {   # <stderr-log>
+  local line=""
+  line="$(grep -m1 -E '^Error ' "$1" 2>/dev/null)"
+  [ -n "$line" ] || line="$(grep -m1 -E '^node:' "$1" 2>/dev/null)"
+  printf '%s' "$line"
+}
 # --- end acpx transport -----------------------------------------------------
 
 # Cursor routes take Cursor's ACP model ids, which may carry a bracketed preset
@@ -1219,14 +1234,20 @@ case "$OUTCOME" in
     elif [ -f "$SESSION_STALL_MARKER" ]; then
       REASON="$SIGN_IN_STALL_REASON"
     else
-      REASON="$(acpx_failure_evidence "$STREAM")"
-      REASON="transport unavailable (pre-egress, route): ${REASON:-acpx exited $ROUTE_EXIT before sending the prompt}"
+      node_line="$(acpx_node_startup_line "$RAW_STDERR")"
+      if [ -n "$node_line" ]; then
+        REASON="transport unavailable (pre-egress, route): ${node_line:0:200}"
+      else
+        REASON="$(acpx_failure_evidence "$STREAM")"
+        REASON="transport unavailable (pre-egress, route): ${REASON:-acpx exited $ROUTE_EXIT before sending the prompt}"
+      fi
     fi
     publish_unavailable "$REASON" || exit 2
     exit 2
     ;;
   *)
-    REASON="$(acpx_failure_evidence "$STREAM")"
+    REASON="$(acpx_permission_cancel_reason "$RAW_STDOUT" "$ROUTE_EXIT")"
+    [ -n "$REASON" ] || REASON="$(acpx_failure_evidence "$STREAM")"
     publish_unavailable "fixed route ended with $OUTCOME (acpx exit $ROUTE_EXIT)${REASON:+: $REASON}" failed "$ROUTE" || exit 2
     exit 1
     ;;
