@@ -275,10 +275,10 @@ def main(argv: list[str]) -> int:
             flags.append(
                 f"FLAG path `{token}`{loc} — not found under {base}"
                 + (f" or {upstream}" if upstream else "")
-                + ". This check only looks in this repository; verify other "
-                "repos or stores before treating the citation as wrong. Fix "
-                "the citation, or annotate it as historical (e.g. removed "
-                "by this fix)."
+                + ". Only that location was searched; check other repos or "
+                "stores before treating the citation as wrong. Fix the "
+                "citation, or annotate it as historical (e.g. removed by "
+                "this fix)."
             )
 
     # --- 2. Cited commit SHAs ----------------------------------------------

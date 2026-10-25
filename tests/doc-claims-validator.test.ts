@@ -150,7 +150,7 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).toContain("not found under ")
         expect(result.stdout).toContain(path.basename(repo))
         expect(result.stdout).toContain(
-          "This check only looks in this repository",
+          "Only that location was searched",
         )
       })
 
