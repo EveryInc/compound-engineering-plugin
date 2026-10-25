@@ -717,6 +717,12 @@ describe("ce-code-review contract", () => {
     expect(handoff).toMatch(/step 5 decides which stay as unresolved gates/)
     expect(handoff).toMatch(/still count toward the Stage 6 verdict/)
     expect(handoff).not.toMatch(/drop and validation-degraded rules/)
+    // #1777: a host refuses a subagent Write whose basename matches the report pattern, so the
+    // report leaf cannot persist report.md; the dispatch context, which already holds and emits
+    // the return, owns that write.
+    expect(handoff).toMatch(/write the report leaf's return to `<run-dir>\/report\.md` first/)
+    expect(handoff).not.toMatch(/Write `report\.md` or `review\.json`/)
+    expect(finish).toMatch(/the dispatch context persists it to `report\.md`/)
   })
 
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
