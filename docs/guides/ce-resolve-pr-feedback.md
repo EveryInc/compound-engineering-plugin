@@ -96,6 +96,7 @@ Most feedback, nitpicks included, is correct. Validation is not a separate analy
 
 - The finding does not hold -> `not-addressing` with evidence
 - The fix would make the code worse -> `declined`, citing the harm
+- The finding is real but asks for work outside what the PR set out to change (a sibling module, a new option, tests for untouched code) -> `declined`, naming the PR's purpose and leaving it for a separate change. Defects in the changed code, breaks the change causes, and wider work a human reviewer explicitly asks for in this PR are still fixed. A security, data-loss, or irreversible-effect finding on code the PR does not change goes to `needs-human` instead
 - The change buys nothing real (the bar is "no benefit," not "minor") -> `replied`
 - The finding is true, but something the agent can name already surfaces the failure before it costs anything (a dry run the operator reads, a loud error, a result someone checks) -> `replied`, or `fixed-differently` when a usage line or clearer message makes that signal better. It never applies when the cost lands before anyone would see it (data lost, money or access granted wrongly), or to security, auth, billing, data retention, migrations, or irreversible effects
 - Risk cannot be bounded -> de-risk with a test if possible, else `needs-human`
@@ -124,7 +125,7 @@ When the same invariant applies to other sites this PR introduced, those sites b
 | `fixed-differently` | Change made, better approach than suggested | Commit + reply explaining the divergence + resolve |
 | `replied` | No code change: question answered, or change not warranted | Reply + resolve |
 | `not-addressing` | Finding is factually wrong about the code | Reply with evidence + resolve |
-| `declined` | Suggested fix would make the code worse | Reply citing harm + resolve |
+| `declined` | Suggested fix would make the code worse, or the finding is outside the PR's purpose | Reply citing the harm or the scope reason + resolve |
 | `needs-human` | Cannot determine the right action | Reply with `decision_context`, leave open |
 
 `needs-human` is rare, and rarer now that judgment-only diverts are adjudicated first. It includes what the reviewer said, what was investigated, why a decision is needed, and options with tradeoffs. Escalations never block the rest of the run. That is what lets `/ce-babysit-pr` call this skill unattended.
