@@ -1041,5 +1041,7 @@ describe("ce-babysit-pr old-PR intake", () => {
     expect(takeover).toMatch(/from the source head OID fetched from `refs\/pull\/<N>\/head`, never a local ref/)
     expect(takeover).toContain("ce-commit-push-pr mode:pipeline")
     expect(takeover).toMatch(/Never close the source PR without the user's explicit permission/)
+    // A takeover pushes contributor code into this repository, past the fork-PR approval gate.
+    expect(takeover).toMatch(/Confirm before the first push when the source is a fork/)
   })
 })

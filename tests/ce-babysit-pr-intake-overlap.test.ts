@@ -126,6 +126,46 @@ describe("intake-overlap", () => {
     expect(out.error).toBeNull()
   })
 
+  test("base moving the directory a PR adds into is directory-gone, renamed", () => {
+    const dir = scenario(
+      "dir-moved",
+      { "pkg/agents/a.md": body("a"), "README.md": body("r") },
+      (r) => r.write({ "pkg/agents/new.md": body("new") }),
+      (r) => {
+        mkdirSync(path.join(r.dir, "lib"), { recursive: true })
+        r.git("mv", "pkg/agents", "lib/agents")
+      },
+    )
+    const out = overlap(dir)
+    expect(out.overlap).toBe(true)
+    expect(out.reasons).toContainEqual({
+      kind: "directory-gone",
+      pr_path: "pkg/agents/new.md",
+      base_path: "pkg/agents",
+      base_status: "renamed",
+    })
+  })
+
+  test("a shallow clone still finds the merge-base", () => {
+    const work = scenario(
+      "shallow",
+      { "src/a.ts": body("a") },
+      (r) => r.write({ "src/a.ts": body("pr") }),
+      (r) => r.write({ "src/a.ts": body("base") }),
+    )
+    const remote = path.join(path.dirname(work), "remote.git")
+    const clone = path.join(path.dirname(work), "shallow-clone")
+    const r = spawnSync("git", ["clone", "-q", "--depth", "1", `file://${remote.split(path.sep).join("/")}`, clone], {
+      env: ENV,
+      encoding: "utf8",
+    })
+    expect(r.status).toBe(0)
+    const out = overlap(clone)
+    expect(out.error).toBeNull()
+    expect(out.merge_base).toMatch(/^[0-9a-f]{40}$/)
+    expect(out.overlap).toBe(true)
+  })
+
   test("both sides editing one file is same-path", () => {
     const dir = scenario(
       "same-path",

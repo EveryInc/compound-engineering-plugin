@@ -13,7 +13,7 @@ Run the bundled overlap check against fresh refs. Pass the local remote whose UR
 ```bash
 SKILL_DIR="<absolute path of this skill's directory>";
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
-"$PY" "$SKILL_DIR/scripts/intake-overlap" --repo-dir "$(git rev-parse --show-toplevel)" --remote <base-remote> --base <baseRefName> --pr <N>
+"$PY" "$SKILL_DIR/scripts/intake-overlap" --repo-dir "$(git rev-parse --show-toplevel)" --remote "<base-remote>" --base "<baseRefName>" --pr "<N>"
 ```
 
 Assess the PR when the output's `overlap` is `true` or `"unknown"`, or when the user asked to update or rebase it or asked whether it is still worth keeping. Otherwise skip to the checkout gate; babysit behaves as it always has. Age, commits behind, and time since last activity never trigger the assessment and never count as evidence for a verdict.
@@ -44,7 +44,7 @@ Reach exactly one verdict before anything is pushed:
 
 Intake itself never merges the base into the PR; on a CLEAN PR that would be the unrequested base merge the snapshot reports as a defect. If the user replies "keep it" or "watch it anyway" to a Rework or Close verdict, continue to the checkout gate for this invocation. A later fresh invocation assesses again.
 
-**Close.** Close only with the user's explicit permission. That permission covers closing with one comment that carries the evidence and thanks the contributor (`gh pr close <N> --comment <text>`).
+**Close.** Close only with the user's explicit permission. That permission covers closing with one comment that carries the evidence and thanks the contributor (`gh pr close "<N>" --repo "<[host/]owner/repo>" --comment "<text>"`, against the PR's base repository).
 
 **Rework.** When the user asks for the rework, write the rework you described (goal, scope, PR link, how to verify it) to a new plan file in OS temp, invoke `ce-work mode:return-to-caller <that path>` on the PR head checkout, push its commits under babysit's ordinary push authority, then start a fresh invocation on the PR. Return-to-caller mode keeps `ce-work` from opening a second PR or watcher. When you cannot push to the PR, offer a takeover (`references/takeover.md`) instead.
 
