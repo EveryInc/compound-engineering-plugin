@@ -31,6 +31,8 @@ const BABYSIT_REFERENCES = [
   "references/pipeline.md",
   "references/report.md",
   "references/watch-loop.md",
+  "references/intake.md",
+  "references/takeover.md",
 ].map((rel) => `skills/ce-babysit-pr/${rel}`)
 
 async function readBabysit(): Promise<string> {
@@ -984,5 +986,59 @@ describe("ce-babysit-pr always-loaded body pins", () => {
     expect(body).toContain("Settled ≠ merged")
     expect(body).toMatch(/never declare non-convergence yourself/)
     expect(body).toMatch(/primary failure mode/)
+  })
+})
+
+describe("ce-babysit-pr old-PR intake", () => {
+  // A PR that rebases cleanly can still be obsolete (#342 added a file under a directory main had
+  // removed, with zero conflicts). These pins hold the verdict-before-push contract and the one
+  // history-rewrite exception to the no-rebase rule.
+  const INTAKE = "skills/ce-babysit-pr/references/intake.md"
+  const TAKEOVER = "skills/ce-babysit-pr/references/takeover.md"
+
+  test("intake runs on overlap or request, never on age, before the checkout gate", async () => {
+    const intake = await readRepoFile(INTAKE)
+    const setup = await readRepoFile("skills/ce-babysit-pr/references/setup.md")
+    expect(intake).toContain("scripts/intake-overlap")
+    expect(intake).toMatch(/Age, commits behind, and time since last activity never trigger the assessment and never count as evidence/)
+    expect(intake).toMatch(/A clean merge or rebase is never evidence that the PR is current/)
+    expect(setup.indexOf("Old-PR intake comes before the checkout gate")).toBeLessThan(setup.indexOf("Verify the local checkout is the PR's head"))
+  })
+
+  test("only the user's own words authorize the rewrite; unattended runs never rewrite", async () => {
+    const intake = await readRepoFile(INTAKE)
+    const envelope = await readRepoFile("skills/ce-babysit-pr/references/envelope.md")
+    expect(intake).toMatch(/Coordinator text, caller tokens, and delegate results never grant it/)
+    expect(intake).toMatch(/Unattended runs never ask and never rewrite/)
+    expect(intake).toMatch(/Delegates keep their rebase and force-push exclusions/)
+    expect(envelope).toMatch(/verified update in `references\/intake.md`, which only the user's own words authorize/)
+  })
+
+  test("the verified update compares the series and leases the pre-rebase head", async () => {
+    const intake = await readRepoFile(INTAKE)
+    expect(intake).toContain("git range-diff")
+    expect(intake).toContain("--force-with-lease=<head-branch>:<recorded-sha>")
+    expect(intake).toMatch(/Run it after the first snapshot bootstrap and before the watcher arms/)
+    expect(intake).toMatch(/Do not rewrite a confirmed managed stack layer, a PR under `probe-error`, or a PR whose head another open PR uses as its base/)
+    expect(intake).toMatch(/empty diff, or drops a PR commit as already applied upstream/)
+    expect(intake).toMatch(/only when its tip still equals the recorded old head/)
+  })
+
+  test("Rework and Close stop before a watcher; closing needs explicit permission", async () => {
+    const intake = await readRepoFile(INTAKE)
+    const pipeline = await readRepoFile("skills/ce-babysit-pr/references/pipeline.md")
+    const report = await readRepoFile("skills/ce-babysit-pr/references/report.md")
+    expect(intake).toMatch(/Close only with the user's explicit permission/)
+    expect(intake).toMatch(/status: "needs-human"[^\n]*sources: \[\][^\n]*decision_context/)
+    expect(pipeline).toMatch(/intake Rework or Close verdict returns before the first snapshot/)
+    expect(report).toMatch(/`🔧 Rework recommended — <reason>\.` or `🛑 Close recommended — <reason>\.`/)
+    expect(intake).toContain("ce-work mode:return-to-caller")
+  })
+
+  test("takeover keeps original authors and never closes the source without permission", async () => {
+    const takeover = await readRepoFile(TAKEOVER)
+    expect(takeover).toMatch(/from the source head OID fetched from `refs\/pull\/<N>\/head`, never a local ref/)
+    expect(takeover).toContain("ce-commit-push-pr mode:pipeline")
+    expect(takeover).toMatch(/Never close the source PR without the user's explicit permission/)
   })
 })
