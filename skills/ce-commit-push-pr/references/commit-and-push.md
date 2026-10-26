@@ -8,6 +8,8 @@ Scan changed files for naturally distinct concerns. If they clearly group into s
 
 Stage and commit each group. **Avoid `git add -A` and `git add .`** — they sweep in `.env`, build artifacts, and generated files. **Honor `exclude:<paths>` when the invocation carries it.** The caller names files that must stay uncommitted, typically the user's own in-progress edits it could not separate from its work. Never stage or commit them, and say in the report that they were left out. When a plan Implementation Unit ID is already in hand for this commit (conversation, caller, or the files belong to one unit), append that unit's U-ID in parentheses — `(U3)` means unit 3. Do not hunt for a plan. Omit when the commit spans units, the unit is unclear, or no plan is in hand.
 
+Add your commits on top of other people's commits on this branch; never rewrite theirs in a way that drops their author or trailers, such as squashing them into yours. When a commit you create carries someone else's work that will not otherwise land under their name (ported from their branch or PR, or applied from their patch), end its message with a `Co-authored-by: Name <email>` trailer for each person that work credits: its commit authors and anyone their `Co-authored-by` trailers name. Copy each identity exactly from those commits or the patch. Never guess an email: when none is recorded, name them in the message body instead.
+
 ```bash
 git add file1 file2 file3 && git commit -m "$(cat <<'EOF'
 commit message here
