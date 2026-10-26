@@ -17,6 +17,8 @@ async function readRepoFile(relativePath: string): Promise<string> {
 
 const BABYSIT_BODY = "skills/ce-babysit-pr/SKILL.md"
 const WATCH_LOOP = "skills/ce-babysit-pr/references/watch-loop.md"
+const STACK = "skills/ce-babysit-pr/references/stack.md"
+const BRANCH_CURRENCY = "skills/ce-babysit-pr/references/branch-currency.md"
 // The always-loaded body is capped at Codex's 8000-byte prompt budget, so most of the contract text
 // lives in references the skill loads at the point of use. Contract greps run against the whole
 // corpus (body + references); the "always-loaded body pins" block below asserts the few rules that
@@ -431,12 +433,9 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   })
 
   test("a target push in a confirmed managed stack is followed by recoverable upstack maintenance", async () => {
-    const [babysit, watchLoop] = await Promise.all([
-      readBabysit(),
-      readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
-    ])
+    const [babysit, stack, watchLoop] = await Promise.all([readBabysit(), readRepoFile(STACK), readRepoFile(WATCH_LOOP)])
 
-    for (const text of [babysit, watchLoop]) {
+    for (const text of [babysit, stack]) {
       expect(text).toMatch(/gh stack rebase "?<first-dependent-branch>"? --upstack --no-trunk/)
       expect(text).toContain("gh stack push")
       expect(text).not.toMatch(/capability proven before delegation supplies\s+`--force-with-lease --atomic`/)
@@ -445,10 +444,10 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
       expect(text).toMatch(/re-probe|compare every baseline-affected/)
       expect(text).toMatch(/observed progress/)
       expect(text).toMatch(/gh stack rebase --abort[\s\S]{0,300}(residual|needs-human)/i)
-      expect(text).toMatch(/manual dependency[\s\S]{0,500}(never|do not)[\s\S]{0,120}(rebase|rewrite|restack)/i)
       expect(text).toMatch(/target[^.]{0,160}(local|head)[^.]{0,160}(pushed SHA|unchanged)/i)
       expect(text).toMatch(/github\/gh-stack#216/)
     }
+    expect(watchLoop).toMatch(/manual dependency[\s\S]{0,500}(never|do not)[\s\S]{0,120}(rebase|rewrite|restack)/i)
     expect(babysit).toMatch(/after (an|any) authorized target-head push[\s\S]{0,1800}gh stack rebase "?<first-dependent-branch>"? --upstack --no-trunk/i)
     expect(babysit).toMatch(/manager-owned[\s\S]{0,200}(implicit|babysit)[\s\S]{0,200}author/i)
   })
@@ -476,11 +475,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   })
 
   test("post-push re-probe compares dependents against baseline, not the pushed target OID", async () => {
-    const [babysit, watchLoop] = await Promise.all([
-      readBabysit(),
-      readRepoFile(WATCH_LOOP),
-    ])
-    for (const text of [babysit, watchLoop]) {
+    const [babysit, stack] = await Promise.all([readBabysit(), readRepoFile(STACK)])
+    for (const text of [babysit, stack]) {
       expect(text).toContain("open dependent")
       expect(text).toContain("intentional post-push OID change as divergence")
     }
@@ -774,8 +770,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   })
 
   test("branch-currency mutation is claimed, invocation-fenced, and reconciled before retry", async () => {
-    const [babysit, watchLoop] = await Promise.all([readBabysit(), readRepoFile(WATCH_LOOP)])
-    for (const text of [babysit, watchLoop]) {
+    const [babysit, currency] = await Promise.all([readBabysit(), readRepoFile(BRANCH_CURRENCY)])
+    for (const text of [babysit, currency]) {
       expect(text).toContain("--currency-key")
       expect(text).toContain("--currency-disposition claimed")
       expect(text).toContain("--currency-outcome mutation-observed")
@@ -788,15 +784,15 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
     expect(babysit).toMatch(/stale invocation[^.]{0,220}(reject|invalidate)/i)
     expect(babysit).toMatch(/SKILL_DIR=[^\n]+;[^\n]+STATE_DIR=[^\n]+;[^\n]+RUN_INVOCATION_ID=[^\n]+;[^\n]+RUN_STARTED_AT=[^\n]+;[^\n]+RUN_BUDGET_SECONDS=[^\n]+;\n\s*PY=[\s\S]*?"\$PY"[^\n]+--currency-disposition claimed/i)
-    expect(watchLoop).toMatch(/max-runtime[^.]{0,160}(claim|mutation)/i)
+    expect(currency).toMatch(/max-runtime[^.]{0,160}(claim|mutation)/i)
   })
 
   test("behind maintenance uses positive host capability and exact observed OIDs", async () => {
-    const [babysit, watchLoop] = await Promise.all([readBabysit(), readRepoFile(WATCH_LOOP)])
+    const [babysit, currency] = await Promise.all([readBabysit(), readRepoFile(BRANCH_CURRENCY)])
     const behindStart = babysit.indexOf('- **`BEHIND`: host-owned update only.**')
     const behindEnd = babysit.indexOf('- **`DIRTY`: exact-base local repair only.**', behindStart)
     const behindBlock = babysit.slice(behindStart, behindEnd)
-    for (const text of [babysit, watchLoop]) {
+    for (const text of [babysit, currency]) {
       expect(text).toContain("host_branch_update_capability == true")
       expect(text).toMatch(/(denied|false)[\s\S]{0,160}(unknown)[\s\S]{0,260}needs-human/i)
       expect(text).toMatch(/host[^.]{0,120}(update|operation)[^.]{0,180}(once|one time)/i)
@@ -815,8 +811,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   })
 
   test("dirty maintenance proves push authority, previews exact-base conflicts, and parks semantic choices", async () => {
-    const [babysit, watchLoop] = await Promise.all([readBabysit(), readRepoFile(WATCH_LOOP)])
-    for (const text of [babysit, watchLoop]) {
+    const [babysit, currency] = await Promise.all([readBabysit(), readRepoFile(BRANCH_CURRENCY)])
+    for (const text of [babysit, currency]) {
       expect(text).toMatch(/DIRTY[\s\S]{0,500}host_branch_update_capability[^.]{0,120}(irrelevant|does not apply)/i)
       expect(text).toMatch(/ordinary direct[- ]push authority[^.]{0,180}(exact )?head ref/i)
       expect(text).toMatch(/(without mutating[^.]{0,220}ordinary direct-push authority|ordinary direct push authority[^.]{0,220}without mutating)/i)
@@ -837,8 +833,8 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
   })
 
   test("semantic currency parks are fingerprinted before a new mutation and scope stays target-local", async () => {
-    const [babysit, watchLoop] = await Promise.all([readBabysit(), readRepoFile(WATCH_LOOP)])
-    for (const text of [babysit, watchLoop]) {
+    const [babysit, currency, watchLoop] = await Promise.all([readBabysit(), readRepoFile(BRANCH_CURRENCY), readRepoFile(WATCH_LOOP)])
+    for (const text of [babysit, currency]) {
       expect(text).toMatch(/parked_semantic_fingerprints[\s\S]{0,500}--currency-inspected-fingerprint/i)
       expect(text).toContain("--answer-decision")
       expect(text).toContain("--answer-file")
