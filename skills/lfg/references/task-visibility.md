@@ -1,10 +1,18 @@
-# Task visibility, narration, and completion
+# Task visibility, narration, verification, and completion
 
 Before step 1, use the platform's task-tracking capability when available to publish a short stage-level view of the remaining pipeline. Derive it from the user-meaningful outcomes of LFG's steps rather than mirroring all ten steps or exposing internal checks. Before invoking a child skill, replace or clear LFG's view so only the child skill's task surface is visible; after it returns, recreate or refresh LFG's remaining pipeline work before invoking the next child. Add a conditional step only when its condition is actually met. If no task-tracking capability is available, continue normally without simulating a task list in chat.
 
 ## Chat narration
 
-Narrate the run in chat as it moves. Narration is chat prose, never entries on the task surface above. One line entering each step names the step and what it should produce; one line when it returns names what it actually produced (plan path, return status, fixes applied, PR URL). Close with a recap that stands on its own: what was built, how it was verified, what shipped, and any leftover findings. Print it alongside the close-out lines `references/shipping.md` defines, so a reader who sees only the final message has the full picture.
+Narrate the run in chat as it moves. Narration is chat prose, never entries on the task surface above. One line entering each step names the step and what it should produce; one line when it returns names what it actually produced (plan path, return status, fixes applied, PR URL). Close with a recap that stands on its own: what was built, how it was verified and by which methods, what shipped, and any leftover findings. Print it alongside the close-out lines `references/shipping.md` defines, so a reader who sees only the final message has the full picture.
+
+When the run stops short of DONE, its final message is not that recap, because a reader who sees only the final message must not mistake it for finished work. Open the message with the stop itself: say that the run stopped and at which step, what blocks it, and the decision the user has to make. Give the options with your recommendation first, and the PR link when a PR exists. After that, recap what was done and where it was left, and put any child skill's return you quote below the opening. Then end the run. Do not ask through a question tool or wait for a reply; the message itself hands the decision over.
+
+## Verification the request permits
+
+Invoking `lfg` is the user's approval, given in advance, for the verification this change needs: browser tests, a simulator or device, screenshots, running the app or a dev server, and computer use on that app. When project instructions say to ask the user before one of these, or to leave testing to the user, that approval has already been given, so run the verification without asking. This follows the instruction rather than overriding it, because the user answered when they invoked `lfg`. A run that stops to ask stalls with nobody there to answer, and a run that skips the check drops the proof that the change works. This holds in every step, including the checks a child skill runs, such as `ce-work`'s verification and step 8's browser tests.
+
+The approval replaces only the request to ask first or to leave testing to the user. Project rules about how to test still apply, so use the command, fixture, data, or check they name. The approval covers only the verification this change needs. It does not extend to production systems, real accounts or their data, deleting data, or anything else outside what `lfg` already does. It never answers a harness or system approval prompt for you: when such a prompt refuses a method, leave that method out and say in the recap that it did not run and why.
 
 ## Completion discipline
 
