@@ -37,7 +37,7 @@ One PR named → `target` (ask once if a confirmed multi-layer stack exists); as
 3. **Old-PR intake** (fresh invocation, before the checkout gate): read `references/intake.md`; it decides whether this PR still belongs. A user request to take the PR over: `references/takeover.md`.
 4. Chain classification comes from the snapshot, never the user; resolve posture before semantic work.
 5. **Checkout must be the PR's head branch with matching upstream** before any delegated mutation; default `gh pr checkout <ref>`; no push access or dirty checkout → stop, say so.
-6. **Sustain mode** (`references/setup.md`, `references/watch-loop.md`): keep monitoring in the current session until a stop condition is met, one tick per `BABYSIT_WAKE`; never collapse the loop into a script. **Pipeline** (`mode:pipeline`): bounded synchronous ticks, structured return (`references/pipeline.md`).
+6. **Sustain mode** (`references/setup.md`, `references/watch-loop.md`): keep monitoring in the current session until a stop condition is met, one tick per `BABYSIT_WAKE`; never collapse the loop into a script. Checkpoint mode only when the user asks or the harness cannot wait. **Pipeline** (`mode:pipeline`): bounded synchronous ticks, structured return (`references/pipeline.md`).
 
 ## Step 2: One tick (ordering invariant)
 
