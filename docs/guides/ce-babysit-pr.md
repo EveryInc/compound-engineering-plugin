@@ -10,6 +10,8 @@ Posture sets the scope. Default is `target`, the named PR only. On a confirmed m
 
 It cannot promise merge-readiness. A reviewer can still comment later. Required checks can change. Under `target` and `stack-ready`, you merge. Selecting `stack-land` *is* land authorization for that managed prefix.
 
+An old PR gets judged before it is watched. When the base has changed, moved, or deleted the paths the PR touches since it branched off, or when you ask, the skill first decides whether the PR should be updated, reworked, or closed, and pushes nothing until it has.
+
 GitHub only, including GitHub Enterprise that `gh` is configured for.
 
 ---
@@ -52,6 +54,12 @@ Empty invoke watches the current branch's PR. A number or URL pins the PR. `watc
 
 # Same walk, and land the settled prefix when green
 /ce-babysit-pr posture:stack-land
+
+# An old PR: judge whether it still belongs, and rebase it if it does
+/ce-babysit-pr 289 this is old, update it if it still makes sense
+
+# Continue someone else's stalled PR in a replacement PR, keeping their commits
+/ce-babysit-pr 289 take this over
 ```
 
 For a single pass over comments you want to watch yourself, use `/ce-resolve-pr-feedback` instead.
@@ -102,6 +110,22 @@ Default budget is 8 hours of active watch time; laptop-sleep gaps do not count. 
 Ready is not "CI is green." GitHub must report the PR mergeable against the current base, the attention set must be empty, and the quiet window (5 minutes by default) must have elapsed. Then the skill judges separately whether a review is still on its way, from what the current head shows. A reviewer that announced itself earns a bounded extra wait until something it produced accounts for the review it announced, whatever that output concluded. An unrelated check from the same app finishing is not that. Even then the summary says "looks ready, your call" or "cautiously looks ready."
 
 When a fork PR's CI is waiting on maintainer approval, the skill drains review for a bounded window (5, 15, or 30 minutes) and then hands back. It never approves the workflow run. Pipeline mode returns that blocker immediately.
+
+### An old PR is judged before it is updated
+
+A clean rebase does not prove a PR still belongs. A PR that only adds a file under a directory the base has since removed rebases with zero conflicts and would recreate that directory on merge. So on a fresh run, a bundled script fetches the base and the PR head and checks whether the base changed, moved, or deleted the PR's paths since the merge-base. When it did, or when you ask, the skill reads the PR's intent (title, body, linked issues, commits, threads, diff), reads what the base changed since, searches merged and open PRs for a replacement, and gives one verdict:
+
+| Verdict | Meaning | What happens |
+|---------|---------|--------------|
+| Update | The goal still matters and the implementation is the right shape | Watching continues. If you asked for an update, or said yes when asked, it rebases first |
+| Rework | The goal still matters, but a mechanical update would keep the wrong implementation | It describes the smallest credible rework and stops. Ask and it hands the rework to `/ce-work` |
+| Close | Superseded, obsolete, directionally wrong, or not worth its cost | It recommends closing with the evidence and stops. It closes only with your permission |
+
+Age alone never triggers the check or counts as evidence. Unattended runs (`mode:pipeline`, as `lfg` uses) check quietly: an Update continues, and a Rework or Close comes back as a needs-human item.
+
+The rebase is the one history rewrite this skill performs, and only your own words authorize it. A coordinator saying "update the branch" still does not. It rebases in a temporary worktree, compares the old and new commit series with `git range-diff`, refuses to push when the base already absorbed the PR or the series holds a merge of another branch, and pushes with `--force-with-lease` pinned to the head it started from, so a commit the author pushed meanwhile is never overwritten. It skips managed stack layers and PRs other PRs are based on.
+
+Asked to take a PR over, it continues the work in a replacement PR built from the original commits, so their authors stay on them. It opens the replacement through `/ce-commit-push-pr` with the original PR and authors as credit context, watches the new PR, and leaves the original open unless you say to close it.
 
 ### Posture is a run value, not a keyword guess
 
@@ -161,6 +185,8 @@ Use `ce-babysit-pr` when:
 - You are about to context-switch and still want comments and CI handled
 - `/ce-commit-push-pr` just opened a PR (handoff is the default)
 - You own a confirmed managed stack and want `stack-ready` or `stack-land`
+- An old PR has fallen behind and you want to know whether to update, rework, or close it, or want it rebased safely
+- You want to finish someone else's stalled PR without losing their credit
 
 Skip it when:
 
@@ -207,7 +233,7 @@ Use `/ce-resolve-pr-feedback` directly when you want one manual pass. Use this s
 | `posture:target\|stack-ready\|stack-land` | Run scope on a confirmed managed stack |
 | `mode:pipeline` | Bounded synchronous ticks for an orchestrator. No settle wait. Structured return. |
 
-`scripts/pr-snapshot` is the snapshot and state helper: it paginates review threads, records CI and branch currency, and emits the per-tick attention set. Its `watch` subcommand is the token-free change detector (with `--downstack-pr` it also probes lower stack layers so the walk returns when one re-opens). A newer successful invoke takes ownership; older wakes are stale hints. The skill body itself is a short always-loaded kernel; the tick commands, currency routes, stack contract, settle policy, and report shape live in the skill's `references/` (`tick.md`, `branch-currency.md`, `stack.md`, `settle.md`, `report.md`, `watch-loop.md`).
+`scripts/pr-snapshot` is the snapshot and state helper: it paginates review threads, records CI and branch currency, and emits the per-tick attention set. Its `watch` subcommand is the token-free change detector (with `--downstack-pr` it also probes lower stack layers so the walk returns when one re-opens). A newer successful invoke takes ownership; older wakes are stale hints. The skill body itself is a short always-loaded kernel; the tick commands, currency routes, stack contract, settle policy, old-PR intake, takeover, and report shape live in the skill's `references/` (`tick.md`, `branch-currency.md`, `stack.md`, `settle.md`, `intake.md`, `takeover.md`, `report.md`, `watch-loop.md`). `scripts/intake-overlap` is the one-shot overlap check the intake runs.
 
 ---
 
@@ -229,7 +255,10 @@ The default is an in-session watch: a token-free detector wakes the agent only w
 It classifies (flaky -> one rerun; real -> `/ce-debug`) and delegates. Comments go to `/ce-resolve-pr-feedback`.
 
 **What about merge conflicts?**
-It previews the exact observed base first. It completes a merge only when every conflict has one mechanical answer that preserves the PR's intent, and when push authority to that head is known. Otherwise it parks a `needs-human`. It never rebases or force-pushes. Managed stacks stay on the manager's restack path.
+It previews the exact observed base first. It completes a merge only when every conflict has one mechanical answer that preserves the PR's intent, and when push authority to that head is known. Otherwise it parks a `needs-human`. Its routine conflict handling never rebases or force-pushes. Managed stacks stay on the manager's restack path.
+
+**Will it rebase my PR?**
+Only when you ask it to update or rebase the PR, or say yes when the old-PR check asks. It first decides whether the PR still belongs, then rebases with a series comparison and a lease on the starting head. Unattended runs never rebase.
 
 **What happens when the base keeps moving?**
 Each distinct head/base/status observation has a bounded claim-and-confirm cycle. Routine movement can be applied many times. The same unchanged observation is not retried across restarts. A parked semantic conflict stays parked when later base commits do not change the conflict.

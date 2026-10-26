@@ -142,7 +142,7 @@ Skip it when:
 
 - You want commits only -> `/ce-commit`
 - You want to commit on the default branch and stay there. This skill will not push the default; it creates a feature branch
-- You need an interactive rebase or a history rewrite. Do that by hand
+- You need an interactive rebase or a history rewrite. Do that by hand, or ask `/ce-babysit-pr` to update an old PR, which judges first and rebases with a lease
 - A PR is already open and you want it watched -> `/ce-babysit-pr`
 - Review comments are already in and you want them fixed now -> `/ce-resolve-pr-feedback`
 
