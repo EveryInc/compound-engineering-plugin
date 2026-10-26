@@ -64,7 +64,6 @@ def fake_oid(*parts):
     return hashlib.sha1("\0".join(parts).encode()).hexdigest()
 
 
-# ---------- PR model ----------
 
 def all_prs():
     return [DATA["pr"], *DATA.get("prs", [])]
@@ -186,7 +185,6 @@ def select(obj, fields):
     return {f: obj.get(f) for f in fields.split(",") if f}
 
 
-# ---------- argv parsing ----------
 
 VALUE_FLAGS = {"-R", "--repo", "--json", "-q", "--jq", "-t", "--template", "-s", "--state",
                "-L", "--limit", "-H", "--head", "-B", "--base", "-A", "--author", "-S", "--search",
@@ -238,7 +236,6 @@ def pr_number_arg(pos):
     fail(f"no pull requests found for branch \"{branch}\"")
 
 
-# ---------- commands ----------
 
 def cmd_repo(sub, opts, pos):
     if sub != "view":

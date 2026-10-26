@@ -14,7 +14,8 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { arg } from "../../cli"
-import { SCENARIOS, type Person, type Scenario } from "./scenarios"
+import { REPO_ROOT } from "../../extract"
+import { SCENARIOS, type Person, type Scenario, type ScenarioFile } from "./scenarios"
 
 const HERE = import.meta.dir
 const DAY_MS = 86_400_000
@@ -183,7 +184,7 @@ done
         `${JSON.stringify({ branch: s.pr.branch, pr: s.pr.number, expected_old: head, author_commit: built.authorCommit }, null, 2)}\n`,
       )
     }
-    const scenario = {
+    const scenario: ScenarioFile = {
       name: s.name,
       pr: s.pr.number,
       repo: `${s.owner}/${s.repo}`,
@@ -213,8 +214,7 @@ function main() {
     process.exit(2)
   }
   const outRoot = path.resolve(out)
-  const repoRoot = path.resolve(HERE, "../../../..")
-  if (outRoot === repoRoot || outRoot.startsWith(`${repoRoot}${path.sep}`)) {
+  if (outRoot === REPO_ROOT || outRoot.startsWith(`${REPO_ROOT}${path.sep}`)) {
     console.error("--out must be outside this repository, so an agent cannot reach the pack from the fixture")
     process.exit(2)
   }

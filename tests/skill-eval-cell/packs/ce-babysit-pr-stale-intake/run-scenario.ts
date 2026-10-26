@@ -20,17 +20,8 @@ import { arg } from "../../cli"
 import { REPO_ROOT, WORKTREE_REF, extractSkill } from "../../extract"
 import { planHost, wrapPrompt, type Host } from "../../hosts"
 import { prepareOutput, writeJSON } from "../../provenance"
+import type { ScenarioFile } from "./scenarios"
 
-type ScenarioFile = {
-  name: string
-  pr: number
-  repo: string
-  head_branch: string
-  expected: { verdict: string; pass: string[] }
-  task: string
-  initial: { head: string; base: string; merge_base: string }
-  author_commit?: string
-}
 
 function usage(): never {
   console.error(
@@ -86,9 +77,7 @@ function runHost(argv: string[], cwd: string, env: NodeJS.ProcessEnv, timeoutMs:
     const killGroup = () => {
       try {
         if (child.pid) process.kill(-child.pid, "SIGKILL")
-      } catch {
-        // group already gone
-      }
+      } catch {}
     }
     const timer = setTimeout(() => {
       timedOut = true
@@ -108,7 +97,6 @@ function runHost(argv: string[], cwd: string, env: NodeJS.ProcessEnv, timeoutMs:
   })
 }
 
-/** Assistant text and shell commands in arrival order, each stamped with seconds since start. */
 function transcript(host: Host, events: Event[], started: number): { lines: string[]; final: string } {
   const lines: string[] = []
   let final = ""
@@ -239,8 +227,9 @@ async function main() {
 
   const eventsFile = path.join(out, "events.jsonl")
   const result = await runHost(argv, workspace, env, timeoutMs, eventsFile)
-  const stray = spawnSync("pgrep", ["-fl", `pr-snapshot.*${ghData.repo}`], { encoding: "utf8" }).stdout.trim()
-  if (stray) spawnSync("pkill", ["-f", `pr-snapshot.*${ghData.repo}`])
+  const watcherPattern = `pr-snapshot.*${ghData.repo}`
+  const stray = spawnSync("pgrep", ["-fl", watcherPattern], { encoding: "utf8" }).stdout.trim()
+  if (stray) spawnSync("pkill", ["-f", watcherPattern])
 
   const events = readJsonl(eventsFile) as Event[]
   const t = transcript(host, events, result.started)

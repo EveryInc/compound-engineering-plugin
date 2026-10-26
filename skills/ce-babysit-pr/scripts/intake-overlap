@@ -127,7 +127,7 @@ def overlap_reasons(pr_changes, base_changes, dirs_at_mb, dirs_at_base):
     by_path = {}
     by_parent = {}
     for change in base_changes:
-        status, old, new = change
+        _, old, new = change
         for name in {old, new}:
             by_path.setdefault(name, []).append(change)
             parent = posixpath.dirname(name)

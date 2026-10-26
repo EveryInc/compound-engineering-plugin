@@ -52,8 +52,6 @@ const theo: Person = { name: "Theo Grant", email: "theo.grant@example.net", logi
 
 const CHECKPOINT = "Use checkpoint mode: run one tick, report, and stop."
 
-// ---------- fetchkit: a small TypeScript helper library ----------
-
 const FETCHKIT_FILES: Record<string, string> = {
   "package.json": `{
   "name": "@acme/fetchkit",
@@ -289,8 +287,6 @@ test("parseDuration", () => {
     write: { "src/http.ts": FETCHKIT_FILES["src/http.ts"].replace("10_000", "15_000") },
   },
 ]
-
-// ---------- the scenarios ----------
 
 const obsoleteDir: Scenario = ((): Scenario => {
   const persona = (title: string, focus: string) => `# ${title}
@@ -1011,3 +1007,14 @@ const leaseRace: Scenario = {
 }
 
 export const SCENARIOS: Scenario[] = [obsoleteDir, superseded, updateAsked, updateSelfTriggered, rework, fresh, leaseRace]
+
+export type ScenarioFile = {
+  name: string
+  pr: number
+  repo: string
+  head_branch: string
+  expected: Scenario["expected"]
+  task: string
+  initial: { head: string; base: string; merge_base: string }
+  author_commit?: string
+}
