@@ -49,6 +49,7 @@ Divert from fixing only on a concrete signal:
 - **The finding doesn't hold** -- reading the code shows the issue doesn't exist or is already handled -> `not-addressing`, with evidence.
 - **The concern is no longer relevant** -- the code at this location changed since the review (see outdated handling below) -> `not-addressing`.
 - **The fix would make the code worse** -- it violates a project rule in the active instructions/conventions, adds dead defensive code, suppresses errors that should propagate, introduces premature abstraction, or restates code in comments -> `declined`, citing the specific harm.
+- **The finding is real but asks for work outside what this PR is for** -- the PR's purpose is what its description, linked issue, or plan says it sets out to change; without those, it is what the diff changes. A finding is outside that purpose when acting on it would add or change behavior the PR did not set out to change, even in a file the PR edits: a sibling code path, another module with a similar problem, a new option or compatibility mode, or tests for behavior the PR did not touch. -> `declined`, naming the purpose and leaving the finding for a separate change. A finding that the changed code is wrong is inside the purpose, edge cases included, and so is a break the change causes elsewhere; judge those with the other diverts. A human reviewer who explicitly asks for the wider change to land in this PR has set its scope, so treat it as inside. A security, data-loss, or irreversible-effect finding is never declined as out of scope: when it concerns code the PR does not change, it is `needs-human`, so a person decides where it lands.
 - **The change buys nothing real** -- a cosmetic preference or immaterial edit with no benefit to correctness, clarity, or maintainability -> `replied`, briefly saying why no change is warranted. Small *real* improvements still get fixed; the skip bar is "no benefit," not "minor."
 - **Something already bounds the failure** -- the finding is true, but the failure it describes would surface before it costs anything, and you can name what surfaces it from the code, the PR, or the command's own output: a dry run or preview the operator reads before the real run, an error that stops the run loudly, a result someone checks before relying on it. "It's minor" and "it rarely runs" name nothing. When a small non-code change makes that signal clearer (a usage or runbook line, a better dry-run message) -> `fixed-differently`, and the change is made. When the existing signal is enough -> `replied`, naming it. This divert does not apply when the failure's cost lands before anyone would see it (data lost or corrupted, money or access granted wrongly), or when it touches security, auth, billing, data retention, a migration, or an irreversible external effect; those get the ordinary fix or the authority-bound path below.
 - **The change is risky and you can't bound it** -- it touches a hot path, a boundary other code relies on, or thinly-tested code, and the benefit doesn't justify the risk. Risk isn't proportional to size; a one-line edit can carry it. First de-risk: read the callers (you may want a fixer to add a test and run it). If material risk remains after that read, -> `needs-human`.
@@ -110,6 +111,13 @@ For `declined`:
 > [quote the relevant part of the reviewer's comment]
 
 Declined: [specific harm cited, e.g., "this would add a defensive null check the type system already guarantees" or "violates the no-premature-abstraction rule in the project's conventions"]
+```
+
+For `declined` because the finding is outside the PR's purpose:
+```markdown
+> [quote the relevant part of the reviewer's comment]
+
+Out of scope here: this PR [its purpose in one clause]. [What the finding asks for and why it is a separate change.] Leaving it for a follow-up.
 ```
 
 For `needs-human`, the **reply_text** sounds natural, as the PR author would write it:
