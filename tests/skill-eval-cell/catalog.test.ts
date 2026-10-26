@@ -232,6 +232,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision:references/pipeline-mode.md",
         "ce-resolve-pr-feedback/pipeline-root-adjudicates-first:references/evaluation-rubric.md",
         "ce-resolve-pr-feedback/pipeline-root-adjudicates-first:references/pipeline-mode.md",
+        "ce-resolve-pr-feedback/out-of-scope-finding-declined:references/evaluation-rubric.md",
         "ce-resolve-pr-feedback/saved-batch-route:references/resume.md",
         "ce-plan/handoff-offers-ce-work-only:references/plan-handoff.md",
         "ce-retune/selected-streak-claim:references/noise-floor.md",

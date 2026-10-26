@@ -41,6 +41,8 @@ export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68
 export const ADJUDICATE_BASE_REF = "020c5e10d49aed19ee9354917780e94e665f5977"
 /** main before the resolver weighed whether an existing signal already bounds a true finding's failure. */
 export const PROPORTIONALITY_BASE_REF = "e80c5c40440b90672d78f032f6dfaedc0daeb292"
+/** main before the resolver declined valid findings outside the PR's purpose. */
+export const REVIEW_SCOPE_BASE_REF = "9f5b16fc617fb5bf4817c8f42537b626c17abd05"
 /** main before the resolver supported caller publication and saved-batch completion. */
 export const RESOLVER_PUBLICATION_BASE_REF = "bb5899b36c133a8441fa79af7cf60420c8191c6b"
 /** main before ce-debug preferred removing a recurring bug pattern over layering runtime checks. */
@@ -1925,6 +1927,26 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
       files_read_post: ["references/evaluation-rubric.md"],
       workspace_read: ["threads.json", "history.txt", "docs/runbooks/grant-credits.md"],
       declared: { T1: "no-more-code", T2: "more-code", T3: "more-code", T4: "no-more-code", T5: "more-code" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-resolve-pr-feedback/out-of-scope-finding-declined",
+    baseline_ref: REVIEW_SCOPE_BASE_REF,
+    skill: "ce-resolve-pr-feedback",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/resolve-feedback-scope`,
+    timeout_secs: 420,
+    why: "Review rounds grew a one-line fix PR by accepting every true bot finding about sibling exporters, extra delimiter options, and tests for untouched code. A bug in the intended change, a human's explicit request to widen the PR, and a nit in the changed code must still be fixed.",
+    pre_contract: "Default to fixing; a small real improvement is fixed because the skip bar is no benefit, not minor.",
+    task: "Use ce-resolve-pr-feedback on PR #57. The unresolved review threads and the PR description are on disk at threads.json, the code is in this workspace, and git is unavailable, so the branch history is in history.txt; do not call gh or git, and do not invoke any other skill, dispatch, or edit anything. Apply the evaluation rubric to each thread in your own context and stop after judging. For each thread declare exactly one line `T<id>: <verdict>` where the verdict is one of fix, reply, declined, not-addressing, or needs-human.",
+    grade: {
+      files_read_post: ["references/evaluation-rubric.md"],
+      workspace_read: ["threads.json"],
+      declared: { T1: "declined", T2: "fix", T3: "declined", T4: "declined", T5: "fix", T6: "fix" },
       actions: "none",
       delegates: "none",
     },
