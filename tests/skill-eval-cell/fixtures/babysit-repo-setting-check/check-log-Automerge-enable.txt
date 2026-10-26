@@ -1,0 +1,3 @@
+Run gh pr merge --auto --squash "$PR_URL"
+GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)
+Error: Process completed with exit code 1.

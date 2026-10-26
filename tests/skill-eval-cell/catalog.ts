@@ -177,6 +177,154 @@ const FIX = "tests/skill-eval-cell/fixtures"
 /** main before ce-noslop named claim certainty and ruled out semicolons as em dash substitutes. */
 const NOSLOP_FIX_LIMITS_BASE_REF = "67035e931c5cb26e80f198a7019a4502a9788273"
 
+/** main before the watch-loop.md / tick.md restatement pass: the A/B base for the tick-decision rows. */
+const BABYSIT_RESTATE_BASE_REF = "9f5b16fc617fb5bf4817c8f42537b626c17abd05"
+const BABYSIT_SNAPSHOT_ON_DISK =
+  "The latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot."
+
+/** Fixtures are real pr-snapshot output generated with --fetch-file, not hand-written summaries. */
+const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contract" | "task" | "grade"> & { fixture: string }> = [
+  {
+    id: "identity-race-is-not-ready",
+    fixture: "babysit-identity-race",
+    why: "GitHub's test merge still names the old base, so a CLEAN read is not yet bound to the current base. Calling it ready or updating the branch are both wrong.",
+    pre_contract: "A mergeable result is current only when the live-base reads match and potentialMergeCommit names that base and the observed head. A race disables mergeability_certain, emits no branch-currency item, and wakes base-ref-blocked.",
+    task: `Babysit PR #12. The watch woke with reason base-ref-blocked.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide what this tick does and stop after one tick. Include exactly one line \`READY: yes\` or \`READY: no\`, and exactly one line \`MUTATION: none\` or \`MUTATION: <what you would change>\`.`,
+    grade: { declared: { READY: "no", MUTATION: "none" }, must_exclude: ["update-branch", "git merge"], actions: "none" },
+  },
+  {
+    id: "stale-computation-reads-ready-with-disclosure",
+    fixture: "babysit-stale-computation",
+    why: "After main moved GitHub kept MERGEABLE/CLEAN but left its test merge on the old base for 20+ minutes, so every harness idled to budget (tmchow/pr-stack-test, 2026-08-17). The degraded identity counts as certain and is disclosed.",
+    pre_contract: "A race whose only mismatch is the test merge's base parent degrades to stale-computation after the stale window and no longer blocks; merge_computation_stale carries the disclosure.",
+    task: `Babysit PR #12. The watch woke with reason merge-ready.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nA look at the current head shows no reactions on the PR body, no review apps with check runs, and no reviewer has ever reviewed this PR. The description still matches the change.\n\nMake the settle decision for this tick and stop. Include exactly one line \`READY: yes\` or \`READY: no\`.`,
+    grade: { declared: { READY: "yes" }, must_include_any: [["stale", "cached"]], must_exclude: ["gh pr merge", "update-branch"], actions: "none" },
+  },
+  {
+    id: "managed-trunk-drift-clean-is-ready-as-next",
+    fixture: "babysit-managed-trunk-drift-clean",
+    why: "#1529: babysit called a managed layer stack-blocked on plain trunk drift while GitHub said CLEAN. The manager's needsRebase alone is not a blocker, and trunk movement is never a reason to restack.",
+    pre_contract: "stack_blocker is null when GitHub reports a certain MERGEABLE/CLEAN for plain trunk drift; a managed target is called ready as the next PR in the stack. Never use update-branch or a local base merge on a managed target.",
+    task: `Babysit PR #12 (posture:target). The watch woke with reason merge-ready.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nA look at the current head shows no reactions on the PR body, no review apps with check runs, and no reviewer has ever reviewed this PR. The description still matches the change.\n\nMake the settle decision for this tick and stop. Do not offer a stack-wide continuation. Include exactly one line \`READY: yes\` or \`READY: no\`.`,
+    grade: {
+      declared: { READY: "yes" },
+      must_include_any: [["next PR in the stack", "ready as the next", "ready as next"]],
+      must_exclude: ["gh stack rebase", "update-branch", "gh stack sync", "git merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "managed-stale-not-clean-keeps-watching",
+    fixture: "babysit-managed-stale-not-clean",
+    why: "The other leg of #1529: a stale managed target GitHub does not clear is a standing stack-blocked residual — not a restack, not an ordinary base update, and not a reason to end the watch.",
+    pre_contract: "stack-blocked is a standing residual: report stack_blocker, continue review/CI work, do not perform an ordinary base update or declare ready; the watch keeps running.",
+    task: `Babysit PR #12 (posture:target, interactive watch). The watch woke with reason stack-blocked.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide what this tick does and stop after one tick. Include exactly one line \`READY: yes\` or \`READY: no\`, and exactly one line \`WATCH: continue\` or \`WATCH: stop\`.`,
+    grade: { declared: { READY: "no", WATCH: "continue" }, must_exclude: ["update-branch", "git merge", "gh stack rebase"], actions: "none" },
+  },
+  {
+    id: "chain-probe-error-works-review-not-currency",
+    fixture: "babysit-chain-probe-error",
+    why: "A relationship probe error must not stop review work, and must not license a branch update on a BEHIND PR whose chain is unclassified.",
+    pre_contract: "Manager/relationship probe error: continue the review and CI streams, perform no branch-currency mutation, and do not declare ready until classification succeeds.",
+    task: `Babysit PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide the next mutation or delegate, if any, and stop after one tick. Include exactly one line \`CURRENCY: none\` or \`CURRENCY: <the base update you would make>\`.`,
+    grade: { declared: { CURRENCY: "none" }, must_include: ["ce-resolve-pr-feedback"], must_exclude: ["update-branch", "git merge"], actions: "none" },
+  },
+  {
+    id: "stack-ready-quiescent-layer-advances",
+    fixture: "babysit-stack-ready-quiescent",
+    why: "Under stack-ready the transition condition is quiescence, not settle; the next layer must keep the one fixed budget and re-state the posture.",
+    pre_contract: "The transition condition under stack-ready is quiescence. Initialize the next layer with --continue-invocation plus the same invocation-id, session-started-at, and budget, carry dead time, and re-state the same posture.",
+    task: `posture:stack-ready babysit the managed stack starting at PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK} The manager's \`gh stack view --json\` output is at gh-stack-view.json and PR #13's current state is at pr-13.json.\n\nDecide what happens next and stop. Include exactly one line \`NEXT: stay\` or \`NEXT: advance\`, and show the exact snapshot command you would run next.`,
+    grade: { declared: { NEXT: "advance" }, must_include: ["--continue-invocation", "--session-started-at", "--continue-dead-time-seconds"], actions: "none" },
+  },
+  {
+    id: "superseded-wake-ends-old-loop",
+    fixture: "babysit-superseded-wake",
+    why: "A later explicit invocation owns the state; the old loop must not tick or re-arm, or two watchers write one PR.",
+    pre_contract: "An invocation-superseded wake means a later explicit invocation now owns the state: end the old loop without a tick or a re-arm.",
+    task: `You are babysitting PR #12. Your watcher printed the line in wake.txt.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide what this loop does next. Include exactly one line \`NEXT: tick\`, \`NEXT: rearm\`, or \`NEXT: end\`.`,
+    grade: { declared: { NEXT: "end" }, actions: "none" },
+  },
+  {
+    id: "stale-generation-wake-is-coalesced",
+    fixture: "babysit-stale-generation-wake",
+    why: "A wake from an older watch generation is discarded and folded into the current read; with nothing in the attention set the tick does no work.",
+    pre_contract: "Compare the wake's generation with a fresh snapshot. A stale wake is discarded and coalesced into that current read. If the attention set has already cleared, do no work.",
+    task: `You are babysitting PR #12. Your watcher printed the line in wake.txt. You then ran a fresh snapshot; ${BABYSIT_SNAPSHOT_ON_DISK.charAt(0).toLowerCase()}${BABYSIT_SNAPSHOT_ON_DISK.slice(1)}\n\nDecide what this tick does. Include exactly one line \`WORK: none\` or \`WORK: <what you would do>\`, and exactly one line \`NEXT: rearm\` or \`NEXT: end\`.`,
+    grade: { declared: { WORK: "none", NEXT: "rearm" }, actions: "none" },
+  },
+  {
+    id: "max-runtime-hands-back-without-another-round",
+    fixture: "babysit-max-runtime",
+    why: "At the deadline max-runtime outranks new work so the cap cannot start another agent round, and the report uses active elapsed time, never persisted-state age.",
+    pre_contract: "max-runtime outranks every non-terminal work/residual wake. Hand back with the measured invocation_elapsed_seconds and the ceiling that was hit; never substitute the age of persisted PR state, and never automatically start another budget.",
+    task: `Babysit PR #12. The watch woke; the line is in wake.txt.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide what this tick does and write what you report to the user. Include exactly one line \`RESOLVER: run\` or \`RESOLVER: skip\`, and exactly one line \`NEXT: rearm\` or \`NEXT: stop\`.`,
+    grade: {
+      declared: { RESOLVER: "skip", NEXT: "stop" },
+      must_include_any: [["28812", "28,812", "8h", "8 h", "8 hours", "8.0 hours"]],
+      actions: "none",
+    },
+  },
+  {
+    id: "pipeline-pending-identity-is-not-success",
+    fixture: "babysit-pipeline-mergeability-pending",
+    why: "Pipeline success needs the merge computation bound to the current base; a pending generated merge is a re-poll, not a pass.",
+    pre_contract: "Report success only when all_checks_ok, empty backlog and needs_human_residuals, mergeability_certain, CLEAN, null base_ref_blocker/stack_blocker/branch_currency_blocker/unrequested_base_merge. Uncertain merge/base state is not success: keep ticking until it clears or the budget expires.",
+    task: `mode:pipeline babysit PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide whether the pipeline returns now. Include exactly one line \`RETURN: success\`, \`RETURN: needs-human\`, \`RETURN: residuals\`, or \`RETURN: not-yet\`.`,
+    grade: { declared: { RETURN: "not-yet" }, actions: "none" },
+  },
+  {
+    id: "every-passed-comment-is-marked",
+    fixture: "babysit-feedback-candidates-returned",
+    why: "Never-settle fix: marking only the comments ce-resolve handled left its silently dropped bot comments actionable forever, so counts.comments never reached 0.",
+    pre_contract: "After the resolver, mark every comment you passed as dispatched unless the shared residual mark already parked it. Leaving an uncovered comment unmarked keeps it in the attention set, so the loop can never settle.",
+    task: `Babysit PR #12. This tick passed both non-thread comments in the snapshot to ce-resolve-pr-feedback, and its result is in resolver-result.json.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nWrite the exact state-recording commands this tick runs next, then stop.`,
+    grade: { must_include: ["IC_kwDOrename", "IC_kwDOstatus", "--disposition dispatched"], actions: "none" },
+  },
+  {
+    id: "repo-setting-check-is-not-debugged",
+    fixture: "babysit-repo-setting-check",
+    why: "#1889: a check failed because the repository disallows auto-merge. No code change fixes it, and an empty commit to retrigger it is the wrong move.",
+    pre_contract: "A check blocked by a repository setting or permission does not go to ce-debug. If the setting is not fixed, write a typed needs-human residual whose source is that check; once fixed, re-run only that job by its databaseId.",
+    task: `Babysit PR #12. CI is red on the current head.\n\n${BABYSIT_SNAPSHOT_ON_DISK} The failing job's log is in check-log-Automerge-enable.txt and the base repository's settings are in repo-settings.json.\n\nDecide what this tick does about CI and stop after one tick. Include exactly one line \`DEBUG: invoke\` or \`DEBUG: skip\`.`,
+    grade: { declared: { DEBUG: "skip" }, must_include: ["needs-human"], must_exclude: ["git commit --allow-empty", "ce-debug"], actions: "none" },
+  },
+  {
+    id: "invariant-third-round-routes-trajectory",
+    fixture: "babysit-trajectory-invariant-rounds",
+    why: "A key already at two recorded rounds means the next fix would be its third; the trajectory goes to the resolver before it may fix, so it can return one approach-level decision.",
+    pre_contract: "When a trigger is crossed (any invariant_rounds[].rounds >= 2), pass the trajectory to that tick's ce-resolve-pr-feedback invocation as mandatory input before the leaf mutates. Never declare non-convergence yourself.",
+    task: `Babysit PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK} The open thread's text is in thread-PRRT_kw14.md.\n\nDecide the next delegate and what you hand it, then stop after one tick. Include exactly one line \`TRAJECTORY: pass\` or \`TRAJECTORY: omit\`, and exactly one line \`CONVERGENCE: undecided\` or \`CONVERGENCE: not-converging\` saying what you yourself concluded.`,
+    grade: { declared: { TRAJECTORY: "pass", CONVERGENCE: "undecided" }, must_include: ["ce-resolve-pr-feedback"], actions: "none" },
+  },
+  {
+    id: "manual-root-behind-updates-target-only",
+    fixture: "babysit-manual-root-behind",
+    why: "A root with open child dependents stays eligible for its own BEHIND item, but the update never touches the dependents.",
+    pre_contract: "A normal-base target may be independent or an eligible target-local manual dependency, and a root with open child dependents remains allowed. Never mutate those dependents. BEHIND: claim, revalidate, update-branch with expected_head_sha.",
+    task: `Babysit PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide the next mutation, if any, and stop after one tick. Include exactly one line \`PR14: untouched\` or \`PR14: <what you would change on PR #14>\`.`,
+    grade: { must_include: ["PR14: untouched", "expected_head_sha"], must_include_any: [["claim"]], must_exclude: ["gh stack", "git merge"], actions: "none" },
+  },
+  {
+    id: "checkpoint-resume-keeps-posture",
+    fixture: "babysit-checkpoint-stack-ready",
+    why: "A resume invocation that drops the posture token silently narrows a stack-wide run back to target on re-entry.",
+    pre_contract: "Print the exact host-rendered resume invocation; when the posture is not target, append the same posture token.",
+    task: `checkpoint posture:stack-ready babysit https://github.com/example/tiny-lib/pull/12\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nRun this checkpoint tick and write the report you give the user.`,
+    grade: { must_include: ["ce-babysit-pr https://github.com/example/tiny-lib/pull/12 posture:stack-ready"], actions: "none" },
+  },
+]
+const BABYSIT_TICK_DECISIONS: Scenario[] = BABYSIT_TICK_DECISION_ROWS.map((s) => ({
+  ...s,
+  id: `ce-babysit-pr/${s.id}`,
+  skill: "ce-babysit-pr",
+  cohort: "resized" as const,
+  key_behavior: "judgment" as const,
+  baseline_ref: BABYSIT_RESTATE_BASE_REF,
+  read_only: true,
+  fixture: `${FIX}/${s.fixture}`,
+}))
+
 const SETUP_INSTRUCTIONS_TASK =
   "Use the ce-setup skill to check this repository's Compound Engineering setup. For every change it would offer, show the exact text and where in the file it would go."
 
@@ -1652,6 +1800,7 @@ Return this tick's result to the coordinator and stop.`,
       actions: "none",
     },
   },
+  ...BABYSIT_TICK_DECISIONS,
   {
     id: "ce-debug/recurring-pattern-prefers-structure",
     baseline_ref: STRUCTURAL_FIX_BASE_REF,

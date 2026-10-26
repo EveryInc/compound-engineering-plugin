@@ -1,0 +1,25 @@
+{
+  "stack": {
+    "trunk": "main",
+    "branches": [
+      {
+        "name": "feat/greeter",
+        "pr": {
+          "number": 12,
+          "state": "OPEN",
+          "isDraft": false
+        },
+        "needsRebase": false
+      },
+      {
+        "name": "feat/greeter-i18n",
+        "pr": {
+          "number": 13,
+          "state": "OPEN",
+          "isDraft": false
+        },
+        "needsRebase": false
+      }
+    ]
+  }
+}

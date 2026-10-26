@@ -1,0 +1,117 @@
+{
+  "pr_state": "OPEN",
+  "pr_is_draft": null,
+  "mergeable": "MERGEABLE",
+  "merge_state_status": "CLEAN",
+  "review_decision": "APPROVED",
+  "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "head_changed": false,
+  "base": {
+    "host": "github.com",
+    "repository": "example/tiny-lib",
+    "ref": "main",
+    "oid": "2222222222222222222222222222222222222222",
+    "graphql_oid": "2222222222222222222222222222222222222222",
+    "historical_oid": "1111111111111111111111111111111111111111",
+    "merge_commit_oid": "3333333333333333333333333333333333333333",
+    "merge_parent_oids": [
+      "2222222222222222222222222222222222222222",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "identity": "current"
+  },
+  "mergeability_certain": true,
+  "base_ref_blocker": null,
+  "host_branch_update_capability": "unknown",
+  "branch_currency": null,
+  "unrequested_base_merge": null,
+  "unrequested_base_merge_pending": false,
+  "branch_currency_blocker": null,
+  "url": "https://github.com/example/tiny-lib/pull/12",
+  "has_failing_checks": false,
+  "checks_terminal": true,
+  "checks_present": true,
+  "all_checks_ok": true,
+  "checks_awaiting_approval": 0,
+  "blocked_external": false,
+  "blocked_external_first_seen_at": null,
+  "feedback_candidate_changed_at": null,
+  "blocked_external_review_last_activity_at": null,
+  "blocked_external_review_quiet_seconds": 0,
+  "blocked_external_review_moved_this_tick": false,
+  "pr_chain": {
+    "manager_status": "confirmed",
+    "manager_source": "gh-stack",
+    "relationship_status": "dependent",
+    "target_position": 1,
+    "target_needs_rebase": true,
+    "upstack_needs_rebase": [],
+    "entries": [
+      {
+        "number": 12,
+        "branch": "feat/greeter",
+        "position": 1,
+        "is_draft": false,
+        "state": "OPEN"
+      },
+      {
+        "number": 13,
+        "branch": "feat/greeter-i18n",
+        "position": 2,
+        "is_draft": false,
+        "state": "OPEN"
+      }
+    ],
+    "parent_prs": [],
+    "dependent_prs": [
+      13
+    ]
+  },
+  "stack_blocker": null,
+  "open_needs_human": 0,
+  "needs_human_ids": [],
+  "needs_human_residuals": [],
+  "human_decisions": [],
+  "answered_human_decisions": [],
+  "actionable": {
+    "threads": [],
+    "ci": [],
+    "comments": []
+  },
+  "counts": {
+    "threads": 0,
+    "ci": 0,
+    "comments": 0,
+    "needs_human": 0
+  },
+  "changed_this_tick": false,
+  "quiet_seconds": 900,
+  "invocation_id": "7fbcfc0a6bf44667baa668c2c5bbbd79",
+  "invocation_started_at": "2026-10-26T17:59:56.944101+00:00",
+  "invocation_elapsed_seconds": 0,
+  "invocation_budget_seconds": 28800.0,
+  "invocation_remaining_seconds": 28800.0,
+  "invocation_wall_elapsed_seconds": 0,
+  "invocation_dead_time_seconds": 0,
+  "invocation_backstop_seconds": 259200,
+  "persisted_state_created_at": "2026-10-26T17:59:56.944101+00:00",
+  "persisted_state_age_seconds": 0,
+  "session_started_at": "2026-10-26T17:59:56.944101+00:00",
+  "session_seconds": 0,
+  "watch_generation": null,
+  "tick": 2,
+  "trajectory": {
+    "recurring_checks": [],
+    "check_recur_max": 0,
+    "unresolved_threads": 0,
+    "unresolved_series": [
+      0,
+      0
+    ],
+    "unresolved_trend": "flat",
+    "new_threads_this_tick": 0,
+    "stream_alternations": 0,
+    "heads_since_progress": 0,
+    "invariant_rounds": []
+  }
+}

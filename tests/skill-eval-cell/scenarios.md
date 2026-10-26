@@ -115,13 +115,39 @@ Read the transcripts alongside the declared decisions; these cells do not execut
 | `ce-retune/fresh-operational-confirmation` | Fresh runs clear the operational bar; diagnostics and registered broken runs stay outside its count |
 | `ce-retune/behavioral-failure-stops-attempt` | A behavioral failure ends the attempt and requires diagnosis; no pooling or queue continuation |
 
+## Babysit tick decisions
+
+Each row grades one decision governed by `ce-babysit-pr`'s `watch-loop.md` or `tick.md`. The fixtures are real `pr-snapshot` output generated with `--fetch-file`.
+
+```bash
+bun run test:skill-eval-pack -- --skill ce-babysit-pr --arm ab
+```
+
+| ID | Pre-contract |
+|---|---|
+| `ce-babysit-pr/identity-race-is-not-ready` | Base identity `race` → not ready, no currency mutation |
+| `ce-babysit-pr/stale-computation-reads-ready-with-disclosure` | Degraded `stale-computation` counts as certain and is disclosed |
+| `ce-babysit-pr/managed-trunk-drift-clean-is-ready-as-next` | Plain trunk drift under a certain CLEAN read → ready as the next PR, no restack (#1529) |
+| `ce-babysit-pr/managed-stale-not-clean-keeps-watching` | Stale managed target GitHub does not clear → standing residual, watch continues |
+| `ce-babysit-pr/chain-probe-error-works-review-not-currency` | Relationship probe error → review work continues, no currency mutation |
+| `ce-babysit-pr/stack-ready-quiescent-layer-advances` | Quiescent layer under `stack-ready` → advance with `--continue-invocation` and carried budget |
+| `ce-babysit-pr/superseded-wake-ends-old-loop` | `invocation-superseded` → end the loop, no tick, no re-arm |
+| `ce-babysit-pr/stale-generation-wake-is-coalesced` | Stale wake generation over a clear attention set → no work, re-arm |
+| `ce-babysit-pr/max-runtime-hands-back-without-another-round` | `max-runtime` outranks new work; report active elapsed time |
+| `ce-babysit-pr/pipeline-pending-identity-is-not-success` | Pipeline with `mergeability-pending` → not success yet |
+| `ce-babysit-pr/every-passed-comment-is-marked` | Every passed comment is marked dispatched, including ones the resolver dropped |
+| `ce-babysit-pr/repo-setting-check-is-not-debugged` | Check blocked by a repository setting → `needs-human`, no `ce-debug` (#1889) |
+| `ce-babysit-pr/invariant-third-round-routes-trajectory` | `invariant_rounds` at 2 → pass the trajectory before the resolver may fix |
+| `ce-babysit-pr/manual-root-behind-updates-target-only` | Manual-chain root BEHIND → claimed `update-branch` on the target, dependents untouched |
+| `ce-babysit-pr/checkpoint-resume-keeps-posture` | Checkpoint resume invocation keeps the `posture:` token |
+
 ## Named gaps
 
 - **Reaping a peer session the cell never launched.** A timed-out host is killed by process group, but `ce-pov`'s peer runner double-forks and calls `setsid()`, so its supervisor lives in a new session outside that group and survives. The driver has no handle on it — it never sees the run id the runner keys its jobs by. Containing it means running each cell inside a cleanup boundary that owns new sessions too (a container, cgroup, or jail), not a change to the kill call.
 - **A describable range for `ce-commit-push-pr/description-only-no-commit`.** Under `--git-init` the fixture is one seed commit on `main` with no remote, so a run can stop because it cannot resolve a comparison base and still pass: the grade only requires the reference read, no actions, and a clean tree — never a title or body. Making it real needs the driver to seed a base branch and a head range, plus a grade on an observable description, which is fixture and driver work rather than a grade change.
 - **Isolating Grok's final answer.** `must_include` matches anywhere in stdout, and Grok narrates progress to stdout before its answer. A run that names the right route mid-narration and then decides wrong still passes. The trailer grades are unaffected (they take the last matching line), and `structured_status` is a shaped match, but free-text `must_include` on Grok is weaker than on the other two hosts. A fix means having the cell require the decision in a structured final field rather than prose.
 - **A real dispatch receipt for `ce-pov/oracle-dispatches-peers`.** `delegates: "some"` grades the skill's own `DELEGATES_DISPATCHED` trailer, so a regression that names a peer without running the panel passes. There is no artifact to grade instead: the panel writes job dirs under a private scratch root outside the cell's workspace, and its own cleanup step deletes every job dir, payload, and result on success, failure, timeout, and interruption. Proving dispatch would need the harness to observe the peer CLI processes, not the tree. Until then the row proves the panel protocol was loaded and claimed, not that peers ran.
-- **Live `ce-babysit-pr` → `ce-debug` delegation.** `ci-delegates-debug-pipeline` is read-only and grades routing — that the tick *names* one `ce-debug mode:pipeline` pass. Observing the dispatch needs a `key_behavior: delegation` cell that is not read-only, like `ce-pov/oracle-dispatches-peers`, plus a fixture whose red check a sub-skill can actually work. Not written yet; the routing row is not a substitute for it.
+- **Live `ce-babysit-pr` → `ce-debug` delegation.** `ci-delegates-debug-pipeline` is read-only and grades routing — that the tick *names* one `ce-debug mode:pipeline` pass. The live dispatch has been run by hand with `bun run test:skill-eval-cell -- --skill ce-babysit-pr --with-skill ce-debug --fixture <seat-cap copy plus a red-check snapshot.json> --git-init --shim-git-push`, graded on the fix commit in the cell workspace. The pack cannot express companion skills, so there is no catalog row for it.
 - **Live outer decision propagation.** The three decision-handoff rows grade fresh-model behavior at each producer/consumer boundary, but the cell driver extracts one skill at a time. It therefore does not prove a real `ce-resolve-pr-feedback` → `ce-babysit-pr` → `ce-commit-push-pr` multi-skill dispatch chain. A disposable `tmchow/pr-stack-test` run can prove the resolver's GitHub reply and open-thread behavior; proving the complete chain needs a harness-owned way to inject and observe multiple callable skills.
 
 ## Intentionally not in the catalog
