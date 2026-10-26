@@ -36,7 +36,7 @@ related_components:
 
 With no such rule, both hosts ran the browser tests.
 
-The fix added a section to `skills/lfg/references/task-visibility.md` (lines 11-15). It says invoking `lfg` is the user's approval, given in advance, for the verification the change needs. Project rules about *how* to test still apply. The approval does not extend past that verification, and it never answers a harness approval prompt. This applies the authoring guide's rule that invocation may satisfy a default confirmation within a bounded envelope (`docs/solutions/skill-design/portable-agent-skill-authoring.md`, "Make authority proportional to risk").
+The fix added a section to `skills/lfg/references/task-visibility.md` (lines 11-17). It says invoking `lfg` is the user's approval, given in advance, for the verification the change needs. Project rules about *how* to test still apply. The approval does not extend past that verification, and it never answers a harness approval prompt. This applies the authoring guide's rule that invocation may satisfy a default confirmation within a bounded envelope (`docs/solutions/skill-design/portable-agent-skill-authoring.md`, "Make authority proportional to risk").
 
 ## Guidance
 
@@ -50,13 +50,25 @@ The fix added a section to `skills/lfg/references/task-visibility.md` (lines 11-
 | Grant reworded as compliance: "that approval has already been given… This follows the instruction rather than overriding it" (2 trials) | Stopped: "The supplied skill treats `lfg` as approval, but your explicit instruction takes precedence." |
 | Same, plus a sentence in `SKILL.md`'s Interaction paragraph (2 probe trials, ask-first only; the probe edit was not kept) | Stopped: "That takes precedence over the skill's assumption that invoking lfg grants approval." |
 
-Codex ranks the project's instruction file above anything a skill says, and it reads an explicit "ask first" as a prohibition the skill cannot lift. That fits the guide's own boundary: invocation "does not override system, organization, or user prohibitions." The difference is in which party treats an ask-first rule as a prohibition. Claude treats it as a default confirmation the invocation can satisfy. Codex treats it as a prohibition.
+A second round varied the rule itself (two post-change Codex trials each unless noted):
+
+| Rule | Codex result |
+|---|---|
+| "Prefer to check with the user before running browser tests…" | Ran the tests, DONE (2/2). It did the same before the change (1 trial), so a preference never blocked it. |
+| "Ask the user before running browser tests…" without "do not … without explicit approval" | Stopped to ask (2/2) |
+| The firm rule only in the user-level `$CODEX_HOME/AGENTS.md`, nothing in the project | Stopped to ask (2/2): "your explicit instruction takes precedence" |
+| "Leave browser testing to the user. Don't run browser tests yourself" | Skipped the tests and **reported DONE** (2/2), and did the same before the change (1 trial) |
+
+Claude ran the tests under every rule tried, including "leave browser testing to the user".
+
+Codex ranks project and user instruction files above anything a skill says, and it reads any explicit "ask" or "leave it to the user" as a prohibition the skill cannot lift. Only a stated preference leaves room. That fits the guide's own boundary: invocation "does not override system, organization, or user prohibitions." The difference is in which party treats an ask-first rule as a prohibition. Claude treats it as a default confirmation the invocation can satisfy. Codex treats it as a prohibition.
 
 So design for both outcomes:
 
 1. State the grant once, bounded, at the layer that owns the authority (the orchestrating skill). Don't escalate wording or duplicate it into more places to win on Codex; neither changed the result.
-2. Make the refusal path safe and legible. On Codex the useful outcome is a clean stop, not DONE with the check silently dropped. `lfg`'s stop rule (`task-visibility.md:9`) makes the final message open with the stop, the blocker, and the decision, with the recommended option first. After it, Codex ended with "Stopped at step 8: … I recommend proceeding."
+2. Make the refusal path an explicit stop. On Codex the useful outcome is a clean stop, not DONE with the check silently dropped. The "ask" rules already produced a stop. The "leave it to the user" rule did not, until `task-visibility.md:17` said that a refused verification the change needs stops the run instead of reporting DONE. After that, Codex stopped in both trials ("Stopped at step 8: browser verification is blocked by your project instruction…"). `lfg`'s stop rule (`task-visibility.md:9`) shapes that message: the stop, the blocker, then the decision with the recommended option first.
 3. Record the host split in the change's PR and eval notes as a known limit, not as a passing cell.
+4. Keep the refusal rule from swallowing ordinary unavailability. A method that cannot run because a tool is missing is not a refusal. With no browser driver installed and no rule, both hosts still finished with DONE and said in the recap that the browser check did not run.
 
 ## Why This Matters
 
