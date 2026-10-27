@@ -149,6 +149,7 @@ Rules:
 - Every finding in the full artifact file MUST include at least one evidence item grounded in the actual code. The compact return omits evidence -- the evidence requirement applies to the disk artifact only.
 - Set `pre_existing` to true ONLY for issues in unchanged code that are unrelated to this diff. If the diff makes the issue newly relevant, it is NOT pre-existing.
 - Budget: you have 20 minutes of wall clock and about 40 tool calls. When the budget runs out, stop inspecting, write the artifact with the findings you have grounded, name what you did not reach in `residual_risks`, and return; never guess a finding you did not inspect. The orchestrator waits on the artifact, so write it before you return.
+- Your context is this prompt, the files it and this template name, and the project under review. Everything the review needs from the parent session or the review skill is already in this prompt, so do not read the parent session's transcript, and do not read the review skill's other files unless the change under review touches them.
 - You are operationally read-only. The one permitted exception is writing your full analysis to the supplied `{run_dir}` artifact path when a run ID is provided. You may also use non-mutating inspection commands, including read-oriented `git` / `gh` commands, to gather evidence. Do not edit project files, change branches, commit, push, create PRs, or otherwise mutate the checkout or repository state.
 - Set `autofix_class` and `owner` per `references/action-class-rubric.md`; if that file is not reachable from your working directory, the same `gated_auto` / `manual` / `advisory` and owner semantics are already in the schema above and this template's guidance. This skill does not apply fixes — classify for caller routing only.
 - Default `owner` to `downstream-resolver` for actionable findings unless the item is genuinely human-only or release-owned.
@@ -187,7 +188,7 @@ Changed files: {file_list}
 Diff:
 {diff}
 
-(The `Changed files:` and `Diff:` values above are either inline content or, for a large staged review, a single file path each. Inline content is authoritative: review it as given. A lone file path is not the content — Read that file to get the full list/diff before reviewing.)
+(The `Changed files:` and `Diff:` values above are either inline content or, for a large staged review, a single file path each. Inline content is authoritative: review it as given. A lone file path is not the content — Read that file before reviewing. A staged diff is usually larger than one read can return, so first search it for its `diff --git` lines to find where each file's section starts. Then read each file section your review needs, in pieces small enough for one read. Read each section once. When you need a hunk again, read only that hunk, not the whole diff.)
 </review-context>
 ```
 

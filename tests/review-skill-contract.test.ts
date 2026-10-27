@@ -2027,6 +2027,18 @@ describe("ce-code-review dispatch templates", () => {
     }
   })
 
+  // #1910: told only to "Read that file", reviewers pulled a 55-100k-char staged
+  // diff in whole-file reads, re-read it, and read the parent transcript.
+  test("the reviewer template reads a staged diff once, by file, from the brief alone", async () => {
+    const content = await readRepoFile(
+      "skills/ce-code-review/references/subagent-template.md",
+    )
+    expect(content).toMatch(/search it for its `diff --git` lines/)
+    expect(content).toMatch(/in pieces small enough for one read/)
+    expect(content).toMatch(/Read each section once/)
+    expect(content).toMatch(/do not read the parent session's transcript/)
+  })
+
   test("compact-return contract uses exact schema keys in both output tiers", async () => {
     const template = await readRepoFile(
       "skills/ce-code-review/references/subagent-template.md",
