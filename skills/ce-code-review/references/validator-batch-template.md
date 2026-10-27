@@ -15,6 +15,8 @@ Do not let one finding's outcome influence another. Do not invent new findings.
 {diff}
 </diff>
 
+When the diff above is a single file path, it is a staged diff. Read only the sections for the files the findings cite, each once; its `diff --git` lines mark where each file's section starts.
+
 <scope-context>
 {scope_mode_and_remote_refs}
 </scope-context>
