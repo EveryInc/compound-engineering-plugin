@@ -176,6 +176,88 @@ const UNDERSTANDING_BASE_REF = "8df67793b9733d2220fa9a7fc37139931471af62"
 const BEHAVIOR_TRACE_BASE_REF = "c152896f1cda13548fc1a05b2aff88caf8ae8dba"
 
 const FIX = "tests/skill-eval-cell/fixtures"
+
+/** main before ce-ideate's run-scaling, §5.3, and issue-tracker detection blocks were restated as conditions. */
+const IDEATE_SCALING_BASE_REF = "00d0a5bbf1300b2138b65ce724b325dd4dff77ba"
+const IDEATE_HEADLESS_BASE =
+  "This run was started by an autonomous workflow, so nobody is available to answer questions; proceed on your own judgment. Skip external web research. Write the ideation as markdown (output:md)."
+const IDEATE_HEADLESS = `${IDEATE_HEADLESS_BASE} Stop at the next-steps menu.`
+
+/**
+ * Live ce-ideate runs over the scaling variants. The deterministic grade only
+ * checks that the run dispatched and wrote a deliverable; frames, fleet, tier,
+ * the verifier's waiver, and the merge are graded from the artifacts and the
+ * host session logs per tests/skill-eval-cell/packs/ce-ideate-run-scaling.md.
+ */
+const IDEATE_RUN_SCALING_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contract" | "task"> & { env?: Record<string, string>; merge?: boolean }> = [
+  {
+    id: "default-fleet",
+    why: "The default fleet is 3 generation-tier and 2 ceiling-tier agents over all six frames, and the verifier judges the meeting-test.",
+    pre_contract: "Default: 5 agents covering six frames, 6-8 ideas per frame, 5 verification reads; the verifier judges basis and the meeting-test.",
+    task: `Use ce-ideate to come up with ideas for improving jot's search and export commands. ${IDEATE_HEADLESS}`,
+  },
+  {
+    id: "tactical",
+    why: "Tactical lowers volume and reads but keeps the default fleet and all six frames, and the verifier is told the meeting-test is waived.",
+    pre_contract: "Tactical: same 5 agents over 6 frames, 3-4 ideas per frame, 2-3 reads, at most 3 axes and 3 scouts, meeting-test waived for generators and the verifier.",
+    task: `Use ce-ideate: quick wins in jot's CSV export. ${IDEATE_HEADLESS}`,
+  },
+  {
+    id: "go-deep",
+    why: "go deep moves every ideation agent to the ceiling tier, doubles reads, and adds a second critic.",
+    pre_contract: "go deep: 6 agents, one frame each, all ceiling tier; 10 verification reads; a second ceiling-tier critic in Phase 3.",
+    task: `Use ce-ideate and go deep: ideas for jot's storage layer. ${IDEATE_HEADLESS}`,
+  },
+  {
+    id: "tactical-go-deep",
+    why: "go deep cancels tactical, so the run is a full go-deep run with the meeting-test floor intact.",
+    pre_contract: "tactical + go deep: six frames, 6 ceiling-tier agents, default volume; tactical is suppressed, so no waiver reaches the verifier.",
+    task: `Use ce-ideate and go deep: quick wins in jot's search command. ${IDEATE_HEADLESS}`,
+  },
+  {
+    id: "surprise-me",
+    why: "Surprise-me decides the fleet: six frames, one per agent, all ceiling tier, with no axes.",
+    pre_contract: "surprise-me: 6 agents, one frame each, all ceiling tier; decomposition skipped; each frame picks its own subject.",
+    task: `Use ce-ideate. Surprise me: pick what in this repo is worth ideating about yourself. ${IDEATE_HEADLESS}`,
+  },
+  {
+    id: "issue-tracker-unreachable",
+    why: "Issue-tracker intent with no reachable tracker falls back to the six default frames, recomputes the agent count, and keeps the resolved tactical scaling.",
+    pre_contract: "Fallback recomputes only what the frame set determined: six frames on the default 5-agent mapping, with tactical's dials and the verifier waiver carried forward.",
+    task: `Use ce-ideate: quick wins from what users are reporting in our GitHub issues. ${IDEATE_HEADLESS}`,
+    env: { GH_TOKEN: "ce-eval-unreachable-tracker", GH_HOST: "github.invalid" },
+  },
+  {
+    id: "non-software",
+    why: "A non-software subject runs the universal path, which keeps all six frames and still dispatches a fresh-context verifier.",
+    pre_contract: "elsewhere-non-software: universal-ideation.md in place of the frame dispatch; six frames at any depth; a basis verifier; the deliverable is still written.",
+    task: `Use ce-ideate: names for my friend's new neighborhood bakery in Portland, Oregon. It sells sourdough and Basque cheesecake. ${IDEATE_HEADLESS}`,
+  },
+  {
+    id: "merge",
+    why: "A merge replaces its source entries with one combined entry, renumbers, and re-evaluates axis and confidence.",
+    pre_contract: "§5.3 Combine/merge: replace the merged source entries with the single combined entry, renumber, re-evaluate axis and confidence, rewrite the file.",
+    task: `Use ce-ideate to come up with ideas for jot's tagging. ${IDEATE_HEADLESS_BASE} At the next-steps menu, choose to refine the ideas: merge the two top-ranked ideas into one combined idea and keep the file current. Then stop.`,
+    merge: true,
+  },
+]
+const IDEATE_RUN_SCALING: Scenario[] = IDEATE_RUN_SCALING_ROWS.map(({ merge, ...s }) => ({
+  ...s,
+  id: `ce-ideate/run-scaling-${s.id}`,
+  skill: "ce-ideate",
+  cohort: "resized" as const,
+  key_behavior: "delegation" as const,
+  baseline_ref: IDEATE_SCALING_BASE_REF,
+  read_only: false,
+  git_init: true,
+  fixture: `${FIX}/ideate-jot`,
+  timeout_secs: 3600,
+  grade: {
+    must_include_any: merge ? [["docs/ideation/"], ["merge", "merged", "combined"]] : [["docs/ideation/"]],
+    delegates: "some" as const,
+    actions: "any" as const,
+  },
+}))
 /** main before ce-noslop named claim certainty and ruled out semicolons as em dash substitutes. */
 const NOSLOP_FIX_LIMITS_BASE_REF = "67035e931c5cb26e80f198a7019a4502a9788273"
 
@@ -2133,6 +2215,7 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
       actions: "none",
     },
   },
+  ...IDEATE_RUN_SCALING,
   {
     id: "ce-commit-push-pr/project-publishing-gate",
     post_only: true,
