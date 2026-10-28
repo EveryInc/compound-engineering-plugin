@@ -94,6 +94,6 @@ PR #1919 left three copies of the per-file guard. The Codex and Pi copies are id
 
 ## Definition of Done
 
-- R1 to R3 hold, and `rg "function cleanupCurrentManagedFile" src/targets` finds nothing.
+- R1 to R3 hold: `src/targets/codex.ts`, `src/targets/pi.ts`, and `src/targets/opencode.ts` define no `cleanupCurrentManagedFile` of their own and import the shared one.
 - No existing test was edited to pass.
 - No abandoned-attempt code is left in the diff.
