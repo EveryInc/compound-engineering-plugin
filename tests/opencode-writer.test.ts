@@ -478,6 +478,25 @@ describe("writeOpenCodeBundle", () => {
     expect(backupContent).toBe("old content\n")
   })
 
+  test("an identical reinstall writes no config or command backups", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-idempotent-reinstall-"))
+    const outputRoot = path.join(tempRoot, ".opencode")
+    const bundle: OpenCodeBundle = {
+      pluginName: "compound-engineering",
+      config: { $schema: "https://opencode.ai/config.json" },
+      agents: [],
+      plugins: [],
+      commandFiles: [{ name: "my-cmd", content: "Command body" }],
+      skillDirs: [],
+    }
+
+    await writeOpenCodeBundle(outputRoot, bundle)
+    await writeOpenCodeBundle(outputRoot, bundle)
+
+    const entries = await fs.readdir(outputRoot, { recursive: true })
+    expect(entries.filter((entry) => entry.includes(".bak."))).toEqual([])
+  })
+
   test("removes previously managed OpenCode artifacts that disappear on reinstall", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-managed-cleanup-"))
     const outputRoot = path.join(tempRoot, ".opencode")

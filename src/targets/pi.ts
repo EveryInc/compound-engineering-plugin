@@ -94,15 +94,11 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
 
   const preservedPromptNames = new Set<string>()
   if (!promptsEscaped) {
+    const ownedPrompts = pluginName ? (manifest?.prompts ?? []) : null
     for (const prompt of bundle.prompts) {
       const promptFile = `${sanitizePathName(prompt.name)}.md`
       const targetPath = path.join(paths.promptsDir, promptFile)
-      if (pluginName && (await cleanupCurrentManagedPromptFile(targetPath, manifest, promptFile))) {
-        preservedPromptNames.add(promptFile)
-        continue
-      }
-      if (!pluginName && (await isPreservedSymlink(targetPath))) {
-        console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+      if (await cleanupCurrentManagedFile(targetPath, ownedPrompts, promptFile)) {
         preservedPromptNames.add(promptFile)
         continue
       }
@@ -151,7 +147,7 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
       continue
     }
     const targetPath = path.join(paths.agentsDir, agentFileName)
-    const preserved = await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFileName)
+    const preserved = await cleanupCurrentManagedFile(targetPath, manifest?.agents ?? [], agentFileName)
     if (preserved) {
       preservedAgentNames.add(agentFileName)
       continue
@@ -161,14 +157,10 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
 
   const preservedExtensionNames = new Set<string>()
   if (!extensionsEscaped) {
+    const ownedExtensions = pluginName ? (manifest?.extensions ?? []) : null
     for (const extension of bundle.extensions) {
       const targetPath = path.join(paths.extensionsDir, extension.name)
-      if (pluginName && (await cleanupCurrentManagedExtensionFile(targetPath, manifest, extension.name))) {
-        preservedExtensionNames.add(extension.name)
-        continue
-      }
-      if (!pluginName && (await isPreservedSymlink(targetPath))) {
-        console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+      if (await cleanupCurrentManagedFile(targetPath, ownedExtensions, extension.name)) {
         preservedExtensionNames.add(extension.name)
         continue
       }
@@ -497,10 +489,13 @@ async function cleanupCurrentManagedSkillDir(
   return false
 }
 
-async function cleanupCurrentManagedPromptFile(
+// Returns true when the existing path was preserved (skip cleanup AND the
+// subsequent write -- writing through a preserved symlink would clobber the
+// user's fork, which is worse than not overwriting at all).
+async function cleanupCurrentManagedFile(
   targetPath: string,
-  manifest: PiInstallManifest | null,
-  promptFileName: string,
+  owned: readonly string[] | null,
+  fileName: string,
 ): Promise<boolean> {
   const stat = await lstatOrNull(targetPath)
   if (!stat) return false
@@ -508,45 +503,8 @@ async function cleanupCurrentManagedPromptFile(
     console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
     return true
   }
-  if (!manifest?.prompts.includes(promptFileName)) {
-    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
-    return true
-  }
-  await fs.rm(targetPath, { force: true })
-  return false
-}
-
-async function cleanupCurrentManagedExtensionFile(
-  targetPath: string,
-  manifest: PiInstallManifest | null,
-  extensionFileName: string,
-): Promise<boolean> {
-  const stat = await lstatOrNull(targetPath)
-  if (!stat) return false
-  if (stat.isSymbolicLink()) {
-    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
-    return true
-  }
-  if (!manifest?.extensions.includes(extensionFileName)) {
-    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
-    return true
-  }
-  await fs.rm(targetPath, { force: true })
-  return false
-}
-
-async function cleanupCurrentManagedAgentFile(
-  targetPath: string,
-  manifest: PiInstallManifest | null,
-  agentFileName: string,
-): Promise<boolean> {
-  const stat = await lstatOrNull(targetPath)
-  if (!stat) return false
-  if (stat.isSymbolicLink()) {
-    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
-    return true
-  }
-  if (!manifest?.agents.includes(agentFileName)) {
+  if (owned === null) return false
+  if (!owned.includes(fileName)) {
     console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
     return true
   }

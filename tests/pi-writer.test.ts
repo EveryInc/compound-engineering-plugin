@@ -862,3 +862,76 @@ describe("writePiBundle guards against ancestor-symlink traversal", () => {
     },
   )
 })
+
+describe("writePiBundle preserves user-managed prompt and extension files", () => {
+  async function readInstallManifest(outputRoot: string): Promise<{ prompts: string[]; extensions: string[] }> {
+    const raw = await fs.readFile(path.join(outputRoot, "compound-engineering", "install-manifest.json"), "utf8")
+    return JSON.parse(raw) as { prompts: string[]; extensions: string[] }
+  }
+
+  function bundleWith(content: string): PiBundle {
+    return {
+      pluginName: "compound-engineering",
+      prompts: [
+        { name: "managed", content },
+        { name: "forked", content },
+      ],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [],
+      extensions: [{ name: "forked-ext.ts", content }],
+    }
+  }
+
+  test.skipIf(!canFileSymlink)("does not write through symlinked prompts or extensions", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-prompt-symlink-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+    await writePiBundle(outputRoot, bundleWith("v1"))
+
+    const forkPrompt = path.join(tempRoot, "fork-prompt.md")
+    const forkExtension = path.join(tempRoot, "fork-ext.ts")
+    await fs.writeFile(forkPrompt, "user prompt\n")
+    await fs.writeFile(forkExtension, "user extension\n")
+    await fs.rm(path.join(outputRoot, "prompts", "forked.md"))
+    await fs.rm(path.join(outputRoot, "extensions", "forked-ext.ts"))
+    await fs.symlink(forkPrompt, path.join(outputRoot, "prompts", "forked.md"))
+    await fs.symlink(forkExtension, path.join(outputRoot, "extensions", "forked-ext.ts"))
+
+    await writePiBundle(outputRoot, bundleWith("v2"))
+
+    expect(await fs.readFile(forkPrompt, "utf8")).toBe("user prompt\n")
+    expect(await fs.readFile(forkExtension, "utf8")).toBe("user extension\n")
+    expect(await fs.readFile(path.join(outputRoot, "prompts", "managed.md"), "utf8")).toBe("v2\n")
+    const manifest = await readInstallManifest(outputRoot)
+    expect(manifest.prompts).toEqual(["managed.md"])
+    expect(manifest.extensions).toEqual([])
+  })
+
+  test("preserves an unmanaged real prompt file", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-prompt-unmanaged-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+    await fs.mkdir(path.join(outputRoot, "prompts"), { recursive: true })
+    await fs.writeFile(path.join(outputRoot, "prompts", "forked.md"), "hand-authored\n")
+
+    await writePiBundle(outputRoot, bundleWith("v1"))
+
+    expect(await fs.readFile(path.join(outputRoot, "prompts", "forked.md"), "utf8")).toBe("hand-authored\n")
+    expect((await readInstallManifest(outputRoot)).prompts).toEqual(["managed.md"])
+  })
+
+  test.skipIf(!canFileSymlink)("keeps a symlink that replaced a managed prompt dropped from the bundle", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-removed-prompt-symlink-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+    await writePiBundle(outputRoot, bundleWith("v1"))
+
+    const forkPrompt = path.join(tempRoot, "fork-prompt.md")
+    await fs.writeFile(forkPrompt, "user prompt\n")
+    await fs.rm(path.join(outputRoot, "prompts", "forked.md"))
+    await fs.symlink(forkPrompt, path.join(outputRoot, "prompts", "forked.md"))
+
+    await writePiBundle(outputRoot, { ...bundleWith("v2"), prompts: [{ name: "managed", content: "v2" }] })
+
+    expect((await fs.lstat(path.join(outputRoot, "prompts", "forked.md"))).isSymbolicLink()).toBe(true)
+    expect(await fs.readFile(forkPrompt, "utf8")).toBe("user prompt\n")
+  })
+})
