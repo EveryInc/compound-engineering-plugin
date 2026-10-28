@@ -28,13 +28,11 @@ const OUTPUT_MODE_BODY = readFileSync(
 // ce-ideate gains the same exclusive output-mode machinery as ce-plan and
 // ce-brainstorm, but with the default INVERTED to `html` (config key
 // `ideate_output`). Ideation docs are read mainly by humans choosing a
-// direction, so a rich self-contained HTML file is the default. Two
-// structural differences from the plan/brainstorm tests: (1) the deliverable
+// direction, so a rich self-contained HTML file is the default. One
+// structural difference from the plan/brainstorm tests: the deliverable
 // is auto-written at Phase 4 (after generation), so the rendering ref is
 // loaded at write time and the "points at sections + rendering ref" pointer
-// lives in post-ideation-workflow.md §4.1, not SKILL.md Phase 0.0; (2) Proof
-// is markdown-only, so the menu's share/iterate slot is format-keyed to
-// "Open in browser" under html.
+// lives in post-ideation-workflow.md §4.1, not SKILL.md Phase 0.0.
 // The 8KB restructure moved the format-resolution procedure into
 // references/output-mode.md, a required read named in Phase 0. These
 // assertions follow the procedure there; what SKILL.md still owns is the
@@ -207,30 +205,10 @@ describe("ce-ideate output mode (html default)", () => {
     ).toBe(true)
   })
 
-  test("persistence menu is format-keyed (Open in browser for html, Proof for md)", () => {
-    expect(
-      /Open in browser/i.test(POST_IDEATION_BODY),
-      "post-ideation-workflow.md must offer 'Open in browser' for html mode.",
-    ).toBe(true)
-    expect(
-      /Publish to Proof/i.test(POST_IDEATION_BODY),
-      "post-ideation-workflow.md must offer the Proof path for markdown mode.",
-    ).toBe(true)
-    expect(
-      /format-keyed|OUTPUT_FORMAT=html|OUTPUT_FORMAT=md/i.test(POST_IDEATION_BODY),
-      "post-ideation-workflow.md must state the format-keyed selection for the share/iterate slot.",
-    ).toBe(true)
-    expect(
-      /markdown only|markdown-only|cannot ingest HTML/i.test(POST_IDEATION_BODY),
-      "post-ideation-workflow.md must note Proof is markdown-only.",
-    ).toBe(true)
-  })
-
-  test("universal (non-software) wrap-up menu is also format-keyed", () => {
-    expect(
-      /Open in browser/i.test(UNIVERSAL_BODY) && /OUTPUT_FORMAT/i.test(UNIVERSAL_BODY),
-      "universal-ideation.md wrap-up menu must be format-keyed (local HTML file by default, Proof only under md).",
-    ).toBe(true)
+  test("open-or-share slot falls back to the local HTML file", () => {
+    for (const [label, body] of [["post-ideation-workflow.md", POST_IDEATION_BODY], ["universal-ideation.md", UNIVERSAL_BODY]]) {
+      expect(body, label).toContain("**Open in browser**")
+    }
   })
 
   test("section contract and rendering refs exist at parallel paths", () => {

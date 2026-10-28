@@ -126,9 +126,9 @@ Grounding returns a codebase summary, relevant learnings, and prior art on devel
 
 A default run generates on the order of 36-48 raw ideas and keeps 5-7. The session summary looks like `Wrote 7 ranked ideas (36 raw, 13 cut) across 5 axes`.
 
-The full cards (basis, rationale, downsides, confidence, complexity) plus the rejection summary land in a self-contained HTML file that opens in the browser. The session shows a one-line count, a ranked one-liner per survivor, and the path. Then a four-option menu:
+The full cards (basis, rationale, downsides, confidence, complexity) plus the rejection summary land in a self-contained HTML file that opens in the browser. The session shows a one-line count, a ranked one-liner per survivor, and the path. Then a menu of up to four options:
 
-1. Open in browser (or Publish to Proof on a markdown run)
+1. Open in browser, or publish a copy to the publisher you named or the host's artifact tool (omitted on a markdown run with neither)
 2. Brainstorm one idea with `ce-brainstorm`
 3. Discuss or refine the ideas first
 4. Done: keep the file and stop
@@ -247,4 +247,4 @@ A subject-identification gate asks one scope question when the prompt names only
 - [`ce-plan`](./ce-plan.md): once requirements are clear, plan the implementation
 - [`ce-strategy`](./ce-strategy.md): anchor ideation to a documented product strategy
 - [`ce-doc-review`](./ce-doc-review.md): review a saved markdown or HTML planning artifact for clarity and completeness
-- [`ce-proof`](./ce-proof.md): publish the artifact to Proof for a shareable link (markdown output only; Proof can't ingest HTML)
+- [`ce-proof`](./ce-proof.md): publish the artifact to Proof for a shareable link when you name Proof (markdown output only; Proof can't ingest HTML)

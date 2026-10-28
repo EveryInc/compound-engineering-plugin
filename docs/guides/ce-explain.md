@@ -42,7 +42,7 @@ Standalone HTML remains self-contained and readable offline. Existing metadata r
 
 Teaching exercises are included when requested or when they would help the reader remember and apply the material. They live in a static `Check yourself` section with answers afterward. The run never waits for the reader to answer a quiz.
 
-A local artifact is delivered with a summary and its path. There is no mandatory destination menu. A requested destination uses the available adapter; public ht-ml.app publishing still requires confirmation after its public-publishing warning. If it cannot complete, the local file remains available.
+A local artifact is delivered with a summary and its path. There is no mandatory destination menu. A requested publisher gets a copy; the local file stays the record. The publisher is the one you named, or the host's own artifact tool when there is one. Anything sent to a public host requires confirmation after a public-publishing warning. If publishing cannot complete, the local file remains available.
 
 ## In a workflow
 
