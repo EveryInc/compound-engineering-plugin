@@ -1,7 +1,7 @@
 ---
 title: "Prove a skill prose change moved behavior with paired old-vs-new blind injection"
 date: 2026-07-01
-last_updated: 2026-09-28
+last_updated: 2026-10-28
 category: skill-design
 module: compound-engineering-plugin skill evaluation
 problem_type: design_pattern
@@ -120,4 +120,5 @@ Full methodology when the edit changes prose/behavior intended to flip a decisio
 - [authored-eval-corpora-contain-the-happy-path](authored-eval-corpora-contain-the-happy-path.md) — sealing the injection does not make the corpus hard.
 - [strong-models-mask-defensive-skill-fixes](strong-models-mask-defensive-skill-fixes.md) — a green run must engage the protected failure mode.
 - [confidence-anchored-scoring](confidence-anchored-scoring.md) — the A/B-against-baseline pattern technique 8 generalizes.
+- [grading-live-delegation-evals-from-host-session-logs](grading-live-delegation-evals-from-host-session-logs.md) — when the skill under test dispatches subagents, grade what was dispatched from the Claude and Codex session logs, and blind the arm before grading.
 - Source: PR [#1054](https://github.com/EveryInc/compound-engineering-plugin/pull/1054) plus the parity test in `tests/pipeline-review-contract.test.ts`; PR #1216 (technique 9); issue #686 (technique 8); issue #1601 (technique 10).
