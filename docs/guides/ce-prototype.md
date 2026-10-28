@@ -98,7 +98,7 @@ The run also writes `decisions.md` there: the question, what was built, what won
 
 ### Write-back
 
-When a related brainstorm or plan exists, decisions land in that file's Product Contract (markdown or HTML). When the Product Contract changes, any HOW sections are removed and the document records that implementation planning must be regenerated. This prevents `ce-work` from shipping the old approach; run `ce-plan` again to re-enrich. When no related file exists, the skill does not mint a plan. It recaps the decisions and recommends `ce-brainstorm` or `ce-plan` from the session.
+When a related brainstorm or plan exists, decisions land in that file's Product Contract (markdown or HTML). Its Sources also records the kept prototype's absolute run path, capsule, and selected screens or states, so implementation in another worktree on the same machine can find them. The citation is marked machine-local and best effort: a missing prototype does not block implementation, and the plan's requirements govern conflicts. Prototype files stay uncommitted. An undone overlay has no surviving prototype to cite. When the Product Contract changes, any HOW sections are removed and the document records that implementation planning must be regenerated. This prevents `ce-work` from shipping the old approach; run `ce-plan` again to re-enrich. When no related file exists, the skill does not mint a plan. It recaps the decisions and recommends `ce-brainstorm` or `ce-plan` from the session.
 
 ---
 

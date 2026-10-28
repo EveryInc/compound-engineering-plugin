@@ -18,7 +18,7 @@ Phase 0.2 through 0.7 of `ce-plan`. Read this before resolving the upstream prod
 Every plan should contain:
 - A clear problem frame and scope boundary
 - Concrete requirements traceability back to the request or origin document
-- Repo-relative file paths for the work being proposed (never absolute paths — see Planning Rules)
+- Repo-relative file paths for the work being proposed (see the path policy in `references/output-mode.md`)
 - Explicit test file paths for feature-bearing implementation units
 - Decisions with rationale, not just tasks
 - Existing patterns or code references to follow
@@ -43,6 +43,8 @@ Before asking planning questions, resolve the upstream product source in this or
 If multiple source documents match, ask which one to use using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding.
 
 **Session-settled decisions are an input tier alongside the document sources above.** Decisions already examined-and-chosen in the invoking conversation — or carried in a distilled brief passed as invocation input, from the user or a calling skill — enter planning as settled constraints, not open questions. Read `references/settled-decisions.md` before classifying decisions carried in from the conversation; it defines the settlement test, the two provenance classes, the annotation shape, the capture rules, and what a brief entry must include. Classifying without it risks labeling unexamined assertions as settled, or re-asking decisions the user already closed.
+
+When input carries a prototype run or capsule, read its decisions when available. Carry its source reference forward from the session or upstream artifact under the Prototype sources contract in `references/plan-sections.md`, including when enriching an existing plan.
 
 #### 0.3 Use the Product Contract as Primary Input
 

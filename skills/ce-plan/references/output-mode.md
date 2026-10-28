@@ -4,7 +4,7 @@ Read this before interpreting any planning phase. It defines how prompt tokens a
 
 ## Artifact Root
 
-**Every file reference inside the plan document is repo-relative** (`src/models/user.rb`), never absolute — unit file lists, pattern references, origin links, and prose mentions alike. Absolute paths break portability across machines, worktrees, and teammates. Paths printed to the user in chat are the exception and stay absolute so they are clickable.
+**Repository file references inside the plan are repo-relative** (`src/models/user.rb`), including unit file lists, pattern references, origin links, and prose mentions. Kept local prototypes use absolute source citations under the Prototype sources contract in `references/plan-sections.md`, so another worktree on the same machine can find them. Paths printed to the user in chat stay absolute so they are clickable.
 
 This skill writes plans under `<root>/plans/` and reads learnings under `<root>/solutions/`. Resolve `<root>` when you first compose a `<root>/` path, never before you need it. A write to `<root>/...` and a read of `<root>/solutions/` both count, so either one triggers resolution; only a run that touches no `<root>/` path at all — a scratch-only or no-repo flow — skips it. Pass the resolved path to any subagent, not the config.
 

@@ -18,8 +18,7 @@ These hold regardless of which skill produced the artifact.
 - **ASCII identifiers in anchors.** Markdown headings auto-generate anchors
   from the heading text. Keep headings ASCII so anchors are predictable
   (`#implementation-units`, not `#implementación-units`).
-- **Repo-relative paths for file references.** Always. Never absolute paths
-  — they break portability across machines, worktrees, teammates.
+- **File references are repo-relative** unless the producing skill's section contract explicitly defines a qualified local artifact citation.
 - **No HTML mixed in.** Keep the markdown pure. No `<div>`, no `<details>`,
   no inline `<style>`. The only exception is a contract-defined invisible
   semantic marker such as `<!-- ce-section: work-relationships -->`; it carries
@@ -234,7 +233,7 @@ slips:
 
 - All stable IDs are plain-prefix format, not bolded.
 - No HTML elements mixed in.
-- All file paths are repo-relative.
+- File paths are repo-relative except for qualified local artifact citations defined by the producing skill's section contract.
 - Horizontal rule separators between H2s (for Standard / Deep artifacts).
 - No process exhaust (Phase X notes, Next Steps pointers, provenance
   lines).

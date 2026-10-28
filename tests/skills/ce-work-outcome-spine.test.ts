@@ -352,6 +352,8 @@ describe("ce-work cross-model engine contract", () => {
 
     expect(worker).toContain("caller, unit packet, and controller own dispatch")
     expect(worker).toContain("Implement exactly the supplied implementation unit")
+    expect(worker).toMatch(/Inspect another checkout only to read.*prototype.*explicitly cited in the unit packet/)
+    expect(worker).toContain("Never mutate another checkout")
     expect(worker).toContain("Before returning `completed`")
     expect(worker).toContain("complete Git delta")
     expect(worker).toContain("disposable artifacts created by your own checks")

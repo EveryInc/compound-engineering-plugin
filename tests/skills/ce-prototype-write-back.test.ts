@@ -10,8 +10,32 @@ const SKILL = readFileSync(
   path.join(process.cwd(), "skills/ce-prototype/SKILL.md"),
   "utf8",
 )
+const PLAN_SECTIONS = readFileSync(
+  path.join(process.cwd(), "skills/ce-plan/references/plan-sections.md"),
+  "utf8",
+)
 
 describe("ce-prototype write-back", () => {
+  test("write-back and planning preserve the same optional local prototype source", () => {
+    const sourceContract = (text: string) => {
+      const match = text.match(/## Prototype sources\n\n([\s\S]*?)(?=\n## |$)/)
+      expect(match).not.toBeNull()
+      return match![1].trim()
+    }
+    const contract = sourceContract(WRITE_BACK)
+    expect(sourceContract(PLAN_SECTIONS)).toBe(contract)
+    expect(sourceContract(readFileSync(
+      path.join(process.cwd(), "skills/ce-brainstorm/references/brainstorm-sections.md"), "utf8",
+    ))).toBe(contract)
+    expect(contract).toMatch(/absolute run-directory path in Sources/)
+    expect(contract).toContain("decisions.md")
+    expect(contract).toMatch(/selected screens or states/)
+    expect(contract).toContain("machine-local")
+    expect(contract).toMatch(/missing prototype is not a blocker/)
+    expect(contract).toMatch(/requirements govern/)
+    expect(contract).toMatch(/overlay.*no surviving prototype/)
+  })
+
   test("edits markdown Product Contract only and labels the decision", () => {
     expect(WRITE_BACK).toContain("## Product Contract")
     expect(WRITE_BACK).toContain("session-settled:")

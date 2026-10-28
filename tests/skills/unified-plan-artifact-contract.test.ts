@@ -871,6 +871,15 @@ describe("cross-layer ownership contract", () => {
 })
 
 describe("Product Contract section catalog and routing destinations", () => {
+  test("relevant prototype sources reach both native and external unit packets", () => {
+    const native = readRepoFile("skills/ce-work/references/execution-strategy.md")
+    const packetContract = "Include the active unit's prototype source citations with their qualifications about locality, availability, and the authority of requirements. Instruct the worker to inspect accessible, explicitly cited prototype decisions and selected screens or states before implementing the affected behavior, including when those sources are in another worktree. Keep edits and tests inside the assigned workspace."
+    expect(native).toContain(packetContract)
+    expect(crossModelExecution).toContain(packetContract)
+    expect(readRepoFile("skills/ce-plan/references/output-mode.md")).toContain(
+      "**Repository file references inside the plan are repo-relative**",
+    )
+  })
   // ce-plan's include-when-material catalog specified only implementation-facing
   // sections; its product-shape sections had no firing/skip rule at all. Measured
   // 2026-08-12 across 34 pre-existing unified plans: Success Criteria appeared in

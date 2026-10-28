@@ -346,6 +346,10 @@ worse than omitting it.
   it. That marker is reserved for pack files; `<root>/solutions/` learnings
   keep the ordinary path citation.
 
+## Prototype sources
+
+When a kept prototype informed this artifact, record its absolute run-directory path in Sources and identify `decisions.md` and the selected screens or states relevant to the requirements. Label the citation machine-local and best effort while the original checkout or temporary directory exists. State in the citation that a missing prototype is not a blocker and the artifact's requirements govern any disagreement. Do not copy the prototype or capsule into the repository. An undone overlay has no surviving prototype to cite.
+
 ## Agent agency
 
 The catalog is a floor, not a ceiling. When the brainstorm's content doesn't
@@ -417,7 +421,7 @@ Same shape as plan rules.
 - **Bold leader labels** inside Flows and Acceptance Examples
   (`**Trigger:**`, `**Covers R4, R8.**`) provide structure without deeper
   heading levels.
-- **Repo-relative paths.** Always. Never absolute paths.
+- **Repository file references are repo-relative.** Kept local prototype citations follow the Prototype sources contract above.
 - **No process exhaust.** No "captured at Phase X" notes, no `## Next Steps`
   pointing to ce-plan, no italic provenance lines. Engineering process
   metadata belongs in commit messages and tool output, not the artifact.

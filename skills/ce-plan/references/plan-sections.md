@@ -284,6 +284,10 @@ them apply.
   learnings keep the ordinary path citation, so a reader can tell a
   prescriptive pack rule from a retrospective learning.
 
+## Prototype sources
+
+When a kept prototype informed this artifact, record its absolute run-directory path in Sources and identify `decisions.md` and the selected screens or states relevant to the requirements. Label the citation machine-local and best effort while the original checkout or temporary directory exists. State in the citation that a missing prototype is not a blocker and the artifact's requirements govern any disagreement. Do not copy the prototype or capsule into the repository. An undone overlay has no surviving prototype to cite.
+
 ## Agent agency
 
 The catalog is a floor, not a ceiling. When the plan's content doesn't fit
@@ -441,8 +445,7 @@ These apply regardless of rendering format.
   authored implementation-ready plans, and in an existing plan whenever a
   KTD is added, split, or first cited by a unit. Untouched unnumbered KTDs
   in legacy plans stay as they are — readable by label, no mass renumbering.
-- **Repo-relative paths.** Always. Never absolute paths in plan content;
-  they break portability across machines, worktrees, teammates.
+- **File paths** follow the policy in `references/output-mode.md`.
 - **No record of the planning process.** No "captured at Phase X" notes, no `## Next Steps`
   pointing to the next skill, no italic provenance lines. Engineering process
   metadata belongs in commit messages and tool output, not the artifact.

@@ -20,6 +20,10 @@ Preserve the artifact's identity and execution kind while removing obsolete read
 
 Do not edit Planning Contract, Implementation Units, Verification Contract, Definition of Done, Key Technical Decisions, or any other HOW section as content. After a Product Contract change, those sections are removed wholesale (below), not rewritten.
 
+## Prototype sources
+
+When a kept prototype informed this artifact, record its absolute run-directory path in Sources and identify `decisions.md` and the selected screens or states relevant to the requirements. Label the citation machine-local and best effort while the original checkout or temporary directory exists. State in the citation that a missing prototype is not a blocker and the artifact's requirements govern any disagreement. Do not copy the prototype or capsule into the repository. An undone overlay has no surviving prototype to cite.
+
 ## How to edit the Product Contract
 
 1. Allocate the next unused R-ID and, when the decision has a state-dependent shape, the next unused AE-ID.

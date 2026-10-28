@@ -27,6 +27,7 @@ Read this when Phase 0 classifies a bare prompt, and again at Phase 1 before rea
 - Check for a `Deferred to Implementation` or `Implementation-Time Unknowns` section — these are questions the planner intentionally left for you to resolve during execution. Note them before starting so they inform your approach rather than surprising you mid-task
 - Check for a `Scope Boundaries` section — these are explicit non-goals. Refer back to them if implementation starts pulling you toward adjacent work
 - Review any references or links provided in the plan
+- Check Sources for prototype citations relevant to the active work. When accessible, inspect the cited decisions and selected screens or states before implementing the affected behavior. Follow the citation's qualifications about locality, availability, and the authority of requirements; an unavailable optional prototype does not block execution.
 - If the user explicitly asks for TDD, test-first, characterization-first execution, or a specific verification style in this session, honor that direction even if the plan has no `Execution note`
 - If anything is unclear or ambiguous, ask clarifying questions now
 - If clarifying questions were needed above, get user approval on the resolved answers. If no clarifications were needed, proceed without a separate approval step — plan scope is the plan's authority, not something to renegotiate

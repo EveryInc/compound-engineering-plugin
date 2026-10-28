@@ -32,6 +32,8 @@ A prior brainstorm helps but is never required. You can invoke `ce-plan` directl
 
 ---
 
+Plans informed by a kept prototype retain its absolute run path and relevant capsule and screens in Sources, including when planning from a prototype session or enriching an existing plan. That optional citation is machine-local and best effort; missing artifacts do not block execution, and the plan's requirements govern conflicts. Repository implementation paths remain relative.
+
 ## Example invocations
 
 An empty invoke uses the current conversation if one is already underway (including a just-finished brainstorm) and otherwise asks what to plan. Passing a requirements-only plan path enriches that file in place. `output:html` changes the artifact format. `confirm:auto` skips only the pre-plan scope confirmation.

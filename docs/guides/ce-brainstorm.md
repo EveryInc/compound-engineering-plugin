@@ -32,6 +32,8 @@ It does not render verdicts. If you ask whether to adopt a named external candid
 
 ---
 
+When a kept prototype informs the requirements, Sources retains its absolute run path, decision capsule, and selected screens or states for later planning. This is optional machine-local evidence: a missing prototype does not block progress, and the requirements govern disagreements. Repository file references remain relative.
+
 ## Example invocations
 
 An empty invoke asks what to explore. A path to an existing requirements-only plan offers resume. `output:html` changes the artifact format. A named model elevates only approach generation.

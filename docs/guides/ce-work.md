@@ -107,6 +107,8 @@ Asking an agent "implement this plan" goes wrong in predictable ways:
 
 `ce-work` reads the plan as a decision artifact, not a script. It reads the contents to establish whether implementation can start. A Product Contract without implementation planning goes back to `ce-plan`. Material existing prerequisites must match repository evidence; unresolved blockers stop execution. Planned new files need not exist yet, and old readiness labels do not override the contents. Scope, decisions, U-IDs, files, test scenarios, and verification criteria are authoritative. The plan body stays read-only during execution; progress lives in git commits and the task tracker.
 
+When a plan cites a prototype for the active work, the host and its workers inspect the relevant decisions and selected screens or states when accessible. Both native and external worker packets carry the source citation and its qualifications. The absolute locator can reach the original checkout from another worktree on the same machine; a missing optional prototype does not block execution, and plan requirements govern conflicts.
+
 Before each task, it checks whether the unit's work already exists and matches the plan's intent. If verification is already satisfied, it marks the task complete and moves on. A unit whose deliverable is out-of-repo state (a console setting, a DNS record) has no git-derived completion signal, so its status is decided from the observed state of the deliverable, never re-applied off a clean tree. This matters most when resuming after context compaction, picking up someone else's branch, or returning to a partly-shipped plan weeks later.
 
 ### Engine, workspace, and scheduling are separate decisions
