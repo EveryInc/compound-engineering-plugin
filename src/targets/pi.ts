@@ -15,7 +15,7 @@ import { transformContentForPi } from "../converters/claude-to-pi"
 import type { PiBundle } from "../types/pi"
 import { getLegacyPiArtifacts } from "../data/plugin-legacy-artifacts"
 import { cleanupStaleAgents, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
-import { isPathWithinRoot, isPreservedSymlink, lstatOrNull, resolveLegacyManagedDir, resolveManagedSegment, storeRootEscapesManagedRoot } from "./managed-artifacts"
+import { cleanupCurrentManagedFile, isPathWithinRoot, isPreservedSymlink, lstatOrNull, resolveLegacyManagedDir, resolveManagedSegment, storeRootEscapesManagedRoot } from "./managed-artifacts"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
 const PI_AGENTS_BLOCK_END = "<!-- END COMPOUND PI TOOL MAP -->"
@@ -98,7 +98,7 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     for (const prompt of bundle.prompts) {
       const promptFile = `${sanitizePathName(prompt.name)}.md`
       const targetPath = path.join(paths.promptsDir, promptFile)
-      if (await cleanupCurrentManagedFile(targetPath, ownedPrompts, promptFile)) {
+      if (await cleanupCurrentManagedFile(targetPath, ownedPrompts, promptFile, { unlinkOwned: true })) {
         preservedPromptNames.add(promptFile)
         continue
       }
@@ -147,7 +147,7 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
       continue
     }
     const targetPath = path.join(paths.agentsDir, agentFileName)
-    const preserved = await cleanupCurrentManagedFile(targetPath, manifest?.agents ?? [], agentFileName)
+    const preserved = await cleanupCurrentManagedFile(targetPath, manifest?.agents ?? [], agentFileName, { unlinkOwned: true })
     if (preserved) {
       preservedAgentNames.add(agentFileName)
       continue
@@ -160,7 +160,7 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     const ownedExtensions = pluginName ? (manifest?.extensions ?? []) : null
     for (const extension of bundle.extensions) {
       const targetPath = path.join(paths.extensionsDir, extension.name)
-      if (await cleanupCurrentManagedFile(targetPath, ownedExtensions, extension.name)) {
+      if (await cleanupCurrentManagedFile(targetPath, ownedExtensions, extension.name, { unlinkOwned: true })) {
         preservedExtensionNames.add(extension.name)
         continue
       }
@@ -486,29 +486,6 @@ async function cleanupCurrentManagedSkillDir(
     return true
   }
   await fs.rm(targetDir, { recursive: true, force: true })
-  return false
-}
-
-// Returns true when the existing path was preserved (skip cleanup AND the
-// subsequent write -- writing through a preserved symlink would clobber the
-// user's fork, which is worse than not overwriting at all).
-async function cleanupCurrentManagedFile(
-  targetPath: string,
-  owned: readonly string[] | null,
-  fileName: string,
-): Promise<boolean> {
-  const stat = await lstatOrNull(targetPath)
-  if (!stat) return false
-  if (stat.isSymbolicLink()) {
-    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
-    return true
-  }
-  if (owned === null) return false
-  if (!owned.includes(fileName)) {
-    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
-    return true
-  }
-  await fs.rm(targetPath, { force: true })
   return false
 }
 

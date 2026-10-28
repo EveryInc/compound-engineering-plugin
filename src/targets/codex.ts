@@ -6,7 +6,7 @@ import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
 import { getLegacyCodexArtifacts } from "../data/plugin-legacy-artifacts"
 import { classifyCodexLegacyPromptOwnership, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
-import { isContainedPath, isPathWithinRoot, isPreservedSymlink, lstatOrNull, storeRootEscapesManagedRoot } from "./managed-artifacts"
+import { cleanupCurrentManagedFile, isContainedPath, isPathWithinRoot, isPreservedSymlink, lstatOrNull, storeRootEscapesManagedRoot } from "./managed-artifacts"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -61,7 +61,7 @@ export async function writeCodexBundle(
       for (const prompt of bundle.prompts) {
         const promptFile = `${sanitizePathName(prompt.name)}.md`
         const targetPath = path.join(promptsDir, promptFile)
-        if (await cleanupCurrentManagedFile(targetPath, ownedPrompts, promptFile)) {
+        if (await cleanupCurrentManagedFile(targetPath, ownedPrompts, promptFile, { unlinkOwned: true })) {
           preservedPromptNames.add(promptFile)
           continue
         }
@@ -147,7 +147,7 @@ export async function writeCodexBundle(
         continue
       }
       const targetPath = path.join(agentsRoot, agentFile)
-      const preserved = await cleanupCurrentManagedFile(targetPath, manifest?.agents ?? [], agentFile)
+      const preserved = await cleanupCurrentManagedFile(targetPath, manifest?.agents ?? [], agentFile, { unlinkOwned: true })
       if (preserved) {
         preservedAgentNames.add(agentFile)
         continue
@@ -387,29 +387,6 @@ async function cleanupCurrentManagedSkillDir(
     return true
   }
   await fs.rm(targetDir, { recursive: true, force: true })
-  return false
-}
-
-// Returns true when the existing path was preserved (skip cleanup AND the
-// subsequent write -- writing through a preserved symlink would clobber the
-// user's fork, which is worse than not overwriting at all).
-async function cleanupCurrentManagedFile(
-  targetPath: string,
-  owned: readonly string[] | null,
-  fileName: string,
-): Promise<boolean> {
-  const stat = await lstatOrNull(targetPath)
-  if (!stat) return false
-  if (stat.isSymbolicLink()) {
-    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
-    return true
-  }
-  if (owned === null) return false
-  if (!owned.includes(fileName)) {
-    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
-    return true
-  }
-  await fs.rm(targetPath, { force: true })
   return false
 }
 
