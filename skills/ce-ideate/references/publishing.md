@@ -22,6 +22,6 @@ A public host is one where anyone who has or finds the link can read the page wi
 
 ## Re-publishing and failure
 
-When the document changed after it was published, update the existing published artifact if the destination supports updates, instead of creating a new one. Do not write the published URL into the document. Treat any edit or update credential the publisher returns as a secret: do not print it in chat or embed it in the document.
+When the document changed after it was published, update the existing published artifact if the destination supports updates, instead of creating a new one. Do not write the published URL into the document. Give the user the link the publisher returns for sharing, even when that link carries an access token. Treat a separate management credential the publisher returns, such as an owner secret or update key, as a secret: do not print it in chat or embed it in the document.
 
 If publishing fails, keep the local file and report what failed along with the local path. Do not switch to another publisher unless the user authorizes it.
