@@ -53,11 +53,23 @@ export async function writeCodexBundle(
   // record nothing as owned.
   const promptsDir = path.join(codexRoot, "prompts")
   const promptsEscaped = await storeRootEscapesManagedRoot(codexRoot, promptsDir)
+  const preservedPromptNames = new Set<string>()
   if (!promptsEscaped) {
     if (bundle.prompts.length > 0) {
       await cleanupRemovedPrompts(promptsDir, manifest, currentPrompts)
       for (const prompt of bundle.prompts) {
-        await writeText(path.join(promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
+        const promptFile = `${sanitizePathName(prompt.name)}.md`
+        const targetPath = path.join(promptsDir, promptFile)
+        if (pluginName && (await cleanupCurrentManagedPromptFile(targetPath, manifest, promptFile))) {
+          preservedPromptNames.add(promptFile)
+          continue
+        }
+        if (!pluginName && (await isPreservedSymlink(targetPath))) {
+          console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+          preservedPromptNames.add(promptFile)
+          continue
+        }
+        await writeText(targetPath, prompt.content + "\n")
       }
     } else if (pluginName) {
       await cleanupRemovedPrompts(promptsDir, manifest, [])
@@ -174,7 +186,7 @@ export async function writeCodexBundle(
       version: 1,
       pluginName,
       skills: currentSkills.filter((name) => !preservedSkillNames.has(name)),
-      prompts: promptsEscaped ? [] : currentPrompts,
+      prompts: promptsEscaped ? [] : currentPrompts.filter((name) => !preservedPromptNames.has(name)),
       agents: currentAgents.filter((name) => !preservedAgentNames.has(name)),
     })
     await cleanupKnownLegacyCodexArtifacts(codexRoot, bundle)
@@ -333,7 +345,9 @@ async function cleanupRemovedPrompts(
   for (const promptFile of manifest.prompts) {
     if (current.has(promptFile)) continue
     if (!isSafeManagedPath(promptsDir, promptFile)) continue
-    await fs.rm(path.join(promptsDir, promptFile), { force: true })
+    const targetPath = path.join(promptsDir, promptFile)
+    if (await isPreservedSymlink(targetPath)) continue
+    await fs.rm(targetPath, { force: true })
   }
 }
 
@@ -383,6 +397,25 @@ async function cleanupCurrentManagedSkillDir(
 // Returns true when the existing path was preserved (skip cleanup AND the
 // subsequent write -- writing through a preserved symlink would clobber the
 // user's fork, which is worse than not overwriting at all).
+async function cleanupCurrentManagedPromptFile(
+  targetPath: string,
+  manifest: CodexInstallManifest | null,
+  promptFileName: string,
+): Promise<boolean> {
+  const stat = await lstatOrNull(targetPath)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (!manifest?.prompts.includes(promptFileName)) {
+    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
+    return true
+  }
+  await fs.rm(targetPath, { force: true })
+  return false
+}
+
 async function cleanupCurrentManagedAgentFile(
   targetPath: string,
   manifest: CodexInstallManifest | null,

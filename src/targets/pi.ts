@@ -92,9 +92,21 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   if (!agentsEscaped) await cleanupRemovedAgents(paths.agentsDir, manifest, currentAgents)
   if (!extensionsEscaped) await cleanupRemovedExtensions(paths.extensionsDir, manifest, currentExtensions)
 
+  const preservedPromptNames = new Set<string>()
   if (!promptsEscaped) {
     for (const prompt of bundle.prompts) {
-      await writeText(path.join(paths.promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
+      const promptFile = `${sanitizePathName(prompt.name)}.md`
+      const targetPath = path.join(paths.promptsDir, promptFile)
+      if (pluginName && (await cleanupCurrentManagedPromptFile(targetPath, manifest, promptFile))) {
+        preservedPromptNames.add(promptFile)
+        continue
+      }
+      if (!pluginName && (await isPreservedSymlink(targetPath))) {
+        console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+        preservedPromptNames.add(promptFile)
+        continue
+      }
+      await writeText(targetPath, prompt.content + "\n")
     }
   }
 
@@ -147,9 +159,20 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     await writeText(targetPath, agent.content + "\n")
   }
 
+  const preservedExtensionNames = new Set<string>()
   if (!extensionsEscaped) {
     for (const extension of bundle.extensions) {
-      await writeText(path.join(paths.extensionsDir, extension.name), extension.content + "\n")
+      const targetPath = path.join(paths.extensionsDir, extension.name)
+      if (pluginName && (await cleanupCurrentManagedExtensionFile(targetPath, manifest, extension.name))) {
+        preservedExtensionNames.add(extension.name)
+        continue
+      }
+      if (!pluginName && (await isPreservedSymlink(targetPath))) {
+        console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+        preservedExtensionNames.add(extension.name)
+        continue
+      }
+      await writeText(targetPath, extension.content + "\n")
     }
   }
 
@@ -171,8 +194,8 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
       version: 1,
       pluginName,
       skills: currentSkills.filter((name) => !preservedSkillNames.has(name)),
-      prompts: promptsEscaped ? [] : currentPrompts,
-      extensions: extensionsEscaped ? [] : currentExtensions,
+      prompts: promptsEscaped ? [] : currentPrompts.filter((name) => !preservedPromptNames.has(name)),
+      extensions: extensionsEscaped ? [] : currentExtensions.filter((name) => !preservedExtensionNames.has(name)),
       agents: currentAgents.filter((name) => !preservedAgentNames.has(name)),
     })
     await archiveLegacyInstallManifestIfOwned(paths.managedDir, pluginName)
@@ -414,7 +437,9 @@ async function cleanupRemovedPrompts(
   for (const promptFile of manifest.prompts) {
     if (current.has(promptFile)) continue
     if (!isSafeManagedPath(promptsDir, promptFile)) continue
-    await fs.rm(path.join(promptsDir, promptFile), { force: true })
+    const targetPath = path.join(promptsDir, promptFile)
+    if (await isPreservedSymlink(targetPath)) continue
+    await fs.rm(targetPath, { force: true })
   }
 }
 
@@ -428,7 +453,9 @@ async function cleanupRemovedExtensions(
   for (const extensionFile of manifest.extensions) {
     if (current.has(extensionFile)) continue
     if (!isSafeManagedPath(extensionsDir, extensionFile)) continue
-    await fs.rm(path.join(extensionsDir, extensionFile), { force: true })
+    const targetPath = path.join(extensionsDir, extensionFile)
+    if (await isPreservedSymlink(targetPath)) continue
+    await fs.rm(targetPath, { force: true })
   }
 }
 
@@ -467,6 +494,44 @@ async function cleanupCurrentManagedSkillDir(
     return true
   }
   await fs.rm(targetDir, { recursive: true, force: true })
+  return false
+}
+
+async function cleanupCurrentManagedPromptFile(
+  targetPath: string,
+  manifest: PiInstallManifest | null,
+  promptFileName: string,
+): Promise<boolean> {
+  const stat = await lstatOrNull(targetPath)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (!manifest?.prompts.includes(promptFileName)) {
+    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
+    return true
+  }
+  await fs.rm(targetPath, { force: true })
+  return false
+}
+
+async function cleanupCurrentManagedExtensionFile(
+  targetPath: string,
+  manifest: PiInstallManifest | null,
+  extensionFileName: string,
+): Promise<boolean> {
+  const stat = await lstatOrNull(targetPath)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (!manifest?.extensions.includes(extensionFileName)) {
+    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
+    return true
+  }
+  await fs.rm(targetPath, { force: true })
   return false
 }
 

@@ -1,3 +1,4 @@
+import { promises as fs } from "fs"
 import path from "path"
 import { backupFile, commandNameToRelativePath, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformSkillContentForOpenCode } from "../converters/claude-to-opencode"
@@ -120,12 +121,18 @@ export async function writeOpenCodeBundle(
   if (!skillsEscaped) await cleanupRemovedManagedDirectories(openCodePaths.skillsDir, manifest, "skills", currentSkills)
 
   const hadExistingConfig = await pathExists(openCodePaths.configPath)
-  const backupPath = await backupFile(openCodePaths.configPath)
-  if (backupPath) {
-    console.log(`Backed up existing config to ${backupPath}`)
-  }
+  const existingConfigText = hadExistingConfig
+    ? await fs.readFile(openCodePaths.configPath, "utf8").catch(() => null)
+    : null
   const merged = await mergeOpenCodeConfig(openCodePaths.configPath, bundle.config)
-  await writeJson(openCodePaths.configPath, merged)
+  const nextConfigText = `${JSON.stringify(merged, null, 2)}\n`
+  if (existingConfigText !== nextConfigText) {
+    const backupPath = await backupFile(openCodePaths.configPath)
+    if (backupPath) {
+      console.log(`Backed up existing config to ${backupPath}`)
+    }
+    await writeJson(openCodePaths.configPath, merged)
+  }
   if (hadExistingConfig) {
     console.log("Merged plugin config into existing opencode.json (user settings preserved)")
   }
@@ -161,16 +168,20 @@ export async function writeOpenCodeBundle(
       continue
     }
     const dest = path.join(openCodePaths.commandDir, ...commandName.split("/"))
+    const nextCommandText = commandFile.content + "\n"
+    const existingCommandText = await fs.readFile(dest, "utf8").catch(() => null)
     const preserved = await cleanupCurrentManagedFile(dest, manifest, "commands", commandName)
     if (preserved) {
       preservedCommandNames.add(commandName)
       continue
     }
-    const cmdBackupPath = await backupFile(dest)
-    if (cmdBackupPath) {
-      console.log(`Backed up existing command file to ${cmdBackupPath}`)
+    if (existingCommandText !== null && existingCommandText !== nextCommandText) {
+      const cmdBackupPath = await backupFile(dest)
+      if (cmdBackupPath) {
+        console.log(`Backed up existing command file to ${cmdBackupPath}`)
+      }
     }
-    await writeText(dest, commandFile.content + "\n")
+    await writeText(dest, nextCommandText)
   }
 
   const preservedPluginNames = new Set<string>()
