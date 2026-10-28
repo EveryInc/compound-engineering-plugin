@@ -535,17 +535,11 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     ).toBe(true)
   })
 
-  test("no ce-ideate file dispatches or reads per-axis evidence scouts", () => {
-    const corpus = [
-      SKILL_BODY,
-      DIVERGENT_BODY,
-      POST_IDEATION_BODY,
-      GROUNDING_BODY,
-      SCOPE_GATES_BODY,
-      DECOMPOSITION_BODY,
-      readFileSync(path.join(SKILL_DIR, "references/user-research-artifacts.md"), "utf8"),
-    ].join("\n")
-    expect(/evidence scouts?|axis dossiers?/i.test(corpus), "Scouts were removed; no file may describe them.").toBe(false)
+  test("Phase 1.5 decomposes without dispatching anything", () => {
+    expect(
+      /no user-facing question, and no dispatch/i.test(PHASE_1_5),
+      "Phase 1.5 must state that the axis pass dispatches nothing; per-axis evidence scouts were removed.",
+    ).toBe(true)
   })
 
   test("the universal survivor target follows the selected depth", () => {
