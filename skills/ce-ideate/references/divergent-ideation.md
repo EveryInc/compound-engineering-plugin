@@ -31,6 +31,8 @@ Build one shared grounding block and keep it byte-identical across every ideatio
 - `<axes>` — the Phase 1.5 axis list, when present
 - `<task>` — the frame assignment, per-frame volume target, ambition charter, verification-read budget, and the per-idea output contract; generate raw candidates only (critique comes later)
 
+Only the shared blocks are byte-identical. Each agent's `<task>` names that agent's own frame or frames, written out from the frame list below, before the dispatch is sent. A prompt that still holds an unfilled slot for the frame sends an agent with no lens, and that frame silently goes missing from the run.
+
 The `<constraints>`/`<background>` split is the primary defense against grounding noise (an unrelated `FEEDBACK.md` the user did not name, a tangentially-cited prior-art result) shaping survivors against user intent — keep it mechanical via the tags, not prose hedging. User-supplied *research* artifacts are background even though user-named — supplying evidence is not issuing a directive; only directive files (per the Phase 1 routing test) ride in `<constraints>`.
 
 **Ambition charter (include verbatim in every ideation dispatch):**

@@ -555,6 +555,23 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
   })
 })
 
+describe("ce-ideate dispatch prompts", () => {
+  test("each agent's task names its own frame before the dispatch is sent", () => {
+    // Claude orchestrators built the first ideation prompt as a template and
+    // sent it with the frame left as a slot (`__FRAME__`, `FRAME_PLACEHOLDER`)
+    // in 3 of 3 surprise-me eval runs, so one frame ran with no lens. The
+    // byte-identical rule covers only the shared blocks.
+    expect(
+      /Only the shared blocks are byte-identical/i.test(DIVERGENT_BODY),
+      "divergent-ideation.md must limit byte-identity to the shared blocks.",
+    ).toBe(true)
+    expect(
+      /`<task>` names that agent's own frame or frames, written out from the frame list below, before the dispatch is sent/i.test(DIVERGENT_BODY),
+      "Each dispatch's task must carry its frame before it is sent.",
+    ).toBe(true)
+  })
+})
+
 describe("ce-ideate meeting-test waiver reaches the verifier", () => {
   test("the tactical waiver is stated at both layers in SKILL.md", () => {
     // Only alternatives that actually assert the two-layer relationship. A

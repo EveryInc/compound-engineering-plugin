@@ -35,6 +35,8 @@ For each item in the scenario's expectations, return `PASS`, `FAIL`, or `N/A` wi
 
 Every scenario except `merge` and `non-software` also expects: the run wrote a ranked ideation file under `docs/ideation/`, and every survivor in it carries a basis.
 
+Every scenario that dispatches ideation agents also expects: each sent ideation prompt names its own frame, and none carries an unfilled slot where the frame should be (such as `__FRAME__` or `FRAME_PLACEHOLDER`). A slotted dispatch that the run stopped and resent with its frame filled in still fails this item.
+
 - **default-fleet** — (1) all six frames are assigned; (2) 5 ideation agents; (3) Pain, Inversion, and Leverage on generation tier, Analogy and Assumption-breaking plus Constraint-flipping on ceiling tier; (4) per-frame target about 6-8 ideas; (5) a basis verifier was dispatched and asked to judge the meeting-test.
 - **tactical** — (1) all six frames; (2) 5 ideation agents, tiered as default; (3) per-frame target 3-4 ideas; (4) verification budget 2-3 reads per agent; (5) at most 3 axes and at most 3 evidence scouts; (6) the verifier prompt says the meeting-test floor is waived.
 - **go-deep** — (1) all six frames; (2) 6 ideation agents, one frame each; (3) all on ceiling tier; (4) verification budget 10 reads; (5) a second, ceiling-tier critic in the filtering phase; (6) the verifier judges the meeting-test.

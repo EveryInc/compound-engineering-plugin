@@ -23,10 +23,11 @@ function expectationsFor(scenarioId: string): string {
   const key = scenarioId.replace(/^ce-ideate\/run-scaling-/, "")
   const lines = section.split("\n")
   const common = lines.find((l) => l.startsWith("Every scenario except")) ?? ""
+  const dispatching = lines.find((l) => l.startsWith("Every scenario that dispatches")) ?? ""
   const own = lines.find((l) => l.startsWith(`- **${key}**`))
   if (!own) throw new Error(`no expectations for ${scenarioId}`)
   const exempt = key === "merge" || key === "non-software"
-  return [own, exempt ? "" : common].filter(Boolean).join("\n\n") + "\n"
+  return [own, exempt ? "" : common, dispatching].filter(Boolean).join("\n\n") + "\n"
 }
 
 function readJsonl(file: string): any[] {
