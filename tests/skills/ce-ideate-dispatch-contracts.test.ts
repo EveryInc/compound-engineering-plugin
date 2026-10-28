@@ -309,17 +309,11 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
   })
 
   test("tactical takes its savings from volume and reads, not from packing frames", () => {
-    // Packing was tried and reverted. Two reasons, both in the file: per-frame
-    // idea targets do not change under packing, so it barely reduces generated
-    // output; and the verification budget is per AGENT, so an agent holding
-    // three frames verifies ~1/3 as much per idea -- cutting the basis check,
-    // which is the mechanism the skill exists to enforce.
+    // Packing was tried and reverted: the verification budget is per AGENT, so
+    // an agent holding three frames verifies ~1/3 as much per idea -- cutting
+    // the basis check, which is the mechanism the skill exists to enforce.
     expect(
-      /Cut volume, not agents/i.test(VOLUME_0_5),
-      "Phase 0.5 must name volume and reads as the tactical cost levers.",
-    ).toBe(true)
-    expect(
-      /Do not pack extra frames into one agent to save money/i.test(VOLUME_0_5),
+      /Packing frames into fewer agents is not a tactical lever/i.test(VOLUME_0_5),
       "Phase 0.5 must forbid packing as a cost lever.",
     ).toBe(true)
     expect(
@@ -334,8 +328,12 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       "The 2x3 tactical packing must not be reintroduced.",
     ).toBe(false)
     expect(
-      /the same 5 agents over 6 frames as the default/i.test(DIVERGENT_BODY),
+      /Tactical scope never changes the agent count/i.test(DIVERGENT_BODY),
       "divergent-ideation.md must keep the default fleet under tactical scope.",
+    ).toBe(true)
+    expect(
+      /Never pack extra frames into fewer agents/i.test(DIVERGENT_BODY),
+      "divergent-ideation.md must forbid packing at the fleet that would do it.",
     ).toBe(true)
     // The concrete dials, at the sites that own them.
     expect(
@@ -350,12 +348,12 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
 
   test("all six frames survive every default-frame-set variant", () => {
     expect(
-      /Every variant that uses the default frame set covers all six/i.test(DIVERGENT_BODY),
-      "divergent-ideation.md must state the six-frame floor for default-frame-set variants.",
+      /Scaling never drops a frame and never skips basis verification/i.test(DIVERGENT_BODY),
+      "divergent-ideation.md must state that scaling never drops a frame.",
     ).toBe(true)
     expect(
-      /Issue-tracker mode is the one variant that \*replaces\* the frame set/i.test(DIVERGENT_BODY),
-      "The six-frame floor must exempt issue-tracker mode explicitly.",
+      /except when issue-tracker intent was detected and the issue intelligence agent returned usable themes/i.test(DIVERGENT_BODY),
+      "Only usable issue themes may replace the six-frame set.",
     ).toBe(true)
   })
 
@@ -363,7 +361,7 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     // Scouts dispatch one per axis, so an axis past the scout cap reaches
     // generation with no evidence dossier. An earlier revision capped axes at 3
     // and scouts at 2, which stranded exactly one axis on every tactical run.
-    const axisCap = VOLUME_0_5.match(/Cap Phase 1\.5 at (\d+) axes and evidence scouts at (\d+)/i)
+    const axisCap = VOLUME_0_5.match(/at most (\d+) axes and (\d+) evidence scouts/i)
     expect(axisCap, "Phase 0.5 must state the tactical axis and scout caps together.").not.toBeNull()
     expect(
       axisCap![1],
@@ -410,38 +408,35 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
   })
 
   test("a tactical run colliding with go deep or issue-tracker mode has a defined winner", () => {
-    // Tactical selects a six-frame 2-agent fleet while issue-tracker mode
-    // selects theme frames, so "quick wins from open issues" needs a rule.
+    // "quick wins from open issues" and "go deep: quick wins" both need a rule.
     expect(
-      /`go deep` beats a tactical signal outright/i.test(VOLUME_0_5),
+      /`go deep` cancels tactical/i.test(VOLUME_0_5),
       "Phase 0.5 must resolve tactical vs `go deep`.",
     ).toBe(true)
     expect(
       /issue-tracker/i.test(VOLUME_0_5),
       "Phase 0.5 must resolve tactical vs issue-tracker intent.",
     ).toBe(true)
+    // The colliding pairs were once a five-row table, which grew a row per
+    // pair found in review. These conditions decide every pair: the frame set
+    // decides the agent count, and `go deep` keeps its doubled reads (pinned
+    // with the read budget below) and ceiling tier even over theme frames.
     expect(
-      /issue-tracker \+ tactical/i.test(DIVERGENT_BODY),
-      "divergent-ideation.md must carry the frames-vs-agent-count split for colliding variants.",
+      /The agent count follows the frame set/i.test(DIVERGENT_BODY),
+      "divergent-ideation.md must say what decides the agent count.",
     ).toBe(true)
-    // Every pair of variants that can fire together needs a row; a vague
-    // `quick wins` routed to "Surprise me" fires both.
-    // Each pair gets its own row: `go deep` and surprise-me share a fleet but
-    // not a read budget, so collapsing them drops go deep's doubled reads.
-    for (const pair of [
-      /issue-tracker \+ `go deep`/i,
-      /issue-tracker \+ surprise-me/i,
-      /tactical \+ `go deep`/i,
-      /tactical \+ surprise-me/i,
-    ]) {
-      expect(
-        pair.test(DIVERGENT_BODY),
-        `The collision table must resolve ${pair}.`,
-      ).toBe(true)
-    }
     expect(
-      /`go deep`'s doubled reads \(10\)/.test(DIVERGENT_BODY),
-      "The go-deep collision row must preserve its doubled verification budget.",
+      /Theme frames run on 4 agents, whatever else is active/i.test(DIVERGENT_BODY) &&
+        /6 agents \(one frame each\) when `go deep` or surprise-me is active/i.test(DIVERGENT_BODY),
+      "The agent count for each frame set must be stated.",
+    ).toBe(true)
+    expect(
+      /Under `go deep` or surprise-me every ideation agent runs on the ceiling tier, theme frames included/i.test(DIVERGENT_BODY),
+      "go deep and surprise-me must raise theme frames to the ceiling tier too.",
+    ).toBe(true)
+    expect(
+      /A fallback recomputes only what the abandoned frame set determined/i.test(DIVERGENT_BODY),
+      "divergent-ideation.md must state the fallback's recompute boundary.",
     ).toBe(true)
     // The fallback must inherit the run's scaling rather than resetting to 5 --
     // in the inline skeleton too, not only in the two references.
@@ -523,7 +518,8 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       "There must be exactly one stated read budget.",
     ).toBe(true)
     expect(
-      /never raised volume against the lowered cap/i.test(DIVERGENT_BODY),
+      /tactical read budget goes with the tactical volume/i.test(DIVERGENT_BODY) &&
+        /verifies at the ordinary 5 reads/i.test(DIVERGENT_BODY),
       "A raised volume override must return the ordinary budget, not keep the tactical cap.",
     ).toBe(true)
     expect(
@@ -553,7 +549,7 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
   test("go deep still scales up, so the two overrides stay symmetric", () => {
     expect(/scale up/i.test(VOLUME_0_5) && /scale down/i.test(VOLUME_0_5)).toBe(true)
     expect(
-      /`go deep` beats a tactical signal outright/i.test(VOLUME_0_5),
+      /`go deep` cancels tactical/i.test(VOLUME_0_5),
       "Phase 0.5 must resolve a prompt carrying both go deep and a tactical signal.",
     ).toBe(true)
   })
@@ -575,11 +571,11 @@ describe("ce-ideate meeting-test waiver reaches the verifier", () => {
     // tactical scope is suppressed. A waiver keyed on detection would still
     // waive the ambition floor on that all-ceiling run.
     expect(
-      /Detecting a tactical signal is not the same as tactical scope being active/i.test(VOLUME_0_5),
+      /keys on which overrides are active after this, never on a signal that was merely spotted/i.test(VOLUME_0_5),
       "Phase 0.5 must separate signal detection from the resolved active mode.",
     ).toBe(true)
     expect(
-      /suppresses it entirely/i.test(VOLUME_0_5),
+      /no tactical dial and no waiver/i.test(VOLUME_0_5),
       "Phase 0.5 must state that `go deep` suppresses tactical scope, not merely outranks its fleet.",
     ).toBe(true)
     for (const [label, body] of [

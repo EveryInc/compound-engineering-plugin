@@ -123,16 +123,14 @@ If the user already named what they want to work on inline (e.g. "brainstorm the
 
 ### 5.3 Discuss or Refine the Ideas First
 
-This stays in ce-ideate — no skill handoff. It is the "think across the set before committing" step, and it is a normal, expected outcome of ideation: seeing several strong candidates and wanting to deliberate is more common than instantly committing one. The orchestrator still holds the full grounding and generation context, so it can reason across every survivor — this is where that context pays off. The work here is either **single-idea** (sharpen or interrogate one) or **cross-idea** (compare, combine, or merge several); do not force the user to name a single idea before they can engage.
+This stays in ce-ideate — no skill handoff. It is the "think across the set before committing" step, and a normal outcome of ideation. The orchestrator still holds the full grounding and generation context, so it can reason across every survivor.
 
-1. **Establish what the user wants to work on and how.** Infer from their phrasing when given; otherwise ask one open question ("What do you want to work on?") rather than assuming a single idea. The scope may be one idea, a subset, or the whole set.
-2. **Route by intent:**
-   - **Ask / compare** ("why High confidence?", "how does this compare to FigJam?", "which of these overlap?", "which two are closest?") — answer in conversation, grounded in the ideas' bases and the Phase 1 grounding. Spans one idea or many. **No file rewrite** unless the discussion yields a change the user wants captured.
-   - **Adjust** ("smaller scope", "drop the paste-import part", "reframe around X") — revise that idea's framing, scope, or basis as discussed, then **rewrite the saved file** so the deliverable stays current.
-   - **Deepen** ("expand the second-order effects") — extend an idea's analysis; capture into the file only if the user wants it kept.
-   - **Combine / merge** ("merge the table and highlighter ideas", "fold 2 into 5") — synthesize the named ideas into one: write a unified title, description, and basis that draws from each source idea (carry the strongest basis forward; union their evidence). On a file rewrite, **replace the merged source entries with the single combined entry** — do not leave the originals alongside the merge — and renumber the ranked list. Re-evaluate the combined idea's axis and confidence rather than copying one source's. Note the merge in the rejection summary if a source idea effectively drops out.
-3. **Rewrite only on change.** The file is rewritten only when idea content actually changes (adjust, deepen-and-keep, or merge) — Q&A and comparison alone do not churn it.
-4. **Return to the Phase 5 menu.** Typically the user next brainstorms a sharpened or merged idea (§5.2), discusses more, opens it, or finishes.
+- **Scope comes from the user.** Infer it from their phrasing when given; otherwise ask one open question ("What do you want to work on?"). It may be one idea, a subset, or the whole set, and cross-idea discussion — comparing, finding overlap, combining — never requires naming a single idea first.
+- **Ground the work** in the ideas' bases and the Phase 1 grounding.
+- **Rewrite the saved file only when idea content changes** — an adjustment, a merge, or added analysis the user wants kept. Answers and comparisons alone leave the file untouched.
+- **A merge replaces its source entries with one combined entry.** Write a unified title, description, and basis that draws on each source (carry the strongest basis forward; union their evidence), remove the originals, renumber the ranked list, and re-evaluate the combined idea's axis and confidence rather than copying one source's. If the combined idea leaves out a source's substance, say so in the rejection summary.
+
+Then return to the Phase 5 menu. Typically the user next brainstorms a sharpened or merged idea (§5.2), discusses more, opens it, or finishes.
 
 ### 5.4 Done
 
