@@ -399,6 +399,14 @@ describe("html-rendering.md reference content invariants", () => {
     ).toBe(true)
   })
 
+  test("tool-facing metadata sits in a closed Document metadata block under exact keys", () => {
+    // Blind graders in the #1925 eval said a raw contract-field header was the
+    // first thing a reader noticed; agents still find the fields by key name.
+    expect(/<details>[\s\S]{0,120}"Document metadata"/.test(REFERENCE)).toBe(true)
+    expect(/closed\s+by\s+default/i.test(REFERENCE)).toBe(true)
+    expect(/exact\s+key\s+name/i.test(REFERENCE)).toBe(true)
+  })
+
   test("stable section anchor table maps unified sections to HTML ids", () => {
     expect(
       /Stable section anchors for unified plans/i.test(REFERENCE),

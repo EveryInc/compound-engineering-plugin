@@ -23,14 +23,24 @@ alone.
   SVG or base64 data URIs. The one exception is a `<link rel="stylesheet">`
   to a CDN webfont CSS endpoint, paired with a fallback font stack so the
   doc still reads offline.
-- **Metadata is visible text, with one copy of each value.** The fields the
-  section contract defines (title, date, type, and `artifact_contract`,
-  `product_contract_source`, or `execution` when present) render in the
-  visible header. There is no hidden machine-readable copy: no
+- **Metadata is visible text, with one copy of each value.** Every field
+  the section contract defines renders as text in the page.
+  There is no hidden machine-readable copy: no
   `<script type="application/json">` frontmatter block, no `data-*`
   attribute mirror, and no `<meta name="created">` or `<meta name="origin">`
   tag in `<head>`. Two copies drift. A `datetime` attribute on a `<time>`
   element that shows the same date is a parser hint, not a second copy.
+- **Readers meet the title, not the tool fields.** The header shows the
+  `<h1>` title, the date, and any field written for a person, such as an
+  ideation focus. Every other field exists for tools, for example
+  `artifact_contract`, `product_contract_source`, `execution`, `origin`, or
+  `mode`. Put those in a `<details>` element right after the header, closed
+  by default, with the `<summary>` text "Document metadata". Each field
+  there shows its exact key name next to its value, for example
+  `<dt>artifact_contract</dt><dd>ce-unified-plan/v1</dd>`, so a text search
+  for the key finds it. Older documents show these fields in the header
+  instead. They stay valid, because consumers find a field by its key name
+  rather than its position.
 - **Stable IDs as anchor IDs AND visible text.** Every ID-bearing item
   (R-, U-, A-, F-, AE-, KTD-, and idea IDs) has `id="r1"`-style anchors on its element
   and shows the ID ("R1.") as visible text in its heading or cell.
@@ -199,6 +209,8 @@ Before returning the artifact, check it against the conditions above:
   page loads.
 - No hidden metadata copy: no JSON `<script>`, `data-*` mirror, or
   `<meta name="created">`/`<meta name="origin">` tag.
+- Tool-facing fields sit in the closed "Document metadata" block under
+  their exact key names, and the header does not repeat them.
 - Every stable ID appears as both `id=""` and visible text.
 - Section headings match the section-contract names; a unified plan has its
   navigation region and stable anchors.
