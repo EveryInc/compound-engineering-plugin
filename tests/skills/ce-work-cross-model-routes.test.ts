@@ -18,7 +18,7 @@ import path from "node:path"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { ACPX_PIN } from "../helpers/acpx-pin"
-import { alive } from "../helpers/process"
+import { alive, survivors } from "../helpers/process"
 import {
   acpNpxBin, acpStream as acpStreamAt, COMPLETED_RESULT as COMPLETED, signInWaitStream, type StreamSpec, unadvertisedStream,
 } from "./helpers/ce-work-acp-stub"
@@ -674,7 +674,7 @@ describe("ce-work fixed write routes", () => {
   // npm launches acpx through `sh -c`; Ubuntu's dash does not exec the command, so
   // a TERM sent to the npx leader alone stops at the shell and leaves acpx and the
   // agent running. The route must be stopped as a whole process group.
-  test("stopping a route at the raw-output cap stops its descendants too", () => {
+  test("stopping a route at the raw-output cap stops its descendants too", async () => {
     const f = fixture()
     const pidFile = path.join(f.root, "grandchild.pid")
     const bin = stubBin(f, acpStream(), `sleep 30 & echo $! > '${pidFile}'; printf '%02048d' 0; wait; exit 0`)
@@ -682,7 +682,7 @@ describe("ce-work fixed write routes", () => {
     expect(result.result.failure_reason).toContain("exceeded 256 bytes")
     const grandchild = Number(readFileSync(pidFile, "utf8").trim())
     expect(grandchild).toBeGreaterThan(0)
-    expect(alive(grandchild)).toBe(false)
+    expect(await survivors([grandchild])).toEqual([])
   })
 
   test("an app-bundled codex CLI off PATH satisfies the codex route (issue #1272)", () => {
@@ -958,9 +958,7 @@ describe("ce-work antigravity route", () => {
     const proc = checkModel(FLASH, { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, HOME: temp("ce-work-check-home-") })
     expect(proc.status).toBe(0)
     const leftBehind = Number(readFileSync(pidFile, "utf8").trim())
-    const stopped = Date.now() + 10_000
-    while (alive(leftBehind) && Date.now() < stopped) await Bun.sleep(100)
-    expect(alive(leftBehind)).toBe(false)
+    expect(await survivors([leftBehind], 10_000)).toEqual([])
   }, 60_000)
 
   test("interrupting the model check stops its detached acpx group", async () => {
@@ -976,9 +974,7 @@ describe("ce-work antigravity route", () => {
     expect(alive(grandchild)).toBe(true)
     proc.kill("SIGTERM")
     await proc.exited
-    const stopped = Date.now() + 10_000
-    while (alive(grandchild) && Date.now() < stopped) await Bun.sleep(100)
-    expect(alive(grandchild)).toBe(false)
+    expect(await survivors([grandchild], 10_000)).toEqual([])
   }, 60_000)
 
   test("a non-Gemini model is refused alike by the controller, the worker, and the model check", () => {

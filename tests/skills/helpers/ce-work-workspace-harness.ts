@@ -139,6 +139,10 @@ function seedTemplate(objectFormat: "sha1" | "sha256"): { repo: string; digest: 
   throw lastError
 }
 
+export function seededTemplateRepo(objectFormat: "sha1" | "sha256" = "sha1"): string | undefined {
+  return seedTemplates.get(objectFormat)?.repo
+}
+
 export function makeRepo(objectFormat: "sha1" | "sha256" = "sha1"): { repo: string; plan: string; digest: string; base: string } {
   const template = seedTemplate(objectFormat)
   const repo = path.join(tmp("ce-work-repo-"), "repo")
