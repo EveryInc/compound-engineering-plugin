@@ -16,7 +16,7 @@ It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), an
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Investigates a bug (reproduce, trace, root-cause), forms hypotheses with predictions, optionally implements a test-first fix, then polishes and reviews non-trivial fixes |
+| What does it do? | Investigates a bug (reproduce, trace, root-cause), forms hypotheses with predictions, optionally implements a test-first fix, then polishes and reviews it |
 | When to use it | Failed tests, error messages, regressions, a reliably slow operation, an issue reference from your tracker or error monitor (GitHub, Linear, Jira, Sentry), "I've been stuck on this for hours" |
 | What it produces | A debug summary with root cause, recommended tests, and (if you opt in) an applied fix plus post-fix quality notes. Pipeline mode returns structured JSON |
 | What's next | Fix it now, diagnosis only, or rethink the design. After a fix, it commits and, when the branch holds only that fix, opens a PR without asking |
@@ -71,7 +71,7 @@ Debugging fails in predictable ways:
 - One change at a time
 - Escalation when stuck. Diagnose why hypotheses are exhausted instead of trying variants
 - Test-first fix. Inspect existing tests first, use or strengthen the right test home, verify it fails for the right reason, then implement
-- Post-fix quality steps. For non-trivial fixes, simplify the relevant diff, run a scoped code review, and preserve residuals before shipping
+- Post-fix quality steps. Simplify the relevant diff when it is large enough to benefit, run a scoped code review unless the change cannot affect behavior, and preserve residuals before shipping
 
 ---
 
@@ -81,7 +81,7 @@ Debugging fails in predictable ways:
 
 The skill does not propose a fix until it can explain the full causal chain from trigger to symptom. "Somehow X leads to Y" is a gap.
 
-The findings block (root cause with file:line references, the proposed fix, the recommended tests, any related ticket or PR) is written in full before the Fix it now / Diagnosis only / Rethink the design question opens. Blocking-question tools render only their own stem on modal harnesses, so a question fired on "root cause confirmed" alone would leave you choosing with none of the chain on screen.
+The findings block (root cause with file:line references, the proposed fix, the recommended tests, any related ticket or PR) is written in full before the Fix it now / Diagnosis only / Rethink the design question opens. Blocking-question tools render only their own stem on modal harnesses, so a question fired on "root cause confirmed" alone would leave you choosing with none of the chain on screen. The question offers only the options the findings support. When there is nothing to fix (the behavior is correct, the bug is already fixed, or an open PR already does the work), it offers the matching next step instead, such as replying on the issue or finishing that PR, and waits for your choice before doing either.
 
 ### Predictions for uncertain links
 
@@ -116,11 +116,11 @@ If you have uncommitted work when you invoke the skill, it treats that as a hypo
 
 If you opt to fix, the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the test that owns the contract, or adds a focused regression test only when nothing fits. It verifies the failure, applies the smallest root-cause fix, reruns the focused test plus broader checks, then self-reviews the diff.
 
-After the fix is green, non-trivial diffs run the same quality steps as the shipping workflow: simplify first when the diff is large enough to benefit, then review the final fix. Tiny mechanical fixes skip this with a reason. Simplify always gets an explicit scope of the bug-fix files, never the branch diff, so it cannot reach unrelated work in progress. Review is scoped the same way unless the tree was clean enough to prove a diff base is the fix. Files with overlapping pre-existing edits skip file-level simplification. Accepted residual findings are written to a durable sink even when you choose commit-only or stop.
+After the fix is green, the skill runs the same quality steps as the shipping workflow: simplify first when the diff is large enough to benefit, then review the final fix. Review is skipped only when the change cannot affect behavior: no code, configuration, dependency, or instruction text that anything runs or loads. Size alone never skips it. Simplify always gets an explicit scope of the bug-fix files, never the branch diff, so it cannot reach unrelated work in progress. Review is scoped the same way unless the tree was clean enough to prove a diff base is the fix. Files with overlapping pre-existing edits skip file-level simplification. Accepted residual findings are written to a durable sink even when you choose commit-only or stop.
 
-### Defense-in-depth, and brainstorm when it is not a bug
+### Other affected places, and brainstorm when it is not a bug
 
-When the root-cause pattern appears in 3+ other files, or the bug would have been catastrophic in production, the skill considers four defense layers (entry validation, invariant check, environment guard, diagnostic breadcrumb) and applies what fits. One-off errors with no realistic recurrence skip this.
+Before calling a fix done, the skill accounts for every other place that uses the contract or value the fix changed (callers, consumers, templates, fixtures, docs that state the same rule) and either updates each one or says why it stays correct. When those places repeat the same mistake, it prefers a structural fix that removes the way to write the bug, such as one shared helper, within the sites it found. A dangerous operation (destructive, security-sensitive, or irreversible) also gets a guard at the operation itself. One-off errors get the minimal fix.
 
 Concrete signals trigger a `/ce-brainstorm` recommendation rather than a fix: the root cause is a wrong responsibility or interface, the requirements are wrong or incomplete, or every fix is a workaround. Size alone does not make something a design problem.
 
@@ -176,10 +176,10 @@ Skip `ce-debug` when:
 - Offered from `/ce-plan` when a planning prompt is bug-shaped (error message, "fix the bug where X", regression)
 - Called from `/ce-babysit-pr` or `lfg` with `mode:pipeline` on failing jobs
 - Escalates to `/ce-brainstorm` when investigation reveals a design problem rather than a logic error
-- Runs post-fix quality checks through `/ce-simplify-code` and `/ce-code-review` on non-trivial interactive fixes
+- Runs post-fix quality checks through `/ce-simplify-code` and `/ce-code-review` on interactive fixes
 - Hands off to `/ce-commit-push-pr` with `branding:on` after a successful fix, without asking permission, when the branch holds only that fix. It previews what it is about to commit so you can interrupt. If the branch also carries unrelated work, or there is no remote, it commits just the fix-owned files locally and pushes nothing. Project instructions that say otherwise (for example "don't open PRs from skills") outrank the default
 
-After a PR opens, the skill offers `/ce-compound` only when the verified fix produced non-obvious, durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. If removing the learning document would not make a future engineer likely to repeat the mistake or redo substantial investigation, the skill skips the offer.
+Before the fix is committed, the skill offers `/ce-compound` only when the verified fix produced non-obvious, durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. If removing the learning document would not make a future engineer likely to repeat the mistake or redo substantial investigation, the skill skips the offer. An accepted learning ships in the same commit as the fix.
 
 ---
 
@@ -231,7 +231,7 @@ If the branch also carries unrelated work it does not push, because pushing woul
 Diagnosis-only stops after the summary. With no remote configured it commits locally. `mode:pipeline` commits and pushes on the current branch and does not open a PR. `mode:return-to-caller` commits on a feature branch, pushes nothing, and leaves the PR to `lfg`.
 
 **Does it work for non-software bugs?**
-Not really. The skill assumes code, tests, and a tracker. The investigation discipline (causal chain, predictions, assumption audit) generalizes, but the mechanics (test-first fix, defense-in-depth, PR handoff) are software-shaped.
+Not really. The skill assumes code, tests, and a tracker. The investigation discipline (causal chain, predictions, assumption audit) generalizes, but the mechanics (test-first fix, checking other affected places, PR handoff) are software-shaped.
 
 ---
 

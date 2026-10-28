@@ -52,6 +52,12 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | `ce-debug/pipeline-convergent-fix` | File has the cap of 3; status `fixed-not-pushed` (push shimmed) |
 | `ce-debug/pipeline-divergent-defer` | File still unlimited; status `needs-human`; check and owned review thread both appear in residual sources |
 | `ce-debug/findings-before-fix-choice` | Asked "Fix it now" and did not edit |
+| `ce-debug/fix-accounts-for-other-consumers` | A contract change with one other caller (`admin.js`) declares that caller changed |
+| `ce-debug/already-fixed-offers-no-fix` | An issue the code already fixes offers no fix; names replying on or closing the issue |
+| `ce-debug/forward-only-mechanism-recommends-rethink` | A backfill that leaves a forward-only mechanism wrong recommends rethinking the design |
+| `ce-debug/review-decision-shared-config` | A 6-line change to shared test config runs post-fix review |
+| `ce-debug/review-decision-skill-prose` | A 3-line skill-instruction change runs post-fix review |
+| `ce-debug/review-decision-docs-typo` | A one-line fix to a guide nothing loads skips review |
 | `ce-commit-push-pr/description-only-no-commit` | Printed a description; tree still clean |
 | `ce-commit-push-pr/never-add-all` | `.env` not staged or committed |
 | `ce-commit-push-pr/unknown-is-not-no-pr` | `gh pr` is shimmed to fail; must not `gh pr create` |

@@ -47,6 +47,8 @@ export const REVIEW_SCOPE_BASE_REF = "9f5b16fc617fb5bf4817c8f42537b626c17abd05"
 export const RESOLVER_PUBLICATION_BASE_REF = "bb5899b36c133a8441fa79af7cf60420c8191c6b"
 /** main before ce-debug preferred removing a recurring bug pattern over layering runtime checks. */
 export const STRUCTURAL_FIX_BASE_REF = "2b4cacd32d3e8c19a91e1c50c318172ec1d2f160"
+/** main before the ce-debug session-audit changes (other affected places, behavior-based review skip, findings-shaped options). */
+export const DEBUG_AUDIT_BASE_REF = "00d0a5bbf1300b2138b65ce724b325dd4dff77ba"
 /** main before the reliability reviewer judged a missing guard by how the code runs. */
 export const RELIABILITY_CONTEXT_BASE_REF = "8d9a236dc91b17e114562bd65e9e137d171f39ab"
 /** main before ce-work dropped its goal/workflow engines, ran chained units inline, and ce-plan stopped offering /goal. */
@@ -1916,6 +1918,89 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
       committed_must_not: ["seat-cap.js"],
     },
   },
+  {
+    id: "ce-debug/fix-accounts-for-other-consumers",
+    baseline_ref: DEBUG_AUDIT_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/debug-sibling-consumer`,
+    timeout_secs: 300,
+    why: "Real sessions shipped fixes that changed a contract and missed one or two other users of it; review or PR bots caught them later. The old 3+ files trigger never fired on a single other site.",
+    pre_contract: "The minimal fix covers the root cause only; self-review reads the changed lines; defense-in-depth triggers on the pattern in 3+ other files.",
+    task: "Use ce-debug on this bug. Phases 1 and 2 are done: read DIAGNOSIS.md; the user chose to fix it now. Do not edit, create, or commit any file, and do not invoke another skill or dispatch. Following ce-debug's Phase 3 guidance, list every source file under src/ that this fix would change (tests excluded), then stop. End with exactly one line `ADMIN_JS: changed` or `ADMIN_JS: unchanged`.",
+    grade: {
+      workspace_read: ["DIAGNOSIS.md"],
+      declared: { ADMIN_JS: "changed" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-debug/already-fixed-offers-no-fix",
+    baseline_ref: DEBUG_AUDIT_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/debug-already-fixed`,
+    timeout_secs: 300,
+    why: "In real sessions the fix-choice menu offered Fix it now on issues that were already fixed or were not bugs, and users typed their own answer (reply and close the issue).",
+    pre_contract: "Ask which path to take, offering these three options: Fix it now / Diagnosis only / Rethink the design.",
+    task: "Use ce-debug on GitHub issue #42 of this repo. There is no network access; the full issue thread is in ISSUE.md. Do not edit, create, or commit any file, do not post to or close the issue, and do not invoke another skill or dispatch. When you reach the point where you would ask the user how to proceed, list the options you would offer, then stop. End with exactly one line `FIX_OFFERED: yes` or `FIX_OFFERED: no`.",
+    grade: {
+      workspace_read: ["ISSUE.md"],
+      declared: { FIX_OFFERED: "no" },
+      must_include_any: [["reply", "comment", "close"]],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-debug/forward-only-mechanism-recommends-rethink",
+    baseline_ref: DEBUG_AUDIT_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/debug-forward-only-mechanism`,
+    timeout_secs: 300,
+    why: "ESP-5812: the agent recommended a backfill for a list that only fills forward; the user replied that the design had to be rethought. The backfill repairs today's data while the mechanism stays wrong.",
+    pre_contract: "Rethink the design only when the bug cannot be fixed within the current design; Fix it now / Diagnosis only / Rethink the design.",
+    task: "Use ce-debug on this bug. Phases 1 and 2 are done: read DIAGNOSIS.md and SPEC.md. Do not edit, create, or commit any file, and do not invoke another skill or dispatch. Write the findings and the fix-choice options you would offer, mark the one you recommend, then stop. End with exactly one line `RECOMMENDED: fix` or `RECOMMENDED: diagnosis` or `RECOMMENDED: rethink`.",
+    grade: {
+      workspace_read: ["DIAGNOSIS.md"],
+      declared: { RECOMMENDED: "rethink" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  ...(
+    [
+      ["shared-config", "run", "A 7-line change to shared Playwright launch args skipped review as small; a PR bot found it re-enabled ~20 features for every browser test."],
+      ["skill-prose", "run", "Skill prose was treated as docs and skipped; review of such changes found real defects in real sessions."],
+      ["docs-typo", "skip", "A one-line fix to a guide nothing runs or loads still needs no review, before and after the change."],
+    ] as const
+  ).map(([name, expected, why]): Scenario => ({
+    id: `ce-debug/review-decision-${name}`,
+    baseline_ref: DEBUG_AUDIT_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/debug-review-${name}`,
+    timeout_secs: 300,
+    why,
+    pre_contract: "Skip post-fix polish and review for purely mechanical fixes, including docs-only or roughly under 10 changed lines that touch nothing sensitive.",
+    task: "Continue a ce-debug run at Phase 4: read FIX.md. Do not edit, create, or commit any file, and do not invoke another skill or dispatch. Decide whether ce-debug's post-fix review runs for this fix, then stop. End with exactly one line `REVIEW: run` or `REVIEW: skip`.",
+    grade: {
+      workspace_read: ["FIX.md"],
+      declared: { REVIEW: expected },
+      actions: "none",
+      delegates: "none",
+    },
+  })),
   {
     id: "ce-explain/planning-understanding",
     skill: "ce-explain",
