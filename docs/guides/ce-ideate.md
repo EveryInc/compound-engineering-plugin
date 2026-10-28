@@ -80,7 +80,7 @@ Because one "give me ideas" prompt returns plausible bullets with no grounding i
 
 ### Grounding before any idea is generated
 
-Every run starts with parallel grounding: the codebase (in repo mode), `docs/solutions/`, web prior art, and optional Slack or issue intelligence. In a repo, cheap evidence scouts then pull verbatim quotes with `file:line` pointers so later ideas cite real code. The web pass is what stops the run from remixing only what's already in the repo or in your head.
+Every run starts with parallel grounding: the codebase (in repo mode), `docs/solutions/`, web prior art, and optional Slack or issue intelligence. In a repo, each ideation agent then reads the code its ideas rest on and cites the exact `path:line` it read, so ideas point at real code. The web pass is what stops the run from remixing only what's already in the repo or in your head.
 
 You can also point the prompt at your own research (a survey export, an analytics dump, a social-listening report). A cheap agent distills it into a citable dossier. It adds sources web research can't reach; it doesn't replace the web pass.
 
@@ -122,7 +122,7 @@ Phrases like "what users are reporting" or "biggest issue patterns" start an iss
 
 You invoke `ce-ideate "DX improvements"` from inside a repo. The agent names the grounding and ideation agents it will dispatch and lists the skip phrases (`no external research`, `no slack`).
 
-Grounding returns a codebase summary, relevant learnings, and prior art on developer-experience patterns. The orchestrator splits the topic into axes (feedback loops, environment friction, tooling, knowledge access, automation), then scouts gather a quote-and-pointer dossier per axis. Five agents covering six frames generate candidates from that evidence. The orchestrator merges the list, synthesizes combinations, checks axis coverage, and runs the two-layer critique.
+Grounding returns a codebase summary, relevant learnings, and prior art on developer-experience patterns. The orchestrator splits the topic into axes (feedback loops, environment friction, tooling, knowledge access, automation), and five agents covering six frames generate candidates across those axes, reading the code they cite. The orchestrator merges the list, synthesizes combinations, checks axis coverage, and runs the two-layer critique.
 
 A default run generates on the order of 36-48 raw ideas and keeps 5-7. The session summary looks like `Wrote 7 ranked ideas (36 raw, 13 cut) across 5 axes`.
 
