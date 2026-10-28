@@ -181,6 +181,13 @@ When you add a guard for an invariant `bun test` misses, whether a review found 
 2. Pin the **smallest falsifiable unit** — a token, enum, path, heading, or one fixture that would have failed on the regressing diff. Do not snapshot whole skill bodies or pin incidental wording.
 3. If the failure needs an LLM to judge, keep it as a behavioral eval; do not fake it as a brittle string test.
 
+### Maintaining acpx compatibility
+
+- `ACPX_MIN_VERSION` is the security and compatibility floor; `ACPX_VERSION` / `ACPX_PIN` is the validated ceiling. Routine bumps and the canary advance only the ceiling. The minimum does not track the latest release.
+- Any new acpx-dependent behavior must work throughout the admitted range. Add or strengthen a real-acpx contract that exercises the required behavior, including permission and configuration semantics, and run `bun run test:acpx-contract` across the range. Passing only on the newest release is insufficient.
+- Raise the minimum only for a demonstrated security or required compatibility need. For a feature that requires a newer release, consider preserving an older-compatible path or deferring the feature before raising the floor. The PR must identify the first required release, explain why the higher minimum is needed, and describe which npm age/date policies lose eligibility using its actual publication timestamp. Do not assume a particular cooldown or raise the minimum merely to make tests pass. Never weaken npm policy or admit an unsafe version to preserve availability.
+- An intentional minimum change updates the mirrored workers, setup warming, test helper, and affected guides together. Keep one shared supported range and its parity checks.
+
 ### Maintaining `plugin:validate`
 
 - `package.json` `plugin:validate` must validate **both** the marketplace catalog and the plugin manifest, with `--strict` on each. Paths: `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json`. Do **not** use `claude plugin validate .` — that resolves this repo as a marketplace only (because `.claude-plugin/marketplace.json` exists with `source: "./"`) and skips plugin-root checks.

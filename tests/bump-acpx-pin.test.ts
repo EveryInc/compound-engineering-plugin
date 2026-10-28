@@ -9,17 +9,19 @@ const NEW_SPECS = "@agentclientprotocol/codex-acp@^1.2.0 @agentclientprotocol/cl
 
 const WORKER = `#!/usr/bin/env bash
 # --- acpx transport (keep byte-identical across migrated peer workers) -----
+ACPX_MIN_VERSION="0.18.0"
 ACPX_VERSION="0.19.4"
 ACPX_SCOPE=""
 run() { npx -y "acpx@$ACPX_VERSION" "$@"; }   # ACPX_VERSION="0.19.4" in a comment stays
 # --- end acpx transport
 `
 const CHECK_HEALTH = `#!/usr/bin/env bash
+ACPX_MIN_VERSION="0.18.0"
 ACPX_VERSION="0.19.4"
 ACPX_ADAPTER_SPECS="${OLD_SPECS}"
 echo "acpx@$ACPX_VERSION $ACPX_ADAPTER_SPECS"
 `
-const PIN = `// ACPX_PIN mirrors the workers' ACPX_VERSION\nexport const ACPX_PIN = "0.19.4"\n`
+const PIN = `// ACPX_PIN mirrors the workers' ACPX_VERSION\nexport const ACPX_PIN = "0.19.4"\nexport const ACPX_MIN_VERSION = "0.18.0"\n`
 const SKILL_MD = `Run \`npx acpx@0.19.4\`.\nACPX_VERSION="0.19.4"\n`
 
 const roots: string[] = []

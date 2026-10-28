@@ -13,6 +13,12 @@ Review criteria for every change in this repository. `skills/CODING_STANDARDS.md
 - Docs land where their kind lives: guides in `docs/guides/`, plans in `docs/plans/`, solutions in `docs/solutions/` with `module`, `tags`, and `problem_type` frontmatter, target specs in `docs/specs/`. A solution's category reflects the plugin user's view: `developer-experience/` is only for contributing to this repo.
 - The PR title is a conventional commit typed by intent (`fix:` over `feat:` when both fit) with the narrowest useful scope, never `compound-engineering`. A `!` or `BREAKING CHANGE:` marker needs explicit maintainer confirmation.
 
+## acpx compatibility
+
+- Routine ceiling bumps preserve `ACPX_MIN_VERSION`. New acpx-dependent behavior has a real contract exercising its required semantics across every admitted release, including the minimum.
+- A minimum increase identifies the first required release and a demonstrated security or required compatibility need. The PR weighs preserving compatibility or deferring an optional feature, and explains the loss of npm age/date eligibility from the release's publication timestamp. A failing old-version test alone does not justify increasing the floor.
+- Minimum changes agree across mirrored workers, setup warming, the test helper, and affected guides. Neither npm policy nor the security floor is weakened to retain availability.
+
 ## What counts as a finding
 
 File a finding only when all of these hold:
