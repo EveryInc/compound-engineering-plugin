@@ -86,8 +86,8 @@ describe("skill-eval-cell catalog", () => {
       if (!scenario.post_only && !gitShowExists(preRef, scenario.skill)) {
         missing.push(`${scenario.skill} missing at ${preRef}`)
       }
-      if (!gitShowExists(POST_SWEEP_REF, scenario.skill)) {
-        missing.push(`${scenario.skill} missing at ${POST_SWEEP_REF}`)
+      for (const skill of [scenario.skill, ...(scenario.with_skill ?? [])]) {
+        if (!gitShowExists(POST_SWEEP_REF, skill)) missing.push(`${skill} missing at ${POST_SWEEP_REF}`)
       }
     }
     expect(missing).toEqual([])
@@ -386,6 +386,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-resolve-pr-feedback/pipeline-returns-complete-human-decision",
       "ce-setup/instruction-file-covered-offers-nothing",
       "ce-setup/instruction-file-gap-offers-store-and-directive",
+      "lfg/defect-route-ships-session-edits",
     ])
   })
 

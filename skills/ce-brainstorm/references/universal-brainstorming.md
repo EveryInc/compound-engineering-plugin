@@ -68,5 +68,5 @@ When the conversation has enough material to narrow — reflect back what you've
 
 - **Create a plan** → hand off to `ce-plan` with the decided goal and constraints; let `ce-plan` choose the universal/knowledge-work artifact shape, not the software unified-plan contract
 - **Save summary to disk** → write the summary as a markdown file in the current working directory
-- **Publish to Proof — shareable link** → load the `ce-proof` skill to publish the doc to Every's Proof editor and get a shareable link to read, comment on, or share with others (one-way; the local summary stays canonical)
+- **Save and publish a copy** → shown only when `references/publishing.md` chooses a publisher (one the user named, or the host's artifact tool); label it with that destination. Save the summary as above first, then follow `references/publishing.md`; the local summary stays canonical
 - **Done** → the conversation was the value, no artifact needed

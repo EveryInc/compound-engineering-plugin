@@ -6,7 +6,7 @@ Read this file after Phase 2 ideation agents return and the orchestrator has mer
 
 Review every candidate idea critically. Critique runs in two layers — a fresh-context verifier first, then orchestrator arbitration. Fresh-context verification outperforms self-critique: the orchestrator synthesized some of these candidates itself and carries the full generation history, so it is anchored in ways a verifier that never saw the generation is not.
 
-1. **Basis verification (one generation-tier sub-agent — see the model tiers in `references/grounding.md`).** Dispatch a verifier whose payload is only the consolidated grounding summary (including the evidence gists and dossier file paths — it reads dossier files itself as needed) and the merged candidate list — none of the generation history. Prompt it to refute: for each candidate, check that the stated basis actually supports the claimed move, that `direct:` quotes exist where cited (spot-check by reading the file in repo mode), that `external:` prior art is real and relevantly analogous, and that `reasoned:` arguments hold. It returns a per-candidate verdict (sound / weak / refuted) with a one-line reason. Under `go deep` (Phase 0.5), dispatch a second, ceiling-tier critic focused on novelty and feasibility with the same fresh-context payload.
+1. **Basis verification (one generation-tier sub-agent — see the model tiers in `references/grounding.md`).** Dispatch a verifier whose payload is only the consolidated grounding summary (including any user-supplied research dossier paths — it reads those files itself as needed) and the merged candidate list — none of the generation history. Prompt it to refute: for each candidate, check that the stated basis actually supports the claimed move, that `direct:` quotes exist where cited (spot-check by reading the file in repo mode), that `external:` prior art is real and relevantly analogous, and that `reasoned:` arguments hold. It returns a per-candidate verdict (sound / weak / refuted) with a one-line reason. Under `go deep` (Phase 0.5), dispatch a second, ceiling-tier critic focused on novelty and feasibility with the same fresh-context payload.
 
    **Meeting-test in the verifier payload — state the floor explicitly, either way.** By default, also have it judge whether each idea genuinely passes the meeting-test; because the verifier did not write the ideas, that judgment supersedes the generators' self-attestation. **When tactical scope is active (Phase 0.5), tell the verifier the floor is waived** and have it judge basis only. The verifier runs on a fresh context with none of the generation history, so a waiver it is not told about does not reach it — omitting this turns a tactical run's every candidate `weak`.
 
@@ -45,7 +45,7 @@ Target output:
 
 The ideation artifact is produced **automatically** — persistence is not opt-in. After filtering, write the deliverable, show a concise summary, and open it. The full content lives in the file; the session shows only an orienting summary, so the rich format is what the reader actually engages with.
 
-**Checkpoint B (V17).** Before writing the deliverable, write `<scratch-dir>/survivors.md` (absolute path from Phase 1) containing the survivor list plus key context (focus hint, grounding summary, rejection summary). Best-effort: if the write fails, log a warning and proceed; the run does not depend on the checkpoint. Reuses the same `<run-id>` / `<scratch-dir>` generated in Phase 1.
+**Survivors checkpoint.** Before writing the deliverable, write `<scratch-dir>/survivors.md` (absolute path from Phase 1) containing the survivor list plus key context (focus hint, grounding summary, rejection summary). Best-effort: if the write fails, log a warning and proceed; the run does not depend on the checkpoint. Reuses the same `<run-id>` / `<scratch-dir>` generated in Phase 1.
 
 ### 4.1 Write the Deliverable (automatic, both modes)
 
@@ -77,20 +77,19 @@ This ranked list doubles as the index the user references when choosing an idea 
 ### 4.3 Open It
 
 - **HTML:** in an interactive session, best-effort open the file in the browser via the platform's open primitive (`open` on macOS, `xdg-open` on Linux, `start` on Windows); always print the absolute path so it can be reopened or shared. Skip auto-open in headless / pipeline runs (there is no interactive session to open a browser in).
-- **Markdown:** print the path. Proof (the markdown publishing service) is reached through the Phase 5 menu — it is a network action, not auto-invoked.
+- **Markdown:** print the path. Publishing a copy is a network action reached through the Phase 5 menu, never auto-invoked.
 
 ## Phase 5: Next Steps
 
-Ask what to do next using the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to numbered options in the host's user-visible chat only when no such tool is in the list or a real question call errors. Never silently skip the question. Free-text answers are accepted.
+Ask what to do next through the host's blocking question tool, with the fallback SKILL.md Boundary 4 states. Free-text answers are accepted.
 
 The deliverable already exists (Phase 4), so the menu is purely *what next* — there is no "save" step.
 
 **Stem:** "Your ideation is saved to `<path>`. What next?"
 
-Offer four options (self-contained labels with the distinguishing word front-loaded so they stay distinct when truncated). Option 1 is **format-keyed** — render exactly one of its two labels per run, matching `OUTPUT_FORMAT`:
+Offer up to four options (self-contained labels with the distinguishing word front-loaded so they stay distinct when truncated):
 
-1. *(when `OUTPUT_FORMAT=html`)* **Open in browser** — open the saved HTML deliverable (re-open if it was already opened).
-   *(when `OUTPUT_FORMAT=md`)* **Publish to Proof** — publish the saved markdown to Proof and get a shareable link; one-way, the local file stays the authoritative copy.
+1. *Open or share the saved file.* The option's label is the destination `references/publishing.md` chooses: **Publish a copy to <destination>** for a publisher the user named or the host's artifact tool, or **Open in browser** for the local HTML file. Omit this option on a markdown run when no publisher or host artifact tool applies; Phase 4.2 already printed the path.
 2. **Brainstorm one idea with `ce-brainstorm`** — commit a chosen idea to a requirements-only unified plan under `<root>/plans/`; leaves ce-ideate. Asks which idea first.
 3. **Discuss or refine the ideas first** — stay here to think across the set before committing: adjust or interrogate one idea, compare several, or combine/merge them. Asks what you want to work on.
 4. **Done — keep the file and stop.**
@@ -99,15 +98,9 @@ Offer four options (self-contained labels with the distinguishing word front-loa
 
 If the user already named what they want to work on inline (e.g. "brainstorm the table tool", "tighten the highlighter idea", "merge the table and highlighter ideas"), skip the follow-up that asks what to work on for §5.2 / §5.3.
 
-### 5.1 Open in Browser (html) / Publish to Proof (md)
+### 5.1 Open or Share the Saved File
 
-- **HTML — Open in browser.** (Re)open the saved file via the platform primitive where available; otherwise print the absolute path. Return to the Phase 5 menu. No Proof — the HTML file is the authoritative record.
-- **Markdown — Publish to Proof.** The local markdown file already exists (Phase 4) and stays the authoritative copy; Proof is a one-way published copy, not a sync target. Load the `ce-proof` skill to publish, passing:
-  - **source file:** the saved `.md` file from Phase 4.
-  - **doc title:** `Ideation: <topic>` or the doc's H1.
-  - **identity:** `ai:compound-engineering` / `Compound Engineering`.
-
-  ce-proof creates a shared Proof doc (Create and Share workflow) and returns the share URL. Show it to the user, then return to the Phase 5 menu — nothing syncs back to disk. If the Proof handoff fails after the proof skill's internal retry plus one orchestrator-side retry (~2s pause, narrated as "Retrying Proof... attempt 2/2"), tell the user Proof is unavailable and that the local file is intact at `<path>`, then return to the menu — the deliverable was never at risk (it was written in Phase 4). *(If the user explicitly asked for Proof during an HTML run: Proof is markdown-only and cannot ingest HTML, so render a throwaway markdown copy of the survivors as the Proof source and do not upload the `.html`.)*
+Read `references/publishing.md` and follow it. The Phase 4 file already exists and stays the authoritative record. Pass a publisher the doc title `Ideation: <topic>` or the doc's H1. Show the user the resulting URL or path, then return to the Phase 5 menu.
 
 ### 5.2 Brainstorm One Idea
 
@@ -123,16 +116,14 @@ If the user already named what they want to work on inline (e.g. "brainstorm the
 
 ### 5.3 Discuss or Refine the Ideas First
 
-This stays in ce-ideate — no skill handoff. It is the "think across the set before committing" step, and it is a normal, expected outcome of ideation: seeing several strong candidates and wanting to deliberate is more common than instantly committing one. The orchestrator still holds the full grounding and generation context, so it can reason across every survivor — this is where that context pays off. The work here is either **single-idea** (sharpen or interrogate one) or **cross-idea** (compare, combine, or merge several); do not force the user to name a single idea before they can engage.
+This stays in ce-ideate — no skill handoff. It is the "think across the set before committing" step, and a normal outcome of ideation. The orchestrator still holds the full grounding and generation context, so it can reason across every survivor.
 
-1. **Establish what the user wants to work on and how.** Infer from their phrasing when given; otherwise ask one open question ("What do you want to work on?") rather than assuming a single idea. The scope may be one idea, a subset, or the whole set.
-2. **Route by intent:**
-   - **Ask / compare** ("why High confidence?", "how does this compare to FigJam?", "which of these overlap?", "which two are closest?") — answer in conversation, grounded in the ideas' bases and the Phase 1 grounding. Spans one idea or many. **No file rewrite** unless the discussion yields a change the user wants captured.
-   - **Adjust** ("smaller scope", "drop the paste-import part", "reframe around X") — revise that idea's framing, scope, or basis as discussed, then **rewrite the saved file** so the deliverable stays current.
-   - **Deepen** ("expand the second-order effects") — extend an idea's analysis; capture into the file only if the user wants it kept.
-   - **Combine / merge** ("merge the table and highlighter ideas", "fold 2 into 5") — synthesize the named ideas into one: write a unified title, description, and basis that draws from each source idea (carry the strongest basis forward; union their evidence). On a file rewrite, **replace the merged source entries with the single combined entry** — do not leave the originals alongside the merge — and renumber the ranked list. Re-evaluate the combined idea's axis and confidence rather than copying one source's. Note the merge in the rejection summary if a source idea effectively drops out.
-3. **Rewrite only on change.** The file is rewritten only when idea content actually changes (adjust, deepen-and-keep, or merge) — Q&A and comparison alone do not churn it.
-4. **Return to the Phase 5 menu.** Typically the user next brainstorms a sharpened or merged idea (§5.2), discusses more, opens it, or finishes.
+- **Scope comes from the user.** Infer it from their phrasing when given; otherwise ask one open question ("What do you want to work on?"). It may be one idea, a subset, or the whole set, and cross-idea discussion — comparing, finding overlap, combining — never requires naming a single idea first.
+- **Ground the work** in the ideas' bases and the Phase 1 grounding.
+- **Rewrite the saved file only when idea content changes** — an adjustment, a merge, or added analysis the user wants kept. Answers and comparisons alone leave the file untouched.
+- **A merge replaces its source entries with one combined entry.** Write a unified title, description, and basis that draws on each source (carry the strongest basis forward; union their evidence), remove the originals, renumber the ranked list, and re-evaluate the combined idea's axis and confidence rather than copying one source's. If the combined idea leaves out a source's substance, say so in the rejection summary.
+
+Then return to the Phase 5 menu. Typically the user next brainstorms a sharpened or merged idea (§5.2), discusses more, opens it, or finishes.
 
 ### 5.4 Done
 
@@ -147,23 +138,18 @@ Then narrate the path and end the session — do not return to the menu.
 
 Only when the file was **created fresh this run**: delete it, confirm the deletion, and end. On a **resume** run (a pre-existing file was updated in place), do **not** delete — tell the user the existing doc at `<path>` remains and offer no destructive action. Discard is never a default; it happens only on an explicit request.
 
-Do not delete the run's scratch directory (`<scratch-dir>`) on completion — it holds the V15 web-research cache reused across run-ids by later ideation invocations in the same session (see `references/web-research-cache.md`), the Checkpoint A/B files, the evidence dossiers, and (in the no-repo case) the deliverable itself. OS handles eventual cleanup.
+Do not delete the run's scratch directory (`<scratch-dir>`) on completion — it holds the web-research cache reused across run-ids by later ideation invocations in the same session (see `references/web-research-cache.md`), the raw-candidates and survivors checkpoints, any research dossiers, and (in the no-repo case) the deliverable itself. OS handles eventual cleanup.
 
 ## Quality Bar
 
 Before finishing, check:
 
-- the idea set is grounded in the stated context (codebase in repo mode; user-supplied context in elsewhere mode)
 - **every surviving idea has an articulated basis** (`direct:`, `external:`, or `reasoned:`) that actually supports the claimed move — speculation dressed as ambition was rejected, with reasons
 - the `direct:` bases that surviving ideas rest on were verified against the repo (or the supplied context) — by the generating agent's verification reads or the Phase 3 verifier — not taken on faith
 - **every surviving idea passes the meeting-test** unless tactical scope was active (Phase 0.5) and waived the floor
 - **no surviving idea replaces the subject** rather than operating on it
 - when Phase 1.5 produced an axis list, the survivor set spreads across axes rather than clustering on one — and any axis with zero survivors is noted as a deliberate gap in the rejection summary, not silently absent
-- the candidate list was generated before filtering
-- the original many-ideas -> critique -> survivors mechanism was preserved
-- if sub-agents were used, they improved diversity without replacing the core workflow
 - every rejected idea has a reason
-- survivors are materially better than a naive "give me ideas" list
 - the deliverable was written automatically in both modes (Phase 4) — to `<root>/ideation/` when present, else the CE temp area, never the user's CWD
 - the session showed a concise summary, not a reproduction of the full deliverable
 - acting on an idea routes to `ce-brainstorm` (with a substance seed, not the whole file), not directly to implementation

@@ -136,6 +136,10 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
       expect(debugReturn, `ce-debug must return ${field}`).toMatch(new RegExp('"' + field + '":'))
       expect(debugReturnGate, `lfg must require ${field}`).toMatch(new RegExp("`" + field + "(?:`|:)"))
     }
+    // Edits the calling session made before invoking ce-debug ship with the fix; both
+    // ends must name the field so lfg's offered-scope check can see them.
+    expect(debugReturn).toContain('"caller_edits":')
+    expect(debugReturnGate).toContain("`pre_fix_scope.caller_edits`")
   })
 
   test("the debug gate requires the same evidence facts the ce-work gate requires", () => {

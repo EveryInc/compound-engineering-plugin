@@ -16,7 +16,7 @@ import {
 import { devNull, tmpdir } from "node:os"
 import path from "node:path"
 import { ACPX_PIN } from "../helpers/acpx-pin"
-import { alive } from "../helpers/process"
+import { survivors } from "../helpers/process"
 
 // These tests spawn bash/python/git subprocesses; on a loaded CI runner they cross the 5s default
 // (2026-08-21, PR #1508: three different tests timed out across two reruns with no related change).
@@ -430,7 +430,7 @@ describe("cross-model-adversarial-review route safety", () => {
     expect(r.files).toContain("adversarial-cursor.json")
   })
 
-  test("schema-valid output from a peer still running at the hard cap is never published", () => {
+  test("schema-valid output from a peer still running at the hard cap is never published", async () => {
     const sb = sandbox(["cursor-agent"], acpStream({ text: review(), stopReason: null, sleep: 30 }))
     const runDir = makeRunDir()
     const started = Date.now()
@@ -441,7 +441,7 @@ describe("cross-model-adversarial-review route safety", () => {
     expect(r.stderr).toContain("peer run ended with incomplete")
     const pids = readFileSync(sb.logs.pids, "utf8").trim().split("\n").map(Number)
     expect(pids).toHaveLength(2)
-    for (const pid of pids) expect(alive(pid)).toBe(false)
+    expect(await survivors(pids)).toEqual([])
   })
 
   test("a peer whose stream goes silent is reaped by the idle cap before the hard cap", () => {

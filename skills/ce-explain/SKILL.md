@@ -71,7 +71,7 @@ For a standalone artifact, read `references/explainer-html.md` or `references/ex
 
 A delivered answer or local artifact completes the explanation. Do not require a destination choice or manufacture follow-on work. If a destination was requested, read `references/destinations.md` before acting; it defines each destination and the consent publishing needs. When a calling workflow owns the surrounding document, return the content to it rather than placing or publishing it yourself.
 
-Publishing to ht-ml.app is never headless and never inferred. Naming it is a choice of destination rather than confirmation after its public-publishing warning. If confirmation cannot be obtained, do not publish; preserve the canonical HTML and report its local `$RUN_DIR/explainer.html` path.
+Public publishing is never headless and never inferred. Naming a public host picks the destination; it is not confirmation after the public-publishing warning. If confirmation cannot be obtained, do not publish; preserve the canonical file and report its local `$RUN_DIR` path.
 
 ## Boundaries
 

@@ -376,8 +376,8 @@ replace the duplicate with its owning ID.
 Every plan carries a small set of stable metadata fields that downstream
 tooling depends on. The contract is format-independent: in markdown these
 fields appear as YAML frontmatter at the top of the file; in HTML they
-appear as visible header text (typically a `<dl>` of `<dt>`/`<dd>` pairs or
-a stats strip). Field names and semantics are the same across both formats
+appear as visible text placed as `references/html-rendering.md` describes.
+Field names and semantics are the same across both formats
 so consumers can locate them without knowing which format produced the
 plan.
 

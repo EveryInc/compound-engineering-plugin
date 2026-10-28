@@ -4,7 +4,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync,
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { junitCases, lostExitMs, lostExitZombies, parsePs, passTimeoutMs, passthroughArgs, rerunCandidates } from "../scripts/run-tests"
-import { alive } from "./helpers/process"
+import { alive, survivors } from "./helpers/process"
 
 const junit = (suites: string) => `<?xml version="1.0"?>\n<testsuites name="bun test">\n${suites}\n</testsuites>`
 const ok = (file: string, n: number) => `<testcase name="t${n}" classname="g" time="0" file="${file}" line="${n}" />`
@@ -194,7 +194,7 @@ test("never finishes", async () => {
 `
 
 describe("run-tests: stall watchdog", () => {
-  test("a pass that outlives its limit fails with a process listing and leaves nothing running", () => {
+  test("a pass that outlives its limit fails with a process listing and leaves nothing running", async () => {
     const dir = fixture(HANG)
     const started = Date.now()
     const r = spawnSync(process.execPath, [RUNNER, "./fixture.test.ts"], {
@@ -213,8 +213,7 @@ describe("run-tests: stall watchdog", () => {
       expect(r.stderr).toContain("stalled")
       expect(r.stderr).toContain("sleep 300")
       expect(lastLine(r.stderr)).toContain("killed before a report was written")
-      expect(alive(worker)).toBe(false)
-      expect(alive(orphan)).toBe(false)
+      expect(await survivors([worker, orphan])).toEqual([])
     } finally {
       for (const pid of [worker, orphan]) if (alive(pid)) process.kill(pid, "SIGKILL")
     }
@@ -235,7 +234,7 @@ describe("run-tests: stall watchdog", () => {
     expect(r.stderr).not.toContain("bun install")
   }, 90_000)
 
-  test("a passing run leaves nothing from its pass running", () => {
+  test("a passing run leaves nothing from its pass running", async () => {
     const dir = fixture(`import { test } from "bun:test"
 import { spawnSync } from "node:child_process"
 test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/null 2>&1 & echo $! > orphan.pid"]) })
@@ -244,7 +243,7 @@ test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/
     const orphan = readPid(path.join(dir, "orphan.pid"))
     try {
       expect(r.status).toBe(0)
-      expect(alive(orphan)).toBe(false)
+      expect(await survivors([orphan])).toEqual([])
     } finally {
       if (alive(orphan)) process.kill(orphan, "SIGKILL")
     }
@@ -272,10 +271,7 @@ test("leaves an orphan behind", () => { spawnSync("sh", ["-c", "sleep 300 >/dev/
       runner.kill(signal)
       // The signal's conventional status, so an interrupt is not mistaken for a test failure.
       expect(await exited).toBe(status)
-      const settle = Date.now() + 5_000
-      while (alive(worker) && Date.now() < settle) await Bun.sleep(100)
-      expect(alive(worker)).toBe(false)
-      expect(alive(orphan)).toBe(false)
+      expect(await survivors([worker, orphan])).toEqual([])
     } finally {
       for (const pid of [worker, orphan]) if (alive(pid)) process.kill(pid, "SIGKILL")
       if (runner.exitCode === null) runner.kill("SIGKILL")

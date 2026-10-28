@@ -7,8 +7,6 @@ argument-hint: "[feature, focus area, or constraint] [output:md]"
 
 # Generate Improvement Ideas
 
-**The current year is 2026** — use it when dating documents and checking recent artifacts.
-
 `ce-ideate` runs before `ce-brainstorm`. This skill answers "which ideas are worth exploring?" `ce-brainstorm` then answers what one chosen idea should mean. `ce-plan` answers how it gets built.
 
 **Done:** a ranked ideation artifact is written to `<root>/ideation/` when that root is present, else to a CE temp path. Every idea generated has been critiqued, and the survivors are explained. The user is left holding the next-steps menu. No requirements, plans, or code.
@@ -18,7 +16,7 @@ argument-hint: "[feature, focus area, or constraint] [output:md]"
 1. **Ground before ideating.** No advice detached from the repo.
 2. **Generate many, critique all, explain survivors only.** Generate the full candidate list before critiquing any of it. Rejection is explicit and carries a reason; this is not optimistic ranking.
 3. **Send the user to brainstorming for action.** Never skip from ideation output to planning.
-4. **Never dispatch on an unidentified subject.** Ask instead, through the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Where no such tool is in the list, offer numbered options on the user-visible surface. Never skip a question silently. Keep "Surprise me" a real option, alongside a Cancel that exits cleanly. Do not ask about solution direction, constraints, audience, tone, or success criteria; `ce-brainstorm` asks those. If it takes more than 3 questions, ideation is the wrong workflow.
+4. **Never dispatch on an unidentified subject.** Ask instead, through the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Where no such tool is in the list, or a real question call errors, offer numbered options on the user-visible surface. Never skip a question silently. Keep "Surprise me" a real option, alongside a Cancel that exits cleanly. Do not ask about solution direction, constraints, audience, tone, or success criteria; `ce-brainstorm` asks those. If it takes more than 3 questions, ideation is the wrong workflow.
 5. **Never print the internal taxonomy label.** The labels `repo-grounded`, `elsewhere-software`, and `elsewhere-non-software` only decide which agents to dispatch. Describe the mode to the user in the topic's own words.
 6. **Warn and proceed when grounding fails.**
 7. **Show the user the cost line before dispatching.**
@@ -68,7 +66,7 @@ Scratch lives beneath the effective user's private CE root: `/tmp/compound-engin
 
 ## Phase 1.5: Topic-Surface Decomposition
 
-Before frames are dispatched, decompose the topic into 3-5 orthogonal **axes** — what aspects of the subject to think about. Read `references/decomposition.md`. Surprise-me mode is the only case that skips this phase. That file's own criteria decide whether a subject is too small to split, so make that judgment after the read. Append the axis list, or the skip reason, to the grounding summary under `Topic axes`. Evidence scouts are repo-mode only.
+Before frames are dispatched, decompose the topic into 3-5 orthogonal **axes** — what aspects of the subject to think about. Read `references/decomposition.md`. Surprise-me mode is the only case that skips this phase. That file's own criteria decide whether a subject is too small to split, so make that judgment after the read. Append the axis list, or the skip reason, to the grounding summary under `Topic axes`.
 
 ## Phase 2: Divergent Ideation
 

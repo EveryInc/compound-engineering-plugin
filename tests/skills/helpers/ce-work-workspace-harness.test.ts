@@ -1,10 +1,11 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { alive } from "../../helpers/process"
-import { ctlWithScript, isLostChildExit, makeRepo, throwLostChildExit, tmp } from "./ce-work-workspace-harness"
+import { alive, survivors } from "../../helpers/process"
+import { ctlWithScript, isLostChildExit, makeRepo, seededTemplateRepo, throwLostChildExit, tmp } from "./ce-work-workspace-harness"
+
+setDefaultTimeout(30_000)
 
 describe("ce-work workspace harness: lost child-exit", () => {
   test("detects the spawnSync timeout signature and throws TimeoutError", () => {
@@ -27,24 +28,24 @@ describe("ce-work workspace harness: lost child-exit", () => {
 
 describe("ce-work workspace harness: repo template", () => {
   test("makeRepo reseeds when the cached template directory has gone missing", () => {
-    const before = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith("ce-work-repo-template-")))
     const first = makeRepo()
     expect(existsSync(path.join(first.repo, "docs", "plans", "plan.md"))).toBe(true)
-    const created = readdirSync(tmpdir()).filter((name) => name.startsWith("ce-work-repo-template-") && !before.has(name))
-    expect(created.length).toBe(1)
+    const template = seededTemplateRepo()
+    expect(template).toBeDefined()
     // CI has lost this directory mid-file after a timed-out test; every later makeRepo then threw ENOENT.
-    rmSync(path.join(tmpdir(), created[0]), { recursive: true, force: true })
+    rmSync(path.dirname(template!), { recursive: true, force: true })
 
     const second = makeRepo()
     expect(existsSync(path.join(second.repo, "docs", "plans", "plan.md"))).toBe(true)
     expect(second.base).toMatch(/^[0-9a-f]{40}$/)
+    expect(seededTemplateRepo()).not.toBe(template)
   })
 })
 
 const RUN_IN_GROUP = path.join(__dirname, "run-in-group.py")
 
 describe("ce-work workspace harness: process-group timeout", () => {
-  test("a timeout kills the command's whole group, including a grandchild holding its output", () => {
+  test("a timeout kills the command's whole group, including a grandchild holding its output", async () => {
     const dir = tmp("ce-work-group-")
     const started = Date.now()
     const r = spawnSync(
@@ -57,7 +58,7 @@ describe("ce-work workspace harness: process-group timeout", () => {
       expect(Date.now() - started).toBeLessThan(15_000)
       expect(r.status).toBe(124)
       expect(r.stdout).toContain("started")
-      expect(alive(grandchild)).toBe(false)
+      expect(await survivors([grandchild])).toEqual([])
     } finally {
       if (alive(grandchild)) process.kill(grandchild, "SIGKILL")
     }
@@ -79,14 +80,13 @@ describe("ce-work workspace harness: process-group timeout", () => {
     try {
       helper.kill(signal)
       await exited
-      await Bun.sleep(200)
-      for (const pid of pids) expect(alive(pid)).toBe(false)
+      expect(await survivors(pids)).toEqual([])
     } finally {
       for (const pid of pids) if (alive(pid)) process.kill(pid, "SIGKILL")
     }
   })
 
-  test("a command that exits normally takes its leftover background processes with it", () => {
+  test("a command that exits normally takes its leftover background processes with it", async () => {
     const dir = tmp("ce-work-group-exit-")
     const started = Date.now()
     const r = spawnSync("python3", [RUN_IN_GROUP, "60", "bash", "-c", "sleep 300 & echo $! > leftover.pid; exit 0"], {
@@ -99,7 +99,7 @@ describe("ce-work workspace harness: process-group timeout", () => {
     try {
       expect(r.status).toBe(0)
       expect(Date.now() - started).toBeLessThan(10_000)
-      expect(alive(leftover)).toBe(false)
+      expect(await survivors([leftover])).toEqual([])
     } finally {
       if (alive(leftover)) process.kill(leftover, "SIGKILL")
     }

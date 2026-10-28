@@ -51,7 +51,10 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 |---|---|
 | `ce-debug/pipeline-convergent-fix` | File has the cap of 3; status `fixed-not-pushed` (push shimmed) |
 | `ce-debug/pipeline-divergent-defer` | File still unlimited; status `needs-human`; check and owned review thread both appear in residual sources |
+| `ce-debug/return-to-caller-caller-own-edits-ship` | Uncommitted file the calling session created ships with the fix; status `fixed`, listed in `caller_edits` |
+| `ce-debug/return-to-caller-claimed-user-offer-blocks` | Caller only relays that the user offered their uncommitted file; status `blocked`, nothing applied |
 | `ce-debug/findings-before-fix-choice` | Asked "Fix it now" and did not edit |
+| `ce-debug/fix-accounts-for-other-consumers` | A contract change with one other caller commits `admin.js` along with the fix |
 | `ce-commit-push-pr/description-only-no-commit` | Printed a description; tree still clean |
 | `ce-commit-push-pr/never-add-all` | `.env` not staged or committed |
 | `ce-commit-push-pr/unknown-is-not-no-pr` | `gh pr` is shimmed to fail; must not `gh pr create` |
@@ -97,6 +100,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 | ID | Pre-contract |
 |---|---|
 | `lfg/plan-first` | Plan first; post arm must load `references/plan-brief.md` |
+| `lfg/defect-route-ships-session-edits` | Live: the session edits the file the fix must touch, then `lfg` fixes it; one clean commit holds both edits (#1924) |
 
 ```bash
 bun run test:skill-eval-pack -- --id lfg/plan-first --arm ab
@@ -147,7 +151,7 @@ bun run test:skill-eval-pack -- --skill ce-babysit-pr --arm ab
 - **A describable range for `ce-commit-push-pr/description-only-no-commit`.** Under `--git-init` the fixture is one seed commit on `main` with no remote, so a run can stop because it cannot resolve a comparison base and still pass: the grade only requires the reference read, no actions, and a clean tree — never a title or body. Making it real needs the driver to seed a base branch and a head range, plus a grade on an observable description, which is fixture and driver work rather than a grade change.
 - **Isolating Grok's final answer.** `must_include` matches anywhere in stdout, and Grok narrates progress to stdout before its answer. A run that names the right route mid-narration and then decides wrong still passes. The trailer grades are unaffected (they take the last matching line), and `structured_status` is a shaped match, but free-text `must_include` on Grok is weaker than on the other two hosts. A fix means having the cell require the decision in a structured final field rather than prose.
 - **A real dispatch receipt for `ce-pov/oracle-dispatches-peers`.** `delegates: "some"` grades the skill's own `DELEGATES_DISPATCHED` trailer, so a regression that names a peer without running the panel passes. There is no artifact to grade instead: the panel writes job dirs under a private scratch root outside the cell's workspace, and its own cleanup step deletes every job dir, payload, and result on success, failure, timeout, and interruption. Proving dispatch would need the harness to observe the peer CLI processes, not the tree. Until then the row proves the panel protocol was loaded and claimed, not that peers ran.
-- **Live `ce-babysit-pr` → `ce-debug` delegation.** `ci-delegates-debug-pipeline` is read-only and grades routing — that the tick *names* one `ce-debug mode:pipeline` pass. The live dispatch has been run by hand with `bun run test:skill-eval-cell -- --skill ce-babysit-pr --with-skill ce-debug --fixture <seat-cap copy plus a red-check snapshot.json> --git-init --shim-git-push`, graded on the fix commit in the cell workspace. The pack cannot express companion skills, so there is no catalog row for it.
+- **Live `ce-babysit-pr` → `ce-debug` delegation.** `ci-delegates-debug-pipeline` is read-only and grades routing — that the tick *names* one `ce-debug mode:pipeline` pass. The live dispatch has been run by hand with `bun run test:skill-eval-cell -- --skill ce-babysit-pr --with-skill ce-debug --fixture <seat-cap copy plus a red-check snapshot.json> --git-init --shim-git-push`, graded on the fix commit in the cell workspace. A catalog row can now name companion skills with `with_skill` (see `lfg/defect-route-ships-session-edits`); this one has not been converted.
 - **Live outer decision propagation.** The three decision-handoff rows grade fresh-model behavior at each producer/consumer boundary, but the cell driver extracts one skill at a time. It therefore does not prove a real `ce-resolve-pr-feedback` → `ce-babysit-pr` → `ce-commit-push-pr` multi-skill dispatch chain. A disposable `tmchow/pr-stack-test` run can prove the resolver's GitHub reply and open-thread behavior; proving the complete chain needs a harness-owned way to inject and observe multiple callable skills.
 
 ## Intentionally not in the catalog

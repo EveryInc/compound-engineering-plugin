@@ -21,7 +21,7 @@ When a research artifact is a root-level `*.md` that the focus hint names, list 
 
 ## After the distiller returns
 
-Append the returned **gist** (with dossier path) — not the dossier contents — to the consolidated grounding summary under `User-supplied research`. As with axis dossiers, do not read the dossier into the main session; ideation agents and the basis verifier read it from the path.
+Append the returned **gist** (with dossier path) — not the dossier contents — to the consolidated grounding summary under `User-supplied research`. Do not read the dossier into the main session; ideation agents and the basis verifier read it from the path.
 
 ## Elsewhere modes
 

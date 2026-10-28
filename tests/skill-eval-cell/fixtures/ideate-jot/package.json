@@ -1,0 +1,1 @@
+{ "name": "jot", "version": "0.4.0", "private": true, "type": "module", "bin": { "jot": "src/cli.js" }, "scripts": { "test": "node --test test/" } }

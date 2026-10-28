@@ -51,7 +51,7 @@ Five phases in order: **0 Triage -> 1 Investigate -> 2 Root Cause -> 3 Fix -> 4 
 
 **The trivial-bug fast-path** (cause readable from the input, one-line fix, no deep tracing) still runs Phase 2's fix-choice gate before editing: it saves investigation ceremony, not the user's choice over whether to apply a fix.
 
-**Choosing the regression test.** The regression test for a *confirmed defect* belongs wherever existing coverage already owns that behavior: start from the tests that exist rather than from a new file. Read `references/fix.md` for the homes and the naming rule before writing Phase 2's recommendation, not only before Phase 3's edits. A test that fails because the change deliberately reverses the behavior it asserts does not have a wrong expectation — that is the divergent case below, deferred rather than updated.
+**Choosing the regression test.** The regression test for a *confirmed defect* belongs wherever existing coverage already owns that behavior: start from the tests that exist rather than from a new file. Before recommending a test in Phase 2, inspect the existing tests and follow the project's testing rules; `references/fix.md` holds the test homes and the naming rule for Phase 3. A test that fails because the change deliberately reverses the behavior it asserts does not have a wrong expectation — that is the divergent case below, deferred rather than updated.
 
 ### Phase 2 gate: present, then ask
 
@@ -61,11 +61,13 @@ Once the root cause is confirmed, write the findings as a user-visible block: th
 
 **Same-turn presentation before the gate:** do not open the fix-choice question until that findings block has been written in full — in this turn or the immediately preceding assistant message. The blocking question tool renders only its own stem on modal harnesses, so a question fired on "root cause confirmed" alone leaves the user choosing with none of the causal chain in front of them. Naming the options is not presenting the findings, and a promise to explain after the choice is too late.
 
-When the request has not already authorized the next action, ask (per **Blocking questions**) which path to take, offering these three options. An explicit fix request is Phase 3. An explicit diagnosis-only request skips to Phase 4. `mode:pipeline` and `mode:return-to-caller` never ask. The test recommendations are part of the diagnosis either way.
+When the request has not already authorized the next action, ask (per **Blocking questions**) which path to take. An explicit fix request is Phase 3. An explicit diagnosis-only request skips to Phase 4. `mode:pipeline` and `mode:return-to-caller` never ask. The test recommendations are part of the diagnosis either way. Offer only the options the findings support, and recommend one:
 
 1. **Fix it now** — proceed to Phase 3
 2. **Diagnosis only — I'll take it from here** — skip the fix, write Phase 4's summary, end the skill
-3. **Rethink the design** (`ce-brainstorm`) — only when the bug cannot be fixed within the current design: the root cause is a wrong responsibility or interface rather than wrong logic, the requirements themselves are wrong, or every candidate fix is a workaround around an assumption that no longer holds. Size alone is not a design problem.
+3. **Rethink the design** (`ce-brainstorm`) — only when the bug cannot be fixed within the current design: the root cause is a wrong responsibility or interface rather than wrong logic, the requirements themselves are wrong, or every candidate fix is a workaround around an assumption that no longer holds. Size alone is not a design problem. Recommend it over a fix when no fix within the current design corrects the mechanism that produced the bug, only this occurrence of it.
+
+When the findings leave nothing for this run to fix (the behavior is correct, the bug is already fixed, or an open PR already does the work), offer the next step they support in place of a fix, such as replying on the issue of record or finishing that PR. Replying on the issue, closing it, or changing an existing PR waits for the user's choice.
 
 **`mode:pipeline` and `mode:return-to-caller`:** do not ask. Proceed to Phase 3 and apply a **convergent** fix; a **divergent** fix — one that would reverse a deliberate contract/behavior/product decision, including a "failing" test that asserts intended behavior — is deferred, not applied, per `references/pipeline-mode.md` or `references/return-to-caller.md`. Never route to `ce-brainstorm` here; a design problem becomes a `needs-human` residual.
 
@@ -73,7 +75,7 @@ When the request has not already authorized the next action, ask (per **Blocking
 
 If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Rethink the design," control has transferred to `ce-brainstorm` and this skill ends.
 
-**Read `references/fix.md` before editing any file** — the test-first sequence, the failed-fix rule, and the defense-in-depth and post-mortem triggers. Two rules decide whether the fix may start at all, so they stay here:
+**Read `references/fix.md` before editing any file** — the test-first sequence, the failed-fix rule, the check of other places the fix affects, and the post-mortem trigger. Two rules decide whether the fix may start at all, so they stay here:
 
 - **Branch.** Check `git status`; if the user has unstaged work in files that need modification, confirm before editing. If the current branch is the default branch, create a feature branch without asking — derive a name from the bug, `git checkout -b <name>`, and say which branch you moved to. Detect the default by comparing against `main`, `master`, or `git rev-parse --abbrev-ref origin/HEAD` **with its `origin/` prefix stripped** — the raw output is `origin/<name>`, so an unstripped comparison never matches.
 - **Record the pre-fix scope:** current `HEAD`, whether `git status --short` is clean, and any pre-existing changed files. Then keep a list of **fix-owned files** (the tests and implementation changed for this bug) as you work. Phase 4 answers both of its questions from this record and cannot reconstruct it afterwards.
@@ -82,25 +84,27 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 
 **`mode:pipeline` — skip this entire interactive handoff.** No polish or review steps, no residual questions, no preview, no learning-capture offer. Commit and push the convergent fix per `references/pipeline-mode.md`, then emit that reference's **structured return**. Divergent / needs-human items are deferred there (open thread or the caller's run-report comment — never a PR-body section). **`mode:return-to-caller` — skip it too:** commit the fix-owned files on the feature branch, push nothing, and emit the structured return `references/return-to-caller.md` defines. In both modes the return is the last thing this skill writes. It ends this skill, not the turn. The caller runs in this same session, and its next step follows the return; do not announce a handoff to it. The rest of this section is the interactive path only.
 
-**Structured summary** — always write this first:
+**Structured summary** — write it before the routing below. When the findings block is already on screen, do not repeat it: give the root cause in a line and spend the summary on what changed since, how the fix was verified, and its limits. A diagnosis-only summary stands on its own.
 
 ```
 ## Debug Summary
 **Problem**: [What was broken]
-**Root Cause**: [Full causal chain, with file:line references]
-**Recommended Tests**: [Tests to add/modify to prevent recurrence, with specific file and assertion guidance]
-**Fix**: [What was changed — or "diagnosis only" if Phase 3 was skipped]
-**Prevention**: [Test coverage added; structural fix or defense-in-depth if applicable, or the structural fix left as follow-up]
+**Root Cause**: [Full causal chain, with file:line references — or one line pointing back to the findings block when it is already on screen]
+**Recommended Tests**: [Diagnosis only: tests to add or modify to prevent recurrence, with file and assertion guidance. Omit when Phase 3 ran]
+**Fix**: [What was changed and how it was verified — or "diagnosis only" if Phase 3 was skipped]
+**Prevention**: [Test coverage added; structural fix or operation guard if applicable, or the structural fix left as follow-up]
 **Confidence**: [High/Medium/Low]
 ```
 
 **If Phase 3 was skipped**, stop after the summary — the user already said they were taking it from here. Do not prompt.
 
-**If Phase 3 ran, read `references/post-fix-handoff.md` now and follow it before routing below.** It defines the quality steps after a fix: the contextual-override checks, the skip rule for mechanical fixes, the scoping that keeps `ce-simplify-code` and `ce-code-review` off unrelated branch work, what to do with leftover findings, the `## Post-Fix Quality` block, and the criteria for offering to capture a learning. None of that appears in this body. The routing below names *which* action runs, never the scope rules that make it safe, so it cannot be improvised from. Skipping the read ships an unreviewed fix, lets review reach into unrelated branch work, and strands accepted findings in the session.
+**If Phase 3 ran, read `references/post-fix-handoff.md` now and follow it before routing below.** It defines the quality steps after a fix: the contextual-override checks, the rule for when review may be skipped, the scoping that keeps `ce-simplify-code` and `ce-code-review` off unrelated branch work, what to do with leftover findings, the `## Post-Fix Quality` block, and the criteria for offering to capture a learning. None of that appears in this body. The routing below names *which* action runs, never the scope rules that make it safe, so it cannot be improvised from. Skipping the read ships an unreviewed fix, lets review reach into unrelated branch work, and strands accepted findings in the session.
 
 #### Routing
 
 **Land the fix without carrying along anything the user did not offer up** — not into a commit, not into a push, not into a PR. Do not ask whether to open a PR; permission is not the gate. Two questions decide the handoff. Answer them from the pre-fix scope Phase 3 recorded, not from how the branch came to exist. **Fire the action itself** via the platform's skill-invocation primitive — never merely tell the user to type a command.
+
+**Settle learning capture before anything commits.** Apply the reference's learning-capture criteria. Only when that gate qualifies the fix, offer capture; if the user accepts, invoke the `ce-compound` skill and add only the artifacts it actually wrote or updated to the fix-owned files, so they ship in the same commit as the fix. If it writes nothing, no documentation joins the commit.
 
 **1. What may go into the commit — the fix-owned files and nothing else.** This is a constraint on whichever skill commits in question 2, never an action of its own. It holds on every route, remote or not. Do not commit here.
 
@@ -118,5 +122,3 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 - **Not a git repo**: nothing commits. Stop after the summary and the quality block.
 
 **Contextual override** ("don't open PRs from skills", "commit only", "stop after the fix") — follow what the user said, and **Stop here** without committing when that is what they asked for. A vague tonal cue is not an override.
-
-**After a PR is open** — apply the reference's learning-capture criteria. Only when that gate qualifies the fix, offer capture; if the user accepts, invoke the `ce-compound` skill, then commit and push only the artifacts it actually wrote or updated so the open PR picks them up. If it writes nothing, end without a documentation commit.

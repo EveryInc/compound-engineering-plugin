@@ -1,6 +1,5 @@
-import { promises as fs } from "fs"
 import path from "path"
-import { backupFile, commandNameToRelativePath, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJson, writeText } from "../utils/files"
+import { backupFile, commandNameToRelativePath, copySkillDir, ensureDir, pathExists, readJson, readText, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformSkillContentForOpenCode } from "../converters/claude-to-opencode"
 import type { OpenCodeBundle, OpenCodeConfig } from "../types/opencode"
 import { getLegacyOpenCodeArtifacts } from "../data/plugin-legacy-artifacts"
@@ -10,6 +9,7 @@ import {
   cleanupCurrentManagedDirectory,
   cleanupRemovedManagedDirectories,
   cleanupRemovedManagedFiles,
+  isPathWithinRoot,
   lstatOrNull,
   type ManagedInstallManifest,
   moveLegacyArtifactToBackup,
@@ -27,11 +27,16 @@ import {
 // the install manifest's `groups` map, so the same ownership rule applies
 // uniformly here rather than a symlink-only guard.
 async function cleanupCurrentManagedFile(
+  rootDir: string,
   targetPath: string,
   manifest: ManagedInstallManifest | null,
   group: string,
   entryName: string,
 ): Promise<boolean> {
+  if (!(await isPathWithinRoot(rootDir, targetPath))) {
+    console.warn(`Skipping ${targetPath}: resolves outside the managed store (not modified)`)
+    return true
+  }
   const stat = await lstatOrNull(targetPath)
   if (!stat) return false
   if (stat.isSymbolicLink()) {
@@ -104,38 +109,33 @@ export async function writeOpenCodeBundle(
   const currentPlugins = bundle.plugins.map((plugin) => plugin.name)
   const currentSkills = bundle.skillDirs.map((skill) => sanitizePathName(skill.name))
 
-  // Ancestor-symlink containment: the per-entry guards below inspect only the
-  // leaf node, so a symlinked store dir (or a symlinked ancestor of it) pointed
-  // at a user fork would otherwise have every cleanup/write act through the link
-  // into the fork. A store that escapes the OpenCode root is skipped wholesale
-  // and recorded as owning nothing.
+  // Check stores against the config root before using them as per-entry roots.
+  // Otherwise a repointed store would make its external contents look contained.
+  // Escaped stores are skipped and recorded as owning nothing.
   const agentsEscaped = await storeRootEscapesManagedRoot(openCodePaths.root, openCodePaths.agentsDir)
   const commandsEscaped = await storeRootEscapesManagedRoot(openCodePaths.root, openCodePaths.commandDir)
   const pluginsEscaped = await storeRootEscapesManagedRoot(openCodePaths.root, openCodePaths.pluginsDir)
   const skillsEscaped = await storeRootEscapesManagedRoot(openCodePaths.root, openCodePaths.skillsDir)
 
   await ensureDir(openCodePaths.root)
+  const hadExistingConfig = await pathExists(openCodePaths.configPath)
+  const existingConfigText = hadExistingConfig ? await readText(openCodePaths.configPath) : null
+  const merged = await mergeOpenCodeConfig(openCodePaths.configPath, bundle.config)
+  const configChanged = existingConfigText !== `${JSON.stringify(merged, null, 2)}\n`
+  if (hadExistingConfig && configChanged) {
+    const backupPath = await backupFile(openCodePaths.configPath)
+    if (!backupPath) {
+      throw new Error(`Could not back up existing config at ${openCodePaths.configPath}; refusing to modify the install.`)
+    }
+    console.log(`Backed up existing config to ${backupPath}`)
+  }
+
   if (!agentsEscaped) await cleanupRemovedManagedFiles(openCodePaths.agentsDir, manifest, "agents", currentAgents)
   if (!commandsEscaped) await cleanupRemovedManagedFiles(openCodePaths.commandDir, manifest, "commands", currentCommands)
   if (!pluginsEscaped) await cleanupRemovedManagedFiles(openCodePaths.pluginsDir, manifest, "plugins", currentPlugins)
   if (!skillsEscaped) await cleanupRemovedManagedDirectories(openCodePaths.skillsDir, manifest, "skills", currentSkills)
 
-  const hadExistingConfig = await pathExists(openCodePaths.configPath)
-  const existingConfigText = hadExistingConfig
-    ? await fs.readFile(openCodePaths.configPath, "utf8").catch(() => null)
-    : null
-  const merged = await mergeOpenCodeConfig(openCodePaths.configPath, bundle.config)
-  const nextConfigText = `${JSON.stringify(merged, null, 2)}\n`
-  if (existingConfigText !== nextConfigText) {
-    const backupPath = await backupFile(openCodePaths.configPath)
-    if (backupPath) {
-      console.log(`Backed up existing config to ${backupPath}`)
-    }
-    await writeJson(openCodePaths.configPath, merged)
-  }
-  if (hadExistingConfig) {
-    console.log("Merged plugin config into existing opencode.json (user settings preserved)")
-  }
+  if (configChanged) await writeJson(openCodePaths.configPath, merged)
 
   const seenAgents = new Set<string>()
   const preservedAgentNames = new Set<string>()
@@ -152,7 +152,7 @@ export async function writeOpenCodeBundle(
       continue
     }
     const targetPath = path.join(openCodePaths.agentsDir, agentFileName)
-    const preserved = await cleanupCurrentManagedFile(targetPath, manifest, "agents", agentFileName)
+    const preserved = await cleanupCurrentManagedFile(openCodePaths.agentsDir, targetPath, manifest, "agents", agentFileName)
     if (preserved) {
       preservedAgentNames.add(agentFileName)
       continue
@@ -168,14 +168,15 @@ export async function writeOpenCodeBundle(
       continue
     }
     const dest = path.join(openCodePaths.commandDir, ...commandName.split("/"))
-    const nextCommandText = commandFile.content + "\n"
-    const existingCommandText = await fs.readFile(dest, "utf8").catch(() => null)
-    const preserved = await cleanupCurrentManagedFile(dest, manifest, "commands", commandName)
+    const preserved = await cleanupCurrentManagedFile(openCodePaths.commandDir, dest, manifest, "commands", commandName)
     if (preserved) {
       preservedCommandNames.add(commandName)
       continue
     }
-    if (existingCommandText !== null && existingCommandText !== nextCommandText) {
+    const nextCommandText = commandFile.content + "\n"
+    const existingCommandText = await readText(dest).catch(() => null)
+    if (existingCommandText === nextCommandText) continue
+    if (existingCommandText !== null) {
       const cmdBackupPath = await backupFile(dest)
       if (cmdBackupPath) {
         console.log(`Backed up existing command file to ${cmdBackupPath}`)
@@ -192,7 +193,7 @@ export async function writeOpenCodeBundle(
         continue
       }
       const targetPath = path.join(openCodePaths.pluginsDir, plugin.name)
-      const preserved = await cleanupCurrentManagedFile(targetPath, manifest, "plugins", plugin.name)
+      const preserved = await cleanupCurrentManagedFile(openCodePaths.pluginsDir, targetPath, manifest, "plugins", plugin.name)
       if (preserved) {
         preservedPluginNames.add(plugin.name)
         continue
@@ -210,7 +211,7 @@ export async function writeOpenCodeBundle(
         continue
       }
       const targetDir = path.join(openCodePaths.skillsDir, skillName)
-      const preserved = await cleanupCurrentManagedDirectory(targetDir, manifest, "skills", skillName)
+      const preserved = await cleanupCurrentManagedDirectory(openCodePaths.skillsDir, targetDir, manifest, "skills", skillName)
       if (preserved) {
         preservedSkillNames.add(skillName)
         continue

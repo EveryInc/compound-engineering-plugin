@@ -241,18 +241,33 @@ describe("ce-brainstorm light-webserver.js", () => {
     await fetch(String(info.url))
 
     const deadline = Date.now() + 4500
+    let refused = false
+    let lastPollStart = Date.now()
     while (Date.now() < deadline) {
+      lastPollStart = Date.now()
       try {
         await fetch(`${String(info.url)}/version`)
       } catch {
+        refused = true
         break
       }
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
+    expect(refused).toBe(true)
 
-    const result = await runServerCommand(["status", "--root", root])
-    expect(result.exitCode, result.stderr).toBe(0)
-    const status = JSON.parse(result.stdout.trim())
+    // shutdown() closes the listener before the process exits, so the first
+    // refused poll can land while status still sees a live pid. The wait is
+    // anchored to the last poll and ends well inside the 2s idle timeout, so a
+    // server that polling kept alive cannot idle out here and pass.
+    const exitDeadline = lastPollStart + 1000
+    let status: Record<string, unknown> = {}
+    while (Date.now() < exitDeadline) {
+      const result = await runServerCommand(["status", "--root", root])
+      expect(result.exitCode, result.stderr).toBe(0)
+      status = JSON.parse(result.stdout.trim())
+      if (status.status === "stopped") break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
     expect(status.status).toBe("stopped")
   })
 

@@ -27,8 +27,8 @@ A prior brainstorm helps but is never required. You can invoke `ce-plan` directl
 |----------|--------|
 | What does it do? | Researches context, captures decisions and scope, breaks work into atomic units with stable IDs, enumerates test scenarios per unit, then auto-strengthens weak sections via a confidence check |
 | When to use it | Requirements are ready and execution guardrails are needed; solo planning when the task is already clear; non-software multi-step tasks; investigative questions that need a structured answer |
-| What it produces | Software: a unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed). Brainstorm-sourced plans gain implementation planning in place. Non-software plan-seeking writes a domain plan (or publishes to Proof). Answer-seeking delivers the answer in chat with no plan file. |
-| What's next | Software: start `ce-work` (recommended), decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open an HTML plan in the browser. Non-software: save, publish to Proof, or both. Answer-seeking: the answer is the end. |
+| What it produces | Software: a unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed). Brainstorm-sourced plans gain implementation planning in place. Non-software plan-seeking writes a domain plan (and can publish a copy). Answer-seeking delivers the answer in chat with no plan file. |
+| What's next | Software: start `ce-work` (recommended), decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open an HTML plan in the browser. Non-software: save, or save and publish a copy. Answer-seeking: the answer is the end. |
 
 ---
 
@@ -53,7 +53,7 @@ An empty invoke uses the current conversation if one is already underway (includ
 # Revisit and deepen an existing implementation-ready plan (interactive accept/reject)
 /ce-plan deepen docs/plans/auth-rewrite.md
 
-# Plan a non-software multi-step project (save and/or publish to Proof)
+# Plan a non-software multi-step project (save, optionally publish a copy)
 /ce-plan organize a two-day customer advisory workshop
 
 # Answer-seeking: state a plan-of-attack in chat, then deliver the answer (no plan file)
@@ -131,7 +131,7 @@ Research earlier in the run is decided by intent, not a single on/off switch. Lo
 
 Non-software work skips the software confidence check but keeps U-IDs, dependency ordering, scope boundaries, verification scenarios, and the right-sized template. Two dispositions:
 
-- Plan-seeking (a trip, a study curriculum, an event): the saved plan is the deliverable. The wrap-up offers save to disk, publish to Proof, or both.
+- Plan-seeking (a trip, a study curriculum, an event): the saved plan is the deliverable. The wrap-up offers save to disk, or save and publish a copy when you named a publisher or the host has an artifact tool.
 - Answer-seeking ("how often does X happen, is it a big deal?"): the answer is the deliverable. The skill states a brief plan-of-attack in chat, executes it (research and synthesis, never code), and writes no plan file. Only a genuine single-fact lookup skips the plan-of-attack and gets answered outright.
 
 For a hard problem you can ask one level up: produce a grounded approach-plan (a plan for how the deliverable will be made) and hold at a checkpoint. Enter it explicitly (`plan for a plan`, `don't write it yet, plan how you'd approach it`). Rarely, the skill offers this itself when the method is genuinely unsettled and getting it wrong is costly. Code still flows to `ce-work`; a non-code deliverable is marked `execution: knowledge-work` and runs through `ce-work`'s lightweight carve-out. `ce-plan` itself never executes.
@@ -274,8 +274,8 @@ Use the deepen fast path: `/ce-plan deepen <plan>`. It runs interactively, prese
 **What about implementation code in the plan?**
 Disallowed by default. Pseudo-code and DSL grammars are permitted in High-Level Technical Design when they communicate the shape of the solution as directional guidance. Exact method signatures, imports, framework-specific syntax, and step-by-step shell sequences do not belong in plans.
 
-**Can I publish a software plan to Proof from the post-plan menu?**
-No. Proof is on the non-software wrap-up menu (save, publish, or both). Software next steps are `ce-work`, review or prototype, create an issue, or open an HTML file. Publish a markdown plan later with `/ce-proof` if you want a shareable link.
+**Can I publish a plan to Proof from the post-plan menu?**
+Only when you named Proof, in the request or in your own instructions or preferences. The menu's open slot then offers a Proof copy of a markdown plan; the local plan file stays the record. Otherwise publish later with `/ce-proof`.
 
 ---
 

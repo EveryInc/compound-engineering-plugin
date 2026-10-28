@@ -1,6 +1,6 @@
-# Web Research Cache (V15)
+# Web Research Cache
 
-Read this when checking the V15 cache before dispatching `web-researcher`, or when appending fresh research to the cache after dispatch. The behavior here is conditional — most invocations either hit the cache or write to it once and move on.
+Read this when checking the cache before dispatching `web-researcher`, or when appending fresh research to the cache after dispatch. The behavior here is conditional — most invocations either hit the cache or write to it once and move on.
 
 ## Cache file shape
 

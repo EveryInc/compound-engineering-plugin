@@ -8,7 +8,7 @@ Before generating ideas, gather grounding. The dispatch set depends on the mode 
 
 **Surprise-me grounding depth.** In surprise-me mode, grounding goes deeper than specified mode — apply the 0.2 table's `1 grounding` row, and pass issue themes as first-class input rather than a footnote when issue intelligence runs. Specified mode keeps the shallower scan: the user's named subject anchors what is relevant.
 
-**Pre-resolve the scratch directory.** Generate a `<run-id>` once (8 hex chars) and reuse it for the V15 cache and the Phase 2/4 checkpoints so they share one per-run directory. Scratch lives beneath the effective user's private CE root — `/tmp/compound-engineering-<uid>` when it is usable, else the validated `$TMPDIR` fallback the block below selects — never `.context/`. Run this to validate the owner-private root, create the run directory, and capture its absolute path:
+**Pre-resolve the scratch directory.** Generate a `<run-id>` once (8 hex chars) and reuse it for the web-research cache and the Phase 2/4 checkpoints so they share one per-run directory. Scratch lives beneath the effective user's private CE root — `/tmp/compound-engineering-<uid>` when it is usable, else the validated `$TMPDIR` fallback the block below selects — never `.context/`. Run this to validate the owner-private root, create the run directory, and capture its absolute path:
 
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
@@ -22,7 +22,7 @@ SCRATCH_DIR="$SCRATCH_ROOT/ce-ideate/<run-id>";
 echo "$SCRATCH_DIR";
 ```
 
-Use the echoed absolute path as `<scratch-dir>` for every checkpoint write and cache read in this run. It is **not** deleted on completion — the V15 cache is reused across run-ids in a session, and in the no-repo case the deliverable itself is written here.
+Use the echoed absolute path as `<scratch-dir>` for every checkpoint write and cache read in this run. It is **not** deleted on completion — the web-research cache is reused across run-ids in a session, and in the no-repo case the deliverable itself is written here.
 
 **Before either dispatch block, run the research-artifact routing test** from "User-Supplied Research Artifacts" below over any file the prompt or intake named. It has to run here, ahead of both blocks, because each one has a way to swallow an evidence file it was never told to skip: the repo scan reads a named root-level `*.md` into `User-named references`, and elsewhere-mode synthesis reads "any rich-prompt material". Without the test, a long survey or analytics export would be dispatched to synthesis *and* to a distiller, duplicating the file and polluting `Topic context`. Each file takes exactly one path.
 
@@ -56,7 +56,7 @@ Run grounding agents in parallel in the **foreground** (do not background — re
 
 2. **Learnings search** — when `<root>/solutions/` holds at least one markdown file, read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt plus a brief summary of the ideation focus. An empty or missing store has nothing to search, so skip it.
 
-3. **Web research** (always-on; see "Web research" subsection below for skip-phrase and V15 cache handling).
+3. **Web research** (always-on; see "Web research" subsection below for skip-phrase and cache handling).
 
 4. **Issue intelligence** (conditional) — only when issue-tracker intent was detected in **Phase 0.2**. Unlike the other grounding agents this one is **not** fire-and-forget: it is an ordered two-call protocol with a question in the middle that only you can ask, because a subagent cannot block for user input.
 
@@ -80,7 +80,7 @@ Run grounding agents in parallel in the **foreground** (do not background — re
 
 Issue intelligence does not apply in elsewhere mode. Slack research is opt-in for both modes (see "Slack context" below).
 
-#### Web Research (V5, V15)
+#### Web Research
 
 Always-on for both modes. Skip when the user said "no external research", "skip web research", or equivalent in their prompt or earlier answers; in that case, omit the `web-researcher` local prompt from dispatch and note the skip in the consolidated grounding summary.
 
@@ -107,7 +107,7 @@ Consolidate all dispatched results into a short grounding summary using these se
 - **Additional context** *(repo mode)* — one-line gists of root-level markdown discovered but not named. Phase 2 treats these as background, not direction
 - **Past learnings** — relevant institutional knowledge from `<root>/solutions/`
 - **Issue intelligence** *(when present)* — theme summaries plus the cluster call's coverage accounting (see `references/issue-intelligence.md` §d)
-- **External context** *(when web research ran)* — prior art, adjacent solutions, market signals, cross-domain analogies. Note "(reused from earlier dispatch)" when the V15 cache supplied the result instead of a fresh dispatch
+- **External context** *(when web research ran)* — prior art, adjacent solutions, market signals, cross-domain analogies. Note "(reused from earlier dispatch)" when the web-research cache supplied the result instead of a fresh dispatch
 - **User-supplied research** *(when present)* — dossier gists with paths, or inline content for small artifacts; kept distinct from External context so source provenance stays visible
 - **Slack context** *(when present)* — organizational context
 
@@ -119,7 +119,7 @@ Consolidate all dispatched results into a short grounding summary using these se
 
 Sub-agent dispatch is tiered by task shape, never hardcoded to a model name:
 
-- **Extraction tier** — evidence scouts and other retrieval/quoting work. Use the platform's cheapest capable model when the harness exposes a known override; escalate to the generation tier when the repo is large or the stack obscure.
+- **Extraction tier** — retrieval and quoting work, such as the quick context scan and research distillers. Use the platform's cheapest capable model when the harness exposes a known override; escalate to the generation tier when the repo is large or the stack obscure.
 - **Generation tier** — evidence-driven ideation frames and basis verification. Use the platform's mid-tier model when the harness exposes a known override.
 - **Ceiling tier** — ceiling ideation frames, cross-cutting synthesis, and final arbitration. Inherit the orchestrator's model by omitting the model parameter.
 
@@ -135,4 +135,4 @@ Two overrides raise the whole ideation fleet to the ceiling tier: surprise-me mo
 
 ## Asking inside this phase
 
-The issue-scoping question below is the only blocking question this phase may ask. Use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to numbered options in the host's user-visible chat only when no such tool is in the list or a real question call errors, and never silently skip it.
+The issue-scoping question below is the only blocking question this phase may ask. Ask it through the host's blocking question tool, with the fallback SKILL.md Boundary 4 states.

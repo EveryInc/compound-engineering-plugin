@@ -462,7 +462,7 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
       "3. **Read `references/review-followup.md` now**",
     )
 
-    expect(gate).toContain("Only a valid `status: complete` may advance")
+    expect(gate).toContain("Only a valid `status: complete` from `ce-work` may advance")
     expect(gate).toContain("every other status")
     expect(gate).toContain("malformed return")
     expect(gate).toContain("stops the pipeline")
@@ -631,8 +631,12 @@ describe("ce-debug regression test selection", () => {
     }
 
     expect(debug).toMatch(/Only when that gate qualifies the fix, offer capture/i)
-    expect(debug).toMatch(/commit and push only the artifacts it actually wrote or updated/i)
-    expect(debug).toMatch(/If it writes nothing, end without a documentation commit/i)
+    expect(debug).toMatch(/only the artifacts it actually wrote or updated/i)
+    expect(debug).toMatch(/If it writes nothing, no documentation joins the commit/i)
+    // Capture is settled before the fix commits, so an accepted learning ships with the
+    // fix. The older after-PR offer never fired in real sessions and cost a second push.
+    expect(debug).toMatch(/Settle learning capture before anything commits/i)
+    expect(debug).not.toMatch(/After a PR is open/i)
 
     const debugContract = [debug, handoff, guide].join("\n")
     expect(debugContract).not.toMatch(/one-sentence insight|fits in one sentence/i)

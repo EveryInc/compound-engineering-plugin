@@ -1,263 +1,68 @@
 # HTML Rendering
 
-This is a format-rendering reference — it describes how to render any
-artifact in HTML, independent of which skill is producing it.
+This reference covers how to render an artifact as HTML, whichever skill
+produces it. The section contract (`plan-sections.md`,
+`brainstorm-sections.md`, `ideation-sections.md`) says what the artifact
+contains; this file says how HTML presents it.
 
-It is paired with a section contract (`plan-sections.md`,
-`brainstorm-sections.md`, etc.) that describes *what* the artifact contains.
-This reference describes *how* HTML specifically presents it. The same
-content rendered by different skills shares the same HTML principles.
-
-The HTML artifact is the *only* artifact the skill produces for that run —
-output mode is exclusive (markdown OR HTML, never both). Downstream
-consumers that read HTML today (`ce-doc-review`, `ce-work`, human readers) do
-so directly; the agent-consumability rules below make that work. `ce-doc-review`
-also applies fixes in the artifact's native format while preserving its
-existing structure.
+The HTML file is the only artifact the run produces. Output is exclusive:
+markdown or HTML, never both.
+Downstream consumers that read HTML today (`ce-doc-review`, `ce-work`, a
+skill resuming its own earlier artifact) read and edit the file as source
+text, the way they read markdown. They do not
+render it or parse the DOM. `ce-work` builds its section map from the `<h1>`
+to `<h3>` headings and their anchor ids. `ce-doc-review` and a resume run edit
+the file in place and keep its structure. Every rule below that concerns
+structure exists so those consumers can find and change one item from source
+alone.
 
 ## Hard invariants
 
-These hold regardless of which skill produced the artifact.
-
 - **Single self-contained HTML5 file.** No companion `.css`, `.js`, or
-  `.svg` files. CSS lives in `<style>`. SVG lives inline. Images are
-  base64 data URIs or inline SVG. The one permitted exception is a
-  `<link rel="stylesheet">` to a CDN webfont CSS endpoint (Google Fonts,
-  Bunny Fonts, etc.), paired with an offline-readable fallback font stack
-  so the doc remains readable if the CDN is unreachable.
-- **All metadata appears as visible text — single source of truth.**
-  The artifact's metadata (title, type, date, etc. — exact
-  fields per-skill, defined in the section contract) renders as visible
-  HTML elements that downstream agents and humans read. No hidden
-  machine-readable copy in any form: no `<script type="application/json">`
-  frontmatter block, no `data-*` attribute mirror, and no
-  `<meta name="created">` / `<meta name="origin">`
-  in `<head>` duplicating the same values that appear in the visible
-  header. One representation for each value — drift across two copies is
-  the failure this rule prevents.
-
-  The text-and-attribute redundancy in `<time datetime="2026-05-12">2026-05-12</time>`
-  is acceptable because the attribute is a parser hint, not a hidden copy.
+  `.svg` files. CSS goes in `<style>`, SVG is inline, and images are inline
+  SVG or base64 data URIs. The one exception is a `<link rel="stylesheet">`
+  to a CDN webfont CSS endpoint, paired with a fallback font stack so the
+  doc still reads offline.
+- **Metadata is visible text, with one copy of each value.** Every field
+  the section contract defines renders as text in the page.
+  There is no hidden machine-readable copy: no
+  `<script type="application/json">` frontmatter block, no `data-*`
+  attribute mirror, and no `<meta name="created">` or `<meta name="origin">`
+  tag in `<head>`. Two copies drift. A `datetime` attribute on a `<time>`
+  element that shows the same date is a parser hint, not a second copy.
+- **Readers meet the title, not the tool fields.** The header shows the
+  `<h1>` title, the date, and any field written for a person, such as an
+  ideation focus. Every other field exists for tools, for example
+  `artifact_contract`, `product_contract_source`, `execution`, `origin`, or
+  `mode`. Put those in a `<details>` element right after the header, closed
+  by default, with the `<summary>` text "Document metadata". Each field
+  there shows its exact key name next to its value, for example
+  `<dt>artifact_contract</dt><dd>ce-unified-plan/v1</dd>`, so a text search
+  for the key finds it. Older documents show these fields in the header
+  instead. They stay valid, because consumers find a field by its key name
+  rather than its position.
 - **Stable IDs as anchor IDs AND visible text.** Every ID-bearing item
-  (R-IDs, U-IDs, A-IDs, F-IDs, AE-IDs, KTDs) gets `id="r1"` on its
-  element AND appears as visible text inside the element (e.g., the
-  text "R1." inside the table cell or heading). Downstream agents find
-  the ID in source the same way they find it in markdown.
-- **Source / composition signal.** A visible footer at the bottom of
-  the doc names the composition timestamp and the source identifier
-  (the user prompt context, the upstream brainstorm doc when one
-  exists, or just the composing skill name when there's no external
-  source). Example shape:
+  (R-, U-, A-, F-, AE-, KTD-, and idea IDs) has `id="r1"`-style anchors on its element
+  and shows the ID ("R1.") as visible text in its heading or cell.
+- **Section headings use the section-contract names.** If the contract says
+  "Implementation Units", the heading says "Implementation Units", because
+  downstream agents grep for those names. An editorial title can appear as an
+  eyebrow label or sub-heading, never in place of the contract name.
+- **Unified plan navigation.** A unified plan has a visible navigation
+  region near the top linking the stable section anchors below.
+  Requirements-only artifacts omit links to absent implementation sections.
+- **Source and composition footer.** A visible footer at the end names the
+  composition timestamp and the source: the upstream document when there is
+  one, otherwise the user's request and the composing skill. Example shape:
   `<footer class="composition-signal">Composed 2026-05-17T14:23Z by ce-plan from <code>docs/brainstorms/...-requirements.md</code></footer>`.
-  Under exclusive output mode this signal is the artifact's own
-  provenance — there's no markdown sibling to reference. Omitting it
-  leaves readers unable to tell how stale the rendering is.
-- **ASCII identifiers.** Class names, element IDs, data attribute names
-  are ASCII-only.
-- **Unified plan navigation.** Unified plan artifacts include a visible
-  navigation region near the top of the document. It links to stable section
-  anchors for `goal-capsule`,
-  `product-contract`, `planning-contract`, `implementation-units`,
-  `verification-contract`, `definition-of-done`, and `appendix` when those
-  sections exist. Requirements-only artifacts omit links to absent
-  implementation sections.
-- **Visible artifact metadata.** If the artifact has `artifact_contract`,
-  `product_contract_source`, or `execution`, render
-  those values in the visible header metadata. Do not hide a duplicate copy in
-  JSON, `data-*`, or `<meta>` tags.
-
-## Precedence stack for style preferences
-
-Honor user style preferences in this order (highest to lowest):
-
-1. **In-session conversation** — explicit direction the user gave this run.
-2. **Preferred stylesheet reference** named in loaded agent-instruction
-   context (typically `AGENTS.md` / `CLAUDE.md`, but scan loaded context;
-   don't enumerate locations). The reference may be a file path
-   (`docs/style.css`), a URL, a named library ("Tailwind"), or a style
-   brand ("Stripe docs"). Agent-instruction files carry deliberate
-   agent-aware preferences, so this tier sits above DESIGN.md.
-3. **DESIGN.md** discovered on the filesystem (see "DESIGN.md discovery"
-   below).
-4. **Fallback default** — the opinionated palette / typography choices the
-   agent makes when no preference exists.
-
-### Active-recall at compose time
-
-Before writing the CSS, scan loaded context for any stylesheet reference
-the user has indicated for documents like this. If found and inlinable
-(short local file, fetchable URL within budget), inline it into `<style>`.
-If found but not inlinable (large framework, paywalled stylesheet, named
-system without a fetchable source), compose CSS in its spirit — typography,
-color, density cues drawn from the named system. Only fall back to the
-default style when no preference signal exists.
-
-The single-file invariant is preserved either way. External
-`<link rel="stylesheet">` is permitted only for CDN webfont CSS (with the
-offline fallback font stack); never link to an external stylesheet
-carrying layout, color, or typography rules the doc cannot read offline.
-
-### DESIGN.md discovery
-
-When tier 3 of the precedence stack applies, look for a DESIGN.md file in
-these locations, first match wins:
-
-1. Worktree root (resolve via `git rev-parse --show-toplevel`).
-2. `docs/DESIGN.md`.
-3. `.compound-engineering/DESIGN.md`.
-
-Read once at compose time. Absent → fall through to the fallback default.
-
-Worktree-root only — do not fall through to a main checkout. Users
-working from a worktree who want HTML defaults can add DESIGN.md to the
-worktree.
-
-**DESIGN.md is a partial override, not all-or-nothing.** Real DESIGN.md
-files vary widely: some are token tables, some are CSS variables, some are
-prose; most are authored for a *product or marketing surface*, not a
-long-form doc. The governing split: **take the brand's scale-independent
-identity literally, own the scale-dependent layout values yourself, and
-skip decoration.**
-
-- **Take literally (scale-independent identity):** the color palette
-  (under the contrast rule), font *weight* and *style*, OpenType features,
-  and radius *character* (sharp vs rounded). These carry the brand and are
-  safe at any size.
-- **Own it yourself (scale-dependent layout):** the **type size scale**
-  and **spacing magnitudes**. DESIGN.md values are almost always
-  product/marketing-scaled (display headings at 48-80px, airy ~96px
-  section gaps); read them only as *hierarchy*, then set doc-appropriate
-  values (body ~14-16px, headings ~1.2-1.6× body, comfortable paragraph
-  spacing).
-- **Skip decoration:** decorative or atmospheric brand voltage with no
-  content to attach to in a doc — gradient orbs, full-bleed hero
-  photography, motion. Take the palette and feel; do not reproduce the
-  decoration.
-
-Specific cases:
-
-- **Fonts: load only open webfonts; never attempt a proprietary brand
-  face.** A self-contained doc can only load an open webfont (Google Fonts
-  or an open CDN) via the permitted webfont `<link>` plus an offline
-  fallback stack. **Assume a bespoke brand face is proprietary and do not
-  attempt to load it** — Airbnb Cereal, Coinbase Display/Sans, BMW Type,
-  Waldenburg, Circular and the like will not render in a single file;
-  trying just produces a broken fallback. Use the DESIGN.md's own fallback
-  chain, or a family-matched system stack (serif↔serif, sans↔sans,
-  mono↔mono). Load a named face *only* when it is a known open webfont
-  (Inter, Geist, Cal Sans, Roboto…); when unsure whether a face is open,
-  do not try. Honor the DESIGN.md's declared roles (`body` / `display` /
-  `mono`) and never promote a display/decorative face into a body or
-  small-text role. Net: reproduce the brand's serif-vs-sans structure and
-  weight voice, not necessarily its exact faces.
-- **Typography-scale mismatch.** DESIGN.md typography tokens are usually
-  sized for product UI — marketing pages, app screens, hero sections —
-  with display headings at 48-80px. A long-form doc needs body at ~14-16px
-  and headings at ~1.2-1.6× body. When the size scale looks
-  product-scaled (the common case), use the **family**, **weight**, and
-  **OpenType feature** assignments (these carry the design language) and
-  pick the agent's own size scale for the doc surface. Apply DESIGN.md
-  sizes literally only when they are clearly doc-scaled — body 14-16px,
-  headings under ~32px.
-- **Scope mismatch (product UI vs doc surface).** A DESIGN.md aimed at
-  product marketing or app UI may name button states, input borders, or
-  hero backgrounds tied to *that* surface, not a generic doc. The page
-  surface is the case to judge: a **reading canvas** — white, off-white,
-  or a legible dark — transfers **literally** and should be the doc
-  background; a bright product/marketing-hero surface
-  (`--surface: #c0f0fb`) does not — extract the principle (the design
-  language uses a tinted surface) rather than the literal value when the
-  token is product-UI-scoped.
-- **Partial coverage.** When DESIGN.md defines some categories but not
-  others (colors but no spacing scale, typography but no elevation), use
-  it for what it covers and the fallback default for the rest. Do not
-  require DESIGN.md to be complete before honoring it.
-
-## Format principles
-
-These shape what "good" HTML looks like; the agent applies them per
-artifact based on content.
-
-### Readable measure, not full bleed
-
-Long-form text is unreadable at full viewport width — past ~80 characters
-per line the eye loses the return sweep and scanning slows. As a
-fallback-default (precedence tier 4, overridden by in-session direction or
-DESIGN.md), center the document in a content container and hold prose to a
-comfortable measure.
-
-- **Page container.** A centered column with a max-width in the ~820-960px
-  band (`margin-inline: auto`) keeps the doc off the far edges of wide
-  monitors while leaving room for the format's richer shapes.
-- **Prose measure.** Hold running paragraphs to roughly 65-80 characters
-  (`max-width: ~70ch` on text blocks). The named test: read a paragraph at
-  full window width on a wide display — if the return sweep to the next
-  line is effortful, the measure is too wide.
-- **Let wide content break out.** Tables, diagrams, and side-by-side
-  columns may use the full container width (or wider) when the content
-  needs it — the measure constraint is for prose, not for everything.
-
-Express the constraint in `ch`/`rem` rather than a single hardcoded pixel
-value so it survives font-size and DESIGN.md overrides. DESIGN.md or an
-in-session instruction overrides these values; this is the fallback when no
-layout preference exists.
-
-### Markdown source is content, not design
-
-When markdown (or markdown-shaped chat context) is part of the input, use
-it for semantic content — what the doc is about, what sections exist,
-what facts each section establishes. Do NOT treat its bullet-vs-table
-presentation choices as authoritative; re-choose the rendering per
-content shape in HTML's richer affordance space. If the markdown rendered
-13 requirements as a bulleted list, that does NOT mean HTML must render
-them as a list — ask whether 13 items sharing `ID + body` shape deserve
-a table.
-
-### Prose is authoritative
-
-When a visualization disagrees with the surrounding prose, the prose
-governs. If they diverge, the visualization is wrong.
-
-### Hyperlink the reference index
-
-When the doc has a Sources & References (or equivalent reference-index)
-section, hyperlink each entry to its canonical destination so readers
-can open it directly. A long bare-text list of paths and ticket IDs is
-the format's biggest unforced UX miss — the reader has to copy-paste
-every entry into a browser or IDE.
-
-Resolve the repo's GitHub URL once at compose time:
-
-```bash
-git remote get-url origin
-```
-
-Apply linking to three reference shapes:
-
-- **Repo-relative code/doc paths** (`services/foo.ts`,
-  `<root>/solutions/bar.md`) → `<repo-url>/blob/main/<path>`.
-- **Named GitHub PRs/issues** (`PR #636`, `issue #1048`) →
-  `<repo-url>/pull/636` or `<repo-url>/issues/1048`.
-- **Named external trackers** (Linear `ESP-1705`, Jira `PROJ-123`) →
-  link only when the workspace URL is established in loaded context
-  (e.g., a `linear.app/<workspace>/...` URL appeared earlier in the
-  session or in `AGENTS.md`); otherwise leave as text.
-
-**Do not invent URLs.** If `origin` isn't a GitHub URL (GitLab,
-Bitbucket, internal host) and the equivalent main-tree URL pattern
-isn't obvious, leave entries as `<code>` text. If the external
-tracker workspace isn't established, leave as text. A broken or
-guessed link is worse than no link.
-
-**Scope: reference index only, not inline prose.** Inline `<code>`
-mentions of paths or PRs inside paragraph prose stay as code or text.
-Linking every mention would clutter; readers expect clickable jumps
-where the doc presents itself as a reference index.
+  Output is exclusive, so this footer is how a reader judges staleness.
+- **ASCII identifiers.** Class names, element IDs, and attribute names are
+  ASCII.
+- **No JS framework runtimes.** React, Vue, Svelte, or any bundled runtime is
+  out. A small inline `<script>` for active-section tracking or anchor
+  permalinks is acceptable.
 
 ### Stable section anchors for unified plans
-
-When rendering a unified plan, every major logical section gets a stable
-anchor ID and visible heading text:
 
 | Logical section | Required id |
 |---|---|
@@ -270,369 +75,153 @@ anchor ID and visible heading text:
 | Definition of Done | `definition-of-done` |
 | Appendix | `appendix` |
 
-Long HTML plans are agent-consumed as source text as often as they are read in
-a browser. Keep the heading text visible and adjacent to the `id`; do not rely
-on a nav link alone to carry the section name.
-
-Optional sections with a contract-defined semantic role put that role on their
-wrapping `<section>` with `data-ce-section`. For example, the broader-work
-relationship section uses `data-ce-section="work-relationships"`. The role is
-stable even when the visible heading changes; it supplements, rather than
-replaces, readable heading text and any useful anchor.
-
-### Text contrast is local
-
-Every text-on-background pairing must hold up on its own. A color that
-works for prose on the page background does not automatically work for
-a small label inside a tinted container. The most common violation:
-applying a generic "muted" text variable (calibrated for prose-on-bg) to
-secondary text inside an accent-soft / warn-soft / info-soft container.
-
-Test by reading each filled shape's labels at the rendered scale. If the
-subtitle or secondary text feels washed-out against the fill, the choice
-is wrong for that local context — pick a color from the same family as
-the fill (accent-text for accent-soft, etc.) or drop the muting entirely
-and rely on font-size and weight for hierarchy.
-
-### Body bold not colored by default
-
-Reserve accent text color for status chips, ID chips, links, and section
-borders. Do NOT color `<strong>` in body content by default. Bold weight
-already carries emphasis; applying accent color to every `<strong>` in a
-long list overwhelms the eye, especially in dark mode. CSS should leave
-`strong` at `color: inherit` unless a specific surface (status pill, ID
-chip) is being styled.
-
-### Chips and pills: uniform shape, no one-sided accent
-
-Status chips, ID chips, and metric pills in the same row share one shape
-— same border-radius, border weight, and fill treatment. Differentiate
-categories only by the chip's overall fill/text color (applied to the
-whole pill, like a soft-tint badge), never by an accent on one edge. A
-colored stripe or arc on a single side of a pill reads as broken and
-asymmetric — as if a border half-failed to render — so avoid it. The same
-holds for any element, not just chips: differentiate by a full tint, not
-a colored stripe on one edge. If an ID chip should stand out from metric
-chips, vary its fill/text color uniformly, not its edge treatment, and
-keep every chip in the row a visual set.
-
-### No JS framework runtimes
-
-A small inline `<script>` for active-section TOC tracking or anchor-
-permalink behavior is acceptable. React, Vue, Svelte, or any framework
-runtime is not. The single-file invariant doesn't permit framework
-bundles, and the artifact's longevity doesn't warrant a build dependency.
-
-## Section anatomy
-
-How section types commonly render in HTML. These are patterns, not
-contracts — the agent picks shapes that fit the content.
-
-- **Summary / Problem Frame** — semantic `<section>` with prose
-  paragraphs. Optionally precede with an eyebrow label (small-caps tag
-  above the title) for editorial polish.
-- **Requirements** — `<table>` is the default at 5+ uniform items;
-  bullets at smaller counts. Concern-grouping takes precedence over the
-  flat-table default: when requirements span distinct concerns, group them
-  under bold inline headers (or per-group sections) first, then apply the
-  5+ table default *within* each group rather than flattening the whole
-  section into one table. Each row has the R-ID as visible text in
-  its own column. Consider adding a "covered by" column for reverse
-  traceability when ID-anchored items have downstream references in
-  the same doc.
-- **Implementation Units** — repeating `<article>` cards with a stable
-  ID chip (visible "U1" text), a metadata strip (`<dl>` with field
-  labels and values for Goal, Files, Dependencies), and secondary
-  content (Approach, Test Scenarios, Verification, Patterns to Follow)
-  inside `<details>` collapsibles, **default-closed**. At 3+ units the
-  default-closed rule must hold — rendering all units fully
-  expanded turns the doc into one continuous scroll where the reader
-  can't see the unit list at a glance. The metadata strip is the
-  primary always-visible surface; subsection labels (`<summary>`) are
-  clickable affordances for readers to expand on demand. A single unit
-  with no secondary content can skip `<details>` entirely; the rule
-  applies when there is content to hide. The `<dl>` strip is for *descriptive*
-  fields (Goal, Files, Dependencies). A *directive* field — `Execution
-  note` is the canonical case, carrying a procedural instruction the
-  implementer must act on (e.g. "start with a failing integration test") —
-  does not belong in the strip, where it renders as a passive pair styled
-  like a date and gets skimmed past. Render it as an advisory callout (see
-  Tinted callout cards) so its visual weight matches its actionability. The
-  test: descriptive value -> metadata pair; something the reader must act
-  on -> callout.
-- **Key Technical Decisions** — repeating cards with the decision ID,
-  bold decision title (often with inline code for technical
-  identifiers), and prose rationale. Flat cards (not collapsibles) —
-  these are reference material readers scan, not drill into. A
-  `session-settled:` annotation renders as visible text in the card —
-  never an attribute or hidden markup — stem preserved verbatim so
-  grep works on the HTML artifact.
-- **Risks** — cards with a color-coded status eyebrow (e.g., "RISK ·
-  MITIGATED" / "OPEN · DEFERRED FOLLOW-UP") and prose body. Communicate
-  status through the eyebrow's color plus an optional subtle full-card
-  tint — not a colored stripe on one edge (see "Chips and pills").
-- **Scope Boundaries** — callout cards distinguished (in-scope vs deferred
-  vs outside) by a colored eyebrow/label plus a subtle full-card tint when
-  the distinction is meaningful — not a one-edge colored stripe.
-
-The agent picks more elaborate or simpler shapes based on what each
-specific artifact's content needs.
-
-## Diagrams
-
-When the section contract calls for a diagram (architecture, sequence,
-flowchart, state machine, swim lane, data-flow, quantitative
-comparison), HTML renders it as **inline SVG**. The agent picks the
-shape that conveys the content fastest — there is no fixed catalog of
-"approved" diagram types. If the content is quantitative comparison
-across categories, a bar chart is the right shape; if it's component
-relationships, a topology diagram; if it's process flow across
-participants, a swim lane; etc.
-
-**Conceptual diagrams are not wireframes.** The wireframe affordance below
-is scoped to *UI-shaped requirements* and is excluded for non-visual
-systems. That exclusion is about wireframes only —
-a brainstorm about a data model, schema, agent workflow, or migration is
-still free to use a conceptual diagram (a before/after field map, a
-source-of-truth fan-out, a state diagram). Don't let the wireframe
-exclusion suppress a conceptual diagram the content warrants.
-
-**Diagrams complement prose; they never replace it.** A diagram is an
-accelerant placed next to the prose it illustrates, not a substitute. The
-ID-bearing prose stays complete and standalone — a reader who ignores every
-diagram still gets the full content in text, and a text-reading downstream
-agent (which does not parse SVG geometry) is never left with a relationship
-that exists only in the picture. This extends the prose-is-authoritative
-rule above: prose governs not only on disagreement but on completeness, so
-adding a diagram is not license to thin the prose it depicts.
-
-### Layout legibility for hand-authored SVG
-
-The agent designs SVG coordinates without rendering — layouts that look
-fine in source can collide in practice. Before emitting, trace each
-labeled arrow, each shape edge, and each text label:
-
-- **No stroke — arrow *or* shape edge/border — passes through a text
-  label.** If an arrow line/curve, or the border of a box, parallelogram,
-  or other shape, crosses a label's bounding box, the text reads as
-  struck-through and the stroke reads as terminating at the wrong element.
-  Fix by re-routing the arrow, moving the label clear of every edge, or
-  applying `paint-order: stroke fill` with a stroke color matching the
-  diagram background to halo the label. The halo width is a judgment call:
-  narrow enough not to bleed into glyph strokes (a halo whose width
-  approaches the glyph's own stroke width muddies the text color), wide
-  enough to mask the underlying stroke (at least its stroke width
-  plus a hairline). Verify by inspecting rendered text at the target
-  font size — if glyphs look thicker or more colored-toward-halo than
-  the same text outside the diagram, the halo is too wide.
-- **Labels inside skewed or rotated shapes sit in the shape's true
-  interior, not its bounding box.** A parallelogram, isometric face, or
-  rotated rect has an interior offset from its bounding box, so a
-  box-aligned (e.g. left-aligned) label spills past the slanted edge.
-  Inset the label to fall inside the actual shape — account for the
-  skew/rotation offset at the label's vertical position — or place it
-  outside the shape with a short leader. This is the usual failure in the
-  **stacked-layers idiom** (offset parallelograms implying z-order), where
-  per-layer labels left-aligned to the container both overflow the lower
-  layers and get crossed by the neighbouring layer's edge. Prefer
-  labelling each layer in its own un-overlapped region, or to the side of
-  the stack.
-- **Arrow labels sit adjacent to the arrow's midpoint** (typically
-  within ~10-15px above or beside the line they describe). A label
-  floating at the diagram's edge that readers have to trace back to an
-  arrow is broken — readers will misread.
-- **Avoid long curves that traverse the diagram** to connect a
-  component on one side to one on the other. If A and D need a labeled
-  connection across a multi-component layout, prefer reordering boxes
-  so A and D are adjacent, numbered step badges next to each
-  participant that the caption ties together, or a short
-  labeled-channel notation — rather than one curve crossing multiple
-  unrelated elements.
-- **Differentiate diagram shapes by geometry first, by fill semantics
-  second.** Geometry (diamond = decision, rect = step, oval =
-  start/end, parallelogram = data) carries the role unambiguously.
-  Fill semantics (accent-soft for highlighted path, warn-soft for
-  fallthrough) carry meaning. Resist introducing additional neutral-tint
-  tiers (a slightly-lighter grey to mark "decision shapes are different
-  from boxes") — when geometry already differentiates, an additional
-  luminance tier adds no information and creates fragility: small RGB
-  deltas survive native browser rendering but can be flattened or
-  inverted inconsistently by dark-mode extensions, accessibility
-  plugins, or printing.
-
-### Plan architecture diagrams are not directional sketches
-
-Do not add hedging captions or section preambles to plan SVG diagrams —
-phrases like "directional guidance for review, not implementation
-specification" do not belong on plan diagrams or on unit-card
-technical-design subsections. Plan diagrams render the same authoritative
-content as the surrounding prose; the prose-is-authoritative rule
-already governs disagreement. Hedging language is reserved for the
-wireframe affordance below, which carries a *required* directional
-caption because the wireframe is explicitly NOT a spec.
-
-## Wireframe mockups (requirements docs only)
-
-When a brainstorm requirement describes a user-facing visual surface (UI
-feature, screen layout, screen flow, component placement), the HTML
-rendering may include a wireframe mockup. The trigger is the
-**requirement**, not the document: any requirement (or requirements group)
-with a UI/layout shape can carry a wireframe, whether or not the brainstorm
-as a whole is "a visual product" — a backend-heavy brainstorm with one
-screen change still earns a wireframe for that requirement. It still applies
-to brainstorm **requirements** output — the requirements-only unified plan
-`ce-brainstorm` writes (now under `<root>/plans/`), not an implementation-ready
-plan (`ce-plan`'s enriched output) — and only to UI-shaped requirements — a
-non-visual requirement (API design, data model, agent workflow,
-infrastructure) takes a conceptual diagram instead, not a
-wireframe.
-
-When a wireframe is included:
-
-- **Fidelity ceiling: wireframe, not mockup.** Gray boxes for layout
-  regions, text labels for content placeholders, intentional placeholder
-  copy (`[Product name]`, `[CTA label]`, `[user avatar]`). No
-  pixel-perfect colors, no exact typography choices, no specific
-  component-library references. The wireframe communicates spatial
-  arrangement and structure, not visual style.
-- **Static only.** Inline SVG or simple HTML/CSS for layout. No JS
-  interaction, no working form fields, no state changes, no live data.
-- **Anti-padding.** One wireframe per distinct visual concept.
-- **Mandatory directional caption.** Every wireframe carries an explicit
-  "directional, not the spec" note adjacent to it. Required wording (or
-  close paraphrase): *"Directional only — illustrates the intended
-  user-facing shape. Exact colors, spacing, copy, and component choices
-  are placeholders for review, not requirements."*
-
-Without this caption the wireframe risks being read as a binding visual
-spec, which the affordance is explicitly designed to avoid.
-
-## Affordance idioms
-
-Common HTML affordances the agent can reach for when content benefits.
-These are examples, not requirements — the agent picks what each
-artifact's content warrants. Other affordances not listed here are
-fine when the content suggests them.
-
-- **Sticky TOC sidebar with active-section indicator** — available when
-  the agent judges navigation will materially help and the
-  implementation is reliable: two-column layout on desktop, collapsed
-  to top-of-page on mobile, paired with a small inline
-  `IntersectionObserver` script that toggles `.active` on the matching
-  nav anchor. Trade-off: a broken sticky TOC (layout collisions,
-  active-section state drift, dark-mode CSS issues) is worse than a
-  static top-of-doc TOC. For most long docs, default-closed `<details>`
-  on repeating cards (see Implementation Units anatomy) already cuts
-  the visible scroll length enough that a static TOC works — reach for
-  sticky only when collapsibles alone don't solve the navigation
-  problem.
-- **Within-section sub-nav** for sections containing 6+ repeating cards
-  (Implementation Units, KTDs, Risks at large counts). A short list of
-  card-anchor links (`<ul>` of `<a href="#u1">U1. ...</a>`) rendered at
-  the top of the section gives readers a jump table — no JS needed.
-  Lower-complexity alternative to the sticky TOC for the specific case
-  of long card sections.
-- **Eyebrow labels** (small-caps tag above section titles) for
-  editorial polish, especially when section titles are narrative
-  rather than literal.
-- **Stats strip** at the top of the doc when the artifact has 3+
-  quantifiable signals worth surfacing at a glance.
-- **`<details>` + `<summary>`** for collapsible secondary content
-  inside repeating cards. All collapsibles start closed — `open`
-  attribute should not appear on any `<details>` inside repeating
-  cards by default.
-- **Side-by-side columns** for parallel content (Request / Response,
-  Before / After, Two alternatives).
-- **Tinted callout cards** for content that is "different in kind"
-  (Deferred, Open Questions, advisory notes, unit-level execution notes)
-  — a subtle full-card background tint plus a colored eyebrow/label
-  communicates kind at a glance. Avoid a colored stripe on one edge; tint
-  the whole card instead.
+Keep each visible heading next to its `id`; a nav link alone does not carry
+the section name. An optional section with a contract-defined semantic role
+carries that role on its `<section>`, for example
+`data-ce-section="work-relationships"`. The role is
+stable even when the visible heading changes, and it supplements the visible
+heading rather than replacing it. This role attribute is a contract marker,
+not a hidden copy of a visible value.
 
 ## Agent-consumability rules
 
-Downstream agents that read HTML today (`ce-doc-review`, `ce-work`, a skill
-re-reading its own prior artifact on a resume run, future consumers) reason
-over the HTML as text — the way they reason over markdown, not via DOM
-extraction or a script-style parse.
+The semantic structure is the extraction contract. It is what lets a
+consumer reason over one requirement, unit, or idea, including its title and
+every labeled field, without a hidden metadata copy to fall back on. A page
+can look identical in a browser and still break this, so compose for the
+source:
 
-These rules are why such a consumer can locate one item (a single
-requirement, unit, idea, or other ID-bearing entry) and reason over it from
-source alone — its title, every labeled field, and any diagram's meaning —
-with no hidden machine-readable copy to fall back on. The semantic structure
-*is* the extraction contract: it is what makes the single-source-of-truth
-invariant (no `data-*` or JSON metadata mirror) safe rather than lossy.
-Weakening it — `<article>` item boundaries collapsed into `<div>` soup, a
-field label demoted to an attribute, one item's content scattered across
-distant parts of the doc — breaks that reasoning even when the rendered page
-looks identical. Compose so semantic understanding is reachable in source:
+- Use semantic elements: `<section>` per top-level section, `<article>` per
+  repeating item, `<dl>` for metadata pairs, `<table>` for tabular content,
+  `<details>`/`<summary>` for collapsibles. Keep one item's content together
+  inside its element.
+- Field labels are visible text (`<dt>Goal</dt><dd>...</dd>`), never only an
+  attribute such as `data-field="goal"`.
+- Meaning lives in HTML text. CSS `content:`, background images, or
+  render-only tricks carry no meaning.
+- A field that tells the implementer to do something (an `Execution note`
+  such as "start with a failing integration test") renders as a visible
+  callout, not as a quiet pair in the unit's metadata strip, where it gets
+  skimmed past.
+- A `session-settled:` annotation renders as visible text with the stem
+  verbatim, so grep finds it.
+- Element types, the ID scheme, and the field-label vocabulary stay stable
+  across versions. Visual styling can change freely.
 
-- **Use semantic HTML over `<div>` soup.** `<article>` per unit card,
-  `<dl>` for metadata pairs, `<table>` for tabular content, `<details>`
-  / `<summary>` for collapsibles, `<section>` for top-level doc
-  sections. Structure markers carry meaning to a text-reading agent.
-- **Render field labels as visible text, not as attributes.** Emit
-  `<dt>GOAL</dt><dd>...</dd>`, not `<dd data-field="goal">...</dd>`.
-  The label is the semantic anchor.
-- **Keep U-IDs, R-IDs, and similar as visible text** in headings and
-  table cells, not only as `id=""` attributes. The agent finds "U1." in
-  source the same way it finds "U1." in markdown.
-- **Match section heading vocabulary to what the section contract
-  defines.** When the section contract says "Implementation Units," the
-  HTML heading is "Implementation Units" — not "How we'll build it,"
-  even if the narrative version reads better. Section heading
-  vocabulary is the contract downstream consumers grep for. (Editorial
-  re-titles can appear as eyebrow labels, sub-headings, or visual
-  framing — but the section heading itself, the one downstream agents
-  grep for, matches the contract name.)
-- **All semantic content lives in actual HTML text.** No CSS `::before
-  { content: "..." }` carrying meaning, no background images as
-  content, no semantic info that only renders. Whatever the agent sees
-  in source is what it knows.
-- **Stable structure is the public API.** Element types, the ID and
-  label scheme, and the field-label vocabulary do not break across
-  versions. Visual styling can change freely.
+## Reading the page
+
+- **Readable line length.** Running prose sits in a centered column and
+  stays within roughly 65-80 characters per line even at wide window widths;
+  narrow windows simply wrap. Tables and diagrams may use more width than
+  prose. At a phone width, a wide table, diagram, or code block scrolls
+  inside its own container instead of widening the page.
+- **Distinct heading levels.** Each heading level looks distinct from the
+  others and from inline bold text.
+- **Repeating cards collapsed by default.** When a section repeats three or
+  more item cards that carry secondary content (Implementation Units are the
+  usual case), each card shows its ID, title, and short descriptive metadata;
+  the secondary content (approach, test scenarios, verification, patterns)
+  sits in `<details>` with no `open` attribute. The reader should see the
+  unit list at a glance, not one long scroll. Secondary content is what a
+  reader opens on demand. A card whose body is the point stays expanded:
+  a Key Technical Decision's rationale, or an ideation idea card, which its
+  section contract says is read in full.
+- **Within-section sub-nav.** A section with 6+ repeating cards starts with a
+  short list of anchor links to its cards.
+- **Uniform marks, no one-edge accent.** Chips in a row share one shape.
+  Differentiate a chip, pill, or callout card by a full tint and a colored
+  label, never by a colored stripe on one edge, which reads as broken.
+- **Text contrast is local.** Each text-on-fill pairing must read on its own
+  fill; muted text calibrated for the page background often washes out on a
+  tinted card.
+- **Markdown input is content, not design.** When the input includes
+  markdown, take its facts and sections, not its bullet-or-table choices.
+  Pick the HTML shape the content needs, and keep any concern grouping the
+  section contract asks for.
+
+## Diagrams and wireframes
+
+Diagrams are inline SVG in whatever shape conveys the content fastest.
+
+- **Prose is authoritative and complete.** A diagram or wireframe sits next
+  to the prose it illustrates and never holds a relationship, step, or spec
+  the prose lacks. A text-reading agent does not parse SVG geometry. When a
+  picture and the prose disagree, the prose governs.
+- **Labels clear of strokes.** No arrow, connector, or shape edge passes
+  through a text label, including the slanted edge of a skewed or rotated
+  shape, and a connector does not run across unrelated shapes. Each label
+  sits inside or beside the thing it names. Coordinates are written
+  without seeing them render, so trace every label against every stroke
+  before emitting.
+- **Geometry before tint.** Distinguish shape roles by geometry (diamond,
+  rectangle, oval) before adding extra neutral tint tiers; small tint
+  differences flatten or invert under dark-mode extensions and printing.
+- **Plan diagrams carry no hedging caption.** A plan diagram, and the
+  technical-design section around it, renders the same authoritative content
+  as its prose, with no "directional only" caption or preamble. That caption
+  belongs only to wireframes.
+- **Wireframes are for UI-shaped requirements in requirements docs.** Only
+  the requirements-only unified plan that `ce-brainstorm` writes carries
+  wireframes, not an implementation-ready plan from `ce-plan`. Within it, a
+  requirement that describes a user-facing screen, layout, or flow may carry
+  one. A non-visual
+  requirement takes a conceptual diagram instead, and the wireframe scope
+  never suppresses one. A wireframe is a wireframe, not a mockup: gray layout
+  regions, placeholder copy, static, one per distinct visual concept. Each
+  carries a visible caption such as "Directional only. Illustrates the
+  intended user-facing shape; colors, spacing, copy, and components are
+  placeholders, not requirements."
+
+## Reference links
+
+Hyperlink each entry in a Sources & References section to its canonical
+destination when that destination is established. For a GitHub `origin`
+(`git remote get-url origin`), a repo path links to
+`<repo-url>/blob/main/<path>` and `PR #636` links to `<repo-url>/pull/636`.
+An external tracker ID links only when its workspace URL already appears in
+context. Do not invent URLs; a guessed link is worse than plain `<code>`
+text. Inline mentions in prose stay unlinked.
+
+## Styling
+
+Take visual style from the user's direction in this session, their
+project instructions, a design skill they invoke, or a DESIGN.md at the
+repository root, `docs/DESIGN.md`, or `.compound-engineering/DESIGN.md`;
+with none of those, choose a quiet, readable style yourself. Most DESIGN.md
+files describe a product or marketing surface, so it contributes the
+brand's identity, not its scale:
+
+- Take its palette, font weights and roles, and corner character.
+- Keep reading sizes and spacing doc-scaled even when its tokens are sized
+  for product UI or marketing heroes. Do not apply a hero or product-UI
+  surface color as the page background; extract the principle rather than
+  the literal value. Skip decoration with nothing to attach to in a doc.
+- Load a font only when it is a known open webfont. Never attempt a
+  proprietary brand face; use the DESIGN.md's fallback chain or a
+  family-matched system stack, and never promote a display face to body
+  text.
 
 ## Post-compose audit
 
-Before returning the artifact, scan it for common slips:
+Before returning the artifact, check it against the conditions above:
 
-- **Single self-contained file.** No companion `.css` / `.js` / `.svg`.
-- **No hidden machine-readable metadata copy.** No
-  `<script type="application/json">` frontmatter block, no `data-*`
-  attributes mirroring visible values, **no `<meta name="created">` /
-  `<meta name="origin">` etc. in `<head>`
-  duplicating the visible header**. Metadata lives in visible text;
-  one source of truth per value.
-- **All stable IDs** appear as both `id=""` and visible text.
-- **Section heading vocabulary** matches the section contract names
-  (downstream agents grep these).
-- **Source / composition signal** is present as a visible footer at
-  the bottom of the doc (composition timestamp + source identifier).
-- **Repeating cards with 3+ instances put secondary content inside
-  default-closed `<details>`.** Fully-expanded unit cards in a long
-  Implementation Units section is a failure mode — the reader can't see
-  the unit list at a glance. Verify by skimming the rendered units:
-  each `<article>` should render as its ID + title + metadata strip
-  with collapsibles below, not as one long block.
-- **Within-section sub-nav** is present for sections with 6+ repeating
-  cards.
-- **Body `<strong>`** is not colored with accent palette.
-- **No one-edge colored accent** (a colored stripe/arc on a single side)
-  on chips, pills, or callout cards — differentiate by uniform fill +
-  colored eyebrow/label instead. A one-sided stripe reads as
-  broken/unintentional; chips in a row must be a uniform visual set.
-- **`<details>`** inside repeating cards have no `open` attribute.
-- **Diagram labels** are legible — no arrow paths crossing text,
-  halo width appropriate for font size.
-- **Diagrams complement prose, not replace it.** Every relationship a
-  diagram conveys is also present in the surrounding ID-bearing prose; no
-  content lives only in an SVG.
-- **No JS framework runtimes** included. Small inline `<script>` for
-  active-section TOC tracking or anchor-permalink behavior is the only
-  acceptable JS.
-- **Each heading level** is visually distinct from others and from
-  inline bold.
-- **No template placeholders** (`{skill}`, `<value>`, `[plan title]`)
-  leaked into output.
-- **No process exhaust** callouts in the artifact.
+- One self-contained file; webfont CSS is the only external resource the
+  page loads.
+- No hidden metadata copy: no JSON `<script>`, `data-*` mirror, or
+  `<meta name="created">`/`<meta name="origin">` tag.
+- Tool-facing fields sit in the closed "Document metadata" block under
+  their exact key names, and the header does not repeat them.
+- Every stable ID appears as both `id=""` and visible text.
+- Section headings match the section-contract names; a unified plan has its
+  navigation region and stable anchors.
+- The composition footer is present.
+- Repeating cards with secondary content are collapsed by default, with no
+  `open` attribute; sections with 6+ cards have a sub-nav.
+- No one-edge colored accent on chips, pills, or cards.
+- Prose stays within a readable line length at wide widths, nothing widens
+  the page at a phone width, and heading levels are distinct.
+- Every diagram relationship and wireframe detail is also in the prose, and
+  no stroke crosses a label.
+- No JS framework runtime, no invented reference URLs, no leaked template
+  placeholders (`{skill}`, `[plan title]`), and no process notes in the
+  artifact.

@@ -163,8 +163,6 @@ After structuring the plan, ask the user how they want to receive it using the h
    - Use filename convention: `YYYY-MM-DD-HHMM-<descriptive-name>-plan.md`, taking `HHMM` from the local wall-clock time at write; reserve the path atomically and, on collision, retry with the smallest available numeric suffix before the extension rather than overwriting
    - Start the document with a `# Title` heading, followed by `Created: YYYY-MM-DD` on the next line. No YAML frontmatter.
 
-2. **Publish to Proof — shareable link** — Publish the doc to Every's Proof editor and get a shareable link to read, comment on, or share with others. Load the `ce-proof` skill to create the shared document and return the URL. One-way: nothing syncs back to disk.
-
-3. **Save to disk AND publish to Proof** — Do both: write the markdown file to disk and publish a shareable Proof copy for review. The local file stays canonical.
+2. **Save to disk and publish a copy** — Shown only when `references/publishing.md` chooses a publisher (one the user named, or the host's artifact tool); label it with that destination. Write the file as in option 1 first, then follow `references/publishing.md` to publish a copy and return the URL. The local file stays canonical.
 
 Do not offer `ce-work` (software-only) or issue creation (not applicable to non-software plans).
