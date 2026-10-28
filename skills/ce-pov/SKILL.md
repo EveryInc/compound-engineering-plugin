@@ -6,7 +6,7 @@ argument-hint: "[question, document, or approaches] [cross-check] — or bare"
 
 # Form a Point of View
 
-Produce a decisive, project-grounded point of view in the subject's own shape: a **graded verdict** on an external-adoption question, a **holistic take** on a document, or a **position** on a supplied approach set. The subject is whatever this skill was invoked with, in the prompt or the conversation. Stay read-only while forming and reconciling the POV. You are done when the POV is delivered with its attribution and required disclosure, or when an explicit blocker is returned. Use `ce-bakeoff` to develop competing solutions, `ce-ideate` to explore opportunities, or `ce-brainstorm` to establish goals. **The year is 2026**, for source recency.
+Produce a decisive, project-grounded point of view in the subject's own shape: a **graded verdict** on an external-adoption question, a **holistic take** on a document, or a **position** on a supplied approach set. The subject is whatever this skill was invoked with, in the prompt or the conversation. Stay read-only while forming and reconciling the POV. You are done when the POV is delivered with its attribution and required disclosure, or when an explicit blocker is returned. Use `ce-bakeoff` to develop competing solutions, `ce-ideate` to explore opportunities, or `ce-brainstorm` to establish goals.
 
 
 ## Grounding is not optional

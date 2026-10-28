@@ -7,8 +7,6 @@ argument-hint: "[feature, focus area, or constraint] [output:md]"
 
 # Generate Improvement Ideas
 
-**The current year is 2026** — use it when dating documents and checking recent artifacts.
-
 `ce-ideate` runs before `ce-brainstorm`. This skill answers "which ideas are worth exploring?" `ce-brainstorm` then answers what one chosen idea should mean. `ce-plan` answers how it gets built.
 
 **Done:** a ranked ideation artifact is written to `<root>/ideation/` when that root is present, else to a CE temp path. Every idea generated has been critiqued, and the survivors are explained. The user is left holding the next-steps menu. No requirements, plans, or code.

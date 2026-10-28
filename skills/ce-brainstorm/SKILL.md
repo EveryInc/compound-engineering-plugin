@@ -6,7 +6,7 @@ argument-hint: "[feature idea or problem to explore] [output:html]"
 
 # Brainstorm a Feature or Improvement
 
-Brainstorming answers **WHAT** to build through dialogue; `ce-plan` then enriches the same unified plan artifact with **HOW**. This skill does not implement code. **The current year is 2026**, for dating the artifact.
+Brainstorming answers **WHAT** to build through dialogue; `ce-plan` then enriches the same unified plan artifact with **HOW**. This skill does not implement code.
 
 **Outcome:** a result sized to the work that `ce-plan` can build on without inventing product behavior, scope boundaries, or success criteria: a chat paragraph for Lightweight work, or a requirements-only unified plan under `<root>/plans/` when a file is earned.
 
