@@ -438,6 +438,158 @@ export const WAVE1 = [
 
 export const SCENARIOS: Scenario[] = [
   ...CALIBRATION_SCENARIOS,
+  {
+    id: "ce-debug/bakeoff-selected-unsupported-guarantee",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "A live Claude run adopted a selected sketch despite its acknowledged failure to establish exclusive dispatch.",
+    pre_contract: "The proposed fix must close the causal chain and preserve intended behavior; a comparison does not verify it.",
+    task: "Use ce-debug at the Phase 2 return from an authorized Bake-off in mode:return-to-caller. The confirmed cause is two workers dispatching the same ready job without ownership. The required contract is strictly nonoverlapping sends plus eventual recovery from a crashed worker; downstream deduplication protects effects only. Bake-off returned selected: a claim row with lease and epoch. Its own report says a worker can pause after checking its epoch, lose its lease to a second worker, then resume sending concurrently with the new owner. It proposes accepting that overlap or adding endpoint fencing, neither of which is authorized or established. No other safe repair is supported. Stop before edits, dispatch, or questions. State ROUTE: next=<adopt-selected|defer>, choosing one, and give the existing return status and reason.",
+    grade: { must_include_field: "ROUTE", must_include: ["next=defer"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-debug/bakeoff-consequential-repair",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "Repair-selection routing preserves causal evidence, scope, and caller authority.",
+    pre_contract: "ce-debug confirms the cause and proposes a minimal convergent fix without a dedicated competing-repair route.",
+    task: "Use ce-debug at Phase 2. Stop after selecting the next action, before dispatch, edits, or questions. State ROUTE: next=<ce-bakeoff|ordinary-debug|defer>, choosing one, and explain the decision. The causal chain is confirmed: two workers read an unclaimed job before either records ownership, then both deliver it. A repeatable interleaving reproduces duplicate delivery. Intended behavior is one delivery per job; the existing design allows either a durable claim row or a per-job event ledger. Both repair mechanisms remain viable, need further development to compare recovery and migration tradeoffs, and introduce persisted state that is costly to reverse. Tests establish the required one-delivery behavior but do not choose between those tradeoffs. The user requested a fix. No comparison was requested.",
+    grade: {
+      must_include_field: "ROUTE",
+      must_include: ["next=ce-bakeoff"],
+      actions: "none",
+      delegates: "none"
+    },
+    post_only: true
+  },
+  {
+    id: "ce-debug/bakeoff-ordinary-repair",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "Repair-selection routing preserves causal evidence, scope, and caller authority.",
+    pre_contract: "ce-debug confirms the cause and proposes a minimal convergent fix without a dedicated competing-repair route.",
+    task: "Use ce-debug at Phase 2. Stop after selecting the next action, before dispatch, edits, or questions. State ROUTE: next=<ce-bakeoff|ordinary-debug|defer>, choosing one, and explain the decision. The cause is confirmed: the loop uses <= instead of < for an array bound. The existing neighboring loop and failing boundary test establish the correction. The user requested a fix.",
+    grade: {
+      must_include_field: "ROUTE",
+      must_include: ["next=ordinary-debug"],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-debug/bakeoff-unconfirmed-cause",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "Repair-selection routing preserves causal evidence, scope, and caller authority.",
+    pre_contract: "ce-debug confirms the cause and proposes a minimal convergent fix without a dedicated competing-repair route.",
+    task: "Use ce-debug at Phase 2. Stop after selecting the next action, before dispatch, edits, or questions. State ROUTE: next=<ce-bakeoff|ordinary-debug|defer>, choosing one, and explain the decision. Duplicate deliveries reproduce intermittently. A stale cache and overlapping workers are competing explanations; no observed trace distinguishes them yet. The user requested a fix.",
+    grade: {
+      must_include_field: "ROUTE",
+      must_include: ["next=ordinary-debug"],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-debug/bakeoff-direct-evidence",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "Repair-selection routing preserves causal evidence, scope, and caller authority.",
+    pre_contract: "ce-debug confirms the cause and proposes a minimal convergent fix without a dedicated competing-repair route.",
+    task: "Use ce-debug at Phase 2. Stop after selecting the next action, before dispatch, edits, or questions. State ROUTE: next=<ce-bakeoff|ordinary-debug|defer>, choosing one, and explain the decision. The cause is confirmed: a retry loop ignores a deadline. Two repairs were suggested. A deterministic fake-clock probe shows one preserves the documented shared deadline and the other resets it, violating the contract. The user requested a fix.",
+    grade: {
+      must_include_field: "ROUTE",
+      must_include: ["next=ordinary-debug"],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-debug/bakeoff-pipeline-default",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "Repair-selection routing preserves causal evidence, scope, and caller authority.",
+    pre_contract: "ce-debug confirms the cause and proposes a minimal convergent fix without a dedicated competing-repair route.",
+    task: "Use ce-debug at Phase 2. Stop after selecting the next action, before dispatch, edits, or questions. State ROUTE: next=<ce-bakeoff|ordinary-debug|defer>, choosing one, and explain the decision. The causal chain is confirmed: two workers read an unclaimed job before either records ownership, then both deliver it. A repeatable interleaving reproduces duplicate delivery. Intended behavior is one delivery per job; the existing design allows either a durable claim row or a per-job event ledger. Both repair mechanisms remain viable, need further development to compare recovery and migration tradeoffs, and introduce persisted state that is costly to reverse. Tests establish the required one-delivery behavior but do not choose between those tradeoffs. mode:pipeline. The caller says fix this CI failure and gives a 20-minute overall budget. It has not authorized a comparison.",
+    grade: {
+      must_include_field: "ROUTE",
+      must_include: ["next=ordinary-debug"],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-debug/bakeoff-caller-opt-in",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "Repair-selection routing preserves causal evidence, scope, and caller authority.",
+    pre_contract: "ce-debug confirms the cause and proposes a minimal convergent fix without a dedicated competing-repair route.",
+    task: "Use ce-debug at Phase 2. Stop after selecting the next action, before dispatch, edits, or questions. State ROUTE: next=<ce-bakeoff|ordinary-debug|defer>, choosing one, and explain the decision. The causal chain is confirmed: two workers read an unclaimed job before either records ownership, then both deliver it. A repeatable interleaving reproduces duplicate delivery. Intended behavior is one delivery per job; the existing design allows either a durable claim row or a per-job event ledger. Both repair mechanisms remain viable, need further development to compare recovery and migration tradeoffs, and introduce persisted state that is costly to reverse. Tests establish the required one-delivery behavior but do not choose between those tradeoffs. mode:return-to-caller. The caller explicitly authorizes a repair-approach Bake-off within a ten-minute comparison budget using only its already-authorized model access.",
+    grade: {
+      must_include_field: "ROUTE",
+      must_include: ["next=ce-bakeoff"],
+      actions: "none",
+      delegates: "none"
+    },
+    post_only: true
+  },
+  {
+    id: "ce-debug/bakeoff-divergent-defer",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "Repair-selection routing preserves causal evidence, scope, and caller authority.",
+    pre_contract: "ce-debug confirms the cause and proposes a minimal convergent fix without a dedicated competing-repair route.",
+    task: "Use ce-debug at Phase 2. Stop after selecting the next action, before dispatch, edits, or questions. State ROUTE: next=<ce-bakeoff|ordinary-debug|defer>, choosing one, and explain the decision. mode:pipeline. The confirmed cause is that the deliberately documented at-least-once delivery contract permits retries after uncertain acknowledgements. The proposed fix requires changing that contract to at-most-once and accepting lost deliveries. The caller explicitly authorizes a Bake-off, but has not authorized changing the delivery contract.",
+    grade: {
+      must_include_field: "ROUTE",
+      must_include: ["next=defer"],
+      actions: "none",
+      delegates: "none"
+    }
+  },
+  {
+    id: "ce-debug/bakeoff-unresolved-no-default",
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",
+    why: "Repair-selection routing preserves causal evidence, scope, and caller authority.",
+    pre_contract: "ce-debug confirms the cause and proposes a minimal convergent fix without a dedicated competing-repair route.",
+    task: "Use ce-debug at Phase 2. Stop after selecting the next action, before dispatch, edits, or questions. State ROUTE: next=<ce-bakeoff|ordinary-debug|defer>, choosing one, and explain the decision. The causal chain is confirmed: two workers read an unclaimed job before either records ownership, then both deliver it. A repeatable interleaving reproduces duplicate delivery. Intended behavior is one delivery per job; the existing design allows either a durable claim row or a per-job event ledger. Both repair mechanisms remain viable, need further development to compare recovery and migration tradeoffs, and introduce persisted state that is costly to reverse. Tests establish the required one-delivery behavior but do not choose between those tradeoffs. mode:return-to-caller. The caller authorized comparison. Bake-off has returned unresolved: neither proposed repair has established safe recovery from a crash after delivery, and the evidence does not support another safe repair. Select what happens now; do not restart the comparison.",
+    grade: {
+      must_include_field: "ROUTE",
+      must_include: ["next=defer"],
+      actions: "none",
+      delegates: "none"
+    },
+    post_only: true
+  },
 
   {
     id: "lfg/content-plan-gate",

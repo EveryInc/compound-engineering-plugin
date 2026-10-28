@@ -2,11 +2,11 @@
 
 > Help brainstorming and planning explore concrete alternatives before committing to an approach.
 
-Bake-off provides shared exploration and selection for sibling skills, initially `ce-brainstorm` and `ce-plan`. It improves their decisions by requiring agents to develop concrete competing approaches before settling on one. Independent development gives alternatives room to emerge before an early preference narrows the exploration.
+Bake-off provides shared exploration and selection for sibling skills, `ce-brainstorm`, `ce-plan`, and `ce-debug`. It improves their decisions by requiring agents to develop concrete competing approaches before settling on one. Independent development gives alternatives room to emerge before an early preference narrows the exploration.
 
 It creates independent candidate artifacts, obtains an independent assessment, selects a base, incorporates useful contributions, and checks the final result. Bake-off owns the winner; the calling skill owns adopting that result and continuing its workflow. Users can also invoke it directly whenever a defined brief would benefit from this comparison.
 
-`ce-plan` runs it on its own when a Standard or Deep Durable plan leaves a consequential, costly-to-reverse technical choice open after research, or when you ask for one. The `ce-brainstorm` integration runs only when explicitly requested.
+`ce-plan` runs it on its own when a Standard or Deep Durable plan leaves a consequential, costly-to-reverse technical choice open after research, or when you ask for one. The `ce-brainstorm` integration runs only when explicitly requested. `ce-debug` uses it after confirming a cause when materially different repairs need development, reversal would be costly, and direct evidence cannot settle the tradeoffs. Caller-driven debugging requires explicit authorization for the comparison within its budget; it is off by default there.
 
 ## When to use it
 

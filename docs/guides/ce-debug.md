@@ -112,6 +112,14 @@ Whatever you hand it becomes the issue of record. The skill links back to that o
 
 If you have uncommitted work when you invoke the skill, it treats that as a hypothesis rather than noise. The most common reason to be debugging at all is that your own in-progress edit caused the failure. When the changed files could plausibly reach the failing behavior, it stashes them (`-u`, so untracked files go too), reruns the reproduction, and pops immediately with `--index` so your staging survives. If the failure disappears, your edit is the cause and the investigation ends. If it persists, your edit is ruled out and the tree is clean to trace. It never auto-resolves a pop conflict in your work, and it never stashes just to simplify its own shipping route.
 
+### Choosing a consequential repair
+
+After confirming the cause, `ce-debug` automatically invokes `ce-bakeoff` when materially different repair mechanisms need development before comparison, the choice is costly to reverse, and direct evidence cannot settle the tradeoffs. The repair must preserve the settled design and intended behavior. Ordinary fixes proceed directly; uncertain causes still need investigation, and already-developed alternatives need judgment rather than more generation.
+
+Bake-off returns repair sketches and their assessment to the proposed fix. It never replaces the causal evidence, the fix-authority boundary, or the regression and reproduction checks. The returned repair must satisfy the confirmed contracts even when Bake-off labels it selected. An incomplete comparison permits continuation only when the available evidence independently supports a safe repair.
+
+In `mode:pipeline` and `mode:return-to-caller`, the comparison is off by default to bound cost and nesting. A caller can explicitly authorize it within its budget; a generic fix request or overall budget is not an opt-in. The existing return statuses and convergent/divergent boundary stay unchanged.
+
 ### Test-first fix, then scoped quality steps
 
 If you opt to fix, the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the test that owns the contract, or adds a focused regression test only when nothing fits. It verifies the failure, applies the smallest root-cause fix, reruns the focused test plus broader checks, then self-reviews the diff.

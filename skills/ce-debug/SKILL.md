@@ -57,6 +57,8 @@ Five phases in order: **0 Triage -> 1 Investigate -> 2 Root Cause -> 3 Fix -> 4 
 
 **Causal chain gate:** do not proceed to Phase 3 until you can explain the full chain — trigger through every step to the observed symptom — with no gaps. "Somehow X leads to Y" is a gap. Only the user can authorize proceeding on a best-available hypothesis when investigation is stuck.
 
+**Repair selection:** after confirming the cause and before recommending a fix, read `references/bakeoff.md` to decide whether the repair needs competing approaches.
+
 Once the root cause is confirmed, write the findings as a user-visible block: the causal chain with file:line references; the proposed fix and the files it changes; which tests to use, add, modify, or strengthen, and whether existing tests should have caught this; and any related ticket or PR and how it shapes the recommendation — if an open PR already fixes this, lead with that link instead of a fresh fix.
 
 **Same-turn presentation before the gate:** do not open the fix-choice question until that findings block has been written in full — in this turn or the immediately preceding assistant message. The blocking question tool renders only its own stem on modal harnesses, so a question fired on "root cause confirmed" alone leaves the user choosing with none of the causal chain in front of them. Naming the options is not presenting the findings, and a promise to explain after the choice is too late.
