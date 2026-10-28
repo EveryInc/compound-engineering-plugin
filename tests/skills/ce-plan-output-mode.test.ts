@@ -330,10 +330,7 @@ describe("ce-plan output:html mode", () => {
     expect(body.length).toBeGreaterThan(0)
     // Spot-check that the major sections we promise the agent are present.
     expect(/Hard invariants/i.test(body)).toBe(true)
-    expect(/Precedence stack/i.test(body)).toBe(true)
-    expect(/Active-recall/i.test(body)).toBe(true)
-    expect(/Format principles/i.test(body)).toBe(true)
-    expect(/Affordance idioms/i.test(body)).toBe(true)
+    expect(/## Styling/.test(body)).toBe(true)
     expect(/Agent-consumability rules/i.test(body)).toBe(true)
     expect(/Post-compose audit/i.test(body)).toBe(true)
   })
