@@ -788,6 +788,18 @@ describe("ce-work acpx outcomes", () => {
     expect(result.result.failure_reason).toContain(`transport unavailable (${reason}`)
   })
 
+  test.each([["npm-release-age", "shared"], ["npm-release-age-adapter", "route"]])("%s reports the date cutoff after one policy-respecting refresh (%s)", (stream, scope) => {
+    const f = fixture()
+    const result = run("codex", f, withBin(acpNpxBin(temp("ce-work-bin-"), f.capture, path.join(STREAMS, stream), "", true)))
+    expect(captured(f, "calls").trim()).toBe("2")
+    expect(result.code).toBe(2)
+    expect(result.result.terminal_status).toBe("unavailable")
+    expect(result.result.failure_reason).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve acpx@${ACPX_PIN}`)
+    expect(result.result.failure_reason).toContain("check min-release-age/before policy or wait for the cooldown")
+    expect(result.stderr).not.toContain("stale cached")
+    expect(result.stderr).toContain("npm policy unchanged")
+  })
+
   test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {
     const f = fixture()
     const result = run("codex", f, withBin(acpNpxBin(temp("ce-work-bin-"), f.capture, staleThenStream(acpStream), "", true)))
@@ -853,6 +865,18 @@ describe("ce-work antigravity route", () => {
   function checkModel(model: string, env: NodeJS.ProcessEnv) {
     return spawnSync("bash", [SCRIPT, "--check-model", "antigravity", model], { encoding: "utf8", env })
   }
+
+  test.each([["npm-release-age", "shared"], ["npm-release-age-adapter", "route"]])("--check-model reports %s after one policy-respecting refresh (%s)", (stream, scope) => {
+    const f = fixture()
+    const bin = acpNpxBin(temp("ce-work-bin-"), f.capture, path.join(STREAMS, stream), "", true)
+    const check = checkModel(FLASH, { ...cleanEnv(), PATH: isolatedPath(bin), HOME: temp("ce-work-real-home-") })
+    expect(captured(f, "calls").trim()).toBe("2")
+    expect(check.status).toBe(2)
+    expect(check.stderr).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve acpx@${ACPX_PIN}`)
+    expect(check.stderr).toContain("check min-release-age/before policy or wait for the cooldown")
+    expect(check.stderr).not.toContain("stale cached")
+    expect(check.stderr).toContain("npm policy unchanged")
+  })
 
   test("--check-model retries once with fresh npm metadata when the cached metadata is stale", () => {
     const f = fixture()

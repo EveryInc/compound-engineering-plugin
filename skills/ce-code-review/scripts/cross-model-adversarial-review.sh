@@ -279,11 +279,17 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
   printf '%s' "$wrapper"
 }
 
-# npm resolves offline-first, so cached metadata older than the acpx pin or a
-# version an adapter's dependencies need fails with ETARGET before anything is
-# sent. One launch with fresh metadata heals the cache. npm ignores
-# prefer_online while prefer_offline is set, so the refresh turns it off.
-acpx_stale_npm_metadata() {   # <stderr-log> <stream-log>
+acpx_npm_failure_reason() {
+  if grep -qE 'No matching version found for .* with a date before ' "$1" 2>/dev/null; then
+    printf '%s' "npm could not resolve acpx@$ACPX_VERSION or a dependency before its date cutoff; check min-release-age/before policy or wait for the cooldown"
+  else
+    grep -m1 '^npm error' "$1" 2>/dev/null
+  fi
+}
+
+# ETARGET is ambiguous: refresh metadata once while preserving npm's date policy.
+# npm ignores prefer_online while prefer_offline is set, so refresh disables it.
+acpx_npm_resolution_retryable() {   # <stderr-log> <stream-log>
   [ "$ACPX_NPM_REFRESH" = true ] && return 1
   grep -qE 'ETARGET|notarget|No matching version found' "$1" "$2" 2>/dev/null
 }
@@ -1061,10 +1067,10 @@ attempt_route() {   # <provider> <route>
   log "peer run: provider=$provider route=$route model=$(route_model "$route") (effort $(route_effort "$route")) transport=acpx@$ACPX_VERSION lens=adversarial read-only in-tree (idle ${IDLE_SECS}s / hard ${HARD_SECS}s); reviewed code/diff egresses to this provider via this route"
   started="$(date +%s)"
   run_peer_cmd
-  if acpx_stale_npm_metadata "$PEERERR" "$PEERLOG" && [ "$(acpx_outcome "$PEERLOG")" = not-sent ]; then
+  if acpx_npm_resolution_retryable "$PEERERR" "$PEERLOG" && [ "$(acpx_outcome "$PEERLOG")" = not-sent ]; then
     remaining=$(( HARD_SECS - ( $(date +%s) - started ) ))
     if [ "$remaining" -gt 0 ]; then
-      log "npm resolved against stale cached package metadata; retrying the same route once with fresh metadata in the ${remaining}s left (nothing was sent)"
+      log "npm could not resolve a package; retrying the same route once with fresh metadata in the ${remaining}s left (nothing was sent; npm policy unchanged)"
       ACPX_NPM_REFRESH=true
       HARD_SECS="$remaining"
       build_cmd "$route"
@@ -1083,7 +1089,7 @@ attempt_route() {   # <provider> <route>
     not-sent)
       # Nothing reached the provider: npm could not fetch acpx (every route
       # fails alike), or the adapter refused before the prompt (this route only).
-      reason="$(grep -m1 '^npm error' "$PEERERR" 2>/dev/null)"
+      reason="$(acpx_npm_failure_reason "$PEERERR")"
       if [ -n "$reason" ]; then
         PRE_EGRESS="transport unavailable (pre-egress, shared): ${reason:0:200}"
       elif [ "$SESSION_STALLED" = true ]; then
@@ -1093,7 +1099,8 @@ attempt_route() {   # <provider> <route>
         if [ -n "$node_line" ]; then
           PRE_EGRESS="transport unavailable (pre-egress, route): ${node_line:0:200}"
         else
-          reason="$(acpx_failure_evidence "$PEERLOG")"
+          reason="$(acpx_npm_failure_reason "$PEERLOG")"
+          [ -n "$reason" ] || reason="$(acpx_failure_evidence "$PEERLOG")"
           PRE_EGRESS="transport unavailable (pre-egress, route): ${reason:-acpx exited $PEER_EXIT before sending the prompt}"
         fi
       fi

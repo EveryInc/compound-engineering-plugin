@@ -964,9 +964,27 @@ describe("cross-model-adversarial-review acpx transport preflight", () => {
     expect(peerOutputs(r.files)).toEqual([])
   })
 
-  test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {
+  test.each(["stderr", "stdout"])("an npm date cutoff in %s is reported after one policy-respecting refresh", (channel) => {
+    const base = path.join(temp("xmodel-cr-age-"), "s")
+    const error = readFileSync(path.join(STREAMS, "npm-release-age.stderr"), "utf8")
+    writeFileSync(`${base}.${channel}`, channel === "stdout"
+      ? JSON.stringify({ jsonrpc: "2.0", id: 0, error: { code: -32000, message: error.replace("acpx@0.21.0", "@openai/codex@^0.156.1") } })
+      : error)
+    writeFileSync(`${base}.exit`, "1\n")
+    const sb = sandbox(["codex"], base)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(r.stderr).toContain(`transport unavailable (pre-egress, ${channel === "stderr" ? "shared" : "route"}): npm could not resolve acpx@${ACPX_PIN}`)
+    expect(r.stderr).toContain("check min-release-age/before policy or wait for the cooldown")
+    expect(r.stderr).not.toContain("stale cached")
+    expect(r.stderr).toContain("npm policy unchanged")
+    expect(peerOutputs(r.files)).toEqual([])
+  })
+
+  test.each(["stale-npm-metadata", "npm-release-age"])("an npm resolution failure (%s) retries the same route once with fresh metadata", (stream) => {
     const base = path.join(temp("xmodel-cr-stale-"), "s")
-    for (const ext of ["stderr", "exit"]) writeFileSync(`${base}.1.${ext}`, readFileSync(path.join(STREAMS, `stale-npm-metadata.${ext}`)))
+    for (const ext of ["stderr", "exit"]) writeFileSync(`${base}.1.${ext}`, readFileSync(path.join(STREAMS, `${stream}.${ext}`)))
     acpStream({ text: review() }, `${base}.2`)
     const sb = sandbox(["codex"], base)
     const runDir = makeRunDir()

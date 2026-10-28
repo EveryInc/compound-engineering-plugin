@@ -196,11 +196,17 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
   printf '%s' "$wrapper"
 }
 
-# npm resolves offline-first, so cached metadata older than the acpx pin or a
-# version an adapter's dependencies need fails with ETARGET before anything is
-# sent. One launch with fresh metadata heals the cache. npm ignores
-# prefer_online while prefer_offline is set, so the refresh turns it off.
-acpx_stale_npm_metadata() {   # <stderr-log> <stream-log>
+acpx_npm_failure_reason() {
+  if grep -qE 'No matching version found for .* with a date before ' "$1" 2>/dev/null; then
+    printf '%s' "npm could not resolve acpx@$ACPX_VERSION or a dependency before its date cutoff; check min-release-age/before policy or wait for the cooldown"
+  else
+    grep -m1 '^npm error' "$1" 2>/dev/null
+  fi
+}
+
+# ETARGET is ambiguous: refresh metadata once while preserving npm's date policy.
+# npm ignores prefer_online while prefer_offline is set, so refresh disables it.
+acpx_npm_resolution_retryable() {   # <stderr-log> <stream-log>
   [ "$ACPX_NPM_REFRESH" = true ] && return 1
   grep -qE 'ETARGET|notarget|No matching version found' "$1" "$2" 2>/dev/null
 }
@@ -486,19 +492,20 @@ if [ "${1:-}" = "--check-model" ]; then
     CHECK_EXIT=$?
   }
   open_check_session
-  if [ "$CHECK_EXIT" -ne 0 ] && acpx_stale_npm_metadata "$CHECK_DIR/stderr" "$CHECK_DIR/stdout"; then
-    log "npm resolved against stale cached package metadata; retrying the model check once with fresh metadata"
+  if [ "$CHECK_EXIT" -ne 0 ] && acpx_npm_resolution_retryable "$CHECK_DIR/stderr" "$CHECK_DIR/stdout"; then
+    log "npm could not resolve a package; retrying the model check once with fresh metadata (npm policy unchanged)"
     ACPX_NPM_REFRESH=true
     open_check_session
   fi
   RECORD_ID="$(jq -r 'select(.action? == "session_ensured") | .acpxRecordId // empty' "$CHECK_DIR/stdout" 2>/dev/null | tail -1)"
   case "$RECORD_ID" in ''|*[!A-Za-z0-9-]*) ;; *) rm -f "$ACPX_STATE/sessions/$RECORD_ID.json" ;; esac
   [ "$CHECK_EXIT" -eq 0 ] && exit 0
-  REASON="$(grep -m1 '^npm error' "$CHECK_DIR/stderr" 2>/dev/null)"
+  REASON="$(acpx_npm_failure_reason "$CHECK_DIR/stderr")"
   if [ -n "$REASON" ]; then
     printf 'transport unavailable (pre-egress, shared): %s\n' "${REASON:0:200}" >&2
   else
-    REASON="$(acpx_failure_evidence "$CHECK_DIR/stdout")"
+    REASON="$(acpx_npm_failure_reason "$CHECK_DIR/stdout")"
+    [ -n "$REASON" ] || REASON="$(acpx_failure_evidence "$CHECK_DIR/stdout")"
     [ -n "$REASON" ] || REASON="$(grep -m1 -e 'did not advertise' -e 'Error' "$CHECK_DIR/stderr" 2>/dev/null)"
     printf 'transport unavailable (pre-egress, route): %s\n' "${REASON:-acpx exited $CHECK_EXIT while opening a session}" >&2
   fi
@@ -1190,10 +1197,10 @@ launch_route() {
 }
 LAUNCH_STARTED="$(date +%s)"
 launch_route
-if acpx_stale_npm_metadata "$RAW_STDERR" "$RAW_STDOUT" && [ "$(acpx_outcome "$RAW_STDOUT")" = not-sent ]; then
+if acpx_npm_resolution_retryable "$RAW_STDERR" "$RAW_STDOUT" && [ "$(acpx_outcome "$RAW_STDOUT")" = not-sent ]; then
   REMAINING=$(( ACPX_TIMEOUT - ( $(date +%s) - LAUNCH_STARTED ) ))
   if [ "$REMAINING" -gt 0 ]; then
-    log "npm resolved against stale cached package metadata; retrying the same route once with fresh metadata in the ${REMAINING}s left (nothing was sent)"
+    log "npm could not resolve a package; retrying the same route once with fresh metadata in the ${REMAINING}s left (nothing was sent; npm policy unchanged)"
     ACPX_NPM_REFRESH=true
     ACPX_TIMEOUT="$REMAINING"
     ARGS=()
@@ -1228,7 +1235,7 @@ case "$OUTCOME" in
   not-sent)
     # Nothing reached the provider: npm could not fetch acpx (every route fails
     # alike), or the adapter refused before the prompt (this route only).
-    REASON="$(grep -m1 '^npm error' "$RAW_STDERR" 2>/dev/null)"
+    REASON="$(acpx_npm_failure_reason "$RAW_STDERR")"
     if [ -n "$REASON" ]; then
       REASON="transport unavailable (pre-egress, shared): ${REASON:0:200}"
     elif [ -f "$SESSION_STALL_MARKER" ]; then
@@ -1238,7 +1245,8 @@ case "$OUTCOME" in
       if [ -n "$node_line" ]; then
         REASON="transport unavailable (pre-egress, route): ${node_line:0:200}"
       else
-        REASON="$(acpx_failure_evidence "$STREAM")"
+        REASON="$(acpx_npm_failure_reason "$RAW_STDOUT")"
+        [ -n "$REASON" ] || REASON="$(acpx_failure_evidence "$STREAM")"
         REASON="transport unavailable (pre-egress, route): ${REASON:-acpx exited $ROUTE_EXIT before sending the prompt}"
       fi
     fi

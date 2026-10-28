@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":0,"error":{"code":-32000,"message":"ACP agent exited before initialize completed: npm error code ETARGET\nnpm error notarget No matching version found for @openai/codex@^0.156.1 with a date before 1/12/1753, 9:55:52 AM."}}

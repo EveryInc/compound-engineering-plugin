@@ -804,6 +804,18 @@ describe("ce-pov acpx transport preflight and launch", () => {
     }
   })
 
+  test.each([["npm-release-age", "shared"], ["npm-release-age-adapter", "route"]])("%s reports the date cutoff after one policy-respecting refresh (%s)", (stream, scope) => {
+    const sb = sandbox(["codex"], path.join(STREAMS, stream))
+    const dir = runDir()
+    const r = run(["claude", "codex", payload(), dir], dir, sb.env)
+    expect(calls(sb)).toBe(2)
+    expect(r.stderr).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve acpx@${ACPX_PIN}`)
+    expect(r.stderr).toContain("check min-release-age/before policy or wait for the cooldown")
+    expect(r.stderr).not.toContain("stale cached")
+    expect(r.stderr).toContain("npm policy unchanged")
+    expect(r.files).toEqual([])
+  })
+
   test("an npm resolve on stale cached metadata retries the same route once with fresh metadata", () => {
     const base = path.join(temp("pov-stale-"), "s")
     for (const ext of ["stderr", "exit"]) writeFileSync(`${base}.1.${ext}`, readFileSync(path.join(STREAMS, `stale-npm-metadata.${ext}`)))
