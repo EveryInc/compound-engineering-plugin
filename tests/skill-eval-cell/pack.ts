@@ -69,6 +69,7 @@ function runCell(scenario: Scenario, arm: EvalArm, out: string, hosts?: string) 
   ]
   if (scenario.read_only) argv.push("--read-only")
   if (scenario.git_init) argv.push("--git-init")
+  if (scenario.with_skill?.length) argv.push("--with-skill", scenario.with_skill.join(","))
   if (scenario.git_untracked?.length) argv.push("--git-untracked", scenario.git_untracked.join(","))
   if (scenario.git_staged?.length) argv.push("--git-staged", scenario.git_staged.join(","))
   if (scenario.git_deleted?.length) argv.push("--git-deleted", scenario.git_deleted.join(","))

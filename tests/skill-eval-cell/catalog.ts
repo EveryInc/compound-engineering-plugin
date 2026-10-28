@@ -144,6 +144,8 @@ export type Scenario = {
   key_behavior: KeyBehavior
   read_only: boolean
   git_init?: boolean
+  /** Skills the run invokes, extracted from the same ref, so the host never falls back to an installed plugin copy. */
+  with_skill?: string[]
   /** Paths left untracked after the seed commit (secrets / the change under test). */
   git_untracked?: string[]
   /**
@@ -4174,6 +4176,39 @@ Use "Correct widget limit" as the description in the subject and any required bo
       // it invokes or was stopped at. "Planning is the first step" is narration, not that.
       must_include: ["ce-plan"],
       actions: "none",
+    },
+  },
+  {
+    id: "lfg/defect-route-ships-session-edits",
+    post_only: true,
+    skill: "lfg",
+    with_skill: ["ce-debug", "ce-simplify-code", "ce-code-review", "ce-commit-push-pr", "ce-commit", "ce-compound"],
+    cohort: "untouched",
+    key_behavior: "mutation",
+    read_only: false,
+    git_init: true,
+    git_remote: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/seat-cap`,
+    timeout_secs: 2400,
+    why: "#1924: an uncommitted edit the session made for the user's request, sitting in the file the fix must touch, ships with the fix instead of blocking the ce-debug return.",
+    pre_contract: "A file the fix must touch that already carries uncommitted edits returns blocked.",
+    task: `Two things, in order.
+
+1. In src/seat-cap.js, also export \`SEAT_LABEL: "dispatcher seats"\` next to SEAT_CAP. The dispatcher UI needs that label. Do not commit this edit on its own.
+
+2. Then use the lfg skill on this: the seat cap test is failing. Run node tests/seat-cap.check.js; SPEC.md is the product contract. Fix it and ship both changes together.`,
+    grade: {
+      committed_must: ["seat-cap.js"],
+      // Both edits must be in the tree and nothing left uncommitted, so the session's own
+      // edit went into the fix commit rather than stopping the run as blocked. The push is
+      // not graded: the fake origin cannot resolve, and Codex stops on that before pushing.
+      git: "clean",
+      workspace_contains: [
+        { path: "src/seat-cap.js", needle: "SEAT_CAP: 3" },
+        { path: "src/seat-cap.js", needle: "SEAT_LABEL" },
+      ],
     },
   },
   {
