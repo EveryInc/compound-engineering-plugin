@@ -66,7 +66,7 @@ Scratch lives beneath the effective user's private CE root: `/tmp/compound-engin
 
 ## Phase 1.5: Topic-Surface Decomposition
 
-Before frames are dispatched, decompose the topic into 3-5 orthogonal **axes** — what aspects of the subject to think about. Read `references/decomposition.md`. Surprise-me mode is the only case that skips this phase. That file's own criteria decide whether a subject is too small to split, so make that judgment after the read. Append the axis list, or the skip reason, to the grounding summary under `Topic axes`. Evidence scouts are repo-mode only.
+Before frames are dispatched, decompose the topic into 3-5 orthogonal **axes** — what aspects of the subject to think about. Read `references/decomposition.md`. Surprise-me mode is the only case that skips this phase. That file's own criteria decide whether a subject is too small to split, so make that judgment after the read. Append the axis list, or the skip reason, to the grounding summary under `Topic axes`.
 
 ## Phase 2: Divergent Ideation
 

@@ -119,9 +119,8 @@ Two symmetric depth overrides scale the run. Both are opt-in from the user's own
 
 **Tactical signals — scale down.** Words like `polish`, `typo`, `typos`, `quick wins`, `small improvements`, `cleanup`, or `small fixes` in the focus hint (or a 0.2 intake answer) mean the user opted into tactical scope. Use reasonable interpretation rather than formal parsing.
 
-**Tactical's dials — the complete list.** 3-4 ideas per frame; 2-3 verification reads per agent; at most 3 axes and 3 evidence scouts; the meeting-test floor waived at both layers. Everywhere below and in the references, "tactical's dials" means exactly this list.
+**Tactical's dials — the complete list.** 3-4 ideas per frame; 2-3 verification reads per agent; at most 3 axes; the meeting-test floor waived at both layers. Everywhere below and in the references, "tactical's dials" means exactly this list.
 
-- **The axis and scout caps stay equal.** Scouts dispatch one per axis, so an axis past the scout cap reaches generation with no evidence dossier.
 - **The waiver reaches both the generators *and* the Phase 3 basis verifier's dispatch prompt.** The verifier runs on a fresh context with none of the generation history, so a waiver it is not told about does not reach it.
 - **Tactical changes nothing else** — not the agent count, not the frame set, not the model tier — and it never skips basis verification. Packing frames into fewer agents is not a tactical lever: the verification budget is **per agent, not per frame** (`references/divergent-ideation.md`).
 

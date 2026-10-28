@@ -357,25 +357,12 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
     ).toBe(true)
   })
 
-  test("the axis and scout caps are equal, so no retained axis is left unscouted", () => {
-    // Scouts dispatch one per axis, so an axis past the scout cap reaches
-    // generation with no evidence dossier. An earlier revision capped axes at 3
-    // and scouts at 2, which stranded exactly one axis on every tactical run.
-    const axisCap = VOLUME_0_5.match(/at most (\d+) axes and (\d+) evidence scouts/i)
-    expect(axisCap, "Phase 0.5 must state the tactical axis and scout caps together.").not.toBeNull()
-    expect(
-      axisCap![1],
-      "The tactical axis and scout caps must be equal — a lower scout cap strands an axis.",
-    ).toBe(axisCap![2])
-
-    const decomposition = PHASE_1_5
-    expect(
-      /3 max under tactical scope/i.test(decomposition),
-      "Phase 1.5 must carry the tactical axis cap at the point axes are chosen.",
-    ).toBe(true)
-    const scoutCap = decomposition.match(/max (\d+) under tactical scope/i)
-    expect(scoutCap, "The scout dispatch must carry the tactical scout cap at its own site.").not.toBeNull()
-    expect(scoutCap![1], "The scout dispatch cap must match the axis cap.").toBe(axisCap![1])
+  test("the tactical axis cap matches where it is set and where axes are chosen", () => {
+    const setCap = VOLUME_0_5.match(/at most (\d+) axes/i)
+    expect(setCap, "Phase 0.5 must state the tactical axis cap.").not.toBeNull()
+    const chosenCap = PHASE_1_5.match(/(\d+) max under tactical scope/i)
+    expect(chosenCap, "Phase 1.5 must carry the tactical axis cap at the point axes are chosen.").not.toBeNull()
+    expect(chosenCap![1], "The two statements of the tactical axis cap must agree.").toBe(setCap![1])
   })
 
   test("tactical's effect is defined once and referenced by name, never re-enumerated", () => {
@@ -531,6 +518,34 @@ describe("ce-ideate tactical scope scales agents, never frame coverage", () => {
       /it is a \*rate\*, not a constant|needs proportionally more/i.test(DIVERGENT_BODY),
       "A per-submission rate contradicts the flat budget line; do not reintroduce it.",
     ).toBe(false)
+  })
+
+  test("a direct: basis cites a line the agent read itself, never the grounding summary", () => {
+    // Per-axis evidence scouts were removed after a blind A/B eval found no
+    // quality gain at roughly double the cost. Without dossiers, Claude and Grok
+    // generators skipped their reads and cited files with no line; this rule
+    // restored line-precise citations.
+    expect(
+      /A `direct:` basis must quote a line the agent read itself in this run and cite it as `path:line`/.test(DIVERGENT_BODY),
+      "divergent-ideation.md must require a self-read, path:line citation for direct: bases.",
+    ).toBe(true)
+    expect(
+      /grounding summary orients the agent but is not a citable source/i.test(DIVERGENT_BODY),
+      "The grounding summary must not count as a citable source.",
+    ).toBe(true)
+  })
+
+  test("no ce-ideate file dispatches or reads per-axis evidence scouts", () => {
+    const corpus = [
+      SKILL_BODY,
+      DIVERGENT_BODY,
+      POST_IDEATION_BODY,
+      GROUNDING_BODY,
+      SCOPE_GATES_BODY,
+      DECOMPOSITION_BODY,
+      readFileSync(path.join(SKILL_DIR, "references/user-research-artifacts.md"), "utf8"),
+    ].join("\n")
+    expect(/evidence scouts?|axis dossiers?/i.test(corpus), "Scouts were removed; no file may describe them.").toBe(false)
   })
 
   test("the universal survivor target follows the selected depth", () => {
@@ -692,7 +707,7 @@ describe("ce-ideate surprise-me deltas are consolidated but locally hooked", () 
       [SCOPE_GATES_BODY, "#### 0.3 Mode Classification", "#### 0.4"],
       [SCOPE_GATES_BODY, "#### 0.4 Context-Substance Gate", "#### 0.5"],
       [GROUNDING_BODY, "### Phase 1: Mode-Aware Grounding", "#### Web Research"],
-      [DECOMPOSITION_BODY, "### Phase 1.5: Topic-Surface Decomposition", "**Evidence scouts"],
+      [DECOMPOSITION_BODY, "### Phase 1.5: Topic-Surface Decomposition", "Append the axis list"],
     ] as const) {
       const region = sliceSection(source, heading, next)
       expect(

@@ -1,12 +1,12 @@
 # Divergent Ideation (Phase 2)
 
-Read this file at the start of Phase 2 — after Phase 1 grounding and any Phase 1.5 evidence scouts complete, and before building any ideation dispatch prompt. It defines the ideation fleet, the dispatch payload, the frames, the per-idea output contract, and the post-merge synthesis steps. Model tier names (extraction / generation / ceiling) are defined in the model tiers in `references/grounding.md`.
+Read this file at the start of Phase 2 — after Phase 1 grounding and Phase 1.5 decomposition complete, and before building any ideation dispatch prompt. It defines the ideation fleet, the dispatch payload, the frames, the per-idea output contract, and the post-merge synthesis steps. Model tier names (extraction / generation / ceiling) are defined in the model tiers in `references/grounding.md`.
 
 ## Fleet
 
 Dispatch parallel ideation sub-agents per the model-tier fleet in `references/grounding.md`. Omit the `mode` parameter so the user's configured permission settings apply. The default fleet is **5 agents covering all six frames**:
 
-- **3 generation-tier agents**, one per evidence-driven frame (Pain and friction; Inversion, removal, or automation; Leverage and compounding). These frames live on evidence — the dossiers do the heavy lifting, so the mid-tier model performs well here.
+- **3 generation-tier agents**, one per evidence-driven frame (Pain and friction; Inversion, removal, or automation; Leverage and compounding). These frames live on evidence the agents read for themselves, so the mid-tier model performs well here.
 - **2 ceiling-tier agents** for the ceiling frames, where the strong model's reasoning is the product and must not be tiered down: one takes Cross-domain analogy; the other takes Assumption-breaking and reframing **plus** Constraint-flipping (cousins — both invert givens; one agent holds both as starting biases).
 
 **How the run scales.** Phase 0.2 decides whether the run is in surprise-me mode or has issue-tracker intent. Phase 0.5 decides which depth overrides are active, and `go deep` cancels tactical. The fleet follows from those resolved variants under these conditions:
@@ -25,7 +25,7 @@ Each frame targets ~6-8 ideas — **3-4 under tactical scope** — and a two-fra
 
 Build one shared grounding block and keep it byte-identical across every ideation dispatch this run — identical prefixes let platforms with prompt caching reuse the expensive part. Longform shared material goes first; the agent-specific task goes last:
 
-- `<grounding>` — the consolidated grounding summary, including the evidence gists and the absolute paths of the dossier files under `<scratch-dir>` (identical bytes across agents). Instruct each agent to read the dossier files before generating — they are the evidence layer its bases cite; the gists are orientation, not evidence. In elsewhere modes the only dossiers are user-supplied research dossiers (when present); otherwise the grounding summary itself is the evidence layer.
+- `<grounding>` — the consolidated grounding summary (identical bytes across agents), including the absolute paths of any user-supplied research dossiers under `<scratch-dir>`. Instruct each agent to read those dossier files, when present, before generating; their gists are orientation, not evidence. In repo mode the evidence an agent cites is the repo lines it reads itself (see Verification reads); in elsewhere modes without dossiers, the grounding summary itself is the evidence layer.
 - `<constraints>` — the user's prompt, the focus hint, and any *User-named references*: ideas that violate these are out regardless of basis
 - `<background>` — everything else in the grounding (codebase context, additional context, learnings, external context, user-supplied research): informative, not directive — it can supply an idea's basis, but it must not pull ideation toward whatever was loudest in the corpus when the user named a different focus
 - `<axes>` — the Phase 1.5 axis list, when present
@@ -37,7 +37,7 @@ The `<constraints>`/`<background>` split is the primary defense against groundin
 
 > This ideation exists so the user can choose a direction worth building — the output's value is decided by whether one idea changes what they do next. Generate the smartest, most inventive ideas your frame can reach: ideas a strong team would say "we have to do this" about. Your first few ideas will be the obvious ones — treat them as warm-up, and keep only the ones that still earn their place after the non-obvious ideas exist. If an idea would appear in a generic listicle about this topic, sharpen it with grounding evidence or drop it. Anchor every idea in specific entries from the grounding.
 
-**Verification reads (repo mode).** After an agent makes its internal cut, it may spend up to **5 targeted reads** — 10 under `go deep`, 2-3 under tactical scope — following dossier `file:line` pointers to verify or deepen the bases of ideas it will submit. A `direct:` basis must quote a line the agent actually read — in a dossier or in the repo — never a guessed citation. Elsewhere modes verify against the user-supplied context — including reading user-research dossiers when present — instead of reading repo files.
+**Verification reads (repo mode).** After an agent makes its internal cut, it may spend up to **5 targeted reads** — 10 under `go deep`, 2-3 under tactical scope — following the files and `file:line` pointers the grounding names to verify or deepen the bases of ideas it will submit. A `direct:` basis must quote a line the agent read itself in this run and cite it as `path:line`, never a guessed citation. The grounding summary orients the agent but is not a citable source: when an idea's evidence comes only from the summary, spend a verification read on the line before citing it. Elsewhere modes verify against the user-supplied context — including reading user-research dossiers when present — instead of reading repo files.
 
 **The tactical read budget goes with the tactical volume.** When an active tactical run carries an explicit volume request that raises generation above 3-4 ideas per frame, it verifies at the ordinary 5 reads.
 
