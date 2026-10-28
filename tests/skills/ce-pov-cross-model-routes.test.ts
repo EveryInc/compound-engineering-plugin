@@ -15,7 +15,7 @@ import {
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { ACPX_PIN } from "../helpers/acpx-pin"
-import { alive } from "../helpers/process"
+import { survivors } from "../helpers/process"
 
 setDefaultTimeout(30_000)
 
@@ -642,7 +642,7 @@ describe("ce-pov output gate and receipts", () => {
     expect(readdirSync(scratchParent)).toEqual([])
   })
 
-  test("a peer still running at the hard cap is reaped with its whole process group", () => {
+  test("a peer still running at the hard cap is reaped with its whole process group", async () => {
     const sb = sandbox(["codex"], acpStream({ text: "working", stopReason: null, sleep: 30 }))
     const dir = runDir()
     const started = Date.now()
@@ -652,10 +652,10 @@ describe("ce-pov output gate and receipts", () => {
     expect(result.files).not.toContain("pov-codex.json")
     const pids = readFileSync(sb.logs.pids, "utf8").trim().split("\n").map(Number)
     expect(pids).toHaveLength(2)
-    for (const pid of pids) expect(alive(pid)).toBe(false)
+    expect(await survivors(pids)).toEqual([])
   })
 
-  test("without ps -o (Git Bash), the idle guard still reaps a silent peer", () => {
+  test("without ps -o (Git Bash), the idle guard still reaps a silent peer", async () => {
     const sb = sandbox(["codex"], acpStream({ text: "working", stopReason: null, sleep: 30 }))
     const realPs = realTools().find(([tool]) => tool === "ps")?.[1]
     expect(realPs).toBeTruthy()
@@ -666,7 +666,7 @@ describe("ce-pov output gate and receipts", () => {
     expect(Date.now() - started).toBeLessThan(15_000)
     expect(result.stderr).toContain("peer output idle 2s")
     const pids = readFileSync(sb.logs.pids, "utf8").trim().split("\n").map(Number)
-    for (const pid of pids) expect(alive(pid)).toBe(false)
+    expect(await survivors(pids)).toEqual([])
   })
 
   test("opencode on native Windows is a route pre-egress failure and acpx is never called", () => {
@@ -1085,7 +1085,7 @@ describe("ce-pov fixed route and egress allowlist", () => {
     child.kill(signal)
     await new Promise<void>((resolve) => child.once("exit", () => resolve()))
     expect(readdirSync(scratchParent)).toEqual([])
-    for (const pid of [...childPids, ...stubPids]) expect(alive(pid)).toBe(false)
+    expect(await survivors([...childPids, ...stubPids])).toEqual([])
   })
 
   test("peer brief restricts external queries to public subject terms", () => {
