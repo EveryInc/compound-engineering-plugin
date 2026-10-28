@@ -225,9 +225,7 @@ export async function cleanupCurrentManagedDirectory(
   return false
 }
 
-// Per-file counterpart of cleanupCurrentManagedDirectory: true means leave the
-// existing path alone and skip the write. `owned` null means the install tracks
-// no ownership, so any existing regular file may be overwritten.
+// True means leave the existing path alone and skip the write.
 // `unlinkOwned` removes an owned file before the caller rewrites it, so the new
 // write never goes through a user's hardlink or fails on a read-only file;
 // OpenCode leaves it off because it reads the old content after this guard.
