@@ -225,6 +225,37 @@ export async function cleanupCurrentManagedDirectory(
   return false
 }
 
+// Per-file counterpart of cleanupCurrentManagedDirectory: true means leave the
+// existing path alone and skip the write. `owned` null means the install tracks
+// no ownership, so any existing regular file may be overwritten.
+// `unlinkOwned` removes an owned file before the caller rewrites it, so the new
+// write never goes through a user's hardlink or fails on a read-only file;
+// OpenCode leaves it off because it reads the old content after this guard.
+export async function cleanupCurrentManagedFile(
+  targetPath: string,
+  owned: readonly string[] | null,
+  entryName: string,
+  options: { storeDir?: string; unlinkOwned?: boolean } = {},
+): Promise<boolean> {
+  if (options.storeDir !== undefined && !(await isPathWithinRoot(options.storeDir, targetPath))) {
+    console.warn(`Skipping ${targetPath}: resolves outside the managed store (not modified)`)
+    return true
+  }
+  const stat = await lstatOrNull(targetPath)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (owned === null) return false
+  if (!owned.includes(entryName)) {
+    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
+    return true
+  }
+  if (options.unlinkOwned) await fs.rm(targetPath, { force: true })
+  return false
+}
+
 export async function moveLegacyArtifactToBackup(
   managedDir: string,
   kind: string,
