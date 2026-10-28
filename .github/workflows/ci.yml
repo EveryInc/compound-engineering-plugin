@@ -136,7 +136,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run typecheck
 
-  # Runs the pinned acpx from the npm registry against the stub ACP agent. Kept out
+  # Tests every published acpx release in the supported range against the stub agent. Kept out
   # of `bun run test` because it needs network access to fetch acpx.
   acpx-contract:
     runs-on: ubuntu-latest

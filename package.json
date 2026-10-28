@@ -24,7 +24,7 @@
     "cli:install": "bun run src/index.ts install",
     "test": "bun run scripts/run-tests.ts",
     "typecheck": "tsc --noEmit",
-    "test:acpx-contract": "ACPX_CONTRACT=1 bun test tests/acpx-contract.test.ts",
+    "test:acpx-contract": "bun scripts/test-acpx-contract.ts",
     "acpx:bump": "bun run scripts/bump-acpx-pin.ts",
     "test:skill-guards": "bun run scripts/run-tests.ts skill-conventions codex-skill-prompt-budget repo-local-ce-skill-work contract",
     "test:skill-eval-cell": "bun tests/skill-eval-cell/run.ts",

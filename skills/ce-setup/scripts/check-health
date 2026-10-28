@@ -17,11 +17,10 @@ deps=(
   "ffmpeg|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q ffmpeg|https://ffmpeg.org/download.html|media chunking and screenshot extraction for Riffrec analysis"
 )
 
-# Cross-model peers run `npx acpx@<pin>`, which launches the codex and claude
-# adapters below. The version must match ACPX_VERSION in the peer workers; the
-# adapter specs are the ranges that acpx version launches. One line each: the
-# pin-bump canary rewrites them in place.
+# Bounds match the peer workers; adapter ranges track the ceiling release.
+# The canary advances the ceiling and adapter specs, leaving the minimum stable.
 ACPX_VERSION="0.21.0"
+ACPX_MIN_VERSION="0.18.0"
 ACPX_ADAPTER_SPECS="@agentclientprotocol/codex-acp@^1.1.5 @agentclientprotocol/claude-agent-acp@^0.81.2"
 
 # =====================================================
@@ -381,10 +380,8 @@ check_node_prerequisite() {
   fi
 }
 
-# Installs each pinned package into npx's cache under the same key a later
-# `npx -y <spec>` uses, then runs `node --version` instead of the package, so the
-# package itself never starts. npm still runs its install lifecycle scripts, as
-# it would on a first peer run.
+# Cache packages without starting their CLIs. npm still runs install lifecycle
+# scripts; node --version only prevents launching the agent afterward.
 if [ "$warm_acpx" = "yes" ]; then
   echo ""
   if ! check_node_prerequisite; then
@@ -396,7 +393,7 @@ if [ "$warm_acpx" = "yes" ]; then
   # Run from an empty directory, as the peer workers do: npx resolves packages
   # from its working directory's node_modules and .npmrc first.
   warm_dir="$(mktemp -d "${TMPDIR:-/tmp}/ce-acpx-warm-XXXXXX")" || { warn "Cannot warm the npm cache: no temporary directory"; echo ""; exit 1; }
-  for spec in "acpx@$ACPX_VERSION" $ACPX_ADAPTER_SPECS; do
+  for spec in "acpx@>=$ACPX_MIN_VERSION <=$ACPX_VERSION" $ACPX_ADAPTER_SPECS; do
     if (cd "$warm_dir" && npx --yes --package="$spec" -- node --version >/dev/null); then
       ok "cached $spec"
     else

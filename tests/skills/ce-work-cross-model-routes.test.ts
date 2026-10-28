@@ -17,7 +17,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { ACPX_PIN } from "../helpers/acpx-pin"
+import { ACPX_RANGE } from "../helpers/acpx-pin"
 import { alive, survivors } from "../helpers/process"
 import {
   acpNpxBin, acpStream as acpStreamAt, COMPLETED_RESULT as COMPLETED, signInWaitStream, type StreamSpec, unadvertisedStream,
@@ -277,10 +277,10 @@ describe("ce-work fixed write routes", () => {
     },
   }
 
-  test.each([...ROUTES])("%s runs through the pinned acpx with every permission approved in the workspace", (route) => {
+  test.each([...ROUTES])("%s uses its supported acpx range with every permission approved in the workspace", (route) => {
     const out = emit(route, cleanEnv())
     expect(out.status).toBe(0)
-    expect(out.stdout).toContain(`npx -y acpx@${ACPX_PIN} --cwd <workspace> --format json --mcp-config <mcp-config>`)
+    expect(out.stdout).toContain(`npx -y --package ${ACPX_RANGE} -- acpx --cwd <workspace> --format json --mcp-config <mcp-config>`)
     expect(out.stdout).toContain("--approve-all")
     expect(out.stdout).toContain("--file <prompt-file>")
     const expected = ROUTE_ARGV[route]
@@ -388,6 +388,8 @@ describe("ce-work fixed write routes", () => {
       npm_config_cache: path.join(f.root, "npm-cache"),
       npm_config_registry: "http://registry.invalid/",
       NPM_CONFIG_USERCONFIG: path.join(f.root, "npmrc"),
+      npm_config_min_release_age: "60",
+      NPM_CONFIG_BEFORE: "2026-08-01",
       ...secrets,
     }))
 
@@ -396,6 +398,8 @@ describe("ce-work fixed write routes", () => {
     expect(childEnv).toContain(`npm_config_cache=${path.join(f.root, "npm-cache")}`)
     expect(childEnv).toContain("npm_config_registry=http://registry.invalid/")
     expect(childEnv).toContain(`NPM_CONFIG_USERCONFIG=${path.join(f.root, "npmrc")}`)
+    expect(childEnv).toContain("npm_config_min_release_age=60")
+    expect(childEnv).toContain("NPM_CONFIG_BEFORE=2026-08-01")
     expect(childEnv).toContain("npm_config_prefer_offline=true")
     expect(childEnv).toContain(`CURSOR_CONFIG_DIR=${cursorConfig}`)
     for (const [name, value] of Object.entries(secrets)) {
@@ -794,7 +798,7 @@ describe("ce-work acpx outcomes", () => {
     expect(captured(f, "calls").trim()).toBe("2")
     expect(result.code).toBe(2)
     expect(result.result.terminal_status).toBe("unavailable")
-    expect(result.result.failure_reason).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve acpx@${ACPX_PIN}`)
+    expect(result.result.failure_reason).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve ${ACPX_RANGE}`)
     expect(result.result.failure_reason).toContain("check min-release-age/before policy or wait for the cooldown")
     expect(result.stderr).not.toContain("stale cached")
     expect(result.stderr).toContain("npm policy unchanged")
@@ -872,7 +876,7 @@ describe("ce-work antigravity route", () => {
     const check = checkModel(FLASH, { ...cleanEnv(), PATH: isolatedPath(bin), HOME: temp("ce-work-real-home-") })
     expect(captured(f, "calls").trim()).toBe("2")
     expect(check.status).toBe(2)
-    expect(check.stderr).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve acpx@${ACPX_PIN}`)
+    expect(check.stderr).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve ${ACPX_RANGE}`)
     expect(check.stderr).toContain("check min-release-age/before policy or wait for the cooldown")
     expect(check.stderr).not.toContain("stale cached")
     expect(check.stderr).toContain("npm policy unchanged")
@@ -894,6 +898,7 @@ describe("ce-work antigravity route", () => {
 
   test("--emit-adapter strips Google credentials and runs Argon in auto_edit mode with a private GEMINI_HOME", () => {
     const out = emit("antigravity", cleanEnv()).stdout
+    expect(out).toContain(`npx -y --package ${ACPX_RANGE} -- acpx --cwd`)
     expect(out).toStartWith("env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_APPLICATION_CREDENTIALS -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u GOOGLE_GENAI_USE_VERTEXAI -u AGY_LLM_GATEWAY_URL ")
     expect(out).toContain(`--approve-all --model ${ARGON} antigravity exec --config-option mode=auto_edit --config-option thinking_level=high`)
   })

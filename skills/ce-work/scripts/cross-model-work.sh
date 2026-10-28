@@ -97,9 +97,15 @@ route_available() {
 # Protocol and prints the JSON-RPC stream, so one parser covers every CLI.
 # The calling worker supplies route_available, route_model, and log.
 ACPX_VERSION="0.21.0"
+# 0.18.0 fixes approve-reads allowing ambiguous destructive permission requests.
+ACPX_MIN_VERSION="0.18.0"
 ACPX_UNAVAILABLE=""   # pre-egress reason; ACPX_SCOPE says whether every route shares it
 ACPX_SCOPE=""
 ACPX_NPM_REFRESH=false
+
+acpx_package_spec() {
+  printf 'acpx@>=%s <=%s' "$ACPX_MIN_VERSION" "$ACPX_VERSION"
+}
 
 acpx_agent() {   # <route> -> acpx built-in agent name
   case "$1" in
@@ -198,7 +204,7 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
 
 acpx_npm_failure_reason() {
   if grep -qE 'No matching version found for .* with a date before ' "$1" 2>/dev/null; then
-    printf '%s' "npm could not resolve acpx@$ACPX_VERSION or a dependency before its date cutoff; check min-release-age/before policy or wait for the cooldown"
+    printf '%s' "npm could not resolve $(acpx_package_spec) or a dependency before its date cutoff; check min-release-age/before policy or wait for the cooldown"
   else
     grep -m1 '^npm error' "$1" 2>/dev/null
   fi
@@ -211,10 +217,8 @@ acpx_npm_resolution_retryable() {   # <stderr-log> <stream-log>
   grep -qE 'ETARGET|notarget|No matching version found' "$1" "$2" 2>/dev/null
 }
 
-# Prints the NUL-delimited argv prefix through `npx acpx@<pin>` and its global
-# flags; the worker appends permission flags, `--model`, the agent, and exec options.
 # The codex and claude adapters are pointed at the installed CLIs so the pin
-# governs the transport, not which models the agent can serve.
+# bounds the transport version, not which models the agent can serve.
 acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home>
   printf '%s\0' env
   # An ambient Google API key or cloud project would bill it instead of the
@@ -234,7 +238,8 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
     claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
     antigravity) printf '%s\0' "GEMINI_HOME=$6" "ANTIGRAVITY_HARNESS_PATH=$(acpx_antigravity_helper)" ;;
   esac
-  printf '%s\0' npx -y "acpx@$ACPX_VERSION" --cwd "$2" --format json --mcp-config "$3" --timeout "$4"
+  # Explicit --package avoids npx reusing a global binary that violates npm age policy.
+  printf '%s\0' npx -y --package "$(acpx_package_spec)" -- acpx --cwd "$2" --format json --mcp-config "$3" --timeout "$4"
 }
 
 acpx_agent_argv() {   # <route>
@@ -429,7 +434,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   exit 0
 fi
 
-SIGN_IN_STALL_REASON="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; the agy CLI's sign-in does not carry over, so sign the ACP runtime in once: put {\"auth\":{\"type\":\"oauth-personal\"}} in ${GEMINI_HOME:-~/.gemini}/antigravity-acp/settings.json, run npx acpx@$ACPX_VERSION antigravity exec ok in a terminal and finish the browser sign-in, then retry"
+SIGN_IN_STALL_REASON="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; the agy CLI's sign-in does not carry over, so sign the ACP runtime in once: put {\"auth\":{\"type\":\"oauth-personal\"}} in ${GEMINI_HOME:-~/.gemini}/antigravity-acp/settings.json, run npx -y --package '$(acpx_package_spec)' -- acpx antigravity exec ok in a terminal and finish the browser sign-in, then retry"
 
 # --check-model antigravity <model>: acpx checks --model against the models the
 # session advertises before any prompt, so opening a session answers whether the
@@ -1088,10 +1093,10 @@ MIN_ENV=(env -i "PATH=$PATH" "PYTHONDONTWRITEBYTECODE=1")
 [ -n "${LANG:-}" ] && MIN_ENV+=("LANG=$LANG")
 [ -n "${LC_ALL:-}" ] && MIN_ENV+=("LC_ALL=$LC_ALL")
 [ -n "${XDG_CONFIG_HOME:-}" ] && MIN_ENV+=("XDG_CONFIG_HOME=$XDG_CONFIG_HOME")
-# npx reaches the user's npm cache, registry, and user config by these
-# locations. npm auth token values are never forwarded; npm reads its own
-# config file for them.
-for name in npm_config_cache NPM_CONFIG_CACHE npm_config_registry NPM_CONFIG_REGISTRY npm_config_userconfig NPM_CONFIG_USERCONFIG; do
+# npm reads its config file for authentication.
+for name in npm_config_cache NPM_CONFIG_CACHE npm_config_registry NPM_CONFIG_REGISTRY npm_config_userconfig NPM_CONFIG_USERCONFIG \
+  npm_config_min_release_age NPM_CONFIG_MIN_RELEASE_AGE npm_config_before NPM_CONFIG_BEFORE \
+  npm_config_min_release_age_exclude NPM_CONFIG_MIN_RELEASE_AGE_EXCLUDE; do
   [ -n "${!name:-}" ] && MIN_ENV+=("$name=${!name}")
 done
 # Preserve route-specific config-directory pointers so existing CLI-native login

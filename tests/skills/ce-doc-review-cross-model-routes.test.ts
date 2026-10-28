@@ -14,7 +14,7 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { ACPX_PIN } from "../helpers/acpx-pin"
+import { ACPX_PIN, ACPX_RANGE } from "../helpers/acpx-pin"
 import { survivors } from "../helpers/process"
 
 // These tests spawn bash/python/jq subprocesses; on a loaded CI runner they cross the 5s default
@@ -271,7 +271,7 @@ describe("cross-model-doc-review route safety (R17)", () => {
     ["opencode", "--deny-all --agent", ["opencode acp exec --config-option mode=plan"]],
   ])("--emit-adapter %s denies every permission from the empty peer workspace", (route, agent, options) => {
     const command = emitAdapter(route)
-    expect(command).toContain(`npx -y acpx@${ACPX_PIN} --cwd <peer-workdir> --format json --mcp-config <mcp-config> --timeout 1200 --deny-all`)
+    expect(command).toContain(`npx -y --package ${ACPX_RANGE} -- acpx --cwd <peer-workdir> --format json --mcp-config <mcp-config> --timeout 1200 --deny-all`)
     expect(command).toContain("env npm_config_prefer_offline=true npm_config_fetch_retries=0")
     expect(command).toContain(agent)
     for (const option of options) expect(command).toContain(option)
@@ -796,7 +796,7 @@ describe("cross-model-doc-review acpx transport preflight", () => {
     const runDir = makeRunDir()
     const r = run(["claude", "codex", "adversarial", makeDoc(), "plan", "none", runDir], runDir, sb.env)
     expect(calls(sb)).toBe(2)
-    expect(r.stderr).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve acpx@${ACPX_PIN}`)
+    expect(r.stderr).toContain(`transport unavailable (pre-egress, ${scope}): npm could not resolve ${ACPX_RANGE}`)
     expect(r.stderr).toContain("check min-release-age/before policy or wait for the cooldown")
     expect(r.stderr).not.toContain("stale cached")
     expect(r.stderr).toContain("npm policy unchanged")
@@ -868,6 +868,7 @@ function unadvertisedStream(model: string, available: string, base: string) {
 describe("cross-model-doc-review antigravity route", () => {
   test("--emit-adapter antigravity denies every permission and isolates GEMINI_HOME", () => {
     const command = emitAdapter("antigravity")
+    expect(command).toContain(`npx -y --package ${ACPX_RANGE} -- acpx --cwd`)
     expect(command).toContain("GEMINI_HOME=<gemini-home>")
     expect(command).toContain("--deny-all --model gemini-4-argon antigravity exec --config-option mode=default --config-option thinking_level=high")
   })

@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises"
 import path from "path"
 import { describe, expect, test } from "bun:test"
-import { ACPX_PIN } from "./helpers/acpx-pin"
+import { ACPX_PIN, ACPX_MIN_VERSION } from "./helpers/acpx-pin"
 
 const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 
@@ -35,10 +35,11 @@ describe("acpx transport parity", () => {
     for (let i = 1; i < blocks.length; i++) expect(blocks[i]).toBe(blocks[0])
   })
 
-  test("every migrated worker pins the acpx version the contract suite tests", async () => {
+  test("every migrated worker uses the acpx bounds the contract suite tests", async () => {
     for (const rel of MIGRATED_WORKERS) {
       const block = transportBlock(await readFile(path.join(PLUGIN_ROOT, rel), "utf8"), rel)
       expect(block, rel).toContain(`ACPX_VERSION="${ACPX_PIN}"`)
+      expect(block, rel).toContain(`ACPX_MIN_VERSION="${ACPX_MIN_VERSION}"`)
     }
   })
 })

@@ -180,9 +180,15 @@ route_available() {
 # Protocol and prints the JSON-RPC stream, so one parser covers every CLI.
 # The calling worker supplies route_available, route_model, and log.
 ACPX_VERSION="0.21.0"
+# 0.18.0 fixes approve-reads allowing ambiguous destructive permission requests.
+ACPX_MIN_VERSION="0.18.0"
 ACPX_UNAVAILABLE=""   # pre-egress reason; ACPX_SCOPE says whether every route shares it
 ACPX_SCOPE=""
 ACPX_NPM_REFRESH=false
+
+acpx_package_spec() {
+  printf 'acpx@>=%s <=%s' "$ACPX_MIN_VERSION" "$ACPX_VERSION"
+}
 
 acpx_agent() {   # <route> -> acpx built-in agent name
   case "$1" in
@@ -281,7 +287,7 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
 
 acpx_npm_failure_reason() {
   if grep -qE 'No matching version found for .* with a date before ' "$1" 2>/dev/null; then
-    printf '%s' "npm could not resolve acpx@$ACPX_VERSION or a dependency before its date cutoff; check min-release-age/before policy or wait for the cooldown"
+    printf '%s' "npm could not resolve $(acpx_package_spec) or a dependency before its date cutoff; check min-release-age/before policy or wait for the cooldown"
   else
     grep -m1 '^npm error' "$1" 2>/dev/null
   fi
@@ -294,10 +300,8 @@ acpx_npm_resolution_retryable() {   # <stderr-log> <stream-log>
   grep -qE 'ETARGET|notarget|No matching version found' "$1" "$2" 2>/dev/null
 }
 
-# Prints the NUL-delimited argv prefix through `npx acpx@<pin>` and its global
-# flags; the worker appends permission flags, `--model`, the agent, and exec options.
 # The codex and claude adapters are pointed at the installed CLIs so the pin
-# governs the transport, not which models the agent can serve.
+# bounds the transport version, not which models the agent can serve.
 acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home>
   printf '%s\0' env
   # An ambient Google API key or cloud project would bill it instead of the
@@ -317,7 +321,8 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
     claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
     antigravity) printf '%s\0' "GEMINI_HOME=$6" "ANTIGRAVITY_HARNESS_PATH=$(acpx_antigravity_helper)" ;;
   esac
-  printf '%s\0' npx -y "acpx@$ACPX_VERSION" --cwd "$2" --format json --mcp-config "$3" --timeout "$4"
+  # Explicit --package avoids npx reusing a global binary that violates npm age policy.
+  printf '%s\0' npx -y --package "$(acpx_package_spec)" -- acpx --cwd "$2" --format json --mcp-config "$3" --timeout "$4"
 }
 
 acpx_agent_argv() {   # <route>
@@ -1064,7 +1069,7 @@ attempt_route() {   # <provider> <route>
   compose_prompt "$route" || { log "cannot compose the peer prompt; skipping"; return 0; }
   build_cmd "$route"
   PEER_ROUTE="$route"
-  log "peer run: provider=$provider route=$route model=$(route_model "$route") (effort $(route_effort "$route")) transport=acpx@$ACPX_VERSION lens=adversarial read-only in-tree (idle ${IDLE_SECS}s / hard ${HARD_SECS}s); reviewed code/diff egresses to this provider via this route"
+  log "peer run: provider=$provider route=$route model=$(route_model "$route") (effort $(route_effort "$route")) transport=$(acpx_package_spec) lens=adversarial read-only in-tree (idle ${IDLE_SECS}s / hard ${HARD_SECS}s); reviewed code/diff egresses to this provider via this route"
   started="$(date +%s)"
   run_peer_cmd
   if acpx_npm_resolution_retryable "$PEERERR" "$PEERLOG" && [ "$(acpx_outcome "$PEERLOG")" = not-sent ]; then
@@ -1093,7 +1098,7 @@ attempt_route() {   # <provider> <route>
       if [ -n "$reason" ]; then
         PRE_EGRESS="transport unavailable (pre-egress, shared): ${reason:0:200}"
       elif [ "$SESSION_STALLED" = true ]; then
-        PRE_EGRESS="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; the agy CLI's sign-in does not carry over, so sign the ACP runtime in once: put {\"auth\":{\"type\":\"oauth-personal\"}} in ${GEMINI_HOME:-~/.gemini}/antigravity-acp/settings.json, run npx acpx@$ACPX_VERSION antigravity exec ok in a terminal and finish the browser sign-in, then retry"
+        PRE_EGRESS="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; the agy CLI's sign-in does not carry over, so sign the ACP runtime in once: put {\"auth\":{\"type\":\"oauth-personal\"}} in ${GEMINI_HOME:-~/.gemini}/antigravity-acp/settings.json, run npx -y --package '$(acpx_package_spec)' -- acpx antigravity exec ok in a terminal and finish the browser sign-in, then retry"
       else
         node_line="$(acpx_node_startup_line "$PEERERR")"
         if [ -n "$node_line" ]; then

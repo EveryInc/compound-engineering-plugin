@@ -42,7 +42,7 @@ function acpx(
   options: { cwd: string; home: string; env?: Record<string, string>; onStdout?: (stdout: string, child: ChildProcess) => void },
 ): Promise<Run> {
   const started = Date.now()
-  const child = spawn("npx", ["-y", `acpx@${VERSION}`, ...args], {
+  const child = spawn("npx", ["-y", "--package", `acpx@${VERSION}`, "--", "acpx", ...args], {
     cwd: options.cwd,
     stdio: ["ignore", "pipe", "pipe"],
     env: {
@@ -115,6 +115,32 @@ describe.skipIf(process.env.ACPX_CONTRACT !== "1" || process.platform === "win32
     expect(run.stdout.trim()).toBe(VERSION)
   })
 
+  test("the built-in worker routes exist throughout the supported range", async () => {
+    const run = await acpx(["--help"], workspace())
+    expect(run.code).toBe(0)
+    const routes = ["codex", "claude", "cursor", "grok-build", "antigravity"]
+    for (const route of routes) expect(run.stdout).toMatch(new RegExp(`^\\s{2}${route}\\s`, "m"))
+  })
+
+  test.each(["--approve-reads", "--approve-all"])("worker flags support MCP config, turn limits, and config options with %s", async (permission) => {
+    const ws = workspace()
+    const mcp = path.join(ws.cwd, "mcp.json")
+    writeFileSync(mcp, '{"mcpServers":[]}\n')
+    const run = withLines(await acpx([
+      "--cwd", ws.cwd, "--format", "json", "--mcp-config", mcp, "--timeout", "5",
+      permission, "--non-interactive-permissions", "deny", "--max-turns", "25", "--model", "stub-model-a",
+      "--agent", `node ${STUB} models`, "exec", "--config-option", "mode=read-only",
+      "--config-option", "reasoning_effort=high", "--file", ws.prompt,
+    ], ws))
+    expect(run.code).toBe(0)
+    expect(promptResponse(run)?.result?.stopReason).toBe("end_turn")
+    expect(run.lines.find((line) => line.method === "session/new")?.params.mcpServers).toEqual([])
+    expect(run.lines.filter((line) => line.method === "session/set_config_option").map((line) => line.params)).toEqual([
+      { sessionId: "stub-session-1", configId: "mode", value: "read-only" },
+      { sessionId: "stub-session-1", configId: "reasoning_effort", value: "high" },
+    ])
+  })
+
   test("a reply that ends the turn exits 0 with one message chunk and an end_turn result", async () => {
     const run = await exec("end_turn")
     expect(run.code).toBe(0)
@@ -129,6 +155,19 @@ describe.skipIf(process.env.ACPX_CONTRACT !== "1" || process.platform === "win32
     expect(answer?.result?.outcome).toEqual({ outcome: "selected", optionId: "reject" })
     expect(run.code).toBe(5)
     expect(promptResponse(run)?.result?.stopReason).toBe("end_turn")
+  })
+
+  test.each(["Truncate: build.log", "Delete README.md", "Run cat > output.txt"])("approve-reads denies an ambiguous destructive request: %s", async (title) => {
+    const ws = workspace()
+    const run = withLines(await acpx([
+      "--format", "json", "--cwd", ws.cwd, "--approve-reads", "--non-interactive-permissions", "deny",
+      "--agent", `node ${STUB} permission-no-kind`, "exec", "--file", ws.prompt,
+    ], { ...ws, env: { ACP_STUB_PERMISSION_TITLE: title } }))
+    const ask = run.lines.find((line) => line.method === "session/request_permission")
+    expect(ask).toBeDefined()
+    const answer = run.lines.find((line) => line.method === undefined && line.id === ask?.id)
+    expect(answer?.result?.outcome).toEqual({ outcome: "selected", optionId: "reject" })
+    expect(run.code).toBe(5)
   })
 
   test("a JSON-RPC error from the agent exits 1 and answers the prompt id with that error", async () => {
