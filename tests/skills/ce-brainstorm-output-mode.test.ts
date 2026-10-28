@@ -25,11 +25,6 @@ const PLAN_WRITE_BODY = readFileSync(
   "utf8",
 )
 
-const HTML_OUTPUT_PATH = path.join(
-  process.cwd(),
-  "skills/ce-brainstorm/references/html-rendering.md",
-)
-
 // Mirror of the ce-plan output-mode tests. ce-brainstorm gains the same
 // `output:html` / `output:md` argument with a parallel resolution path
 // (config key `brainstorm_output` instead of `plan_output`) and the same
@@ -167,15 +162,5 @@ describe("ce-brainstorm output:html mode", () => {
       /OUTPUT_FORMAT_SOURCE/.test(SKILL_BODY),
       "SKILL.md must not reference OUTPUT_FORMAT_SOURCE — it existed only to support sibling-rerender logic.",
     ).toBe(false)
-  })
-
-  test("html-rendering.md reference exists at parallel path", () => {
-    const body = readFileSync(HTML_OUTPUT_PATH, "utf8")
-    expect(body.length).toBeGreaterThan(0)
-    // Spot-check that the major sections we promise the agent are present.
-    expect(/Hard invariants/i.test(body)).toBe(true)
-    expect(/## Styling/.test(body)).toBe(true)
-    expect(/Agent-consumability rules/i.test(body)).toBe(true)
-    expect(/Post-compose audit/i.test(body)).toBe(true)
   })
 })

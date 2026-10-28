@@ -29,11 +29,6 @@ const HANDOFF_BODY = readFileSync(
   "utf8",
 )
 
-const HTML_RENDERING_PATH = path.join(
-  process.cwd(),
-  "skills/ce-plan/references/html-rendering.md",
-)
-
 const PLAN_SECTIONS_PATH = path.join(
   process.cwd(),
   "skills/ce-plan/references/plan-sections.md",
@@ -323,15 +318,5 @@ describe("ce-plan output:html mode", () => {
       /conventional-commit prefix/i.test(body),
       "plan-sections.md must prohibit a conventional-commit prefix in `title` — the `type` field carries that classification.",
     ).toBe(true)
-  })
-
-  test("html-rendering.md reference exists and is loadable", () => {
-    const body = readFileSync(HTML_RENDERING_PATH, "utf8")
-    expect(body.length).toBeGreaterThan(0)
-    // Spot-check that the major sections we promise the agent are present.
-    expect(/Hard invariants/i.test(body)).toBe(true)
-    expect(/## Styling/.test(body)).toBe(true)
-    expect(/Agent-consumability rules/i.test(body)).toBe(true)
-    expect(/Post-compose audit/i.test(body)).toBe(true)
   })
 })

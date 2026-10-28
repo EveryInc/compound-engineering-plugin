@@ -211,18 +211,12 @@ describe("ce-ideate output mode (html default)", () => {
     }
   })
 
-  test("section contract and rendering refs exist at parallel paths", () => {
+  test("section contract names its sections and carries no status field", () => {
     expect(/Ranked Ideas/i.test(IDEATION_SECTIONS_BODY)).toBe(true)
     expect(/Rejection Summary/i.test(IDEATION_SECTIONS_BODY)).toBe(true)
     // Ideation docs intentionally carry NO status field (no doc-level lifecycle,
     // no per-idea "explored" marker) — mutable workflow state doesn't belong in
     // a point-in-time discovery artifact. Lock that decision in.
     expect(/no status field/i.test(IDEATION_SECTIONS_BODY)).toBe(true)
-
-    // The rendering refs' content parity is owned by compound-support-files.test.ts
-    // (byte-identical to ce-plan) and their invariants by html-output-invariants.test.ts;
-    // here we only confirm ce-ideate ships both copies.
-    expect(readFileSync(path.join(SKILL_DIR, "references/html-rendering.md"), "utf8").length).toBeGreaterThan(0)
-    expect(readFileSync(path.join(SKILL_DIR, "references/markdown-rendering.md"), "utf8").length).toBeGreaterThan(0)
   })
 })
