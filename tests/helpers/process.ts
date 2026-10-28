@@ -25,7 +25,7 @@ export async function survivors(pids: number[], timeoutMs = 5_000): Promise<numb
   const deadline = Date.now() + timeoutMs
   let left = pids.filter(alive)
   while (left.length > 0 && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    await Bun.sleep(50)
     left = left.filter(alive)
   }
   return left
