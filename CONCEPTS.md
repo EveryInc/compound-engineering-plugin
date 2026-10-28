@@ -100,7 +100,7 @@ A semantic cost class for a dispatched sub-agent — extraction (cheapest capabl
 When a platform cannot select models per agent, every role runs on the inherited model and cost control falls back to structure: read budgets and output caps.
 
 ### Evidence dossier
-A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap scout agent — written to scratch storage instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
+A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap retrieval agent such as a grounding scout or research distiller — written to scratch storage instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
 
 ### Outcome spine
 The part of a Skill that must hold without any reference loaded: the result it produces and who consumes it next, the done condition, the safe failure direction, and the facts the agent cannot derive from the repository in front of it. Everything else in the skill is protocol or judgment attached to that spine, and a block that cannot name its spine is restated before it is edited.
