@@ -462,7 +462,7 @@ describe("cross-model execution receipt seam parity (ce-work <-> lfg)", () => {
       "3. **Read `references/review-followup.md` now**",
     )
 
-    expect(gate).toContain("Only a valid `status: complete` may advance")
+    expect(gate).toContain("Only a valid `status: complete` from `ce-work` may advance")
     expect(gate).toContain("every other status")
     expect(gate).toContain("malformed return")
     expect(gate).toContain("stops the pipeline")

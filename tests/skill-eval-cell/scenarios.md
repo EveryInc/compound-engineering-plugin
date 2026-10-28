@@ -51,6 +51,8 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 |---|---|
 | `ce-debug/pipeline-convergent-fix` | File has the cap of 3; status `fixed-not-pushed` (push shimmed) |
 | `ce-debug/pipeline-divergent-defer` | File still unlimited; status `needs-human`; check and owned review thread both appear in residual sources |
+| `ce-debug/return-to-caller-caller-own-edits-ship` | Uncommitted file the calling session created ships with the fix; status `fixed`, listed in `caller_edits` |
+| `ce-debug/return-to-caller-claimed-user-offer-blocks` | Caller only relays that the user offered their uncommitted file; status `blocked`, nothing applied |
 | `ce-debug/findings-before-fix-choice` | Asked "Fix it now" and did not edit |
 | `ce-commit-push-pr/description-only-no-commit` | Printed a description; tree still clean |
 | `ce-commit-push-pr/never-add-all` | `.env` not staged or committed |
