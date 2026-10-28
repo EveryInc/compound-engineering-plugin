@@ -633,7 +633,7 @@ describe("ce-ideate cost transparency states no hand-maintained totals", () => {
   })
 
   test("the notice does not pre-subtract or assert legs a later phase decides", () => {
-    // The V15 cache check, the issue cluster call, and the universal depth
+    // The web-research cache check, the issue cluster call, and the universal depth
     // count are all resolved after this notice fires, so claiming them here
     // misstates the cost in the direction of confident precision.
     expect(

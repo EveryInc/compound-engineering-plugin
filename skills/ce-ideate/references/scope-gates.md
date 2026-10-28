@@ -4,7 +4,7 @@ Required read at the start of Phase 0, before any grounding dispatch. A gate her
 
 ## Asking (applies to every gate below)
 
-Use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to numbered options in the host's user-visible chat only when no such tool is in the list or a real question call errors. Never silently skip the question.
+Ask through the host's blocking question tool, with the fallback SKILL.md Boundary 4 states.
 
 Ask one question at a time. Prefer concise single-select choices when natural options exist.
 
@@ -135,14 +135,8 @@ Use reasonable interpretation rather than formal parsing.
 
 #### 0.6 Cost Transparency Notice
 
-Before dispatching Phase 1, tell the user the cost shape in one short line so multi-agent cost is not invisible. Name the grounding agents this run will actually dispatch, the size of the ideation fleet, and the skip phrases — e.g. *"Will dispatch codebase scan + learnings + web research + up to 5 evidence scouts + 5 ideation + 1 basis verifier, most on cheap tiers. Skip phrases: 'no external research', 'no slack'."*
+Before dispatching Phase 1, tell the user in one short line which grounding and ideation agents this run will dispatch, plus the skip phrases (e.g. 'no external research', 'no slack'), so multi-agent cost is not invisible. Derive the line from the dispatch decisions already made; do not carry a memorized total. Leave out the web researcher when the user issued a skip phrase — that much is readable from the prompt right now.
 
-Derive it from the dispatch decisions already made in this phase — do not carry a memorized total. Every number is defined elsewhere and changes there: grounding by Phase 1's mode dispatch, scouts by Phase 1.5, the ideation fleet by `references/divergent-ideation.md`, and the tactical and `go deep` variants by 0.5. State a count only if you are stating one you just derived; naming the agents without a total is fine.
-
-Include the conditional legs when they apply: issue intelligence adds its scan call **plus a cluster call only if that scan returns usable signal**, opt-in Slack research adds one, one distiller per user-supplied research artifact **large enough to need distilling** (a small one folds into the grounding summary inline and costs no agent), and up to 2 axis-coverage recovery agents in Phase 2. Subtract the web researcher when the user issued a skip phrase — that much is readable from the prompt right now.
-
-**Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it.** The web-research cache check (`references/web-research-cache.md`) happens in Phase 1, after `<scratch-dir>` exists, so a reuse that skips the web dispatch is unknowable here. The same holds for the issue cluster call and the depth-dependent count in elsewhere-non-software.
-
-**Where a number depends on a decision a later phase makes — a scan result, a depth choice, a dispatch spec not yet loaded — name the leg and say it is conditional rather than guessing.** Reaching for the ordinary five-agent figure to fill such a gap is the one answer certain to be wrong.
+Say "conditional" for anything this phase cannot yet resolve; do not pre-subtract it. Where a number depends on a decision a later phase makes — web-research cache reuse, the issue cluster call only if that scan returns usable signal, a depth-dependent count — name the leg and say it is conditional. State a total only if you just derived it; reaching for the ordinary five-agent figure to fill a gap is the one answer certain to be wrong.
 
 The line is informational; users do not need to acknowledge it.

@@ -45,7 +45,7 @@ Target output:
 
 The ideation artifact is produced **automatically** — persistence is not opt-in. After filtering, write the deliverable, show a concise summary, and open it. The full content lives in the file; the session shows only an orienting summary, so the rich format is what the reader actually engages with.
 
-**Checkpoint B (V17).** Before writing the deliverable, write `<scratch-dir>/survivors.md` (absolute path from Phase 1) containing the survivor list plus key context (focus hint, grounding summary, rejection summary). Best-effort: if the write fails, log a warning and proceed; the run does not depend on the checkpoint. Reuses the same `<run-id>` / `<scratch-dir>` generated in Phase 1.
+**Survivors checkpoint.** Before writing the deliverable, write `<scratch-dir>/survivors.md` (absolute path from Phase 1) containing the survivor list plus key context (focus hint, grounding summary, rejection summary). Best-effort: if the write fails, log a warning and proceed; the run does not depend on the checkpoint. Reuses the same `<run-id>` / `<scratch-dir>` generated in Phase 1.
 
 ### 4.1 Write the Deliverable (automatic, both modes)
 
@@ -81,7 +81,7 @@ This ranked list doubles as the index the user references when choosing an idea 
 
 ## Phase 5: Next Steps
 
-Ask what to do next using the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to numbered options in the host's user-visible chat only when no such tool is in the list or a real question call errors. Never silently skip the question. Free-text answers are accepted.
+Ask what to do next through the host's blocking question tool, with the fallback SKILL.md Boundary 4 states. Free-text answers are accepted.
 
 The deliverable already exists (Phase 4), so the menu is purely *what next* — there is no "save" step.
 
@@ -107,7 +107,7 @@ If the user already named what they want to work on inline (e.g. "brainstorm the
   - **doc title:** `Ideation: <topic>` or the doc's H1.
   - **identity:** `ai:compound-engineering` / `Compound Engineering`.
 
-  ce-proof creates a shared Proof doc (Create and Share workflow) and returns the share URL. Show it to the user, then return to the Phase 5 menu — nothing syncs back to disk. If the Proof handoff fails after the proof skill's internal retry plus one orchestrator-side retry (~2s pause, narrated as "Retrying Proof... attempt 2/2"), tell the user Proof is unavailable and that the local file is intact at `<path>`, then return to the menu — the deliverable was never at risk (it was written in Phase 4). *(If the user explicitly asked for Proof during an HTML run: Proof is markdown-only and cannot ingest HTML, so render a throwaway markdown copy of the survivors as the Proof source and do not upload the `.html`.)*
+  ce-proof creates a shared Proof doc (Create and Share workflow) and returns the share URL. Show it to the user, then return to the Phase 5 menu — nothing syncs back to disk. If the Proof handoff fails, tell the user Proof is unavailable and that the local file at `<path>` is intact and authoritative, then return to the menu. *(If the user explicitly asked for Proof during an HTML run: Proof is markdown-only and cannot ingest HTML, so render a throwaway markdown copy of the survivors as the Proof source and do not upload the `.html`.)*
 
 ### 5.2 Brainstorm One Idea
 
@@ -147,23 +147,18 @@ Then narrate the path and end the session — do not return to the menu.
 
 Only when the file was **created fresh this run**: delete it, confirm the deletion, and end. On a **resume** run (a pre-existing file was updated in place), do **not** delete — tell the user the existing doc at `<path>` remains and offer no destructive action. Discard is never a default; it happens only on an explicit request.
 
-Do not delete the run's scratch directory (`<scratch-dir>`) on completion — it holds the V15 web-research cache reused across run-ids by later ideation invocations in the same session (see `references/web-research-cache.md`), the Checkpoint A/B files, the evidence dossiers, and (in the no-repo case) the deliverable itself. OS handles eventual cleanup.
+Do not delete the run's scratch directory (`<scratch-dir>`) on completion — it holds the web-research cache reused across run-ids by later ideation invocations in the same session (see `references/web-research-cache.md`), the raw-candidates and survivors checkpoints, the evidence dossiers, and (in the no-repo case) the deliverable itself. OS handles eventual cleanup.
 
 ## Quality Bar
 
 Before finishing, check:
 
-- the idea set is grounded in the stated context (codebase in repo mode; user-supplied context in elsewhere mode)
 - **every surviving idea has an articulated basis** (`direct:`, `external:`, or `reasoned:`) that actually supports the claimed move — speculation dressed as ambition was rejected, with reasons
 - the `direct:` bases that surviving ideas rest on were verified against the repo (or the supplied context) — by the generating agent's verification reads or the Phase 3 verifier — not taken on faith
 - **every surviving idea passes the meeting-test** unless tactical scope was active (Phase 0.5) and waived the floor
 - **no surviving idea replaces the subject** rather than operating on it
 - when Phase 1.5 produced an axis list, the survivor set spreads across axes rather than clustering on one — and any axis with zero survivors is noted as a deliberate gap in the rejection summary, not silently absent
-- the candidate list was generated before filtering
-- the original many-ideas -> critique -> survivors mechanism was preserved
-- if sub-agents were used, they improved diversity without replacing the core workflow
 - every rejected idea has a reason
-- survivors are materially better than a naive "give me ideas" list
 - the deliverable was written automatically in both modes (Phase 4) — to `<root>/ideation/` when present, else the CE temp area, never the user's CWD
 - the session showed a concise summary, not a reproduction of the full deliverable
 - acting on an idea routes to `ce-brainstorm` (with a substance seed, not the whole file), not directly to implementation
