@@ -112,11 +112,14 @@ describe("extract-metadata JSONL note", () => {
     expect(note).toMatch(/line by line/)
     expect(note).toContain("json.load(sys.stdin)")
     expect(note).toContain("2>&1")
-    expect(note).toContain("`branch`")
+    // The following paragraph owns cwd/branch presence. The note must not restate it.
+    expect(note).not.toMatch(/`cwd` is present/)
+    expect(note).not.toMatch(/Claude also has `branch`/)
+    expect(note).not.toContain("`cwd`")
+    expect(note).not.toContain("`branch`")
+    // The following paragraph says "keyword match count" and never names these keys.
     expect(note).toContain("`keyword_matches`")
     expect(note).toContain("`match_count`")
-    expect(note).toContain("`size`")
-    expect(note).toContain("`cwd`")
   })
 
   test("historian prompt treats last_ts as optional and falls back to ts", () => {
