@@ -100,7 +100,8 @@ When an implementation-ready software plan is warranted, these sections are
 present. They carry the contracts downstream consumers depend on.
 
 - **Goal Capsule** — objective, means (only when an approach is fixed),
-  authority hierarchy, stop conditions, execution profile, and who
+  authority hierarchy, stop conditions, execution profile (including
+  whether the work ships as one PR or several), and who
   finishes and ships the work. This is the fastest way for an executor to avoid drifting from
   the plan. A reader who has not read the rest of the plan must be able to
   hold the Objective as the goal. Remaining-true constraints live on their
@@ -145,7 +146,8 @@ present. They carry the contracts downstream consumers depend on.
 - **Implementation Units** (with stable U-IDs) — discrete work packets sized so
   each is independently executable. Each unit names Goal, Requirements,
   Files, Approach, Test Scenarios, and Verification. `ce-work` and other
-  executors consume these units.
+  executors consume these units. When the work ships as several PRs, the
+  units are grouped by PR, and each group names the PRs it waits on.
   - **Unit Index (large plans only, ~10+ units).** When the plan has roughly
     ten or more units, open the section with a compact navigation table — one
     row per unit: **U-ID · one-line title · files touched · depends-on**. It
@@ -303,7 +305,8 @@ The agent also picks per artifact:
   anchor on them. (Scoped by artifact contract, not by depth — a `Lightweight`
   plan can still be implementation-ready.)
 - Sub-groupings (Requirements by capability, KTDs by component, Units phased
-  into milestones)
+  into milestones). When the work ships as several PRs, the PR groups are the
+  only grouping of units
 - How much detail each section carries
 - Whether HTD has one diagram, several, or none — and whether visualizations
   live in HTD or embedded in other sections
