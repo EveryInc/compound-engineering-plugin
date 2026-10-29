@@ -85,3 +85,33 @@ describe("session-historian omp platform contract", () => {
     expect(AGENT_BODY).toContain("[N] Pi, [N] omp")
   })
 })
+
+describe("extract-metadata JSONL note", () => {
+  const start = COMPOUND_SKILL_BODY.indexOf("The output is JSONL")
+  const end = COMPOUND_SKILL_BODY.indexOf("Claude sessions live under")
+  const note = COMPOUND_SKILL_BODY.slice(start, end)
+
+  test("treats last_ts and Codex model as optional", () => {
+    // extract-metadata.py creates `model` only from a Codex turn_context line,
+    // and `last_ts` only when the file tail has a timestamp (never for Cursor).
+    // An object missing either key is still a session; recency uses `ts`.
+    expect(start, "JSONL note must follow the discovery command").toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    expect(note).toMatch(/`last_ts`[^.\n]{0,80}optional/)
+    expect(note).toMatch(/`model`[^.\n]{0,80}optional/)
+    expect(note).toMatch(/not malformed/)
+    expect(note).toMatch(/`ts` for recency when `last_ts` is absent/)
+    expect(note).not.toMatch(/carry[^.\n]{0,180}`last_ts`/)
+    expect(note).not.toMatch(/adds `model`/)
+    expect(note).toContain("JSONL")
+    expect(note).toContain("files_processed")
+    expect(note).toMatch(/line by line/)
+    expect(note).toContain("json.load(sys.stdin)")
+    expect(note).toContain("2>&1")
+    expect(note).toContain("`branch`")
+    expect(note).toContain("`keyword_matches`")
+    expect(note).toContain("`match_count`")
+    expect(note).toContain("`size`")
+    expect(note).toContain("`cwd`")
+  })
+})
