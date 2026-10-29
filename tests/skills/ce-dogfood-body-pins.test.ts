@@ -20,7 +20,8 @@ describe("ce-dogfood always-loaded body pins", () => {
   })
 
   test("keeps the boundaries that decide mutations and tooling", () => {
-    expect(body).toContain("agent-browser")
+    expect(body).toMatch(/prefer a built-in browser over the `agent-browser` CLI/i)
+    expect(body).toMatch(/one browser for the whole run/i)
     expect(body).toContain("mcp__claude-in-chrome__*")
     expect(body).toContain("npx agent-browser")
     expect(body).toMatch(/never dogfood the trunk/i)
@@ -44,6 +45,11 @@ describe("ce-dogfood always-loaded body pins", () => {
     expect(body).toContain("Blocked (human decision)")
     expect(body).toMatch(/ends that scenario, not the run/i)
   })
+
+  test("asks a person only for what the run cannot continue without", () => {
+    expect(body).toMatch(/run cannot continue without something only the user has/i)
+    expect(body).toMatch(/handed back once, at the end/i)
+  })
 })
 
 // The phase procedure moved to exactly one file, so pin it there rather than to
@@ -59,14 +65,39 @@ describe("ce-dogfood relocated procedure stays in references/phases.md", () => {
     "gh pr view <number> --json headRefName,isCrossRepository",
     "flowchart TD",
     "STRATEGY.md",
-    "agent-browser snapshot -i",
-    "agent-browser errors",
     "paper cut",
     "Decisions for a human",
     "one logical fix per commit",
+    "references/agent-browser-driver.md",
+    "find every browser this environment offers",
+    "the app hosting this session",
+    "local stand-in",
   ]) {
     test(`phases.md keeps: ${invariant.slice(0, 48)}`, () => {
       expect(phases.toLowerCase()).toContain(invariant.toLowerCase())
+    })
+  }
+
+  test("phase 0 isolates and resumes without asking", () => {
+    expect(phases).toMatch(/Isolate it without asking/)
+    expect(phases).toMatch(/resume it without asking/)
+    expect(phases).not.toMatch(/Offer isolation/)
+  })
+})
+
+describe("ce-dogfood agent-browser driver reference", () => {
+  const driver = readFileSync(path.join(SKILL_DIR, "references", "agent-browser-driver.md"), "utf8")
+
+  for (const command of [
+    "command -v agent-browser",
+    "agent-browser skills get core",
+    "agent-browser snapshot -i",
+    "agent-browser errors",
+    "agent-browser --headed open",
+    "agent-browser --session viewer open",
+  ]) {
+    test(`driver reference keeps: ${command}`, () => {
+      expect(driver).toContain(command)
     })
   }
 })

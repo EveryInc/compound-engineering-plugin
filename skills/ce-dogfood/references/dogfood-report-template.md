@@ -34,9 +34,9 @@ flowchart TD
 |---|------|--------------------|--------|-------|-----|--------|
 | 1 |      |                    | Pass   | -     | -   | -      |
 | 2 |      |                    | Fixed  |       |     | abc123 |
-| 3 |      |                    | Blocked (needs human verify) | | | |
+| 3 |      |                    | Blocked (needs human verify) | | | -      |
 
-Status values: `Pending`, `Pass`, `Fixed`, `Skipped`, `Blocked (needs human verify)`, `Blocked (human decision)`. Start every scenario at `Pending` so this table doubles as the resume checkpoint.
+Status values: `Pending`, `Pass`, `Fixed`, `Skipped`, `Blocked (needs human verify)`, `Blocked (human decision)`. Start every scenario at `Pending` so this table doubles as the resume checkpoint. `Commit` is the fix commit on a `Fixed` row and `-` otherwise.
 
 ## Pack Compliance
 
@@ -66,7 +66,7 @@ For each issue found and fixed:
 
 ## Human Verifications
 
-<External-interaction legs (OAuth, real email delivery, payments, SMS): confirmed, pending, or not applicable.>
+<Outside-service legs (OAuth, email delivery, payments, SMS, third-party APIs) the branch changed: covered by a local stand-in, pending a person's check (say what to check), or not applicable because the branch did not touch them.>
 
 ## Decisions for a Human
 
@@ -94,4 +94,4 @@ For each issue found and fixed:
 
 ## Final Status
 
-<Overall readiness verdict for the branch. Ready to ship? Caveats? Outstanding blocked items? Record the result of the Phase 5 automated test suite run — a green matrix with a red suite is not "ready.">
+<Overall readiness verdict for the branch. Ready to ship? Caveats? Outstanding blocked items? Record the result of the Phase 5 automated test suite run — a green matrix with a red suite is not "ready." Name the browsers the environment offered, the one the run used, and why. State once what the local environment replaced (seeded auth, fixture providers, simulated payments) and which claims that leaves unproven.>
