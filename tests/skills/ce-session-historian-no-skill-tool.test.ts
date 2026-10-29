@@ -90,6 +90,10 @@ describe("extract-metadata JSONL note", () => {
   const start = COMPOUND_SKILL_BODY.indexOf("The output is JSONL")
   const end = COMPOUND_SKILL_BODY.indexOf("Claude sessions live under")
   const note = COMPOUND_SKILL_BODY.slice(start, end)
+  const historianContract = AGENT_BODY.slice(
+    AGENT_BODY.indexOf("## Input contract"),
+    AGENT_BODY.indexOf("## Standalone fallback"),
+  )
 
   test("treats last_ts and Codex model as optional", () => {
     // extract-metadata.py creates `model` only from a Codex turn_context line,
@@ -113,5 +117,13 @@ describe("extract-metadata JSONL note", () => {
     expect(note).toContain("`match_count`")
     expect(note).toContain("`size`")
     expect(note).toContain("`cwd`")
+  })
+
+  test("historian prompt treats last_ts as optional and falls back to ts", () => {
+    // The dispatch list is the other side of the JSONL contract. Cursor sessions
+    // and transcripts with no tail timestamp have ts and no last_ts.
+    expect(historianContract).toMatch(/`last_ts`[^.\n]*when present/)
+    expect(historianContract).toMatch(/when absent, use `ts`/)
+    expect(historianContract).not.toMatch(/`ts` and `last_ts`/)
   })
 })
