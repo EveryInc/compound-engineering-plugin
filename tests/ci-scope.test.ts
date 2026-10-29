@@ -79,6 +79,14 @@ describe("specialized CI selection", () => {
     }
     expect(workflow.jobs.scope.steps.find((step: any) => step.id === "scope").env.CI_PR_BASE)
       .toBe("${{ github.event.pull_request.base.sha }}")
+    const linux = workflow.jobs.test.steps
+    const tests = linux.find((step: any) => step.name === "Run tests")
+    expect(tests.if).toBeUndefined()
+    expect(tests.env.CI_PR_BASE).toBe("${{ github.event.pull_request.base.sha }}")
+    expect(tests.run).toContain('if [[ "$CI_EVENT" == "pull_request" ]]')
+    expect(tests.run).toContain('--changed-since="$CI_PR_BASE"')
+    expect(tests.run).toContain('else\n  bun run test --timings=')
+    expect(linux.find((step: any) => step.name === "Typecheck").run).toBe("bun run typecheck")
     expect(workflow.concurrency.group).toContain("github.event.pull_request.number || github.run_id")
   })
 })

@@ -9,11 +9,11 @@
 // assertion failure or error anywhere keeps the first result with no re-run,
 // so a defect that only shows under parallel load is not retried away.
 import { type ChildProcess, spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { constants, tmpdir } from "node:os"
 import path from "node:path"
 
-const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
+const TEST_FILE = /(?:\.(?:test|spec)|_(?:test|spec))\.[cm]?[jt]sx?$/
 
 export type JunitCase = { file: string; failure: string | null; describe: string[]; name: string; message: string }
 
@@ -290,6 +290,26 @@ async function main(argv: string[]): Promise<number> {
   if (missing.length > 0) {
     console.error(`Missing dependencies: ${missing.join(", ")}. Run \`bun install\`, then re-run the tests.`)
     return 1
+  }
+  const selectionFlags = argv.filter((arg) => arg.startsWith("--changed-since="))
+  if (selectionFlags.length) {
+    argv = argv.filter((arg) => !arg.startsWith("--changed-since="))
+    if (selectionFlags.length !== 1 || argv.some((arg) => arg !== "--update-timings" && !arg.startsWith("--timings="))) {
+      console.error("--changed-since cannot be combined with other filters or options; only --timings=<path> and --update-timings are supported.")
+      return 1
+    }
+    const { changedFilesForBase } = await import("./ci-scope")
+    const { discoverTests, selectTests } = await import("./test-scope")
+    let summary: string
+    try {
+      const selection = selectTests(changedFilesForBase(selectionFlags[0].slice("--changed-since=".length)), discoverTests())
+      summary = `Linux tests: ${selection.mode}; ${selection.files.length}/${selection.total} files; groups: ${selection.groups.join(", ") || "baseline only"}; ${selection.reason}.`
+      if (selection.mode === "selected" && selection.files.length) argv.push(...selection.files.map((file) => `./${file}`))
+    } catch (error) {
+      summary = `Linux tests: full; test discovery unavailable (${error instanceof Error ? error.message : String(error)}).`
+    }
+    console.log(summary)
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`)
   }
   const reportDir = mkdtempSync(path.join(tmpdir(), "bun-test-report-"))
   const report = path.join(reportDir, "junit.xml")

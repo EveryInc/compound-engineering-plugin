@@ -19,14 +19,18 @@ export function selectScope(files: readonly string[]): Scope {
   return { windows, transport: false }
 }
 
-export function scopeForBase(base: string | undefined, cwd = process.cwd()): Scope {
-  if (!base || !/^[0-9a-f]{40}$/.test(base)) return { ...FULL }
+export function changedFilesForBase(base: string | undefined, cwd = process.cwd()): string[] | null {
+  if (!base || !/^[0-9a-f]{40}$/.test(base)) return null
   // Compare the tested merge tree with its base; --no-renames includes both sides of moves.
   const diff = spawnSync("git", ["diff", "--name-only", "--no-renames", "-z", base, "HEAD", "--"], {
     cwd, encoding: "utf8", timeout: 10_000,
   })
-  if (diff.status !== 0 || !diff.stdout.endsWith("\0")) return { ...FULL }
-  return selectScope(diff.stdout.slice(0, -1).split("\0"))
+  if (diff.status !== 0 || !diff.stdout.endsWith("\0")) return null
+  return diff.stdout.slice(0, -1).split("\0")
+}
+
+export function scopeForBase(base: string | undefined, cwd = process.cwd()): Scope {
+  return selectScope(changedFilesForBase(base, cwd) ?? [])
 }
 
 if (import.meta.main) {

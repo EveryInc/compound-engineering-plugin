@@ -154,10 +154,24 @@ jobs:
           claude --version
           bun run plugin:validate
 
-      # Runs the package `test` script so the flags CI uses and the flags a
-      # contributor gets from `bun run test` cannot drift apart.
       - name: Run tests
-        run: bun run test
+        env:
+          CI_PR_BASE: ${{ github.event.pull_request.base.sha }}
+          CI_EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$CI_EVENT" == "pull_request" ]]; then
+            bun run test --changed-since="$CI_PR_BASE" --timings="$RUNNER_TEMP/test-timings.json" --update-timings
+          else
+            bun run test --timings="$RUNNER_TEMP/test-timings.json" --update-timings
+          fi
+
+      - name: Upload test timings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-timings
+          path: ${{ runner.temp }}/test-timings.json
+          if-no-files-found: warn
 
       - name: Typecheck
         if: ${{ !cancelled() }}
