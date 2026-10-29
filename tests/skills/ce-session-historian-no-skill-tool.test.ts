@@ -86,47 +86,16 @@ describe("session-historian omp platform contract", () => {
   })
 })
 
-describe("extract-metadata JSONL note", () => {
-  const start = COMPOUND_SKILL_BODY.indexOf("The output is JSONL")
-  const end = COMPOUND_SKILL_BODY.indexOf("Claude sessions live under")
-  const note = COMPOUND_SKILL_BODY.slice(start, end)
-  const historianContract = AGENT_BODY.slice(
-    AGENT_BODY.indexOf("## Input contract"),
-    AGENT_BODY.indexOf("## Standalone fallback"),
-  )
-
-  test("treats last_ts and Codex model as optional", () => {
-    // extract-metadata.py creates `model` only from a Codex turn_context line,
-    // and `last_ts` only when the file tail has a timestamp (never for Cursor).
-    // An object missing either key is still a session; recency uses `ts`.
-    expect(start, "JSONL note must follow the discovery command").toBeGreaterThan(-1)
-    expect(end).toBeGreaterThan(start)
-    expect(note).toMatch(/`last_ts`[^.\n]{0,80}optional/)
-    expect(note).toMatch(/`model`[^.\n]{0,80}optional/)
-    expect(note).toMatch(/not malformed/)
-    expect(note).toMatch(/`ts` for recency when `last_ts` is absent/)
-    expect(note).not.toMatch(/carry[^.\n]{0,180}`last_ts`/)
-    expect(note).not.toMatch(/adds `model`/)
-    expect(note).toContain("JSONL")
-    expect(note).toContain("files_processed")
-    expect(note).toMatch(/line by line/)
-    expect(note).toContain("json.load(sys.stdin)")
-    expect(note).toContain("2>&1")
-    // The following paragraph owns cwd/branch presence. The note must not restate it.
-    expect(note).not.toMatch(/`cwd` is present/)
-    expect(note).not.toMatch(/Claude also has `branch`/)
-    expect(note).not.toContain("`cwd`")
-    expect(note).not.toContain("`branch`")
-    // The following paragraph says "keyword match count" and never names these keys.
-    expect(note).toContain("`keyword_matches`")
-    expect(note).toContain("`match_count`")
+describe("extract-metadata JSONL contract", () => {
+  // #1945: agents fed the multi-line output to one whole-document JSON parse and
+  // failed with "Extra data". xargs can also emit several _meta lines.
+  test("the discovery step says the output is JSONL and totals files_processed", () => {
+    expect(COMPOUND_SKILL_BODY).toMatch(/prints JSONL/)
+    expect(COMPOUND_SKILL_BODY).toMatch(/`files_processed` total is the sum across its `_meta` lines/)
   })
 
-  test("historian prompt treats last_ts as optional and falls back to ts", () => {
-    // The dispatch list is the other side of the JSONL contract. Cursor sessions
-    // and transcripts with no tail timestamp have ts and no last_ts.
-    expect(historianContract).toMatch(/`last_ts`[^.\n]*when present/)
-    expect(historianContract).toMatch(/when absent, use `ts`/)
-    expect(historianContract).not.toMatch(/`ts` and `last_ts`/)
+  test("historian prompt falls back to ts when last_ts is absent", () => {
+    // Cursor sessions and transcripts with no tail timestamp have ts and no last_ts.
+    expect(AGENT_BODY).toMatch(/`last_ts`[^\n]*when absent, use `ts`/)
   })
 })
