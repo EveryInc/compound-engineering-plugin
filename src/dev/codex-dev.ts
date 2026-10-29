@@ -82,6 +82,7 @@ export interface CodexDevStatus {
   localTarget?: string
   localMatchesCheckout: boolean
   officialPluginConfigured: boolean
+  recoveredTarget?: string
 }
 
 const OFFICIAL_PLUGIN_ID = "compound-engineering@compound-engineering-plugin"
@@ -258,7 +259,9 @@ export async function inspectLocalCollection(context: CodexDevContext): Promise<
   }
 }
 
-export async function activateLocalCollection(context: CodexDevContext): Promise<void> {
+export async function activateLocalCollection(
+  context: CodexDevContext,
+): Promise<ManagedCollectionLinkExpectation> {
   await fs.mkdir(path.dirname(context.collectionPath), { recursive: true })
   const desiredTarget = await fs.realpath(context.skillsRoot)
   const state = await inspectLocalCollection(context)
@@ -268,17 +271,15 @@ export async function activateLocalCollection(context: CodexDevContext): Promise
   if (state.kind === "unrelated") {
     throw new Error(`${context.collectionPath} points outside a Compound Engineering checkout; refusing to overwrite it`)
   }
-  if (state.kind === "broken") {
-    throw new Error(`${context.collectionPath} is a broken symlink; refusing to overwrite it`)
-  }
-  if (state.kind === "valid" && state.resolvedTarget === desiredTarget) return
+  if (state.kind === "valid" && state.resolvedTarget === desiredTarget) return state
 
   await replaceManagedCollectionLink(context.collectionPath, desiredTarget, state)
+  return state
 }
 
 export type ManagedCollectionLinkExpectation =
   | { kind: "absent" }
-  | { kind: "valid"; target: string }
+  | { kind: "valid" | "broken"; target: string }
 
 export async function removeManagedCollectionLink(
   collectionPath: string,
@@ -402,7 +403,7 @@ export async function replaceManagedCollectionLink(
 
 async function restoreLocalCollection(
   context: CodexDevContext,
-  previous: Extract<LocalCollectionState, { kind: "absent" | "valid" }>,
+  previous: ManagedCollectionLinkExpectation,
   activatedTarget: string,
 ): Promise<void> {
   if (previous.kind === "absent") {
@@ -555,12 +556,8 @@ export async function switchToLocal(
   context: CodexDevContext,
   runner: CommandRunner = new BunCommandRunner(),
 ): Promise<CodexDevStatus> {
-  const previous = await inspectLocalCollection(context)
-  if (previous.kind !== "absent" && previous.kind !== "valid") {
-    throw new Error(`Cannot switch to local mode while the local collection is ${previous.kind}`)
-  }
   const activatedTarget = await fs.realpath(context.skillsRoot)
-  await activateLocalCollection(context)
+  const previous = await activateLocalCollection(context)
   try {
     const plugins = await listCompoundEngineeringPlugins(context, runner)
     await removeLocalPluginConflicts(context, runner, plugins)
@@ -568,6 +565,7 @@ export async function switchToLocal(
     if (status.mode !== "local") {
       throw new Error(`Could not verify local Codex development mode (reported ${status.mode})`)
     }
+    if (previous.kind === "broken") status.recoveredTarget = previous.target
     return status
   } catch (error) {
     await restoreLocalCollection(context, previous, activatedTarget)
@@ -728,6 +726,9 @@ export async function runCodexDevCommand(
       break
   }
 
+  if (status.recoveredTarget !== undefined) {
+    write(`Recovered stale local skills link: ${status.recoveredTarget} -> ${status.localTarget}`)
+  }
   for (const line of statusLines(context, status)) write(line)
   if (command !== "status") {
     write(
