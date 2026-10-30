@@ -125,7 +125,10 @@ source:
   unit list at a glance, not one long scroll. Secondary content is what a
   reader opens on demand. A card whose body is the point stays expanded:
   a Key Technical Decision's rationale, or an ideation idea card, which its
-  section contract says is read in full.
+  section contract says is read in full. When the work ships as several PRs,
+  each PR group is a heading at the unit cards' heading level, starting
+  with its `PR<N>` label, with its
+  `Waits on:` line visible beneath it, and its units keep their own cards.
 - **Within-section sub-nav.** A section with 6+ repeating cards starts with a
   short list of anchor links to its cards.
 - **Uniform marks, no one-edge accent.** Chips in a row share one shape.
