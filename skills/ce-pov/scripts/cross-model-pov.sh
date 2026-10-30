@@ -41,7 +41,7 @@
 #     prints the exact argv the given route would run (route in:
 #     codex | claude | grok-cli | grok-cursor | cursor | composer | opencode |
 #     antigravity). Both this mode and the
-#     live run build their argv from adapter_argv(), so the U7 route-safety test
+#     live run build their argv from adapter_argv(), so the route-safety test
 #     asserts on the same command string the peer actually runs.
 #
 # Self-locates its sibling reference files via BASH_SOURCE (NOT the CWD, which is
@@ -569,7 +569,7 @@ SCHEMA="$SKILL_ROOT/references/pov-schema.json"
 SCHEMA_CONTENT="$(cat "$SCHEMA")" || skip "cannot read POV schema; skipping"
 
 # --- validate the host-resolved fixed route and egress allowlist -------------
-ALLOW="${CROSS_MODEL_PEERS:-}"                 # optional egress allowlist (R19)
+ALLOW="${CROSS_MODEL_PEERS:-}"                 # optional egress allowlist
 
 in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # Require a usable POV, not merely valid JSON. Error envelopes and incomplete
@@ -609,7 +609,7 @@ route_allowlisted() {
 }
 
 # Soft size gate: peer prompt embeds the full subject payload. Over-budget payloads skip
-# cleanly (R11) rather than collapsing silently inside the provider context window.
+# cleanly rather than collapsing silently inside the provider context window.
 MAX_PAYLOAD_CHARS="${CROSS_MODEL_MAX_PAYLOAD_CHARS:-200000}"
 case "$MAX_PAYLOAD_CHARS" in ''|*[!0-9]*) MAX_PAYLOAD_CHARS=200000 ;; esac
 PAYLOAD_CHARS="$(wc -c <"$PAYLOAD_PATH" | tr -d '[:space:]')"

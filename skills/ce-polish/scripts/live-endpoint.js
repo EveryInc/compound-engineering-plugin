@@ -60,7 +60,7 @@ const PAGE_EVENT_TYPES = new Set([
   "transcript", "unit", "unit_update", "unit_withdraw", "annotation",
   "checkpoint", "answer", "frame", "mic", "mode", "stream_state",
 ])
-// Page-emitted checkpoint triggers (KTD9). `silence`/`page_change`/`send`
+// Page-emitted checkpoint triggers. `silence`/`page_change`/`send`
 // wake the agent only when they release something; `final` always wakes.
 const PAGE_CHECKPOINT_KINDS = new Set(["silence", "page_change", "send", "final"])
 const ALWAYS_WAKE_KINDS = new Set(["answer", "mode_change", "final"])
@@ -1485,7 +1485,7 @@ async function serve(options) {
     return rest
   }
 
-  // KTD12: units the agent accepted but has not applied or blocked since.
+  // Units the agent accepted but has not applied or blocked since.
   // `final` and `mode_change` carry them so a Collect backlog is applied.
   function backlogUnits() {
     return board.unit_order
@@ -1532,7 +1532,7 @@ async function serve(options) {
     return envelope
   }
 
-  // KTD12: leaving Collect wakes the agent at once with the accepted backlog.
+  // Leaving Collect wakes the agent at once with the accepted backlog.
   function emitModeChange(mode) {
     const checkpointId = `ck-mode-${randomUUID()}`
     board.checkpoints.push({ id: checkpointId, kind: "mode_change", mode, t: Date.now() })
@@ -1587,7 +1587,7 @@ async function serve(options) {
     }
   }
 
-  // --- page-lost detection (KTD8) ----------------------------------------------
+  // --- page-lost detection ----------------------------------------------------
 
   function armPageLost() {
     if (pageLostTimer || board.ended) return
@@ -1668,7 +1668,7 @@ async function serve(options) {
   // /session/end ends the board, not the tokens. The page token stays valid so
   // the same link can open another session once this one drains (see
   // openSession); both tokens live until `stop` (or a fresh start on the ended
-  // root), per I4/KTD18: an agent that crashes between the final ack and
+  // root), so an agent that crashes between the final ack and
   // `stop` can still resume, `status`, and `stop`.
   function endSession() {
     if (board.ended) return
@@ -1907,8 +1907,8 @@ async function serve(options) {
     } else if (type === "unit_update") {
       const unit = unitById(payload.unit_id)
       if (!unit) return
-      // KTD5: a unit is refined only while it is still initial and unreleased;
-      // the riffer's confirmation pass (KTD22) may land at any point.
+      // A unit is refined only while it is still initial and unreleased;
+      // the riffer's confirmation pass may land at any point.
       if (payload.confirmed !== undefined) unit.confirmed = payload.confirmed
       if (unit.released || unit.status !== "initial") return
       if (typeof payload.statement === "string") unit.statement = payload.statement
@@ -2690,7 +2690,7 @@ async function serve(options) {
       return
     }
 
-    // Nothing is served from the run directory (R40).
+    // Nothing is served from the run directory.
     sendJson(res, 404, { error: "not found" })
   }
 

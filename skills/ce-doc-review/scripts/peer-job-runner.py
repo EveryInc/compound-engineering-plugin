@@ -157,7 +157,7 @@ if IS_WINDOWS:
     # No geteuid on Windows; the current-user SID is the ownership identity
     # (see the Windows security section below), and the per-user jobs root lives
     # under LOCALAPPDATA (falling back to the user temp dir) with a hardened ACL
-    # so R6 has a working default rather than a required override.
+    # so the jobs root has a working default rather than a required override.
     _WIN_ROOT_BASE = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
     DEFAULT_ROOT = os.path.join(_WIN_ROOT_BASE, "compound-engineering-jobs")
 elif _EFFECTIVE_UID is not None:
@@ -755,7 +755,7 @@ if IS_WINDOWS:
     def _win_kill_tree(
         root_pid: int, grace: float, job_name=None, expected_identity=None,
     ) -> bool:
-        """Terminate the worker tree (KTD3). Returns whether the LEADER was
+        """Terminate the worker tree. Returns whether the LEADER was
         alive when the kill began -- the reap classification signal -- which is
         independent of how much of the tree we then sweep.
 
@@ -1726,7 +1726,7 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
         if _reap_requested(flag, job_dir):
             # Classification is fixed BEFORE the kill: even if the worker
             # publishes and exits 0 during the grace window, the supervisor's
-            # record wins (R3).
+            # record wins.
             _reap_worker(proc, conf, job_name)
             state, reason = "timeout", "reaped on request before completion"
             break
@@ -1916,7 +1916,7 @@ def _win_supervise_from_spec(job_dir: str) -> int:
 # --- subcommands ---------------------------------------------------------------
 
 def sweep_stale_runs(skill_dir: str, keep: str) -> None:
-    """Best-effort retention (R14): remove sibling run roots older than 24h.
+    """Best-effort retention: remove sibling run roots older than 24h.
     Owner-checked via lstat; never raises, never touches the current run."""
     try:
         entries = list(os.scandir(skill_dir))

@@ -92,7 +92,7 @@ Pre-dispatch eligibility is based on installed route presence and sanction, not 
 
 Each call is a CLI shell-out, not a subagent. Resolve one target and one fixed route once per document review, then launch every activated lens against that same sanctioned target/route. Launch each call as a detached job through `scripts/peer-job-runner.py` in the same dispatch wave as the in-process reviewers. A failed route does not fall through inside the worker.
 
-**Two modes — slice the trio, sweep the whole doc (R20, KTD6):**
+**Two modes — slice the trio, sweep the whole doc:**
 
 - **Trio peers, sliced.** On **unified artifacts**, pass each activated trio lens the *same reviewer-specific slice its in-process twin got* as `<document-path>` (write that slice to a temp file — e.g. product-lens/adversarial get the Product Contract), not the full document, so the peer is a true corroborating twin rather than an off-lens reviewer. On legacy docs the peer gets the same full document the twin does.
 - **One whole-doc sweep.** In the **same wave**, also launch **one** call with reviewer-name **`whole-doc`**, the **full** document (never sliced), and the same resolved provider — a broad different-model read of the entire doc. It runs **once per document** (not per lens), writes `whole-doc-<provider>.json`, and folds in as an independent reviewer that corroborates against *any* in-process finding 3.3 merged it with (it has no in-process twin). Same gate, isolation, and non-blocking rules as the trio calls. A model following this contract MUST issue this `whole-doc` invocation whenever the pass runs, or the broad coverage the sweep exists to provide is silently skipped.

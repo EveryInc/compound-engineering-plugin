@@ -1129,10 +1129,10 @@ def _mergeability_certain(mergeable, merge_state_status, base):
 
 
 def _normal_base_route(cur):
-    """Return the only route U1 may classify: an unmanaged PR rooted on its normal base.
+    """Return the only route branch-currency checks may classify: an unmanaged PR rooted on its normal base.
 
     Ordinary dependents are intentionally harmless. An open or unknown parent means this target is
-    itself in a manual dependency chain and therefore outside this unit's authority.
+    itself in a manual dependency chain and therefore outside what those checks may act on.
     """
     chain = cur.get("pr_chain") or _default_pr_chain()
     base = cur.get("base") or {}

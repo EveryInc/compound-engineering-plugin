@@ -593,7 +593,7 @@ case "$REVIEWER_NAME" in
   security-lens) PERSONA_FILE="security-lens-reviewer" ;;
   adversarial)   PERSONA_FILE="adversarial-document-reviewer" ;;
   product-lens)  PERSONA_FILE="product-lens-reviewer" ;;
-  whole-doc)     PERSONA_FILE="whole-doc-reviewer" ;;   # broad whole-document sweep (R20/U9); embeds the full doc, no in-process twin
+  whole-doc)     PERSONA_FILE="whole-doc-reviewer" ;;   # broad whole-document sweep; embeds the full doc, no in-process twin
   *) skip "reviewer-name '$REVIEWER_NAME' is not a cross-model reviewer (want security-lens|adversarial|product-lens|whole-doc); skipping" ;;
 esac
 
@@ -620,19 +620,19 @@ CONTEXT_SLOT_RULES="$(awk '/<context-slots-rules>/{f=1} f; /<\/context-slots-rul
 # the template's <output-contract> block, which every in-process reviewer receives.
 # The isolated peer can't resolve that reference on its own, so embed it too --
 # otherwise the peer calibrates anchors / suppresses false positives differently from
-# its in-process twin, weakening the cross-model agreement signal (R13 parity).
+# its in-process twin, weakening the cross-model agreement signal.
 OUTPUT_CONTRACT_RULES="$(awk '/<output-contract>/{f=1} f; /<\/output-contract>/{if(f)exit}' "$TEMPLATE" 2>/dev/null)"
 [ -n "$OUTPUT_CONTRACT_RULES" ] || log "output-contract not found in $TEMPLATE; peer prompt omits the shared confidence rubric / FP catalog (calibration may differ from the twin)"
 
 # --- resolve which provider(s) to run (exclude host, allowlist, availability) --
-ALLOW="${CROSS_MODEL_PEERS:-}"                 # optional egress allowlist (R19)
+ALLOW="${CROSS_MODEL_PEERS:-}"                 # optional egress allowlist
 MAX_PEERS="${CROSS_MODEL_MAX_PEERS:-1}"        # default 1; clamped 0..2 (hard cap)
 case "$MAX_PEERS" in ''|*[!0-9]*) MAX_PEERS=1 ;; esac
 [ "$MAX_PEERS" -gt 2 ] && MAX_PEERS=2
 
 in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # The cursor-agent route egresses content through Cursor even when the *model* is
-# grok (grok-via-cursor-agent). CROSS_MODEL_PEERS is an egress boundary (R19), not
+# grok (grok-via-cursor-agent). CROSS_MODEL_PEERS is an egress boundary, not
 # just a model-provider filter, so the grok->cursor-agent transport is off-limits
 # under an allowlist that does not sanction Cursor. Cursor egress is sanctioned when
 # no allowlist is set, or when 'composer' (the Cursor-native provider) is allowlisted
@@ -640,7 +640,7 @@ in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 cursor_egress_ok() { [ -z "$ALLOW" ] || in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
 
 # Soft size gate: peer prompt embeds the full document. Over-budget docs skip
-# cleanly (R11) rather than collapsing silently inside the provider context window.
+# cleanly rather than collapsing silently inside the provider context window.
 MAX_DOC_CHARS="${CROSS_MODEL_MAX_DOC_CHARS:-200000}"
 case "$MAX_DOC_CHARS" in ''|*[!0-9]*) MAX_DOC_CHARS=200000 ;; esac
 DOC_CHARS="$(wc -c <"$DOC_PATH" | tr -d '[:space:]')"
@@ -744,7 +744,7 @@ CLAUDE_WRAPPER=""
 GEMINI_HOME_DIR=""
 RUN_SUCCEEDED=false
 PROVIDER_OUTCOME="failed"
-# Basename only in the peer prompt: content is already embedded (KTD3). An absolute
+# Basename only in the peer prompt: content is already embedded. An absolute
 # path would give a read-capable route a repo coordinate to walk from.
 DOC_BASENAME="$(basename "$DOC_PATH")"
 {
@@ -1192,8 +1192,8 @@ run_provider() {   # <provider>
   # file if findings is not an array. Peer findings fold in as a corroboration
   # signal only -- synthesis (references/synthesis-and-presentation.md) never
   # auto-applies them and caps the cross-model bonus at one anchor step.
-  # Downgrade any peer finding's autofix_class from safe_auto to gated_auto: R18
-  # forbids a peer from granting silent-apply authority, and enforcing it here (not
+  # Downgrade any peer finding's autofix_class from safe_auto to gated_auto: the
+  # no-silent-fixes rule forbids a peer from granting silent-apply authority, and enforcing it here (not
   # only in synthesis prose) means a peer cannot self-authorize a Phase 4 auto-apply
   # regardless of what it returns. gated_auto preserves the peer's proposed fix but
   # routes it through user confirmation.

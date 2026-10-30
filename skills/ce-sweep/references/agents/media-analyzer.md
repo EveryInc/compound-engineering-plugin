@@ -38,7 +38,7 @@ Write the FULL finding to the scratch artifact path you were given, using these 
 
 Then RETURN to the orchestrator only a compact 1-2 line summary (the symptom in one line, plus the affected product area and the already-fixed verdict) and the absolute artifact path you wrote. Do not return the full finding inline. The orchestrator reads it from the artifact path when it needs the detail.
 
-## Privacy (R28)
+## Privacy
 
 Summarize screen content. Never transcribe verbatim any text that exposes third-party or in-product data (other users' names, message bodies, account numbers, internal records visible on screen). Describe what the frame shows in your own words instead of quoting it.
 
