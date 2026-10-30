@@ -336,4 +336,4 @@ After 2 refinement passes, recommend completion. An explicit request for another
 
 ## Iteration Guidance
 
-On genuinely new review passes, re-dispatch personas with the multi-round decision primer (`references/decision-primer.md`) and re-synthesize. Fixed findings drop out on their own because their evidence is gone from the current doc; rejected findings are handled by the R29 suppression rule; applied-fix verification uses the R30 matching test above. If findings repeat across passes after these rules run, recommend completion.
+On genuinely new review passes, re-dispatch the reviewers `references/persona-selection.md` selects for a later round, with the multi-round decision primer (`references/decision-primer.md`) and re-synthesize. Fixed findings drop out on their own because their evidence is gone from the current doc; rejected findings are handled by the R29 suppression rule; applied-fix verification uses the R30 matching test above. If findings repeat across passes after these rules run, recommend completion.

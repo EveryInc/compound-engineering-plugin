@@ -2,6 +2,8 @@
 
 The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each conditional persona whose signals the document shows.
 
+**Later rounds in the same session.** Rerun only the reviewers whose lens covers something that changed since their last return, whether the change came from applied fixes or from the user's own edits. Coherence reruns whenever anything changed, because edits are where new contradictions appear. Every other reviewer's previous return carries forward: its findings were already applied, deferred, or rejected, and its scope has not moved. Rerun the whole team when the user asks for a fresh full review, or when the changes reach most of the document. Name the carried-over reviewers in the announcement. The cross-model pass runs only when a lens that triggers it reruns.
+
 Activate a conditional persona when the document shows its signals:
 
 **product-lens** — the document stakes a product position — what to build, why, or what comes first — that a knowledgeable stakeholder could reasonably challenge and that no upstream Product Contract settled, or the work carries strategic weight beyond the immediate problem. Users may be end users, developers, operators, maintainers, or any other audience; the criteria are domain-agnostic. Either leg qualifies:

@@ -1065,6 +1065,13 @@ describe("ce-doc-review contract", () => {
     expect(selection).toMatch(/do not post an update as each one returns/)
   })
 
+  test("later rounds rerun only reviewers whose scope changed", async () => {
+    const selection = await readRepoFile("skills/ce-doc-review/references/persona-selection.md")
+    expect(selection).toMatch(/Rerun only the reviewers whose lens covers something that changed since their last return/)
+    expect(selection).toMatch(/Coherence reruns whenever anything changed/)
+    expect(selection).toMatch(/Rerun the whole team when the user asks for a fresh full review/)
+  })
+
   test("synthesis holds additions and cuts to one bar and keeps cuts out of FYI", async () => {
     const synthesis = await readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md")
     expect(synthesis).toContain("Additions and removals meet the same bar")
