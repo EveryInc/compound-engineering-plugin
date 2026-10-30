@@ -1,0 +1,14 @@
+{
+ "pr": {
+  "number": 13,
+  "title": "Fix startup crash from circular import",
+  "body": "An unused import of `routes/index.js` in `db.js` created a cycle. Removed it and the other unused imports.",
+  "merged_at": "2026-05-29T15:45:00Z",
+  "merge_commit_sha": "000000000000000000000000000000000000000d",
+  "head": "0000000000000000000000000000000000000201",
+  "user": "maya"
+ },
+ "reviews": [],
+ "inline_comments": [],
+ "conversation": []
+}

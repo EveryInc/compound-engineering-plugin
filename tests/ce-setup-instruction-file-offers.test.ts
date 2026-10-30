@@ -118,6 +118,8 @@ describe("ce-setup instruction-file offers", () => {
     expect(docs).toMatch(/Nothing is written until the user approves the drafts/)
     // The include line alone is what lets Claude Code Review read the standards, so REVIEW.md is never skipped.
     expect(docs).toMatch(/Draft `REVIEW\.md` whenever setup drafts or keeps a `CODING_STANDARDS\.md`, even when no section has evidence/)
+    // Bugbot reads only its own file and has no include syntax, so without a pointer it never sees the standards.
+    expect(docs).toContain("`.cursor/BUGBOT.md`")
   })
 
   test("asking for coding standards routes straight to the whole review-docs set", async () => {

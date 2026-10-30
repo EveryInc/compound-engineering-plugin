@@ -2,7 +2,7 @@
 
 > Check Compound Engineering health, optional tool availability, and repo-local config safety. It does not bulk-install the plugin's dependencies.
 
-`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, offers to point your agent-instructions file at the knowledge store and add standing compounding and `ce-noslop` chat-register instructions, and offers to draft `CODING_STANDARDS.md` and `REVIEW.md` from your pull request history. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
+`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, offers to point your agent-instructions file at the knowledge store and add standing compounding and `ce-noslop` chat-register instructions, and offers to draft or refresh `CODING_STANDARDS.md` and `REVIEW.md` from your pull request history. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
 
 It runs only when you invoke it explicitly (`disable-model-invocation: true`). Talking about setup does not start it. Outside a git repository it reports capabilities and stops without writing files.
 
@@ -70,8 +70,18 @@ Most teams want a coding-standards file and never get past the blank page. Setup
 | `CODING_STANDARDS.md` | Rules code here follows: defect classes visible in a diff that no lint, type, or CI check covers | Agents writing code, and every code review, including [`ce-code-review`](./ce-code-review.md#repo-owned-review-criteria) |
 | `REVIEW.md` | How review behaves here: severity meanings, what not to flag, evidence a finding needs. Starts with `@CODING_STANDARDS.md` | [`ce-code-review`](./ce-code-review.md#repo-owned-review-policy), from the base branch, and Claude Code Review |
 | Agent-instructions file | Working instructions, plus one line per review doc saying what it is and when to read and update it | Every agent session |
+| `.cursor/BUGBOT.md` | A pointer to `CODING_STANDARDS.md` and `REVIEW.md`, never its own copy of the rules. Created only when the repo uses Cursor Bugbot | Cursor Bugbot |
 
-A rule needs evidence: a fixed review finding, a fix commit, or a solution record, with no check already enforcing it. A "what not to flag" category needs findings declined across several pull requests. `REVIEW.md` is always drafted alongside the standards file, because its `@CODING_STANDARDS.md` line is what lets Claude Code Review read the standards. When the history supports none of its sections, that line and a one-sentence purpose are the whole file. When a file exists, setup offers to update it and shows the change as a diff. A repository with no history to draft from gets no offer. Asking for any one of these (`/ce-setup standards`, or "set up our coding standards") skips the health check and the offer and drafts the whole set, still previewed before writing. `STRATEGY.md` comes from an interview rather than history, so setup suggests [`ce-strategy`](./ce-strategy.md) when it is missing instead of drafting one.
+A rule needs evidence: a fixed review finding, a fix commit, or a solution record, with no check already enforcing it. A "what not to flag" category needs findings declined across several pull requests. `REVIEW.md` is always drafted alongside the standards file, because its `@CODING_STANDARDS.md` line is what lets Claude Code Review read the standards. When the history supports none of its sections, that line and a one-sentence purpose are the whole file. Each AI code reviewer the repo uses gets pointed at the same files rather than a copy of the rules; a reviewer counts as used when its comments show up in your pull requests or its file is already in the repo. Rules already sitting in an existing `.cursor/BUGBOT.md` or agent-instructions file count as evidence for the draft, and moving them out is a separate change you can decline. A repository with no history to draft from gets no offer. Asking for any one of these (`/ce-setup standards`, or "set up our coding standards") skips the health check and the offer and drafts the whole set, still previewed before writing. `STRATEGY.md` comes from an interview rather than history, so setup suggests [`ce-strategy`](./ce-strategy.md) when it is missing instead of drafting one.
+
+### Keeping them current
+
+Two things keep the review docs current:
+
+- **Each change.** The pointer line in your agent-instructions file tells agents to update a review doc when a change establishes or retires a rule, so most upkeep happens in the pull request that caused it.
+- **A periodic refresh.** Teams change how they work, and some of that only shows up across many pull requests: findings under a rule that reviewers keep declining, a rule a new lint check now enforces, a fix pattern that keeps recurring. Run `/ce-setup standards` (or ask to refresh your coding standards) after a stretch of heavy review activity, or on a regular cadence such as quarterly. Setup reads the pull requests and review feedback each file has not yet accounted for, usually everything since its rules last changed, checks every existing rule against them, and proposes additions, changes, and retirements as a diff, with the evidence for each. It writes nothing until you approve.
+
+There is no standing instruction for the refresh, and setup does not run unattended: the preview needs someone to approve it. This mirrors [`ce-compound-refresh`](./ce-compound-refresh.md), the periodic pass for the knowledge store.
 
 ## Scaffold a Compound Pack
 
@@ -130,7 +140,7 @@ Use `ce-setup` when:
 - A workflow reported an optional tool missing and you want the install command
 - You are onboarding a repo to `.compound-engineering/config.yaml`
 - You want to start a Compound Pack with `pack:<id>` in the layout discovery reads
-- You want starting `CODING_STANDARDS.md` and `REVIEW.md` drafts from your PR history (`standards`)
+- You want starting `CODING_STANDARDS.md` and `REVIEW.md` drafts from your PR history, or to refresh existing ones (`standards`)
 - Health marked `docs_root` or the CE Work engine block invalid
 
 Skip it when:

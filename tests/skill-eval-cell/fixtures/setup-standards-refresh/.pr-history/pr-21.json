@@ -1,0 +1,21 @@
+{
+ "pr": {
+  "number": 21,
+  "title": "Upgrade to Express 5 and add central error middleware",
+  "body": "Express 5 forwards rejected promises from async handlers to error middleware, so handlers no longer need their own try/catch. Adds `errorMiddleware` and removes the per-handler try/catch blocks.",
+  "merged_at": "2026-07-22T18:20:00Z",
+  "merge_commit_sha": "0000000000000000000000000000000000000015",
+  "head": "0000000000000000000000000000000000000209",
+  "user": "devon"
+ },
+ "reviews": [
+  {
+   "user": "maya",
+   "body": "Nice, this removes a lot of boilerplate.",
+   "commit_id": "0000000000000000000000000000000000000209",
+   "submitted_at": "2026-07-22T17:00:00Z"
+  }
+ ],
+ "inline_comments": [],
+ "conversation": []
+}

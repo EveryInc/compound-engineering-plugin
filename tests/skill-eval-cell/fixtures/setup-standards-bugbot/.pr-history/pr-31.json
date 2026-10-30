@@ -1,0 +1,35 @@
+{
+ "pr": {
+  "number": 31,
+  "title": "Add order search",
+  "body": "",
+  "merged_at": "2026-08-03T18:00:00Z",
+  "merge_commit_sha": "000000000000000000000000000000000000001f",
+  "head": "0000000000000000000000000000000000000213",
+  "user": "lee"
+ },
+ "reviews": [],
+ "inline_comments": [
+  {
+   "id": 3100,
+   "in_reply_to_id": null,
+   "user": "cursor[bot]",
+   "path": "src/orders.js",
+   "original_line": 4,
+   "original_commit_id": "0000000000000000000000000000000000000213",
+   "body": "SQL injection: `customerId` is concatenated into the query string. Use a parameterized query.",
+   "created_at": "2026-08-03T16:00:00Z"
+  },
+  {
+   "id": 3101,
+   "in_reply_to_id": 3100,
+   "user": "lee",
+   "path": "src/orders.js",
+   "original_line": 4,
+   "original_commit_id": "0000000000000000000000000000000000000213",
+   "body": "Fixed, switched to $1 placeholders.",
+   "created_at": "2026-08-03T17:00:00Z"
+  }
+ ],
+ "conversation": []
+}

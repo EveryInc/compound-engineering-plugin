@@ -1,0 +1,14 @@
+{
+ "pr": {
+  "number": 28,
+  "title": "Fix signature check on payout webhook",
+  "body": "The payout webhook compared signatures with `===` like the payments one did before #26. Switch to `crypto.timingSafeEqual`.",
+  "merged_at": "2026-10-01T16:10:00Z",
+  "merge_commit_sha": "000000000000000000000000000000000000001c",
+  "head": "0000000000000000000000000000000000000210",
+  "user": "maya"
+ },
+ "reviews": [],
+ "inline_comments": [],
+ "conversation": []
+}

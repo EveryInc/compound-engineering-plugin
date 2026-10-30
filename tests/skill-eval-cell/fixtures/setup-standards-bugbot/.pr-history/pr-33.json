@@ -1,0 +1,35 @@
+{
+ "pr": {
+  "number": 33,
+  "title": "Add order cancellation",
+  "body": "",
+  "merged_at": "2026-08-21T19:30:00Z",
+  "merge_commit_sha": "0000000000000000000000000000000000000021",
+  "head": "0000000000000000000000000000000000000215",
+  "user": "ana"
+ },
+ "reviews": [],
+ "inline_comments": [
+  {
+   "id": 3300,
+   "in_reply_to_id": null,
+   "user": "cursor[bot]",
+   "path": "src/orders.js",
+   "original_line": 10,
+   "original_commit_id": "0000000000000000000000000000000000000215",
+   "body": "`notifyCancelled(id)` is not awaited, so a failure is an unhandled rejection and the response returns before the notification is sent.",
+   "created_at": "2026-08-21T17:00:00Z"
+  },
+  {
+   "id": 3301,
+   "in_reply_to_id": 3300,
+   "user": "ana",
+   "path": "src/orders.js",
+   "original_line": 10,
+   "original_commit_id": "0000000000000000000000000000000000000215",
+   "body": "Good catch, added await.",
+   "created_at": "2026-08-21T18:00:00Z"
+  }
+ ],
+ "conversation": []
+}

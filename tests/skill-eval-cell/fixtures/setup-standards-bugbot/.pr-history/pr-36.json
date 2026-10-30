@@ -1,0 +1,14 @@
+{
+ "pr": {
+  "number": 36,
+  "title": "Fix missing awaits on notification calls",
+  "body": "Three call sites fired notification promises without awaiting them; errors were lost. Adds the awaits.",
+  "merged_at": "2026-09-24T14:00:00Z",
+  "merge_commit_sha": "0000000000000000000000000000000000000024",
+  "head": "0000000000000000000000000000000000000218",
+  "user": "ana"
+ },
+ "reviews": [],
+ "inline_comments": [],
+ "conversation": []
+}

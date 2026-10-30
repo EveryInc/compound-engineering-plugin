@@ -1,0 +1,14 @@
+{
+ "pr": {
+  "number": 24,
+  "title": "Enforce no-unused-vars in lint",
+  "body": "Turns on `no-unused-vars` as an error in eslint and fixes the existing violations, so CI now catches unused imports.",
+  "merged_at": "2026-08-11T15:30:00Z",
+  "merge_commit_sha": "0000000000000000000000000000000000000018",
+  "head": "000000000000000000000000000000000000020c",
+  "user": "maya"
+ },
+ "reviews": [],
+ "inline_comments": [],
+ "conversation": []
+}

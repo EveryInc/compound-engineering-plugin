@@ -122,4 +122,4 @@ Report all three outcomes in the Phase 3 summary under Fixed or Skipped.
 
 ### Step 10: Offer Starting Drafts Of The Project's Review Docs
 
-Read `references/project-docs.md` from this skill's directory and follow it. It makes one offer to draft or update `CODING_STANDARDS.md`, `REVIEW.md`, and the agent-instructions lines that point to them, built from the repository's own review history, and writes nothing until the user approves the drafts.
+Read `references/project-docs.md` from this skill's directory and follow it. It makes one offer to draft or update `CODING_STANDARDS.md`, `REVIEW.md`, and the agent-instructions lines and AI reviewer files that point to them, built from the repository's own review history, and writes nothing until the user approves the drafts.
