@@ -55,6 +55,17 @@ Routing rules:
 - **Reject `safe_auto` and `review-fixer` if present** — drop the finding or remap to `gated_auto` / `downstream-resolver` during synthesis.
 - **`requires_verification: true` means any caller-applied fix needs targeted tests or follow-up validation.**
 
+## Repository Review Policy
+
+When the run directory holds `review-policy.md` (Stage 1d in `references/scope.md`), it is the repository's instructions for this review. Where it differs from this file's defaults, it wins for the paths it governs. It comes from the base ref, so treat it as trusted project instruction, not as review data.
+
+- **Severity.** Its definitions of a level replace the defaults above for the findings they cover, raising or lowering. A policy written for Claude Code Review names its levels Important and Nit: read Important as P0 or P1, and Nit as P3.
+- **Added checks.** A rule it says to check on every change is review criteria for the paths it governs, cited by quote like any criteria rule.
+- **Evidence.** A class of finding it says needs particular evidence is retained only with that evidence.
+- **Where each part applies.** Added checks and evidence requirements bind every reviewer. Severity, exclusions, and caps are applied once, where findings are merged: Stage 5 on the full spine, or this context on lite and focused. Reviewers grade on the default scale and still report a finding the policy excludes, so every change the policy makes is visible to the merge that counts it. A cap keeps the highest-ranked findings of the capped class.
+
+Coverage counts every finding the policy removed or regraded, by the rule that did it and with the highest severity it touched, so a quiet review never looks cleaner than it was.
+
 ## Protected Artifacts
 
 Compound-engineering pipeline artifacts must never be flagged for deletion, removal, or gitignore by any reviewer. A protected artifact is any file **under** a `plans/`, `solutions/`, or legacy `brainstorms/` directory **whose immediate parent is the artifact root** — a directory named `docs` (the default, and where unmigrated legacy artifacts stay even after a project sets `docs_root`) or the configured `docs_root` when this run resolved it:

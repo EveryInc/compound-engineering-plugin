@@ -1819,6 +1819,19 @@ describe("cross-model peer skip legibility", () => {
     })
   }
 
+  test("REVIEW.md policy comes from the base ref, reaches every reviewer, and its removals are counted", async () => {
+    const scope = await readRepoFile("skills/ce-code-review/references/scope.md")
+    const dispatch = await readRepoFile("skills/ce-code-review/references/dispatch-reviewers.md")
+    const rubric = await readRepoFile("skills/ce-code-review/references/action-class-rubric.md")
+    // A head-read policy would let a change suppress findings against itself.
+    expect(scope).toMatch(/Read each file from the Stage 1 base[^.]*never from the reviewed tree/)
+    expect(dispatch).toMatch(/staged `review-policy\.md`, for every reviewer:\*\* that file's absolute path in a `<review-policy>` block/)
+    expect(rubric).toContain("Coverage counts every finding the policy removed or regraded")
+    // Reviewers that applied policy severity themselves left the merge nothing to count.
+    const template = await readRepoFile("skills/ce-code-review/references/subagent-template.md")
+    expect(template).toContain("grade severity on the default scale")
+  })
+
   test("the code-review peer receives host-vetted constraints while scoped standards stay local", async () => {
     const reference = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
     const routing = await readRepoFile("skills/ce-code-review/references/select-and-route.md")

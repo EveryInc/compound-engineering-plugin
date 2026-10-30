@@ -3357,6 +3357,62 @@ where STANDARDS is violation when a changed line contradicts a rule in a criteri
     },
   },
   {
+    id: "ce-code-review/depth-gate-review-policy-exclusion",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/gen/cart.ts"],
+    fixture: `${FIX}/review-policy-excludes`,
+    post_only: true,
+    why: "A committed REVIEW.md excludes src/gen/. A staged console.log there breaks a CODING_STANDARDS.md rule, but the policy removes the finding and Coverage counts the removal.",
+    pre_contract: "ce-code-review read no REVIEW.md, so the finding was reported.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and, if lite, the criteria check and the review policy only. This is a read-only probe: do not create the run directory and do not dispatch reviewers; read any review policy directly where the skill says to read it from.
+
+End with exactly three lines in this form and nothing else on those lines:
+
+DEPTH: lite
+REPORTED: yes | no
+POLICY: applied | not-applied | none
+
+where REPORTED is yes when the receipt would list a finding for the console.log line, and POLICY says whether a REVIEW.md policy governed this review. Explain the decision in prose above the three lines, not on them.`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
+      declared: { DEPTH: "lite", REPORTED: "no", POLICY: "applied" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/depth-gate-review-policy-head-ignored",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/gen/cart.ts", "REVIEW.md"],
+    fixture: `${FIX}/review-policy-excludes`,
+    post_only: true,
+    why: "The same exclusion arrives in the change under review, so the base has no policy. A change must not suppress findings against itself: the finding is reported and Coverage says the new policy was not applied.",
+    pre_contract: "ce-code-review read no REVIEW.md; a head-read implementation would suppress the finding.",
+    task: `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and, if lite, the criteria check and the review policy only. This is a read-only probe: do not create the run directory and do not dispatch reviewers; read any review policy directly where the skill says to read it from.
+
+End with exactly three lines in this form and nothing else on those lines:
+
+DEPTH: lite
+REPORTED: yes | no
+POLICY: applied | not-applied | none
+
+where REPORTED is yes when the receipt would list a finding for the console.log line, and POLICY says whether a REVIEW.md policy governed this review. Explain the decision in prose above the three lines, not on them.`,
+    grade: {
+      files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
+      declared: { DEPTH: "lite", REPORTED: "yes", POLICY: "not-applied" },
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
     id: "ce-code-review/depth-gate-ci-focused",
     skill: "ce-code-review",
     cohort: "resized",

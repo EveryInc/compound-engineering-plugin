@@ -75,7 +75,8 @@ For each selected reviewer, and only for those, spawn a generic subagent with th
 7. Run ID and reviewer name for the artifact file path
 8. **For selected `project-standards` only:** the non-empty Stage 3b criteria mapping — each criteria file with the changed files it governs — wrapped in a `<standards-paths>` block appended to the review context
 9. **When the Stage 1 diff deletes any whole file, for every reviewer:** a `<deleted-files base="<ref>">` block in the review context. `<ref>` is the git ref the deleted bodies are read from. It is the Stage 1 `BASE:` in every scope except `pr-remote`, where it is `PR_BASE_REF`; when `PR_BASE_REF` is unset, omit the attribute. List each deleted path with the names it exported and whether it did anything when imported (registrations, config plugins, top-level calls). Find those facts with a targeted search of each body at that ref, such as `git grep -n <pattern> <ref> -- <path>`; do not read whole bodies into this context.
-10. **For `data-migration` only:** the resolved review base ref from Stage 1 (determine scope; the `BASE:` marker), wrapped in `<review-base>` inside the review context so schema drift checks never assume `main`
+10. **When Stage 1d staged `review-policy.md`, for every reviewer:** that file's absolute path in a `<review-policy>` block appended to the review context
+11. **For `data-migration` only:** the resolved review base ref from Stage 1 (determine scope; the `BASE:` marker), wrapped in `<review-base>` inside the review context so schema drift checks never assume `main`
 
 Persona sub-agents are **read-only** with respect to the project: they review and return structured JSON. They do not edit project files or propose refactors. The one permitted write is saving their full analysis to the resolved run-artifact path specified in the output contract.
 
