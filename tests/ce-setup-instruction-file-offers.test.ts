@@ -116,6 +116,8 @@ describe("ce-setup instruction-file offers", () => {
     expect(docs).toContain("never one question per file")
     expect(docs).toContain("Never offer a template in place of evidence")
     expect(docs).toMatch(/Nothing is written until the user approves the drafts/)
+    // The include line alone is what lets Claude Code Review read the standards, so REVIEW.md is never skipped.
+    expect(docs).toMatch(/Draft `REVIEW\.md` whenever setup drafts or keeps a `CODING_STANDARDS\.md`, even when no section has evidence/)
   })
 
   test("asking for coding standards routes straight to the whole review-docs set", async () => {
