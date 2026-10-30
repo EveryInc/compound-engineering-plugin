@@ -30,7 +30,10 @@ describe("multi-PR plan delivery contract", () => {
   })
 
   test("lfg does not carry a stack-land grant past a deploy dependency", async () => {
-    expect(await read("skills/lfg/references/shipping.md")).toMatch(/deploy dependency[^\n]*posture:stack-ready/)
+    const shipping = await read("skills/lfg/references/shipping.md")
+    // The posture is chosen by ce-commit-push-pr from land intent in step 9, so the gate must sit there.
+    const step9 = shipping.slice(shipping.indexOf("## Step 9 — what LFG passes"), shipping.indexOf("## Step 10"))
+    expect(step9).toMatch(/deploy dependency, leave land intent out[^\n]*posture:stack-ready/)
   })
 
   test("ce-doc-review records non-interactive leftovers and removes resolved entries", async () => {
