@@ -44,6 +44,10 @@ bun run test:skill-eval-judge -- --grade-only --out /tmp/judge                 #
 
 Scenarios are best written for the change under test; `judged/scenarios.ts` documents the fields and holds a starting library, with personas and rubrics under `judged/` and fixtures under `fixtures/judged-*`. A rubric must ask for one JSON object with a `metrics` map. Results are PR evidence, not a regrade-stable pack: grades come from a model, so deterministic checks stay in `catalog.ts`. Not part of `bun test` or CI; it bills the host CLIs.
 
+## History replays
+
+`replay/` freezes a real repository at a past commit and grades a skill against what happened next: the bugs reviewers actually caught for `ce-code-review`, or the standards file the team actually wrote for `ce-setup`'s review-docs drafts. See [replay/README.md](replay/README.md).
+
 ## Hand-run eval packs
 
 `packs/` holds the evaluator-owned behavioral eval specs for the cross-model paths of `ce-work`, `ce-code-review`, and `ce-doc-review`. They live here, not under `skills/`, so they are absent from everything that copies a skill directory as a unit: the converter's output for other harnesses, and the skill this driver extracts for a cell. A Claude marketplace install is different: its plugin root is the whole repository, so `tests/` is present there. Run a pack's scenarios against an extracted skill (this driver), never against a repo-root plugin load, and never inject a pack into the agent under test.
