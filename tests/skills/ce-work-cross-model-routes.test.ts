@@ -280,7 +280,7 @@ describe("ce-work fixed write routes", () => {
   test.each([...ROUTES])("%s uses its supported acpx range with every permission approved in the workspace", (route) => {
     const out = emit(route, cleanEnv())
     expect(out.status).toBe(0)
-    expect(out.stdout).toContain(`npx -y --package ${ACPX_RANGE} -- acpx --cwd <workspace> --format json --mcp-config <mcp-config>`)
+    expect(out.stdout).toContain(`npx -y --package ${ACPX_RANGE} -- env -u npm_config_package acpx --cwd <workspace> --format json --mcp-config <mcp-config>`)
     expect(out.stdout).toContain("--approve-all")
     expect(out.stdout).toContain("--file <prompt-file>")
     const expected = ROUTE_ARGV[route]
@@ -898,7 +898,7 @@ describe("ce-work antigravity route", () => {
 
   test("--emit-adapter strips Google credentials and runs Argon in auto_edit mode with a private GEMINI_HOME", () => {
     const out = emit("antigravity", cleanEnv()).stdout
-    expect(out).toContain(`npx -y --package ${ACPX_RANGE} -- acpx --cwd`)
+    expect(out).toContain(`npx -y --package ${ACPX_RANGE} -- env -u npm_config_package acpx --cwd`)
     expect(out).toStartWith("env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_APPLICATION_CREDENTIALS -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u GOOGLE_GENAI_USE_VERTEXAI -u AGY_LLM_GATEWAY_URL ")
     expect(out).toContain(`--approve-all --model ${ARGON} antigravity exec --config-option mode=auto_edit --config-option thinking_level=high`)
   })

@@ -277,7 +277,7 @@ describe("ce-pov cross-model route safety", () => {
     ["opencode", "--non-interactive-permissions deny --agent", ["opencode acp exec --config-option mode=plan"]],
   ])("--emit-adapter %s launches pinned acpx with the route's agent, model, and read-only options", (route, agent, options) => {
     const command = emit(route)
-    expect(command).toContain(`npx -y --package ${ACPX_RANGE} -- acpx --cwd <read-root> --format json --mcp-config <mcp-config> --timeout 600`)
+    expect(command).toContain(`npx -y --package ${ACPX_RANGE} -- env -u npm_config_package acpx --cwd <read-root> --format json --mcp-config <mcp-config> --timeout 600`)
     expect(command).toContain("env npm_config_prefer_offline=true npm_config_fetch_retries=0")
     expect(command).toContain("--approve-reads --non-interactive-permissions deny")
     expect(command).toContain(agent)
@@ -874,7 +874,7 @@ function logModelsPerCall(sb: Sandbox) {
 describe("ce-pov antigravity route", () => {
   test("--emit-adapter antigravity requests Argon read-only at thinking_level=high with a private GEMINI_HOME", () => {
     const command = emit("antigravity")
-    expect(command).toContain(`npx -y --package ${ACPX_RANGE} -- acpx --cwd`)
+    expect(command).toContain(`npx -y --package ${ACPX_RANGE} -- env -u npm_config_package acpx --cwd`)
     expect(command).toStartWith("env -u GEMINI_API_KEY -u GOOGLE_API_KEY")
     expect(command).toContain("GEMINI_HOME=<gemini-home>")
     expect(command).toContain("--approve-reads --non-interactive-permissions deny --model gemini-4-argon antigravity exec --config-option mode=default --config-option thinking_level=high")
