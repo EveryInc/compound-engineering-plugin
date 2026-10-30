@@ -101,6 +101,7 @@ For other user-visible UI changes, check the changed UI in a browser at desktop 
 5. **Track Progress**
 - Add a task when requested work turns out larger than expected; a mechanism nobody asked for goes through **Build what was asked** first
 - When the plan defines U-IDs for Implementation Units, or the plan or origin document carries stable R-IDs (and optionally A/F/AE IDs), reference them in blockers, deferred-work notes, task summaries, and final verification — not routine status updates. U-IDs anchor units across plan edits; R/A/F/AE anchor product intent across the brainstorm-plan handoff. Use the IDs the plan supplies and do not invent ones it does not. This preserves traceability without burying signal under noise.
+- **Plan IDs stay out of written files.** U-, R-, A-, F-, AE-, and KTD-IDs mean something only to a reader who has the plan open. Keep them out of the files the work writes, including code, comments, docs, scripts, and skills. Where an ID would go, write what the requirement or decision says instead: `# allowlist read-only tools`, not `# (R7)`.
 
 ## Settled decisions during implementation
 

@@ -368,6 +368,16 @@ describe("ce-work cross-model engine contract", () => {
     }
   })
 
+  test("tells every implementation writer to keep plan IDs out of the files it writes", async () => {
+    const loop = await readRepoFile("skills/ce-work/references/implementation-loop.md")
+    const strategy = await readRepoFile("skills/ce-work/references/execution-strategy.md")
+    const worker = await readRepoFile("skills/ce-work/references/agents/implementation-worker.md")
+
+    expect(loop).toMatch(/\*\*Plan IDs stay out of written files\.\*\*[^\n]*Keep them out of the files the work writes/)
+    expect(strategy).toMatch(/\*\*Plan IDs stay out of written files\*\* rules? from `references\/implementation-loop\.md`, verbatim/)
+    expect(worker).toContain("Keep them out of the files you write")
+  })
+
   test("distinguishes Cursor from Composer and collapses same-host default execution", async () => {
     const protocol = await readRepoFile("skills/ce-work/references/cross-model-execution.md")
 
