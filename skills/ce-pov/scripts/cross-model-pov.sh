@@ -551,6 +551,19 @@ case "$HOST_HARNESS" in
   *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|antigravity|omp|unknown)" ;;
 esac
 
+# oh-my-pi copies CLAUDECODE=1 whatever model serves it, so only the session's recorded
+# model names the family. Only first-party provider ids map; anything else stays unknown.
+if [ "$HOST_HARNESS" = omp ] && [ "$HOST_PROVIDER" = unknown ]; then
+  # pipefail makes a jq parse failure (torn trailing line) fail the substitution; keep the family unknown then.
+  omp_model=$(jq -r 'select(.type=="model_change" and ((.role // "default")=="default" or .role=="fallback")) | if .role=="fallback" then "" else .model // "" end' "${PI_SESSION_FILE:-/dev/null}" 2>/dev/null | tail -n 1) || omp_model=
+  case "$omp_model" in
+    anthropic/claude-*) HOST_PROVIDER=claude ;;
+    openai/gpt-*|openai/codex-*|openai/o[0-9]*) HOST_PROVIDER=codex ;;
+    xai/grok-*) HOST_PROVIDER=grok ;;
+    google/gemini-*) HOST_PROVIDER=gemini ;;
+  esac
+fi
+
 case "$FIXED_ROUTE" in
   codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity) ;;
   *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;

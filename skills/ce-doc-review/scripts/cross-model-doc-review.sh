@@ -585,6 +585,21 @@ case "$HOST_HARNESS" in
   codex|claude|grok|cursor|opencode|antigravity|omp|unknown) ;;
   *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|antigravity|omp|unknown); skipping cross-model pass" ;;
 esac
+# oh-my-pi copies CLAUDECODE=1 whatever model serves it, so only the session's recorded
+# model names the family. Only first-party provider ids map; anything else stays unknown.
+if [ "$HOST_HARNESS" = omp ] && [ "$HOST_PROVIDER" = unknown ]; then
+  # pipefail makes a jq parse failure (torn trailing line) fail the substitution; keep the family unknown then.
+  omp_model=$(jq -r 'select(.type=="model_change" and ((.role // "default")=="default" or .role=="fallback")) | if .role=="fallback" then "" else .model // "" end' "${PI_SESSION_FILE:-/dev/null}" 2>/dev/null | tail -n 1) || omp_model=
+  case "$omp_model" in
+    anthropic/claude-*) HOST_PROVIDER=claude ;;
+    openai/gpt-*|openai/codex-*|openai/o[0-9]*) HOST_PROVIDER=codex ;;
+    xai/grok-*) HOST_PROVIDER=grok ;;
+    google/gemini-*) HOST_PROVIDER=gemini ;;
+  esac
+fi
+if [ "$HOST_PROVIDER" = unknown ] && [ "$HOST_HARNESS" = omp ]; then
+  skip "host serving family unattested; oh-my-pi session records no first-party default model (PI_SESSION_FILE='${PI_SESSION_FILE:-}'); automatic cross-model review skipped"
+fi
 [ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
 
 # --- derive persona-brief filename from the allowlisted reviewer-name -------
