@@ -12,7 +12,7 @@ Each group carries one identity: the plan's file name without its extension plus
 
 - **merged** when a merged PR carries it;
 - **open** when an open PR carries it;
-- **built** when an unpublished branch carries it;
+- **built** when an unpublished branch carries it and holds the group's finished work: every unit of the group is present and its verification passes. A branch carries the marker before its work is done, so a branch without finished work is a build in progress: resume its unfinished units on that branch;
 - **unbuilt** otherwise.
 
 Squash merges leave no ancestry, so commit history is not evidence of a merged group. Skip merged and open groups, and do not rebuild a built one. A branch is visible only in the checkout or session that made it. Treat a group with no PR and no visible branch as unbuilt only when no session started for this plan, by this run or an earlier one, may still be building it. An earlier run's report names those sessions; when you cannot rule one out, stop and report rather than build the group again. When the evidence conflicts or you cannot tell, stop and report what you found: rebuilding a group duplicates its PR, and skipping one ships the plan with a hole.
@@ -43,7 +43,7 @@ Some hosts can start a separate long-lived session in its own checkout that outl
 
 Where the host offers such sessions and its own rules let the agent start them, hand each group to its own session automatically and coordinate from this one.
 
-- **What a session receives:** the plan path, its group label, the branch it builds on, the marker convention, and the instruction to build and ship only that group.
+- **What a session receives:** the plan path, its group label, the branch it builds on, the marker convention, the user's constraints and publishing authority for this run (for example, leave changes local, or open no PR), and the instruction to build only that group and ship it within that authority. A session does not inherit this conversation, so a limit not passed here does not exist for it.
 - **What the coordinator does:** keeps the group states; starts a group's session once the group it builds on is built and its start waits are met; watches each PR whose session the host does not let watch it.
 - **When a session cannot reach the branch:** a chain that builds on a branch the host's sessions cannot reach, such as a local branch from a cloud session, is built in the main thread.
 
