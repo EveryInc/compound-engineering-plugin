@@ -246,6 +246,7 @@ Bare and `mode:agent` reviews are report-only and safe alongside browser tests o
 | `<branch name>` | Reviews that branch without checking it out |
 | `base:<sha-or-ref>` | Skips scope detection. Reviews the current checkout against that ref |
 | `plan:<path>` | Loads the plan for requirements verification |
+| `plan_group:<label>` | With `plan:`, checks completeness against one PR group of a multi-PR plan (for example `plan_group:PR2`) instead of the whole plan |
 | `mode:agent` | JSON machine handoff. Report-only. `mode:headless` is a deprecated alias. `mode:non-interactive` is not valid here. `mode:report-only` is ignored |
 | `apply:local` | Authorize verified local fixes. Conflicts with `mode:agent` |
 | `depth:full` / `depth:auto` | `full` forces the full spine. `auto` (default) self-sizes to lite, focused, or full; callers do not classify |

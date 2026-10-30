@@ -15,7 +15,7 @@ Each group carries one identity: the plan's file name without its extension plus
 - **built** when an unpublished branch carries it;
 - **unbuilt** otherwise.
 
-Squash merges leave no ancestry, so commit history is not evidence of a merged group. Skip merged and open groups, and do not rebuild a built one. A branch is visible only in the checkout or session that made it. Treat a group with no PR and no visible branch as unbuilt only if none of this run's sessions is building it. When the evidence conflicts or you cannot tell, stop and report what you found: rebuilding a group duplicates its PR, and skipping one ships the plan with a hole.
+Squash merges leave no ancestry, so commit history is not evidence of a merged group. Skip merged and open groups, and do not rebuild a built one. A branch is visible only in the checkout or session that made it. Treat a group with no PR and no visible branch as unbuilt only when no session started for this plan, by this run or an earlier one, may still be building it. An earlier run's report names those sessions; when you cannot rule one out, stop and report rather than build the group again. When the evidence conflicts or you cannot tell, stop and report what you found: rebuilding a group duplicates its PR, and skipping one ships the plan with a hole.
 
 ## Which groups to build
 
@@ -51,4 +51,4 @@ Without such sessions, or when the host's rules require the user to ask first, t
 
 ## Report
 
-List every group with its label, its state (merged; open, with its link; built and waiting; blocked), what it still waits on, and for a blocked group what only the user can do. When every group is merged, say the plan is complete.
+List every group with its label, its state (merged; open, with its link; built and waiting; building in a session, naming where; blocked), what it still waits on, and for a blocked group what only the user can do. When every group is merged, say the plan is complete.

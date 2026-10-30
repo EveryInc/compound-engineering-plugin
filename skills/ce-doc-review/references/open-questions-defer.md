@@ -3,7 +3,7 @@
 This reference defines how a finding left open is recorded in the document, in a visible `Deferred / Open Questions` section in the document's native format, and when that record is removed. The record exists so that a later session reading only the document still sees what the review left for the author.
 
 - **Interactive mode:** a finding is recorded when the user chooses Defer: from the walk-through, the walk-through's auto-resolve preview, or routing option A or C, through `references/walkthrough.md` (per-finding Defer, and routing options A and C) and `references/bulk-preview.md` (Defer entries in the walk-through's auto-resolve plan).
-- **Non-interactive mode:** after synthesis and before returning, record every proposed fix that was not applied and every decision left for the user. FYI observations are not recorded. The rest of this file applies, with the non-interactive differences stated where they occur.
+- **Non-interactive mode:** after synthesis and before returning, record every proposed fix that was not applied and every decision left for the user, unless the request restricts edits to the document (read-only, report-only, or a narrower edit scope that excludes this section). Under such a restriction, record nothing and list the items as not recorded, with that reason, in the structured result. FYI observations are not recorded. The rest of this file applies, with the non-interactive differences stated where they occur.
 
 ---
 
