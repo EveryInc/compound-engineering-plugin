@@ -128,6 +128,8 @@ export type Grade = {
   /** Text that must not appear in the PATH shim log. */
   shim_log_must_not?: string[]
   workspace_contains?: Array<{ path: string; needle: string }>
+  /** With a needle, the file must exist and not contain it, so a deleted file cannot pass. Without one, the file must not exist. */
+  workspace_lacks?: Array<{ path: string; needle?: string }>
   /**
    * A field of a parsed JSON object must equal one of `any_of`. The object is the
    * workspace file at `path` (the whole file must be JSON), or the JSON object the
@@ -429,10 +431,7 @@ const SETUP_INSTRUCTIONS_TASK =
 /** main before review-docs updates were restated as bringing the docs current and AI reviewer files joined the set. */
 const SETUP_STANDARDS_BASE_REF = "121a3bd60d296be72b2d3c0b08131b7b08fadc5a"
 const SETUP_STANDARDS_HISTORY =
-  "The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation). Show me the full preview, then stop before writing anything: I will approve separately."
-const SETUP_STANDARDS_FILES =
-  "After the preview, end with a block that starts with a line RESULT-START and ends with a line RESULT-END, listing every file the preview would create or change, one per line as FILE: <path>."
-
+  "The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation). I approve every draft and change you preview: write them all without asking me again, and do not commit."
 
 /** Cheap read-only cells that pin a real decision. Live mutation/delegation is not in this set. */
 export const WAVE1 = [
@@ -4918,7 +4917,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     skill: "ce-setup",
     cohort: "untouched",
     key_behavior: "judgment",
-    read_only: true,
+    read_only: false,
     git_init: true,
     fixture: `${FIX}/setup-standards-refresh`,
     timeout_secs: 1500,
@@ -4926,12 +4925,17 @@ Use "Correct widget limit" as the description in the subject and any required bo
     why: "A refresh must catch newer pull requests that change already written guidance, not only add rules. After the standards were written, the team moved errors to middleware and keeps declining rule 2 findings, lint now enforces rule 3, and a new fixed finding recurs. The repo uses no AI reviewer with its own file, so no .cursor/BUGBOT.md may appear.",
     pre_contract:
       "Setup updates an existing standards file in place, adding rules the history supports and marking rules it contradicts, and shows the change as a diff.",
-    task: `Use the ce-setup skill: refresh our coding standards. CODING_STANDARDS.md and REVIEW.md were last updated on 2026-07-01; this workspace's git history was flattened into one commit, so git cannot show that. ${SETUP_STANDARDS_HISTORY} ${SETUP_STANDARDS_FILES} After that block, add one line per numbered rule in the current CODING_STANDARDS.md in the form RULE <n>: keep or RULE <n>: revise, where revise covers changing or retiring it, and one line NEW RULES: yes or NEW RULES: no.`,
+    task: `Use the ce-setup skill: refresh our coding standards. CODING_STANDARDS.md and REVIEW.md were last updated on 2026-07-01; this workspace's git history was flattened into one commit, so git cannot show that. ${SETUP_STANDARDS_HISTORY}`,
     grade: {
-      declared: { "RULE 1": "keep", "RULE 2": "revise", "RULE 3": "revise", "NEW RULES": "yes" },
-      result_must_include: ["CODING_STANDARDS.md"],
-      result_must_not_include: ["BUGBOT"],
-      actions: "none",
+      workspace_contains: [
+        { path: "CODING_STANDARDS.md", needle: "integer cents" },
+        { path: "CODING_STANDARDS.md", needle: "timingSafeEqual" },
+      ],
+      workspace_lacks: [
+        { path: "CODING_STANDARDS.md", needle: "wraps its body in try/catch and responds 500 itself" },
+        { path: "CODING_STANDARDS.md", needle: "No unused imports" },
+        { path: ".cursor/BUGBOT.md" },
+      ],
     },
   },
   {
@@ -4939,7 +4943,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     skill: "ce-setup",
     cohort: "untouched",
     key_behavior: "judgment",
-    read_only: true,
+    read_only: false,
     git_init: true,
     fixture: `${FIX}/setup-standards-bugbot`,
     timeout_secs: 1500,
@@ -4947,11 +4951,13 @@ Use "Correct widget limit" as the description in the subject and any required bo
     why: "Cursor Bugbot reviews this repository (cursor[bot] findings in the history) and reads only .cursor/BUGBOT.md, which has no include syntax. Without a pointer file Bugbot never sees the drafted standards.",
     pre_contract:
       "Setup drafts CODING_STANDARDS.md and REVIEW.md and points the agent-instructions file at them.",
-    task: `Use the ce-setup skill to set up coding standards for this repository. ${SETUP_STANDARDS_HISTORY} ${SETUP_STANDARDS_FILES}`,
+    task: `Use the ce-setup skill to set up coding standards for this repository. ${SETUP_STANDARDS_HISTORY}`,
     grade: {
-      must_include: ["BUGBOT.md"],
-      result_must_include: ["CODING_STANDARDS.md", "REVIEW.md", ".cursor/BUGBOT.md"],
-      actions: "none",
+      workspace_contains: [
+        { path: ".cursor/BUGBOT.md", needle: "CODING_STANDARDS.md" },
+        { path: ".cursor/BUGBOT.md", needle: "REVIEW.md" },
+        { path: "REVIEW.md", needle: "@CODING_STANDARDS.md" },
+      ],
     },
   },
   {
@@ -5149,7 +5155,7 @@ export function scenarioHasDecisionGrade(s: Scenario): boolean {
   if (g.declared && Object.keys(g.declared).length) return true
   if (g.delegates_must_not_include?.length) return true
   if (g.classification || g.structured_status || g.delegates === "some") return true
-  if (g.workspace_contains?.length || g.json_field?.length || g.committed_must_not?.length) return true
+  if (g.workspace_contains?.length || g.workspace_lacks?.length || g.json_field?.length || g.committed_must_not?.length) return true
   if (g.workspace_read?.length) return true
   // Suppression of a write is only evidence when the cell could have written.
   if (!s.read_only && g.git === "clean") return true

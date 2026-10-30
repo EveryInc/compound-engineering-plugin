@@ -72,10 +72,12 @@ export function graderFingerprint(dir = import.meta.dir): Fingerprint {
 /** Every workspace file a grade reads, so containment cannot miss a criterion kind. */
 export function workspaceGradePaths(grade: {
   workspace_contains?: Array<{ path: string }>
+  workspace_lacks?: Array<{ path: string }>
   json_field?: Array<{ path?: string }>
 }): string[] {
   return [
     ...(grade.workspace_contains ?? []).map((check) => check.path),
+    ...(grade.workspace_lacks ?? []).map((check) => check.path),
     ...(grade.json_field ?? []).flatMap((check) => (check.path === undefined ? [] : [check.path])),
   ]
 }

@@ -147,6 +147,19 @@ describe("skill-eval-cell host grade", () => {
     expect(fail.ok).toBe(false)
   })
 
+  test("workspace_lacks fails on a surviving needle, a missing file, or a file that must not exist", () => {
+    const dir = hostDir({
+      "stdout.txt": "ACTIONS: none\n",
+      "workspace/RULES.md": "1. Keep money in integer cents.\n",
+    })
+    const grade = (workspace_lacks: Array<{ path: string; needle?: string }>) =>
+      gradeHost({ host: "claude", hostDir: dir, arm: "post", grade: { workspace_lacks } })
+    expect(grade([{ path: "RULES.md", needle: "No unused imports" }, { path: "BUGBOT.md" }]).ok).toBe(true)
+    expect(grade([{ path: "RULES.md", needle: "integer cents" }]).ok).toBe(false)
+    expect(grade([{ path: "GONE.md", needle: "anything" }]).ok).toBe(false)
+    expect(grade([{ path: "RULES.md" }]).ok).toBe(false)
+  })
+
   test("json_field reads a top-level field of the parsed answer, not a nested match", () => {
     const grade = { json_field: [{ field: "peer.outcome", any_of: ["folded"] }] }
     const nested = hostDir({

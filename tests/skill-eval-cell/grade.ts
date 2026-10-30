@@ -422,6 +422,16 @@ export function gradeHost(opts: {
       reasons.push(`${check.path} does not contain ${JSON.stringify(check.needle)}`)
     }
   }
+  for (const check of opts.grade.workspace_lacks ?? []) {
+    const file = path.join(workspace, check.path)
+    if (check.needle === undefined) {
+      if (fs.existsSync(file)) reasons.push(`${check.path} exists`)
+    } else if (!fs.existsSync(file)) {
+      reasons.push(`${check.path} is missing`)
+    } else if (readText(file).includes(check.needle)) {
+      reasons.push(`${check.path} still contains ${JSON.stringify(check.needle)}`)
+    }
+  }
   for (const check of opts.grade.json_field ?? []) {
     const source = check.path ?? "answer"
     const parsed = check.path ? parseJsonFile(path.join(workspace, check.path)) : leadingJsonObject(stdout)
