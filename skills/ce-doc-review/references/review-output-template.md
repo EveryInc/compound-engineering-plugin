@@ -11,12 +11,11 @@ Write it as a short markdown report with headings and bullets, not tables. Inter
 ```markdown
 ## Doc review: user-auth plan
 
-The plan holds together, but two places would send implementers the wrong way: Unit 6 rebuilds login flows the app already has, and the webhook endpoint is the only public route left without a rate limit. I fixed five smaller inconsistencies directly. Two choices need you.
+The plan holds together, but two places would send implementers the wrong way: Unit 6 rebuilds login flows the app already has, and the webhook endpoint is the only public route left without a rate limit. I fixed five smaller gaps directly. Two choices need you.
 
 ### Changed
 
-- Standardized "pipeline" and "workflow" to "pipeline" throughout.
-- Fixed a cross-reference that pointed at the wrong section, and corrected the unit count to 7.
+- Fixed three consistency slips: one term for the pipeline throughout, a cross-reference to the wrong section, and the unit count.
 - Added the rate-limit config update that Unit 3's new limits require to Unit 4.
 - Added token refresh to the test scenarios, since Unit 2 makes tokens expire.
 
@@ -53,7 +52,7 @@ Coverage: security-lens timed out, so auth risks were reviewed only by the gener
 ## Section rules
 
 - **Heading and opening:** name the document in the heading. Open with two to four plain sentences saying what the review concluded about the document as a whole: whether it is sound, what the consequential problems are, and what the reader is being asked for. Counts may appear in prose ("two choices need you"); never as a standalone tally line.
-- **Changed:** every fix synthesis step 3.7 routed to Apply, one line each, enough to convey the substance without diffing the document. This is a report: no recommendation, no question. Omit the section if none.
+- **Changed:** every fix synthesis step 3.7 routed to Apply. Give each fix that changes what someone would build or decide its own line, with enough substance that the reader need not diff the document. Collapse mechanical consistency fixes (counts, cross-references, terminology) into one line that names what kind they were. This is a report: no recommendation, no question. Omit the section if none.
 - **Proposed fixes:** the grouped confirmation, shaped by the floor's "Presenting a batch" rule. Lead with what the batch does as a whole, head each group with what its members share, and keep every member visible as one line: the consequence, then the change as intent. Entailed corrections (obligations) group under the implementation unit, or the section on a document with no units, that they affect. **No decision appears here.** Sweeping a choice the user must make into this batch turns a genuine fork into a batch answer. Omit the section if none.
 - **Decisions:** only the choices the user must still make, numbered, most severe first. Each carries a consequence-first title, one or two sentences on what goes wrong if left as-is, and the recommended action with its change in intent language. The recommendation must be visible here, because routing option A executes it without a further preview. When synthesis resolved a disagreement between reviewers, add one short line saying so. Omit the section if none.
 - **Also noted:** FYI observations, residual concerns, and deferred questions, one line each, with no recommendation and nothing to answer. Omit the section if none.

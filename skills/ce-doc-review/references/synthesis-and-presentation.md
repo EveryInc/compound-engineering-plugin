@@ -20,6 +20,8 @@ Establish what, if anything, prevents the document from guiding the agreed work.
 
 Investigate available facts before accepting a reviewer's claim. Establish the problem independently of its suggested fix: a useful-looking addition does not prove anything is missing. Keep the smallest supported correction that addresses the actual consequence. Verification changes must test the required outcome, not merely produce a passing check.
 
+**Additions and removals meet the same bar.** A concern whose remedy adds something the document does not already commit to — a requirement, guard, retry, step, mode, option, or test — is retained only when the agreed work goes wrong without it in a way nobody would catch in time, or when adding it later would be expensive because it concerns stored data, a shared interface, money, or security. Making the work more thorough, robust, or explicit is not a consequence. A concern that the document commits to something failing that same test is retained on equal terms and routed like any other correction; it does not drop to FYI because its remedy removes work.
+
 Only concerns that meet this condition enter confidence scoring, recommendations, or output. This includes FYIs and deferred questions. Drop rejected claims from the working set; they require neither a user decision nor an automatic edit. Zero findings is valid.
 
 ### 3.2 Confidence Gate (Anchor-Based)
@@ -35,7 +37,7 @@ Route each finding by its `confidence` anchor value. Anchors are discrete intege
 | `100`  | Evidence directly confirms; will happen frequently | Enter actionable tier (classify by `autofix_class`) |
 
 - **Dropped silently** (anchors `0` and `25`): these do not appear in any output bucket — not as findings, not as FYI observations, not as residual concerns. The drop is not reported to the user.
-- **FYI-subsection** (anchor `50`): show in the FYI subsection of the presentation regardless of `autofix_class`. These do not enter the walk-through or any bulk action; they are observations and force no decision. Only useful advisory observations that passed 3.1b (admission by consequence) land here; FYI is not a destination for rejected nits.
+- **FYI-subsection** (anchor `50`): show in the FYI subsection of the presentation regardless of `autofix_class`, but only when the observation names a concrete cost the reader would otherwise pay, such as time, rework, or a likely mistake. An observation that something could read better, or could be misread by no one who would act on it, names no cost and is dropped. A concern whose remedy cuts something the document commits to is never FYI: when the document confirms the committed item fails the sizing test in 3.1b, it is a `manual` decision whatever its anchor, because whether to cut is the user's call. These do not enter the walk-through or any bulk action; they are observations and force no decision. Only useful advisory observations that passed 3.1b (admission by consequence) land here; FYI is not a destination for rejected nits.
 - **Actionable** (anchors `75` and `100`): enter classification. Route by `autofix_class` (see 3.7, Route by Autofix Class).
 
 

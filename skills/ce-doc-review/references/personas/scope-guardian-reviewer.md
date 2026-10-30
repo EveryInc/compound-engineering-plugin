@@ -71,6 +71,7 @@ Do not recommend edge-case handling, validation, or error handling on the ground
 Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric). Scope-guardian's domain grounds in the document's own stated goals and declared scope. Apply as:
 
 - **`100` — Absolutely certain:** Can quote both the goal statement and the scope item showing the mismatch. Evidence directly confirms the misalignment.
+- A committed mechanism that fails the mechanism-sizing test is `75` when you can quote it and show that neither condition holds. Do not lower it to `50` because removing work feels less urgent than adding it.
 - **`75` — Highly confident:** Misalignment likely to derail the work, but fully confirming it would require context not in the document (strategic priorities, prior decisions). You double-checked and the issue will hit implementers.
 - **Suppress entirely:** Anything below anchor `50` — speculative concern or stylistic preference. Do not emit; anchors `0` and `25` exist in the enum only so synthesis can track drops.
 

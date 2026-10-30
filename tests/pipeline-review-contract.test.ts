@@ -1065,6 +1065,13 @@ describe("ce-doc-review contract", () => {
     expect(selection).toMatch(/do not post an update as each one returns/)
   })
 
+  test("synthesis holds additions and cuts to one bar and keeps cuts out of FYI", async () => {
+    const synthesis = await readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md")
+    expect(synthesis).toContain("Additions and removals meet the same bar")
+    expect(synthesis).toMatch(/Making the work more thorough, robust, or explicit is not a consequence/)
+    expect(synthesis).toMatch(/A concern whose remedy cuts something the document commits to is never FYI/)
+  })
+
   test("open-questions-defer reference implements append mechanic with failure path", async () => {
     const defer = await readRepoFile(
       "skills/ce-doc-review/references/open-questions-defer.md"
