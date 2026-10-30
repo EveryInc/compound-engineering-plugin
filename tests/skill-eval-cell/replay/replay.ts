@@ -67,6 +67,14 @@ function listMergedBefore(repo: string, before: string, limit: number): number[]
     .sort((a, b) => b.mergedAt.localeCompare(a.mergedAt)).slice(0, limit).map((p) => p.number)
 }
 
+/** Override only the top-level peer key, keeping settings such as `docs_root` and `packs` that change review coverage. */
+function disablePeer(config: string) {
+  const existing = fs.existsSync(config) ? fs.readFileSync(config, "utf8") : ""
+  const kept = existing.split("\n").filter((line) => !/^cross_model_review_mode\s*:/.test(line)).join("\n").replace(/\n*$/, "")
+  fs.mkdirSync(path.dirname(config), { recursive: true })
+  fs.writeFileSync(config, `${kept ? `${kept}\n` : ""}cross_model_review_mode: off\n`)
+}
+
 function buildFixture(o: { source: string; base: string; head?: string; overlays: string[]; history?: string; noPeer: boolean; out: string }) {
   if (fs.existsSync(o.out)) throw new Error(`${o.out} already exists`)
   const scratch = fs.mkdtempSync(path.join(path.dirname(path.resolve(o.out)), ".replay-"))
@@ -85,10 +93,7 @@ function buildFixture(o: { source: string; base: string; head?: string; overlays
     git(w, "config", "user.email", "eval@example.invalid")
     git(w, "config", "user.name", "eval")
     for (const dir of o.overlays) fs.cpSync(dir, w, { recursive: true })
-    if (o.noPeer) {
-      fs.mkdirSync(path.join(w, ".compound-engineering"), { recursive: true })
-      fs.writeFileSync(path.join(w, ".compound-engineering/config.yaml"), "cross_model_review_mode: off\n")
-    }
+    if (o.noPeer) disablePeer(path.join(w, ".compound-engineering/config.yaml"))
     if (o.overlays.length || o.noPeer) { git(w, "add", "-A"); git(w, "commit", "-q", "-m", "chore: review setup") }
     if (o.head) {
       git(w, "checkout", "-q", "-b", "pr-head")
