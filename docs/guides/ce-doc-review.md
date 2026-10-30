@@ -73,7 +73,7 @@ Document review is harder than code review in specific ways:
 - Parallel persona dispatch with bounded concurrency
 - Reviewers and the lead agent check whether each concern is worth acting on, including FYIs and remaining questions. A requirement does not need repeating in every unit to count as covered. The lead agent checks what would go wrong with the plan as written and whether the proposed correction actually resolves it. A reviewer’s preferred alternative does not itself create a decision for you. Reviewer agreement can strengthen evidence but does not make a nit important. Proven corrections required by an existing decision apply automatically, subject to reviewer support and any edit restrictions. Changes outside existing edit authority need approval, and choices reserved for the user are asked separately
 - A decision primer that suppresses findings you rejected in earlier rounds and verifies the ones you applied
-- Four options for the remaining decisions: per-finding walk-through, auto-resolve with best judgment, append to Open Questions, report-only
+- One question covering everything still pending: auto-resolve with best judgment, per-finding walk-through, append to Open Questions, or report-only
 
 Collected agents are released before later work when the harness supports caller-owned cleanup. If retained capacity prevents the remaining reviewers from running and cannot recover, the review stops as incomplete and names the missing coverage. It does not continue to synthesis or fixes.
 
@@ -102,7 +102,7 @@ The skill classifies the doc once from its contents and section structure. A uni
 After the reviewers finish, the lead agent checks which findings matter, combines duplicates, and presents the results in three groups:
 
 - **Applied** (reported): proven corrections required by concrete existing decisions, plus verified corrections covered by explicit edit authority
-- **Proposed fixes** (grouped confirmation): worthwhile corrections outside existing authority or still lacking sufficient confidence or independent support. One question over the batch, shown in full first
+- **Proposed fixes** (grouped confirmation): worthwhile corrections outside existing authority or still lacking sufficient confidence or independent support. Shown in full, then approved through the same single question as the decisions
 - **Decisions**: genuine forks. The question is which remedy, never whether to proceed with something already settled
 - **FYI**: observational items. No question
 
@@ -117,18 +117,18 @@ When you run multiple rounds in the same session, the primer carries forward wha
 
 Without the evidence snippet, suppression falls back to title-only and either re-surfaces rejected findings or suppresses too aggressively.
 
-### Four-option interaction
+### One question
 
-After applying authorized corrections and getting approval for any remaining proposed changes, the skill handles the remaining decisions as you requested. If you have not chosen how to handle them, it asks once:
+After applying authorized corrections, the skill shows a short report: what it changed, the proposed fixes, and each decision with its recommendation. Then it asks one question about everything still pending, unless you already said how to handle it:
 
 | Option | Effect |
 |--------|--------|
-| Review each finding one by one | Step through each decision. Apply, skip, defer to Open Questions, or auto-resolve the rest |
-| Auto-resolve with best judgment | Applies what it judges safe. You review a bulk preview before it commits |
-| Append to Open Questions | All remaining findings deferred to the doc's `Deferred / Open Questions` section as a batch |
+| Auto-resolve with best judgment | Applies the proposed fixes and the recommended action on each decision, as shown in the report |
+| Review each finding one by one | Step through each proposed fix and decision. Apply, skip, defer to Open Questions, or auto-resolve the rest |
+| Append to Open Questions | Applies the proposed fixes and defers the decisions to the doc's `Deferred / Open Questions` section |
 | Report only | No further edits. Report stays in chat |
 
-The walk-through supports an "auto-resolve the rest" escape mid-flow. Bulk actions show a preview (section, title, action, brief rationale) before anything lands.
+The walk-through supports an "auto-resolve the rest" escape mid-flow; it shows a preview of the remaining actions before anything lands. The closing summary reports only failures, outcomes you did not choose one at a time, and whether the document is ready. It does not repeat the fix list.
 
 Each per-finding step prints a terminal block and duplicates What's wrong / Proposed fix / If left as-is into the blocking question, so modal harnesses stay decidable without scrolling.
 
@@ -136,7 +136,7 @@ Each per-finding step prints a terminal block and duplicates What's wrong / Prop
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** | Direct invoke, brainstorm's "Pressure-test the requirements", or `ce-plan`'s "Decide on the review's open items" | Grouped confirmation, routing question, walk-through, bulk-preview confirmations |
+| **Interactive** | Direct invoke, brainstorm's "Pressure-test the requirements", or `ce-plan`'s "Decide on the review's open items" | One routing question, optional walk-through |
 | **Non-interactive** | `mode:non-interactive` (deprecated alias `mode:headless`). Default when `ce-plan` chains the review | Applies full-confidence corrections required by existing decisions, within the review’s edit boundaries. Returns worthwhile unresolved items as structured text. No prompts |
 
 Non-interactive requires a path. Without one it errors rather than guessing.
@@ -145,7 +145,7 @@ You can return to existing findings without running another review when the docu
 
 ### Coverage, settled decisions, and the rendering floor
 
-The output names which personas ran, which were activated by what signals, and whether any failed or timed out.
+The review names its reviewers once, when it starts. The report adds a Coverage line only when something limited the review: a reviewer that failed or timed out, a cross-model pass that did not run, or findings suppressed because you rejected them earlier.
 
 Decisions you examined and settled carry a `session-settled:` annotation. The safe-auto pass never strips it. A persona that wants to challenge a settled decision must frame the challenge as infeasibility, not preference, and it is never auto-applied.
 
@@ -248,8 +248,8 @@ Without it, every round re-surfaces the same findings, including ones you alread
 **What's "Append to Open Questions" for?**
 Findings you want to address later, not now. They get appended to the doc's visible `Deferred / Open Questions` section in its native format so they survive the session and the next planner or implementer sees them.
 
-**Why a bulk preview?**
-"Auto-resolve with best judgment" is delegation, and mass changes deserve a confirmation step. The preview shows the changes before they commit so you can cancel.
+**Why is there no preview before auto-resolve?**
+The report you answer the question from already lists every proposed fix and each decision's recommended action, so a second preview would repeat it. Auto-resolving partway through the walk-through still shows a preview, because the remaining findings have not been shown one at a time.
 
 **What if a persona times out or fails?**
 The skill proceeds with findings from agents that completed and notes the failure in Coverage. A single agent failure does not block the review.

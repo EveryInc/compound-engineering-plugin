@@ -1001,7 +1001,7 @@ describe("ce-doc-review contract", () => {
     // Routing question distinguishing words present (front-loaded per AGENTS.md Interactive Question Tool Design)
     expect(walkthrough).toContain("Review each finding one by one")
     expect(walkthrough).toContain("Auto-resolve with best judgment")
-    expect(walkthrough).toContain("Append findings to the doc's Open Questions section")
+    expect(walkthrough).toContain("append the decisions to the doc's Open Questions section")
     expect(walkthrough).toContain("Report only")
 
     // Four per-finding options
@@ -1046,6 +1046,23 @@ describe("ce-doc-review contract", () => {
 
     // No Acknowledge bucket in bulk preview either
     expect(bulkPreview).not.toContain("Acknowledging (N):")
+  })
+
+  test("interactive output asks one question and keeps review bookkeeping out of the report", async () => {
+    const walkthrough = await readRepoFile("skills/ce-doc-review/references/walkthrough.md")
+    const template = await readRepoFile("skills/ce-doc-review/references/review-output-template.md")
+    const synthesis = await readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md")
+    const selection = await readRepoFile("skills/ce-doc-review/references/persona-selection.md")
+
+    expect(walkthrough).toContain("Ask about both in one question")
+    expect(walkthrough).not.toContain("Grouped confirmation (asked before routing)")
+    expect(walkthrough).toMatch(/Do not list the applied fixes, FYI observations, or residual concerns a second time/)
+    expect(template).not.toContain("| Persona | Status")
+    expect(template).not.toMatch(/\| Confidence \| Tier \|/)
+    expect(synthesis).not.toContain("Dropped: N")
+    expect(synthesis).not.toContain("Restated: N")
+    expect(synthesis).toMatch(/Do not restate it in prose before or after the block/)
+    expect(selection).toMatch(/do not post an update as each one returns/)
   })
 
   test("open-questions-defer reference implements append mechanic with failure path", async () => {

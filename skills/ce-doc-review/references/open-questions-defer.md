@@ -1,8 +1,8 @@
 # Open Questions Deferral
 
-This reference defines the Defer action's in-doc append mechanic. When the user chooses Defer on a finding (from the walk-through or from the bulk-preview Append-to-Open-Questions path), append it to a visible `Deferred / Open Questions` section in the document's native format.
+This reference defines the Defer action's in-doc append mechanic. When the user chooses Defer on a finding (from the walk-through, the walk-through's auto-resolve preview, or routing option A or C), append it to a visible `Deferred / Open Questions` section in the document's native format.
 
-Interactive mode only. Invoked by `references/walkthrough.md` (per-finding Defer option) and `references/bulk-preview.md` (routing option C Proceed).
+Interactive mode only. Invoked by `references/walkthrough.md` (per-finding Defer, and routing options A and C) and `references/bulk-preview.md` (Defer entries in the walk-through's auto-resolve plan).
 
 ---
 
@@ -65,7 +65,7 @@ Title-only dedup is not sufficient: two different findings in the same document 
 
 **Pre-existing entries with a `dedup-key` HTML comment:** entries written by the prior format carry a trailing `<!-- dedup-key: ... -->` comment. Ignore it for matching (the visible-text key above is authoritative) and strip the comment if the entry is otherwise edited. Do not write new ones.
 
-On collision, record the no-op in the completion report's Coverage section so the user sees the duplicate was suppressed. Cross-subsection collisions (same compound key, different dates) are not deduplicated — each review is allowed to re-raise the same concern.
+On collision, record the no-op in the completion report so the user sees the duplicate was suppressed. Cross-subsection collisions (same compound key, different dates) are not deduplicated — each review is allowed to re-raise the same concern.
 
 ---
 

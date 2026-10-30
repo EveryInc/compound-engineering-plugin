@@ -140,7 +140,7 @@ STRONG (observable consequence first, grounded fix reasoning):
 False-positive categories to actively suppress. Do NOT emit a finding when any of these apply — not even at anchor `25` or `50`. These are not edge cases you should route to FYI; they are non-findings.
 
 - **Pedantic style nitpicks** (word choice, bullet vs. numbered lists, comma-vs-semicolon, em-dash vs en-dash) — style belongs to the document author
-- **Issues that belong to other personas** (see your Suppress conditions at the top of your persona prompt) — surfacing another persona's territory inflates the Coverage table and forces synthesis to dedup work that should not exist
+- **Issues that belong to other personas** (see your Suppress conditions at the top of your persona prompt) — surfacing another persona's territory inflates the review and forces synthesis to dedup work that should not exist
 - **Findings already resolved elsewhere in the document** — search the document before flagging. If the concern is addressed in a later section, the earlier section's apparent omission is not a real finding
 - **Content inside sections titled `Deferred / Open Questions`** — prior-round review output, not document content. This is the ce-doc-review workflow's own staging area, whether represented as Markdown or HTML
 - **Pre-existing issues the document did not introduce** — if the concern exists in the codebase or organizational context independent of this document's proposal, flagging it here is scope creep

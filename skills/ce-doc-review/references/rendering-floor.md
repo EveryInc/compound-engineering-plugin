@@ -3,7 +3,7 @@
 The single source of truth for how any finding is rendered for a human decision, in **every** place a
 finding is shown: the interactive walkthrough terminal block (`references/walkthrough.md`), the
 walkthrough blocking-question string (same file — compact What's wrong / Proposed fix / If left as-is
-duplicated into the question so modal dialogs are decidable), the batch report table
+duplicated into the question so modal dialogs are decidable), the interactive report
 (`references/review-output-template.md`), the structured non-interactive result
 (`references/synthesis-and-presentation.md` Phase 4), the bulk-action preview line
 (`references/bulk-preview.md`), and the Open Questions entry a Defer persists into the document
@@ -41,8 +41,8 @@ unmistakably marked**. Concretely:
 the **non-interactive result** prints them as explicit labeled lines; the **walkthrough block** leads with a
 consequence-phrased title, then What's-wrong / Proposed-fix / If-left-as-is, and marks the recommendation
 on its question options; the **walkthrough question string** duplicates those three compact fields so a
-modal dialog is decidable without prior chat; the **batch table** leads its Issue cell with the
-consequence and carries the recommendation in its Tier/action column; the **bulk-preview line** leads
+modal dialog is decidable without prior chat; the **interactive report** leads each line with the
+consequence and states each decision's recommendation beside it; the **bulk-preview line** leads
 with the consequence and takes its recommendation from the bucket it is grouped under (Applying /
 Appending / Skipping). A rendering satisfies the floor when those two conditions hold, not when it
 emits the four field labels verbatim.
@@ -73,7 +73,7 @@ Make it clear whether the agent is reporting a completed change, requesting appr
   per "Presenting a batch" below.
 - **A question** — a choice requiring the user’s judgment. Carries its options and names what differs between them. When the fix is already determined, report it if applied or present it for approval if approval is still required.
 
-The summary line follows the same split: count changes made, proposed fixes awaiting approval, and questions requiring judgment separately. If no judgment is needed but approval is still pending, say both. Never imply a proposed fix has already been applied.
+Any summary follows the same split: say what changed, what awaits approval, and what needs the reader's judgment as separate things. If no judgment is needed but approval is still pending, say both. Never imply a proposed fix has already been applied.
 
 ## Presenting a batch
 
@@ -99,7 +99,7 @@ You are the only one who can do this. You hold every finding at once; the reader
 and has not read the document as closely as the reviewers did. Finding the two or three real themes in a
 batch of eleven is the work this step exists to do.
 
-The same shape applies wherever a set of findings is rendered together — the batch table, the
+The same shape applies wherever a set of findings is rendered together — the interactive report, the
 non-interactive result's proposed-fixes section, the bulk preview. A flat list is the failure mode
 each of those inherits by default.
 

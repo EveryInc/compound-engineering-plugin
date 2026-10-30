@@ -40,7 +40,7 @@ Round 1 — no prior decisions.
 </prior-decisions>
 ```
 
-**Error handling:** if a subagent fails or times out, proceed with the findings from those that completed and name the failed reviewer in the Coverage section. Never block the whole review on one reviewer failure.
+**Error handling:** if a subagent fails or times out, proceed with the findings from those that completed and name the failed reviewer in the report's Coverage line. Never block the whole review on one reviewer failure.
 
 
 ## Compound Pack constraints

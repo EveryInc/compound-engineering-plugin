@@ -28,14 +28,12 @@ Do NOT activate adversarial on a routine plan that derives from a validated upst
 
 ## Announce the review team
 
-Tell the user which personas will review and why, with a justification for each conditional one:
+Before dispatch, tell the user in one or two sentences which reviewers will run, giving each conditional one a reason of a few words. When the cross-model pass runs, its disclosure from `references/cross-model-review.md` goes in the same message. For example:
 
 ```
-Reviewing with:
-- coherence-reviewer (always-on)
-- feasibility-reviewer (always-on)
-- scope-guardian-reviewer -- plan has 12 requirements across 3 priority levels
-- security-lens-reviewer -- plan adds API endpoints with auth flow
+Reviewing with coherence, feasibility, scope-guardian (12 requirements across 3 priorities), and security-lens (new public API with auth).
 ```
+
+While reviewers run, do not post an update as each one returns or narrate which reference you are reading next. Speak again when the results are ready, or earlier only when a reviewer fails or a wait runs unusually long.
 
 The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each activated conditional persona (`product-lens-reviewer`, `design-lens-reviewer`, `security-lens-reviewer`, `scope-guardian-reviewer`, `adversarial-document-reviewer`).
