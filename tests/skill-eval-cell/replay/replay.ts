@@ -12,12 +12,15 @@ const USAGE = `usage: bun tests/skill-eval-cell/replay/replay.ts <command> [flag
            .pr-history/ and git-excluded.
   base     --source <local clone> --head <sha> --merge <merge sha>
            Print the commit a PR was branched from (merge-base of head and the merge's first parent).
-  collect  --runs <dir of cell outs> --out file.json
-           Gather each host's mode:agent JSON from cell runs whose out dirs are named <pr>-<arm>.
+  collect  --runs <dir of cell outs> [--runs <rerun dir>]... --out file.json
+           Gather each host's mode:agent JSON from cell runs whose out dirs are named <pr>-<arm>, marking a
+           host that failed, timed out, or returned no review. A later --runs dir replaces earlier rows.
   blind    --collected file.json --truth ground-truth.json --out dir
            Write one anonymized grading packet per PR plus key.json mapping review ids to arm and host.
+           Refuses while any collected run is incomplete.
   tally    --grades grades.json --key key.json --truth ground-truth.json
-           Unblind a grader's marks: real-bug hits and extra findings per arm and host.`
+           Unblind a grader's marks: real-bug hits and extra findings per arm and host. Refuses when any
+           ground-truth x review pair lacks a valid mark.`
 
 function git(cwd: string, ...args: string[]): string {
   const r = spawnSync("git", args, { cwd, encoding: "utf8", maxBuffer: 1 << 30 })
@@ -134,23 +137,38 @@ function findReview(text: string): Record<string, unknown> | null {
   return best?.review ?? null
 }
 
-function collect(runs: string, out: string) {
-  const rows: CollectedRow[] = []
-  for (const cell of fs.readdirSync(runs).sort()) {
-    const m = /^(\d+)-(.+)$/.exec(cell)
-    const hosts = path.join(runs, cell, "hosts")
-    if (!m || !fs.existsSync(hosts)) continue
-    for (const host of fs.readdirSync(hosts)) {
-      const stdout = path.join(hosts, host, "stdout.txt")
-      if (!fs.existsSync(stdout)) continue
-      rows.push({ pr: m[1], arm: m[2], host, review: findReview(fs.readFileSync(stdout, "utf8")) })
+function hostFailure(dir: string, review: CollectedRow["review"]): string | null {
+  const exit = JSON.parse(fs.readFileSync(path.join(dir, "exit.json"), "utf8")) as { exitCode: number | null; timedOut: boolean }
+  if (exit.timedOut) return "timed out"
+  if (exit.exitCode !== 0) return `exited ${exit.exitCode}`
+  if (!review) return "no mode:agent JSON in stdout"
+  if (!Array.isArray(review.findings)) return "review JSON has no findings array"
+  return null
+}
+
+function collect(runDirs: string[], out: string) {
+  // A later --runs directory replaces an earlier row for the same PR, arm, and host, so reruns supersede failures.
+  const rows = new Map<string, CollectedRow>()
+  for (const runs of runDirs) {
+    for (const cell of fs.readdirSync(runs).sort()) {
+      const m = /^(\d+)-(.+)$/.exec(cell)
+      const hosts = path.join(runs, cell, "hosts")
+      if (!m || !fs.existsSync(hosts)) continue
+      for (const host of fs.readdirSync(hosts)) {
+        const dir = path.join(hosts, host)
+        if (!fs.existsSync(path.join(dir, "exit.json"))) continue
+        const review = findReview(fs.readFileSync(path.join(dir, "stdout.txt"), "utf8"))
+        rows.set(`${m[1]}\t${m[2]}\t${host}`, { pr: m[1], arm: m[2], host, review, failure: hostFailure(dir, review) })
+      }
     }
   }
-  fs.writeFileSync(out, JSON.stringify(rows, null, 1))
+  fs.writeFileSync(out, JSON.stringify([...rows.values()], null, 1))
+  const failed = [...rows.values()].filter((r) => r.failure)
+  for (const r of failed) console.error(`incomplete: ${r.pr}-${r.arm} ${r.host}: ${r.failure}`)
 }
 
 type Finding = { severity?: string; file?: string; line?: number; title?: string; why_it_matters?: string; evidence?: unknown }
-type CollectedRow = { pr: string; arm: string; host: string; review: { findings?: Finding[] } | null }
+type CollectedRow = { pr: string; arm: string; host: string; review: { findings?: Finding[] } | null; failure: string | null }
 type ReviewKey = Record<string, { arm: string; host: string }>
 
 function inBlindOrder(pr: string, runs: CollectedRow[]): CollectedRow[] {
@@ -161,6 +179,10 @@ function inBlindOrder(pr: string, runs: CollectedRow[]): CollectedRow[] {
 function blind(collected: string, truth: string, out: string) {
   const rows = JSON.parse(fs.readFileSync(collected, "utf8")) as CollectedRow[]
   const gt = JSON.parse(fs.readFileSync(truth, "utf8")) as Record<string, { findings: unknown[] }>
+  const failed = rows.filter((r) => r.failure)
+  if (failed.length) {
+    throw new Error(`refusing to grade incomplete runs; rerun them and collect again with the rerun dir as a later --runs:\n${failed.map((r) => `  ${r.pr}-${r.arm} ${r.host}: ${r.failure}`).join("\n")}`)
+  }
   fs.mkdirSync(out, { recursive: true })
   const key: ReviewKey = {}
   for (const pr of Object.keys(gt).sort()) {
@@ -168,7 +190,7 @@ function blind(collected: string, truth: string, out: string) {
     const reviews = runs.map((r, i) => {
       const id = `R${pr}-${String.fromCharCode(65 + i)}`
       key[id] = { arm: r.arm, host: r.host }
-      return { review_id: id, findings: (r.review?.findings ?? []).map((f, j) => ({ id: `${id}.${j + 1}`, severity: f.severity, file: f.file, line: f.line, title: f.title, detail: f.why_it_matters ?? "", evidence: f.evidence })) }
+      return { review_id: id, findings: r.review!.findings!.map((f, j) => ({ id: `${id}.${j + 1}`, severity: f.severity, file: f.file, line: f.line, title: f.title, detail: f.why_it_matters ?? "", evidence: f.evidence })) }
     })
     fs.writeFileSync(path.join(out, `pr-${pr}.json`), JSON.stringify({ pr, ground_truth: gt[pr].findings, reviews }, null, 1))
   }
@@ -177,10 +199,36 @@ function blind(collected: string, truth: string, out: string) {
 
 type Grades = Record<string, { gt: Record<string, Record<string, "hit" | "partial" | "miss">>; extra: Record<string, "credible" | "weak"> }>
 
+const MARKS = new Set(["hit", "partial", "miss"])
+const LABELS = new Set(["credible", "weak"])
+
+/** Every ground-truth × review pair must carry a valid mark, or a missing one would silently shrink a denominator. */
+function gradingProblems(grades: Grades, key: ReviewKey, gt: Record<string, { findings: { id: string }[] }>): string[] {
+  const problems: string[] = []
+  for (const [pr, truth] of Object.entries(gt)) {
+    const reviewIds = Object.keys(key).filter((rid) => rid.startsWith(`R${pr}-`))
+    const g = grades[pr]
+    if (!g) { problems.push(`PR ${pr}: no grades`); continue }
+    for (const f of truth.findings) {
+      for (const rid of reviewIds) {
+        const mark = g.gt?.[f.id]?.[rid]
+        if (!MARKS.has(mark as string)) problems.push(`PR ${pr}: ${f.id} x ${rid}: ${mark === undefined ? "missing" : `invalid mark ${JSON.stringify(mark)}`}`)
+      }
+    }
+    for (const [fid, label] of Object.entries(g.extra ?? {})) {
+      if (!key[fid.split(".")[0]]) problems.push(`PR ${pr}: extra ${fid} names no known review`)
+      else if (!LABELS.has(label)) problems.push(`PR ${pr}: extra ${fid}: invalid label ${JSON.stringify(label)}`)
+    }
+  }
+  return problems
+}
+
 function tally(gradesFile: string, keyFile: string, truth: string) {
   const grades = JSON.parse(fs.readFileSync(gradesFile, "utf8")) as Grades
   const key = JSON.parse(fs.readFileSync(keyFile, "utf8")) as ReviewKey
   const gt = JSON.parse(fs.readFileSync(truth, "utf8")) as Record<string, { findings: { id: string; outcome: string }[] }>
+  const problems = gradingProblems(grades, key, gt)
+  if (problems.length) throw new Error(`refusing to tally incomplete or invalid grades:\n${problems.map((p) => `  ${p}`).join("\n")}`)
   const rows = new Map<string, { hit: number; partial: number; chances: number; credible: number; weak: number }>()
   const row = (rid: string) => {
     const k = `${key[rid].arm}\t${key[rid].host}`
@@ -226,7 +274,7 @@ function main(argv: string[]) {
       const merge = one("--merge")
       return console.log(git(one("--source"), "merge-base", one("--head"), `${merge}^1`).trim())
     }
-    case "collect": return collect(one("--runs"), one("--out"))
+    case "collect": return collect(flags.get("--runs") ?? [one("--runs")], one("--out"))
     case "blind": return blind(one("--collected"), one("--truth"), one("--out"))
     case "tally": return tally(one("--grades"), one("--key"), one("--truth"))
     default: console.error(USAGE); process.exit(cmd ? 2 : 0)

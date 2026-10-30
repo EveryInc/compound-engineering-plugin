@@ -25,13 +25,13 @@ bun $R build --source ~/src/name --base $BASE --head <reviewed_sha> --overlay /t
 bun run test:skill-eval-cell -- --skill ce-code-review --fixture /tmp/replay/fx/148-standards --hosts claude,codex \
   --timeout-secs 3000 --out /tmp/replay/runs/148-standards \
   --task "Use the ce-code-review skill with mode:agent base:main to review the current branch (pr-head) against main. Follow the skill end to end, including its reviewer subagents. Return the skill's mode:agent JSON as your final message."
-bun $R collect --runs /tmp/replay/runs --out /tmp/replay/collected.json
+bun $R collect --runs /tmp/replay/runs --out /tmp/replay/collected.json   # add --runs <rerun dir> to replace failed hosts
 bun $R blind --collected /tmp/replay/collected.json --truth /tmp/replay/gt/ground-truth.json --out /tmp/replay/blind
 # Ask a fresh agent to follow grade-reviews-prompt.md over /tmp/replay/blind.
 bun $R tally --grades /tmp/replay/blind/grades.json --key /tmp/replay/blind/key.json --truth /tmp/replay/gt/ground-truth.json
 ```
 
-Name each run directory `<pr>-<arm>`, which is what `collect` reads. Compare arms that differ in one thing, for example no standards file, the team's file, or the team's file plus a `REVIEW.md`. A PR the bot judged clean is a useful control. Pick PRs from before the standards file existed, since code written under the file already follows it and hides any difference.
+Name each run directory `<pr>-<arm>`, which is what `collect` reads. `collect` marks a host that failed, timed out, or returned no review, and `blind` refuses to grade until each one is rerun, so a failed run never counts as a clean review. `tally` likewise refuses grades missing any ground-truth × review pair. Compare arms that differ in one thing, for example no standards file, the team's file, or the team's file plus a `REVIEW.md`. A PR the bot judged clean is a useful control. Pick PRs from before the standards file existed, since code written under the file already follows it and hides any difference.
 
 ## Drafting replay (ce-setup review docs)
 
