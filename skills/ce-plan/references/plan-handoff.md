@@ -8,6 +8,8 @@ Invoke the `ce-doc-review` skill with arguments `mode:non-interactive <plan-path
 
 While authoring or revising a draft within the user's planning request, carry that permission to edit into the review: "Apply corrections to this draft's implementation and verification sections needed to satisfy its established Product Contract. Preserve that contract, existing constraints, and user-reserved or session-settled decisions." Supply the document path and the actual contract; the skill name or non-interactive mode alone does not grant permission. If the request does not authorize revising the document, grant no permission to edit. `ce-doc-review` decides whether a fix is applied and enforces its restriction on fixes that only another model found; do not apply a returned proposal merely to bypass that restriction.
 
+`ce-doc-review` writes its structured result to a file and prints the path on a `Full result:` line; read that file before acting on the review. If it printed the result inline instead, use that.
+
 If `ce-doc-review` cannot be invoked, record a stand-in structured review result (the shape `ce-doc-review` would normally return) with these values and proceed to Final Checks:
 - `fixes_applied = 0`
 - `proposed_fixes_count = 0`, `decisions_count = 0`, `fyi_count = 0`

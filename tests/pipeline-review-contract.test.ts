@@ -856,6 +856,15 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("Review complete")
   })
 
+  test("non-interactive result goes to a file the caller reads, not into the chat", async () => {
+    const synthesis = await readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md")
+    const handoff = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    expect(synthesis).toContain("**Deliver the result through a file.**")
+    expect(synthesis).toContain("Full result: <absolute path to result.md>")
+    expect(synthesis).toMatch(/If the file cannot be written, print the whole block in the chat instead/)
+    expect(handoff).toMatch(/prints the path on a `Full result:` line; read that file before acting on the review/)
+  })
+
   test("non-interactive result records a cleanly skipped cross-model peer", async () => {
     const synthesis = await readRepoFile(
       "skills/ce-doc-review/references/synthesis-and-presentation.md",
@@ -1061,7 +1070,7 @@ describe("ce-doc-review contract", () => {
     expect(template).not.toMatch(/\| Confidence \| Tier \|/)
     expect(synthesis).not.toContain("Dropped: N")
     expect(synthesis).not.toContain("Restated: N")
-    expect(synthesis).toMatch(/Do not restate it in prose before or after the block/)
+    expect(synthesis).toMatch(/Do not restate it in prose; the caller summarizes it/)
     expect(selection).toMatch(/do not post an update as each one returns/)
   })
 

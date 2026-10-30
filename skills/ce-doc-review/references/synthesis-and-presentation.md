@@ -217,9 +217,9 @@ consequence, concern, or question, and for an obligation the consequence plus it
 line whose only description of a referenced item is a bare identifier — of any kind — is not acceptable
 rendered output.
 
-**Non-interactive mode:** Do not use interactive question tools. Output all findings as the structured text block below, which the caller parses; that block is the non-interactive result. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the non-interactive result uses user-facing vocabulary ("fixes", "Proposed fixes", "Decisions", "FYI observations") so non-interactive output reads the same way interactive output does. `peer.outcome` is a machine field in that block, not narration: callers read it to tell a review whose different-provider peer folded an artifact from one whose peer did not.
+**Non-interactive mode:** Do not use interactive question tools. The structured text block below is the non-interactive result, which the caller parses. Write it to a file rather than into the chat, as described after the template, so a nested run does not fill the user's conversation with a report addressed to another skill. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the non-interactive result uses user-facing vocabulary ("fixes", "Proposed fixes", "Decisions", "FYI observations") so non-interactive output reads the same way interactive output does. `peer.outcome` is a machine field in that block, not narration: callers read it to tell a review whose different-provider peer folded an artifact from one whose peer did not.
 
-Two things about the template that follows. First, **nothing left in the batch has been confirmed here.** These edits were not covered by existing authority and this mode asks no questions, so they are returned unapplied for the caller to handle. Already-authorized corrections that landed belong only in Applied. Wording that reports them as already confirmed invites a caller, or a user reading over its shoulder, to treat unapplied and unapproved changes as accepted. Second, **the text inside the code fence is the whole output.** Do not restate it in prose before or after the block; the caller summarizes it for the user. Leave reviewer names and confidence values out of it; the caller does not use them. On a document with no implementation units, title the obligations section "Entailed corrections" and use the section name as each group heading. Do not emit that instruction, or any other bracketed note, into the result the caller parses.
+Two things about the template that follows. First, **nothing left in the batch has been confirmed here.** These edits were not covered by existing authority and this mode asks no questions, so they are returned unapplied for the caller to handle. Already-authorized corrections that landed belong only in Applied. Wording that reports them as already confirmed invites a caller, or a user reading over its shoulder, to treat unapplied and unapproved changes as accepted. Second, **the text inside the code fence is the whole result.** Do not restate it in prose; the caller summarizes it for the user. Leave reviewer names and confidence values out of it; the caller does not use them. On a document with no implementation units, title the obligations section "Entailed corrections" and use the section name as each group heading. Do not emit that instruction, or any other bracketed note, into the result the caller parses.
 
 ```
 Document review complete (non-interactive mode).
@@ -273,6 +273,26 @@ Review complete
 ```
 
 Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned. "Applied N fixes" reports what already changed. The obligations block and "Proposed fixes" together render the grouped confirmation: obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule. The caller re-narrates this result to a reader who has seen none of it, so a flat list here becomes a flat list there. "Decisions" carries the decisions the user must still make, and "FYI observations" carries anchor `50`. End with "Review complete" as the final line so callers can detect completion.
+
+**Deliver the result through a file.** Write the block, exactly as specified, to `result.md` in a private run directory, then print only the three lines below as your final output. Create the directory with this block (`<run-id>` is the current date and time plus a short random suffix, e.g. `20261030-0114-a3f9c1`):
+
+```bash
+SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
+[ ! -L "$SCRATCH_ROOT" ] && (umask 077; mkdir -p "$SCRATCH_ROOT") 2>/dev/null && [ ! -L "$SCRATCH_ROOT" ] && [ -O "$SCRATCH_ROOT" ] && [ -w "$SCRATCH_ROOT" ] || SCRATCH_ROOT="${TMPDIR:-/tmp}/compound-engineering-$(id -u)";
+if [ -L "$SCRATCH_ROOT" ]; then echo "unsafe scratch root symlink: $SCRATCH_ROOT" >&2; exit 1; fi;
+(umask 077; mkdir -p "$SCRATCH_ROOT") || exit 1;
+if [ -L "$SCRATCH_ROOT" ] || [ ! -O "$SCRATCH_ROOT" ]; then echo "scratch root is not owned by the current user: $SCRATCH_ROOT" >&2; exit 1; fi;
+chmod 700 "$SCRATCH_ROOT" || exit 1;
+RUN_DIR="$SCRATCH_ROOT/ce-doc-review/<run-id>"; (umask 077; mkdir -p "$RUN_DIR") || exit 1; chmod 700 "$RUN_DIR" || exit 1; echo "$RUN_DIR"
+```
+
+```
+Doc review: applied N fixes; P proposed fixes and D decisions remain.
+Full result: <absolute path to result.md>
+Review complete
+```
+
+Name only the counts that are non-zero, and say "no open items" when nothing remains. If the file cannot be written, print the whole block in the chat instead; a caller must always receive the result one way or the other.
 
 When a trio lens was activated, keep `peer.outcome` even though empty sections are omitted; omit it and its lens lines when none was. The owed lenses are each activated trio lens plus the whole-doc sweep. Write `peer.outcome: folded` only when every owed lens folded a different-provider peer artifact. Any other result, including a peer that started and then failed or timed out, is `peer.outcome: in-process-fallback`. Under it, give each owed lens that did not fold exactly one line, chosen by whether there is positive evidence that its peer did not run: it never started, the script skipped it, or the worker reported the transport unavailable before egress. With that evidence, use the not-run line with the observed reason: `<lens>: in-process fallback (cross-model peer not run: <reason>)` for a trio lens, and `whole-doc: not run (cross-model peer not run: <reason>)` for the whole-doc sweep, which has no in-process reviewer. Without it, the peer ran or may have run, so use `cross-model <lens> peer: <what happened to the peer's result>`: the job's terminal state (`failed`, `timeout`, `died-without-result`), or what kept a finished result from folding, such as no usable output or a read the runner could not verify.
 
