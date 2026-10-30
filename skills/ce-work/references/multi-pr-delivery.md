@@ -8,11 +8,11 @@ A run that a coordinator handed one named group builds and ships only that group
 
 ## Group state
 
-Each group's PR description carries one line, `Plan group: <plan path> <label>`, where the label is the `PR<N>` that starts the group's heading, and its branch name contains the label. Read each group's state through those markers:
+Each group carries one identity: the plan's file name without its extension plus the group's label, the `PR<N>` that starts the group's heading. The group's PR description carries it as one line, `Plan group: <plan path> <label>`, and its branch name ends with `<plan file name>-<label>` (lowercased). Match that identity exactly, with the label as a whole token, so `PR1` never matches `PR10` and another plan's `PR1` never matches this one. Read each group's state through it:
 
 - **merged** when a merged PR carries it;
 - **open** when an open PR carries it;
-- **built** when an unpublished branch's name contains the group's label;
+- **built** when an unpublished branch carries it;
 - **unbuilt** otherwise.
 
 Squash merges leave no ancestry, so commit history is not evidence of a merged group. Skip merged and open groups, and do not rebuild a built one. A branch is visible only in the checkout or session that made it. Treat a group with no PR and no visible branch as unbuilt only if none of this run's sessions is building it. When the evidence conflicts or you cannot tell, stop and report what you found: rebuilding a group duplicates its PR, and skipping one ships the plan with a hole.
