@@ -76,10 +76,6 @@ only when that id maps to `codex`, `claude`, `grok`, `composer`, or `gemini`. A
 requested model, the model's own claim, and the product name are not that id.
 Never infer serving family from the Cursor brand.
 
-Under `OMPCODE` still pass `unknown`: the worker reads the serving family from
-the model oh-my-pi's session file records, so an omp host serving a first-party
-model can still be attested independent of the target.
-
 Section 4 passes `XHOST_FAMILY` as the worker's first argument and
 `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; a provider name such as
 `anthropic`, `openai`, or `xai` in either slot makes the worker refuse the
