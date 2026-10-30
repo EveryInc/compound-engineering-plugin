@@ -117,6 +117,7 @@ Return the user to the current finding's per-finding question. The walk-through 
 When the user picks `Proceed`:
 
 - For each finding in the plan, execute the recommended action. Apply findings join the in-memory Apply set with the ones the user already picked during the walk-through; all dispatch together in the single end-of-walk-through Apply pass (see `walkthrough.md`). Defer findings go through `references/open-questions-defer.md`. Skip findings are recorded as no-action. Then emit the unified completion report (see `walkthrough.md`).
+- **Recorded items:** when an Apply or Skip in this batch completes for a finding the document already records under `Deferred / Open Questions`, follow the removal rule in `references/open-questions-defer.md`.
 - **Withdrawing bucket:** each finding in this bucket is recorded `withdrawn` in the decision list, annotated with the decision that retired it. No document edit, no Open Questions append. It carries into the completion report's Withdrawn bucket and follows the same durability rule as a walk-through withdrawal (provisional when retired by a staged Apply that has not yet landed).
 
 Failure during `Proceed` (e.g., an Open Questions append fails for one finding during a batch Defer) follows the failure path defined in `references/open-questions-defer.md`: show the failure right away with Retry / Fall back / Convert to Skip, continue with the rest of the plan, and record the failure in the completion report's failure section.

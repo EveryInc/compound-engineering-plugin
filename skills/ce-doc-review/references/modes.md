@@ -13,6 +13,7 @@ Arguments may contain a document path, a mode token, or both; both tokens togeth
 
 - fixes that synthesis classifies as Apply are applied and reported in the change list (same as interactive)
 - everything else — the grouped confirmation, decisions, and FYI observations — is returned as structured text with the original classifications intact, for the caller to handle. No blocking-question prompts, no interactive routing.
+- proposed fixes and decisions that were not applied are also recorded in the document, per `references/open-questions-defer.md`, so they outlive this session
 - Phase 5 (routing) returns immediately with "Review complete" (no routing question, no terminal question)
 
 **Non-interactive argument contract:** `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.{md,html}`. `mode:headless` is a deprecated alias for the same contract.

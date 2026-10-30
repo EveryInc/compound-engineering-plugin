@@ -264,6 +264,9 @@ Residual concerns:
 Deferred questions:
 - <question>
 
+Recorded in the document: N items under Deferred / Open Questions
+Not recorded in the document: N items (<reason>)
+
 peer.outcome: <folded | in-process-fallback>
 cross-model <lens> peer: <what happened to the peer's result>
 <lens>: in-process fallback (cross-model peer not run: <reason>)

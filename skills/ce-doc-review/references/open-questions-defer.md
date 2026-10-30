@@ -1,8 +1,9 @@
 # Open Questions Deferral
 
-This reference defines the Defer action's in-doc append mechanic. When the user chooses Defer on a finding (from the walk-through, the walk-through's auto-resolve preview, or routing option A or C), append it to a visible `Deferred / Open Questions` section in the document's native format.
+This reference defines how a finding left open is recorded in the document, in a visible `Deferred / Open Questions` section in the document's native format, and when that record is removed. The record exists so that a later session reading only the document still sees what the review left for the author.
 
-Interactive mode only. Invoked by `references/walkthrough.md` (per-finding Defer, and routing options A and C) and `references/bulk-preview.md` (Defer entries in the walk-through's auto-resolve plan).
+- **Interactive mode:** a finding is recorded when the user chooses Defer: from the walk-through, the walk-through's auto-resolve preview, or routing option A or C, through `references/walkthrough.md` (per-finding Defer, and routing options A and C) and `references/bulk-preview.md` (Defer entries in the walk-through's auto-resolve plan).
+- **Non-interactive mode:** after synthesis and before returning, record every proposed fix that was not applied and every decision left for the user. FYI observations are not recorded. The rest of this file applies, with the non-interactive differences stated where they occur.
 
 ---
 
@@ -13,7 +14,7 @@ Interactive mode only. Invoked by `references/walkthrough.md` (per-finding Defer
 Scan the document for an existing `Deferred / Open Questions` section, matching its visible heading text exactly. Preserve the document's native format and existing structure; never insert markdown syntax into HTML.
 
 - **Section present:** append inside it at its existing location. Do not create a duplicate at the end; the user positioned the section deliberately.
-- **Section absent:** create it near the end of the document, before any trailing footer. Use `## Deferred / Open Questions` in markdown and the document's existing section-and-heading pattern in HTML.
+- **Section absent:** create it near the end of the document, before any trailing footer. Use `## Deferred / Open Questions` in markdown and the document's existing section-and-heading pattern in HTML. Open it with one line saying its entries are review items left for the author and do not block implementation, so an executor does not mistake them for the plan's blocking Open Questions.
 
 ### Step 2: Locate or create the timestamped subsection
 
@@ -45,7 +46,7 @@ Fields come from the finding's schema:
 - `{confidence}` — the integer anchor (`50`, `75`, or `100`), emitted without a decimal point or percent sign
 - `{why_it_matters}` — the full why_it_matters text, preserving the framing guidance from the subagent template
 
-Do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section. The entry is a concern summary for the reader returning later, not a full decision record.
+A proposed fix recorded in non-interactive mode adds one line after `{why_it_matters}`: `Change: <suggested_fix as intent language>`, because the change is what the next session would act on and no approval for it exists yet. Otherwise, do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section. The entry is a concern summary for the reader returning later, not a full decision record.
 
 **Render `{title}` and `{why_it_matters}` under the shared rendering floor** (`references/rendering-floor.md`). This entry is persisted for a later reader who no longer has the review's context, so apply the floor's opaque-token policy to all three classes (gloss navigation IDs at first mention, translate mechanism symbols such as functions, files, and line refs to their role, drop provenance that does not affect the decision) and lead `{why_it_matters}` with the consequence. The floor's full decision-first field order does not apply: a deferred entry is a persisted concern, not an actionable finding, so it carries no Recommendation/Change/Basis. A deferred entry whose only description of a referenced item is a bare identifier of any class is not acceptable.
 
@@ -79,7 +80,7 @@ The orchestrator only holds the most recent read in memory, not a persistent loc
 
 ## Failure path
 
-When the append cannot complete (the document is read-only on disk, the path is invalid, the platform's edit tool returns an error, a concurrent-edit collision is detected, or any other write failure), report the failure to the user right away via the platform's blocking question tool with the following sub-question:
+In non-interactive mode, an append that cannot complete records nothing more and asks nothing; the structured result says which items were not recorded in the document and why. In interactive mode, when the append cannot complete (the document is read-only on disk, the path is invalid, the platform's edit tool returns an error, a concurrent-edit collision is detected, or any other write failure), report the failure to the user right away via the platform's blocking question tool with the following sub-question:
 
 **Stem:** `Couldn't append the finding to Open Questions. What should the agent do?`
 
@@ -98,6 +99,12 @@ C. Convert this finding to Skip
 - **C Convert to Skip** — record the finding as Skip with an explanatory reason ("append to Open Questions failed: <error>"). The finding is treated as no-action for the remainder of the session.
 
 Silent failure is not acceptable. If the user does not respond to the sub-question (session ends, terminal disconnects), default to option B so the in-memory decision state stays consistent even if the document wasn't written.
+
+---
+
+## Removing resolved entries
+
+This is the removal rule. A recorded entry stays only while its item is open. When anyone applies or dismisses a recorded item, they remove its entry. That can be a later review pass, the skill that called this review, or a session that settles the item in code. Find the entry by its Step 4 compound key. If its `From YYYY-MM-DD review` subsection is then empty, remove it, and if the section is then empty, remove that too. An entry left behind for a settled item tells every later reader the item is still open.
 
 ---
 
