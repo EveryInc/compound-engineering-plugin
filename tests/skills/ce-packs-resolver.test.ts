@@ -30,6 +30,8 @@ const COPIES = [
   "skills/ce-doc-review/scripts/packs-resolve.py",
   "skills/ce-compound/scripts/packs-resolve.py",
   "skills/ce-dogfood/scripts/packs-resolve.py",
+  "skills/ce-work/scripts/packs-resolve.py",
+  "skills/ce-debug/scripts/packs-resolve.py",
 ]
 const RESOLVER = path.join(process.cwd(), COPIES[0])
 

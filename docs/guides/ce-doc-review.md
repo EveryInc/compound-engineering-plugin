@@ -137,7 +137,7 @@ Each per-finding step prints a terminal block and duplicates What's wrong / Prop
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** | Direct invoke, brainstorm's "Pressure-test the requirements", or `ce-plan`'s "Decide on the review's open items" | One routing question, optional walk-through |
-| **Non-interactive** | `mode:non-interactive` (deprecated alias `mode:headless`). Default when `ce-plan` chains the review | Applies full-confidence corrections required by existing decisions, within the review’s edit boundaries. Returns worthwhile unresolved items as structured text. No prompts |
+| **Non-interactive** | `mode:non-interactive` (deprecated alias `mode:headless`). Default when `ce-plan` chains the review | Applies full-confidence corrections required by existing decisions, within the review’s edit boundaries. Returns worthwhile unresolved items as structured text and records the unapplied fixes and open decisions in the document's `Deferred / Open Questions` section, so later sessions see them. No prompts |
 
 Non-interactive requires a path. Without one it errors rather than guessing.
 
@@ -246,7 +246,7 @@ Only the judgment trio (adversarial, product-lens, security-lens) get a dedicate
 Without it, every round re-surfaces the same findings, including ones you already rejected. The primer uses fingerprint plus evidence-snippet matching to suppress rejected findings and verify applied fixes.
 
 **What's "Append to Open Questions" for?**
-Findings you want to address later, not now. They get appended to the doc's visible `Deferred / Open Questions` section in its native format so they survive the session and the next planner or implementer sees them.
+Findings you want to address later, not now. They get appended to the doc's visible `Deferred / Open Questions` section in its native format so they survive the session and the next planner or implementer sees them. A non-interactive review records its unapplied fixes and open decisions there too. An entry is removed once its item is applied or dismissed, and none of them blocks implementation.
 
 **Why is there no preview before auto-resolve?**
 The report you answer the question from already lists every proposed fix and each decision's recommended action, so a second preview would repeat it. Auto-resolving partway through the walk-through still shows a preview, because the remaining findings have not been shown one at a time.

@@ -180,6 +180,16 @@ const UNDERSTANDING_BASE_REF = "8df67793b9733d2220fa9a7fc37139931471af62"
 const BEHAVIOR_TRACE_BASE_REF = "c152896f1cda13548fc1a05b2aff88caf8ae8dba"
 
 const FIX = "tests/skill-eval-cell/fixtures"
+/** main before #1947 brought declared Compound Packs into ce-work, ce-debug, and the lite and focused review paths. */
+const PACKS_EXECUTION_BASE_REF = "248883d86c423aa6e086e4811d709effc0f1d9ad"
+const LITE_PACK_PROBE_TASK = `Use the ce-code-review skill on this repo with mode:agent. Resolve the Review depth gate and run the selected path's own in-context checks. This is a probe: do not create the run directory, do not dispatch reviewers, and do not edit any file.
+
+End with exactly two lines in this form and nothing else on those lines:
+
+DEPTH: <lite, focused, or full>
+PACK: <violation, clean, or not-checked>
+
+where PACK is violation when a changed line contradicts a declared Compound Pack rule that this review checked. Quote any rule in prose above the two lines, not on them.`
 
 /** main before ce-ideate's run-scaling, §5.3, and issue-tracker detection blocks were restated as conditions. */
 const IDEATE_SCALING_BASE_REF = "00d0a5bbf1300b2138b65ce724b325dd4dff77ba"
@@ -3353,6 +3363,88 @@ where STANDARDS is violation when a changed line contradicts a rule in a criteri
       files_read_post: ["references/modes-and-output.md", "references/depth-paths.md"],
       declared: { DEPTH: "lite", STANDARDS: "clean" },
       actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-work/packs-bare-prompt",
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/packs-money`,
+    baseline_ref: PACKS_EXECUTION_BASE_REF,
+    why: "A bare prompt has no plan, so no planner ever matched the repo's declared pack. The neighboring lines build money strings by hand, so following local patterns alone breaks the pack rule. The task never mentions packs. With the pack inside the tree, pre-change runs also found it by exploring, so this cell is a regression check; the discriminating case is a git-source pack outside the tree, which a static fixture cannot express.",
+    pre_contract: "ce-work consumed only the pack rules a plan cited; a bare prompt saw none.",
+    task: `Use the ce-work skill: add a "Tax" line showing invoice.tax to the invoice summary in src/invoice-summary.js. Do the intake and setup the skill requires, then stop right before your first implementation write. Do not edit, create, or commit any file.
+
+End with exactly one line in this form and nothing else on it:
+
+AMOUNT_FORMAT: <helper or inline>
+
+where helper means the Tax amount string would come from calling an existing formatting function, and inline means it would be built in place.`,
+    grade: {
+      declared: { AMOUNT_FORMAT: "helper" },
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-debug/packs-fix-shape",
+    skill: "ce-debug",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/packs-money`,
+    baseline_ref: PACKS_EXECUTION_BASE_REF,
+    why: "A fix never passes through a planner, so ce-debug must match the pack itself. The minimal fix, matching the neighboring lines, is toFixed(2) beside a hand-written $, which the pack forbids. The task never mentions packs. With the pack inside the tree, pre-change runs also found it by exploring, so this cell is a regression check; the discriminating case is a git-source pack outside the tree, which a static fixture cannot express.",
+    pre_contract: "ce-debug never read declared packs.",
+    task: `Use the ce-debug skill to fix this: node tests/invoice-summary.check.js fails because the invoice summary prints the total wrong. Fix it. Work through the skill until you are about to make your first file edit in the fix phase, then stop without editing, creating, or committing any file.
+
+End with exactly one line in this form and nothing else on it:
+
+AMOUNT_FORMAT: <helper or inline>
+
+where helper means the fixed Total amount string would come from calling an existing formatting function, and inline means it would be built in place.`,
+    grade: {
+      declared: { AMOUNT_FORMAT: "helper" },
+      git: "clean",
+    },
+  },
+  {
+    id: "ce-code-review/lite-pack-violation",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/receipt.js"],
+    fixture: `${FIX}/packs-money`,
+    baseline_ref: PACKS_EXECUTION_BASE_REF,
+    why: "A three-line display helper takes lite. Lite dispatches no learnings persona, so before #1947 the pack rule the line breaks went unchecked and the receipt only said packs were not applied.",
+    pre_contract: "The lite and focused paths never applied a Compound Pack and said so in Coverage.",
+    task: LITE_PACK_PROBE_TASK,
+    grade: {
+      declared: { DEPTH: "lite", PACK: "violation" },
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/lite-pack-unrelated",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/age.js"],
+    fixture: `${FIX}/packs-money`,
+    baseline_ref: PACKS_EXECUTION_BASE_REF,
+    why: "The control: a date helper no pack rule's applies_when fits, while an unchanged file in the repo does break the money rule. Lite must not stretch the rule onto unrelated code or the unchanged file.",
+    pre_contract: "The lite and focused paths never applied a Compound Pack and said so in Coverage.",
+    task: LITE_PACK_PROBE_TASK,
+    grade: {
+      declared: { DEPTH: "lite", PACK: "clean" },
       delegates: "none",
     },
   },

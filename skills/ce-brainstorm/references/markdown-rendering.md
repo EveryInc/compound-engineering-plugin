@@ -132,7 +132,10 @@ contracts — the agent picks the shape that fits the content.
 - **Implementation Units** — H3 heading per unit with `U<N>.` prefix.
   Fields (Goal, Files, Patterns, Test Scenarios, Verification) render as
   bullets with bold leader labels, or as sub-headings if the field has
-  multi-paragraph content.
+  multi-paragraph content. When the work ships as several PRs, each PR group
+  is an H3 heading (`### PR<N>: <title>`; executors name the group by its
+  `PR<N>` label) followed by its `Waits on:` line,
+  and the group's units follow as their own H3 `U<N>.` headings.
 - **Verification Contract / Definition of Done** — use tables when commands,
   applicability, unit IDs, and done signals share a uniform shape. Name
   concrete repo commands such as `bun test` rather than generic "run tests"

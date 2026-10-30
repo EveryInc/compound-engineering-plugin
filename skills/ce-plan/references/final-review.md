@@ -12,7 +12,7 @@ Before finalizing, check:
 - Every major decision is grounded in the origin document or research
 - Material claims about existing code and fixtures match repository evidence; unresolved prerequisites that prevent implementation are recorded as blockers. Planned additions need not exist yet.
 - Each implementation unit is concrete, dependency-ordered, and implementation-ready
-- When the work ships as several PRs, the PR grouping meets the three delivery conditions in Phase 3.3: one creator per shared artifact, safe after every merge, and parallel PRs that do not conflict
+- When the work ships as several PRs, the PR grouping meets the three delivery conditions in Phase 3.3: one creator per shared artifact, safe after every merge and deploy, and parallel PRs that do not conflict. Each group's `Waits on:` line gives the kind of every wait and names any deployment that must be live first
 - If test-first proof, characterization coverage, smoke-first verification, or another execution direction was explicit or strongly implied, the relevant units carry it forward with a lightweight natural-language `Execution note`
 - Each feature-bearing unit has test scenarios for the behavior it builds (happy path, plus edge cases, error handling, or integration where the unit has them), right-sized to the unit's complexity, not padded or skimped
 - Test scenarios name specific inputs, actions, and expected outcomes without becoming test code

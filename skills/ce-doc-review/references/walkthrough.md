@@ -46,6 +46,8 @@ When only proposed fixes are pending, C has nothing to defer and is dropped. No 
 - **C** — apply every proposed fix in the end-of-walk-through Apply pass, and route every decision through `references/open-questions-defer.md`. Then emit the completion report.
 - **D** — apply nothing further; report the proposed fixes as not applied and the decisions as open. Emit the completion report and continue to the Phase 5 completion return.
 
+Whichever option runs, when an Apply or Skip completes for a finding the document already records under `Deferred / Open Questions` (an earlier non-interactive pass wrote it), follow the removal rule in `references/open-questions-defer.md`.
+
 ---
 
 ## Entry (walk-through mode)

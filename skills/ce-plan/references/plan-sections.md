@@ -147,7 +147,10 @@ present. They carry the contracts downstream consumers depend on.
   each is independently executable. Each unit names Goal, Requirements,
   Files, Approach, Test Scenarios, and Verification. `ce-work` and other
   executors consume these units. When the work ships as several PRs, the
-  units are grouped by PR, and each group names the PRs it waits on.
+  units are grouped by PR. Each group has a `Waits on:` line. For each PR it
+  waits on, the line says whether that PR only has to merge first or has to
+  merge or deploy before the group can start. It also names any deployment
+  that must be live before the group merges.
   - **Unit Index (large plans only, ~10+ units).** When the plan has roughly
     ten or more units, open the section with a compact navigation table — one
     row per unit: **U-ID · one-line title · files touched · depends-on**. It

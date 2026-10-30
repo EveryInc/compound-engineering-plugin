@@ -188,7 +188,7 @@ Output: code changes, commits, and usually a PR. No configured git remote: local
 ## FAQ
 
 **Does `lfg` merge the PR?**
-Not by default. Pipeline babysit stops when CI is decided (or the fix budget is hit) and merge stays yours; the closeout line points at `/ce-babysit-pr` for an interactive watch toward merge. If you grant merging for the run, `lfg` passes that grant to the babysitter in the form it accepts; today that is `posture:stack-land` for a managed stack. A single-PR merge grant has no pipeline carrier yet, so on that path `lfg` says the merge is still yours.
+Not by default. Pipeline babysit stops when CI is decided (or the fix budget is hit) and merge stays yours; the closeout line points at `/ce-babysit-pr` for an interactive watch toward merge. If you grant merging for the run, `lfg` passes that grant to the babysitter in the form it accepts; today that is `posture:stack-land` for a managed stack. When any layer waits on a deployment, `lfg` does not pass the grant, because no skill can see a deploy; the close-out names the deployment to confirm before you merge that layer. A single-PR merge grant has no pipeline carrier yet, so on that path `lfg` says the merge is still yours.
 
 **Will it stop and ask me to approve the plan or the diff?**
 No. That is the point of the skill, and why it is the wrong tool for in-the-loop work. The one thing it can ask about is product shape: when a request has several plausible product readings and you are present, it runs `ce-brainstorm` and that dialogue asks its questions. Headless runs never ask; `ce-plan` records its assumptions in the plan instead.
