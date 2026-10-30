@@ -119,3 +119,7 @@ Add a standing instruction so agents write reports and summaries to you with ce-
 Insert the text verbatim from `assets/noslop-directive.md` in this skill's directory; do not paraphrase it. Place it beside the compounding directive when that landed or already exists, otherwise where the compounding directive would go. Match the surrounding form. Preview the exact text and location, then append only on approval and leave the rest of the file untouched.
 
 Report all three outcomes in the Phase 3 summary under Fixed or Skipped.
+
+### Step 10: Offer Starting Drafts Of The Project's Review Docs
+
+Read `references/project-docs.md` from this skill's directory and follow it. It makes one offer to draft or update `CODING_STANDARDS.md`, `REVIEW.md`, and the agent-instructions lines that point to them, built from the repository's own review history, and writes nothing until the user approves the drafts.

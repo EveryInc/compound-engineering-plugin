@@ -2,7 +2,7 @@
 
 > Check Compound Engineering health, optional tool availability, and repo-local config safety. It does not bulk-install the plugin's dependencies.
 
-`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, and offers to point your agent-instructions file at the knowledge store and add standing compounding and `ce-noslop` chat-register instructions. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
+`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, offers to point your agent-instructions file at the knowledge store and add standing compounding and `ce-noslop` chat-register instructions, and offers to draft `CODING_STANDARDS.md` and `REVIEW.md` from your pull request history. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
 
 It runs only when you invoke it explicitly (`disable-model-invocation: true`). Talking about setup does not start it. Outside a git repository it reports capabilities and stops without writing files.
 
@@ -23,11 +23,12 @@ See [Compound Engineering configuration](./configuration.md) for every option an
 
 ## Example invocations
 
-Bare, one command covers first install, a re-check after an upgrade, a missing-tool report, and a directory that is not a git repo. The one argument, `pack:<id>`, scaffolds a Compound Pack instead (see [Scaffold a Compound Pack](#scaffold-a-compound-pack)).
+Bare, one command covers first install, a re-check after an upgrade, a missing-tool report, and a directory that is not a git repo. `pack:<id>` scaffolds a Compound Pack instead (see [Scaffold a Compound Pack](#scaffold-a-compound-pack)), and `standards` goes straight to drafting the review docs (see [Review docs](#review-docs)).
 
 ```text
 /ce-setup
 /ce-setup pack:house-rules
+/ce-setup standards
 ```
 
 On oh-my-pi the invocation is `/skill:ce-setup`. On Codex it is `$ce-setup` when that host uses dollar-prefixed skills.
@@ -53,11 +54,24 @@ The example config refresh happens on its own (it is the committed template copy
 - Offers to add `.compound-engineering/*.local.yaml` to `.gitignore`, but only when `config.local.yaml` already exists and is not ignored.
 - Offers to add `.context/compound-engineering/` to `.gitignore` whether or not that directory exists yet. An uncovered path is a note, not a project issue.
 - Offers to add a line about the `<root>/solutions/` knowledge store to your root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, or equivalent) when the file does not already convey it, placed in the file's own structure. Then offers the standing compounding instruction from the [ce-compound guide](./ce-compound.md#make-capture-automatic), offer-first or automatic, inserted verbatim. Only when the store is tracked in this repo, and never creates the file. Then offers the `ce-noslop` chat-register instruction, inserted verbatim, so agent reports and summaries to you lead with the outcome and carry no acknowledgements, offers of more help, or process narration. Skipped only when the file already covers the report boundary, that register, and the exclusions (code, config, verbatim quotes, text you asked to post as written); a partial or unrelated writing rule still gets the offer.
+- Offers, in one question, to draft or update `CODING_STANDARDS.md` and `REVIEW.md` from your recent pull requests, plus a line in your agent-instructions file pointing agents to each. See [Review docs](#review-docs).
 - Repairs an invalid CE Work implementation-engine block, or leftover retired routing keys, in the config layer that supplied the bad value.
 - Offers to warm the npm cache for cross-model peers when Node 22.13 or newer and `npx` are present. On approval it downloads an eligible acpx version from the supported range and the codex and claude adapters associated with its upper bound without starting them (npm still runs any install scripts they declare, as a first peer run would), reducing first-run downloads in `ce-pov`, `ce-doc-review`, `ce-code-review`, and `ce-work`; an older policy-selected acpx release may fetch different adapter packages. Declining fetches nothing; the first peer run downloads them instead.
 - Repairs an invalid `docs_root`. This one is a real project issue: CE artifacts will not be written until it is fixed. See [Artifact root](./configuration.md#artifact-root).
 
 Each question uses the host's blocking question tool when one exists. It never silently auto-configures.
+
+## Review docs
+
+Most teams want a coding-standards file and never get past the blank page. Setup drafts a starting point from evidence the repository already has: review findings authors fixed, findings the team declined, fix commits, solution records, and rules already sitting in the agent-instructions file. It shows every draft, with the pull requests behind each rule, before writing anything.
+
+| File | Holds | Read by |
+|------|-------|---------|
+| `CODING_STANDARDS.md` | Rules code here follows: defect classes visible in a diff that no lint, type, or CI check covers | Agents writing code, and every code review, including [`ce-code-review`](./ce-code-review.md#repo-owned-review-criteria) |
+| `REVIEW.md` | How review behaves here: severity meanings, what not to flag, evidence a finding needs. Starts with `@CODING_STANDARDS.md` | [`ce-code-review`](./ce-code-review.md#repo-owned-review-policy), from the base branch, and Claude Code Review |
+| Agent-instructions file | Working instructions, plus one line per review doc saying what it is and when to read and update it | Every agent session |
+
+A rule needs evidence: a fixed review finding, a fix commit, or a solution record, with no check already enforcing it. A "what not to flag" category needs findings declined across several pull requests. When the history supports no `REVIEW.md` section, setup does not draft one. When a file exists, setup offers to update it and shows the change as a diff. A repository with no history to draft from gets no offer. Asking for any one of these (`/ce-setup standards`, or "set up our coding standards") skips the health check and the offer and drafts the whole set, still previewed before writing. `STRATEGY.md` comes from an interview rather than history, so setup suggests [`ce-strategy`](./ce-strategy.md) when it is missing instead of drafting one.
 
 ## Scaffold a Compound Pack
 
@@ -116,6 +130,7 @@ Use `ce-setup` when:
 - A workflow reported an optional tool missing and you want the install command
 - You are onboarding a repo to `.compound-engineering/config.yaml`
 - You want to start a Compound Pack with `pack:<id>` in the layout discovery reads
+- You want starting `CODING_STANDARDS.md` and `REVIEW.md` drafts from your PR history (`standards`)
 - Health marked `docs_root` or the CE Work engine block invalid
 
 Skip it when:

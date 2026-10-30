@@ -64,7 +64,7 @@ describe("ce-setup instruction-file offers", () => {
     expect(step).toMatch(/untracked or gitignored directory is not evidence/)
     expect(step).toMatch(/already carries a standing instruction to invoke `ce-compound`/)
     const skill = await readRepoFile("skills/ce-setup/SKILL.md")
-    expect(skill).toContain("Steps 4-9")
+    expect(skill).toContain("Steps 4-10")
   })
 
   // The chat-register directive is the always-on path for ce-noslop's
@@ -107,5 +107,23 @@ describe("ce-setup instruction-file offers", () => {
     // unrelated or none -> offer
     expect(step).toMatch(/or an unrelated writing rule still gets the offer/)
     expect(step).toMatch(/Offer it whenever this step runs\./)
+  })
+
+  test("Step 10 makes one evidence-backed offer for the review docs", async () => {
+    const fixes = await readRepoFile("skills/ce-setup/references/repo-fixes.md")
+    expect(fixes.split("### Step 10:")[1] ?? "").toContain("references/project-docs.md")
+    const docs = await readRepoFile("skills/ce-setup/references/project-docs.md")
+    expect(docs).toContain("never one question per file")
+    expect(docs).toContain("Never offer a template in place of evidence")
+    expect(docs).toMatch(/Nothing is written until the user approves the drafts/)
+  })
+
+  test("asking for coding standards routes straight to the whole review-docs set", async () => {
+    const skill = await readRepoFile("skills/ce-setup/SKILL.md")
+    const route = skill.split("## Review Docs")[1]?.split("\n## ")[0] ?? ""
+    expect(route).toContain("references/project-docs.md")
+    expect(route).toMatch(/whole set of files even when the request names one/)
+    const docs = await readRepoFile("skills/ce-setup/references/project-docs.md")
+    expect(docs).toMatch(/that request is the yes: skip the offer/)
   })
 })
