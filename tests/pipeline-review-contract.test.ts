@@ -863,6 +863,7 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("Full result: <absolute path to result.md>")
     expect(synthesis).toMatch(/If the file cannot be written, print the whole block in the chat instead/)
     expect(handoff).toMatch(/prints the path on a `Full result:` line; read that file before acting on the review/)
+    expect(handoff).toMatch(/Do not paste the review's result block; the caller reads the file if it needs more/)
   })
 
   test("non-interactive result records a cleanly skipped cross-model peer", async () => {
