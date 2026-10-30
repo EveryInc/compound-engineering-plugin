@@ -2,7 +2,7 @@
 
 ## Interactive mode rules
 
-- **Pre-load the host's blocking question tool already in the current tool list before you ask any question.** If the matching tool is listed but unloaded, use the host's tool-discovery primitive once at the start of the Interactive flow to load that capability — do not search for another host's tool name. Presence in the current tool list is proof; never call a user-facing question tool to discover whether it exists. The grouped confirmation, the routing question, the per-finding walk-through, and the bulk-preview Proceed/Cancel question all depend on it.
+- **Pre-load the host's blocking question tool already in the current tool list before you ask any question.** If the matching tool is listed but unloaded, use the host's tool-discovery primitive once at the start of the Interactive flow to load that capability — do not search for another host's tool name. Presence in the current tool list is proof; never call a user-facing question tool to discover whether it exists. The routing question, the per-finding walk-through, and the bulk-preview Proceed/Cancel question all depend on it.
 - **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — no matching tool is in the current list, a real question call errors, or the runtime mode does not expose one. In those cases, present the options as a numbered list on the host's user-visible chat surface and wait for the reply. A question that calls for a user decision must either call the tool or fall back loudly. Rendering it as narrative text because the tool feels inconvenient, because the model is in report-formatting mode, or because the instruction was buried in a long skill is a bug.
 
 ## Phase 0: Detect Mode
@@ -13,6 +13,7 @@ Arguments may contain a document path, a mode token, or both; both tokens togeth
 
 - fixes that synthesis classifies as Apply are applied and reported in the change list (same as interactive)
 - everything else — the grouped confirmation, decisions, and FYI observations — is returned as structured text with the original classifications intact, for the caller to handle. No blocking-question prompts, no interactive routing.
+- proposed fixes and decisions that were not applied are also recorded in the document, per `references/open-questions-defer.md`, so they outlive this session, unless the request restricts edits to the document
 - Phase 5 (routing) returns immediately with "Review complete" (no routing question, no terminal question)
 
 **Non-interactive argument contract:** `mode:non-interactive <document-path>`, for example `mode:non-interactive <path-to-doc>.{md,html}`. `mode:headless` is a deprecated alias for the same contract.

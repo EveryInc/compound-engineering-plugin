@@ -85,3 +85,17 @@ describe("session-historian omp platform contract", () => {
     expect(AGENT_BODY).toContain("[N] Pi, [N] omp")
   })
 })
+
+describe("extract-metadata JSONL contract", () => {
+  // #1945: agents fed the multi-line output to one whole-document JSON parse and
+  // failed with "Extra data". xargs can also emit several _meta lines.
+  test("the discovery step says the output is JSONL and totals files_processed", () => {
+    expect(COMPOUND_SKILL_BODY).toMatch(/prints JSONL/)
+    expect(COMPOUND_SKILL_BODY).toMatch(/`files_processed` total is the sum across its `_meta` lines/)
+  })
+
+  test("historian prompt falls back to ts when last_ts is absent", () => {
+    // Cursor sessions and transcripts with no tail timestamp have ts and no last_ts.
+    expect(AGENT_BODY).toMatch(/`last_ts`[^\n]*when absent, use `ts`/)
+  })
+})

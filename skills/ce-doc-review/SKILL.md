@@ -48,7 +48,7 @@ Skip dispatch only when the completed-review reuse condition in `references/docu
 
 **Read `references/persona-selection.md`** for each conditional persona's activation signals and the announcement format. Two of those signals over-activate on plausible evidence: the sensitive-data bound on `security-lens-reviewer`, and the challenge-surface bar on `adversarial-document-reviewer`. Then read **`references/dispatch.md`** for payload variables, slicing, model tiering, and reviewer-failure handling.
 
-The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each activated conditional persona. Announce the team with a per-persona justification before any dispatch.
+The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each activated conditional persona. Announce the team briefly before any dispatch, and stay quiet while reviewers run.
 
 Dispatch generic subagents with **bounded parallelism** through the platform's subagent primitive. Give each one its `references/personas/<reviewer-name>.md` as `references/dispatch.md` describes. Never dispatch a standalone agent by type or name.
 
@@ -64,7 +64,7 @@ The pass is additive and non-blocking: a failure or timeout stops nothing and is
 
 Wait until every dispatched agent has returned, including any cross-model `<reviewer-name>-<provider>.json` returns. Then read `references/synthesis-and-presentation.md`. It defines synthesis, how each finding is routed by confidence and fix class, fix application, the non-interactive result format, and the handoff to the routing question. When promoting agreement, only an artifact with `independence_verified: true` counts as an independent reviewer.
 
-**Interactive mode only.** Read `references/walkthrough.md` for the grouped confirmation, the routing question, and the per-finding walk-through. Read `references/bulk-preview.md` for the bulk-action preview behind best-judgment routing, Append-to-Open-Questions, and auto-resolve. Load neither before review evidence is complete, whether newly collected or validly reused, and a non-interactive run never loads them at all — it stops at the structured review result.
+**Interactive mode only.** Read `references/walkthrough.md` for the routing question, the per-finding walk-through, and the completion report. Read `references/bulk-preview.md` for the preview behind the walk-through's auto-resolve. Load neither before review evidence is complete, whether newly collected or validly reused, and a non-interactive run never loads them at all — it stops at the structured review result.
 
 ---
 

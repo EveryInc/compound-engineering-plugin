@@ -856,6 +856,16 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("Review complete")
   })
 
+  test("non-interactive result goes to a file the caller reads, not into the chat", async () => {
+    const synthesis = await readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md")
+    const handoff = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    expect(synthesis).toContain("**Deliver the result through a file.**")
+    expect(synthesis).toContain("Full result: <absolute path to result.md>")
+    expect(synthesis).toMatch(/If the file cannot be written, print the whole block in the chat instead/)
+    expect(handoff).toMatch(/prints the path on a `Full result:` line; read that file before acting on the review/)
+    expect(handoff).toMatch(/Do not paste the review's result block; the caller reads the file if it needs more/)
+  })
+
   test("non-interactive result records a cleanly skipped cross-model peer", async () => {
     const synthesis = await readRepoFile(
       "skills/ce-doc-review/references/synthesis-and-presentation.md",
@@ -1001,7 +1011,7 @@ describe("ce-doc-review contract", () => {
     // Routing question distinguishing words present (front-loaded per AGENTS.md Interactive Question Tool Design)
     expect(walkthrough).toContain("Review each finding one by one")
     expect(walkthrough).toContain("Auto-resolve with best judgment")
-    expect(walkthrough).toContain("Append findings to the doc's Open Questions section")
+    expect(walkthrough).toContain("append the decisions to the doc's Open Questions section")
     expect(walkthrough).toContain("Report only")
 
     // Four per-finding options
@@ -1046,6 +1056,37 @@ describe("ce-doc-review contract", () => {
 
     // No Acknowledge bucket in bulk preview either
     expect(bulkPreview).not.toContain("Acknowledging (N):")
+  })
+
+  test("interactive output asks one question and keeps review bookkeeping out of the report", async () => {
+    const walkthrough = await readRepoFile("skills/ce-doc-review/references/walkthrough.md")
+    const template = await readRepoFile("skills/ce-doc-review/references/review-output-template.md")
+    const synthesis = await readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md")
+    const selection = await readRepoFile("skills/ce-doc-review/references/persona-selection.md")
+
+    expect(walkthrough).toContain("Ask about both in one question")
+    expect(walkthrough).not.toContain("Grouped confirmation (asked before routing)")
+    expect(walkthrough).toMatch(/Do not list the applied fixes, FYI observations, or residual concerns a second time/)
+    expect(template).not.toContain("| Persona | Status")
+    expect(template).not.toMatch(/\| Confidence \| Tier \|/)
+    expect(synthesis).not.toContain("Dropped: N")
+    expect(synthesis).not.toContain("Restated: N")
+    expect(synthesis).toMatch(/Do not restate it in prose; the caller summarizes it/)
+    expect(selection).toMatch(/do not post an update as each one returns/)
+  })
+
+  test("later rounds rerun only reviewers whose scope changed", async () => {
+    const selection = await readRepoFile("skills/ce-doc-review/references/persona-selection.md")
+    expect(selection).toMatch(/Rerun only the reviewers whose lens covers something that changed since their last return/)
+    expect(selection).toMatch(/Coherence reruns whenever anything changed/)
+    expect(selection).toMatch(/Rerun the whole team when the user asks for a fresh full review/)
+  })
+
+  test("synthesis holds additions and cuts to one bar and keeps cuts out of FYI", async () => {
+    const synthesis = await readRepoFile("skills/ce-doc-review/references/synthesis-and-presentation.md")
+    expect(synthesis).toContain("Additions and removals meet the same bar")
+    expect(synthesis).toMatch(/Making the work more thorough, robust, or explicit is not a consequence/)
+    expect(synthesis).toMatch(/A concern whose remedy cuts something the document commits to is never FYI/)
   })
 
   test("open-questions-defer reference implements append mechanic with failure path", async () => {

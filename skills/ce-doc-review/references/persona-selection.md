@@ -2,6 +2,8 @@
 
 The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each conditional persona whose signals the document shows.
 
+**Later rounds in the same session.** Rerun only the reviewers whose lens covers something that changed since their last return, whether the change came from applied fixes or from the user's own edits. Coherence reruns whenever anything changed, because edits are where new contradictions appear. Every other reviewer's previous return carries forward: its findings were already applied, deferred, or rejected, and its scope has not moved. Rerun the whole team when the user asks for a fresh full review, or when the changes reach most of the document. Name the carried-over reviewers in the announcement. The cross-model pass runs only when a lens that triggers it reruns.
+
 Activate a conditional persona when the document shows its signals:
 
 **product-lens** — the document stakes a product position — what to build, why, or what comes first — that a knowledgeable stakeholder could reasonably challenge and that no upstream Product Contract settled, or the work carries strategic weight beyond the immediate problem. Users may be end users, developers, operators, maintainers, or any other audience; the criteria are domain-agnostic. Either leg qualifies:
@@ -28,14 +30,12 @@ Do NOT activate adversarial on a routine plan that derives from a validated upst
 
 ## Announce the review team
 
-Tell the user which personas will review and why, with a justification for each conditional one:
+Before dispatch, tell the user in one or two sentences which reviewers will run, giving each conditional one a reason of a few words. When the cross-model pass runs, its disclosure from `references/cross-model-review.md` goes in the same message. For example:
 
 ```
-Reviewing with:
-- coherence-reviewer (always-on)
-- feasibility-reviewer (always-on)
-- scope-guardian-reviewer -- plan has 12 requirements across 3 priority levels
-- security-lens-reviewer -- plan adds API endpoints with auth flow
+Reviewing with coherence, feasibility, scope-guardian (12 requirements across 3 priorities), and security-lens (new public API with auth).
 ```
+
+While reviewers run, do not post an update as each one returns or narrate which reference you are reading next. Speak again when the results are ready, or earlier only when a reviewer fails or a wait runs unusually long.
 
 The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each activated conditional persona (`product-lens-reviewer`, `design-lens-reviewer`, `security-lens-reviewer`, `scope-guardian-reviewer`, `adversarial-document-reviewer`).

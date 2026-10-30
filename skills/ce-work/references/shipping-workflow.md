@@ -26,7 +26,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
    **Review is not fix — two steps:**
 
-   **3a. Review (read-only).** Invoke `ce-code-review` through the host's normal skill-invocation mechanism with `mode:agent` (add `plan:<path>` when known; `base:<ref>` when the diff base is resolved). Skill invocation means loading the cataloged skill definition and following it through that mechanism; `ce-code-review` does not require a separate executable, runner, or binary. Pass **`depth:full`** when the plan, the task, or the user explicitly asked for a full / deep / thorough review; that is the one escalation signal `ce-code-review` cannot infer from the diff alone. Do not pass `mode:autofix`. Parse the JSON and retain the receipt only when `status` is `complete` (plus `artifact_path` / `run_id`).
+   **3a. Review (read-only).** Invoke `ce-code-review` through the host's normal skill-invocation mechanism with `mode:agent` (add `plan:<path>` when known, plus `plan_group:<label>` when the diff builds one PR group of a multi-PR plan; `base:<ref>` when the diff base is resolved). Skill invocation means loading the cataloged skill definition and following it through that mechanism; `ce-code-review` does not require a separate executable, runner, or binary. Pass **`depth:full`** when the plan, the task, or the user explicitly asked for a full / deep / thorough review; that is the one escalation signal `ce-code-review` cannot infer from the diff alone. Do not pass `mode:autofix`. Parse the JSON and retain the receipt only when `status` is `complete` (plus `artifact_path` / `run_id`).
 
    **3b. Apply fixes (the caller applies them, not `ce-code-review`).** Load `references/review-findings-followup.md`: check findings against the evidence and agreed scope, then apply justified fixes inline or in subagent batches grouped by file, as that reference decides. The orchestrator merges, tests, and commits. Then proceed to the Residual Work Gate.
 
@@ -44,7 +44,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
 5. **Final Validation**
 
-   Before shipping, re-open the plan and re-check its active units, requirements, Verification Contract, and Definition of Done against the diff, because context may have been compacted to a summary that dropped detail. The change is ready when:
+   Before shipping, re-open the plan and re-check its active units, requirements, Verification Contract, and Definition of Done against the diff (for one PR group of a multi-PR plan, check only that group's units, the requirements they trace to, and the parts of the Verification Contract and Definition of Done those units cover), because context may have been compacted to a summary that dropped detail. The change is ready when:
    - every task is complete, and every `Deferred to Implementation` question was resolved;
    - Testing addressed: tests and lint pass, and new or changed behavior has test coverage or a recorded reason it needs none;
    - each plan requirement (`Requirements`, or legacy `Requirements Trace`) is satisfied by the work;
@@ -87,3 +87,4 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - Link to PR (if one was created)
    - Note any follow-up work needed
    - Suggest next steps if applicable
+   - For a multi-PR plan, include the group report defined in `references/multi-pr-delivery.md`

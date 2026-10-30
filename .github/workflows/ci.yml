@@ -6,7 +6,34 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Superseded PR revisions have no merge value; preserve every main/manual run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      windows: ${{ steps.scope.outputs.windows }}
+      transport: ${{ steps.scope.outputs.transport }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Select specialized jobs
+        id: scope
+        env:
+          CI_PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: bun scripts/ci-scope.ts
+
   pr-title:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -127,10 +154,24 @@ jobs:
           claude --version
           bun run plugin:validate
 
-      # Runs the package `test` script so the flags CI uses and the flags a
-      # contributor gets from `bun run test` cannot drift apart.
       - name: Run tests
-        run: bun run test
+        env:
+          CI_PR_BASE: ${{ github.event.pull_request.base.sha }}
+          CI_EVENT: ${{ github.event_name }}
+        run: |
+          if [[ "$CI_EVENT" == "pull_request" ]]; then
+            bun run test --changed-since="$CI_PR_BASE" --timings="$RUNNER_TEMP/test-timings.json" --update-timings
+          else
+            bun run test --timings="$RUNNER_TEMP/test-timings.json" --update-timings
+          fi
+
+      - name: Upload test timings
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-test-timings
+          path: ${{ runner.temp }}/test-timings.json
+          if-no-files-found: warn
 
       - name: Typecheck
         if: ${{ !cancelled() }}
@@ -139,6 +180,8 @@ jobs:
   # Tests every published acpx release in the supported range against the stub agent. Kept out
   # of `bun run test` because it needs network access to fetch acpx.
   acpx-contract:
+    needs: scope
+    if: ${{ !cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.transport != 'false') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -174,6 +217,8 @@ jobs:
   # they are imported solely under sys.platform == "win32", so no amount of
   # patching reaches them from Linux or Mac.
   windows-native:
+    needs: scope
+    if: ${{ !cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.windows != 'false') }}
     runs-on: windows-latest
     # Green runs finish in about 90 seconds. The Windows smoke step has hung
     # (2026-09-14, PR #1711 run 34909130752: 25+ minutes stuck, unresponsive to
@@ -313,6 +358,8 @@ jobs:
   # /bin/bash 3.2 (#1785). Ubuntu's bash 5 cannot reproduce that, so this job runs the
   # guard under the real 3.2 and fails if the image stops shipping it.
   macos-bash32:
+    needs: scope
+    if: ${{ !cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.transport != 'false') }}
     runs-on: macos-latest
     timeout-minutes: 10
 

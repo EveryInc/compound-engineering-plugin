@@ -58,6 +58,14 @@ Avoid:
 
 Each unit carries a stable plan-local **U-ID** assigned in Phase 3.5 (`U1`, `U2`, …). U-IDs survive reordering, splitting, and deletion: new units take the next unused number, gaps are fine, and existing IDs are never renumbered. This lets `ce-work` reference units unambiguously across plan edits.
 
+**Delivery shape.** Decide whether the work ships as one pull request or several, and state it in the Goal Capsule's execution profile. Ship several when one PR would be too large to review well, or when parts carry different risk and can merge on their own, such as a schema migration, an auth or permission change, or a refactor that changes no behavior. When it ships as several, each PR is a group of whole units: group the units in Implementation Units under one heading per PR, and follow each heading with a `Waits on:` line. That line names each PR the group waits on and the kind of wait: merge order only, or needed before this group can start because its build or verification uses what that PR's merge or deployment produces. Executors build groups ahead of merges, so a wait marked merge order lets the waiting group be built before the earlier PR merges. Units keep their `U<N>.` headings inside the group. Do not add a second grouping, such as a PR table, that divides the units differently. The grouping must meet three conditions:
+
+- **One creator per shared artifact.** A type, table, migration, route, or config key that several units use is created by exactly one unit. Every unit that uses it is in the creator's PR or in a PR that waits on the creator's PR.
+- **Safe after every merge.** Merging the PRs in dependency order leaves the default branch shippable and safe after each merge. No capability is reachable on the default branch, by users or agents, before the guard that limits it, such as a permission check, a spending limit, or an audit record. This holds when the guard ships in a later PR and when it is deferred out of scope: until the guard exists, restrict the capability to the callers that guard would not limit. Infrastructure that only deferred work uses waits for that work instead of shipping inside the Definition of Done. The same holds after each deploy: when a PR is unsafe to merge until an earlier PR is deployed, such as a separately deployed service that calls a change the earlier PR makes live, its `Waits on:` line names that deployment. A deploy dependency gates the merge, not the start, unless the group's build or verification needs the deployed state.
+- **Parallel PRs do not conflict.** PRs that do not wait on each other can merge in either order without a merge conflict.
+
+How the project branches, stacks PRs, numbers migrations, or gates merges comes from its own instructions. Cite those instead of restating them in the plan.
+
 #### 3.4 High-Level Technical Design
 
 When the plan's technical approach has shape that prose alone doesn't carry well — architecture across components, sequencing across processes, state machines, branching gates, lifecycles, quantitative comparisons — include a High-Level Technical Design section that conveys the shape. The exact form (component diagram, sequence, swim lane, flowchart, state machine, decision matrix, pseudo-code grammar, bar chart for sizing concerns) is the agent's call per artifact — pick what makes the content land fastest for the reader.
@@ -164,7 +172,7 @@ Use one planning philosophy across all depths. Change the amount of detail, not 
 **Deep**
 - Use the full core template plus optional analysis sections where warranted
 - Usually 4-8 implementation units
-- Group units into phases when that improves clarity
+- Group units into phases when that improves clarity. When the work ships as several PRs, the groups are the PRs (3.3)
 - Include alternatives considered, documentation impacts, and deeper risk treatment when warranted
 
 #### 4.1b Optional Deep Plan Extensions
@@ -174,7 +182,7 @@ For sufficiently large, risky, or cross-cutting work, add the sections that genu
 - **Success Metrics** — operational instrumentation for the deep-plan tier: dashboards, error budgets, alert thresholds, and rollout telemetry. A threshold that *is* the product outcome (p95 latency, delivery rate, adoption) belongs to the Product Contract's `### Success Criteria` and never appears here as well; Success Metrics covers only what Success Criteria does not already state. When only one applies, it is almost always Success Criteria.
 - **Dependencies / Prerequisites**
 - **Risk Analysis & Mitigation**
-- **Phased Delivery**
+- **Phased Delivery** — rollout after merge, such as feature flags or staged enablement. The PR split lives in Implementation Units (3.3)
 - **Documentation Plan**
 - **Operational / Rollout Notes**
 - **Future Considerations** only when they materially affect current design

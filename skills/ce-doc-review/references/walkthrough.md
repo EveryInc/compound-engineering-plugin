@@ -1,40 +1,18 @@
 # Per-finding Walk-through
 
-This reference defines Interactive mode's per-finding walk-through: the path the user enters by picking option A (`Review each finding one by one — accept the recommendation or choose another action`) from the routing question. It also defines the unified completion report that every ending path emits: walk-through, best-judgment, Append-to-Open-Questions, a grouped confirmation that left no decisions behind it, and the zero-findings case. Only the last takes the collapsed form.
+This reference defines Interactive mode's routing question, the per-finding walk-through the user can choose from it, and the completion report every ending path emits.
 
 Interactive mode only.
 
 ---
 
-## Grouped confirmation (asked before routing)
+## Routing question (the one question)
 
-Step 3.7 sends here specific fixes the agent has chosen that still need edit approval. These include changes to meet requirements already stated in the document and eligible findings raised only by another model. The reader sees and approves the edits before they are applied. Choices that still need the user are not part of this group.
+After the applied changes land, everything still pending is either the **grouped confirmation** (proposed fixes the agent has chosen that still need edit approval) or a **decision** the user must make. Ask about both in one question. Do not ask a separate batch confirmation first, and do not follow a choice with a preview-and-proceed question: the report rendered in the same turn already shows every proposed fix and the recommended action on every decision, and that report is what the user approves.
 
-**Ask this after the applied changes and before the routing question. It is the only place the batch is applied.** The routing question covers only the decisions the user must still make. Skip this step when the batch is empty.
+Skip the question when nothing is pending. **Skipping the question never skips the completion report:** emit it, then continue to the Phase 5 completion return. When the user or calling agent already chose how to handle the pending items, follow that choice. A choice that covers only the decisions does not approve the proposed fixes; ask this question about the proposed fixes alone.
 
-**Render the batch first**, per the floor's "Presenting a batch" rule (`references/rendering-floor.md`), as user-visible assistant text in the same turn. Hidden thinking does not satisfy this. The batch is exactly two sections of `references/review-output-template.md`: the obligations section (**Implementation obligations**, or **Entailed corrections** on a document with no units) and **Proposed fixes**. The P-level sections hold the decisions the user must still make and are not part of this question; sweeping one in turns a genuine fork into a batch answer.
-
-**Stem:** name what the batch does, then ask. Carry the themes you just led with (`Six fixes: four align the tier vocabulary, two add the missing cross-references. Apply them?`). A bare count makes the reader scroll back to answer.
-
-```
-A. Apply all of them (recommended)
-B. Choose which to apply
-C. Apply none of them
-```
-
-- **A** — apply the batch in one pass, as the Apply step does. Track each for the "Applied changes" section. Recommended because 3.6 (Resolve Who Can Choose the Fix) established that the agent could choose each fix, and 3.7 (Route by Autofix Class) requires approval before applying these edits.
-- **B** — step through the batch only, using the per-finding presentation below. **In batch context that loop is nested inside this step and has exactly one exit:** run the accumulated Apply set against the document, **clear it**, then return to the routing question. It never emits the completion report, including via `Auto-resolve with best judgment on the rest`, which is scoped to the remaining batch and returns here. **Writing the staged edits is part of the exit, not of the report.** The walk-through normally defers them to a single pass at its ending path, which this exit skips; leaving them staged means fixes the reader approved never land. Clearing is the other half: the decision pass runs that same final apply later, so a set still holding batch members would write them a second time. An exit that ends the run from inside the batch pass is a bug whatever its name.
-- **C** — apply none; every member is reported as skipped in the completion report.
-
----
-
-## Routing question (the entry point)
-
-After applying the automatic corrections and handling approval for the proposed edits, follow the user's or calling agent's chosen way of handling the remaining decisions. Ask the four-option routing question only if they have not chosen one. Their choice does not waive approval for proposed edits or the required preview before bulk actions.
-
-**Same-turn presentation before routing (required).** Before asking the routing question, emit the Interactive Phase 4 presentation (`references/review-output-template.md`) as user-visible assistant text **in the same turn**. Content composed only in hidden thinking or reasoning does not count; this is the same bar as the Preview event in `references/bulk-preview.md`. If that presentation has not appeared in this turn, do not invoke the blocking-question tool.
-
-**Render current state.** The batch is settled by the time this runs: applied members belong in the applied-changes list, skipped ones are reported as skipped, neither reappears under Proposed fixes, and nothing is summarized as awaiting a confirmation that already happened. Only the decisions the user must still make are open.
+**Same-turn presentation before routing (required).** Before asking, emit the Interactive Phase 4 presentation (`references/review-output-template.md`) as user-visible assistant text **in the same turn**. Content composed only in hidden thinking or reasoning does not count; this is the same bar as the Preview event in `references/bulk-preview.md`. If that presentation has not appeared in this turn, do not invoke the blocking-question tool.
 
 These do **not** satisfy the requirement:
 
@@ -42,33 +20,33 @@ These do **not** satisfy the requirement:
 - a one-line count such as "1 confirmation, 1 decision"
 - relying on handoff-menu context or earlier scrollback
 
-On interactive entry after a same-session non-interactive pass (e.g. `ce-plan` "Decide on the review's open items"), still render the interactive presentation before routing. Reusing the prior pass's applied-fix and R29 decision state is fine; skipping presentation is not. The routing question itself does not need duplicated per-finding decision fields; its A/B/C/D labels are already self-describing sentences. This requirement is about findings being in front of the user when they choose a route.
+On interactive entry after a same-session non-interactive pass (e.g. `ce-plan` "Decide on the review's open items"), still render the interactive presentation before routing, but only for what is still pending. Changes the earlier pass already applied and reported get one summary line, not a second list. Reusing the prior pass's applied-fix and R29 decision state is fine; skipping presentation is not.
 
 Use the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability; do not search for another host's tool name. Fall back to presenting the options as a numbered list only when no such tool is in the list, a real question call errors, or the runtime mode does not expose one. When the user has not chosen a route, never silently skip the question. Rendering the routing question as narrative text without the numbered-list fallback is a bug.
 
-**Stem:** `What should the agent do with the remaining N findings?`
+**Stem:** name what is pending by its themes, not a bare count, then ask. For example: `Five fixes align the tier names and add two missing cross-references, and two decisions need your call. How should I handle them?` A bare count makes the reader scroll back to answer.
 
-**Options (fixed order; no option is labeled `(recommended)`, because the routing choice depends on what the user wants):**
+**Options (fixed order; drop the clauses about whichever of the two groups is empty):**
 
 ```
-A. Review each finding one by one — accept the recommendation or choose another action
-B. Auto-resolve with best judgment — apply per-finding edits the agent can defend, surface the rest
-C. Append findings to the doc's Open Questions section and proceed
-D. Report only — take no further action
+A. Auto-resolve with best judgment — apply the proposed fixes and the recommended action on each decision
+B. Review each finding one by one — accept the recommendation or choose another action
+C. Apply the proposed fixes and append the decisions to the doc's Open Questions section
+D. Report only — change nothing further
 ```
 
-The per-finding `(recommended)` labeling lives inside the walk-through (option A) and the bulk preview (options B/C), where it is applied per finding from synthesis step 3.5b's `recommended_action`. The routing question itself does not recommend one of A/B/C/D because the right route depends on what the user wants (engage / trust / triage / skim), not on the shape of the finding set. A rule that mapped finding-set shape to a routing recommendation (e.g., "most findings are Apply-shaped → recommend best-judgment") would pressure users toward automated paths against their own intent.
+When only proposed fixes are pending, C has nothing to defer and is dropped. No option is labeled `(recommended)`: the right route depends on whether the user wants to engage, trust, triage, or skim, not on the shape of the finding set. The per-finding `(recommended)` marker lives inside the walk-through.
 
-If no user decisions remain (everything else was applied, answered in the grouped confirmation, or landed in the FYI subsection), skip the routing question. **Skipping routing never skips the completion report:** emit the unified report, then continue to the Phase 5 completion return.
-
-**Append-availability adaptation.** When `references/open-questions-defer.md` has cached `append_available: false` at Phase 4 start (e.g., read-only document, unwritable filesystem), option C is suppressed from the routing question because every per-finding Defer would fail into the open-questions failure path. The menu shows three options (A / B / D) and the stem appends one line explaining why (e.g., `Append to Open Questions unavailable — document is read-only in this environment.`). This mirrors the per-finding option B suppression described under "Adaptations" below. Both the routing-level and per-finding Defer paths share the same availability signal, so the user never sees Defer offered at one level and omitted at the other.
+**Append-availability adaptation.** When `references/open-questions-defer.md` has cached `append_available: false` at Phase 4 start (e.g., read-only document, unwritable filesystem), drop option C and add one line to the stem explaining why (e.g., `Append to Open Questions unavailable — document is read-only in this environment.`). The walk-through's per-finding Defer is suppressed by the same signal, so the user never sees Defer offered at one level and omitted at the other.
 
 **Dispatch by selection:**
 
-- **A** — load this walk-through (per-finding loop). Apply decisions accumulate in memory; Open-Questions defers run immediately via `references/open-questions-defer.md`; Skip decisions are recorded as no-action; `Auto-resolve with best judgment on the rest` goes through `references/bulk-preview.md`.
-- **B** — load `references/bulk-preview.md` scoped to every pending finding at confidence anchor `75` or `100`. On Proceed, execute the plan: Apply → end-of-batch document edit; Open-Questions defers → `references/open-questions-defer.md`; Skip → no-op. On Cancel, return to the routing question.
-- **C** — load `references/bulk-preview.md` with every pending finding in the Open-Questions bucket (regardless of the agent's natural recommendation). On Proceed, route every finding through `references/open-questions-defer.md`; no document edits apply. On Cancel, return to the routing question.
-- **D** — take no further action. Emit the completion report and continue to the Phase 5 completion return.
+- **A** — apply every proposed fix and execute each decision's `recommended_action` from synthesis step 3.5b. The proposed fixes and the decisions' Applies land together in the single end-of-walk-through Apply pass; Defer → `references/open-questions-defer.md`; Skip → recorded as no-action. Before acting, run the withdrawal check below against each decision. When append is unavailable, a Defer recommendation becomes Skip, and the completion report says so. Then emit the completion report.
+- **B** — load this walk-through (per-finding loop) over the proposed fixes and then the decisions. Apply decisions accumulate in memory; Open-Questions defers run immediately via `references/open-questions-defer.md`; Skip decisions are recorded as no-action; `Auto-resolve with best judgment on the rest` goes through `references/bulk-preview.md`.
+- **C** — apply every proposed fix in the end-of-walk-through Apply pass, and route every decision through `references/open-questions-defer.md`. Then emit the completion report.
+- **D** — apply nothing further; report the proposed fixes as not applied and the decisions as open. Emit the completion report and continue to the Phase 5 completion return.
+
+Whichever option runs, when an Apply or Skip completes for a finding the document already records under `Deferred / Open Questions` (an earlier non-interactive pass wrote it), follow the removal rule in `references/open-questions-defer.md`.
 
 ---
 
@@ -76,7 +54,7 @@ If no user decisions remain (everything else was applied, answered in the groupe
 
 The walk-through receives, from the orchestrator:
 
-- The merged findings list in severity order (P0 → P1 → P2 → P3), filtered to the decisions synthesis step 3.7 left for the user. Applied findings are already reported as changes, grouped-confirmation findings were answered together in the step above, and FYI-subsection findings (anchor `50`) appear in the final report only; none of the three has a walk-through entry. The one exception is option B of the grouped confirmation, which reuses the per-finding presentation below to step through that batch. Those findings enter this loop, and the user decisions are routed separately afterward.
+- The proposed fixes in the grouped confirmation, then the decisions synthesis step 3.7 left for the user, each group in severity order (P0 → P1 → P2 → P3). A proposed fix's recommended action is Apply. Applied findings are already reported as changes, and FYI-subsection findings (anchor `50`) appear in the Phase 4 report only; neither has a walk-through entry.
 - The run id for artifact lookups (when applicable).
 
 Each finding's recommended action has already been settled by synthesis step 3.5b (Lead Recommended Action). The walk-through shows that recommendation from the merged finding's `recommended_action` field and does not recompute it.
@@ -245,7 +223,7 @@ C. Acknowledge without applying — record the decision, no document edit
 
 - **A. Defer to Open Questions** — invoke the append flow from `references/open-questions-defer.md` as though the user had originally picked Defer. Failure-path handling is identical (Retry / Fall back / Convert to Skip). On success, record the append location in the decision list (annotated `redirected from Apply — no suggested_fix`) and advance.
 - **B. Skip** — record Skip in the decision list (annotated `redirected from Apply — no suggested_fix`). Advance. No side effects.
-- **C. Acknowledge without applying** — record the finding in the decision list as `acknowledged` (annotated `Apply picked but no suggested_fix — no edit dispatched`). Do not add to the Apply set. Advance. The completion report shows Acknowledged as its own dedicated bucket with its own count, its own per-finding action label, and its own position in the report ordering (`Applied / Deferred / Skipped / Acknowledged`); see "Minimum required fields" and "Report ordering" in the unified completion report section below for the full contract. The acknowledgement reason appears on each per-finding line. For round-to-round suppression (distinct from report display), Acknowledged decisions carry forward in the multi-round decision primer as a rejected-class decision alongside Skip and Defer, so round-N+1 synthesis suppresses re-raises via R29. The user saw the finding, chose not to act, and wants it recorded; that is equivalent to Skip for suppression purposes but remains its own bucket in the report.
+- **C. Acknowledge without applying** — record the finding in the decision list as `acknowledged` (annotated `Apply picked but no suggested_fix — no edit dispatched`). Do not add to the Apply set. Advance. The completion report lists each Acknowledged finding with its reason and counts them separately (see the unified completion report below). For round-to-round suppression (distinct from report display), Acknowledged decisions carry forward in the multi-round decision primer as a rejected-class decision alongside Skip and Defer, so round-N+1 synthesis suppresses re-raises via R29. The user saw the finding, chose not to act, and wants it recorded; that is equivalent to Skip for suppression purposes but is reported separately.
 
 **Availability adaptation.** When `references/open-questions-defer.md` has cached `append_available: false` for the session, omit option A and add one line to the stem explaining why (e.g., `Defer unavailable — document is read-only in this environment.`). The menu becomes Skip / Acknowledge without applying, with Skip labeled `(recommended)`.
 
@@ -261,7 +239,7 @@ Evaluate this at the point the finding would have been presented; do not scan ah
 
 **An explicit user decision outranks an automatic withdrawal.** Withdrawal is the agent's inference about a finding the user has not yet answered. When the user has already decided a finding, or has explicitly asked to see a particular finding, honor that; do not retroactively convert it to `withdrawn` on the strength of a later answer.
 
-Record each as `withdrawn` in the decision list, noting which decision retired it. Withdrawn is its own completion-report bucket. It carries forward in the decision primer as a rejected-class decision, alongside Skip, Defer, and Acknowledge, **only when a user decision durably settled it**: a settled premise (Skip/Defer) or a user-asserted fact. Those are user judgments that the finding need not be acted on, so R29 should suppress a round N+1 re-raise since the document itself never changed.
+Record each as `withdrawn` in the decision list, noting which decision retired it. The completion report counts withdrawn findings separately. It carries forward in the decision primer as a rejected-class decision, alongside Skip, Defer, and Acknowledge, **only when a user decision durably settled it**: a settled premise (Skip/Defer) or a user-asserted fact. Those are user judgments that the finding need not be acted on, so R29 should suppress a round N+1 re-raise since the document itself never changed.
 
 **An Apply-triggered withdrawal never carries forward as rejected-class.** It is a *prediction* that a staged fix will resolve the finding, not a user judgment that it needn't be. The Apply runs only at end-of-walk-through, and its landing is neither certain nor proof that the finding is resolved: it can fail outright, or land in the wrong place and leave the withdrawn finding's evidence untouched (R30 verifies the applied fix's own fingerprint, not the withdrawn finding's). So round N+1 re-synthesis, not R29, is the check. If the fix genuinely resolved the finding, fresh personas will not regenerate it against the edited document. If it did not, whether the Apply failed or landed ineffectively, the finding comes back to the user instead of being silently suppressed. When such an Apply fails outright during execution (write error, or the defensive no-fix fallback), also list its reverted withdrawals in the completion report's failure section as returned to scope, so the user sees them in-run rather than only next round.
 
@@ -301,43 +279,24 @@ After execution completes (or after `Auto-resolve with best judgment on the rest
 
 ## Unified completion report
 
-Every ending path of Interactive mode emits the same completion report structure. This covers:
+Every ending path of Interactive mode emits a completion report: the walk-through finishing or bailing via `Auto-resolve with best judgment on the rest → Proceed`, any routing choice, and the case where nothing was pending so the question was skipped.
 
-- Walk-through completed (all findings answered)
-- Walk-through bailed via `Auto-resolve with best judgment on the rest → Proceed`
-- Top-level best-judgment (routing option B) completed
-- Top-level Append-to-Open-Questions (routing option C) completed
-- Zero findings left after the applied changes (the routing question was skipped; the completion summary is a one-line degenerate case of this structure)
+The reader has already seen the Phase 4 report and every per-finding confirmation in this session. The completion report tells them only what they cannot already see: what failed, which outcomes differ from what the report showed, and the state the document is now in. Do not list the applied fixes, FYI observations, or residual concerns a second time.
 
-### Minimum required fields
+### Required content
 
-- **Per-finding entries:** for every finding the flow touched, a line with — at minimum — title, severity, the action taken (Applied / Deferred / Skipped / Acknowledged / Withdrawn), the append location for Deferred entries, a one-line reason for Skipped entries (grounded in the finding's confidence anchor or the one-line `why_it_matters` snippet), the acknowledgement reason for Acknowledged entries (e.g., `Apply picked but no suggested_fix available`), and for Withdrawn entries the decision that retired them (e.g., `Resolved by the applied fix on "Scope Boundaries"`).
-- **Summary counts by action:** totals per bucket (e.g., `4 applied, 2 deferred, 2 skipped`). Include an `acknowledged` count when any entries land in that bucket; omit the label when the count is zero.
-- **Failures called out explicitly:** any Apply that failed (e.g., document write error, or the defensive no-fix fallback skipping an Apply-set entry), any Open-Questions append that failed. Failures go above the per-finding list so they are not missed.
-- **End-of-review verdict:** carried over from Phase 4's Coverage section.
+- **Failures first:** any Apply that failed (e.g., document write error, or the defensive no-fix fallback skipping an Apply-set entry), and any Open-Questions append that failed.
+- **Outcomes the reader did not choose one at a time:** after a bulk path (routing A or C, or `Auto-resolve with best judgment on the rest`), one line per finding that was Deferred (with its append location), Skipped (with a one-line reason), or Withdrawn (with the decision that retired it). Applied findings were already shown with their fix; count them instead of listing them. After a full one-by-one walk-through, the per-finding confirmations already carried each outcome, so this list is empty.
+- **Acknowledged entries, on every path:** one line each with the acknowledgement reason (e.g., `Apply picked but no suggested_fix available`), since that outcome is easy to mistake for an applied fix.
+- **One count line by action:** e.g., `Applied 19 changes (16 proposed fixes, 3 decisions); deferred 1 to Open Questions; skipped 1.` Include an `acknowledged` or `withdrawn` count only when non-zero.
+- **The document's state:** one line saying whether it is ready to use, or what is still open and where.
 
-### Report ordering
+### Nothing-pending case
 
-Failures first (above the per-finding list), then per-finding entries grouped by action bucket in the order `Applied / Deferred / Skipped / Acknowledged / Withdrawn`, then summary counts, then Coverage (FYI observations, residual concerns), then the verdict. Omit any bucket whose count is zero.
-
-### Zero-findings degenerate case
-
-This collapsed form applies **only** when nothing was ever put to the reader: the applied changes left both the grouped confirmation and the Decisions list empty. A run that answered a real confirmation takes the **full** report instead: applied and skipped entries, counts, failures, Coverage, verdict. In the genuine zero case the report collapses to its summary-counts + verdict form with one added line, the count of fixes applied. The summary wording:
-
-No FYI or residual concerns:
+When the applied changes left nothing to ask, the report is the Phase 4 presentation plus one closing line. For example:
 
 ```
-All findings resolved — 3 fixes applied.
-
-Verdict: Ready.
-```
-
-FYI or residual concerns remain:
-
-```
-All actionable findings resolved — 3 fixes applied. (2 FYI observations, 1 residual concern remain in the report.)
-
-Verdict: Ready.
+All findings resolved — 3 fixes applied. The plan is ready.
 ```
 
 ---
