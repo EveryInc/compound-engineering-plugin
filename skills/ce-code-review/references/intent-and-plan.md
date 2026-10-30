@@ -9,6 +9,8 @@ inspect the contents before checking completeness. A Product Contract alone info
 
 An unaddressed requirement or implementation unit is a finding on every depth path, routed by `plan_source`: `explicit` (a `plan:` argument or a PR-body link) yields a P1 finding with `autofix_class: manual` and `owner: downstream-resolver`, which enters the actionable queue; `inferred` (auto-discovered) yields a P3 finding with `autofix_class: advisory` and `owner: human`, which stays in the report only, because an inferred match is a hint, not a contract.
 
+When `plan_group:` names a PR group of a plan that ships as several PRs, this diff builds only that group. Completeness covers that group's units and the requirements they trace to; units in the plan's other groups are out of scope here, not unaddressed. A `plan_group:` label that starts no group heading in the plan is reported in Coverage, and completeness falls back to the whole plan.
+
 The check also runs in reverse. A behavior rule is a decision about what users or callers observe that a product owner would otherwise have made, such as silently dropping a repeated refund request. When the diff introduces a behavior rule that nothing in the plan asks for, that unrequested behavior rule is a finding on every depth path, listed with the requirements completeness results. Route it P3 with `autofix_class: advisory` and `owner: human`, whatever the `plan_source`, and never let it change the verdict. Whether the rule is wanted is the user's call, and a correct diff is no evidence either way. Internal structure, refactors, and handling of inputs a requirement already covers are not behavior rules.
 
 Extract requirements from these shapes, in order:
