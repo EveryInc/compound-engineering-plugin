@@ -1,0 +1,9 @@
+diff --git a/src/api/invoices.js b/src/api/invoices.js
+--- a/src/api/invoices.js
++++ b/src/api/invoices.js
+@@ -1,3 +1,4 @@
+ export function invoiceTotal(lines) {
+-  return lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0)
++  const cents = lines.reduce((sum, l) => sum + Math.round(l.qty * l.unitPrice * 100), 0)
++  return cents / 100
+ }

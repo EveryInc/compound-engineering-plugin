@@ -1,0 +1,35 @@
+diff --git a/src/pages/Settings.jsx b/src/pages/Settings.jsx
+--- a/src/pages/Settings.jsx
++++ b/src/pages/Settings.jsx
+@@ -1,11 +1,19 @@
+ export function Settings({ user }) {
+   return (
+-    <div className="settings">
++    <div className="settings settings--two-column">
+       <h1>Settings</h1>
+-      <label>Name <input defaultValue={user.name} /></label>
+-      <label>Email <input defaultValue={user.email} /></label>
+-      <label>Currency <select defaultValue={user.currency}><option>USD</option><option>EUR</option></select></label>
+-      <button>Save</button>
++      <section className="settings__group">
++        <h2>Profile</h2>
++        <label>Name <input defaultValue={user.name} /></label>
++        <label>Email <input defaultValue={user.email} /></label>
++      </section>
++      <section className="settings__group">
++        <h2>Billing</h2>
++        <label>Currency <select defaultValue={user.currency}><option>USD</option><option>EUR</option></select></label>
++      </section>
++      <button className="button--primary settings__save">Save changes</button>
+     </div>
+   )
+ }
+diff --git a/src/pages/settings.css b/src/pages/settings.css
+new file mode 100644
+--- /dev/null
++++ b/src/pages/settings.css
+@@ -0,0 +1,4 @@
++.settings--two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
++.settings__group { border: 1px solid #e3e3e8; border-radius: 8px; padding: 1rem; }
++.settings__save { grid-column: 1 / -1; justify-self: end; }
++@media (max-width: 640px) { .settings--two-column { grid-template-columns: 1fr; } }
