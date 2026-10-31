@@ -96,7 +96,7 @@ When the plan carries `session-settled:`-labeled KTDs or Key Decisions, pass the
 
 For UI work built from a Figma design, read `references/agents/figma-design-sync.md` and dispatch a generic subagent seeded with that local prompt to compare the implementation against the design. Do not dispatch a standalone agent by type/name. Apply the reported fixes that hold up against the project's conventions, then compare again until it reports a match or only differences you judge intentional.
 
-For other user-visible UI changes, check the changed UI in a browser at desktop and mobile widths when browser tooling is available. If none is available, review the layout code for overflow and responsive breakage and record that browser verification was unavailable. Phase 4's screenshot capture still applies when the change is user-visible.
+For other user-visible UI changes, check the changed UI in a browser at desktop and mobile widths when browser tooling is available. If none is available, review the layout code for overflow and responsive breakage and record that browser verification was unavailable.
 
 5. **Track Progress**
 - Add a task when requested work turns out larger than expected; a mechanism nobody asked for goes through **Build what was asked** first

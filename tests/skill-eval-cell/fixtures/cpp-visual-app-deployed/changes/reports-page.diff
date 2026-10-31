@@ -1,0 +1,18 @@
+diff --git a/src/pages/Reports.jsx b/src/pages/Reports.jsx
+new file mode 100644
+--- /dev/null
++++ b/src/pages/Reports.jsx
+@@ -0,0 +1,14 @@
++export function Reports({ invoices }) {
++  const overdue = invoices.filter((i) => i.overdue)
++  return (
++    <div className="reports">
++      <h1>Reports</h1>
++      <p className="reports__summary">{overdue.length} overdue of {invoices.length} invoices</p>
++      <table className="reports__table">
++        <thead><tr><th>Invoice</th><th>Customer</th><th>Days overdue</th></tr></thead>
++        <tbody>{overdue.map((i) => <tr key={i.id}><td>{i.id}</td><td>{i.customer}</td><td>{i.daysOverdue}</td></tr>)}</tbody>
++      </table>
++    </div>
++  )
++}

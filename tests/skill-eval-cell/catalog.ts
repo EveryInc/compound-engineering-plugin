@@ -452,7 +452,122 @@ export const WAVE1 = [
   "lfg/plan-first",
 ] as const
 
+const VISUAL_EVIDENCE_BASE_REF = "f1b249924c0e41b14974a4eeb89e91000a22e2c3"
+const VISUAL_ENV =
+  "A dev server for this branch is running at http://localhost:5173 with seeded demo data. This host has a built-in browser that can save screenshots to files, and the installed gh supports `--attach` on `gh pr create`. No CE config files exist."
+const VISUAL_PROBE_END = `This is a decision probe: work out the Step 4 evidence decision for this branch and stop there. Do not run git, gh, a browser, a dev server, or any capture, and do not edit files. End with exactly these two lines:
+SCREENSHOTS: <yes or no>
+BEFORE: <baseline, deployed, none, or n/a>
+SCREENSHOTS says whether this run would capture screenshots for the PR body. BEFORE says where the before image would come from: baseline is a screenshot passed in by the caller or the user, deployed is an already-deployed copy of the UI without this change, none means after images only, and n/a means no screenshots.`
+type VisualEvidenceCase = {
+  id: string
+  fixture: string
+  opening: string
+  diff: string
+  screenshots: "yes" | "no"
+  before: "baseline" | "deployed" | "none" | "n/a"
+  why: string
+}
+const visualEvidenceRow = ({ id, fixture, opening, diff, screenshots, before, why }: VisualEvidenceCase): Scenario => ({
+  id: `ce-commit-push-pr/${id}`,
+  skill: "ce-commit-push-pr",
+  cohort: "resized",
+  key_behavior: "judgment",
+  baseline_ref: VISUAL_EVIDENCE_BASE_REF,
+  read_only: true,
+  fixture: `${FIX}/${fixture}`,
+  why,
+  pre_contract:
+    "CE has no capture workflow of its own. Use the harness's capture tools or artifacts the user supplied; UI changes otherwise get a validation note.",
+  task: `${opening} The branch's full change against main is in ${diff}; treat that file as the diff (the changes/ directory itself is not part of the change). ${VISUAL_ENV}
+
+${VISUAL_PROBE_END}`,
+  grade: {
+    ...(screenshots === "yes" ? { files_read_post: ["references/visual-evidence.md"] } : {}),
+    declared: { SCREENSHOTS: screenshots, BEFORE: before },
+    actions: "none",
+  },
+})
+const VISUAL_SHIP = "Use ce-commit-push-pr to commit, push, and open a PR for this branch."
+const VISUAL_EVIDENCE_ROWS: Scenario[] = (
+  [
+    {
+      id: "visual-before-from-baseline",
+      fixture: "cpp-visual-app",
+      opening: `${VISUAL_SHIP} Here are screenshots I took of the settings page on main before starting this work, to use as the before images: /tmp/settings-before/settings-desktop.png and /tmp/settings-before/settings-mobile.png (route /settings, viewports 1280x800 and 390x844).`,
+      diff: "changes/settings-layout.diff",
+      screenshots: "yes",
+      before: "baseline",
+      why: "A visual change with a user-supplied before screenshot: the cheapest before source must win.",
+    },
+    {
+      id: "visual-before-from-deployment",
+      fixture: "cpp-visual-app-deployed",
+      opening: VISUAL_SHIP,
+      diff: "changes/settings-layout.diff",
+      screenshots: "yes",
+      before: "deployed",
+      why: "A visual change with no baseline but a documented production deployment: use the deployed copy, not a rebuilt base.",
+    },
+    {
+      id: "visual-after-only",
+      fixture: "cpp-visual-app",
+      opening: VISUAL_SHIP,
+      diff: "changes/settings-layout.diff",
+      screenshots: "yes",
+      before: "none",
+      why: "The user's concern: with no baseline and no deployment, post after-only screenshots rather than spin up a base worktree.",
+    },
+    {
+      id: "visual-net-new-page",
+      fixture: "cpp-visual-app-deployed",
+      opening: VISUAL_SHIP,
+      diff: "changes/reports-page.diff",
+      screenshots: "yes",
+      before: "none",
+      why: "Net-new UI has no before image even when a production deployment exists.",
+    },
+    {
+      id: "backend-change-no-screenshots",
+      fixture: "cpp-visual-app",
+      opening: VISUAL_SHIP,
+      diff: "changes/invoice-rounding.diff",
+      screenshots: "no",
+      before: "n/a",
+      why: "Restraint: an API change inside a web app makes no visual claim.",
+    },
+    {
+      id: "cli-change-no-screenshots",
+      fixture: "cpp-visual-app",
+      opening: VISUAL_SHIP,
+      diff: "changes/export-columns.diff",
+      screenshots: "no",
+      before: "n/a",
+      why: "Restraint: CLI output belongs in a code block, not a screenshot.",
+    },
+    {
+      id: "description-only-no-capture",
+      fixture: "cpp-visual-app",
+      opening: "Use ce-commit-push-pr to write a PR description for this branch. Do not apply it.",
+      diff: "changes/settings-layout.diff",
+      screenshots: "no",
+      before: "n/a",
+      why: "Description-only mode has no PR to attach images to.",
+    },
+    {
+      id: "project-ask-first-pipeline",
+      fixture: "cpp-visual-app-askfirst",
+      opening: `mode:pipeline ${VISUAL_SHIP}`,
+      diff: "changes/settings-layout.diff",
+      screenshots: "no",
+      before: "n/a",
+      why: "A project instruction to ask before screenshots wins, and pipeline mode cannot ask.",
+    },
+  ] satisfies VisualEvidenceCase[]
+).map(visualEvidenceRow)
+
 export const SCENARIOS: Scenario[] = [
+  ...VISUAL_EVIDENCE_ROWS,
   ...["md", "html"].map((format): Scenario => ({
     id: `ce-prototype/local-source-${format}`,
     baseline_ref: "d400846211b6c708f73311f9e7b35cb57d863543",

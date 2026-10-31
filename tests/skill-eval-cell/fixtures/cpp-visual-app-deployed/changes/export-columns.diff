@@ -1,0 +1,10 @@
+diff --git a/src/cli/export.js b/src/cli/export.js
+--- a/src/cli/export.js
++++ b/src/cli/export.js
+@@ -1,4 +1,5 @@
+ import { invoiceTotal } from "../api/invoices.js"
+ export function formatRow(inv) {
+-  return `${inv.id},${invoiceTotal(inv.lines)}`
++  const total = invoiceTotal(inv.lines).toFixed(2)
++  return `${inv.id},${inv.customer},${inv.currency},${total}`
+ }

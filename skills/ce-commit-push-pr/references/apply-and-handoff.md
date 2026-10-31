@@ -77,3 +77,7 @@ For `<TITLE>`: substitute verbatim. If it contains `"`, `` ` ``, `$`, or `\`, es
 gh pr create --title "<TITLE>" --body-file "$BODY_FILE"   # new PR
 gh pr edit   --title "<TITLE>" --body-file "$BODY_FILE"   # existing PR
 ```
+
+**Screenshots.** When the body references local images from `references/visual-evidence.md`, create the body file in the images' directory so each `./<name>.png` reference resolves: `BODY_FILE=$(mktemp "<images-dir>/ce-pr-body.XXXXXX")`. Add one `--attach "<images-dir>/<name>.png#<alt text>"` per image to the create or edit command. `gh` uploads each file and rewrites the matching reference to its GitHub URL.
+
+A file `gh` rejects before uploading, such as a missing file or an image over 10 MB, makes it exit non-zero without creating or editing the PR; stderr names the file. An upload that fails after others succeeded can still leave the PR created or updated, and `gh` then still prints its URL. So whatever the exit status, do not run `gh pr create` a second time. Find the PR from the printed URL, or the way the new-PR re-check above does when none was printed, and read its body with `gh pr view "<pr-url>" --json body`. If any image reference there still points at a local path, edit that PR's body on GitHub to remove those references and keep everything else. If the create or edit did not apply, apply the body again without the images that failed. Either way, report which images did not upload.
