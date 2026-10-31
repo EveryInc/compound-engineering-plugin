@@ -826,6 +826,12 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
       expect(calls(sb)).toBe(0)
     })
 
+    test("an openai-served host excludes the codex peer", () => {
+      const { sb, r } = ompRun("codex", [entry("openai/gpt-5.4")])
+      expect(r.files).not.toContain("adversarial-codex.json")
+      expect(calls(sb)).toBe(0)
+    })
+
     test("a later default entry wins and non-default roles are ignored", () => {
       const { r } = ompRun("codex", [entry("openai/gpt-5.4"), entry("anthropic/claude-sonnet-5-5", "smol"), entry("anthropic/claude-opus-4-8")])
       expect(r.files).toContain("adversarial-codex.json")
