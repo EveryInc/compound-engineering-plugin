@@ -287,6 +287,12 @@ const IDEATE_RUN_SCALING: Scenario[] = IDEATE_RUN_SCALING_ROWS.map(({ merge, ...
 /** main before ce-noslop named claim certainty and ruled out semicolons as em dash substitutes. */
 const NOSLOP_FIX_LIMITS_BASE_REF = "67035e931c5cb26e80f198a7019a4502a9788273"
 
+/**
+ * A handoff-probe row runs live, so it loses the read-only `actions: "none"` restraint.
+ * Each one grades the publishing it must not do from the shim log and commit record instead.
+ */
+const PUBLISH_ATTEMPTS = ["git push", "pr create", "pr merge"]
+
 /** main before the watch-loop.md / tick.md restatement pass: the A/B base for the tick-decision rows. */
 const BABYSIT_RESTATE_BASE_REF = "9f5b16fc617fb5bf4817c8f42537b626c17abd05"
 const BABYSIT_SNAPSHOT_ON_DISK =
@@ -338,7 +344,7 @@ const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contr
     pre_contract: "Manager/relationship probe error: continue the review and CI streams, perform no branch-currency mutation, and do not declare ready until classification succeeds.",
     task: `Babysit PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide the next mutation or delegate, if any, and stop after one tick. Include exactly one line \`CURRENCY: none\` or \`CURRENCY: <the base update you would make>\`.`,
     handoff_probe: ["ce-resolve-pr-feedback"],
-    grade: { declared: { CURRENCY: "none" }, shim_log_must: ["handoff ce-resolve-pr-feedback"], must_exclude: ["update-branch", "git merge"] },
+    grade: { declared: { CURRENCY: "none" }, shim_log_must: ["handoff ce-resolve-pr-feedback"], must_exclude: ["update-branch", "git merge"], no_new_commits: true, shim_log_must_not: PUBLISH_ATTEMPTS },
   },
   {
     id: "stack-ready-quiescent-layer-advances",
@@ -399,7 +405,7 @@ const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contr
     pre_contract: "A check blocked by a repository setting or permission does not go to ce-debug. If the setting is not fixed, write a typed needs-human residual whose source is that check; once fixed, re-run only that job by its databaseId.",
     task: `Babysit PR #12. CI is red on the current head.\n\n${BABYSIT_SNAPSHOT_ON_DISK} The failing job's log is in check-log-Automerge-enable.txt and the base repository's settings are in repo-settings.json.\n\nDecide what this tick does about CI and stop after one tick. Include exactly one line \`DEBUG: invoke\` or \`DEBUG: skip\`.`,
     handoff_probe: ["ce-debug"],
-    grade: { declared: { DEBUG: "skip" }, must_include: ["needs-human"], no_new_commits: true, shim_log_must_not: ["handoff ce-debug"] },
+    grade: { declared: { DEBUG: "skip" }, must_include: ["needs-human"], no_new_commits: true, shim_log_must_not: ["handoff ce-debug", ...PUBLISH_ATTEMPTS] },
   },
   {
     id: "invariant-third-round-routes-trajectory",
@@ -408,7 +414,7 @@ const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contr
     pre_contract: "When a trigger is crossed (any invariant_rounds[].rounds >= 2), pass the trajectory to that tick's ce-resolve-pr-feedback invocation as mandatory input before the leaf mutates. Never declare non-convergence yourself.",
     task: `Babysit PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK} The open thread's text is in thread-PRRT_kw14.md.\n\nDecide the next delegate and what you hand it, then stop after one tick. Include exactly one line \`TRAJECTORY: pass\` or \`TRAJECTORY: omit\`, and exactly one line \`CONVERGENCE: undecided\` or \`CONVERGENCE: not-converging\` saying what you yourself concluded.`,
     handoff_probe: ["ce-resolve-pr-feedback"],
-    grade: { declared: { TRAJECTORY: "pass", CONVERGENCE: "undecided" }, shim_log_must: ["handoff ce-resolve-pr-feedback", "trajectory"] },
+    grade: { declared: { TRAJECTORY: "pass", CONVERGENCE: "undecided" }, shim_log_must: ["handoff ce-resolve-pr-feedback", "trajectory"], no_new_commits: true, shim_log_must_not: PUBLISH_ATTEMPTS },
   },
   {
     id: "manual-root-behind-updates-target-only",
@@ -2291,7 +2297,8 @@ The latest pr-snapshot output is already on disk at snapshot.json. Treat that fi
 Decide the next mutation or delegate, if any, and stop after one tick.`,
     grade: {
       shim_log_must: ["handoff ce-debug", "mode:pipeline"],
-      shim_log_must_not: ["gh pr merge"],
+      no_new_commits: true,
+      shim_log_must_not: PUBLISH_ATTEMPTS,
     },
   },
   {
@@ -2752,7 +2759,8 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     task: `I already committed and pushed. PR https://github.com/acme/widgets/pull/42 is open for this branch and this run added new commits to it. This directory is the repo root. Pick up at Step 5 and finish the run. Do not run git or gh.`,
     grade: {
       must_include: ["auto_babysit"],
-      shim_log_must_not: ["handoff ce-babysit-pr"],
+      no_new_commits: true,
+      shim_log_must_not: ["handoff ce-babysit-pr", ...PUBLISH_ATTEMPTS],
     },
   },
   {
@@ -2773,6 +2781,8 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     task: `I already committed and pushed. PR https://github.com/acme/widgets/pull/42 is open for this branch and this run added new commits to it. This directory is the repo root. Pick up at Step 5 and finish the run. Do not run git or gh.`,
     grade: {
       shim_log_must: ["handoff ce-babysit-pr"],
+      no_new_commits: true,
+      shim_log_must_not: PUBLISH_ATTEMPTS,
     },
   },
   {
@@ -2794,6 +2804,8 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     task: `Use ce-commit-push-pr to ship this. I already committed and pushed, and PR https://github.com/acme/widgets/pull/42 is open for this branch with this run's new commits. Report back with the PR link when it's up; don't merge it. This directory is the repo root. Pick up at Step 5 and finish the run. Do not run git or gh.`,
     grade: {
       shim_log_must: ["handoff ce-babysit-pr"],
+      no_new_commits: true,
+      shim_log_must_not: PUBLISH_ATTEMPTS,
     },
   },
   {
@@ -4783,6 +4795,8 @@ Use "Correct widget limit" as the description in the subject and any required bo
       files_read_post: ["references/plan-brief.md"],
       // The stand-in ce-plan writes no plan, so the run stops at the work-source gate.
       shim_log_must: ["handoff ce-plan"],
+      no_new_commits: true,
+      shim_log_must_not: PUBLISH_ATTEMPTS,
     },
   },
   {
@@ -4900,8 +4914,9 @@ Use "Correct widget limit" as the description in the subject and any required bo
     task: `We are done polishing. Save the fixes as a local commit, but do not push or open a PR.`,
     grade: {
       shim_log_must: ["handoff ce-commit"],
-      // The stand-in commits nothing, so greet.js in HEAD means polish committed it itself.
-      committed_must_not: ["greet.js"],
+      // The stand-in commits nothing, so any commit is polish's own.
+      no_new_commits: true,
+      shim_log_must_not: PUBLISH_ATTEMPTS,
     },
   },
   {

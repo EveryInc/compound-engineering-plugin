@@ -55,6 +55,14 @@ describe("skill-eval-cell catalog", () => {
     ).toEqual([])
   })
 
+  test("handoff-probe rows grade the publishing they must not do from artifacts", () => {
+    const unguarded = SCENARIOS.filter((s) => s.handoff_probe?.length).filter((s) => {
+      const forbidden = s.grade.shim_log_must_not ?? []
+      return !s.grade.no_new_commits || !["git push", "pr create", "pr merge"].every((n) => forbidden.includes(n))
+    })
+    expect(unguarded.map((s) => s.id)).toEqual([])
+  })
+
   test("no_new_commits rows seed a repo to count commits against", () => {
     expect(SCENARIOS.filter((s) => s.grade.no_new_commits && !s.git_init).map((s) => s.id)).toEqual([])
   })
