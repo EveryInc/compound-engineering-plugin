@@ -683,6 +683,34 @@ describe("skill-eval-cell host grade", () => {
     expect(gradeHost({ host: "claude", hostDir: dir, arm: "post", grade }).ok).toBe(true)
   })
 
+  test("workspace_unchanged catches an edit to a file that was already untracked", () => {
+    const seed = { entries: [{ path: "src", kind: "directory" }, { path: "src/greet.js", kind: "file", sha256: "aaa" }] }
+    const dir = hostDir({
+      "stdout.txt": "ACTIONS: none\n",
+      "workspace-seed.json": JSON.stringify(seed),
+      "workspace-final.json": JSON.stringify(seed),
+    })
+    const grade = { workspace_unchanged: true as const }
+    expect(gradeHost({ host: "claude", hostDir: dir, arm: "post", grade }).ok).toBe(true)
+    const edited = { entries: [seed.entries[0], { ...seed.entries[1], sha256: "bbb" }] }
+    fs.writeFileSync(path.join(dir, "workspace-final.json"), JSON.stringify(edited))
+    expect(gradeHost({ host: "claude", hostDir: dir, arm: "post", grade }).reasons).toContain("workspace changed: src/greet.js")
+  })
+
+  test("no_new_commits fails an empty commit that touched no file", () => {
+    const dir = hostDir({ "stdout.txt": "DEBUG: skip\nACTIONS: none\n", "git-head-files.txt": "" })
+    const grade = { no_new_commits: true as const }
+    expect(gradeHost({ host: "codex", hostDir: dir, arm: "post", grade }).reasons).toContain(
+      "no record of commits since the seed (needs git_init)",
+    )
+    fs.writeFileSync(path.join(dir, "git-new-commits.txt"), "abc1234 retrigger CI\n")
+    const committed = gradeHost({ host: "codex", hostDir: dir, arm: "post", grade })
+    expect(committed.ok).toBe(false)
+    expect(committed.reasons.some((r) => r.includes("retrigger CI"))).toBe(true)
+    fs.writeFileSync(path.join(dir, "git-new-commits.txt"), "")
+    expect(gradeHost({ host: "codex", hostDir: dir, arm: "post", grade }).ok).toBe(true)
+  })
+
   test("committed_must fails a run that committed nothing", () => {
     const dir = hostDir({
       "stdout.txt": "ACTIONS: none\n",

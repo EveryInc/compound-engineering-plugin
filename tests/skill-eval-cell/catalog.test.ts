@@ -55,6 +55,22 @@ describe("skill-eval-cell catalog", () => {
     ).toEqual([])
   })
 
+  test("handoff-probe rows grade that the handoff was the run's only effect", () => {
+    const unguarded = SCENARIOS.filter((s) => s.handoff_probe?.length).filter((s) => {
+      const forbidden = s.grade.shim_log_must_not ?? []
+      return (
+        !s.grade.no_new_commits ||
+        !s.grade.workspace_unchanged ||
+        !["git push", "pr create", "pr merge"].every((n) => forbidden.includes(n))
+      )
+    })
+    expect(unguarded.map((s) => s.id)).toEqual([])
+  })
+
+  test("no_new_commits rows seed a repo to count commits against", () => {
+    expect(SCENARIOS.filter((s) => s.grade.no_new_commits && !s.git_init).map((s) => s.id)).toEqual([])
+  })
+
   test("catalog skills are a subset of shipped skills", () => {
     const shipped = new Set(shippedSkills())
     expect(SCENARIOS.map((s) => s.skill).filter((name) => !shipped.has(name))).toEqual([])
