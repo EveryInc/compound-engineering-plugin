@@ -2749,6 +2749,23 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     },
   },
   {
+    id: "ce-commit-push-pr/report-back-still-hands-off",
+    skill: "ce-commit-push-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    baseline_ref: "3449230705a508229a5a298671e9031e489f0278",
+    read_only: true,
+    fixture: `${FIX}/cpp-babysit-default`,
+    why: "Usage audit: two agents read 'report back with the PR link' as an opt-out and skipped babysit; the user started it by hand both times.",
+    pre_contract:
+      "Only `babysit:off`, CE config's `auto_babysit: false`, or a \"Do not fire\" case skips the handoff.",
+    task: `Use ce-commit-push-pr to ship this. I already committed and pushed, and PR https://github.com/acme/widgets/pull/42 is open for this branch with this run's new commits. Report back with the PR link when it's up; don't merge it. This directory is the repo root. Work through to Step 5 and stop. Do not run git or gh. Finish with exactly one line: BABYSIT: <yes or no> saying whether this run hands the PR off to ce-babysit-pr.`,
+    grade: {
+      declared: { BABYSIT: "yes" },
+      actions: "none",
+    },
+  },
+  {
     id: "ce-commit-push-pr/description-only-no-commit",
     skill: "ce-commit-push-pr",
     cohort: "resized",

@@ -56,4 +56,4 @@ If Step 1 found an existing PR, pass its URL to Step 4 so PR mode fetches the ex
 
 **Completion is decided here.** An interactive full workflow or pipeline stack submit is **not done** until `ce-babysit-pr` owns follow-on for the published PR. Reporting the PR URL alone is not success. Load the callee to choose the monitoring mode. If running it in this session, continue until its stop condition permits a final report.
 
-Only `babysit:off`, CE config's `auto_babysit: false`, or a "Do not fire" case in `references/apply-and-handoff.md` skips it. No other watch substitutes: not `ci-watcher`, not `gh pr checks --watch`, not a hand-rolled poll, not "later". If `ce-babysit-pr` cannot be loaded or started, stop and report it blocked.
+Only `babysit:off`, CE config's `auto_babysit: false`, or a "Do not fire" case in `references/apply-and-handoff.md` skips it. Asking for the PR link, a report back, or no merge is not a skip. No other watch substitutes: not `ci-watcher`, not `gh pr checks --watch`, not a host's PR-watch tool, not a hand-rolled poll, not "later". If `ce-babysit-pr` cannot be loaded or started, stop and report it blocked.
