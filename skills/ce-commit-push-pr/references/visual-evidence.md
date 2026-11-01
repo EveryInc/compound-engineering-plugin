@@ -8,7 +8,7 @@ Capture only when the change makes a material visual claim: rendered UI that a r
 
 In description-only mode there is no PR to attach to, so do not capture. Say in one line that screenshots can be added when the description is applied. When the body still waits on the user's confirmation before it is applied, take the screenshots after they confirm. An existing PR body that already has `## Screenshots` or `## Demo` keeps it, so do not capture again. The exceptions are a user request to refresh it and commits made after those images were taken that change what they show; then retake the affected images and replace them.
 
-When the project's instructions require asking before running the app, opening a browser, or taking screenshots, follow them: ask in an interactive run, and skip with a one-line reason in `mode:pipeline`. Otherwise capture without asking. When they say where PR screenshots go, such as a hosted page linked from the body, put them there instead of attaching them. A claim in those instructions that GitHub cannot take uploads is not a reason to skip; the `--attach` check below decides that.
+When the project's instructions require asking before running the app, opening a browser, or taking screenshots, follow them: ask in an interactive run, and skip with a one-line reason in `mode:pipeline`. Otherwise capture without asking. When they say where PR screenshots go, such as a hosted page linked from the body, put them there instead of attaching them. A claim in those instructions that GitHub cannot take uploads is not a reason to skip; the delivery check below decides that.
 
 Whenever a change with a material visual claim ships without screenshots, the body says why in one line.
 
@@ -16,7 +16,7 @@ Whenever a change with a material visual claim ships without screenshots, the bo
 
 All three must hold. If any is missing, write the validation note `references/compose.md` describes and add one line saying screenshots were not captured and why.
 
-- **Attachment support.** The help for the command that will apply the body (`gh pr create --help`, or `gh pr edit --help` for an existing PR) lists an `--attach` flag. Check this before capturing anything, because without it the images cannot reach the PR.
+- **A way to deliver the images.** When the project's instructions name where screenshots go, that destination is the way. Otherwise the help for the command that will apply the body (`gh pr create --help`, or `gh pr edit --help` for an existing PR) must list an `--attach` flag. Check this before capturing anything, because without a way the images cannot reach the PR.
 - **A browser that saves image files to disk.** Prefer a browser built into the current host. Otherwise use `agent-browser` if it is installed, and load its own instructions first. Never install a tool or bring in another browser stack. A tool that shows you the screenshot but writes no file does not qualify.
 - **The app running at the changed route.** Use a dev server that is already running, or one the project documents and that starts without extra setup. Do not install dependencies, configure secrets, or seed data just to take screenshots.
 
