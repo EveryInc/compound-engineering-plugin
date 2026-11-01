@@ -17,7 +17,8 @@ Criteria for `tests/**`, including `tests/skill-eval-cell/`, on top of the root 
 
 ## Evals
 
-- A grade for a mutation or a decision checks an artifact the model cannot author: commits since the seed revision, workspace bytes, or shim invocation logs. Trailers and narration alone let a regression grade itself green.
+- A grade for a mutation or for an action the skill must take (a commit, a push, a dispatch, a handoff to another skill) checks an artifact the model cannot author: commits since the seed revision, workspace bytes, or shim and handoff-probe logs. Trailers and narration alone let a regression grade itself green.
+- A read-only probe that stops at one gate may grade the value it declares (`declared`), because that value is the decision under test. It never stands in for an action: a row whose claim is that something happened runs live and grades the artifact.
 - A forbidden call fails loudly under the shim and is graded from the shim's log.
 - `baseline_ref` is an immutable SHA reachable from `main`. A row that grades behavior the baseline lacks is `post_only`.
 

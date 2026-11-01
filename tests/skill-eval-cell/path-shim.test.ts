@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { SHIM_LOG, installPathShims } from "./path-shim"
+import { HANDOFF_RECORDER, SHIM_LOG, installHandoffRecorder, installPathShims, writeHandoffProbeSkill } from "./path-shim"
 
 describe("path shims", () => {
   test("git push records when the required marker does not match HEAD", () => {
@@ -90,6 +90,32 @@ describe("path shims", () => {
       // The attempt survives the failed call, so a forbidden command stays observable.
       const log = fs.readFileSync(path.join(cell, ".bin", SHIM_LOG), "utf8")
       expect(log).toContain("gh -R example/tiny-lib pr list")
+    } finally {
+      fs.rmSync(cell, { recursive: true, force: true })
+    }
+  })
+
+  test("a handoff probe records the call it names, beside the gh shim", () => {
+    const cell = fs.mkdtempSync(path.join(os.tmpdir(), "ce-handoff-probe-"))
+    try {
+      const skillMd = fs.readFileSync(
+        path.join(writeHandoffProbeSkill(path.join(cell, "skills", "ce-babysit-pr"), "ce-babysit-pr"), "SKILL.md"),
+        "utf8",
+      )
+      expect(skillMd).toContain(`${HANDOFF_RECORDER} ce-babysit-pr`)
+      const env = {
+        ...process.env,
+        ...installPathShims(cell, [{ bin: "gh", subcommand: "pr", exitCode: 1 }]),
+        ...installHandoffRecorder(cell),
+      }
+      const run = spawnSync(HANDOFF_RECORDER, ["ce-babysit-pr", "https://github.com/acme/widgets/pull/42"], {
+        cwd: cell,
+        env,
+        encoding: "utf8",
+      })
+      expect(run.status).toBe(0)
+      const log = fs.readFileSync(path.join(cell, ".bin", SHIM_LOG), "utf8")
+      expect(log).toContain("handoff ce-babysit-pr https://github.com/acme/widgets/pull/42")
     } finally {
       fs.rmSync(cell, { recursive: true, force: true })
     }

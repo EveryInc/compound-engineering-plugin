@@ -19,6 +19,8 @@ bun run test:skill-eval-cell -- \
 
 `--git-remote` (catalog: `git_remote: true`) adds a fake `origin` whose `main` is the seed commit, so a shipping tail takes the push/PR path — where `--shim-git-push` then fails — instead of the local-commit path it takes when no remote exists.
 
+`--handoff-probe <name,…>` (catalog: `handoff_probe`) replaces each named companion skill with a stand-in whose only instruction is to run `ce-eval-handoff <name> "<arguments>"`. That recorder appends `handoff <name> …` to the shim log, so `shim_log_must` / `shim_log_must_not` grade whether the handoff actually ran rather than whether the run said it would. The recorder needs a shell, so it cannot combine with `--read-only`.
+
 `--read-only` enforces the fake boundary, it does not merely suggest it: Codex drops `--dangerously-bypass-approvals-and-sandbox` and runs `--sandbox read-only` (the two contradict each other), and Claude pairs `--allowedTools Read,Glob,Grep` with a `--disallowedTools` list that also names `Task,Skill,WebFetch,WebSearch,NotebookEdit` — under `--dangerously-skip-permissions` those stay callable, so allow-listing alone leaves the boundary open.
 
 Prints a `summary.json` path. Each host gets its own workspace copy plus stdout/stderr, git status/log, and a file list. PATH shims live beside that workspace, never inside it, so the skill under test never sees harness files as its own dirty tree. Grade those; Grok narrates before the answer (grep `FILES_READ:`). Codex transcript is stderr, final message is stdout. A conversation cell (`--persona`) differs: Codex runs with `--json`, `stdout.txt` is the conversation with every agent message of each turn, and the event stream, tool calls included, lands in `stderr.txt`. `claude -p` is one-tick only.
