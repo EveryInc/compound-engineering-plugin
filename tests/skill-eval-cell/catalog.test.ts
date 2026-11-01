@@ -44,6 +44,17 @@ describe("skill-eval-cell catalog", () => {
     expect(SCENARIOS.filter((s) => !scenarioHasDecisionGrade(s)).map((s) => s.id)).toEqual([])
   })
 
+  test("handoff-probe rows can run the recorder and grade its log", () => {
+    const probes = SCENARIOS.filter((s) => s.handoff_probe?.length)
+    expect(probes.filter((s) => s.read_only).map((s) => s.id)).toEqual([])
+    expect(
+      probes.filter((s) => !s.grade.shim_log_must?.length && !s.grade.shim_log_must_not?.length).map((s) => s.id),
+    ).toEqual([])
+    expect(
+      probes.filter((s) => s.handoff_probe!.some((name) => s.with_skill?.includes(name))).map((s) => s.id),
+    ).toEqual([])
+  })
+
   test("catalog skills are a subset of shipped skills", () => {
     const shipped = new Set(shippedSkills())
     expect(SCENARIOS.map((s) => s.skill).filter((name) => !shipped.has(name))).toEqual([])

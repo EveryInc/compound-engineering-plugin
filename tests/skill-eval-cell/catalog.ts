@@ -127,6 +127,8 @@ export type Grade = {
   committed_must_not?: string[]
   /** Text that must not appear in the PATH shim log. */
   shim_log_must_not?: string[]
+  /** Text that must appear in the PATH shim log, such as `handoff ce-babysit-pr` from a handoff probe. */
+  shim_log_must?: string[]
   workspace_contains?: Array<{ path: string; needle: string }>
   /** With a needle, the file must exist and not contain it, so a deleted file cannot pass. Without one, the file must not exist. */
   workspace_lacks?: Array<{ path: string; needle?: string }>
@@ -148,6 +150,12 @@ export type Scenario = {
   git_init?: boolean
   /** Skills the run invokes, extracted from the same ref, so the host never falls back to an installed plugin copy. */
   with_skill?: string[]
+  /**
+   * Skills whose invocation is the behavior under test. Each is replaced by a stand-in
+   * that runs a recorder command, so `shim_log_must` / `shim_log_must_not` grade the call
+   * itself. Needs a shell, so the row cannot be read_only.
+   */
+  handoff_probe?: string[]
   /** Paths left untracked after the seed commit (secrets / the change under test). */
   git_untracked?: string[]
   /**
@@ -2720,16 +2728,20 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     skill: "ce-commit-push-pr",
     cohort: "resized",
     key_behavior: "judgment",
-    read_only: true,
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-babysit-pr"],
+    timeout_secs: 600,
     fixture: `${FIX}/cpp-babysit-optout`,
     why: "#1601: the handoff named `auto_babysit` but nothing told the run to read it, and the only config read lived in the Step 4 reference. A run that reached Step 5 without that memory handed off against the user's standing choice.",
     pre_contract:
       "An active `auto_babysit: false` in CE config is the standing opt-out; only the exact winning `false` disables the default.",
-    task: `I already committed and pushed. PR https://github.com/acme/widgets/pull/42 is open for this branch and this run added new commits to it. This directory is the repo root. Work through to Step 5 and tell me what happens next. Do not run git or gh. Finish with exactly one line: DECISION: <what you do next>`,
+    task: `I already committed and pushed. PR https://github.com/acme/widgets/pull/42 is open for this branch and this run added new commits to it. This directory is the repo root. Pick up at Step 5 and finish the run. Do not run git or gh.`,
     grade: {
       must_include: ["auto_babysit"],
-      must_exclude: ["ce-babysit-pr mode", "arming a watch"],
-      actions: "none",
+      shim_log_must_not: ["handoff ce-babysit-pr"],
     },
   },
   {
@@ -2737,15 +2749,19 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     skill: "ce-commit-push-pr",
     cohort: "resized",
     key_behavior: "judgment",
-    read_only: true,
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-babysit-pr"],
+    timeout_secs: 600,
     fixture: `${FIX}/cpp-babysit-default`,
     why: "Regression guard for the row above: the key is present only as a commented template line, so the default must still drive to the handoff. A fix that reads any mention of the key as opt-out fails here.",
     pre_contract:
       "After a newly-created PR or new commits on an existing open PR, this run is not done until `ce-babysit-pr` owns follow-on.",
-    task: `I already committed and pushed. PR https://github.com/acme/widgets/pull/42 is open for this branch and this run added new commits to it. This directory is the repo root. Work through to Step 5 and tell me what happens next. Do not run git or gh. Finish with exactly one line: DECISION: <what you do next>`,
+    task: `I already committed and pushed. PR https://github.com/acme/widgets/pull/42 is open for this branch and this run added new commits to it. This directory is the repo root. Pick up at Step 5 and finish the run. Do not run git or gh.`,
     grade: {
-      must_include: ["ce-babysit-pr"],
-      actions: "none",
+      shim_log_must: ["handoff ce-babysit-pr"],
     },
   },
   {
@@ -2754,15 +2770,19 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     cohort: "resized",
     key_behavior: "judgment",
     baseline_ref: "3449230705a508229a5a298671e9031e489f0278",
-    read_only: true,
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-babysit-pr"],
+    timeout_secs: 600,
     fixture: `${FIX}/cpp-babysit-default`,
     why: "Usage audit: two agents read 'report back with the PR link' as an opt-out and skipped babysit; the user started it by hand both times.",
     pre_contract:
       "Only `babysit:off`, CE config's `auto_babysit: false`, or a \"Do not fire\" case skips the handoff.",
-    task: `Use ce-commit-push-pr to ship this. I already committed and pushed, and PR https://github.com/acme/widgets/pull/42 is open for this branch with this run's new commits. Report back with the PR link when it's up; don't merge it. This directory is the repo root. Work through to Step 5 and stop. Do not run git or gh. Finish with exactly one line: BABYSIT: <yes or no> saying whether this run hands the PR off to ce-babysit-pr.`,
+    task: `Use ce-commit-push-pr to ship this. I already committed and pushed, and PR https://github.com/acme/widgets/pull/42 is open for this branch with this run's new commits. Report back with the PR link when it's up; don't merge it. This directory is the repo root. Pick up at Step 5 and finish the run. Do not run git or gh.`,
     grade: {
-      declared: { BABYSIT: "yes" },
-      actions: "none",
+      shim_log_must: ["handoff ce-babysit-pr"],
     },
   },
   {
@@ -5329,6 +5349,7 @@ export function scenarioHasDecisionGrade(s: Scenario): boolean {
   if (g.classification || g.structured_status || g.delegates === "some") return true
   if (g.workspace_contains?.length || g.workspace_lacks?.length || g.json_field?.length || g.committed_must_not?.length) return true
   if (g.workspace_read?.length) return true
+  if (g.shim_log_must?.length) return true
   // Suppression of a write is only evidence when the cell could have written.
   if (!s.read_only && g.git === "clean") return true
   return false

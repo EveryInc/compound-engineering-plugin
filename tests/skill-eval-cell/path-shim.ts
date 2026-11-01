@@ -148,5 +148,45 @@ exec "$REAL" "$@"
 `
     fs.writeFileSync(path.join(binDir, bin), script, { mode: 0o755 })
   }
+  return pathWith(binDir)
+}
+
+function pathWith(binDir: string): Record<string, string> {
   return { PATH: `${binDir}:${process.env.PATH ?? ""}` }
+}
+
+export const HANDOFF_RECORDER = "ce-eval-handoff"
+
+export function installHandoffRecorder(dir: string): Record<string, string> {
+  const binDir = path.join(dir, ".bin")
+  fs.mkdirSync(binDir, { recursive: true })
+  const script = `#!/bin/sh
+echo "handoff $*" >> "$(dirname "$0")/${SHIM_LOG}"
+echo "recorded handoff: $*"
+`
+  fs.writeFileSync(path.join(binDir, HANDOFF_RECORDER), script, { mode: 0o755 })
+  return pathWith(binDir)
+}
+
+export function writeHandoffProbeSkill(dir: string, name: string): string {
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(
+    path.join(dir, "SKILL.md"),
+    `---
+name: ${name}
+description: Eval stand-in for ${name}. Records that it was invoked.
+---
+
+# ${name}
+
+This copy of \`${name}\` only records that it was invoked. Run this command once, with everything you would have passed to the skill (the PR reference, mode, posture) as the quoted argument:
+
+\`\`\`bash
+${HANDOFF_RECORDER} ${name} "<arguments>"
+\`\`\`
+
+Then treat \`${name}\` as having started and returned with nothing more to do, and finish your own task.
+`,
+  )
+  return dir
 }

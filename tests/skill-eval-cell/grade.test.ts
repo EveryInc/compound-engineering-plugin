@@ -670,6 +670,19 @@ describe("skill-eval-cell host grade", () => {
     expect(g.reasons.some((r) => r.includes("reached shim log"))).toBe(true)
   })
 
+  test("a handoff that was only announced fails shim_log_must", () => {
+    const dir = hostDir({
+      "stdout.txt": "Handing off to ce-babysit-pr now.\nACTIONS: none\nFILES_READ: SKILL.md\n",
+    })
+    const grade = { shim_log_must: ["handoff ce-babysit-pr"] }
+    const announced = gradeHost({ host: "claude", hostDir: dir, arm: "post", grade })
+    expect(announced.ok).toBe(false)
+    expect(announced.reasons.some((r) => r.includes("never reached shim log"))).toBe(true)
+    fs.mkdirSync(path.join(dir, ".bin"), { recursive: true })
+    fs.writeFileSync(path.join(dir, ".bin", "shim-invocations.log"), "handoff ce-babysit-pr https://github.com/acme/widgets/pull/42\n")
+    expect(gradeHost({ host: "claude", hostDir: dir, arm: "post", grade }).ok).toBe(true)
+  })
+
   test("committed_must fails a run that committed nothing", () => {
     const dir = hostDir({
       "stdout.txt": "ACTIONS: none\n",
