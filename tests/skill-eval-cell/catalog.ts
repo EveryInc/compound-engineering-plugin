@@ -125,6 +125,8 @@ export type Grade = {
   /** Files the run must have committed — the positive half of committed_must_not. */
   committed_must?: string[]
   committed_must_not?: string[]
+  /** The run made no commit after the seed, empty ones included. Needs git_init. */
+  no_new_commits?: true
   /** Text that must not appear in the PATH shim log. */
   shim_log_must_not?: string[]
   /** Text that must appear in the PATH shim log, such as `handoff ce-babysit-pr` from a handoff probe. */
@@ -397,7 +399,7 @@ const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contr
     pre_contract: "A check blocked by a repository setting or permission does not go to ce-debug. If the setting is not fixed, write a typed needs-human residual whose source is that check; once fixed, re-run only that job by its databaseId.",
     task: `Babysit PR #12. CI is red on the current head.\n\n${BABYSIT_SNAPSHOT_ON_DISK} The failing job's log is in check-log-Automerge-enable.txt and the base repository's settings are in repo-settings.json.\n\nDecide what this tick does about CI and stop after one tick. Include exactly one line \`DEBUG: invoke\` or \`DEBUG: skip\`.`,
     handoff_probe: ["ce-debug"],
-    grade: { declared: { DEBUG: "skip" }, must_include: ["needs-human"], must_exclude: ["git commit --allow-empty"], shim_log_must_not: ["handoff ce-debug"] },
+    grade: { declared: { DEBUG: "skip" }, must_include: ["needs-human"], no_new_commits: true, shim_log_must_not: ["handoff ce-debug"] },
   },
   {
     id: "invariant-third-round-routes-trajectory",
@@ -5370,6 +5372,6 @@ export function scenarioHasDecisionGrade(s: Scenario): boolean {
   if (g.workspace_read?.length) return true
   if (g.shim_log_must?.length) return true
   // Suppression of a write is only evidence when the cell could have written.
-  if (!s.read_only && g.git === "clean") return true
+  if (!s.read_only && (g.git === "clean" || g.no_new_commits)) return true
   return false
 }

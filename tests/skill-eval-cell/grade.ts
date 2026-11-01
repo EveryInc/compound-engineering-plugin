@@ -456,6 +456,11 @@ export function gradeHost(opts: {
     // skill can truthfully report ACTIONS: none and still have made the call.
     if (shimLog.includes(needle)) reasons.push(`forbidden text reached shim log: ${needle}`)
   }
+  if (opts.grade.no_new_commits) {
+    const file = path.join(opts.hostDir, "git-new-commits.txt")
+    if (!fs.existsSync(file)) reasons.push("no record of commits since the seed (needs git_init)")
+    else if (readText(file).trim()) reasons.push(`run committed after the seed: ${readText(file).trim().split("\n")[0]}`)
+  }
   if (opts.grade.committed_must) {
     const head = readText(path.join(opts.hostDir, "git-head-files.txt"))
     for (const name of opts.grade.committed_must) {

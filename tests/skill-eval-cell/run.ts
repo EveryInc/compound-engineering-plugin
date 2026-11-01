@@ -66,6 +66,11 @@ function snapshotWorkspace(hostDir: string, workspace: string, seedSha: string) 
     path.join(hostDir, "git-head-files.txt"),
     headFiles.status === 0 ? headFiles.stdout : "",
   )
+  // Commits, not files: an empty commit changes no paths and is invisible above.
+  if (seedSha) {
+    const newCommits = git(["log", "--oneline", `${seedSha}..HEAD`])
+    if (newCommits.status === 0) fs.writeFileSync(path.join(hostDir, "git-new-commits.txt"), newCommits.stdout)
+  }
 }
 
 /** Detached children outlive the parent's own SIGINT/SIGHUP, so the cell kills them itself. */

@@ -55,6 +55,10 @@ describe("skill-eval-cell catalog", () => {
     ).toEqual([])
   })
 
+  test("no_new_commits rows seed a repo to count commits against", () => {
+    expect(SCENARIOS.filter((s) => s.grade.no_new_commits && !s.git_init).map((s) => s.id)).toEqual([])
+  })
+
   test("catalog skills are a subset of shipped skills", () => {
     const shipped = new Set(shippedSkills())
     expect(SCENARIOS.map((s) => s.skill).filter((name) => !shipped.has(name))).toEqual([])

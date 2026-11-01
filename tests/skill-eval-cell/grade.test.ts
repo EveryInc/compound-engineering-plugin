@@ -683,6 +683,20 @@ describe("skill-eval-cell host grade", () => {
     expect(gradeHost({ host: "claude", hostDir: dir, arm: "post", grade }).ok).toBe(true)
   })
 
+  test("no_new_commits fails an empty commit that touched no file", () => {
+    const dir = hostDir({ "stdout.txt": "DEBUG: skip\nACTIONS: none\n", "git-head-files.txt": "" })
+    const grade = { no_new_commits: true as const }
+    expect(gradeHost({ host: "codex", hostDir: dir, arm: "post", grade }).reasons).toContain(
+      "no record of commits since the seed (needs git_init)",
+    )
+    fs.writeFileSync(path.join(dir, "git-new-commits.txt"), "abc1234 retrigger CI\n")
+    const committed = gradeHost({ host: "codex", hostDir: dir, arm: "post", grade })
+    expect(committed.ok).toBe(false)
+    expect(committed.reasons.some((r) => r.includes("retrigger CI"))).toBe(true)
+    fs.writeFileSync(path.join(dir, "git-new-commits.txt"), "")
+    expect(gradeHost({ host: "codex", hostDir: dir, arm: "post", grade }).ok).toBe(true)
+  })
+
   test("committed_must fails a run that committed nothing", () => {
     const dir = hostDir({
       "stdout.txt": "ACTIONS: none\n",
