@@ -372,6 +372,7 @@ async function main() {
     const hostSkillDir = path.join(hostDir, "skill")
     fs.mkdirSync(hostDir, { recursive: true })
     copyFixture(workspace, hostWorkspace)
+    writeJSON(path.join(hostDir, "workspace-seed.json"), fingerprint(hostWorkspace))
     // Script imports can create caches. Keep the input snapshot unchanged and
     // give every host its own execution copy, included in the sealed evidence.
     fs.cpSync(skillDir, hostSkillDir, { recursive: true })
@@ -451,6 +452,7 @@ async function main() {
       `${JSON.stringify({ exitCode: result.exitCode, timedOut: result.timedOut }, null, 2)}\n`,
     )
     snapshotWorkspace(hostDir, hostWorkspace, seedSha)
+    writeJSON(path.join(hostDir, "workspace-final.json"), fingerprint(hostWorkspace))
     ;(summary.cells as Record<string, unknown>)[host] = {
       exitCode: result.exitCode,
       timedOut: result.timedOut,

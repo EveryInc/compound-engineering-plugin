@@ -55,10 +55,14 @@ describe("skill-eval-cell catalog", () => {
     ).toEqual([])
   })
 
-  test("handoff-probe rows grade the publishing they must not do from artifacts", () => {
+  test("handoff-probe rows grade that the handoff was the run's only effect", () => {
     const unguarded = SCENARIOS.filter((s) => s.handoff_probe?.length).filter((s) => {
       const forbidden = s.grade.shim_log_must_not ?? []
-      return !s.grade.no_new_commits || !["git push", "pr create", "pr merge"].every((n) => forbidden.includes(n))
+      return (
+        !s.grade.no_new_commits ||
+        !s.grade.workspace_unchanged ||
+        !["git push", "pr create", "pr merge"].every((n) => forbidden.includes(n))
+      )
     })
     expect(unguarded.map((s) => s.id)).toEqual([])
   })
