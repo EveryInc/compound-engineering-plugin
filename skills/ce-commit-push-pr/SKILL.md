@@ -34,18 +34,6 @@ Three rules govern the run.
 
 **Only an exit-0 `[]` from a query against the base repo means "no open PR."** A non-zero exit is **unknown**, never "none". On a fork checkout, target the base with `-R` and pass the branch name only, since `--head <owner>:<branch>` silently returns `[]`. With results, do **not** blindly take index 0: match head owner and branch, and stop on an ambiguous match. Note the URL and body from that entry — Step 5 uses the URL to pick the existing-PR path, Step 4 rewrites the existing body.
 
-## Artifact Root
-
-Resolve `<root>` once when archival is on: it writes an explainer under `<root>/explainers/`.
-
-<!-- ce-docs-root:start -->
-**Resolve the CE artifact root `<root>` before composing any artifact path.**
-
-- **Read** `docs_root` from `<repo-root>/.compound-engineering/config.yaml` only (`<repo-root>` = `git rev-parse --show-toplevel`). Do not read it from `config.local.yaml`. Unset -> `<root>` is `docs`, exactly as before.
-- **Validate** a set value: a repo-relative directory whose real, symlink-resolved path stays inside the repo and is neither the repo root nor under `.git/`. Otherwise stop with an error naming `docs_root` and the value -- never fall back to `docs`.
-- **Use** `<root>` as the sole artifact location: create it if absent, compose each path as `<root>/<subdir>` with this skill's own subdirectory, and never also read `docs`.
-<!-- ce-docs-root:end -->
-
 ## Step 3: Commit and push
 
 **Read `references/commit-and-push.md`** for commit/push mechanics and default-branch handling via `references/branch-creation.md`. If stack mode committed its layers, skip to Step 4; Step 5 submits them.
@@ -56,7 +44,9 @@ Never use `git add -A` or `git add .`. Name files in both add and commit so unre
 
 ## Step 4: Compose the PR title and body
 
-**You MUST read `references/pr-description-writing.md`** in full — it defines the title and body content rules, including the rule to preserve an existing `Related:` / `Fixes` on rewrite. Then read **`references/compose.md`** for the three decisions to make before composing: the evidence decision; the teaching decision, where `pr_teaching_section` defaults **on**, `pr_teaching_archive` defaults **off**, and only an **active (non-commented)** key changes either; and the branding decision, where branding is **off unless** this invocation carries `branding:on` or the user asks for Compound Engineering branding in this prompt.
+**You MUST read `references/pr-description-writing.md`** in full — it defines the title and body content rules, including the rule to preserve an existing `Related:` / `Fixes` on rewrite. Then read **`references/compose.md`** for the three decisions to make before composing: the evidence decision, which decides screenshots when the diff changes rendered UI; the teaching decision, where `pr_teaching_section` defaults **on**, `pr_teaching_archive` defaults **off**, and only an **active (non-commented)** key changes either; and the branding decision, where branding is **off unless** this invocation carries `branding:on` or the user asks for Compound Engineering branding in this prompt.
+
+Read both references on every run, even when this session already read them. Skipping `compose.md` skips the evidence decision.
 
 If Step 1 found an existing PR, pass its URL to Step 4 so PR mode fetches the existing body.
 
