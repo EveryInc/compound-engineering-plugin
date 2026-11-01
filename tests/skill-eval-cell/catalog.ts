@@ -454,7 +454,7 @@ export const WAVE1 = [
 
 const VISUAL_EVIDENCE_BASE_REF = "f1b249924c0e41b14974a4eeb89e91000a22e2c3"
 const VISUAL_ENV =
-  "A dev server for this branch is running at http://localhost:5173 with seeded demo data. This host has a built-in browser that can save screenshots to files, and the installed gh supports `--attach` on `gh pr create`. No CE config files exist."
+  "A dev server for this branch is running at http://localhost:5173 with seeded demo data. This host has a built-in browser that can save screenshots to files, and the installed gh supports `--attach` on `gh pr create` and `gh pr edit`. No CE config files exist."
 const VISUAL_PROBE_END = `This is a decision probe: work out the Step 4 evidence decision for this branch and stop there. Do not run git, gh, a browser, a dev server, or any capture, and do not edit files. End with exactly these two lines:
 SCREENSHOTS: <yes or no>
 BEFORE: <baseline, deployed, none, or n/a>
@@ -467,13 +467,17 @@ type VisualEvidenceCase = {
   screenshots: "yes" | "no"
   before: "baseline" | "deployed" | "none" | "n/a"
   why: string
+  /** Rows from the post-#1964 usage audit compare against the #1964 merge instead. */
+  baseline_ref?: string
+  /** An extra declared line and its expected value, appended to the probe. */
+  extra?: { label: string; prompt: string; want: string }
 }
-const visualEvidenceRow = ({ id, fixture, opening, diff, screenshots, before, why }: VisualEvidenceCase): Scenario => ({
+const visualEvidenceRow = ({ id, fixture, opening, diff, screenshots, before, why, baseline_ref, extra }: VisualEvidenceCase): Scenario => ({
   id: `ce-commit-push-pr/${id}`,
   skill: "ce-commit-push-pr",
   cohort: "resized",
   key_behavior: "judgment",
-  baseline_ref: VISUAL_EVIDENCE_BASE_REF,
+  baseline_ref: baseline_ref ?? VISUAL_EVIDENCE_BASE_REF,
   read_only: true,
   fixture: `${FIX}/${fixture}`,
   why,
@@ -481,14 +485,15 @@ const visualEvidenceRow = ({ id, fixture, opening, diff, screenshots, before, wh
     "CE has no capture workflow of its own. Use the harness's capture tools or artifacts the user supplied; UI changes otherwise get a validation note.",
   task: `${opening} The branch's full change against main is in ${diff}; treat that file as the diff (the changes/ directory itself is not part of the change). ${VISUAL_ENV}
 
-${VISUAL_PROBE_END}`,
+${VISUAL_PROBE_END}${extra ? `\n${extra.prompt}` : ""}`,
   grade: {
     ...(screenshots === "yes" ? { files_read_post: ["references/visual-evidence.md"] } : {}),
-    declared: { SCREENSHOTS: screenshots, BEFORE: before },
+    declared: { SCREENSHOTS: screenshots, BEFORE: before, ...(extra ? { [extra.label]: extra.want } : {}) },
     actions: "none",
   },
 })
 const VISUAL_SHIP = "Use ce-commit-push-pr to commit, push, and open a PR for this branch."
+const VISUAL_AUDIT_BASE_REF = "3449230705a508229a5a298671e9031e489f0278"
 const VISUAL_EVIDENCE_ROWS: Scenario[] = (
   [
     {
@@ -562,6 +567,41 @@ const VISUAL_EVIDENCE_ROWS: Scenario[] = (
       screenshots: "no",
       before: "n/a",
       why: "A project instruction to ask before screenshots wins, and pipeline mode cannot ask.",
+    },
+    {
+      id: "visual-after-only-heading",
+      fixture: "cpp-visual-app",
+      opening: VISUAL_SHIP,
+      diff: "changes/settings-layout.diff",
+      screenshots: "yes",
+      before: "none",
+      baseline_ref: VISUAL_AUDIT_BASE_REF,
+      extra: {
+        label: "HEADING",
+        prompt: "Then add one line HEADING: <the markdown section heading the screenshots go under, without the # marks>.",
+        want: "Screenshots",
+      },
+      why: "Usage audit: 4 of 13 after-only bodies used a `## Preview` heading, which a later rewrite does not preserve.",
+    },
+    {
+      id: "visual-project-hosts-screenshots",
+      fixture: "cpp-visual-app-hostedshots",
+      opening: VISUAL_SHIP,
+      diff: "changes/settings-layout.diff",
+      screenshots: "yes",
+      before: "none",
+      baseline_ref: VISUAL_AUDIT_BASE_REF,
+      why: "Usage audit (last30days #474, #483): a project rule that screenshots go on a hosted page led agents to drop them entirely. The project decides where they go, not whether they ship.",
+    },
+    {
+      id: "visual-stale-after-push",
+      fixture: "cpp-visual-app",
+      opening: "Use ce-commit-push-pr to push my latest commit to the open PR https://github.com/acme/ledgerly/pull/42 and rewrite its description. Its current body has a `## Screenshots` section with after images of the settings page, taken before my latest commit. That latest commit reworked the settings page layout, so the page no longer looks like those images.",
+      diff: "changes/settings-layout.diff",
+      screenshots: "yes",
+      before: "none",
+      baseline_ref: VISUAL_AUDIT_BASE_REF,
+      why: "Usage audit (last30days #479): a later push renamed a label, and the keep-existing-screenshots rule left images showing the old UI.",
     },
   ] satisfies VisualEvidenceCase[]
 ).map(visualEvidenceRow)

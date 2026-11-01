@@ -6,9 +6,11 @@ When a PR changes what a reviewer judges by looking, screenshots in the body let
 
 Capture only when the change makes a material visual claim: rendered UI that a reviewer would judge faster or more correctly by seeing it than by reading about it. Examples are layout, styling, on-screen text, a new or changed screen, state, or component, and a visual bug fix. Otherwise take no screenshots and do not ask. Text output such as CLI output, logs, or API responses belongs in a code block, not in a picture of text.
 
-In description-only mode there is no PR to attach to, so do not capture. Say in one line that screenshots can be added when the description is applied. When the body still waits on the user's confirmation before it is applied, take the screenshots after they confirm. An existing PR body that already has `## Screenshots` or `## Demo` keeps it unless the user asks to refresh it, so do not capture again.
+In description-only mode there is no PR to attach to, so do not capture. Say in one line that screenshots can be added when the description is applied. When the body still waits on the user's confirmation before it is applied, take the screenshots after they confirm. An existing PR body that already has `## Screenshots` or `## Demo` keeps it, so do not capture again. The exceptions are a user request to refresh it and commits made after those images were taken that change what they show; then retake the affected images and replace them.
 
-When the project's instructions require asking before running the app, opening a browser, or taking screenshots, follow them: ask in an interactive run, and skip with a one-line reason in `mode:pipeline`. Otherwise capture without asking.
+When the project's instructions require asking before running the app, opening a browser, or taking screenshots, follow them: ask in an interactive run, and skip with a one-line reason in `mode:pipeline`. Otherwise capture without asking. When they say where PR screenshots go, such as a hosted page linked from the body, put them there instead of attaching them. A claim in those instructions that GitHub cannot take uploads is not a reason to skip; the `--attach` check below decides that.
+
+Whenever a change with a material visual claim ships without screenshots, the body says why in one line.
 
 ## What capture needs
 
@@ -22,11 +24,11 @@ All three must hold. If any is missing, write the validation note `references/co
 
 Use the first source that exists, then stop:
 
-1. A screenshot of the UI without this change that the user or the caller supplied.
+1. A screenshot of the UI without this change that the user, the caller, or a project tool already produced, such as a base-versus-branch comparison run.
 2. An already-deployed copy of the UI without this change: a preview deployment of the base branch, or the production URL for the same route.
-3. None. Post the after screenshots alone, labeled Preview.
+3. None. Post the after screenshots alone.
 
-Net-new UI has no before image. Do not build the base revision in a second worktree or swap files in the checkout to get one unless the user asks for that. Never fake a before image, for example by undoing the change in browser devtools. Under the table, say where the before image came from (the commit or the URL), because a production URL may not match this PR's base.
+Net-new UI has no before image. Do not build the base revision in a second worktree or swap files in the checkout to get one unless the user asks for that. Never fake a before image, for example by undoing the change in browser devtools. Under the table, say where the before image came from (the commit or the URL), because a production URL may not match this PR's base. When the change alters existing UI and you post after images only, say under the table in one line why there is no before image.
 
 ## Taking the screenshots
 
@@ -48,4 +50,4 @@ Put the images under `## Screenshots`, placed where `references/pr-description-w
 | ![Before: settings page](./before-settings.png) | ![After: settings page](./after-settings.png) |
 ```
 
-For after-only screenshots, use a single `Preview` column. The apply step uploads the files and replaces these local paths with GitHub URLs; "Applying via gh" in `references/apply-and-handoff.md` owns that.
+For after-only screenshots, the table has a single `Preview` column. The section heading is `## Screenshots` either way, because a later rewrite preserves only `## Screenshots` and `## Demo`. The apply step uploads the files and replaces these local paths with GitHub URLs; "Applying via gh" in `references/apply-and-handoff.md` owns that.
