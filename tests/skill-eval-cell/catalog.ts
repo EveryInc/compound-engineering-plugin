@@ -291,7 +291,7 @@ const BABYSIT_SNAPSHOT_ON_DISK =
   "The latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot."
 
 /** Fixtures are real pr-snapshot output generated with --fetch-file, not hand-written summaries. */
-const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contract" | "task" | "grade"> & { fixture: string }> = [
+const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contract" | "task" | "grade" | "handoff_probe"> & { fixture: string }> = [
   {
     id: "identity-race-is-not-ready",
     fixture: "babysit-identity-race",
@@ -335,7 +335,8 @@ const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contr
     why: "A relationship probe error must not stop review work, and must not license a branch update on a BEHIND PR whose chain is unclassified.",
     pre_contract: "Manager/relationship probe error: continue the review and CI streams, perform no branch-currency mutation, and do not declare ready until classification succeeds.",
     task: `Babysit PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nDecide the next mutation or delegate, if any, and stop after one tick. Include exactly one line \`CURRENCY: none\` or \`CURRENCY: <the base update you would make>\`.`,
-    grade: { declared: { CURRENCY: "none" }, must_include: ["ce-resolve-pr-feedback"], must_exclude: ["update-branch", "git merge"], actions: "none" },
+    handoff_probe: ["ce-resolve-pr-feedback"],
+    grade: { declared: { CURRENCY: "none" }, shim_log_must: ["handoff ce-resolve-pr-feedback"], must_exclude: ["update-branch", "git merge"] },
   },
   {
     id: "stack-ready-quiescent-layer-advances",
@@ -395,7 +396,8 @@ const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contr
     why: "#1889: a check failed because the repository disallows auto-merge. No code change fixes it, and an empty commit to retrigger it is the wrong move.",
     pre_contract: "A check blocked by a repository setting or permission does not go to ce-debug. If the setting is not fixed, write a typed needs-human residual whose source is that check; once fixed, re-run only that job by its databaseId.",
     task: `Babysit PR #12. CI is red on the current head.\n\n${BABYSIT_SNAPSHOT_ON_DISK} The failing job's log is in check-log-Automerge-enable.txt and the base repository's settings are in repo-settings.json.\n\nDecide what this tick does about CI and stop after one tick. Include exactly one line \`DEBUG: invoke\` or \`DEBUG: skip\`.`,
-    grade: { declared: { DEBUG: "skip" }, must_include: ["needs-human"], must_exclude: ["git commit --allow-empty", "ce-debug"], actions: "none" },
+    handoff_probe: ["ce-debug"],
+    grade: { declared: { DEBUG: "skip" }, must_include: ["needs-human"], must_exclude: ["git commit --allow-empty"], shim_log_must_not: ["handoff ce-debug"] },
   },
   {
     id: "invariant-third-round-routes-trajectory",
@@ -403,7 +405,8 @@ const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contr
     why: "A key already at two recorded rounds means the next fix would be its third; the trajectory goes to the resolver before it may fix, so it can return one approach-level decision.",
     pre_contract: "When a trigger is crossed (any invariant_rounds[].rounds >= 2), pass the trajectory to that tick's ce-resolve-pr-feedback invocation as mandatory input before the leaf mutates. Never declare non-convergence yourself.",
     task: `Babysit PR #12.\n\n${BABYSIT_SNAPSHOT_ON_DISK} The open thread's text is in thread-PRRT_kw14.md.\n\nDecide the next delegate and what you hand it, then stop after one tick. Include exactly one line \`TRAJECTORY: pass\` or \`TRAJECTORY: omit\`, and exactly one line \`CONVERGENCE: undecided\` or \`CONVERGENCE: not-converging\` saying what you yourself concluded.`,
-    grade: { declared: { TRAJECTORY: "pass", CONVERGENCE: "undecided" }, must_include: ["ce-resolve-pr-feedback"], actions: "none" },
+    handoff_probe: ["ce-resolve-pr-feedback"],
+    grade: { declared: { TRAJECTORY: "pass", CONVERGENCE: "undecided" }, shim_log_must: ["handoff ce-resolve-pr-feedback", "trajectory"] },
   },
   {
     id: "manual-root-behind-updates-target-only",
@@ -429,7 +432,9 @@ const BABYSIT_TICK_DECISIONS: Scenario[] = BABYSIT_TICK_DECISION_ROWS.map((s) =>
   cohort: "resized" as const,
   key_behavior: "judgment" as const,
   baseline_ref: BABYSIT_RESTATE_BASE_REF,
-  read_only: true,
+  ...(s.handoff_probe
+    ? { read_only: false, git_init: true, shim_git_push: true, shim_gh_pr: true, timeout_secs: 600 }
+    : { read_only: true }),
   fixture: `${FIX}/${s.fixture}`,
 }))
 
@@ -2267,9 +2272,14 @@ Include exactly one line \`MERGE: no\` or \`MERGE: yes\` or \`MERGE: later\` in 
     skill: "ce-babysit-pr",
     cohort: "resized",
     key_behavior: "judgment",
-    read_only: true,
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-debug"],
+    timeout_secs: 600,
     fixture: `${FIX}/babysit-ci-red`,
-    why: "Routing probe, not a delegation probe: read-only, so it grades that the tick names one ce-debug mode:pipeline pass rather than a merge or a per-check dispatch — it cannot observe a dispatch happen. Live babysit → ce-debug delegation is an open gap (scenarios.md).",
+    why: "A red head must reach one ce-debug mode:pipeline pass, not a merge or a per-check dispatch. The probe records the call and its arguments.",
     pre_contract:
       "Failing checks on the current head → invoke ce-debug mode:pipeline once. Exclusions include merge.",
     task: `Babysit PR #15. CI is red on the current head.
@@ -2278,9 +2288,8 @@ The latest pr-snapshot output is already on disk at snapshot.json. Treat that fi
 
 Decide the next mutation or delegate, if any, and stop after one tick.`,
     grade: {
-      must_include: ["ce-debug", "mode:pipeline"],
-      must_exclude: ["gh pr merge"],
-      actions: "none",
+      shim_log_must: ["handoff ce-debug", "mode:pipeline"],
+      shim_log_must_not: ["gh pr merge"],
     },
   },
   {
@@ -4758,17 +4767,20 @@ Use "Correct widget limit" as the description in the subject and any required bo
     skill: "lfg",
     cohort: "resized",
     key_behavior: "judgment",
-    read_only: true,
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-plan"],
+    timeout_secs: 900,
     fixture: `${FIX}/tiny-lib`,
     why: "Autonomous ship still plans first. Post-shrink step 1 is a required read of plan-brief.md.",
     pre_contract: "Plan FIRST, then work. Never skip the plan.",
     task: `lfg: add a --quiet flag to the greeter and ship it.`,
     grade: {
       files_read_post: ["references/plan-brief.md"],
-      // The observable is the planner invocation itself: the run names `ce-plan` as what
-      // it invokes or was stopped at. "Planning is the first step" is narration, not that.
-      must_include: ["ce-plan"],
-      actions: "none",
+      // The stand-in ce-plan writes no plan, so the run stops at the work-source gate.
+      shim_log_must: ["handoff ce-plan"],
     },
   },
   {
@@ -4873,14 +4885,21 @@ Use "Correct widget limit" as the description in the subject and any required bo
     skill: "ce-polish",
     cohort: "resized",
     key_behavior: "judgment",
-    read_only: true,
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    git_untracked: ["src/greet.js"],
+    handoff_probe: ["ce-commit"],
+    timeout_secs: 600,
+    fixture: `${FIX}/tiny-lib`,
     why: "Polish promises a local commit, but ce-commit owns branch safety, file selection, and message mechanics.",
     pre_contract: "When the user says they are done, commit the fixes and stop. Do not push or open a PR.",
     task: `We are done polishing. Save the fixes as a local commit, but do not push or open a PR.`,
     grade: {
-      must_include: ["ce-commit"],
-      must_exclude: ["git commit"],
-      actions: "none",
+      shim_log_must: ["handoff ce-commit"],
+      // The stand-in commits nothing, so greet.js in HEAD means polish committed it itself.
+      committed_must_not: ["greet.js"],
     },
   },
   {
