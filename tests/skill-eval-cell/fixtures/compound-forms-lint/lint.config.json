@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "no-console": { "severity": "error", "paths": ["src/"] },
+    "no-parse-float": { "severity": "error", "paths": ["src/payments/"] },
+    "no-sync-fs": { "severity": "off", "paths": ["src/"] }
+  },
+  "customRules": ["lint-rules/no-todo.mjs"]
+}
