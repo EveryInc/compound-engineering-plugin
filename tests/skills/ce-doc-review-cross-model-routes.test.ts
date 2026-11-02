@@ -640,6 +640,7 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
       ["a gateway-served model", [entry("openrouter/anthropic/claude-sonnet-5-5")]],
       ["a malformed trailing line", [entry("anthropic/claude-sonnet-5-5"), '{"type":"model_change","mod']],
       ["a latest entry that is a retry fallback", [entry("anthropic/claude-sonnet-5-5"), entry("openai/gpt-5.4", "fallback")]],
+      ["a latest entry with the undocumented temporary role", [entry("anthropic/claude-sonnet-5-5"), entry("openai/gpt-5.4", "temporary")]],
       ["no session file", null],
     ])("%s stays unattested and skips", (_name, lines) => {
       const { sb, r } = ompRun("codex", lines)

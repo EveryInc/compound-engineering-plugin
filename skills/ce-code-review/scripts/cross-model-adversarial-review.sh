@@ -587,7 +587,8 @@ esac
 # model names the family. Only first-party provider ids map; anything else stays unknown.
 if [ "$HOST_HARNESS" = omp ] && [ "$HOST_PROVIDER" = unknown ]; then
   # pipefail makes a jq parse failure (torn trailing line) fail the substitution; keep the family unknown then.
-  omp_model=$(jq -r 'select(.type=="model_change" and ((.role // "default")=="default" or .role=="fallback")) | if .role=="fallback" then "" else .model // "" end' "${PI_SESSION_FILE:-/dev/null}" 2>/dev/null | tail -n 1) || omp_model=
+  # A fallback or temporary switch (the latter is undocumented by omp but present in real sessions) makes the serving model unknowable.
+  omp_model=$(jq -r 'select(.type=="model_change" and ((.role // "default")=="default" or .role=="fallback" or .role=="temporary")) | if .role=="fallback" or .role=="temporary" then "" else .model // "" end' "${PI_SESSION_FILE:-/dev/null}" 2>/dev/null | tail -n 1) || omp_model=
   case "$omp_model" in
     anthropic/claude-*) HOST_PROVIDER=claude ;;
     openai/gpt-*|openai/codex-*|openai/o[0-9]*) HOST_PROVIDER=codex ;;

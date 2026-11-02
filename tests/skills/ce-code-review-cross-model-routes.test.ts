@@ -842,6 +842,7 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
       ["a local model", [entry("ollama/llama3")]],
       ["a malformed trailing line after a valid entry", [entry("anthropic/claude-sonnet-5-5"), '{"type":"model_change","mod']],
       ["a latest entry that is a retry fallback", [entry("anthropic/claude-sonnet-5-5"), entry("openai/gpt-5.4", "fallback")]],
+      ["a latest entry with the undocumented temporary role", [entry("anthropic/claude-sonnet-5-5"), entry("openai/gpt-5.4", "temporary")]],
       ["a session file with no model_change", [JSON.stringify({ type: "message" })]],
       ["no session file", null],
     ])("%s stays unattested and skips with the omp-specific reason", (_name, lines) => {
