@@ -47,11 +47,11 @@ Five phases in order: **0 Triage -> 1 Investigate -> 2 Root Cause -> 3 Fix -> 4 
 
 **Read `references/investigate.md` now and follow it for Phases 0-2** — issue fetching, reproduction, environment sanity and the dirty-tree stash experiment, backward tracing, the tracker/PR-history search, hypothesis grounding, and the escalation table. Only the gates below are stated here.
 
-**The issue of record.** If the user handed you a ticket or issue, that is where this bug already lives, whichever system it is in; a Sentry issue counts as much as a Linear ticket. Carry its identifier and URL through to Phase 4. If the input is only a stack trace, test path, or description, this run has **no issue of record**. That is an ordinary state, not a gap to fill: ship the fix without one, never open a ticket to manufacture a record, and never ask the user whether to. Phase 1's tracker search reads prior work and **never establishes a new home for the bug**. An existing ticket for this bug is one to *link* in Phase 4, never one to create.
+**The issue of record.** If the user handed you a ticket or issue, that is where this bug already lives, whichever system it is in; a Sentry issue counts as much as a Linear ticket. Carry its identifier and URL through to Phase 4. State its title, as the record gives it, before Phase 1 starts; if the fetch could not get one, say that rather than composing a title. If the input is only a stack trace, test path, or description, this run has **no issue of record**. That is an ordinary state, not a gap to fill: ship the fix without one, never open a ticket to manufacture a record, and never ask the user whether to. Phase 1's tracker search reads prior work and **never establishes a new home for the bug**. An existing ticket for this bug is one to *link* in Phase 4, never one to create.
 
 **The trivial-bug fast-path** (cause readable from the input, one-line fix, no deep tracing) still runs Phase 2's fix-choice gate before editing: it saves investigation ceremony, not the user's choice over whether to apply a fix.
 
-**Choosing the regression test.** The regression test for a *confirmed defect* belongs wherever existing coverage already owns that behavior: start from the tests that exist rather than from a new file. Before recommending a test in Phase 2, inspect the existing tests and follow the project's testing rules; `references/fix.md` holds the test homes and the naming rule for Phase 3. A test that fails because the change deliberately reverses the behavior it asserts does not have a wrong expectation — that is the divergent case below, deferred rather than updated.
+**Choosing the regression test.** The regression test for a *confirmed defect* belongs wherever existing coverage already owns that behavior: start from the tests that exist rather than from a new file. Before recommending a test in Phase 2, inspect the existing tests and follow the project's testing rules; `references/fix.md` holds the test homes and the naming rule for Phase 3. Wherever you name where the regression test should live, say in one line what that seam catches and what it misses. A test that fails because the change deliberately reverses the behavior it asserts does not have a wrong expectation — that is the divergent case below, deferred rather than updated.
 
 ### Phase 2 gate: present, then ask
 
@@ -59,7 +59,7 @@ Five phases in order: **0 Triage -> 1 Investigate -> 2 Root Cause -> 3 Fix -> 4 
 
 **Repair selection:** after confirming the cause and before recommending a fix, read `references/bakeoff.md` to decide whether the repair needs competing approaches.
 
-Once the root cause is confirmed, write the findings as a user-visible block: the causal chain with file:line references; the proposed fix and the files it changes; which tests to use, add, modify, or strengthen, and whether existing tests should have caught this; and any related ticket or PR and how it shapes the recommendation — if an open PR already fixes this, lead with that link instead of a fresh fix.
+Once the root cause is confirmed, write the findings as a user-visible block: the causal chain with file:line references; the proposed fix and the files it changes; which tests to use, add, modify, or strengthen, and whether existing tests should have caught this; and any related ticket or PR and how it shapes the recommendation — if an open PR already fixes this, lead with that link instead of a fresh fix. When the deciding fact was not visible at first look and took a deep dig to surface, because the existing logs, metrics, and errors did not show it, also propose the cheap always-on signal that would have shown it immediately: a log field, a metric, or an assertion. This is a proposal only; adding the signal is not part of the minimal fix.
 
 **Same-turn presentation before the gate:** do not open the fix-choice question until that findings block has been written in full — in this turn or the immediately preceding assistant message. The blocking question tool renders only its own stem on modal harnesses, so a question fired on "root cause confirmed" alone leaves the user choosing with none of the causal chain in front of them. Naming the options is not presenting the findings, and a promise to explain after the choice is too late.
 
@@ -92,9 +92,9 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 ## Debug Summary
 **Problem**: [What was broken]
 **Root Cause**: [Full causal chain, with file:line references — or one line pointing back to the findings block when it is already on screen]
-**Recommended Tests**: [Diagnosis only: tests to add or modify to prevent recurrence, with file and assertion guidance. Omit when Phase 3 ran]
+**Recommended Tests**: [Diagnosis only: tests to add or modify to prevent recurrence, with file, assertion guidance, and one line on what that seam catches and misses. Omit when Phase 3 ran]
 **Fix**: [What was changed and how it was verified — or "diagnosis only" if Phase 3 was skipped]
-**Prevention**: [Test coverage added; structural fix or operation guard if applicable, or the structural fix left as follow-up]
+**Prevention**: [Test coverage added; structural fix or operation guard if applicable, or the structural fix left as follow-up; the always-on signal the findings block proposed, when it proposed one]
 **Confidence**: [High/Medium/Low]
 ```
 
