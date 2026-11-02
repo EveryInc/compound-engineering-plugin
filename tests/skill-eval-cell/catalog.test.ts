@@ -372,6 +372,8 @@ describe("skill-eval-cell catalog", () => {
       "ce-compound-refresh/applies-form-findings-unattended",
       "ce-compound-refresh/drift-only-keeps-redundant-accurate-doc",
       "ce-compound-refresh/guidance-survives-implementation-conflict",
+      "ce-compound-refresh/no-standards-file-attended-note",
+      "ce-compound-refresh/no-standards-file-stays-quiet",
       "ce-compound-refresh/worth-deletes-only-with-quoted-artifact",
       "ce-compound/interactive-writes-without-asking",
       "ce-compound/lesson-already-carried-writes-nothing",

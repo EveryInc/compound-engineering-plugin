@@ -36,9 +36,7 @@ Read the `CODING_STANDARDS.md` files that govern the scope. A rule is not a doc,
 
 - **A check now covers the rule's whole class:** remove the rule. Quote the rule and the check.
 - **A check covers part of the class:** narrow the rule to what remains, and quote both.
-- **A doc is really an unenforced rule:** it is a standing always-or-never about a defect a reviewer can see in a diff, it carries no reasoning beyond the rule, and no check covers it. When a check could hold it, leave the doc and record the check under **Recommended**, because this skill writes no checks. When no check could hold it and the bar below is met, add one condition to the `CODING_STANDARDS.md` nearest the code, in that file's style, then route the doc as recoverable. When the repo has no standards file, leave the doc and recommend `ce-setup`.
-
-No other finding mentions `ce-setup`, and a missing standards file alone is never a finding.
+- **A doc is really an unenforced rule:** it is a standing always-or-never about a defect a reviewer can see in a diff, it carries no reasoning beyond the rule, and no check covers it. When a check could hold it, leave the doc and record the check under **Recommended**, because this skill writes no checks. When no check could hold it and the bar below is met, add one condition to the `CODING_STANDARDS.md` nearest the code, in that file's style, then route the doc as recoverable. When the repo has no standards file, leave the doc as it is and record no finding: a repo without coding standards has made a valid choice, and `ce-setup` drafts rules from these docs whenever someone runs it. Nothing this skill writes names `ce-setup` or a missing standards file. Only an attended report carries the one line `references/report.md` defines.
 
 <!-- ce-standards-bar:start -->
 A defect class enters `CODING_STANDARDS.md` only when it appeared in a review finding the author fixed, a fix commit, a cleanup that removed it across the codebase, or a solution record, and no check covers it. State the class as a condition in a few sentences that stay true without naming volatile numbers or symbols, and group rules by area.
