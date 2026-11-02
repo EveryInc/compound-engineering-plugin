@@ -30,7 +30,7 @@ When unsure, take the route that asks more of the evidence.
 
 A stop leaves nothing pushed that was not already pushed.
 
-Resolve every skill named here against the host's available-skills list and invoke that exact entry; some hosts namespace it (`compound-engineering:ce-plan`). Read `references/task-visibility.md` before starting: it defines the stage view published through the platform's task-tracking capability, the chat narration, and the completion rule that a step is done only after it ran, a child skill's return resumes the next numbered step in the same turn, and the turn does not end before DONE or a stop.
+Resolve every skill named here against the host's available-skills list and invoke that exact entry; some hosts namespace it (`compound-engineering:ce-plan`). Read `references/task-visibility.md` before starting: it defines the stage view published through the platform's task-tracking capability, the chat narration, and the completion rule that a step is done only after it ran, a child skill's return resumes the next numbered step in the same turn, and the turn ends before DONE or a stop only to wait on a wake that resumes it.
 
 ## The run (routes that change the code)
 
@@ -48,7 +48,7 @@ Resolve every skill named here against the host's available-skills list and invo
 
 6. **Autonomous residual handoff**: whenever an unapplied actionable finding, a `settled_conflict` stamp from step 4, or a proceeded-and-flagged `settled_decision_conflicts` entry from step 2 exists, record it durably per that file: in the PR body, or in tickets or the DONE report when no PR will exist. Skip only when none of the three exists. Do not output DONE until the residuals are durable. Never block DONE on tracker filing failures once the report states them. Do not prompt the user.
 
-7. Invoke the `ce-compound` skill with `mode:non-interactive` when the run produced durable reasoning the code, tests, and plan do not carry; that file states the full condition. `Documentation skipped` is success; running here puts the lesson in the PR at open.
+7. Invoke the `ce-compound` skill with `mode:non-interactive` when the run produced durable reasoning the code, tests, and plan do not carry; that file states the full condition.
 
 8. Invoke the `ce-test-browser` skill with `mode:pipeline`.
 

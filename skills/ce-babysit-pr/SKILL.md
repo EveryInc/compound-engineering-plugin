@@ -37,7 +37,7 @@ One PR named → `target` (ask once if a confirmed multi-layer stack exists); as
 3. **Old-PR intake** (fresh invocation, before the checkout gate): read `references/intake.md`; it decides whether this PR still belongs. A user request to take the PR over: `references/takeover.md`.
 4. Chain classification comes from the snapshot, never the user; resolve posture before semantic work.
 5. **Checkout must be the PR's head branch with matching upstream** before any delegated mutation; default `gh pr checkout <ref>`; no push access or dirty checkout → stop, say so.
-6. **Sustain mode** (`references/setup.md`, `references/watch-loop.md`): keep monitoring in the current session until a stop condition is met, one tick per `BABYSIT_WAKE`; never collapse the loop into a script. Checkpoint mode only when the user asks or the harness cannot wait. **Pipeline** (`mode:pipeline`): bounded synchronous ticks, structured return (`references/pipeline.md`).
+6. **Sustain mode** (`references/setup.md`, `references/watch-loop.md`): keep monitoring until a stop condition is met, one tick per wake from one wake source: the `pr-snapshot watch` detector, or the host's own mechanism when its instructions dictate PR waits. Never collapse the loop into a script. Checkpoint mode only when the user asks or nothing can wake this agent. **Pipeline** (`mode:pipeline`): bounded synchronous ticks, structured return (`references/pipeline.md`).
 
 ## Step 2: One tick (ordering invariant)
 
@@ -53,7 +53,7 @@ Snapshot first, then in this order:
 
 ## Step 3: Stop conditions
 
-**True stops** (`references/settle.md`): **Terminal**; **Looks ready** — `mergeability_certain`, `MERGEABLE`, `CLEAN`, no `base_ref_blocker`, checks terminal, zero backlog, `open_needs_human == 0`, `branch_currency_blocker == null`, settle elapsed, review-still-expected guard clear or its bounded stale protocol says stop; **blocked-external-drained**; **Budget** (active budget or 3-day backstop). Refresh a drifted PR description via `ce-commit-push-pr mode:pipeline` before reporting ready. In interactive runs, **standing residuals** (`needs-human`, `blocked-failing`, `stack-blocked`) block "ready" while independent work continues; stopping the run there is the primary failure mode. `mode:pipeline` returns the canonical decision set when autonomous work ends. After an interactive tick with no true stop, start the one watcher again and wait on it; its silence tells you nothing about the PR's state.
+**True stops** (`references/settle.md`): **Terminal**; **Looks ready** — `mergeability_certain`, `MERGEABLE`, `CLEAN`, no `base_ref_blocker`, checks terminal, zero backlog, `open_needs_human == 0`, `branch_currency_blocker == null`, settle elapsed, review-still-expected guard clear or its bounded stale protocol says stop; **blocked-external-drained**; **Budget** (active budget or 3-day backstop). Refresh a drifted PR description via `ce-commit-push-pr mode:pipeline` before reporting ready. In interactive runs, **standing residuals** (`needs-human`, `blocked-failing`, `stack-blocked`) block "ready" while independent work continues; stopping the run there is the primary failure mode. `mode:pipeline` returns the canonical decision set when autonomous work ends. After an interactive tick with no true stop, re-arm the detector, which exits on each wake, or leave a host watch that stays on, then wait; its silence tells you nothing about the PR's state.
 
 ## Step 4: Report
 

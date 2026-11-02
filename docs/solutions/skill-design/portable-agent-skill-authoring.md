@@ -266,6 +266,8 @@ Preserve the semantic floor. If every iteration requires agent reasoning, sub-sk
 
 Do not infer that a capability is unavailable from one missing binary, environment variable, or MCP server. Check the harness's available interfaces and degrade explicitly.
 
+Let the host's rules decide how to wait. A skill owns its outcome: what each iteration judges, what state it keeps, and when it stops. When host instructions say how control returns between iterations, they outrank the skill, so a skill that bans a host's tool or requires its own watcher sets up a conflict it cannot win. The agent then spends its reasoning on reconciling the two, or runs both. State the skill's mechanism as the default, say when the host's replaces it, and name what the replacement may not cover. A ban on a host tool stays valid only where the tool would replace the skill's work rather than its wake-up.
+
 ### Bundled files
 
 Distinguish three path cases:
