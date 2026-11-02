@@ -4,7 +4,7 @@ Read this once per babysit session, before acting on the first tick's output. It
 
 ## How the watch sustains itself
 
-Keep monitoring in the current session until a stop condition is met. The change detector is `pr-snapshot watch`. It runs the snapshot's fetch→diff on an interval, uses **no agent tokens**, and prints one `BABYSIT_WAKE {reason,url,...}` line *only* when there is work to inspect or a stop condition, then exits. Wait for that line with the harness's tools, run one tick, and re-arm the detector. Keep the session active while waiting, so each wake returns to this agent with the conversation's decisions intact.
+Keep monitoring until a stop condition is met. **Choosing the wake source** below decides what brings this agent back; the default is the change detector, `pr-snapshot watch`. It runs the snapshot's fetch→diff on an interval, uses **no agent tokens**, and prints one `BABYSIT_WAKE {reason,url,...}` line *only* when there is work to inspect or a stop condition, then exits. Wait for that line with the harness's tools, run one tick, and re-arm the detector. With the detector as the wake source, keep the session active while waiting, so each wake returns to this agent with the conversation's decisions intact.
 
 The tick decides from the fresh snapshot, not from the wake reason. The reason says why the detector fired and which reference owns the follow-up:
 
@@ -39,9 +39,34 @@ Use the harness's tools to run the detector and wait for its output. A skill dri
 
 **User-runnable resume syntax.** Whenever this reference tells the skill to print or copy a resume invocation, default to `/ce-babysit-pr <url>` and, when the run posture is not `target`, append the same `posture:stack-ready` or `posture:stack-land` token so checkpoint / durable / session re-entry keeps stack scope. Use `$ce-babysit-pr <url> [posture:…]` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
-**Checkpoint:** Use checkpoint mode only when the user requests it or the harness cannot keep the session active while waiting for the detector's output. Run one tick, persist state, report, and print the exact host-rendered resume invocation. Say monitoring is paused. Never fake a loop with a foreground `sleep` or an unmanaged detached process.
+**Checkpoint:** Use checkpoint mode only when the user requests it or nothing can wake this agent. Run one tick, persist state, report, and print the exact host-rendered resume invocation. Say monitoring is paused. Never fake a loop with a foreground `sleep` or an unmanaged detached process.
 
 **Durability:** the in-session watch dies with the session. Re-invoking the skill resumes from disk, because `/tmp` persists across ticks. For an unattended multi-day watch, escalate to a durable scheduler: Grok's `scheduler_create --durable`, or cron running `<cli> exec '<host-rendered resume invocation>'`. A fresh headless run has no memory of this conversation, so persist consequential decisions to disk.
+
+## Choosing the wake source
+
+One wake source brings this agent back for each tick. Choose it once, before the first wait, from the host instructions and tools you have now:
+
+| What the host says about PR waits | Wake source |
+|---|---|
+| Its instructions dictate how they work, such as requiring its own PR-watch tool, forbidding polling or background watchers, or telling you to end the turn while waiting | The host's mechanism. Do not run the detector. |
+| Nothing, or it only offers an optional PR-watch tool | The detector, which sees more states than a host's event feed. Do not add the host's tool. |
+| Its instructions or tools leave this run no way to be woken, such as a delegated run that must not wait | Checkpoint, or in `mode:pipeline` one tick and return. |
+
+Host instructions outrank this skill's default here. Never run both sources to satisfy both rules: that breaks the one-watcher boundary and produces duplicate wakes. Ending the turn is correct when an armed wake source will bring this agent back, and wrong when nothing will.
+
+The wake source decides only how control returns. Every tick still starts from a fresh snapshot and still runs `ce-resolve-pr-feedback` and `ce-debug` as usual. Marks, posture, and true stops do not change. The report adds only which PR activity may go unnoticed.
+
+A host event is a reason to look, never a fact, whichever wake source is running. Any event, including one saying the PR merged, only prompts a fresh snapshot and an ordinary tick. The snapshot's `pr_state` decides. Under `stack-land`, this run's own land step stays a layer transition (`references/stack.md`). Ignore any wake that arrives after the run's report.
+
+When the host's mechanism is the wake source:
+
+- **Run a complete tick before the first wait.** A host watch may wake only on events after it started, so feedback and failures already on the PR are yours to handle first. Follow the host's contract for arming: do not re-arm a watch that stays on after a wake.
+- **Snapshot again before ending the turn.** An event that lands during a tick may never produce a wake. If the fresh snapshot shows anything actionable, run another tick instead of waiting.
+- **Do not hold a wake to batch comments.** The comment coalescing window belongs to the detector. A burst of comments may cost extra resolver passes, and the marks keep those passes from repeating work. A wake whose fresh snapshot shows nothing actionable needs no resolver or debug pass, but still judge the stop conditions: no `merge-ready` wake will do it for you.
+- **Say what this source may miss.** A host may not wake on every feedback surface, on a branch falling behind its base, or when a clock runs out. A later wake's snapshot picks up anything missed, so nothing is lost while wakes keep coming. Whenever you report PR state, name any stream this host's wake does not clearly cover. `references/settle.md` says what to do when only a timed wait remains.
+- **Check the budget on every tick.** No detector will fire `max-runtime`. This mode counts wall-clock time, so compare `invocation_elapsed_seconds` with `invocation_budget_seconds` and take the budget stop when it is reached.
+- **Release it when the run stops watching this PR.** Release the host's watch at every true stop and at every managed-stack layer transition. A watch the host already removed, for example on merge, is not a failure.
 
 ## Cadence (the watch interval)
 
@@ -54,7 +79,7 @@ Use the harness's tools to run the detector and wait for its output. A skill dri
 
 ## Pipeline mode bound (`mode:pipeline`)
 
-An orchestrator (`lfg`) drives ticks in-line and needs the loop to terminate. Run ticks back-to-back until one of the stops below. **To wait for CI to progress between ticks, use the harness's native non-blocking wait — never a bare foreground `sleep`** (blocked on Claude Code, discouraged elsewhere). Examples: Claude Code's `Monitor` until-loop; Grok's `get_command_or_subagent_output(timeout_ms=…)` or a `monitor`; Cursor's `Await` on a backgrounded `gh pr checks --watch`. If the harness has no non-blocking wait, do one tick and return control to the orchestrator rather than busy-spinning. Loop until:
+An orchestrator (`lfg`) drives ticks in-line and needs the loop to terminate. Run ticks back-to-back until one of the stops below. **To wait for CI to progress between ticks, use the harness's native non-blocking wait — never a bare foreground `sleep`** (blocked on Claude Code, discouraged elsewhere). Examples: Claude Code's `Monitor` until-loop; Grok's `get_command_or_subagent_output(timeout_ms=…)` or a `monitor`; Cursor's `Await` on a backgrounded `gh pr checks --watch`. If the harness has no non-blocking wait, or its instructions forbid using one for PR waits, do one tick and return control to the orchestrator rather than busy-spinning. Loop until:
 
 - **Report success only when** `all_checks_ok` is true, the actionable backlog and canonical `needs_human_residuals` set are empty, `mergeability_certain` is true, `merge_state_status == "CLEAN"`, `base_ref_blocker` and `stack_blocker` are null, `branch_currency_blocker` is null, and `unrequested_base_merge` is null. A red check, a human decision, an empty check rollup, uncertain merge/base/stack state, or an open/claimed/parked currency item is not success: keep ticking until it clears or the time budget expires; or
 - when the canonical set (the persisted `needs_human_residuals`) is non-empty and no autonomous work remains, return `{ status: "needs-human", checks_terminal, fixes_applied, residuals: needs_human_residuals }` immediately without waiting for human input or the budget; or
@@ -186,7 +211,7 @@ Do not re-derive "required checks" or required reviews; GitHub already computes 
 
 ## Managed-stack continuation
 
-`references/stack.md` owns posture, layer transitions, upstack maintenance, and landing. The watch mechanics it relies on: one active PR target and one watcher, never a watcher per stack layer. Initialize each new layer's state dir with `--continue-invocation` and these values:
+`references/stack.md` owns posture, layer transitions, upstack maintenance, and landing. The watch mechanics it relies on: one active PR target and one watcher, never a watcher per stack layer. When the host's watch is the wake source, move it to the new layer at each transition and report that lower layers are not being watched, unless one host watch can cover them too. Initialize each new layer's state dir with `--continue-invocation` and these values:
 
 - `--invocation-id`, `--session-started-at` (the anchor flag, not `--invocation-started-at`), and `--invocation-budget-seconds`, with the same recorded values the first snapshot used.
 - `--continue-dead-time-seconds <prior layer's invocation_dead_time_seconds>`.
@@ -207,6 +232,6 @@ Do not re-derive "required checks" or required reviews; GitHub already computes 
 
 **The self-sustaining watch runs autonomously after scope is set.** It never asks permission for the fixes, pushes, replies, resolves, and PR-description refreshes it is allowed to make, and a stack-wide posture does not re-ask at each layer. In interactive continuous mode, re-arm after a tick that reached neither a stop that ends the watch nor a managed-stack transition; a standing residual stays visible and blocks readiness or advancement while the watch continues around it. In `mode:pipeline`, apply the bounded stop above instead: when the canonical decision set is non-empty and no autonomous work remains, return it immediately rather than re-arming.
 
-Re-arm `watch` after any mutation that moved the head, with the same invocation ID, start, and budget. A not-ready-but-not-blocked state is neither a stop nor a question; keep waiting for the background sentinel. Watcher silence carries no PR-state information; it means only that no wake condition has fired. Never infer review state from silence. When the user asks for status before a wake, run a fresh `snapshot` with the same invocation fields and report that state. The loop's only interactive question is Step 1's one-time posture and scope choice, asked once under `target` when a managed stack is confirmed.
+With the detector as the wake source, re-arm `watch` after any mutation that moved the head, with the same invocation ID, start, and budget. A not-ready-but-not-blocked state is neither a stop nor a question; keep waiting on the wake source. Watcher silence carries no PR-state information; it means only that no wake condition has fired. Never infer review state from silence. When the user asks for status before a wake, run a fresh `snapshot` with the same invocation fields and report that state. The loop's only interactive question is Step 1's one-time posture and scope choice, asked once under `target` when a managed stack is confirmed.
 
 In **checkpoint mode** you are done after Step 4; the next tick is the user re-running the skill. Because every tick is resumable from disk, each wake (a `watch` sentinel, a scheduler fire, or a manual re-run) is a clean re-entry into Step 2.

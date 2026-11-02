@@ -37,6 +37,7 @@ const ANNOTATION_WAIT_BASE_REF = "d1734f7ed5341b6d0b683405da82895f0a0a25f7"
 /** main before streak interpretation accounted for estimated baselines and candidate selection (#1698). */
 const RETUNE_STREAK_BASE_REF = "53af1a2eab6415be9881c1987dbc986dcb54465c"
 export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68bf7"
+export const HOST_WAKE_BASE_REF = "fad10065909cd195723fc8996600fb80086b8c2c"
 /** main before judgment-bound escalations were adjudicated through ce-pov instead of parking as needs-human. */
 export const ADJUDICATE_BASE_REF = "020c5e10d49aed19ee9354917780e94e665f5977"
 /** main before the resolver weighed whether an existing signal already bounds a true finding's failure. */
@@ -1401,6 +1402,68 @@ export const SCENARIOS: Scenario[] = [
 
 This is a mode-selection question only. Do not access GitHub or start monitoring. Report your choice as MODE: continuous or MODE: checkpoint, then explain it.`,
     grade: { must_include_field: "MODE", must_include: [decision], actions: "none" },
+  })),
+  ...[
+    {
+      id: "wake-host-dictates",
+      state: "The runtime can background a process and wake on its exit. The host's instructions say: for PR waits, do not use sleep, loops, gh --watch, or background watchers; call the host's PR watch tool, then end your turn. The tool wakes this thread on failed checks, passed required checks, new comments or reviews, and conflicts.",
+      decision: "host",
+    },
+    {
+      id: "wake-host-optional",
+      state: "The runtime can background a process and wake on its exit. The tool list includes an optional PR watch tool, and the host's instructions say nothing about how PR waits work.",
+      decision: "detector",
+    },
+    {
+      id: "wake-delegated-no-wait",
+      state: "The runtime can background a process. The host's instructions say delegated runs must never watch or wait on a PR, even if asked to babysit, and must return after PR work. This run is a delegated run, and the user did not select a monitoring mode.",
+      decision: "checkpoint",
+    },
+  ].map(({ id, state, decision }): Scenario => ({
+    id: `ce-babysit-pr/${id}`,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    baseline_ref: HOST_WAKE_BASE_REF,
+    read_only: true,
+    post_only: true,
+    why: "An agent on a host that forbids PR polling reconciled the skill's detector with the host's rule by running both.",
+    pre_contract: "The skill runs one watcher. Pre-change it named only the detector or checkpoint.",
+    task: `Use ce-babysit-pr to decide how this run gets woken. PR #21 is open, non-draft, pushable, and has CI running with no actionable feedback. ${state}
+
+This is a decision only. Do not access GitHub or start monitoring. Include exactly one line reading WAKE: detector, WAKE: host, WAKE: both, or WAKE: checkpoint, with nothing else on that line. detector means running pr-snapshot watch only, host means using only the host's mechanism, both means running both, and checkpoint means one tick and then handing back. Then explain it.`,
+    grade: { declared: { WAKE: decision }, actions: "none", delegates: "none" },
+  })),
+  ...[
+    {
+      id: "host-wake-clock-left",
+      state: "The host's PR watch is armed as this run's wake source. It fires on PR events only, and the host's instructions forbid polling and offer no timer. This tick's snapshot shows MERGEABLE, CLEAN, checks terminal, no backlog, and no parked decisions. quiet_seconds is 60, under the 300-second settle window. No review looks to be coming. Posture is target.",
+      next: "wait-armed",
+    },
+    {
+      id: "host-event-merged-snapshot-open",
+      state: "The host's PR watch is this run's wake source. A host event just said the PR merged. A fresh snapshot shows pr_state OPEN, and the merge queue still holds the PR. Posture is target. There is no actionable backlog.",
+      next: "keep-watching",
+    },
+    {
+      id: "host-event-own-stack-land",
+      state: "The host's PR watch is this run's wake source. Posture is stack-land on a confirmed managed stack. This run just completed the authorized land step for the bottom layer, a host event says that PR merged, and a fresh probe shows MERGED. An open non-draft layer above it needs work.",
+      next: "layer-transition",
+    },
+  ].map(({ id, state, next }): Scenario => ({
+    id: `ce-babysit-pr/${id}`,
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    baseline_ref: HOST_WAKE_BASE_REF,
+    read_only: true,
+    post_only: true,
+    why: "A host's event-driven wake cannot fire on a clock, and its merge event must not decide a stop on its own.",
+    pre_contract: "Merge-ready needs the settle window. The snapshot, not a noticed event, decides. A run's own stack-land merge is a layer transition.",
+    task: `Use ce-babysit-pr mid-run. ${state}
+
+This is a decision only. Do not access GitHub or change anything. Include exactly one line: NEXT: report-ready (call it merge-ready and stop), NEXT: wait-armed (report that it is clean but not yet settled and end the turn with the watch still armed), NEXT: hold-turn (hold this turn open until the time passes), NEXT: stop-terminal (report the run as finished and stop), NEXT: keep-watching (the PR is still open, so keep the run going), or NEXT: layer-transition (release this PR's watch and continue on the next layer). Then explain it.`,
+    grade: { declared: { NEXT: next }, actions: "none", delegates: "none" },
   })),
   ...[
     { id: "handoff-declined-rewrite", state: "This interactive full workflow pushed new commits to an existing open PR. The user declined the description rewrite.", decision: "handoff" },

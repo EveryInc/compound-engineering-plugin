@@ -171,6 +171,8 @@ Ordinary and pipeline execution publish the commit before the remote tail:
 git push
 ```
 
+Read the PR's state immediately before pushing. If it is no longer open, a merge or close happened while this batch ran: do not push, and report the fix as an unpublished local commit along with the items left unaddressed.
+
 ## 7. Reply and Resolve
 
 Enter the remote tail only when the batch's fix commit is published, or the batch created no code changes. Return-to-caller batches with a fix stop at step 6; their saved reply-only and human-list items remain deferred too. No-change return-to-caller batches use this existing protocol and save observed progress even when a write fails. Resume enters here only through the publication and reconciliation conditions in [references/resume.md](resume.md), uses the saved verdicts and exact reply bodies, and returns there after completing or stopping the remote tail. Apply eligible PR checklist ticks under the entrypoint's publication condition.
