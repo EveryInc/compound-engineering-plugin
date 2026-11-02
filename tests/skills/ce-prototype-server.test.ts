@@ -757,7 +757,7 @@ describe("ce-prototype light-webserver.js", () => {
 
     const result = await runServerCommand(["wait", "--root", root])
     expect(result.exitCode, result.stderr).toBe(1)
-    expect(JSON.parse(result.stdout.trim())).toEqual({ status: "session-ended", reason: "tab-closed" })
+    expect(JSON.parse(result.stdout.trim())).toEqual({ status: "session-ended", reason: "connection-lost" })
   })
 
   test("a page load during the reconnect grace keeps the session live until the overlay reconnects", async () => {
@@ -1418,8 +1418,10 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("variant: draft.variant")
     expect(overlay).toContain("event.persisted")
     expect(overlay).not.toContain("sessionStorage.removeItem")
-    expect(overlay).toContain("window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)")
-    expect(overlay).not.toContain("window.location.reload()")
+    // Replacing a fragment URL with itself is a same-document navigation, so that case must reload.
+    expect(overlay).toContain("new URL(`${servedPage}${window.location.search}${window.location.hash}`, window.location.href)")
+    expect(overlay).toContain("if (target.href === window.location.href) window.location.reload()")
+    expect(overlay).toContain("else window.location.replace(target.href)")
     // Pin status follows the helper's annotation lifecycle, never a reload;
     // an open draft survives a reload; a reload waits for an in-flight POST.
     expect(overlay).toContain('addEventListener("annotations"')
@@ -1464,7 +1466,6 @@ describe("ce-prototype light-webserver.js", () => {
     expect(overlay).toContain("`ce-annotate-state:${overlaySession}`")
     expect(overlay).toContain('tokenUrl("/events", { document: servedDocument })')
     expect(overlay).toContain("page: servedPage,")
-    expect(overlay).toContain("window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)")
     expect(overlay).not.toContain("window.location.pathname")
     const css = await fs.readFile(path.join(import.meta.dir, "..", "..", "skills", "ce-prototype", "assets", "annotate.css"), "utf8")
     expect(css).toMatch(/:host \{\n  position: fixed;\n  inset: 0;\n  width: auto;\n  height: auto;\n  overflow: visible;\n  color: inherit;\n  background: transparent;\n  pointer-events: none;/)

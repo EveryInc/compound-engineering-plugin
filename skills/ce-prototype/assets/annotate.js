@@ -132,7 +132,10 @@
 
   function persistAndReload() {
     persistState()
-    window.location.replace(`${servedPage}${window.location.search}${window.location.hash}`)
+    const target = new URL(`${servedPage}${window.location.search}${window.location.hash}`, window.location.href)
+    // Replacing a fragment URL with itself only scrolls: no new document, and the closed stream never reconnects.
+    if (target.href === window.location.href) window.location.reload()
+    else window.location.replace(target.href)
   }
 
   // A screen change arriving while a comment is being sent waits for that
