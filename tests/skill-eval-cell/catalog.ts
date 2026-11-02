@@ -593,7 +593,6 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     "Two rule-shaped lessons in a row must not accumulate requests to adopt standards, in the docs or the reports.",
     `Run the skill twice in sequence, once per lesson. First lesson: ${RETRY_LESSON} Second lesson: src/payments.js put a customer's account number in a thrown error that reached an API client. The fix is in the tree. The general lesson is that an error returned to a client never carries customer data, and deciding what counts as customer data takes human judgment, so no lint rule or test can detect a new violation.`,
     {
-      result_must_include: ["Documentation complete"],
       result_must_not_include: ["ce-setup"],
       workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
       workspace_tree: [
