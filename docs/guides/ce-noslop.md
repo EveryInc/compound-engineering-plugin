@@ -116,7 +116,7 @@ Sibling skills write their prose through `ce-noslop` at the point where they com
 - `ce-promote` for the announcement drafts it writes itself (Spiral-returned drafts are presented as returned)
 - `ce-resolve-pr-feedback` for replies posted as the PR author
 
-Skills with a presentation contract of their own (`ce-pov`, `ce-doc-review`, `ce-babysit-pr`) invoke `ce-noslop` before composing and keep only the rules specific to their output on top.
+Skills with a presentation contract of their own (`ce-pov`, `ce-doc-review`, `ce-babysit-pr`, `ce-help`) invoke `ce-noslop` before composing and keep only the rules specific to their output on top.
 
 Nothing runs after it. The skill returns text or findings and the caller continues.
 

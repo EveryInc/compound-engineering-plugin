@@ -125,6 +125,7 @@ Invoked when a specific need arises, not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
+| [`/ce-help`](./ce-help.md) | Find where your work sits on the loop, which skill fits, or how setup, config, and cost work. Recommends the next command; starts nothing. Manual invoke only. |
 | [`/ce-noslop`](./ce-noslop.md) | Rewrite, check, or draft prose with no AI tells that reads on the first read; every fact preserved. Sibling skills invoke it where they write. |
 | [`/wtf`](./wtf.md) | Explain the last message, or a supplied file, link, or passage, in plain language. Explains rather than rewrites; keeps caveats and adds no claims. Manual invoke only. |
 | [`/ce-promote`](./ce-promote.md) | Draft announcement copy for a shipped feature (X, changelog, LinkedIn, email, blog, demo). Drafts only; never posts. |

@@ -215,7 +215,7 @@ describe("release metadata", () => {
 
     expect(counts).toEqual({
       agents: 0,
-      skills: 36,
+      skills: 37,
       mcpServers: 0,
     })
   })
@@ -256,6 +256,33 @@ describe("release metadata", () => {
       (name) => listed.filter((entry) => entry === name).length > 1,
     ).sort()
     expect(duplicated).toEqual([])
+  })
+
+  test("the ce-help skill map names every skill once and marks manual skills", async () => {
+    const map = await Bun.file(
+      path.join(process.cwd(), "skills/ce-help/references/skill-map.md"),
+    ).text()
+    const table = map.slice(map.indexOf("## Skills"), map.indexOf("## Skills that sound alike"))
+    expect(table.length).toBeGreaterThan(0)
+
+    const { readdir } = await import("fs/promises")
+    const skillsRoot = path.join(process.cwd(), "skills")
+    const skills = (await readdir(skillsRoot, { withFileTypes: true }))
+      .filter((entry) =>
+        entry.isDirectory() && existsSync(path.join(skillsRoot, entry.name, "SKILL.md"))
+      )
+      .map((entry) => entry.name)
+      .sort()
+
+    const rows = [...table.matchAll(/\| `([a-z0-9-]+)`( \(manual\))? \|$/gm)]
+    expect(rows.map((row) => row[1]).sort()).toEqual(skills)
+
+    const manual: string[] = []
+    for (const skill of skills) {
+      const body = await Bun.file(path.join(skillsRoot, skill, "SKILL.md")).text()
+      if (/^disable-model-invocation: true$/m.test(body)) manual.push(skill)
+    }
+    expect(rows.filter((row) => row[2]).map((row) => row[1]).sort()).toEqual(manual)
   })
 
   test("every skill count stated in the README matches the skills directory", async () => {
