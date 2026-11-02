@@ -112,7 +112,7 @@ For each unit, include:
   - **Integration scenarios** (when the unit crosses layers) - behaviors that mocks alone will not prove, e.g., "creating X triggers callback Y which persists Z". Include these for any unit touching callbacks, middleware, or multi-layer interactions
 - **Verification** - how an implementer should know the unit is complete, expressed as outcomes rather than shell command scripts
 
-Every feature-bearing unit should include the test file path in `**Files:**`.
+Every feature-bearing unit should include the test file path in `**Files:**`. When the plan names where a test should live, say in one line what that seam catches and what it misses.
 
 Use `Execution note` sparingly. Good uses include:
 - `Execution note: Start with a failing integration test for the request/response contract.`
