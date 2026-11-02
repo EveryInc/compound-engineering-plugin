@@ -142,6 +142,13 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
     expect(debugReturnGate).toContain("`pre_fix_scope.caller_edits`")
   })
 
+  test("the always-on signal proposal reaches the user without becoming required or implemented", () => {
+    expect(debugReturn).toContain('"prevention_signal":')
+    expect(debugReturnGate).toContain("does not require `prevention_signal`")
+    expect(debugReturnGate).toMatch(/no step in this run implements it/)
+    expect(debugReturnGate).toMatch(/Step 11, close-out:[^\n]*`prevention_signal`/)
+  })
+
   test("the debug gate requires the same evidence facts the ce-work gate requires", () => {
     for (const phrase of [
       "existing tests inspected",

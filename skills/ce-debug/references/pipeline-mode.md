@@ -51,6 +51,7 @@ The return in pipeline mode is machine-readable (the caller parses it):
   "root_cause": "<causal chain, brief>",
   "changed_files": ["..."],
   "head_sha": "<sha of the fix commit, when fixed-and-pushed or fixed-not-pushed>",
+  "prevention_signal": "<the proposed log field, metric, or assertion, or null>",
   "residuals": [
     {
       "type": "needs-human",
@@ -76,3 +77,5 @@ The return in pipeline mode is machine-readable (the caller parses it):
 - `flaky-infra`: a flake or infrastructure failure, not a code defect (the caller may retry).
 - `needs-human`: the failure requires a divergent/product decision; nothing applied; see `residuals`.
 - `diagnosed-no-fix`: root cause found but no safe convergent fix available this run; see `residuals`.
+
+`prevention_signal` is present on every return. It carries the always-on signal proposal that SKILL.md's Phase 2 findings block describes, because this mode skips the handoff that would otherwise show it, and it is `null` when that block's condition does not hold. It is a proposal, not a residual, and it is not added to the fix.

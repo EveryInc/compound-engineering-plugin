@@ -6,7 +6,7 @@
 
 It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) take a fast path in triage: present the cause, ask Fix / Diagnosis only, then stop. Everything else goes through the full framework. The fix is optional, and diagnosis-only is a first-class outcome. When you do choose a fix, non-trivial diffs continue through simplify and code review before the PR handoff.
 
-It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), and not findings on a diff (`ce-code-review`). Use this when something is observably broken, including observably slow. A performance regression's reproduction is a numeric baseline measurement, and the fix is verified by re-measuring, not by reading code.
+It is not a verdict (`ce-pov`), not findings on a document (`ce-doc-review`), and not findings on a diff (`ce-code-review`). Use this when something is observably broken, including observably slow. A performance regression's reproduction is a numeric baseline measurement, and the fix is verified by re-measuring, not by reading code. A measurement that does not name what bounds the number is reported as inconclusive.
 
 `ce-plan` offers this skill when a planning prompt is bug-shaped. Orchestrators such as `ce-babysit-pr` and `lfg` invoke it with `mode:pipeline` to fix convergent CI failures without asking, and `lfg` invokes it with `mode:return-to-caller` when the request it was given is a bug, so the fix lands on a feature branch and `lfg` reviews and ships it.
 
@@ -81,7 +81,7 @@ Debugging fails in predictable ways:
 
 The skill does not propose a fix until it can explain the full causal chain from trigger to symptom. "Somehow X leads to Y" is a gap.
 
-The findings block (root cause with file:line references, the proposed fix, the recommended tests, any related ticket or PR) is written in full before the Fix it now / Diagnosis only / Rethink the design question opens. Blocking-question tools render only their own stem on modal harnesses, so a question fired on "root cause confirmed" alone would leave you choosing with none of the chain on screen. The question offers only the options the findings support. When there is nothing to fix (the behavior is correct, the bug is already fixed, or an open PR already does the work), it offers the matching next step instead, such as replying on the issue or finishing that PR, and waits for your choice before doing either.
+The findings block (root cause with file:line references, the proposed fix, the recommended tests, any related ticket or PR) is written in full before the Fix it now / Diagnosis only / Rethink the design question opens. Blocking-question tools render only their own stem on modal harnesses, so a question fired on "root cause confirmed" alone would leave you choosing with none of the chain on screen. The question offers only the options the findings support. When there is nothing to fix (the behavior is correct, the bug is already fixed, or an open PR already does the work), it offers the matching next step instead, such as replying on the issue or finishing that PR, and waits for your choice before doing either. When the deciding fact took a deep dig to surface, the findings block and the summary's Prevention line also propose the cheap always-on signal that would have shown it immediately: a log field, a metric, or an assertion.
 
 ### Predictions for uncertain links
 
@@ -104,7 +104,7 @@ Three failed fix attempts hits the same gate: invalidate the current hypothesis 
 
 ### Issue tracker integration
 
-When the input references an issue (`#123`, GitHub URL, Linear URL, Jira key, Sentry issue), the skill fetches the full conversation, including all comments. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, and pivots to a different suspected root cause.
+When the input references an issue (`#123`, GitHub URL, Linear URL, Jira key, Sentry issue), the skill fetches the full conversation, including all comments. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, and pivots to a different suspected root cause. It states the ticket's title before investigating, so you can see it read the right one.
 
 Whatever you hand it becomes the issue of record. The skill links back to that one and never opens a duplicate for the same bug in another system, even when the repo's own tracker is something else. A Sentry issue counts as much as a Linear ticket. New tickets are only ever filed for a different problem found along the way.
 
@@ -122,7 +122,7 @@ In `mode:pipeline` and `mode:return-to-caller`, the comparison is off by default
 
 ### Test-first fix, then scoped quality steps
 
-If you opt to fix, the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the test that owns the contract, or adds a focused regression test only when nothing fits. It verifies the failure, applies the smallest root-cause fix, reruns the focused test plus broader checks, then self-reviews the diff.
+If you opt to fix, the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the test that owns the contract, or adds a focused regression test only when nothing fits. Wherever it names a test's home, it says in one line what that seam catches and what it misses. It verifies the failure (one produced by editing code or a fixture counts only after that edit is shown present against the untouched tree), applies the smallest root-cause fix, reruns the focused test plus broader checks, then self-reviews the diff.
 
 After the fix is green, the skill runs the same quality steps as the shipping workflow: simplify first when the diff is large enough to benefit, then review the final fix. Review is skipped only when the change cannot affect behavior: no code, configuration, dependency, or instruction text that anything runs or loads. Size alone never skips it. Simplify always gets an explicit scope of the bug-fix files, never the branch diff, so it cannot reach unrelated work in progress. Review is scoped the same way unless the tree was clean enough to prove a diff base is the fix. Files with overlapping pre-existing edits skip file-level simplification. Accepted residual findings are written to a durable sink even when you choose commit-only or stop.
 
@@ -134,11 +134,11 @@ Concrete signals trigger a `/ce-brainstorm` recommendation rather than a fix: th
 
 ### Pipeline mode
 
-`mode:pipeline` (set by `ce-babysit-pr` or `lfg`) runs fully non-interactively. It fixes convergent bugs (the code is not meeting its planned or tested intent) and defers divergent ones (the "failure" would reverse a deliberate contract or product decision). It does not create branches, does not run the polish or review steps, and returns a structured JSON result: `fixed-and-pushed`, `fixed-not-pushed` when the fix is committed but could not be pushed, `diagnosed-no-fix`, `flaky-infra`, or `needs-human`. A design problem becomes a `needs-human` residual, never a brainstorm handoff.
+`mode:pipeline` (set by `ce-babysit-pr` or `lfg`) runs fully non-interactively. It fixes convergent bugs (the code is not meeting its planned or tested intent) and defers divergent ones (the "failure" would reverse a deliberate contract or product decision). It does not create branches, does not run the polish or review steps, and returns a structured JSON result: `fixed-and-pushed`, `fixed-not-pushed` when the fix is committed but could not be pushed, `diagnosed-no-fix`, `flaky-infra`, or `needs-human`. A design problem becomes a `needs-human` residual, never a brainstorm handoff. The return carries any proposed always-on signal in `prevention_signal`, and `ce-babysit-pr` includes it in its run recap.
 
 ### Return-to-caller mode
 
-`mode:return-to-caller` (set by `lfg` on its defect route) is also non-interactive, but the caller owns everything after the fix. It keeps the full investigation and the convergent-or-defer boundary, creates a feature branch when it starts on the default branch, commits the fix-owned files without pushing, skips the post-fix polish and review steps, and returns a structured result: `fixed`, `diagnosed-no-fix`, `needs-human`, or `blocked`, with the root cause, changed files, verification evidence, residuals, and the issue of record. `lfg` then simplifies, reviews, and ships from that return.
+`mode:return-to-caller` (set by `lfg` on its defect route) is also non-interactive, but the caller owns everything after the fix. It keeps the full investigation and the convergent-or-defer boundary, creates a feature branch when it starts on the default branch, commits the fix-owned files without pushing, skips the post-fix polish and review steps, and returns a structured result: `fixed`, `diagnosed-no-fix`, `needs-human`, or `blocked`, with the root cause, changed files, verification evidence, residuals, the issue of record, and any proposed always-on signal. `lfg` then simplifies, reviews, and ships from that return, and carries the signal into the PR description and its close-out as a proposal it did not implement.
 
 ---
 

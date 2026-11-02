@@ -141,6 +141,17 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(consumer).toContain("do not invent `infra-retry`")
   })
 
+  test("ce-debug's pipeline signal proposal reaches babysit's run recap", async () => {
+    const [producer, tick, report] = await Promise.all([
+      readRepoFile(CEDEBUG_PIPELINE),
+      readRepoFile("skills/ce-babysit-pr/references/tick.md"),
+      readRepoFile("skills/ce-babysit-pr/references/report.md"),
+    ])
+    expect(producer).toContain('"prevention_signal":')
+    expect(tick).toContain("`prevention_signal`")
+    expect(report).toContain("`prevention_signal`")
+  })
+
   test("pr-snapshot emits exactly the canonical trajectory field set", async () => {
     const keys = emittedTrajectoryKeys(await readRepoFile(PR_SNAPSHOT))
     expect(keys.sort()).toEqual([...TRAJECTORY_FIELDS].sort())

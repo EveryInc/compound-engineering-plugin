@@ -27,6 +27,7 @@ The return is machine-readable; the caller parses it and branches on the exact `
   "changed_files": ["<fix-owned files, tests included>"],
   "head_sha": "<sha of the fix commit, when fixed>",
   "branch": "<branch the fix was committed on, when fixed>",
+  "prevention_signal": "<the proposed log field, metric, or assertion, or null>",
   "pre_fix_scope": {
     "head": "<HEAD before the fix commit>",
     "dirty_files": ["<files already modified or untracked before Phase 3 that are not fix-owned; left untouched>"],
@@ -36,7 +37,7 @@ The return is machine-readable; the caller parses it and branches on the exact `
   },
   "behavior_change": true,
   "verification_evidence": {
-    "regression_test": "<file and case>",
+    "regression_test": "<file and case, plus one line on what this seam catches and misses>",
     "existing_tests_inspected": ["..."],
     "tests_added_or_changed": ["..."],
     "red_before_fix": "<the failure observed before the fix, or the characterization when a red run was impossible>",
@@ -55,4 +56,4 @@ The return is machine-readable; the caller parses it and branches on the exact `
 - `needs-human`: the fix would be divergent, or the causal chain could not be closed without a decision only a person can make; nothing applied; `residuals` carries the `decision_context` in the same typed residual contract `references/pipeline-mode.md` defines.
 - `blocked`: a required read failed, a fix-owned file carried the user's edits, or the workspace could not be prepared; `blockers` names it and nothing was committed.
 
-`pre_fix_scope` is present on every return and records what the branch and tree carried before the fix, as observed facts: the pre-fix `HEAD`, the files that were already dirty and are not fix-owned (the fix never touched them), the fix-owned files that carried the calling session's own edits, and the commits beyond the default branch, pushed or not. It carries no verdict about what the user offered; the caller decides that, and this record is what it decides from. `issue_of_record` is `null` when the input carried no ticket. `verification_evidence` is present on every `fixed` return; when `behavior_change` is `false` (a pure test or tooling fix), `exception_reason` says why no red-then-green was possible. `residuals` is an empty array when there are none. Do not invent a residual type; a non-blocking follow-up goes in `summary`.
+`pre_fix_scope` is present on every return and records what the branch and tree carried before the fix, as observed facts: the pre-fix `HEAD`, the files that were already dirty and are not fix-owned (the fix never touched them), the fix-owned files that carried the calling session's own edits, and the commits beyond the default branch, pushed or not. It carries no verdict about what the user offered; the caller decides that, and this record is what it decides from. `issue_of_record` is `null` when the input carried no ticket. `verification_evidence` is present on every `fixed` return; when `behavior_change` is `false` (a pure test or tooling fix), `exception_reason` says why no red-then-green was possible. `prevention_signal` is present on every return. It carries the always-on signal proposal that SKILL.md's Phase 2 findings block describes, because this mode skips the handoff that would otherwise show it, and it is `null` when that block's condition does not hold. It is a proposal, not a residual, and it is not added to the fix. `residuals` is an empty array when there are none. Do not invent a residual type; a non-blocking follow-up goes in `summary`.
