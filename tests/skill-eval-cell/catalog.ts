@@ -288,8 +288,6 @@ const IDEATE_RUN_SCALING: Scenario[] = IDEATE_RUN_SCALING_ROWS.map(({ merge, ...
 }))
 /** main before ce-noslop named claim certainty and ruled out semicolons as em dash substitutes. */
 const NOSLOP_FIX_LIMITS_BASE_REF = "67035e931c5cb26e80f198a7019a4502a9788273"
-/** main before ce-noslop named clipped and figurative text and gave detect plain labels. */
-const NOSLOP_PLAIN_PATTERNS_BASE_REF = "beacb629c8a6f34d6154996e819b2ac60857c514"
 
 /**
  * A handoff-probe row runs live, so it loses the read-only `actions: "none"` restraint.
@@ -1237,12 +1235,12 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
-    baseline_ref: NOSLOP_PLAIN_PATTERNS_BASE_REF,
+    post_only: true,
     fixture: `${FIX}/noslop-drafts`,
     why: "Notes the reader must decode become sentences, but only from what they state. An ambiguous arrow must not gain a cause, an unexplained abbreviation must not gain an expansion, and a line readable on the first pass stays.",
     pre_contract: "Every fact survives; nothing is added; a sentence that passes stays as written.",
     task: "Use the ce-noslop skill to edit clipped.md for a repo document. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
-    grade: { workspace_read: ["clipped.md"], result_must_include: ["02:00", "14", "900", "PTR", "Fixed typo in the parser error message."], result_must_not_include: ["shards \u2192", "snapshot \u2192", "because", "caused", "due to", "led to", "lag reopened", "pointer", "reverse"], actions: "none" },
+    grade: { workspace_read: ["clipped.md"], result_must_include: ["02:00", "14", "bucket", "lock", "origin", "900", "PTR", "Fixed typo in the parser error message."], result_must_not_include: ["shards \u2192", "snapshot \u2192", "because", "caused", "due to", "led to", "lag reopened", "pointer", "reverse"], actions: "none" },
   },
   {
     id: "ce-noslop/figurative-verbs-become-literal",
@@ -1250,7 +1248,7 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
-    baseline_ref: NOSLOP_PLAIN_PATTERNS_BASE_REF,
+    post_only: true,
     fixture: `${FIX}/noslop-drafts`,
     why: "Figurative verbs and code credited with knowledge or intent become literal, while verbs for a literal operation stay.",
     pre_contract: "Every fact survives; a sentence that passes stays as written; the actor stays named.",
@@ -1263,12 +1261,12 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
-    baseline_ref: NOSLOP_PLAIN_PATTERNS_BASE_REF,
+    post_only: true,
     fixture: `${FIX}/noslop-drafts`,
     why: "With one figure among plain sentences the density test does not fire, so only the mechanism test can catch it. The two literal sentences stay as written.",
     pre_contract: "One device proves nothing; a sentence that passes stays as written.",
     task: "Use the ce-noslop skill to edit single-figure.md for a repo document. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
-    grade: { workspace_read: ["single-figure.md"], result_must_include: ["The loader reads the manifest first and rejects a file with no schema version.", "The nightly job finishes in about 6 minutes for 2 million rows."], result_must_not_include: ["rides along"], actions: "none" },
+    grade: { workspace_read: ["single-figure.md"], result_must_include: ["The loader reads the manifest first and rejects a file with no schema version.", "every request", "The nightly job finishes in about 6 minutes for 2 million rows."], result_must_not_include: ["rides along"], actions: "none" },
   },
   {
     id: "ce-noslop/expected-fragments-stay",
@@ -1276,12 +1274,12 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
-    baseline_ref: NOSLOP_PLAIN_PATTERNS_BASE_REF,
+    post_only: true,
     fixture: `${FIX}/noslop-drafts`,
     why: "Table cells and changelog lines are fragments by format and must stay byte for byte. The arrow line beside them may stay or expand, because a reader can get it on the first pass.",
     pre_contract: "A sentence that passes stays as written; every fact survives.",
     task: "Use the ce-noslop skill to edit fragments.md for a repo document. Return the full result text in chat between the markers RESULT-START and RESULT-END, then one summary line. Do not write files.",
-    grade: { workspace_read: ["fragments.md"], result_must_include: ["| retries | 3 | per request |", "| timeout | 30 s | read only |", "- Fix crash on empty config", "- Add retry backoff", "migrate", "restart", "downtime"], actions: "none" },
+    grade: { workspace_read: ["fragments.md"], result_must_include: ["| retries | 3 | per request |\n| timeout | 30 s | read only |\n", "- Fix crash on empty config\n- Add retry backoff\n", "migrate", "restart", "downtime"], actions: "none" },
   },
   {
     id: "ce-noslop/detect-uses-plain-labels",
@@ -1289,7 +1287,7 @@ Report NEXT: handoff if babysit should be invoked, NEXT: continue if the active 
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
-    baseline_ref: NOSLOP_PLAIN_PATTERNS_BASE_REF,
+    post_only: true,
     fixture: `${FIX}/noslop-drafts`,
     why: "Detect prints pattern names to the reader, so a name must not need a grammar term to understand. The findings go inside the markers because the forbidden-word grade reads only that block.",
     pre_contract: "Detect: name each pattern found, quote the line, give the fix in a few words. Do not rewrite.",
