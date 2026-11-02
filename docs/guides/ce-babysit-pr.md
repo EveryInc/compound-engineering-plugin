@@ -78,13 +78,13 @@ Hand-babysitting, or a naive loop, usually fails in the same ways:
 
 ## The Solution
 
-Each tick is stateless and resumable from disk. The harness keeps the session active while waiting for the detector's output.
+Each tick is stateless and resumable from disk. One wake source brings the agent back for each tick.
 
 - Comments first. New review threads and non-thread comments get handled before CI. If that pass pushed a commit, the old CI failure sits on a dead SHA and gets skipped
 - Delegation. `/ce-resolve-pr-feedback` for comments, `/ce-debug` for real failures (once per new signature). The only inline CI work is a cheap flaky-vs-real split
 - Consumption-only branch currency. The base gets merged or updated into the PR only when the snapshot emits a `branch_currency` item (`BEHIND` via GitHub's update-branch endpoint, `DIRTY` via an exact-base local repair) and only after it is claimed. Ordinary base movement on a CLEAN PR, a sibling merging, or someone saying "update the branch" never triggers one. A disputable conflict becomes a sticky `needs-human`; an unrequested base merge on the head gets flagged as a defect
 - Settle window. "Looks ready" needs GitHub `CLEAN`, no open feedback, no parked `needs-human`, and enough quiet time. A started-but-unfinished review waits at least 15 quiet minutes and at most 30
-- In-session watch by default. `pr-snapshot watch` polls with no agent tokens and prints `BABYSIT_WAKE` only on an actionable change. Checkpoint mode runs one tick and prints the resume command. It applies only when requested or when the harness cannot keep the session active while waiting for detector output
+- In-session watch by default. `pr-snapshot watch` polls with no agent tokens and prints `BABYSIT_WAKE` only on an actionable change. When a host's instructions dictate how PR waits work, its own mechanism replaces the detector and the ticks stay the same. That wake may cover less than the detector does, so reports say what it may miss. Checkpoint mode runs one tick and prints the resume command. It applies only when requested or when nothing can wake the agent
 - Posture for confirmed managed stacks. `target` stops at the named PR. `stack-ready` continues upstack without merging. `stack-land` continues and lands the settled prefix
 
 A `needs-human` item blocks the ready call. It does not end the watch. New comments and CI still get handled.
