@@ -37,6 +37,7 @@ const CONSUMER_FILES: Record<string, string> = {
   "ce-commit-push-pr": "references/apply-and-handoff.md",
 }
 const CONSUMER_SKILLS = [
+  "ce-help",
   "ce-bakeoff",
   "ce-setup",
   "ce-compound",

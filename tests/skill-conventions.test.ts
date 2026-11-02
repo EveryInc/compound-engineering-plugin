@@ -184,6 +184,10 @@ const DESCRIPTION_CHAR_BUDGET = 1024
 const NAME_CHAR_BUDGET = 64
 
 const EXPECTED_USER_INVOKED_SKILLS = new Set([
+  // ce-help: recommends a command and stops. Firing it unasked on a question like
+  // "what next?" would halt work in progress, and a miss costs little because the
+  // agent can still answer from skill descriptions. No skill or pipeline calls it.
+  "ce-help",
   "ce-dogfood",
   "ce-polish",
   "ce-product-pulse",

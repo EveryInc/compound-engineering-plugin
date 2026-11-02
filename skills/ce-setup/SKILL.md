@@ -86,7 +86,7 @@ Every change to a user-owned file is offered and applied only if the user approv
 
 ## Phase 3: Summary
 
-**User-runnable invocation rendering.** In setup summaries, default to `/ce-setup`; use `$ce-setup` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-setup`. Render only the invocation as inline code and output one form only.
+**User-runnable invocation rendering.** In setup summaries, default to `/ce-setup` and `/ce-help`; use `$ce-setup` and `$ce-help` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-setup` and `/skill:ce-help`. Render only the invocation as inline code and output one form only.
 
 Display a brief summary:
 
@@ -98,4 +98,5 @@ Skipped:   <fixes declined, or none>
 Optional:  <missing optional tools, or all available>
 
 Run `<rendered invocation>` anytime to re-check.
+Run `<rendered ce-help invocation>` to ask which skill fits or what comes next.
 ```
