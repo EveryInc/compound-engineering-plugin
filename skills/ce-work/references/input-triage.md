@@ -36,6 +36,8 @@ When a valid `implementation_engine:` binding is present without recovery, **pre
 
 Determine how to proceed based on what was provided in `<input_document>` after any mode token is stripped.
 
+**Tracker reference** (`<input_document>` passes a ticket reference such as `#123`, `ABC-123`, or an issue URL): read that ticket through whatever interface the tracker exposes and state its title to the user before any implementation or investigation starts, including the bare-prompt scan. If the title cannot be read, say that instead of guessing one, and ask for the ticket's content when the input alone does not define the work. When no reference was passed, there is no ticket to state: do not invent one.
+
 **Plan document** (input is a file path to an existing plan or specification): resolve the canonical document before classification. Follow an explicit supersession notice to its canonical path only when the linked document's contents establish that it represents the same requested work; otherwise stop for clarification. Then inspect its contents, using a section map for long documents. Metadata describes the artifact; an old readiness label is not execution authority.
 
 - A non-code deliverable, including `execution: knowledge-work`, follows `references/non-code-execution.md` instead of the code workflow.
