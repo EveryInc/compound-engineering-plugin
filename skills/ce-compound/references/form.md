@@ -2,6 +2,8 @@
 
 The counterfactual has passed. Choose the cheapest form that would stop the repeat. Try the forms in this order and take the first that holds. Write it unless the form below says to report it. Do not ask first: every mode behaves the same way here, because the commit or pull request that carries the write is its review.
 
+In a Full run, read `pack_overlap` in `related.json` before writing anything. When a pack rule already covers the lesson, write no check or standard here: assembly's Pack-covered row decides what happens.
+
 Weigh any prevention idea already in the session, under any label, including a debug summary's Prevention line or a `prevention_signal` field. Read the repo's lint, type, and CI configuration, and the `CODING_STANDARDS.md` files that govern the affected code.
 
 1. **One owner and one way.** This holds when the mistake was possible because two ways to do the same thing exist. Consolidating them changes product code, so this skill never does it. Report it as work for whoever owns that code.

@@ -269,6 +269,7 @@ describe("compound closes the loop through packs", () => {
     expect(CO_ASSEMBLY).toMatch(/\*\*Pack-covered\*\*/)
     expect(CO_ASSEMBLY).toMatch(CITATION)
     expect(CO_ASSEMBLY).toMatch(/Documentation skipped — covered by pack rule/)
+    expect(read("skills/ce-compound/references/form.md")).toMatch(/`pack_overlap`[^\n]+write no check or standard/)
   })
 
   test("destination routing is interactive-only, writable-pack-gated, with the rule rewrite", () => {
