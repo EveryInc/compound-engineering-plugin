@@ -21,7 +21,7 @@ To choose between `ce-brainstorm` and `ce-plan`, ask whether two reasonable peop
 ## How `ce-brainstorm`, `ce-plan`, and `ce-work` connect
 
 - `ce-brainstorm` writes a requirements-only plan. Its lightest tier may write nothing.
-- `ce-plan` enriches that same file in place and does not reopen the product decisions. Small work may get a short answer or a chat brief from `ce-plan` instead of a plan file.
+- `ce-plan` enriches that same file in place and does not reopen the product decisions. It will not plan past open product blockers: it offers to resume `ce-brainstorm` or turn them into assumptions. Small work may get a short answer or a chat brief from `ce-plan` instead of a plan file.
 - `ce-work` refuses a requirements-only plan and points back to `ce-plan`.
 - Run with no argument, `ce-plan` uses the current conversation, and `ce-work` looks at the newest plan and stops unless it is implementation-ready.
 
@@ -42,6 +42,7 @@ What the choice changes:
 - Running the skills separately gives the user a checkpoint between them. `ce-brainstorm` and `ce-plan` confirm scope and offer next steps.
 - `ce-work` does not stop between its own stages. It implements, simplifies larger changes, reviews, and opens a PR, pausing only when it needs a decision, so handing off is not the only route to a PR. Someone who wants to look before anything is pushed can tell `ce-work` to commit only.
 - `lfg` does not pause for approval of the plan, diff, or findings. It pushes and opens a PR without asking. It applies eligible review fixes and lists the rest in the PR. It captures any durable learning, runs browser tests, and watches CI within a limited repair budget. Merging normally stays with the user.
+- A PR from `ce-work` is watched too, because `ce-commit-push-pr` hands off to `ce-babysit-pr` by default. So a CI watch is not a reason to choose `lfg`.
 - Neither route can push without a git remote; both stop at local commits. Mention this only when the repo has no remote.
 - `lfg` is a poor fit for non-software work, or for repos whose shipping needs hand-driven steps. Given a request that is not a code change, such as an explanation, `lfg` ends with the owning skill's result.
 
@@ -53,5 +54,5 @@ Tell the user not to repeat a step that a skill runs itself.
 - `ce-commit-push-pr` hands off to `ce-babysit-pr` by default, which calls `ce-resolve-pr-feedback` and `ce-debug` as needed.
 - `ce-debug` runs simplify and review on an interactive fix. It opens a PR without asking when the branch holds only that fix.
 - `ce-plan` runs `ce-doc-review` on its plan. Run `ce-doc-review` by hand to go deeper.
-- `ce-code-review` and `ce-simplify-code` start nothing afterward. Run by hand, `ce-code-review` only reports.
+- `ce-code-review` and `ce-simplify-code` start nothing afterward. Run by hand, both report first: `ce-code-review` only reports, and `ce-simplify-code` changes code after the user picks findings.
 - `lfg` runs `ce-compound` when the work taught something the final code does not show, `ce-debug` can offer it, and a standing instruction can make it automatic. `ce-work` and the skills it runs do not start it, so on that route the user runs it, ideally while the learning can still go in the same PR.
