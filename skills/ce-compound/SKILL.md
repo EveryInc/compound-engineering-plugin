@@ -1,10 +1,20 @@
 ---
 name: ce-compound
-description: Capture a solved problem's lesson in its cheapest durable form, a test or lint rule, a coding standard, or a repo learning. Use when verified work produced non-obvious reasoning absent from its final code, tests, or existing docs; avoid routine fixes whose artifacts already explain the lesson.
-argument-hint: "[optional: brief context] [mode:non-interactive] [depth:lightweight|full]"
+description: Capture a solved problem's lesson in its cheapest durable form, a test or lint rule, a coding standard, or a repo learning, or refresh existing learnings against the codebase. Use when verified work produced non-obvious reasoning absent from its final code, tests, or existing docs, or when auditing stale, overlapping, or drifted learnings. Avoid routine fixes whose artifacts already explain the lesson.
+argument-hint: "[optional: brief context, or refresh and a scope] [mode:refresh] [mode:non-interactive] [depth:lightweight|full]"
 ---
 
 # /ce-compound
+
+## Choosing the job
+
+This skill does one of two jobs. **Capture** holds the lesson of one solved problem. **Refresh** audits the existing learnings against the current codebase and can delete docs and open a PR.
+
+Run refresh when the arguments contain `mode:refresh`, or when an interactive run was invoked to do one, as in `/ce-compound refresh payments`, "clean up the learnings", or a standalone request to create `CONCEPTS.md`. An earlier remark in the session does not count. Read `references/refresh/overview.md` and follow it instead of the rest of this file. The refresh references name the parts of this file they reuse.
+
+Otherwise run capture. A non-interactive run without `mode:refresh` is always capture, whatever its context says. Capture takes free-text context, so `refresh token rotation` after fixing that bug is a capture. If an interactive run's words could mean either job, ask once with the host's blocking question tool, and capture if there is no answer.
+
+## Capture
 
 **Outcome:** the lesson of one qualifying solved problem is held in the cheapest form that stops the repeat, grounded against the current tree, discoverable by the next agent.
 
@@ -25,8 +35,6 @@ If the counterfactual fails, write nothing and report why. Judge this from the s
 
 An existing learning that became materially inaccurate or incomplete qualifies because leaving it would mislead. Update that learning instead of creating a duplicate.
 
-`ce-compound` does not bootstrap `CONCEPTS.md`. It seeds the learning's own area as a side effect, never the whole repo. Send a standalone request to create or bootstrap that file to `ce-compound-refresh`, then exit.
-
 ## Mode Detection
 
 ```bash
@@ -37,7 +45,7 @@ An existing learning that became materially inaccurate or incomplete qualifies b
 
 Enter non-interactive mode when **either** holds: the arguments you were invoked with contain the `mode:non-interactive` token or its deprecated alias `mode:headless`, **or** the invocation makes non-interactive intent unmistakable, such as a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". Both tokens together is not a conflict. Bare "automatically" or "auto-run" is **not** on its own a non-interactive signal: it speaks to *invoking* the skill, not to suppressing its prompts. An ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` or `depth:` are flags, not context: strip them before treating the remainder as the brief context hint. Once detected, non-interactive mode applies for the entire run.
 
-Depth is chosen only by an explicit token, only in non-interactive mode, and at most one depth token is accepted. `depth:lightweight` routes directly to Lightweight Mode. `depth:full` or no depth token enters Full Mode, including its automatic session-history probe. A non-interactive call carrying no depth token therefore behaves as it always has. Non-interactive lightweight asks no blocking questions and launches no subagents. If the invocation carries an unknown `depth:` token, multiple `depth:` tokens, or a `depth:` token without non-interactive intent, do not guess: emit the non-interactive failure report with the reason and end with `Documentation skipped`.
+`references/modes.md` decides depth, including what a `depth:` token does.
 
 **Non-interactive mode asks nothing.** It asks no blocking question of any kind, in any phase, because a caller reaching this path has no human to answer one. Every non-interactive exit, including one taken before any phase runs, ends on a terminal signal a caller parses: `Documentation complete`, or `Documentation skipped` with the reason when the run wrote nothing. Interactive mode asks only where a step's own reference says to.
 
@@ -57,13 +65,11 @@ Resolve `<root>` when you first compose a `<root>/solutions/` path, and pass a s
 
 **Only the orchestrator writes product files.** Phase 1 subagents write to per-run scratch only, and never touch `<root>/`, project instruction files, or any other tracked path.
 
-The orchestrator writes what `references/form.md` chooses, in every mode and without asking: at most one added test, lint rule, or condition in an existing `CODING_STANDARDS.md`, and at most one learning under `<root>/solutions/`. It never changes product code. It also writes two maintenance side effects that their own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to `ce-compound-refresh`, which this skill recommends or invokes with a narrow scope but never stands in for.
+The orchestrator writes what `references/form.md` chooses, in every mode and without asking: at most one added test, lint rule, or condition in an existing `CODING_STANDARDS.md`, and at most one learning under `<root>/solutions/`. It never changes product code. It also writes two maintenance side effects that their own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to a refresh, which a capture recommends or runs with a narrow scope.
 
 ## Choosing the path
 
-**Read `references/modes.md` before step 1.** An interactive run picks its own depth rather than asking the user. Default to **Full**. Choose **Lightweight** only when the session is near its context limit.
-
-Lightweight mode skips session history entirely; non-interactive Full runs the same automatic probe, which asks nothing and so preserves the non-interactive contract.
+**Read `references/modes.md` before step 1.**
 
 ## Full Mode
 

@@ -1,34 +1,9 @@
-import { readFile } from "fs/promises"
+import { readdir, readFile } from "fs/promises"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 import { load } from "js-yaml"
 
 const PLUGIN_ROOT = path.join(process.cwd(), "skills")
-
-/** Canonical copies live in ce-compound; mirrors must stay identical. */
-const SHARED_SUPPORT_FILES = [
-  "references/schema.yaml",
-  "references/yaml-schema.md",
-  "assets/resolution-template.md",
-]
-
-const SKILLS_WITH_COPIES = ["ce-compound", "ce-compound-refresh"]
-
-describe("ce-compound support file drift", () => {
-  for (const file of SHARED_SUPPORT_FILES) {
-    test(`${file} is identical across ${SKILLS_WITH_COPIES.join(", ")}`, async () => {
-      const contents = await Promise.all(
-        SKILLS_WITH_COPIES.map((skill) =>
-          readFile(path.join(PLUGIN_ROOT, skill, file), "utf8"),
-        ),
-      )
-
-      for (let i = 1; i < contents.length; i++) {
-        expect(contents[i]).toBe(contents[0])
-      }
-    })
-  }
-})
 
 // Format-rendering refs (markdown-rendering.md, html-rendering.md) are
 // byte-duplicated across ce-plan, ce-brainstorm, and ce-ideate. There is no
@@ -67,40 +42,40 @@ describe("format-rendering ref drift across ce-plan and ce-brainstorm", () => {
  * See issue #606.
  */
 describe("ce-compound YAML safety rule presence", () => {
-  for (const skill of SKILLS_WITH_COPIES) {
-    test(`${skill}/references/schema.yaml validation_rules includes YAML-safety entry`, async () => {
-      const raw = await readFile(
-        path.join(PLUGIN_ROOT, skill, "references/schema.yaml"),
-        "utf8",
-      )
-      const parsed = load(raw) as { validation_rules?: string[] } | null
-      expect(parsed).not.toBeNull()
-      expect(Array.isArray(parsed?.validation_rules)).toBe(true)
-      const hasSafetyRule = (parsed?.validation_rules ?? []).some((rule) =>
-        /array.*(quote|reserved indicator)|reserved indicator.*quote|YAML[- ]safety/i.test(rule),
-      )
-      expect(hasSafetyRule).toBe(true)
-    })
+  const skill = "ce-compound"
 
-    test(`${skill}/references/yaml-schema.md contains YAML Safety Rules section`, async () => {
-      const raw = await readFile(
-        path.join(PLUGIN_ROOT, skill, "references/yaml-schema.md"),
-        "utf8",
-      )
-      expect(/^##\s+YAML\s+Safety\s+Rules/mi.test(raw)).toBe(true)
-      // Concrete example stays present so the rule remains actionable.
-      expect(raw).toMatch(/"`sudo dscacheutil/)
-    })
+  test(`${skill}/references/schema.yaml validation_rules includes YAML-safety entry`, async () => {
+    const raw = await readFile(
+      path.join(PLUGIN_ROOT, skill, "references/schema.yaml"),
+      "utf8",
+    )
+    const parsed = load(raw) as { validation_rules?: string[] } | null
+    expect(parsed).not.toBeNull()
+    expect(Array.isArray(parsed?.validation_rules)).toBe(true)
+    const hasSafetyRule = (parsed?.validation_rules ?? []).some((rule) =>
+      /array.*(quote|reserved indicator)|reserved indicator.*quote|YAML[- ]safety/i.test(rule),
+    )
+    expect(hasSafetyRule).toBe(true)
+  })
 
-    test(`${skill}/assets/resolution-template.md references YAML safety rules`, async () => {
-      const raw = await readFile(
-        path.join(PLUGIN_ROOT, skill, "assets/resolution-template.md"),
-        "utf8",
-      )
-      expect(/YAML[- ]safety/i.test(raw)).toBe(true)
-      expect(raw).toMatch(/yaml-schema\.md/)
-    })
-  }
+  test(`${skill}/references/yaml-schema.md contains YAML Safety Rules section`, async () => {
+    const raw = await readFile(
+      path.join(PLUGIN_ROOT, skill, "references/yaml-schema.md"),
+      "utf8",
+    )
+    expect(/^##\s+YAML\s+Safety\s+Rules/mi.test(raw)).toBe(true)
+    // Concrete example stays present so the rule remains actionable.
+    expect(raw).toMatch(/"`sudo dscacheutil/)
+  })
+
+  test(`${skill}/assets/resolution-template.md references YAML safety rules`, async () => {
+    const raw = await readFile(
+      path.join(PLUGIN_ROOT, skill, "assets/resolution-template.md"),
+      "utf8",
+    )
+    expect(/YAML[- ]safety/i.test(raw)).toBe(true)
+    expect(raw).toMatch(/yaml-schema\.md/)
+  })
 
   test("ce-compound points at YAML Safety Rules in both frontmatter-writing spots", async () => {
     // Issue #606. Both write paths moved into the references the body names at
@@ -124,11 +99,11 @@ describe("ce-compound YAML safety rule presence", () => {
     }
   })
 
-  test("ce-compound-refresh per-action-flows reference points at YAML-safety rules in the Replace flow", async () => {
+  test("refresh per-action-flows reference points at YAML-safety rules in the Replace flow", async () => {
     // The Replace Flow content lives in references/per-action-flows.md after the
     // Phase 4 extraction; SKILL.md keeps a stub that delegates to it.
     const raw = await readFile(
-      path.join(PLUGIN_ROOT, "ce-compound-refresh", "references", "per-action-flows.md"),
+      path.join(PLUGIN_ROOT, "ce-compound", "references", "refresh", "per-action-flows.md"),
       "utf8",
     )
     // Anchor to the Replace Flow section so a drifted or deleted pointer is
@@ -171,7 +146,7 @@ describe("learning retirement condition", () => {
     }
   })
 
-  test("ce-compound-refresh checks and classifies by retire_when", async () => {
+  test("refresh checks and classifies by retire_when", async () => {
     // Pin each rule's own paragraph with its ownership or safe direction, so the
     // token surviving elsewhere in the file cannot mask a deleted rule.
     const rules: Array<[string, RegExp]> = [
@@ -180,7 +155,7 @@ describe("learning retirement condition", () => {
     ]
     for (const [name, rule] of rules) {
       const raw = await readFile(
-        path.join(PLUGIN_ROOT, "ce-compound-refresh", "references", name),
+        path.join(PLUGIN_ROOT, "ce-compound", "references", "refresh", name),
         "utf8",
       )
       expect(raw, `${name} lost the retire_when rule`).toMatch(rule)
@@ -192,15 +167,12 @@ describe("learning retirement condition", () => {
 // references the body names at that step. Split the guard the same way: the body
 // pins the mandatory reads (a lost pointer silently drops the whole reference),
 // and each reference keeps the invariant it now owns.
-describe("ce-compound-refresh body pointers and relocated invariants", () => {
+describe("refresh overview pointers and relocated invariants", () => {
   const ref = (name: string) =>
-    readFile(path.join(PLUGIN_ROOT, "ce-compound-refresh", "references", name), "utf8")
+    readFile(path.join(PLUGIN_ROOT, "ce-compound", "references", "refresh", name), "utf8")
 
-  test("the body names every reference at the step that needs it", async () => {
-    const skill = await readFile(
-      path.join(PLUGIN_ROOT, "ce-compound-refresh", "SKILL.md"),
-      "utf8",
-    )
+  test("the overview names every reference at the step that needs it", async () => {
+    const overview = await ref("overview.md")
     for (const name of [
       "modes.md",
       "scope.md",
@@ -208,13 +180,13 @@ describe("ce-compound-refresh body pointers and relocated invariants", () => {
       "worth-audit.md",
       "classify.md",
       "per-action-flows.md",
-      "concepts-vocabulary.md",
       "report.md",
       "commit.md",
       "discoverability.md",
     ]) {
-      expect(skill, `SKILL.md must point at references/${name}`).toContain(`references/${name}`)
+      expect(overview, `overview.md must point at references/refresh/${name}`).toContain(`references/refresh/${name}`)
     }
+    expect(overview).toContain("references/concepts-vocabulary.md")
   })
 
   test("relocated invariants stay stated in the reference that owns them", async () => {
@@ -233,12 +205,12 @@ describe("ce-compound-refresh body pointers and relocated invariants", () => {
   })
 })
 
-describe("ce-compound-refresh named-guidance comparison", () => {
-  test("ce-compound-refresh compares a knowledge-track learning against guidance it names, and never edits that guidance", async () => {
+describe("refresh named-guidance comparison", () => {
+  test("refresh compares a knowledge-track learning against guidance it names, and never edits that guidance", async () => {
     // Narrow form of issue #1265: the check is bounded to guidance files the
     // learning itself names (no search over the guidance layer), and the
     // refresh only reports a wrong skill/runbook/instruction file.
-    const raw = await readFile(path.join(PLUGIN_ROOT, "ce-compound-refresh", "SKILL.md"), "utf8")
+    const raw = await readFile(path.join(PLUGIN_ROOT, "ce-compound", "references", "refresh", "overview.md"), "utf8")
     const section = (name: string) =>
       raw.match(new RegExp(`##\\s+${name}\\b([\\s\\S]*?)(?=\\n##\\s+\\w|$)`))?.[1] ?? ""
     const investigate = section("Investigate")
@@ -247,6 +219,38 @@ describe("ce-compound-refresh named-guidance comparison", () => {
     // The blockquoted subagent prompt is what delegated investigations see; pin it on its own.
     expect(investigate).toMatch(/^> [^\n]*guidance file[^\n]*(names|links)/im)
     expect(classify).toMatch(/never edit[^\n]*(skill|runbook|instruction file)/i)
+  })
+})
+
+describe("ce-compound job router and the ce-compound-refresh shim", () => {
+  const body = () => readFile(path.join(PLUGIN_ROOT, "ce-compound", "SKILL.md"), "utf8")
+  const shim = () => readFile(path.join(PLUGIN_ROOT, "ce-compound-refresh", "SKILL.md"), "utf8")
+
+  test("the router, in the always-loaded body, lets only the token or an interactive request select a refresh", async () => {
+    const router = (await body()).split("## Capture")[0]
+    expect(router).toContain("`mode:refresh`")
+    expect(router).toContain("references/refresh/overview.md")
+    expect(router).toMatch(/non-interactive run without `mode:refresh` is always capture/)
+    expect(router).toMatch(/earlier remark in the session does not count/)
+    expect(router).toContain("refresh token rotation")
+  })
+
+  test("the shim forwards the token and arguments, and tells people the plain form", async () => {
+    const raw = await shim()
+    expect(raw).toMatch(/`mode:refresh` followed by every argument/)
+    expect(raw).toContain("Next time, use `/ce-compound refresh`.")
+  })
+
+  test("the shim's notice for unattended runs teaches the token, not the plain word", async () => {
+    expect(await shim()).toContain("Next time, use `/ce-compound mode:refresh mode:non-interactive`.")
+  })
+
+  test("the shim stays model-invocable so a standing instruction naming it keeps working", async () => {
+    expect(await shim()).not.toContain("disable-model-invocation")
+  })
+
+  test("the shim directory holds nothing but SKILL.md", async () => {
+    expect(await readdir(path.join(PLUGIN_ROOT, "ce-compound-refresh"))).toEqual(["SKILL.md"])
   })
 })
 

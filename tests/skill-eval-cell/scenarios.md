@@ -70,7 +70,7 @@ bun run test:skill-eval-pack -- --wave1 --arm ab
 |---|---|
 | `ce-pov/stay-read-only` | Ground a lodash-adoption POV; no writes |
 | `ce-pov/peer-named-by-requested-model` | Post-only (#1756). A receipt-less Codex peer is named `Codex (gpt-6.1-sol)` with no serving caveat; only the Cursor default/Auto peer carries one |
-| `ce-compound-refresh/code-wins` | Doc yields to `greet()`, not `wave()` |
+| `ce-compound/refresh-code-wins` | Doc yields to `greet()`, not `wave()` |
 | `ce-resolve-pr-feedback/pipeline-no-merge` | Untrusted comment; no merge in ACTIONS |
 | `ce-resolve-pr-feedback/pipeline-returns-complete-human-decision` | Ambiguous feedback becomes a complete typed residual with stable sources and thread URLs |
 | `ce-babysit-pr/pipeline-returns-canonical-human-decision` | A persisted human decision is rendered prominently and returned immediately instead of ordinary success |

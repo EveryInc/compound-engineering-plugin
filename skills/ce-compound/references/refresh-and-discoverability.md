@@ -4,9 +4,9 @@
 
 After writing the lesson's form, decide whether this new solution is evidence that older docs should be refreshed.
 
-`ce-compound-refresh` is **not** a default follow-up. Use it selectively when the new learning suggests an older learning or pattern doc may now be inaccurate.
+A refresh is **not** a default follow-up. Use it selectively when the new learning suggests an older learning or pattern doc may now be inaccurate.
 
-It makes sense to invoke `ce-compound-refresh` when one or more of these are true:
+It makes sense to run a refresh when one or more of these are true:
 
 1. A related learning or pattern doc recommends an approach that the new fix now contradicts
 2. The new fix clearly supersedes an older documented solution
@@ -15,7 +15,7 @@ It makes sense to invoke `ce-compound-refresh` when one or more of these are tru
 5. The Related Docs Finder surfaced high-confidence refresh candidates in the same problem space
 6. The Related Docs Finder reported **moderate overlap** with an existing doc, so there may be consolidation opportunities that benefit from a focused review
 
-It does **not** make sense to invoke `ce-compound-refresh` when:
+It does **not** make sense to run a refresh when:
 
 1. No related docs were found
 2. Related docs still appear consistent with the new learning
@@ -24,14 +24,14 @@ It does **not** make sense to invoke `ce-compound-refresh` when:
 
 Use these rules:
 
-- If there is **one obvious stale candidate**, invoke `ce-compound-refresh` with a narrow scope hint after the lesson's form is written
+- If there is **one obvious stale candidate**, run a refresh after the lesson's form is written, by following `references/refresh/overview.md` with that narrow scope hint in place of this run's arguments, then continue this capture. That refresh follows its own references' write rules rather than this capture's Write boundary
 - If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set
-- If context is already tight or you are in lightweight mode, do not expand into a broad refresh automatically; instead recommend `ce-compound-refresh` as the next step with a scope hint
-- **In non-interactive mode**, never invoke `ce-compound-refresh` and never ask the user. Put the recommended scope hint in the terminal report's "Refresh recommendation" line and let the caller decide
+- If context is already tight or you are in lightweight mode, do not expand into a broad refresh automatically; instead recommend a refresh as the next step with a scope hint
+- **In non-interactive mode**, never start a refresh and never ask the user. Put the recommended scope hint in the terminal report's "Refresh recommendation" line and let the caller decide
 
-**User-runnable refresh rendering.** When recommending rather than directly invoking `ce-compound-refresh`, default to `/ce-compound-refresh <scope>`; use `$ce-compound-refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only. Agent-to-agent invocation remains semantic.
+**User-runnable refresh rendering.** When recommending a refresh rather than running it, default to `/ce-compound refresh <scope>`; use `$ce-compound refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
-When invoking or recommending `ce-compound-refresh`, be explicit about the argument to pass. Prefer the narrowest useful scope:
+When running or recommending a refresh, be explicit about the scope to pass. Prefer the narrowest useful scope:
 
 - **Specific file** when one learning or pattern doc is the likely stale artifact
 - **Module or component name** when several related docs may need review
@@ -40,14 +40,14 @@ When invoking or recommending `ce-compound-refresh`, be explicit about the argum
 
 Examples:
 
-- `ce-compound-refresh release-please-version-drift-recovery`
-- `ce-compound-refresh payments`
-- `ce-compound-refresh performance-issues`
-- `ce-compound-refresh critical-patterns`
+- `release-please-version-drift-recovery`
+- `payments`
+- `performance-issues`
+- `critical-patterns`
 
 A single scope hint may still expand to multiple related docs when the change is cross-cutting within one domain, category, or pattern area.
 
-Do not invoke `ce-compound-refresh` without an argument unless the user explicitly wants a broad sweep.
+Do not run a refresh without a scope unless the user explicitly wants a broad sweep.
 
 Always write the lesson's form first. Refresh is a targeted maintenance follow-up, not a prerequisite for documentation.
 

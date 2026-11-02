@@ -6,7 +6,6 @@ import path from "node:path"
 
 const SKILL_DIRS = [
   path.join(__dirname, "../skills/ce-compound"),
-  path.join(__dirname, "../skills/ce-compound-refresh"),
 ] as const
 
 function scriptPath(skillDir: string): string {
@@ -689,11 +688,4 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
       })
     })
   }
-
-  test("script content is identical across skill copies (per AGENTS.md duplication rule)", () => {
-    const [a, b] = SKILL_DIRS
-    const aContent = readFileSync(scriptPath(a), "utf8")
-    const bContent = readFileSync(scriptPath(b), "utf8")
-    expect(aContent).toBe(bContent)
-  })
 })

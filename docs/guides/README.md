@@ -55,7 +55,7 @@ Skills that anchor, feed, or maintain the loop without being steps inside it.
 | [`/ce-strategy`](./ce-strategy.md) | Create or maintain `STRATEGY.md`, the upstream anchor `ce-ideate`, `ce-brainstorm`, and `ce-plan` read as grounding |
 | [`/ce-product-pulse`](./ce-product-pulse.md) | Outer observation loop: a time-windowed report on usage, performance, errors, and follow-ups, saved to `docs/pulse-reports/` |
 | [`/ce-sweep`](./ce-sweep.md) | Recurring feedback sweep: ingest Slack/GitHub items (email experimental), acknowledge at source, and keep an `/lfg`-ready rolling plan |
-| [`/ce-compound-refresh`](./ce-compound-refresh.md) | Keep lessons accurate and in the right form: maintain `docs/solutions/` (Keep / Update / Consolidate / Replace / Delete) and retire standards a check now covers, Interactive or Autofix |
+| [`/ce-compound-refresh`](./ce-compound-refresh.md) | Deprecated: the old name for `/ce-compound refresh`, which keeps lessons accurate and retires standards a check now covers. It prints a notice and runs the refresh |
 
 ---
 

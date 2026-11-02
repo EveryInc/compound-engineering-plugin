@@ -81,7 +81,7 @@ Two things keep the review docs current:
 - **Each change.** The pointer line in your agent-instructions file tells agents to update a review doc when a change establishes or retires a rule, so most upkeep happens in the pull request that caused it.
 - **A periodic refresh.** Teams change how they work, and some of that only shows up across many pull requests: findings under a rule that reviewers keep declining, a rule a new lint check now enforces, a fix pattern that keeps recurring. Run `/ce-setup standards` (or ask to refresh your coding standards) after a stretch of heavy review activity, or on a regular cadence such as quarterly. Setup reads the pull requests and review feedback each file has not yet accounted for, usually everything since its rules last changed, checks every existing rule against them, and proposes additions, changes, and retirements as a diff, with the evidence for each. It writes nothing until you approve.
 
-There is no standing instruction for the refresh, and setup does not run unattended: the preview needs someone to approve it. This mirrors [`ce-compound-refresh`](./ce-compound-refresh.md), the periodic pass for the knowledge store.
+There is no standing instruction for the refresh, and setup does not run unattended: the preview needs someone to approve it. This mirrors a [`ce-compound` refresh](./ce-compound.md#refresh), the periodic pass for the knowledge store.
 
 ## Scaffold a Compound Pack
 

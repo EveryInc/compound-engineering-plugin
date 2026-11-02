@@ -17,7 +17,7 @@ Examples of valid in-place updates:
 - Fix outdated links to related docs
 - Refresh implementation notes after a directory move
 - Relocate a doc whose directory and frontmatter category unambiguously disagree (see Relocation below)
-- Cut claims a named artifact states, keeping one line that points to it (`references/worth-audit.md`)
+- Cut claims a named artifact states, keeping one line that points to it (`references/refresh/worth-audit.md`)
 
 Examples that should **not** be in-place updates:
 

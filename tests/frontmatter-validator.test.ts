@@ -9,10 +9,6 @@ const SKILL_DIRS = [
     __dirname,
     "../skills/ce-compound",
   ),
-  path.join(
-    __dirname,
-    "../skills/ce-compound-refresh",
-  ),
 ] as const
 
 function scriptPath(skillDir: string): string {
@@ -275,11 +271,4 @@ Body.
       })
     })
   }
-
-  test("script content is identical across skill copies (per AGENTS.md duplication rule)", () => {
-    const [a, b] = SKILL_DIRS
-    const aContent = readFileSync(scriptPath(a), "utf8")
-    const bContent = readFileSync(scriptPath(b), "utf8")
-    expect(aContent).toBe(bContent)
-  })
 })

@@ -5,7 +5,7 @@ Assign each doc one outcome:
 | Outcome | Meaning | Action |
 |---------|---------|--------|
 | **Keep** | Still accurate and useful | No edit — report it as reviewed. Do not write a review breadcrumb or `last_refreshed` on its own. |
-| **Update** | Solution still correct; references drifted (paths, names, links, snippets, metadata, misfiling), or some claims are stated by a named artifact (`references/worth-audit.md`) | Fix in place |
+| **Update** | Solution still correct; references drifted (paths, names, links, snippets, metadata, misfiling), or some claims are stated by a named artifact (`references/refresh/worth-audit.md`) | Fix in place |
 | **Consolidate** | Docs overlap heavily, both correct | Merge unique content into the canonical doc, delete the subsumed one |
 | **Replace** | Guidance is now misleading; a trustworthy successor can be written | Successor via subagent, then delete the old |
 | **Delete** | No longer useful, applicable, or distinct | Delete the file — git history is the archive; there is no `_archived/` |
@@ -29,7 +29,7 @@ A memory-sourced signal never carries an outcome on its own: it corroborates cod
 1. **Is the problem domain still active?** Missing files prove the *implementation* is gone, not the problem. If the app still deals with what the doc addresses (e.g., the auth-token file is gone but sessions are still handled), that is Replace, not Delete. A doc that never referenced in-repo code (developer environment, onboarding, process) can never satisfy "implementation gone" and **never auto-deletes** — stale-mark (non-interactive) or ask (interactive) when its currency is in doubt. A worth-based Delete has its own gate below.
 2. **Inbound links.** Search the repo's markdown (not source code) for the filename slug; read context around matches. **Decorative** citations (see-also pointers, principle already stated inline) permit Delete with mechanical cleanup in the same commit. **Substantive** citations (the citing doc relies on the cited content) signal Replace — or Keep with narrowed scope. Mixed or unclear: stale-mark.
 
-**Worth-based Delete (no confirmation needed, either mode):** `references/worth-audit.md` routed the doc to Delete with a quoted artifact for every claim, and inbound citations are absent or decorative. Those quotes answer check 1 above, because the lesson survives in the artifact.
+**Worth-based Delete (no confirmation needed, either mode):** `references/refresh/worth-audit.md` routed the doc to Delete with a quoted artifact for every claim, and inbound citations are absent or decorative. Those quotes answer check 1 above, because the lesson survives in the artifact.
 
 **Auto-delete (no confirmation needed, either mode) only when all three hold:** the implementation once lived in this repo and is gone (or the doc is fully superseded or plainly redundant); the problem domain is gone — or, for a superseded/redundant doc, the surviving canonical doc itself already states the subsumed doc's guidance (topical overlap is not coverage: verify the specific content exists there before deleting); inbound citations are absent or unambiguously decorative. Any condition fails → Replace, Update, Consolidate, stale-mark, or ask.
 
@@ -39,6 +39,6 @@ A memory-sourced signal never carries an outcome on its own: it corroborates cod
 
 Apply unambiguous Keeps, Updates, and Consolidations directly — no confirmation. Ask (per Blocking questions) only when: the action is genuinely ambiguous; a Delete fails both the auto-delete gate and the worth-based gate; the canonical doc in a Consolidate isn't clear-cut; you are about to Replace; or you are about to Split (it writes successors and deletes the original — confirm fragment boundaries like a Replace). Present the file path, 2-4 evidence bullets, and the recommended action; offer only plausible alternatives plus "skip for now". For broad sweeps, work in batches and confirm continuation between them rather than front-loading a full maintenance queue.
 
-## Relationship to ce-compound
+## Relationship to capture
 
-`ce-compound` captures a newly solved problem. This skill maintains the store as the codebase evolves: each doc's accuracy and worth, the design of the set, and the standards rules that `references/worth-audit.md` covers. Replace only on real evidence; without it, stale-mark the doc and point the user at `ce-compound`. Consolidate proactively, because captures add docs and redundant docs drift.
+A capture records a newly solved problem. A refresh maintains the store as the codebase evolves: each doc's accuracy and worth, the design of the set, and the standards rules that `references/refresh/worth-audit.md` covers. Replace only on real evidence; without it, stale-mark the doc and point the user at `ce-compound`. Consolidate proactively, because captures add docs and redundant docs drift.

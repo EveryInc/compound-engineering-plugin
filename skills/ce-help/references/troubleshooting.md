@@ -13,7 +13,7 @@
 | Plans or learnings are not where the user expected | `docs_root` in `.compound-engineering/config.yaml` moves every CE artifact folder. Format options can also change ideation, brainstorm, and plan files from `.md` to `.html`. |
 | `ce-compound` wrote nothing | It captures only what the final code, tests, standards, and docs do not already show, so skipping a routine fix is correct. If a lesson was missed, run it again and say what the lesson was. |
 | Learnings are captured only when the user asks | A standing instruction fixes this. `ce-setup` offers one when the repo tracks its learnings. |
-| New plans ignore past learnings | Check that `<root>/solutions/` holds learnings and that `ce-plan` ran in this repo. `ce-compound-refresh` handles learnings that have gone stale. |
+| New plans ignore past learnings | Check that `<root>/solutions/` holds learnings and that `ce-plan` ran in this repo. A `ce-compound` refresh handles learnings that have gone stale. |
 | A hands-off run stopped before merging | That is expected. Merging normally stays with the user. The `lfg` guide page covers where a run ends. |
 | The agent's last reply made no sense | `wtf` explains it plainly. |
 | A session is out of context, or the work has to move to another agent | `ce-handoff` writes a handoff, and a new session can resume from it. |

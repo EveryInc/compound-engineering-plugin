@@ -495,6 +495,159 @@ const RETRY_LESSON = "src/payments.js wrapped chargeCard in withRetry, and a tim
 const COVERED_LESSON = "roundCents in src/money.js rounds half up. The fix for a finance mismatch is in the tree, and tests/money.test.js already asserts the half-up case with a comment saying finance reconciles against half-up totals."
 const SIGNAL_LESSON = "src/pricing.js silently fell back to USD when a currency was unknown, and it took two days to find out because nothing recorded the fallback. The fix, already in the tree, corrected the currency table. The debug summary's Prevention line proposed a cheap always-on signal: a currency_fallback log field in priceFor."
 
+const JOB_DECISION =
+  "Decide which job this run does, then stop before reading anything else or writing anything. Include exactly one line reading `JOB: capture`, `JOB: refresh`, or `JOB: ask`, where ask means you would first ask me which job I want."
+const TOKEN_ROTATION_LESSON =
+  "We just fixed and verified a bug where refresh token rotation reused the old token."
+
+const JOB_PRE_CONTRACT = "A sweep can delete docs and open a PR, so only mode:refresh or a person's stated request starts one."
+
+function jobRow(name: string, why: string, task: string, job: "capture" | "refresh" | "ask"): Scenario {
+  return {
+    id: `ce-compound/job-${name}`,
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/refresh-worth-lens`,
+    why,
+    pre_contract: JOB_PRE_CONTRACT,
+    task: `${task} ${JOB_DECISION}`,
+    grade: { declared: { JOB: job }, actions: "none" },
+  }
+}
+
+const SHIM_NOTICE = "has merged into"
+const SHIM_PRE_CONTRACT = "The old name keeps working: it prints the notice and hands off to ce-compound with mode:refresh and its arguments."
+
+function shimHandoffRow(name: string, why: string, task: string, logged: string[], notice: string[] = ["ce-compound refresh"]): Scenario {
+  return {
+    id: `ce-compound-refresh/${name}`,
+    post_only: true,
+    skill: "ce-compound-refresh",
+    cohort: "resized",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/refresh-worth-lens`,
+    handoff_probe: ["ce-compound"],
+    shim_git_push: true,
+    shim_gh_pr: true,
+    timeout_secs: 600,
+    why,
+    pre_contract: SHIM_PRE_CONTRACT,
+    task,
+    grade: {
+      must_include: [SHIM_NOTICE, ...notice],
+      shim_log_must: ["handoff ce-compound", "mode:refresh", ...logged],
+      shim_log_must_not: ["git push", "pr create", "pr merge"],
+      no_new_commits: true,
+      workspace_unchanged: true,
+    },
+  }
+}
+
+const COMPOUND_JOB_ROWS: Scenario[] = [
+  jobRow("bare-is-capture", "A plain run after solved work is a capture.", `Use the ce-compound skill. ${TOKEN_ROTATION_LESSON}`, "capture"),
+  jobRow(
+    "unattended-token-rotation-is-capture",
+    "Capture takes free text, and unattended runs cannot ask, so words that start with refresh must not start a sweep.",
+    `Use the ce-compound skill with these arguments: mode:non-interactive refresh token rotation. ${TOKEN_ROTATION_LESSON}`,
+    "capture",
+  ),
+  jobRow(
+    "unattended-refresh-words-are-capture",
+    "Without the token, an unattended run is a capture even when its text asks for a refresh.",
+    "Use the ce-compound skill with these arguments: mode:non-interactive refresh the stale learnings.",
+    "capture",
+  ),
+  jobRow("token-is-refresh", "The token selects a refresh, with a scope.", "Use the ce-compound skill with these arguments: mode:refresh workflow.", "refresh"),
+  jobRow(
+    "unattended-token-is-refresh",
+    "The token combines with non-interactive, which is how a schedule asks for a sweep.",
+    "Use the ce-compound skill with these arguments: mode:refresh mode:non-interactive.",
+    "refresh",
+  ),
+  jobRow(
+    "person-plain-words-are-refresh",
+    "A person does not need the token.",
+    "Use the ce-compound skill. I'm here at the keyboard. Please clean up the learnings, some look out of date.",
+    "refresh",
+  ),
+  jobRow(
+    "person-refresh-word-with-scope-is-refresh",
+    "The plain form the deprecation notice teaches must start a refresh.",
+    "I'm here at the keyboard. Run the ce-compound skill with these arguments: refresh workflow.",
+    "refresh",
+  ),
+  jobRow(
+    "person-ambiguous-words-ask",
+    "Words that could mean either job get one question when someone can answer.",
+    "Use the ce-compound skill. I'm here at the keyboard. Refresh this.",
+    "ask",
+  ),
+  {
+    id: "ce-compound/job-unattended-refresh-words-touch-no-doc",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/refresh-forms`,
+    timeout_secs: 900,
+    why: "The worst misread is an unattended capture that sweeps the store. With no solved problem, the run must end without touching a doc.",
+    pre_contract: JOB_PRE_CONTRACT,
+    task: `Use the ce-compound skill with these arguments: mode:non-interactive refresh the stale learnings. ${COMPOUND_REPORT}`,
+    grade: {
+      no_new_commits: true,
+      result_must_include: ["Documentation skipped"],
+      workspace_contains: [{ path: "docs/solutions/workflow/lock-retry-and-wait.md", needle: "so a second retry can never succeed" }],
+    },
+  },
+  shimHandoffRow(
+    "shim-attended-hands-off",
+    "A person typing the old name sees the notice and gets a refresh.",
+    "Run the ce-compound-refresh skill on the workflow category.",
+    ["workflow"],
+  ),
+  shimHandoffRow(
+    "shim-unattended-keeps-token-and-scope",
+    "A schedule using the old name must still sweep, so the shim supplies the token and forwards the mode and scope.",
+    "Use the ce-compound-refresh skill with these arguments: mode:non-interactive workflow.",
+    ["mode:non-interactive", "workflow"],
+    ["ce-compound mode:refresh mode:non-interactive"],
+  ),
+  shimHandoffRow(
+    "shim-standing-instruction-can-invoke",
+    "A standing instruction naming the old skill keeps working because agents can still invoke it.",
+    "This repository's instructions say: after a release, run ce-compound-refresh on the workflow category. A release just finished, so do that now.",
+    ["workflow"],
+  ),
+  {
+    id: "ce-compound-refresh/shim-live-refresh-end-to-end",
+    post_only: true,
+    skill: "ce-compound-refresh",
+    with_skill: ["ce-compound"],
+    cohort: "resized",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/refresh-forms`,
+    timeout_secs: 1500,
+    why: "One skill calling another is the part most likely to differ by host, so one row runs the real refresh through the old name.",
+    pre_contract: SHIM_PRE_CONTRACT,
+    task: "Use the ce-compound-refresh skill mode:non-interactive. Put your final report between lines reading RESULT-START and RESULT-END, and print anything the skill asks you to print after them.",
+    grade: {
+      must_include: [SHIM_NOTICE],
+      workspace_contains: [{ path: "docs/solutions/workflow/lock-retry-and-wait.md", needle: "1,204" }],
+      workspace_lacks: [{ path: "docs/solutions/workflow/lock-retry-and-wait.md", needle: "so a second retry can never succeed" }],
+    },
+  },
+]
+
 const COMPOUND_FORM_ROWS: Scenario[] = [
   compoundFormRow(
     "testable-defect-writes-test",
@@ -3432,8 +3585,9 @@ Return the completion result to the coordinator.`,
     },
   },
   {
-    id: "ce-compound-refresh/code-wins",
-    skill: "ce-compound-refresh",
+    id: "ce-compound/refresh-code-wins",
+    post_only: true,
+    skill: "ce-compound",
     cohort: "resized",
     key_behavior: "judgment",
     read_only: true,
@@ -3441,16 +3595,16 @@ Return the completion result to the coordinator.`,
     why: "When code and a learning disagree, the doc is what changes.",
     pre_contract:
       "Match docs to reality, not the reverse. Never ask whether a code change was intentional.",
-    task: `Audit the learning in docs/solutions/seat-helper.md against the code. Tell me what you would change.`,
+    task: `Use the ce-compound skill mode:refresh. Audit the learning in docs/solutions/seat-helper.md against the code. Tell me what you would change.`,
     grade: {
       must_include: ["greet"],
       actions: "none",
     },
   },
   {
-    id: "ce-compound-refresh/guidance-survives-implementation-conflict",
+    id: "ce-compound/refresh-guidance-survives-implementation-conflict",
     post_only: true,
-    skill: "ce-compound-refresh",
+    skill: "ce-compound",
     cohort: "resized",
     key_behavior: "judgment",
     read_only: true,
@@ -3459,7 +3613,7 @@ Return the completion result to the coordinator.`,
     why: "A refresh must not rewrite still-supported guidance into agreement with code that stopped satisfying it.",
     pre_contract:
       "Independently supported guidance is classified from that evidence; code that stops satisfying it is reported as a potential product regression.",
-    task: `Audit the learning in docs/solutions/idempotent-retries.md against the repository. Stop before writes. State the result on a \`Classification: <outcome>\` line, then tell me the evidence and any follow-up.`,
+    task: `Use the ce-compound skill mode:refresh. Audit the learning in docs/solutions/idempotent-retries.md against the repository. Stop before writes. State the result on a \`Classification: <outcome>\` line, then tell me the evidence and any follow-up.`,
     grade: {
       workspace_read: [
         "docs/solutions/idempotent-retries.md",
@@ -5553,6 +5707,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     },
   },
   ...COMPOUND_FORM_ROWS,
+  ...COMPOUND_JOB_ROWS,
   {
     id: "ce-setup/standards-refresh-revisits-written-rules",
     skill: "ce-setup",
@@ -5603,9 +5758,9 @@ Use "Correct widget limit" as the description in the subject and any required bo
     },
   },
   {
-    id: "ce-compound-refresh/drift-only-keeps-redundant-accurate-doc",
+    id: "ce-compound/refresh-drift-only-keeps-redundant-accurate-doc",
     post_only: true,
-    skill: "ce-compound-refresh",
+    skill: "ce-compound",
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
@@ -5614,7 +5769,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     timeout_secs: 900,
     why: "A user who asks for drift fixes only keeps accurate content. retry-once-on-lock.md is accurate and its rule is also stated in a test comment and AGENTS.md, so a drift-only refresh keeps it.",
     pre_contract: "A drift-only refresh never deletes an accurate doc for holding knowledge the repo states elsewhere.",
-    task: "Use the ce-compound-refresh skill on the workflow category, and fix drift only. Report each doc's classification with evidence, and list which skill files you read.",
+    task: "Use the ce-compound skill mode:refresh on the workflow category, and fix drift only. Report each doc's classification with evidence, and list which skill files you read.",
     grade: {
       workspace_read: ["docs/solutions/workflow/retry-once-on-lock.md"],
       must_include: ["Keep"],
@@ -5622,9 +5777,9 @@ Use "Correct widget limit" as the description in the subject and any required bo
     },
   },
   {
-    id: "ce-compound-refresh/no-standards-file-stays-quiet",
+    id: "ce-compound/refresh-no-standards-file-stays-quiet",
     post_only: true,
-    skill: "ce-compound-refresh",
+    skill: "ce-compound",
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: false,
@@ -5633,7 +5788,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     timeout_secs: 1500,
     why: "Repeated sweeps must not keep asking a repo without coding standards to adopt them. A doc that is really a rule stays in place, and nothing in the report, the store, or the commit names ce-setup.",
     pre_contract: "A doc changes only on evidence in a named artifact; a missing standards file is not a finding.",
-    task: "Use the ce-compound-refresh skill mode:non-interactive. Put your final report between lines reading RESULT-START and RESULT-END.",
+    task: "Use the ce-compound skill mode:refresh mode:non-interactive. Put your final report between lines reading RESULT-START and RESULT-END.",
     grade: {
       workspace_contains: [
         { path: "docs/solutions/conventions/no-customer-data-in-errors.md", needle: "customer data" },
@@ -5644,9 +5799,9 @@ Use "Correct widget limit" as the description in the subject and any required bo
     },
   },
   {
-    id: "ce-compound-refresh/no-standards-file-attended-note",
+    id: "ce-compound/refresh-no-standards-file-attended-note",
     post_only: true,
-    skill: "ce-compound-refresh",
+    skill: "ce-compound",
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
@@ -5655,16 +5810,16 @@ Use "Correct widget limit" as the description in the subject and any required bo
     timeout_secs: 1200,
     why: "An attended refresh says once, in its summary, that docs could become standards. It asks nothing and reports no per-doc finding.",
     pre_contract: "A doc changes only on evidence in a named artifact; a missing standards file is not a finding.",
-    task: "Use the ce-compound-refresh skill on the conventions category. Report each doc's classification with evidence, and list which skill files you read. Do not write anything, and treat any question you would ask as unanswered.",
+    task: "Use the ce-compound skill mode:refresh on the conventions category. Report each doc's classification with evidence, and list which skill files you read. Do not write anything, and treat any question you would ask as unanswered.",
     grade: {
       must_include: ["could be coding standards if you adopt them"],
       actions: "none",
     },
   },
   {
-    id: "ce-compound-refresh/applies-form-findings-unattended",
+    id: "ce-compound/refresh-applies-form-findings-unattended",
     post_only: true,
-    skill: "ce-compound-refresh",
+    skill: "ce-compound",
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: false,
@@ -5673,7 +5828,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
     timeout_secs: 1500,
     why: "Without any confirmation, a non-interactive refresh cuts a restated claim, keeps a measurement, removes a rule a check fully covers, narrows one it partly covers, turns a judgment rule into a standard, only recommends a check, and leaves a doc that merely shares a topic with a test.",
     pre_contract: "A doc changes only on evidence in a named artifact; unverifiable claims stay; product code never changes.",
-    task: "Use the ce-compound-refresh skill mode:non-interactive. Put your final report between lines reading RESULT-START and RESULT-END.",
+    task: "Use the ce-compound skill mode:refresh mode:non-interactive. Put your final report between lines reading RESULT-START and RESULT-END.",
     grade: {
       workspace_contains: [
         { path: "docs/solutions/workflow/lock-retry-and-wait.md", needle: "1,204" },
@@ -5691,9 +5846,9 @@ Use "Correct widget limit" as the description in the subject and any required bo
     },
   },
   {
-    id: "ce-compound-refresh/worth-deletes-only-with-quoted-artifact",
+    id: "ce-compound/refresh-worth-deletes-only-with-quoted-artifact",
     post_only: true,
-    skill: "ce-compound-refresh",
+    skill: "ce-compound",
     cohort: "untouched",
     key_behavior: "judgment",
     read_only: true,
@@ -5703,9 +5858,9 @@ Use "Correct widget limit" as the description in the subject and any required bo
     why: "A refresh deletes an accurate doc only when a named artifact states its reasoning, quoted as evidence, and keeps a doc whose measurement and rejected alternative exist nowhere else.",
     pre_contract:
       "Recoverability needs positive evidence: a named in-repo artifact whose own text states the reasoning. Nothing recoverable is Keep.",
-    task: "Use the ce-compound-refresh skill on the workflow category. Report each doc's verdict with its evidence, and list which skill files you read. Do not write anything.",
+    task: "Use the ce-compound skill mode:refresh on the workflow category. Report each doc's verdict with its evidence, and list which skill files you read. Do not write anything.",
     grade: {
-      files_read_post: ["references/worth-audit.md"],
+      files_read_post: ["references/refresh/worth-audit.md"],
       workspace_read: ["tests/jobs.test.js"],
       must_include: ["retry-once-on-lock.md", "Delete", "jobs.test.js", "header-parse-measured-limit.md", "Keep"],
       actions: "none",

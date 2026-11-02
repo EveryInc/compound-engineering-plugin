@@ -4,10 +4,6 @@ import { describe, expect, test } from "bun:test"
 
 const SKILLS = path.join(import.meta.dir, "..", "skills")
 
-// The durable-knowledge bar is what ce-compound applies before writing a
-// learning and what ce-compound-refresh's worth audit applies to learnings
-// already written. The two skills may not read each other's files, so the
-// paragraph is byte-duplicated and delimited; ce-compound's copy is canonical.
 const START = "<!-- ce-durable-bar:start -->"
 const END = "<!-- ce-durable-bar:end -->"
 
@@ -31,23 +27,23 @@ describe("durable-bar parity", () => {
     expect(normalized(copy)).toBe(normalized(owner))
   })
 
-  test("refresh's worth audit carries ce-compound's bar verbatim", async () => {
-    expect(await block("ce-compound-refresh/references/worth-audit.md")).toBe(
-      await block("ce-compound/SKILL.md"),
-    )
+  test("refresh's worth audit points at the one durable bar", async () => {
+    expect(await block("ce-compound/SKILL.md")).toContain("counterfactual")
+    const audit = await readFile(path.join(SKILLS, "ce-compound", "references", "refresh", "worth-audit.md"), "utf8")
+    expect(audit).toContain("`ce-durable-bar` paragraph under Preconditions in `SKILL.md`")
   })
 
   test("refresh's worth audit carries ce-setup's standards bar verbatim", async () => {
     const owner = await block("ce-setup/references/project-docs.md", STANDARDS_START, STANDARDS_END)
-    const copy = await block("ce-compound-refresh/references/worth-audit.md", STANDARDS_START, STANDARDS_END)
+    const copy = await block("ce-compound/references/refresh/worth-audit.md", STANDARDS_START, STANDARDS_END)
     expect(normalized(copy)).toBe(normalized(owner))
   })
 
   test("the worth audit runs on every refresh except a drift-only request, and cuts only on quoted evidence", async () => {
-    const skill = await readFile(path.join(SKILLS, "ce-compound-refresh", "SKILL.md"), "utf8")
-    expect(skill).toMatch(/\*\*Read `references\/worth-audit\.md` before Investigate\.\*\*/)
+    const skill = await readFile(path.join(SKILLS, "ce-compound", "references", "refresh", "overview.md"), "utf8")
+    expect(skill).toMatch(/\*\*Read `references\/refresh\/worth-audit\.md` before Investigate\.\*\*/)
     expect(skill).toMatch(/drift fixes only/)
-    const audit = await readFile(path.join(SKILLS, "ce-compound-refresh", "references", "worth-audit.md"), "utf8")
+    const audit = await readFile(path.join(SKILLS, "ce-compound", "references", "refresh", "worth-audit.md"), "utf8")
     expect(audit).toMatch(/quote it/)
     expect(audit).toMatch(/Topical overlap is not coverage/)
     expect(audit).toMatch(/writes no checks/)
