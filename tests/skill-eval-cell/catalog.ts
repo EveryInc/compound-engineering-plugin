@@ -2651,6 +2651,7 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     task: "Use the lfg skill on this: the invoice total check is failing. Run node tests/invoice.check.js; SPEC.md is the product contract. Fix it and ship it.",
     grade: {
       committed_must: ["rates.json"],
+      committed_must_not: ["src/rates.js"],
       // The answer's FILES_READ trailer repeats the scenario path, so a bare "proposal" passes on any run.
       must_include_any: [["not implemented", "did not implement"]],
     },
