@@ -15,19 +15,9 @@ Audit the learnings under `<root>/solutions/` against the current codebase, appl
 
 Two rules hold in both modes. A failed write is recorded as **recommended**, and the run continues. And a question is asked through the host's blocking tool, or through the numbered-options fallback that reference defines. It is never silently skipped.
 
-## Worth lens
+## Worth
 
-The ordinary refresh judges accuracy: is each doc still true and still distinct. It never deletes an accurate doc for holding knowledge the repo states elsewhere. That second judgment, worth, runs only when the user asked for it and confirmed it. It reads the whole scope against the codebase and can delete accurate docs.
-
-Read the invocation arguments for that intent: the user wants the store cleaned up, culled, pruned, trimmed, upgraded, or brought to the capture bar, in any wording, rather than checked for drift. When the intent is present, state the reading back and confirm before any investigation:
-
-```text
-You asked to clean up the learnings. Which do you want?
-1. Delete or shorten docs the codebase already explains. A doc goes when a test, a code comment, or the instructions file states the same reasoning, and every cut quotes that file. Drift is fixed too. Scope: <scope>.
-2. Fix drift only. Stale paths and links, duplicate docs, and guidance the code no longer supports. Nothing accurate is deleted.
-```
-
-On option 1, **read `references/worth-audit.md`** before Investigate; it adds the bar, the evidence rule, and the routing. On option 2, or when the intent is absent, do not read that reference and do not apply its test; the accuracy refresh is the whole run. Non-interactive mode cannot confirm, so `references/modes.md` states what an inferred intent does there.
+Every refresh judges worth as well as accuracy: a lesson should live in one place, in the strongest form that holds it. **Read `references/worth-audit.md` before Investigate.** It adds the bar, the evidence rule, and the routing, including the changes this skill makes to `CODING_STANDARDS.md`. When the user asked for drift fixes only, do not read it and do not apply its test; the accuracy refresh is the whole run.
 
 ## Artifact Root
 
@@ -63,7 +53,7 @@ Every doc gets exactly one outcome: **Keep**, **Update**, **Consolidate**, **Rep
 
 **Read `references/classify.md` before assigning any of them.** It defines each outcome's meaning, the Update/Replace boundary, the auto-delete rule and its pre-checks, the relocation and split rules, the retrieval-value test, unverifiable-is-not-false, pattern docs, and what interactive mode asks.
 
-Two boundaries hold whatever the evidence says. This skill never changes product code. A claim about current mechanics follows current code, but independently supported guidance does not become false merely because implementation stopped satisfying it: classify the doc from the guidance evidence and report the implementation conflict as a potential product regression. And when a learning contradicts guidance, the refresh reports that; it must never edit a skill, runbook, or instruction file.
+Two boundaries hold whatever the evidence says. This skill never changes product code. A claim about current mechanics follows current code, but independently supported guidance does not become false merely because implementation stopped satisfying it: classify the doc from the guidance evidence and report the implementation conflict as a potential product regression. And when a learning contradicts guidance, the refresh reports that; it must never edit a skill, runbook, or instruction file. It also writes no checks. `references/worth-audit.md` governs what it changes in `CODING_STANDARDS.md`.
 
 ## Execute
 

@@ -205,6 +205,7 @@ describe("ce-compound-refresh body pointers and relocated invariants", () => {
       "modes.md",
       "scope.md",
       "investigate.md",
+      "worth-audit.md",
       "classify.md",
       "per-action-flows.md",
       "concepts-vocabulary.md",
