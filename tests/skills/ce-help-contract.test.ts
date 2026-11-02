@@ -22,6 +22,7 @@ const STARTS: [string, string][] = [
   ["ce-debug", "ce-commit-push-pr"],
   ["ce-plan", "ce-doc-review"],
   ["lfg", "ce-compound"],
+  ["ce-compound-refresh", "ce-compound"],
 ]
 
 const WORK_CHAIN_WITHOUT_COMPOUND = [
