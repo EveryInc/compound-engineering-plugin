@@ -339,6 +339,7 @@ describe("skill-eval-cell catalog", () => {
       "ce-babysit-pr/host-event-merged-snapshot-open",
       "ce-babysit-pr/host-event-own-stack-land",
       "ce-babysit-pr/host-wake-clock-left",
+      "ce-babysit-pr/host-wake-clock-timer-available",
       "ce-babysit-pr/moved-evidence-restores-the-ordinary-window",
       "ce-babysit-pr/pipeline-returns-canonical-human-decision",
       "ce-babysit-pr/silent-reviewer-of-an-earlier-head-still-waits",

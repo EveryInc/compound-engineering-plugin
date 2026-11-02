@@ -1437,8 +1437,13 @@ This is a decision only. Do not access GitHub or start monitoring. Include exact
   ...[
     {
       id: "host-wake-clock-left",
-      state: "The host's PR watch is armed as this run's wake source. It fires on PR events only, and the host's instructions forbid polling and offer no timer. This tick's snapshot shows MERGEABLE, CLEAN, checks terminal, no backlog, and no parked decisions. quiet_seconds is 60, under the 300-second settle window. No review looks to be coming. Posture is target.",
+      state: "The host's PR watch is armed as this run's wake source. It fires on PR events only, and the host's instructions forbid polling. Judge from this description of the runtime rather than your own tool list: it has no timer, cron, or scheduling tool of any kind. This tick's snapshot shows MERGEABLE, CLEAN, checks terminal, no backlog, and no parked decisions. quiet_seconds is 60, under the 300-second settle window. No review looks to be coming. Posture is target.",
       next: "wait-armed",
+    },
+    {
+      id: "host-wake-clock-timer-available",
+      state: "The host's PR watch is armed as this run's wake source. It fires on PR events only, and the host's instructions forbid polling. The tool list also has a scheduling tool that can run a one-shot task back in this thread at a set time. This tick's snapshot shows MERGEABLE, CLEAN, checks terminal, no backlog, and no parked decisions. quiet_seconds is 60, under the 300-second settle window. No review looks to be coming. Posture is target.",
+      next: "set-timer",
     },
     {
       id: "host-event-merged-snapshot-open",
@@ -1462,7 +1467,7 @@ This is a decision only. Do not access GitHub or start monitoring. Include exact
     pre_contract: "Merge-ready needs the settle window. The snapshot, not a noticed event, decides. A run's own stack-land merge is a layer transition.",
     task: `Use ce-babysit-pr mid-run. ${state}
 
-This is a decision only. Do not access GitHub or change anything. Include exactly one line: NEXT: report-ready (call it merge-ready and stop), NEXT: wait-armed (report that it is clean but not yet settled and end the turn with the watch still armed), NEXT: hold-turn (hold this turn open until the time passes), NEXT: stop-terminal (report the run as finished and stop), NEXT: keep-watching (the PR is still open, so keep the run going), or NEXT: layer-transition (release this PR's watch and continue on the next layer). Then explain it.`,
+This is a decision only. Do not access GitHub or change anything. Include exactly one line: NEXT: report-ready (call it merge-ready and stop), NEXT: wait-armed (report that it is clean but not yet settled and end the turn with the watch still armed), NEXT: set-timer (schedule a one-shot return to this thread after the wait, then end the turn), NEXT: hold-turn (hold this turn open until the time passes), NEXT: stop-terminal (report the run as finished and stop), NEXT: keep-watching (the PR is still open, so keep the run going), or NEXT: layer-transition (release this PR's watch and continue on the next layer). Then explain it.`,
     grade: { declared: { NEXT: next }, actions: "none", delegates: "none" },
   })),
   ...[
