@@ -761,7 +761,7 @@ async function serve(options) {
     return { status: "session-ended", ...(sessionEndReason ? { reason: sessionEndReason } : {}) }
   }
 
-  // reason: user-ended | tab-closed | idle | owner-exited | stopped
+  // reason: user-ended | connection-lost | idle | owner-exited | stopped
   function endSession(reason) {
     if (sessionEnded) return
     sessionEnded = true
@@ -976,7 +976,7 @@ async function serve(options) {
     if (pendingDocuments.size > 0 || sessionEnded) return
     if (sseGraceTimer) clearTimeout(sseGraceTimer)
     sseGraceTimer = setTimeout(() => {
-      if (sseClients.size === 0 && pendingDocuments.size === 0) endSession("tab-closed")
+      if (sseClients.size === 0 && pendingDocuments.size === 0) endSession("connection-lost")
     }, SSE_GRACE_MS)
     sseGraceTimer.unref()
   }
