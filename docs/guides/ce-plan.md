@@ -174,7 +174,8 @@ Skip `ce-plan` when:
 
 - The change is already specified down to the files it touches and touches no risk surface (just do it, or `ce-work`); if it reaches `ce-plan` anyway, the Direct contract answers in a few sentences
 - The product or outcome is not yet decided → `ce-brainstorm` first
-- The bug has a known root cause and an obvious fix → `ce-debug` or just fix it
+- The cause of the bug is not known yet → `ce-debug`
+- The bug has a known root cause and an obvious fix → just fix it, or `ce-work`
 
 ---
 
