@@ -493,6 +493,10 @@ const QUANTITY_LESSON = "parseQuantity in src/quantity.js treated 0 as missing a
 const CACHE_TTL_LESSON = "The rates cache in src/cache.js uses a 90 second TTL. We measured the upstream limit at 40 requests a minute and saw 429s at any TTL under 75 seconds. We rejected a shared Redis cache because the service runs one process. None of that is recorded anywhere, and the next person to tune this would redo the measurement."
 const RETRY_LESSON = "src/payments.js wrapped chargeCard in withRetry, and a timeout that had actually succeeded charged a customer twice. The fix, already in the tree and verified, removed the retry from chargeCard and left it on getBalance. The general lesson for future code is that withRetry may wrap only idempotent operations. Whether an operation is idempotent takes human judgment, so no lint rule or test can detect a new violation."
 const COVERED_LESSON = "roundCents in src/money.js rounds half up. The fix for a finance mismatch is in the tree, and tests/money.test.js already asserts the half-up case with a comment saying finance reconciles against half-up totals."
+const FLOAT_LESSON = "src/orders/total.js called parseFloat on a money string, and a rounding error under-billed an order by a cent. The fix, already in the tree and verified, uses parseCents from src/money.js. Money strings are parsed in several modules, and the next one could make the same mistake."
+const FLOATING_PROMISE_LESSON = "src/orders/submit.js called saveOrder without await, so a failed save was lost and the customer saw a confirmation. The fix, already in the tree and verified, awaits it. Any async call could be left unawaited the same way. Telling which calls return promises takes type information. The rule that does this is no-floating-promises from typescript-eslint, and this repo has neither ESLint nor TypeScript."
+const SYNC_FS_LESSON = "src/api/orders.js called readFileSync in a request handler, and one large file stalled every request on the server. The fix, already in the tree and verified, uses fs.promises. src/api/reports.js and src/api/export.js still make the same call, and their owner will fix them separately."
+const INVOICE_DATE_LESSON = "src/invoices/issue.js called new Date() directly, so invoices issued near midnight carried the server's date instead of the billing date. The fix, already in the tree and verified, uses now() from src/clock.js. Code under src/invoices must always take the time from src/clock.js."
 const SIGNAL_LESSON = "src/pricing.js silently fell back to USD when a currency was unknown, and it took two days to find out because nothing recorded the fallback. The fix, already in the tree, corrected the currency table. The debug summary's Prevention line proposed a cheap always-on signal: a currency_fallback log field in priceFor."
 
 const JOB_DECISION =
@@ -785,6 +789,77 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
       git: "dirty",
       result_must_include: ["Documentation complete", "currency_fallback"],
       workspace_lacks: [{ path: "src/pricing.js", needle: "currency_fallback" }],
+    },
+  ),
+  compoundFormRow(
+    "lint-existing-rule-is-widened",
+    "compound-forms-lint",
+    "An existing rule whose scope misses the defect is the cheapest check, even though its message is generic. Widening it counts as a check.",
+    FLOAT_LESSON,
+    {
+      result_must_include: ["Documentation complete", "Also written:", "lint.config.json"],
+      workspace_contains: [{ path: "src/orders/total.js", needle: "parseCents" }],
+      workspace_lacks: [{ path: "lint.config.json", needle: '"paths": ["src/payments/"]' }],
+    },
+  ),
+  compoundFormRow(
+    "lint-rule-needing-new-dependency-is-not-installed",
+    "compound-forms-lint",
+    "A lint rule that needs a new tool or dependency is reported at most. The run never installs one.",
+    FLOATING_PROMISE_LESSON,
+    {
+      result_must_include: ["no-floating-promises"],
+      workspace_lacks: [
+        { path: "package.json", needle: "ependencies" },
+        { path: "eslint.config.js" },
+        { path: "tsconfig.json" },
+      ],
+    },
+  ),
+  compoundFormRow(
+    "lint-rule-flagging-existing-code-uses-existing-baseline",
+    "compound-forms-lint",
+    "A rule that flags existing code can still hold new code when the repo already keeps a baseline. The entries cover only the existing violations, and product code stays as it was.",
+    SYNC_FS_LESSON,
+    {
+      result_must_include: ["Also written:"],
+      workspace_contains: [
+        { path: "src/api/reports.js", needle: "readFileSync" },
+        { path: "src/api/export.js", needle: "readFileSync" },
+        { path: "lint-baseline.json", needle: "no-sync-fs" },
+        { path: "lint-baseline.json", needle: "src/api/reports.js" },
+        { path: "lint-baseline.json", needle: "src/api/export.js" },
+      ],
+      json_field: [{ path: "lint.config.json", field: "rules.no-sync-fs.severity", any_of: ["error"] }],
+    },
+  ),
+  compoundFormRow(
+    "lint-rule-flagging-existing-code-without-baseline-is-reported",
+    "compound-forms-lint-no-baseline",
+    "A repo that keeps no baseline has not chosen that mechanism, so a rule that flags existing code is reported and no baseline setup is built.",
+    SYNC_FS_LESSON,
+    {
+      result_must_include: ["no-sync-fs"],
+      workspace_contains: [
+        { path: "src/api/reports.js", needle: "readFileSync" },
+        { path: "src/api/export.js", needle: "readFileSync" },
+      ],
+      workspace_lacks: [
+        { path: "lint-baseline.json" },
+        { path: "scripts/lint.mjs", needle: "baseline" },
+      ],
+    },
+  ),
+  compoundFormRow(
+    "lint-custom-rule-fits-existing-setup",
+    "compound-forms-lint",
+    "No bundled rule covers the defect, and the repo already has a setup for custom rules, so one new custom rule is the check.",
+    INVOICE_DATE_LESSON,
+    {
+      result_must_include: ["Documentation complete", "Also written:", "lint-rules/"],
+      workspace_contains: [{ path: "src/invoices/issue.js", needle: "now()" }],
+      workspace_lacks: [{ path: "lint.config.json", needle: '"customRules": ["lint-rules/no-todo.mjs"]' }],
+      workspace_tree: [{ dir: "lint-rules", contains: "Date" }],
     },
   ),
 ]
