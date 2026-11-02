@@ -215,6 +215,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-compound/testable-defect-writes-test:references/form.md",
         "ce-commit-push-pr/babysit-off-preserves-human-decision:references/apply-and-handoff.md",
         "ce-debug/pipeline-convergent-fix:references/pipeline-mode.md",
+        "ce-doc-review/rejected-evidence-freshness:references/later-round-synthesis.md",
         "ce-doc-review/routine-fix-no-product-lens:references/persona-selection.md",
         "ce-doc-review/settled-origin-no-product-lens:references/persona-selection.md",
         "ce-doc-review/staked-position-keeps-product-lens:references/persona-selection.md",

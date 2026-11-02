@@ -834,9 +834,15 @@ describe("ce-doc-review contract", () => {
     expect(synthesis).toContain("cannot trigger anchor promotion")
     expect(synthesis).toContain("Cursor default/Auto")
 
-    // R29 and R30 round-2 rules
-    expect(synthesis).toContain("R29 Rejected-Finding Suppression")
-    expect(synthesis).toContain("R30 Fix-Landed Matching Predicate")
+    // R29 and R30 round-2 rules load only on later rounds (#1770)
+    const laterRound = await readRepoFile(
+      "skills/ce-doc-review/references/later-round-synthesis.md"
+    )
+    expect(laterRound).toContain("R29 Rejected-Finding Suppression")
+    expect(laterRound).toContain("R30 Fix-Landed Matching Predicate")
+    expect(synthesis).not.toContain("R29 Rejected-Finding Suppression")
+    expect(synthesis).not.toContain("R30 Fix-Landed Matching Predicate")
+    expect(synthesis).toContain("also read `references/later-round-synthesis.md` before 3.1")
   })
 
   test("non-interactive envelope surfaces new tiers distinctly", async () => {

@@ -4,6 +4,8 @@
 
 Process findings from all agents through these steps in order. Each step depends on the previous one. Together they move every finding through the same lifecycle: **Raised → (Confidence Gate | FYI-eligible | Dropped) → Deduplicated → Classified → SafeAuto | GatedAuto | Manual | FYI**. Re-evaluate each finding's state at every step; do not carry an assumption from an earlier step forward as a shortcut.
 
+**Later rounds.** When the current session carries decisions from an earlier review round of this document (a decision primer rendered from `references/decision-primer.md`, or decision state retained by a resume), also read `references/later-round-synthesis.md` before 3.1. It holds R29 (rejected-finding suppression) and R30 (fix-landed verification). A first review round skips it.
+
 ### 3.1 Validate
 
 Check each agent's returned JSON against the findings schema:
@@ -55,7 +57,7 @@ When findings merge:
 
 - Keep the highest severity and the highest confidence anchor. If anchors tie, keep the finding appearing first in document order — deterministic, not probabilistic.
 - Union the evidence arrays and note every contributing reviewer (e.g., "coherence, feasibility").
-- **Retain each constituent finding as a record**, with its own `section`, `title`, and `evidence` intact. Round-to-round memory (R29, R30, the decision primer, and the open-questions dedup key) matches on a single finding's section, title, and evidence overlap. A merged group has none of those, so collapsing the constituents away would make every finding the user already settled come back on the next round.
+- **Retain each constituent finding as a record**, with its own `section`, `title`, and `evidence` intact. Round-to-round memory (R29 and R30 in `references/later-round-synthesis.md`, the decision primer, and the open-questions dedup key) matches on a single finding's section, title, and evidence overlap. A merged group has none of those, so collapsing the constituents away would make every finding the user already settled come back on the next round.
 
 **Merging never drops.** A merge regroups findings; it never removes one from the review. Every finding that survives the lead agent's review reaches the user, either as its own entry or inside the merged finding that carries its concern. Rejected claims are recorded internally, not lost through merging.
 
@@ -307,34 +309,6 @@ When a trio lens was activated, keep `peer.outcome` even though empty sections a
 
 Present findings using the review output template (read `references/review-output-template.md`). This presentation must appear as user-visible assistant text in the same turn immediately before the routing question in `references/walkthrough.md` is asked. A non-interactive result printed in an earlier turn, or a one-line count, does not satisfy that requirement.
 
-### R29 Rejected-Finding Suppression (Round 2+)
-
-When the orchestrator is running round 2+ on the same document in the same session, the decision primer (see `references/dispatch.md` — Decision primer) carries forward every prior-round Skipped, Deferred, Acknowledged, and user-settled Withdrawn finding. Synthesis suppresses re-raised rejected findings rather than showing them to the user again. Acknowledged is treated as a rejected-class decision here: the user saw the finding, chose not to act on it (no Apply, no Defer append), and wants it on record, which is equivalent to Skip for suppression purposes. Only user-settled withdrawals (retired by a Skip/Defer premise or a user-asserted fact) reach this primer. An Apply-triggered withdrawal is provisional and never carried here, so a staged fix that failed or landed ineffectively is re-checked by fresh synthesis rather than suppressed by R29.
-
-For each current-round finding, compare against the primer's rejected list:
-
-- **Matching test:** same as R30. A finding matches when its `normalize(section) + normalize(title)` fingerprint matches and its evidence substrings overlap the prior finding's by more than 50%. Suppress a matching finding only when the evidence and assumptions supporting the prior rejection remain current.
-- **Changed evidence:** reassess the finding when material changes to the document, relevant source, constraints, or newly available facts undermine the prior rejection. An unchanged document quote does not establish unchanged evidence. Retain the prior decision as history; a newly supported problem goes through ordinary admission and authority checks without treating reassessment as permission to reverse a user commitment.
-- **On suppression:** name the suppressed findings in the Coverage line as previously rejected, so the user can see what was suppressed. The user can explicitly escalate by invoking the review again on a different context if they believe the suppression was wrong.
-
-This rule runs at synthesis time, not at the persona level. Personas have a soft instruction via the subagent template's `{decision_primer}` variable to avoid re-raising rejected findings, but the orchestrator makes the final call: synthesis checks whether the prior rejection still applies before suppressing a re-raised finding.
-
-### R30 Fix-Landed Matching Predicate
-
-When the orchestrator is running round 2+ on the same document, synthesis verifies that prior-round Applied findings actually landed. For each current-round finding whose `normalize(section) + normalize(title)` fingerprint matches a prior-round Applied finding, branch by evidence overlap. This fingerprint is round-to-round memory's own key; 3.3 merges by reasoning and has no fingerprint to share. It works here because both rounds' findings are stored records with stable section and title fields:
-
-- **Strong match — evidence overlap >50% with the prior-round evidence: fix-landed regression.** The current-round finding is quoting the same problematic text the prior-round fix was supposed to remove. Flag it as "fix did not land" in the report rather than showing it as a new finding. Include the prior-round finding's title and the current-round persona's evidence so the user can see why the verification flagged it.
-
-- **Weak match — evidence overlap ≤50%: not a fix-landed regression.** Low evidence overlap means the prior problematic text is no longer being quoted, so do not flag "fix did not land." Do not suppress solely on fingerprint match. If the current-round item is explicitly a non-actionable verification observation (for example, its title or `why_it_matters` says the prior finding landed correctly and asks for no change), suppress it without reporting it. Otherwise, treat the finding as new and let it flow through dedup and routing normally.
-
-  **Materially-different exception.** If the current-round finding's `why_it_matters` describes a substantively different concern than the prior-round finding — even though the section/title fingerprint matches — treat it as a new finding rather than a fix-verified suppression. The section may have been edited for an unrelated reason and the new edit introduced a different issue. The persona's substance, not just the fingerprint, is the signal.
-
-- **Section renames count as different locations.** If the section name has changed between rounds (an edit renamed the heading), treat the new section as a different location and the current-round finding as new. Neither branch above applies.
-
-- **No fingerprint match:** not a verification candidate; the finding flows through normally to 3.3 (Merge Duplicate Findings) and onward routing.
-
-This rule prevents two failure modes: (1) regressions where a fix didn't actually land, and (2) persona over-emission where a round-{N+1} reviewer correctly observes a prior-round resolution and emits a non-actionable "already addressed" finding. The persona-side guidance in `subagent-template.md` ("Do not emit findings to note prior-round resolutions") is the primary defense; this rule catches what the personas miss.
-
 ### Protected Artifacts
 
 During synthesis, discard any finding that recommends deleting or removing a CE pipeline artifact: any file **under** a `plans/`, `solutions/`, `ideation/`, `explainers/`, `pulse-reports/`, `dogfood-reports/`, `feedback-sweep/`, or `personas/` directory (or the legacy `brainstorms/` one) **whose immediate parent is the artifact root**. The artifact root is a directory named `docs` — the default, and where unmigrated legacy artifacts stay even after a project sets `docs_root` — or the configured `docs_root` when this run resolved it. Matching by that parent covers nested category files (`solutions/<category>/foo.md`) while leaving a same-named directory elsewhere — a skill's own `references/personas/` prompt assets, whose parent is `references` — as ordinary code whose deletion finding stands. A review that never resolved a configured root still protects the `docs`-parented tree (default and legacy). An artifact under a configured root seen by such a run is the one case this rule does not cover.
@@ -359,4 +333,4 @@ After 2 refinement passes, recommend completion. An explicit request for another
 
 ## Iteration Guidance
 
-On genuinely new review passes, re-dispatch the reviewers `references/persona-selection.md` selects for a later round, with the multi-round decision primer (`references/decision-primer.md`) and re-synthesize. Fixed findings drop out on their own because their evidence is gone from the current doc; rejected findings are handled by the R29 suppression rule; applied-fix verification uses the R30 matching test above. If findings repeat across passes after these rules run, recommend completion.
+On genuinely new review passes, re-dispatch the reviewers `references/persona-selection.md` selects for a later round, with the multi-round decision primer (`references/decision-primer.md`) and re-synthesize. Fixed findings drop out on their own because their evidence is gone from the current doc; rejected findings are handled by the R29 suppression rule and applied-fix verification uses the R30 matching test, both in `references/later-round-synthesis.md`. If findings repeat across passes after these rules run, recommend completion.

@@ -40,7 +40,7 @@ Skip, Defer, and Acknowledge are all **rejected-class** — each signals the use
 - Counts as rejected-class **only** when a user decision retired it — a settled premise (Skip/Defer) or a user-asserted fact.
 - An **Apply-triggered Withdraw never does.** Whether it is resolved depends on the staged edit both landing and actually resolving the finding. Round N+1 synthesis checks that, not R29. Suppressing it would hide a fix that failed or landed ineffectively.
 
-Applied findings stay on the applied list so round-N+1 personas can verify the fixes landed (see R30 in `synthesis-and-presentation.md`).
+Applied findings stay on the applied list so round-N+1 personas can verify the fixes landed (see R30 in `references/later-round-synthesis.md`).
 
 ## Scope
 
