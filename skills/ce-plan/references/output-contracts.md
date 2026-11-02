@@ -7,6 +7,7 @@ Read this when the Output Contract gate in SKILL.md selects Direct or Chat brief
 - The result is delivered in chat, in plain sentences, and nothing is written under `<root>/plans/` unless the user asks for a file.
 - No subagent runs, no confidence check, no document review, and no Phase 5.4 menu. The result closes the run on its own.
 - `ce-plan` still never implements. A Direct result describes the change; the implementation belongs to `ce-work` or the user.
+- When the result names where a test should live, say in one line what that seam catches and what it misses.
 
 ## Direct
 
