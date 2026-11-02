@@ -826,9 +826,11 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
       workspace_contains: [
         { path: "src/api/reports.js", needle: "readFileSync" },
         { path: "src/api/export.js", needle: "readFileSync" },
+        { path: "lint-baseline.json", needle: "no-sync-fs" },
         { path: "lint-baseline.json", needle: "src/api/reports.js" },
         { path: "lint-baseline.json", needle: "src/api/export.js" },
       ],
+      json_field: [{ path: "lint.config.json", field: "rules.no-sync-fs.severity", any_of: ["error"] }],
     },
   ),
   compoundFormRow(
