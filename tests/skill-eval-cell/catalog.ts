@@ -817,9 +817,24 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     },
   ),
   compoundFormRow(
-    "lint-rule-flagging-existing-code-is-not-baselined",
+    "lint-rule-flagging-existing-code-uses-existing-baseline",
     "compound-forms-lint",
-    "A rule that flags existing code would pass only through a new baseline entry, even though the repo already keeps a baseline. The rule is reported and the debt decision stays with the repo's owners.",
+    "A rule that flags existing code can still hold new code when the repo already keeps a baseline. The entries cover only the existing violations, and product code stays as it was.",
+    SYNC_FS_LESSON,
+    {
+      result_must_include: ["Also written:"],
+      workspace_contains: [
+        { path: "src/api/reports.js", needle: "readFileSync" },
+        { path: "src/api/export.js", needle: "readFileSync" },
+        { path: "lint-baseline.json", needle: "src/api/reports.js" },
+        { path: "lint-baseline.json", needle: "src/api/export.js" },
+      ],
+    },
+  ),
+  compoundFormRow(
+    "lint-rule-flagging-existing-code-without-baseline-is-reported",
+    "compound-forms-lint-no-baseline",
+    "A repo that keeps no baseline has not chosen that mechanism, so a rule that flags existing code is reported and no baseline setup is built.",
     SYNC_FS_LESSON,
     {
       result_must_include: ["no-sync-fs"],
@@ -827,7 +842,10 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
         { path: "src/api/reports.js", needle: "readFileSync" },
         { path: "src/api/export.js", needle: "readFileSync" },
       ],
-      workspace_lacks: [{ path: "lint-baseline.json", needle: "no-sync-fs" }],
+      workspace_lacks: [
+        { path: "lint-baseline.json" },
+        { path: "scripts/lint.mjs", needle: "baseline" },
+      ],
     },
   ),
   compoundFormRow(
