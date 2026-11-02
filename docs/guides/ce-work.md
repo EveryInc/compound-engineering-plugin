@@ -171,7 +171,7 @@ Skip `ce-work` when:
 
 - Product behavior is not decided yet → `/ce-brainstorm`
 - Implementation guardrails are not established for non-trivial work → `/ce-plan`
-- The bug has a known root cause and an obvious fix → `/ce-debug`
+- The cause of the bug is not known yet → `/ce-debug`
 - The task is non-software and is not a marked `execution: knowledge-work` plan. Plain non-software work is a human activity; a marked knowledge-work plan does route to the carve-out.
 
 ---

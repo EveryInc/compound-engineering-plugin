@@ -165,7 +165,7 @@ Skip it when:
 - You do not yet know what to work on → `/ce-ideate`
 - Requirements are already specified (a PRD exists, the issue is detailed) → `/ce-plan`
 - The request is whether to adopt a named external candidate → `/ce-pov`
-- You have a known root cause for a bug → `/ce-debug`
+- You have a bug → `/ce-debug`, or just fix it when the cause is known and the fix is obvious
 - The change is already specified down to the files it touches → just do it, or `/ce-work`
 
 ---

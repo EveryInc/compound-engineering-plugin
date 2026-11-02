@@ -160,6 +160,7 @@ Skip it when:
 - You have not seen any drift. Broad sweeps without evidence produce churn.
 - The docs are recent and that area of the codebase has not moved
 - You are mid debug or mid build. Capture first with `/ce-compound`; refresh later.
+- Work you just finished made one learning wrong and you know which one. `/ce-compound` updates it through its overlap check, and recommends a refresh when older docs look affected too.
 
 ---
 
