@@ -502,7 +502,10 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     {
       files_read_post: ["references/form.md"],
       result_must_include: ["Documentation complete", "Also written:", "tests/quantity.test.js"],
-      workspace_contains: [{ path: "src/quantity.js", needle: "raw == null" }],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
     },
   ),
   compoundFormRow(
@@ -512,7 +515,10 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     QUANTITY_LESSON,
     {
       result_must_include: ["Documentation complete", "Also written:", "tests/quantity.test.js"],
-      workspace_contains: [{ path: "src/quantity.js", needle: "raw == null" }],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
     },
     "mode:non-interactive depth:lightweight",
   ),
@@ -523,7 +529,10 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     `${QUANTITY_LESSON} Nobody is available to answer questions in this session, so treat any question you would ask as unanswered.`,
     {
       result_must_include: ["tests/"],
-      workspace_contains: [{ path: "src/quantity.js", needle: "raw == null" }],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
     },
     "",
   ),
@@ -533,6 +542,7 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     "Measured facts and a rejected alternative cannot be held by a check or a standard alone, so a learning carries them. A test may also pin the TTL floor.",
     CACHE_TTL_LESSON,
     {
+      git: "dirty",
       result_must_include: ["Documentation complete", "docs/solutions/"],
     },
   ),
@@ -552,6 +562,7 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     "A rule-shaped lesson in a repo with no standards file writes a learning and names ce-setup. It never creates the file.",
     RETRY_LESSON,
     {
+      git: "dirty",
       result_must_include: ["Documentation complete", "docs/solutions/", "ce-setup"],
       workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
     },
@@ -562,6 +573,7 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     "A missing standards file alone is never a reason to mention ce-setup, or every run would nag.",
     CACHE_TTL_LESSON,
     {
+      git: "dirty",
       result_must_include: ["Documentation complete", "docs/solutions/"],
       result_must_not_include: ["ce-setup"],
       workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
@@ -583,6 +595,7 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     "A proposed log field is product code, so the run reports it and leaves the code alone, and a learning holds the lesson.",
     SIGNAL_LESSON,
     {
+      git: "dirty",
       result_must_include: ["Documentation complete", "currency_fallback"],
       workspace_lacks: [{ path: "src/pricing.js", needle: "currency_fallback" }],
     },
