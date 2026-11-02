@@ -12,7 +12,8 @@ Recommend one skill. Bring in a second when the situation falls between two skil
 | Build from a plan or a clear request | `ce-work` |
 | Hand off the remaining steps from any point, ending in an open PR for a code change | `lfg` |
 | Capture a lesson from solved work that the final code does not show | `ce-compound` |
-| Review captured learnings: update, merge, shorten, or delete them, and keep standards current | `ce-compound-refresh` |
+| Review captured learnings: update, merge, shorten, or delete them, and keep standards current | `ce-compound` (refresh) |
+| An existing prompt or schedule uses the old refresh name, which still works but is deprecated | `ce-compound-refresh` |
 | Write or update `STRATEGY.md` | `ce-strategy` |
 | Get a report on usage, errors, and performance | `ce-product-pulse` (manual) |
 | Collect feedback from Slack or GitHub into a plan | `ce-sweep` (manual) |
@@ -55,7 +56,7 @@ Recommend one skill. Bring in a second when the situation falls between two skil
 - `ce-simplify-code` improves code with behavior unchanged. `ce-code-review` looks for bugs and regressions.
 - `ce-code-review` produces new findings. `ce-resolve-pr-feedback` handles feedback already on a PR. `ce-babysit-pr` watches a PR over time.
 - `ce-test-browser` tests the current change. `ce-dogfood` works through the user flows hands-off and fixes small breakages.
-- `ce-compound` holds one lesson in its cheapest form: a test or lint rule, a coding standard, or a learning. `ce-compound-refresh` maintains the learnings already captured and keeps the standards in step with the repo's checks.
+- `ce-compound` holds one lesson in its cheapest form: a test or lint rule, a coding standard, or a learning. Its refresh job maintains the learnings already captured and keeps the standards in step with the repo's checks.
 
 ## Explaining one skill
 

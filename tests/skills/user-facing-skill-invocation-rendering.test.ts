@@ -51,17 +51,17 @@ const modelVisibleRendererCases = [
     // them: the refresh recommendation into the refresh reference, the retry
     // line into lightweight's completion block. The rule follows its seam.
     file: "skills/ce-compound/references/refresh-and-discoverability.md",
-    defaults: ["/ce-compound-refresh <scope>"],
-    codex: ["$ce-compound-refresh <scope>"],
-    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>"],
+    defaults: ["/ce-compound refresh <scope>"],
+    codex: ["$ce-compound refresh <scope>"],
+    unnecessaryOmp: ["/skill:ce-compound refresh <scope>"],
   },
   {
     // report.md is loaded on its own and independently prints the refresh
     // invocation in both terminal templates, so it carries its own rule.
     file: "skills/ce-compound/references/report.md",
-    defaults: ["/ce-compound-refresh <scope>"],
-    codex: ["$ce-compound-refresh <scope>"],
-    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>"],
+    defaults: ["/ce-compound refresh <scope>"],
+    codex: ["$ce-compound refresh <scope>"],
+    unnecessaryOmp: ["/skill:ce-compound refresh <scope>"],
   },
   {
     file: "skills/ce-compound/references/lightweight.md",

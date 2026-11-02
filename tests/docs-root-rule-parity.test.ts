@@ -41,7 +41,6 @@ const CONSUMER_SKILLS = [
   "ce-bakeoff",
   "ce-setup",
   "ce-compound",
-  "ce-compound-refresh",
   "ce-plan",
   "ce-brainstorm",
   "ce-ideate",

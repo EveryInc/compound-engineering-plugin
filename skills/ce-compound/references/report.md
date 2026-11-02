@@ -2,7 +2,7 @@
 
 ## Success Output
 
-**User-runnable refresh rendering.** The reports below print a `ce-compound-refresh` invocation for the user to copy. Default to `/ce-compound-refresh <scope>`; use `$ce-compound-refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+**User-runnable refresh rendering.** The reports below print a refresh invocation for the user to copy. Default to `/ce-compound refresh <scope>`; use `$ce-compound refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
 ### Non-interactive mode
 
@@ -22,7 +22,7 @@ Grounding: <mechanical check clean | N flags adjudicated>
 Discoverability: <no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>
 CONCEPTS.md: <not present | scanned, no qualifying terms | updated — N added, N refined, N folded, N scrubbed>
 CONCEPTS.md discoverability: <not checked — CONCEPTS.md unchanged | no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>
-Refresh recommendation: <none | scope hint for /ce-compound-refresh>
+Refresh recommendation: <none | /ce-compound refresh <scope>>
 
 Documentation complete
 ```
@@ -41,7 +41,7 @@ Overlap: <none | low | moderate — see <path> | high — existing doc updated>
 Grounding: <clean | N flags adjudicated (X fixed, Y annotated, Z confirmed) | N claims softened or corrected | degraded — merge-state claims unverified offline>
 Instruction-file edit: <none needed | gap noted, not applied>
 CONCEPTS.md: <scanned, no qualifying terms | created with N entries (M seeded from the learning's area) | updated — N added, N refined, N folded, N scrubbed>
-Refresh recommendation: <none | scope hint for /ce-compound-refresh>
+Refresh recommendation: <none | /ce-compound refresh <scope>>
 
 Documentation complete
 ```
@@ -95,7 +95,7 @@ Refresh recommendation: none
 
 When the lesson met the standard form but the repo has no `CODING_STANDARDS.md`, add this one line and ask nothing: `This could be a coding standard if you adopt them.` Only an attended report carries it. Non-interactive reports read `Recommended form: none` for this case, so it never reaches a pull request.
 
-**The summary is the last thing this skill writes. When a caller invoked this skill, its next step follows the summary in the same session; otherwise end the turn. `ce-compound` does not present a "What's next?" menu.** The lesson is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is left to `ce-compound-refresh`, the skill designed for it, through the `Refresh recommendation` line above. It is not applied here, because that would edit tracked docs beyond this run's deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
+**The summary is the last thing this skill writes. When a caller invoked this skill, its next step follows the summary in the same session; otherwise end the turn. `ce-compound` does not present a "What's next?" menu.** The lesson is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is left to a refresh, through the `Refresh recommendation` line above. It is not applied here, because that would edit tracked docs beyond this run's deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
 
 **Alternate interactive output (when updating an existing doc due to high overlap):** in non-interactive mode, this case is communicated via the `Overlap: high — existing doc updated` line of the non-interactive terminal report above, not as a separate output block.
 

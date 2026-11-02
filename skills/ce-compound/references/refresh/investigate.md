@@ -10,7 +10,7 @@ After individual docs, evaluate the set: overlaps, supersession (an older narrow
 
 ## Subagent prompt
 
-Every investigation subagent's prompt carries these three clauses verbatim, plus the clause in `references/worth-audit.md` unless the user asked for drift fixes only:
+Every investigation subagent's prompt carries these three clauses verbatim, plus the clause in `references/refresh/worth-audit.md` unless the user asked for drift fixes only:
 
 > Use your host's dedicated file search and read tools (Glob, Grep, and Read where they exist) for all investigation, rather than shell commands (ls, find, cat, grep, test, bash) for file operations. This avoids permission prompts and is more reliable. If your host exposes no such tools, use whatever read capability it does provide.
 >

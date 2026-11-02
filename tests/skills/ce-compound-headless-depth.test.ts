@@ -8,12 +8,16 @@ import path from "path"
 // is pinned in the body, and each relocated invariant is pinned in the file that
 // now owns it. A non-interactive caller reaches this skill from a standing
 // instruction, so every rule that keeps it from asking a question stays in the body.
+// Depth moved to references/modes.md when the body gained the job router: the body
+// makes that file a required read before step 1, and an invalid token still stops
+// before any phase runs.
 const skillDir = path.join(import.meta.dir, "..", "..", "skills", "ce-compound")
 
 const read = (...parts: string[]) =>
   readFileSync(path.join(skillDir, ...parts), "utf8")
 
 const skill = read("SKILL.md")
+const modes = read("references", "modes.md")
 const lightweight = read("references", "lightweight.md")
 const report = read("references", "report.md")
 const assembly = read("references", "assembly.md")
@@ -28,27 +32,27 @@ describe("ce-compound non-interactive depth contract (always-loaded body)", () =
 
   test("keeps existing headless calls backward compatible as deprecated alias", () => {
     expect(skill).toMatch(/deprecated alias `mode:headless`/i)
-    expect(skill).toMatch(/`depth:full` or no depth token enters Full Mode[^\n]+automatic session-history probe/i)
+    expect(modes).toMatch(/`depth:full` or no depth token enters Full Mode[^\n]+automatic session-history probe/i)
     // A depth-less non-interactive call must still route to Full mode. The rule
     // is the pin; the sentence that carries it is free to be reworded.
-    expect(skill).toMatch(/non-interactive call carrying no depth token[^\n]*as it always has/i)
+    expect(modes).toMatch(/non-interactive call carrying no depth token[^\n]*as it always has/i)
   })
 
   test("routes explicit lightweight depth without prompts or subagents", () => {
-    expect(skill).toMatch(/`depth:lightweight`[^\n]+Lightweight Mode/i)
-    expect(skill).toMatch(/[Nn]on-interactive lightweight[^\n]+no blocking questions/i)
-    expect(skill).toMatch(/[Nn]on-interactive lightweight[^\n]+no subagents/i)
+    expect(modes).toMatch(/`depth:lightweight`[^\n]+Lightweight Mode/i)
+    expect(modes).toMatch(/[Nn]on-interactive lightweight[^\n]+no blocking questions/i)
+    expect(modes).toMatch(/[Nn]on-interactive lightweight[^\n]+no subagents/i)
   })
 
   test("rejects unknown or conflicting depth flags instead of guessing", () => {
-    expect(skill).toMatch(/unknown `depth:`[^\n]+Documentation skipped/i)
-    expect(skill).toMatch(/multiple `depth:`[^\n]+Documentation skipped/i)
-    expect(skill).toMatch(/`depth:` token without non-interactive intent[^\n]+Documentation skipped/i)
+    expect(modes).toMatch(/unknown `depth:`[^\n]+Documentation skipped/i)
+    expect(modes).toMatch(/multiple `depth:`[^\n]+Documentation skipped/i)
+    expect(modes).toMatch(/`depth:` token without non-interactive intent[^\n]+Documentation skipped/i)
   })
 
   test("scopes the automatic session-history probe to Full runs", () => {
-    expect(skill).toMatch(/Lightweight mode skips session history entirely; non-interactive Full runs the same automatic probe/i)
-    expect(skill).not.toMatch(/Lightweight mode skips session history entirely; headless runs the same automatic probe/i)
+    expect(modes).toMatch(/Lightweight mode skips session history entirely; non-interactive Full runs the same automatic probe/i)
+    expect(modes).not.toMatch(/Lightweight mode skips session history entirely; headless runs the same automatic probe/i)
   })
 
   test("keeps the instruction-file edit inside interactive Full, from the window", () => {
