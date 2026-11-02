@@ -35,6 +35,8 @@ Do not hand-bump versions in plugin or marketplace manifests, and do not hand-wr
 
 Skills live in `skills/<name>/SKILL.md` and are authored once, then distributed to every supported host. That makes them different from ordinary code: a skill is a set of goals, not a state machine, and it has to work on harnesses with different capabilities. Read `AGENTS.md` before changing anything under `skills/`.
 
+A PR that changes skill behavior (see "When an eval is required" in `.agents/skills/ce-skill-work/references/evaluate.md`) runs the eval on every host CLI you have available and reports the hosts and results. Name any host that did not run and the specific reason, such as no CLI access or a usage limit. Convenience is not a reason.
+
 When you add a user-facing skill, document it: add a `docs/guides/<skill-name>.md` page and a catalog row in `docs/guides/README.md`, and bump the skill count in `tests/release-metadata.test.ts`.
 
 ## Reporting security issues
