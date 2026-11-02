@@ -1,5 +1,7 @@
 # Session history (Phase 1 step 4)
 
+Session history is the final Phase 1 input, not a workflow stop. When it returns, including with "no relevant prior sessions", go straight to the form choice without pausing or summarizing.
+
 ## Session context
 
 Resolve two values at runtime with the shell tool before Phase 1 session-history filtering. Run each as its own command and read its exit status. A non-zero exit is a normal state here, not an error to route around:

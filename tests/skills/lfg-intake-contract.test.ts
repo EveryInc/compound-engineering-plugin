@@ -87,6 +87,8 @@ describe("lfg work source and routes", () => {
     expect(compound).toBeLessThan(ship)
     expect(lfg).toContain("mode:non-interactive")
     expect(reviewFollowup).toContain("## Step 7 — compound before shipping")
+    expect(reviewFollowup).toContain("`Recommended form`")
+    expect(readRepoFile("skills/ce-compound/references/report.md")).toContain("Recommended form:")
   })
 })
 

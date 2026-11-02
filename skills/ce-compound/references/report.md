@@ -13,7 +13,9 @@ For `depth:lightweight`, use this lower-overhead report after the Lightweight Mo
 ```
 ✓ Documentation complete (non-interactive lightweight mode)
 
-File: <root>/solutions/<category>/<filename>.md  (created | updated)
+File: <root>/solutions/<category>/<filename>.md  (created | updated) | none
+Also written: <test, lint rule, or standard path, and how it was proven> | none
+Recommended form: none | <form>: <where, the defect shape, the failure message or rule text>
 Track: <bug | knowledge>
 Category: <category>
 Grounding: <mechanical check clean | N flags adjudicated>
@@ -30,7 +32,9 @@ For `depth:full` or backward-compatible non-interactive calls with no depth toke
 ```
 ✓ Documentation complete (non-interactive mode)
 
-File: <root>/solutions/<category>/<filename>.md  (created | updated)
+File: <root>/solutions/<category>/<filename>.md  (created | updated) | none
+Also written: <test, lint rule, or standard path, and how it was proven> | none
+Recommended form: none | <form>: <where, the defect shape, the failure message or rule text>
 Track: <bug | knowledge>
 Category: <category>
 Overlap: <none | low | moderate — see <path> | high — existing doc updated>
@@ -42,7 +46,9 @@ Refresh recommendation: <none | scope hint for /ce-compound-refresh>
 Documentation complete
 ```
 
-When no doc was written (e.g., non-interactive invoked on a session where the problem is not yet solved), emit a structured failure instead and end with `Documentation skipped` so callers can distinguish success from no-op:
+`Documentation complete` means the run wrote something, including when the only file written is a test or a standard. Track, Category, Overlap, and Grounding then read `n/a`.
+
+When the run wrote nothing (e.g., non-interactive invoked on a session where the problem is not yet solved), emit a structured failure instead and end with `Documentation skipped` so callers can distinguish success from no-op:
 
 ```
 ✗ Documentation skipped (non-interactive mode)
@@ -85,9 +91,11 @@ issues occur in the Email Processing or Brief System modules.
 Refresh recommendation: none
 ```
 
-`Files written:` lists the destination the assembly step settled on. That is a pack rule's path (`<pack dir>/<file>.md`) when the user routed the capture into a writable pack, and the `<root>/solutions/` path otherwise.
+`Files written:` lists everything the run wrote: any test, lint rule, or standard with how it was proven, and the destination the assembly step settled on. That destination is a pack rule's path (`<pack dir>/<file>.md`) when the user routed the capture into a writable pack, and the `<root>/solutions/` path otherwise. Add a `Recommended form:` line when a check or owner consolidation was reported rather than written.
 
-**The summary is the last thing this skill writes. When a caller invoked this skill, its next step follows the summary in the same session; otherwise end the turn. `ce-compound` does not present a "What's next?" menu.** The doc is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is left to `ce-compound-refresh`, the skill designed for it, through the `Refresh recommendation` line above. It is not applied here, because that would edit tracked docs beyond the one deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
+When the lesson met the standard form but the repo has no `CODING_STANDARDS.md`, add this one line and ask nothing: `This could be a coding standard if you adopt them.` Only an attended report carries it. Non-interactive reports read `Recommended form: none` for this case, so it never reaches a pull request.
+
+**The summary is the last thing this skill writes. When a caller invoked this skill, its next step follows the summary in the same session; otherwise end the turn. `ce-compound` does not present a "What's next?" menu.** The lesson is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is left to `ce-compound-refresh`, the skill designed for it, through the `Refresh recommendation` line above. It is not applied here, because that would edit tracked docs beyond this run's deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
 
 **Alternate interactive output (when updating an existing doc due to high overlap):** in non-interactive mode, this case is communicated via the `Overlap: high — existing doc updated` line of the non-interactive terminal report above, not as a separate output block.
 
@@ -106,7 +114,7 @@ File updated:
 
 | ❌ Wrong | ✅ Correct |
 |----------|-----------|
-| Subagents write product files into `docs/` or edit tracked paths | Subagents write only scratch artifacts under `<run-dir>/` and return the path; orchestrator writes the one final doc |
+| Subagents write product files into `docs/` or edit tracked paths | Subagents write only scratch artifacts under `<run-dir>/` and return the path; orchestrator writes the final form |
 | Subagent returns a long prose body only as its inline response | Subagent writes full output to its run artifact; orchestrator Reads it back (inline return is fallback only) |
 | Research and assembly run in parallel | Research completes → then assembly runs |
 | Non-interactive Discoverability Check edits AGENTS.md/CLAUDE.md | non-interactive Full reports `Instruction-file edit: gap noted, not applied`; non-interactive Lightweight emits a discoverability tip; only interactive Full applies the edit after consent |

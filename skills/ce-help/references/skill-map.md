@@ -55,7 +55,7 @@ Recommend one skill. Bring in a second when the situation falls between two skil
 - `ce-simplify-code` improves code with behavior unchanged. `ce-code-review` looks for bugs and regressions.
 - `ce-code-review` produces new findings. `ce-resolve-pr-feedback` handles feedback already on a PR. `ce-babysit-pr` watches a PR over time.
 - `ce-test-browser` tests the current change. `ce-dogfood` works through the user flows hands-off and fixes small breakages.
-- `ce-compound` writes or updates one learning. `ce-compound-refresh` maintains the ones already captured.
+- `ce-compound` holds one lesson in its cheapest form: a test or lint rule, a coding standard, or a learning. `ce-compound-refresh` maintains the learnings already captured.
 
 ## Explaining one skill
 

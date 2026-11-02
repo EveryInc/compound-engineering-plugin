@@ -62,6 +62,7 @@ describe("ce-compound non-interactive depth contract (always-loaded body)", () =
       "modes.md",
       "research.md",
       "session-history.md",
+      "form.md",
       "assembly.md",
       "refresh-and-discoverability.md",
       "enhancement.md",

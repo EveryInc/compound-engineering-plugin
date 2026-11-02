@@ -11,14 +11,26 @@ const SKILLS = path.join(import.meta.dir, "..", "skills")
 const START = "<!-- ce-durable-bar:start -->"
 const END = "<!-- ce-durable-bar:end -->"
 
-async function block(file: string): Promise<string> {
+async function block(file: string, start = START, end = END): Promise<string> {
   const text = await readFile(path.join(SKILLS, file), "utf8")
-  expect(text.split(START).length).toBe(2)
-  expect(text.split(END).length).toBe(2)
-  return text.slice(text.indexOf(START), text.indexOf(END) + END.length)
+  expect(text.split(start).length).toBe(2)
+  expect(text.split(end).length).toBe(2)
+  return text.slice(text.indexOf(start), text.indexOf(end) + end.length)
+}
+
+const STANDARDS_START = "<!-- ce-standards-bar:start -->"
+const STANDARDS_END = "<!-- ce-standards-bar:end -->"
+function normalized(blockText: string): string {
+  return blockText.replace(/^[ \t]+/gm, "")
 }
 
 describe("durable-bar parity", () => {
+  test("ce-compound's form choice carries ce-setup's standards bar verbatim", async () => {
+    const owner = await block("ce-setup/references/project-docs.md", STANDARDS_START, STANDARDS_END)
+    const copy = await block("ce-compound/references/form.md", STANDARDS_START, STANDARDS_END)
+    expect(normalized(copy)).toBe(normalized(owner))
+  })
+
   test("refresh's worth audit carries ce-compound's bar verbatim", async () => {
     expect(await block("ce-compound-refresh/references/worth-audit.md")).toBe(
       await block("ce-compound/SKILL.md"),

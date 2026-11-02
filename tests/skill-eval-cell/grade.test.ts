@@ -147,6 +147,18 @@ describe("skill-eval-cell host grade", () => {
     expect(fail.ok).toBe(false)
   })
 
+  test("workspace_tree finds a needle in a file the run named and rejects a forbidden one anywhere", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grade-tree-"))
+    fs.mkdirSync(path.join(dir, "workspace/docs/solutions/logic"), { recursive: true })
+    fs.writeFileSync(path.join(dir, "workspace/docs/solutions/logic/a.md"), "retry only idempotent work, see ce-setup")
+    const reasons = (workspace_tree: Array<{ dir: string; contains?: string; lacks?: string }>) =>
+      gradeHost({ host: "claude", hostDir: dir, arm: "post", grade: { workspace_tree } }).reasons
+    expect(reasons([{ dir: "docs/solutions", contains: "idempotent" }])).toEqual([])
+    expect(reasons([{ dir: "docs/solutions", contains: "absent" }])).toHaveLength(1)
+    expect(reasons([{ dir: "docs/solutions", lacks: "ce-setup" }])).toHaveLength(1)
+    expect(reasons([{ dir: "docs/solutions", contains: "absent" }, { dir: "missing", lacks: "x" }])).toHaveLength(1)
+  })
+
   test("workspace_lacks fails on a surviving needle, a missing file, or a file that must not exist", () => {
     const dir = hostDir({
       "stdout.txt": "ACTIONS: none\n",

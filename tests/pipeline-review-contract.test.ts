@@ -632,7 +632,7 @@ describe("ce-debug regression test selection", () => {
 
     expect(debug).toMatch(/Only when that gate qualifies the fix, offer capture/i)
     expect(debug).toMatch(/only the artifacts it actually wrote or updated/i)
-    expect(debug).toMatch(/If it writes nothing, no documentation joins the commit/i)
+    expect(debug).toMatch(/If it writes nothing, no artifact joins the commit/i)
     // Capture is settled before the fix commits, so an accepted learning ships with the
     // fix. The older after-PR offer never fired in real sessions and cost a second push.
     expect(debug).toMatch(/Settle learning capture before anything commits/i)

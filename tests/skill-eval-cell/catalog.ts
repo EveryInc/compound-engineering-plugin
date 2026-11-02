@@ -140,6 +140,8 @@ export type Grade = {
   workspace_contains?: Array<{ path: string; needle: string }>
   /** With a needle, the file must exist and not contain it, so a deleted file cannot pass. Without one, the file must not exist. */
   workspace_lacks?: Array<{ path: string; needle?: string }>
+  /** For a file whose name the run chooses: some file under `dir` contains `contains`, and none contains `lacks`. */
+  workspace_tree?: Array<{ dir: string; contains?: string; lacks?: string }>
   /**
    * A field of a parsed JSON object must equal one of `any_of`. The object is the
    * workspace file at `path` (the whole file must be JSON), or the JSON object the
@@ -460,6 +462,180 @@ const SETUP_INSTRUCTIONS_TASK =
   "Use the ce-setup skill to check this repository's Compound Engineering setup. For every change it would offer, show the exact text and where in the file it would go."
 
 /** main before review-docs updates were restated as bringing the docs current and AI reviewer files joined the set. */
+const COMPOUND_REPORT = "Put your final completion report between lines reading RESULT-START and RESULT-END, and list which skill files you read."
+
+function compoundFormRow(
+  name: string,
+  fixture: string,
+  why: string,
+  lesson: string,
+  grade: Grade,
+  mode = "mode:non-interactive depth:full",
+): Scenario {
+  return {
+    id: `ce-compound/${name}`,
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/${fixture}`,
+    timeout_secs: 1200,
+    why,
+    pre_contract: "A qualifying lesson becomes one learning under the solutions root; a lesson the repo already carries writes nothing.",
+    task: `Use the ce-compound skill${mode ? ` ${mode}` : ""} on this solved, verified problem from this session. ${lesson} ${COMPOUND_REPORT}`,
+    grade: { no_new_commits: true, ...grade },
+  }
+}
+
+const QUANTITY_LESSON = "parseQuantity in src/quantity.js treated 0 as missing and returned 1, so a zero-quantity order shipped one unit. The fix, already in the tree and verified by hand, checks for null instead of falsy. No test covers zero, so a tidy-up back to a falsy check would bring the bug back."
+const CACHE_TTL_LESSON = "The rates cache in src/cache.js uses a 90 second TTL. We measured the upstream limit at 40 requests a minute and saw 429s at any TTL under 75 seconds. We rejected a shared Redis cache because the service runs one process. None of that is recorded anywhere, and the next person to tune this would redo the measurement."
+const RETRY_LESSON = "src/payments.js wrapped chargeCard in withRetry, and a timeout that had actually succeeded charged a customer twice. The fix, already in the tree and verified, removed the retry from chargeCard and left it on getBalance. The general lesson for future code is that withRetry may wrap only idempotent operations. Whether an operation is idempotent takes human judgment, so no lint rule or test can detect a new violation."
+const COVERED_LESSON = "roundCents in src/money.js rounds half up. The fix for a finance mismatch is in the tree, and tests/money.test.js already asserts the half-up case with a comment saying finance reconciles against half-up totals."
+const SIGNAL_LESSON = "src/pricing.js silently fell back to USD when a currency was unknown, and it took two days to find out because nothing recorded the fallback. The fix, already in the tree, corrected the currency table. The debug summary's Prevention line proposed a cheap always-on signal: a currency_fallback log field in priceFor."
+
+const COMPOUND_FORM_ROWS: Scenario[] = [
+  compoundFormRow(
+    "testable-defect-writes-test",
+    "compound-forms",
+    "A defect a test can detect is held by a test, without asking, in a non-interactive run. Product code stays as it was.",
+    QUANTITY_LESSON,
+    {
+      files_read_post: ["references/form.md"],
+      result_must_include: ["Documentation complete", "Also written:", "tests/quantity.test.js"],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
+    },
+  ),
+  compoundFormRow(
+    "testable-defect-lightweight",
+    "compound-forms",
+    "Lightweight runs choose the form the same way as Full.",
+    QUANTITY_LESSON,
+    {
+      result_must_include: ["Documentation complete", "Also written:", "tests/quantity.test.js"],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
+    },
+    "mode:non-interactive depth:lightweight",
+  ),
+  compoundFormRow(
+    "interactive-writes-without-asking",
+    "compound-forms",
+    "Attended runs write the check without a form question, the same as unattended runs.",
+    `${QUANTITY_LESSON} Nobody is available to answer questions in this session, so treat any question you would ask as unanswered.`,
+    {
+      result_must_include: ["tests/"],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
+    },
+    "",
+  ),
+  compoundFormRow(
+    "reasoning-only-writes-learning",
+    "compound-forms",
+    "Measured facts and a rejected alternative cannot be held by a check or a standard alone, so a learning carries them. A test may also pin the TTL floor.",
+    CACHE_TTL_LESSON,
+    {
+      git: "dirty",
+      result_must_include: ["Documentation complete", "docs/solutions/"],
+    },
+  ),
+  compoundFormRow(
+    "rule-with-standards-file-adds-standard",
+    "compound-forms",
+    "A defect class a reviewer can see in a diff, with no possible check, becomes one condition in the existing standards file.",
+    RETRY_LESSON,
+    {
+      result_must_include: ["Documentation complete", "Also written:", "CODING_STANDARDS.md"],
+      workspace_contains: [{ path: "CODING_STANDARDS.md", needle: "idempotent" }],
+    },
+  ),
+  compoundFormRow(
+    "rule-without-standards-file-stays-in-learning",
+    "compound-forms-no-standards",
+    "A repo without a standards file has made a valid choice. An unattended run keeps the rule in the learning, and neither the doc nor the report asks anyone to set anything up.",
+    RETRY_LESSON,
+    {
+      git: "dirty",
+      result_must_include: ["Documentation complete", "docs/solutions/", "Recommended form: none"],
+      result_must_not_include: ["ce-setup"],
+      workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
+      workspace_tree: [{ dir: "docs/solutions", contains: "idempotent", lacks: "ce-setup" }],
+    },
+  ),
+  compoundFormRow(
+    "rule-without-standards-file-attended-note",
+    "compound-forms-no-standards",
+    "An attended run says once, in the report only, that the lesson could be a standard. It asks nothing, and the learning stays free of it.",
+    `${RETRY_LESSON} Nobody is available to answer questions in this session, so treat any question you would ask as unanswered.`,
+    {
+      git: "dirty",
+      result_must_include: ["This could be a coding standard if you adopt them."],
+      workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
+      workspace_tree: [
+        { dir: "docs/solutions", contains: "idempotent", lacks: "ce-setup" },
+        { dir: "docs/solutions", lacks: "could be a coding standard" },
+      ],
+    },
+    "",
+  ),
+  compoundFormRow(
+    "repeated-rule-lessons-do-not-build-up",
+    "compound-forms-no-standards",
+    "Two rule-shaped lessons in a row must not accumulate requests to adopt standards, in the docs or the reports.",
+    `Run the skill twice in sequence, once per lesson. First lesson: ${RETRY_LESSON} Second lesson: src/payments.js put a customer's account number in a thrown error that reached an API client. The fix is in the tree. The general lesson is that an error returned to a client never carries customer data, and deciding what counts as customer data takes human judgment, so no lint rule or test can detect a new violation.`,
+    {
+      result_must_not_include: ["ce-setup"],
+      workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
+      workspace_tree: [
+        { dir: "docs/solutions", contains: "idempotent", lacks: "ce-setup" },
+        { dir: "docs/solutions", contains: "customer data" },
+      ],
+    },
+  ),
+  compoundFormRow(
+    "non-rule-without-standards-file-stays-quiet",
+    "compound-forms-no-standards",
+    "A missing standards file alone is never a reason to mention ce-setup, or every run would nag.",
+    CACHE_TTL_LESSON,
+    {
+      git: "dirty",
+      result_must_include: ["Documentation complete", "docs/solutions/"],
+      result_must_not_include: ["ce-setup"],
+      workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
+    },
+  ),
+  compoundFormRow(
+    "lesson-already-carried-writes-nothing",
+    "compound-forms",
+    "When a test already states the lesson the counterfactual fails, so nothing is restated in any form.",
+    COVERED_LESSON,
+    {
+      result_must_include: ["Documentation skipped"],
+      workspace_unchanged: true,
+    },
+  ),
+  compoundFormRow(
+    "log-field-signal-stays-a-proposal",
+    "compound-forms",
+    "A proposed log field is product code, so the run reports it and leaves the code alone, and a learning holds the lesson.",
+    SIGNAL_LESSON,
+    {
+      git: "dirty",
+      result_must_include: ["Documentation complete", "currency_fallback"],
+      workspace_lacks: [{ path: "src/pricing.js", needle: "currency_fallback" }],
+    },
+  ),
+]
+
 const SETUP_STANDARDS_BASE_REF = "121a3bd60d296be72b2d3c0b08131b7b08fadc5a"
 const SETUP_STANDARDS_HISTORY =
   "The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation). I approve every draft and change you preview: write them all without asking me again, and do not commit."
@@ -5376,6 +5552,7 @@ Use "Correct widget limit" as the description in the subject and any required bo
       actions: "none",
     },
   },
+  ...COMPOUND_FORM_ROWS,
   {
     id: "ce-setup/standards-refresh-revisits-written-rules",
     skill: "ce-setup",
@@ -5386,18 +5563,19 @@ Use "Correct widget limit" as the description in the subject and any required bo
     fixture: `${FIX}/setup-standards-refresh`,
     timeout_secs: 1500,
     baseline_ref: SETUP_STANDARDS_BASE_REF,
-    why: "A refresh must catch newer pull requests that change already written guidance, not only add rules. After the standards were written, the team moved errors to middleware and keeps declining rule 2 findings, lint now enforces rule 3, and a new fixed finding recurs. The repo uses no AI reviewer with its own file, so no .cursor/BUGBOT.md may appear.",
+    why: "A refresh must catch newer pull requests that change already written guidance, not only add rules. After the standards were written, the team moved errors to middleware and keeps declining rule 2 findings, lint now enforces rule 3, the code rule 4 guarded is gone, and a new fixed finding recurs. The repo uses no AI reviewer with its own file, so no .cursor/BUGBOT.md may appear.",
     pre_contract:
       "Setup updates an existing standards file in place, adding rules the history supports and marking rules it contradicts, and shows the change as a diff.",
     task: `Use the ce-setup skill: refresh our coding standards. CODING_STANDARDS.md and REVIEW.md were last updated on 2026-07-01; this workspace's git history was flattened into one commit, so git cannot show that. ${SETUP_STANDARDS_HISTORY}`,
     grade: {
       workspace_contains: [
         { path: "CODING_STANDARDS.md", needle: "integer cents" },
-        { path: "CODING_STANDARDS.md", needle: "timingSafeEqual" },
+        { path: "CODING_STANDARDS.md", needle: "constant" },
       ],
       workspace_lacks: [
         { path: "CODING_STANDARDS.md", needle: "wraps its body in try/catch and responds 500 itself" },
         { path: "CODING_STANDARDS.md", needle: "No unused imports" },
+        { path: "CODING_STANDARDS.md", needle: "legacyXmlExport" },
         { path: ".cursor/BUGBOT.md" },
       ],
     },
