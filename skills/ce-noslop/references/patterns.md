@@ -13,13 +13,13 @@ Rule numbers are stable ids. A removed rule leaves a gap; never renumber. Each r
 5. **Formulaic outlook.** "Despite challenges, continues to thrive"; a closing paragraph about the bright future. Keep one real limitation or plan, stated plainly, and end on the last concrete fact.
 6. **Setup-reversal copy.** "Ten features. Zero headaches." "Everything changed. Your invoice didn't." State what the thing does; if the reversal was carrying the sentence, the sentence had no content.
 7. **Faux insight.** "The part everyone misses", "what nobody tells you", "the real question is", "at its core". Cut the setup and let the claim stand.
-8. **Metadiscourse.** "This matters more than it sounds", "the key point is", "as you can see", "in other words" when nothing was unclear. Delete the aside; if the point is unclear, add support instead.
+8. **Commentary on the writing.** "This matters more than it sounds", "the key point is", "as you can see", "in other words" when nothing was unclear. Delete the aside; if the point is unclear, add support instead.
 9. **Rejecting an alternative no one raised.** "A tempting approach would be", "some might say", "this isn't about X". Remove the fake option and state the real constraint.
 
 ## Language
 
 10. **Model vocabulary.** Delve, tapestry, testament, underscore, showcase, garner, interplay, intricate, enduring, foster, crucial, pivotal, additionally, moreover, enhance, leverage, utilize, facilitate, landscape and realm and journey as abstractions. Use the plain word for the actual claim.
-11. **Dressed-up copulas.** "Acts as", "functions as", "serves as", "offers", "boasts", "represents" where the sentence means "is" or "has". Use the short verb.
+11. **Long ways to say "is" or "has".** "Acts as", "functions as", "serves as", "offers", "boasts", "represents" where the sentence means "is" or "has". Use the short verb.
 12. **Not X but Y.** "It's not just a linter, it's a system." "The question isn't A, it's B." Nobody claimed X; state Y.
 13. **Forced triads.** Three adjectives, three examples, three beats when the natural number is one or two. Keep the items that are true and specific.
 14. **Synonym cycling.** The same thing called three names in one passage. Pick one term and repeat it; in technical writing, repetition is precision.
@@ -27,8 +27,8 @@ Rule numbers are stable ids. A removed rule leaves a gap; never renumber. Each r
 16. **Filler.** "In order to" is "to". "Due to the fact that" is "because". "It is important to note that" is nothing. "At this point in time" is "now".
 17. **Stacked hedges.** "Could potentially possibly" is "may". One hedge, and only when the uncertainty is real.
 18. **Adverbs doing a verb's work.** "Runs quickly" becomes "finishes in 40 ms"; "significantly improves" becomes the measured change. When the adverb carries the meaning, replace the verb or supply the number.
-19. **Nominalizations.** "The demotion of the grid is the change" is "demote the grid". Prefer the verb.
-20. **Borrowed metaphors for ordinary operations.** Words from physics, strategy, or machinery standing in for a plain code action: a "vector" that is a method, a "surface" that is an API, a "primitive" that is a function, a "lever" or "wedge" that is a change, a "north star" that is a goal, a "flywheel" that is a feedback loop, "evacuating" code that is being moved. Name the operation or the thing.
+19. **Verbs turned into nouns.** "The demotion of the grid is the change" is "demote the grid". Prefer the verb.
+20. **Borrowed metaphors for ordinary operations.** Words from physics, strategy, or machinery standing in for a plain code action: a "vector" that is a method, a "surface" that is an API, a "primitive" that is a function, a "lever" or "wedge" that is a change, a "north star" that is a goal, a "flywheel" that is a feedback loop, "evacuating" code that is being moved, a "substrate" that is a base layer, "gold-plating" that is more than the job needs, a "ratchet" that is a limit that only tightens, an "endgame" that is the last phase. Name the operation or the thing.
 21. **Feeling instead of mechanism.** "Deploys feel effortless", "errors are handled gracefully", "the API gets out of your way". Name what the reader can do or check: "a failed deploy rolls back within one minute", "a malformed row is skipped and logged with its line number".
 
 ## Structure
@@ -59,3 +59,8 @@ Rule numbers are stable ids. A removed rule leaves a gap; never renumber. Each r
 39. **Process narration in a report.** Steps the agent took that do not change what the reader does next. A cause that was ruled out or a fix that failed stays, stated as a finding; the account of how the agent spent its time goes.
 40. **Knowledge-limit disclaimers and gap-filling.** "While details are limited, it likely..." State what the source does not show, or cut the sentence. Never present a guess as a fact.
 41. **Manufactured thoroughness.** Bare counts ("resolved 11 threads"), scorecards, and lists of everything checked. Say what was decided and why; if nothing non-routine was decided, say nothing.
+
+## Plain speech
+
+42. **Clipped sentences.** Dropped articles, missing verbs, symbols in place of words, or abbreviations that make the reader decode the line: "Retry fails → page on-call, no rollback." Write the sentence: "A failed retry pages the on-call engineer and does not roll back." Expand only from what the source states. When a full sentence would need a guess, keep the source's words. A guess can be the actor, the tense, a cause, how certain the claim is, or what an abbreviation stands for. A clipped line the reader gets on the first pass stays, and so do fragments the format expects, such as table cells, commit subjects, and changelog lines.
+43. **Figurative phrasing.** A figure where a literal phrase exists: an aphorism ("ship it or kill it"), code given intent, knowledge, or judgment it does not have ("the config knows about the queue"), a verb borrowed from physical action ("the flag rides along", "retries sit on top of the queue"). Say what happens: "the config lists the queue". Verbs for a literal operation, such as reads, rejects, and validates, stay. Rule 20 covers the nouns.
