@@ -1,14 +1,14 @@
 ---
 name: ce-compound
-description: Document a solved problem as a durable repo learning. Use when verified work produced non-obvious reasoning absent from its final code, tests, or existing docs; avoid routine fixes whose artifacts already explain the lesson.
+description: Capture a solved problem's lesson in its cheapest durable form, a test or lint rule, a coding standard, or a repo learning. Use when verified work produced non-obvious reasoning absent from its final code, tests, or existing docs; avoid routine fixes whose artifacts already explain the lesson.
 argument-hint: "[optional: brief context] [mode:non-interactive] [depth:lightweight|full]"
 ---
 
 # /ce-compound
 
-**Outcome:** one qualifying solved problem is written as a durable learning under `<root>/solutions/`, grounded against the current tree, discoverable by the next agent.
+**Outcome:** the lesson of one qualifying solved problem is held in the cheapest form that stops the repeat, grounded against the current tree, discoverable by the next agent.
 
-**Done:** a qualifying doc is written or updated, its frontmatter and claims validated, vocabulary capture recorded, and the mode's completion report emitted; when no learning qualifies, nothing is written and the report says why.
+**Done:** the chosen form is written or updated and validated, vocabulary capture recorded, and the mode's completion report emitted; when no lesson qualifies, nothing is written and the report says why.
 
 **One learning per run.** A session that produced several gets several sequential runs, never one batched run. Read `references/research.md`; it explains what batching breaks.
 
@@ -39,7 +39,7 @@ Enter non-interactive mode when **either** holds: the arguments you were invoked
 
 Depth is chosen only by an explicit token, only in non-interactive mode, and at most one depth token is accepted. `depth:lightweight` routes directly to Lightweight Mode. `depth:full` or no depth token enters Full Mode, including its automatic session-history probe. A non-interactive call carrying no depth token therefore behaves as it always has. Non-interactive lightweight asks no blocking questions and launches no subagents. If the invocation carries an unknown `depth:` token, multiple `depth:` tokens, or a `depth:` token without non-interactive intent, do not guess: emit the non-interactive failure report with the reason and end with `Documentation skipped`.
 
-**Non-interactive mode asks nothing.** It asks no blocking question of any kind, in any phase, because a caller reaching this path has no human to answer one. Every non-interactive exit, including one taken before any phase runs, ends on a terminal signal a caller parses: `Documentation complete`, or `Documentation skipped` with the reason when no doc was written. Interactive mode asks only where the step's own reference says to, which is the Discoverability Check consent and, when several stale docs are in play, which refresh to run.
+**Non-interactive mode asks nothing.** It asks no blocking question of any kind, in any phase, because a caller reaching this path has no human to answer one. Every non-interactive exit, including one taken before any phase runs, ends on a terminal signal a caller parses: `Documentation complete`, or `Documentation skipped` with the reason when the run wrote nothing. Interactive mode asks only where a step's own reference says to.
 
 ## Artifact Root
 
@@ -57,11 +57,11 @@ Resolve `<root>` when you first compose a `<root>/solutions/` path, and pass a s
 
 **Only the orchestrator writes product files.** Phase 1 subagents write to per-run scratch only, and never touch `<root>/`, project instruction files, or any other tracked path.
 
-The orchestrator writes the one learning under `<root>/solutions/`, plus two maintenance side effects that its own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. Creating `CONCEPTS.md` when it is absent is expected rather than a violation. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to `ce-compound-refresh`, which this skill recommends or invokes with a narrow scope but never stands in for.
+The orchestrator writes what `references/form.md` chooses, in every mode and without asking: at most one added test, lint rule, or condition in an existing `CODING_STANDARDS.md`, and at most one learning under `<root>/solutions/`. It never changes product code. It also writes two maintenance side effects that their own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to `ce-compound-refresh`, which this skill recommends or invokes with a narrow scope but never stands in for.
 
 ## Choosing the path
 
-**Read `references/modes.md` before step 1.** An interactive run picks its own depth rather than asking the user, and that reference says why neither the depth choice nor session history is a question. Default to **Full**. Choose **Lightweight** only when the session is near its context limit.
+**Read `references/modes.md` before step 1.** An interactive run picks its own depth rather than asking the user. Default to **Full**. Choose **Lightweight** only when the session is near its context limit.
 
 Lightweight mode skips session history entirely; non-interactive Full runs the same automatic probe, which asks nothing and so preserves the non-interactive contract.
 
@@ -70,8 +70,8 @@ Lightweight mode skips session history entirely; non-interactive Full runs the s
 Run these in order. Each reference is a required read at the step that names it.
 
 1. **Research** — read `references/research.md`.
-2. **Session history** — read `references/session-history.md`, and start it *after* dispatching the Related Docs Finder so it overlaps your drafting rather than serializing. Session history is the final Phase 1 input, not a workflow stop. When it returns, including with "no relevant prior sessions", go straight to assembly without pausing or summarizing.
-3. **Assembly and write** — wait for every Phase 1 input, then read `references/assembly.md`.
+2. **Session history** — read `references/session-history.md`, and start it *after* dispatching the Related Docs Finder so it overlaps your drafting rather than serializing.
+3. **Form, assembly, and write** — wait for every Phase 1 input, read `references/form.md` and write what it chooses, then read `references/assembly.md`.
 4. **Refresh check and discoverability** — read `references/refresh-and-discoverability.md`.
 5. **Optional enhancement** — read `references/enhancement.md`. Interactive only.
 6. **Report** — read `references/report.md` for the report shape your mode must emit and how the skill ends.

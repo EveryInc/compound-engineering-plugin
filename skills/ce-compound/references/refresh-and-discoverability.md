@@ -2,7 +2,7 @@
 
 ### Phase 2.5: Selective Refresh Check
 
-After writing the new learning, decide whether this new solution is evidence that older docs should be refreshed.
+After writing the lesson's form, decide whether this new solution is evidence that older docs should be refreshed.
 
 `ce-compound-refresh` is **not** a default follow-up. Use it selectively when the new learning suggests an older learning or pattern doc may now be inaccurate.
 
@@ -24,7 +24,7 @@ It does **not** make sense to invoke `ce-compound-refresh` when:
 
 Use these rules:
 
-- If there is **one obvious stale candidate**, invoke `ce-compound-refresh` with a narrow scope hint after the new learning is written
+- If there is **one obvious stale candidate**, invoke `ce-compound-refresh` with a narrow scope hint after the lesson's form is written
 - If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set
 - If context is already tight or you are in lightweight mode, do not expand into a broad refresh automatically; instead recommend `ce-compound-refresh` as the next step with a scope hint
 - **In non-interactive mode**, never invoke `ce-compound-refresh` and never ask the user. Put the recommended scope hint in the terminal report's "Refresh recommendation" line and let the caller decide
@@ -49,11 +49,11 @@ A single scope hint may still expand to multiple related docs when the change is
 
 Do not invoke `ce-compound-refresh` without an argument unless the user explicitly wants a broad sweep.
 
-Always capture the new learning first. Refresh is a targeted maintenance follow-up, not a prerequisite for documentation.
+Always write the lesson's form first. Refresh is a targeted maintenance follow-up, not a prerequisite for documentation.
 
 ### Discoverability Check
 
-After the learning is written and the refresh decision is made, check whether the project's instruction files would lead an agent to discover and search `<root>/solutions/` before starting work in a documented area. This runs every time. The knowledge store only compounds value when agents can find it.
+After the lesson's form is written and the refresh decision is made, check whether the project's instruction files would lead an agent to discover and search `<root>/solutions/` before starting work in a documented area. This runs every time. The knowledge store only compounds value when agents can find it.
 
 1. Identify which root-level instruction files exist (AGENTS.md, CLAUDE.md, or both). Read the file(s) and determine which holds the substantive content — one file may just be a shim that `@`-includes the other (e.g., `CLAUDE.md` containing only `@AGENTS.md`, or vice versa). The substantive file is the assessment and edit target; ignore shims. If neither file exists, skip this check entirely.
 2. Assess whether an agent reading the instruction files would learn three things:
@@ -85,7 +85,7 @@ After the learning is written and the refresh decision is made, check whether th
 
       `<root>/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
       ```
-   c. In full interactive mode, explain to the user why this matters. Agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) will not know to check `<root>/solutions/` unless the instruction file mentions it. Show the proposed change and where it would go, then get consent before making the edit through the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability. Do not search for another host's tool name. Fall back to presenting the proposal in the host's user-visible chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes), not because a schema load is required. Never silently skip the question. In lightweight mode (interactive or non-interactive), output a one-liner note and move on. In full non-interactive mode, **do not edit instruction files**. Report the gap in the terminal report as `Instruction-file edit: gap noted, not applied` (non-interactive scope is documentation capture, not project-config edits; a human-invoked interactive run applies the edit with consent)
+   c. In full interactive mode, explain to the user why this matters. Agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) will not know to check `<root>/solutions/` unless the instruction file mentions it. Show the proposed change and where it would go, then get consent before making the edit through the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability. Do not search for another host's tool name. Fall back to presenting the proposal in the host's user-visible chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes), not because a schema load is required. Never silently skip the question. In lightweight mode (interactive or non-interactive), output a one-liner note and move on. In full non-interactive mode, **do not edit instruction files**. Report the gap in the terminal report as `Instruction-file edit: gap noted, not applied` (non-interactive scope is capturing the lesson, not project configuration, not project-config edits; a human-invoked interactive run applies the edit with consent)
 
 5. **If `CONCEPTS.md` exists at repo root, run a parallel discoverability check for it.** Assess whether the instruction file would lead an agent to discover the project's shared domain vocabulary. Use the same workflow as the `<root>/solutions/` check above: same target file, same edit-placement judgment, same consent-then-edit interaction shape per mode. A line in an existing section is almost always better than a new headed section. Example calibration when nothing else fits:
 

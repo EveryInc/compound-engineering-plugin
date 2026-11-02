@@ -1,8 +1,8 @@
 # `ce-compound`
 
-> Preserve the reasoning behind a solved problem when the implementation alone will not.
+> Hold the lesson of a solved problem in the cheapest form that stops the repeat.
 
-`ce-compound` is the knowledge-capture skill. After a verified solution produces durable, non-obvious project knowledge, it writes a structured doc to `docs/solutions/` covering symptoms, root cause, what did not work, the working solution, and prevention. `ce-plan` and `ce-ideate` read that folder as institutional memory, so the same investigation does not happen twice.
+`ce-compound` is the knowledge-capture skill. After a verified solution produces durable, non-obvious project knowledge, it holds that lesson in the cheapest form that works: a test or lint rule, a rule in `CODING_STANDARDS.md`, or a learning. A learning is a structured doc in `docs/solutions/` covering symptoms, root cause, what did not work, the working solution, and prevention. `ce-plan` and `ce-ideate` read that folder as institutional memory, so the same investigation does not happen twice.
 
 It closes the loop on the `/ce-ideate` -> `/ce-brainstorm` -> `/ce-plan` -> `/ce-work` chain. The first time you solve "N+1 query in brief generation" costs 30 minutes of research. The second time, someone finds the doc and the fix takes 2 minutes.
 
@@ -16,9 +16,9 @@ Captures land in `docs/solutions/`, where `ce-plan`'s research and `ce-code-revi
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Documents a solved problem to `docs/solutions/[category]/[filename].md` with structured frontmatter, bug-track or knowledge-track sections, and cross-references |
+| What does it do? | Chooses the cheapest form that stops a solved problem from repeating, then writes it: a test or lint rule, a coding standard, or a learning at `docs/solutions/[category]/[filename].md` |
 | When to use it | After a verified solution produces durable reasoning that the final implementation does not readily reveal and that would be costly or risky to lose |
-| What it produces | One doc in `docs/solutions/`, plus optional `CONCEPTS.md` vocabulary capture. Interactive Full may also edit `AGENTS.md`/`CLAUDE.md` for discoverability after consent. |
+| What it produces | At most one added test, lint rule, or standard, and at most one doc in `docs/solutions/`, plus optional `CONCEPTS.md` vocabulary capture. It never changes product code. Interactive Full may also edit `AGENTS.md`/`CLAUDE.md` for discoverability after consent. |
 | What's next | No menu. Optional `/ce-compound-refresh` if the new learning suggests an older doc may be stale. |
 
 ---
@@ -33,7 +33,16 @@ Use `ce-compound` only when all three conditions hold:
 
 Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not compound.
 
-Put knowledge in the narrowest durable home that communicates it completely:
+The skill then picks the cheapest form that would stop the repeat, in the order below, and writes it without asking. The commit or pull request that carries the write is its review.
+
+1. **One owner and one way.** The mistake was possible because two ways to do the thing exist. This changes product code, so the skill reports it for the code's owner.
+2. **A test or lint rule** whose failure names the fix. The skill keeps it only after seeing it pass on the current tree and fail on the defect in a throwaway copy. A check that needs product code changed, such as a log field or metric, is reported instead.
+3. **A rule in `CODING_STANDARDS.md`**, under the same bar [`ce-setup`](./ce-setup.md) applies, when no check can hold the lesson. The skill never creates that file. It recommends `/ce-setup standards` only when this lesson is itself a rule and the repo has no file.
+4. **A learning**, only for reasoning the other forms cannot carry, such as measured facts or rejected alternatives.
+
+A stronger form that was reported rather than written appears as `Recommended form` in the report, and the learning holds the whole lesson so it survives a lost report.
+
+Other knowledge has its own home:
 
 | Knowledge | Best home |
 |-----------|-----------|

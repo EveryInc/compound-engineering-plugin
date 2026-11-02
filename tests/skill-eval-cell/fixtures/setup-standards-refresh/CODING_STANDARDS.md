@@ -14,6 +14,10 @@ Rules code in this repository follows. Each one came from a bug a reviewer caugh
 
 3. **No unused imports.** Dead imports hid a circular dependency that broke startup (#13).
 
+## Exports
+
+4. **Every call to `legacyXmlExport` passes `{ escape: true }`.** Unescaped output broke a partner import (#10).
+
 ## Maintaining this file
 
 Add a rule only when a review finding the author fixed, a fix commit, or a cleanup across the codebase shows it, and no lint, type, or CI check already covers it.
