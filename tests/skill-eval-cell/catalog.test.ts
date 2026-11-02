@@ -477,6 +477,8 @@ describe("skill-eval-cell catalog", () => {
       "ce-setup/instruction-file-covered-offers-nothing",
       "ce-setup/instruction-file-gap-offers-store-and-directive",
       "lfg/defect-route-ships-session-edits",
+      "lfg/one-pass-skips-plan",
+      "lfg/unsettled-values-still-plan",
     ])
   })
 

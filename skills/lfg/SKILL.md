@@ -6,7 +6,7 @@ argument-hint: "[feature, bug, issue reference, or plan path; optionally assign 
 
 **Outcome.** The request reaches the end state its shape calls for, produced by the Compound Engineering skill whose job that is, with everything unresolved recorded where the user will see it. Most requests end with that skill's result and no branch. A change to the code is the one shape with more steps of its own: it ends in an open pull request whose URL you hold, with CI decided, after being implemented, simplified, reviewed with the eligible findings applied and the rest recorded, any durable learning captured, committed, and pushed. Merging stays with the user unless they granted it for this run.
 
-**Work source.** On the routes that change the code, nothing is implemented without a work source verified this run, and only two things qualify: an implementation-ready plan, which `ce-work` implements; or a `fixed` return from `ce-debug`, where the fix is the implementation. The plan is one the session identifies, as `references/intake.md` defines. Never search the plans directory for a candidate or act on a file you discovered. Never plan from scratch over an existing plan.
+**Work source.** On the routes that change the code, nothing is implemented without a work source verified this run, and only three things qualify: an implementation-ready plan or a one-pass statement, each of which `ce-work` implements, or a `fixed` return from `ce-debug`, where the fix is the implementation. The plan is one the session identifies, as `references/intake.md` defines. Never search the plans directory for a candidate or act on a file you discovered. Never plan from scratch over an existing plan.
 
 **Route by what the request is.** Match the request to the skill whose job it is; the host's skill list is the catalog. Read `references/intake.md` before choosing; it alone defines the routes, their precedence, what each child skill is passed, and how each return is read. In short:
 
@@ -15,9 +15,7 @@ argument-hint: "[feature, bug, issue reference, or plan path; optionally assign 
 - A change that hangs on a judgment the user did not settle goes to `ce-pov` first, and only a verdict that supports the change continues; a judgment with nothing to build ends at the verdict.
 - Product shape with more than one plausible reading goes to `ce-brainstorm` when a human is present, and to `ce-plan` in pipeline mode when not.
 - A request whose result is not a code change goes to the skill that owns that result (`ce-explain`, `ce-prototype`, `ce-pov`, `ce-ideate`, and so on); that invocation is the whole run: return its result and end.
-- Any other change to the code goes to `ce-plan`.
-
-When unsure, take the route that asks more of the evidence.
+- Any other change to the code goes to `ce-plan`, unless it can be stated, done, and verified in one pass with no decision the user would weigh; then it goes straight to `ce-work`.
 
 **Interaction.** Ask the user only through `ce-brainstorm`, and only when a human is present. Everything else proceeds without waiting: reversible work is done and shown for the user to correct afterward, and only an irreversible action outside what they granted (a merge they did not grant, a force-push, deleting data) stops instead. `lfg` runs from schedulers, loops, and nested orchestrators. The one other question is the routing disambiguation `references/stage-routing.md` defines: when the conversation assigns planning or implementation to a model or harness, read that file before routing; it alone carries the carrier strings and the sanitization.
 
@@ -34,13 +32,13 @@ Resolve every skill named here against the host's available-skills list and invo
 
 ## The run (routes that change the code)
 
-1. **Produce the work source** per `references/intake.md`. On the plan route, read `references/plan-brief.md` first; it alone defines the settled-decisions brief and the artifact-root rule. Any explicit `status: blocked` return, including `settled-decision-invalidated`, stops the run. Blocked status outranks an existing artifact and is never retried. Only absence of both a blocker and a plan file `ce-plan` reported writing this run invokes `ce-plan` a second time with the same arguments, reusing the composed brief verbatim; the plan must then pass the readiness check in `references/plan-brief.md`. On the plan route the `plan_model:<alias>` carrier rides beside the request when a planning-stage directive resolved. Record the work source for every later step. LFG never launches `/goal` directly; `ce-work` implements and returns control.
+1. **Produce the work source** per `references/intake.md`. On the plan route, read `references/plan-brief.md` first; it alone defines the settled-decisions brief and the artifact-root rule. Any explicit `status: blocked` return, including `settled-decision-invalidated`, stops the run. Blocked status outranks an existing artifact and is never retried. Only absence of both a blocker and a plan file `ce-plan` reported writing this run invokes `ce-plan` a second time with the same arguments, reusing the composed brief verbatim; the plan must then pass the readiness check in `references/plan-brief.md`. Record the work source for every later step. LFG never launches `/goal` directly; `ce-work` implements and returns control.
 
-2. **Read `references/work-return.md` first**, then invoke the `ce-work` skill with `mode:return-to-caller <plan-path-from-step-1>`. On the defect route this step does not run: `ce-debug` already implemented and committed, and `references/debug-return.md` was its gate. Only a valid `status: complete` from `ce-work` may advance; every other status or malformed return stops the pipeline.
+2. **Read `references/work-return.md` first**, then invoke the `ce-work` skill with `mode:return-to-caller <plan-path-from-step-1>`; a one-pass statement takes the path's place. On the defect route this step does not run: `ce-debug` already implemented and committed, and `references/debug-return.md` was its gate. Only a valid `status: complete` from `ce-work` may advance; every other status or malformed return stops the pipeline.
 
 3. **Read `references/review-followup.md` now**; it governs steps 3 through 7. Invoke the `ce-simplify-code` skill with `mode:pipeline` on the branch diff; skip only the invocation for a docs-only or roughly sub-10-line change.
 
-4. Invoke the `ce-code-review` skill with `mode:agent plan:<plan-path-from-step-1>`; on the defect route omit `plan:`. A `settled_conflict` finding whose evidence shows the settled decision cannot work (infeasible, wrong-thing, or destructive) stops the pipeline as blocked, with the finding reported, before the shipping precondition.
+4. Invoke the `ce-code-review` skill with `mode:agent plan:<plan-path-from-step-1>`; with no plan, omit `plan:`. A `settled_conflict` finding whose evidence shows the settled decision cannot work (infeasible, wrong-thing, or destructive) stops the pipeline as blocked, with the finding reported, before the shipping precondition.
 
 **Shipping precondition (every push from step 5 on).** Run `git remote` once. No remote means local-only: make every commit the steps call for, but skip every push, PR create/edit, and CI-watch action, including step 10 in full. That is terminal, not an error.
 
