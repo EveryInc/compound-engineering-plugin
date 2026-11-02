@@ -230,6 +230,13 @@ function parseJsonFile(file: string): unknown {
   }
 }
 
+function walkFiles(dir: string): string[] {
+  if (!fs.existsSync(dir)) return []
+  return fs.readdirSync(dir, { recursive: true, encoding: "utf8" })
+    .map((entry) => path.join(dir, entry))
+    .filter((file) => fs.statSync(file).isFile())
+}
+
 function readText(file: string): string {
   try {
     return fs.readFileSync(file, "utf8")
@@ -430,6 +437,15 @@ export function gradeHost(opts: {
       reasons.push(`${check.path} is missing`)
     } else if (readText(file).includes(check.needle)) {
       reasons.push(`${check.path} still contains ${JSON.stringify(check.needle)}`)
+    }
+  }
+  for (const check of opts.grade.workspace_tree ?? []) {
+    const files = walkFiles(path.join(workspace, check.dir)).map(readText)
+    if (check.contains !== undefined && !files.some((text) => text.includes(check.contains!))) {
+      reasons.push(`no file under ${check.dir} contains ${JSON.stringify(check.contains)}`)
+    }
+    if (check.lacks !== undefined && files.some((text) => text.includes(check.lacks!))) {
+      reasons.push(`a file under ${check.dir} contains ${JSON.stringify(check.lacks)}`)
     }
   }
   for (const check of opts.grade.json_field ?? []) {

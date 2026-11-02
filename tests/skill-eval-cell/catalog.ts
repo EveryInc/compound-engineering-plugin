@@ -140,6 +140,8 @@ export type Grade = {
   workspace_contains?: Array<{ path: string; needle: string }>
   /** With a needle, the file must exist and not contain it, so a deleted file cannot pass. Without one, the file must not exist. */
   workspace_lacks?: Array<{ path: string; needle?: string }>
+  /** For a file whose name the run chooses: some file under `dir` contains `contains`, and none contains `lacks`. */
+  workspace_tree?: Array<{ dir: string; contains?: string; lacks?: string }>
   /**
    * A field of a parsed JSON object must equal one of `any_of`. The object is the
    * workspace file at `path` (the whole file must be JSON), or the JSON object the
@@ -502,7 +504,10 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     {
       files_read_post: ["references/form.md"],
       result_must_include: ["Documentation complete", "Also written:", "tests/quantity.test.js"],
-      workspace_contains: [{ path: "src/quantity.js", needle: "raw == null" }],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
     },
   ),
   compoundFormRow(
@@ -512,7 +517,10 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     QUANTITY_LESSON,
     {
       result_must_include: ["Documentation complete", "Also written:", "tests/quantity.test.js"],
-      workspace_contains: [{ path: "src/quantity.js", needle: "raw == null" }],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
     },
     "mode:non-interactive depth:lightweight",
   ),
@@ -523,7 +531,10 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     `${QUANTITY_LESSON} Nobody is available to answer questions in this session, so treat any question you would ask as unanswered.`,
     {
       result_must_include: ["tests/"],
-      workspace_contains: [{ path: "src/quantity.js", needle: "raw == null" }],
+      workspace_contains: [
+        { path: "src/quantity.js", needle: "raw == null" },
+        { path: "tests/quantity.test.js", needle: "parseQuantity(0)" },
+      ],
     },
     "",
   ),
@@ -533,6 +544,7 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     "Measured facts and a rejected alternative cannot be held by a check or a standard alone, so a learning carries them. A test may also pin the TTL floor.",
     CACHE_TTL_LESSON,
     {
+      git: "dirty",
       result_must_include: ["Documentation complete", "docs/solutions/"],
     },
   ),
@@ -547,13 +559,47 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     },
   ),
   compoundFormRow(
-    "rule-without-standards-file-recommends-setup",
+    "rule-without-standards-file-stays-in-learning",
     "compound-forms-no-standards",
-    "A rule-shaped lesson in a repo with no standards file writes a learning and names ce-setup. It never creates the file.",
+    "A repo without a standards file has made a valid choice. An unattended run keeps the rule in the learning, and neither the doc nor the report asks anyone to set anything up.",
     RETRY_LESSON,
     {
-      result_must_include: ["Documentation complete", "docs/solutions/", "ce-setup"],
+      git: "dirty",
+      result_must_include: ["Documentation complete", "docs/solutions/", "Recommended form: none"],
+      result_must_not_include: ["ce-setup"],
       workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
+      workspace_tree: [{ dir: "docs/solutions", contains: "idempotent", lacks: "ce-setup" }],
+    },
+  ),
+  compoundFormRow(
+    "rule-without-standards-file-attended-note",
+    "compound-forms-no-standards",
+    "An attended run says once, in the report only, that the lesson could be a standard. It asks nothing, and the learning stays free of it.",
+    `${RETRY_LESSON} Nobody is available to answer questions in this session, so treat any question you would ask as unanswered.`,
+    {
+      git: "dirty",
+      result_must_include: ["This could be a coding standard if you adopt them."],
+      workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
+      workspace_tree: [
+        { dir: "docs/solutions", contains: "idempotent", lacks: "ce-setup" },
+        { dir: "docs/solutions", lacks: "could be a coding standard" },
+      ],
+    },
+    "",
+  ),
+  compoundFormRow(
+    "repeated-rule-lessons-do-not-build-up",
+    "compound-forms-no-standards",
+    "Two rule-shaped lessons in a row must not accumulate requests to adopt standards, in the docs or the reports.",
+    `Run the skill twice in sequence, once per lesson. First lesson: ${RETRY_LESSON} Second lesson: src/payments.js put a customer's account number in a thrown error that reached an API client. The fix is in the tree. The general lesson is that an error returned to a client never carries customer data, and deciding what counts as customer data takes human judgment, so no lint rule or test can detect a new violation.`,
+    {
+      result_must_include: ["Documentation complete"],
+      result_must_not_include: ["ce-setup"],
+      workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
+      workspace_tree: [
+        { dir: "docs/solutions", contains: "idempotent", lacks: "ce-setup" },
+        { dir: "docs/solutions", contains: "customer data" },
+      ],
     },
   ),
   compoundFormRow(
@@ -562,6 +608,7 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     "A missing standards file alone is never a reason to mention ce-setup, or every run would nag.",
     CACHE_TTL_LESSON,
     {
+      git: "dirty",
       result_must_include: ["Documentation complete", "docs/solutions/"],
       result_must_not_include: ["ce-setup"],
       workspace_lacks: [{ path: "CODING_STANDARDS.md" }],
@@ -583,6 +630,7 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
     "A proposed log field is product code, so the run reports it and leaves the code alone, and a learning holds the lesson.",
     SIGNAL_LESSON,
     {
+      git: "dirty",
       result_must_include: ["Documentation complete", "currency_fallback"],
       workspace_lacks: [{ path: "src/pricing.js", needle: "currency_fallback" }],
     },

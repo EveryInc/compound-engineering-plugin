@@ -2,7 +2,7 @@
 
 ## Success Output
 
-**User-runnable invocation rendering.** The reports below may print a `ce-compound-refresh` or `ce-setup` invocation for the user to copy. Default to `/ce-compound-refresh <scope>` or `/ce-setup standards`; use `$ce-compound-refresh <scope>` or `$ce-setup standards` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), render `ce-setup` as `/skill:ce-setup standards`. Render only the invocation as inline code and output one form only.
+**User-runnable refresh rendering.** The reports below print a `ce-compound-refresh` invocation for the user to copy. Default to `/ce-compound-refresh <scope>`; use `$ce-compound-refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
 ### Non-interactive mode
 
@@ -91,7 +91,9 @@ issues occur in the Email Processing or Brief System modules.
 Refresh recommendation: none
 ```
 
-`Files written:` lists everything the run wrote: any test, lint rule, or standard with how it was proven, and the destination the assembly step settled on. That destination is a pack rule's path (`<pack dir>/<file>.md`) when the user routed the capture into a writable pack, and the `<root>/solutions/` path otherwise. Add a `Recommended form:` line when a stronger form was reported rather than written.
+`Files written:` lists everything the run wrote: any test, lint rule, or standard with how it was proven, and the destination the assembly step settled on. That destination is a pack rule's path (`<pack dir>/<file>.md`) when the user routed the capture into a writable pack, and the `<root>/solutions/` path otherwise. Add a `Recommended form:` line when a check or owner consolidation was reported rather than written.
+
+When the lesson met the standard form but the repo has no `CODING_STANDARDS.md`, add this one line and ask nothing: `This could be a coding standard if you adopt them.` Only an attended report carries it. Non-interactive reports read `Recommended form: none` for this case, so it never reaches a pull request.
 
 **The summary is the last thing this skill writes. When a caller invoked this skill, its next step follows the summary in the same session; otherwise end the turn. `ce-compound` does not present a "What's next?" menu.** The lesson is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is left to `ce-compound-refresh`, the skill designed for it, through the `Refresh recommendation` line above. It is not applied here, because that would edit tracked docs beyond this run's deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
 
