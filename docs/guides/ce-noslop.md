@@ -69,10 +69,10 @@ Who reads the result decides the register. A caller's own interaction contract w
 
 Applied to every sentence: as constraints in author mode, as checks in edit and detect.
 
-1. **Mechanism.** Say what the thing does, not how it feels.
+1. **Mechanism.** Say what the thing does, not how it feels or what it is like.
 2. **Portability.** A sentence that could move to another project unchanged says nothing about this one.
 3. **Actor.** Name who does the verb. Passive stays only when the actor is unknown or does not matter.
-4. **One idea.** If the reader would backtrack, split the sentence.
+4. **One idea.** If the reader would backtrack or have to decode the sentence, split it or spell it out.
 5. **Density.** One device proves nothing. Three or more distinct patterns in a passage, or one repeated across passages, is a finding.
 6. **Decision first.** The first sentence carries the outcome the reader needs.
 7. **Reader.** Someone without the document or the code open can act on it. Gloss the identifier or name the consequence.

@@ -181,3 +181,8 @@ bun run test:skill-eval-pack -- --skill ce-noslop --arm post
 | `ce-noslop/protected-spans-stay-byte-identical` | Code block, quoted text, identifier, and link target untouched even when the quote carries a tell |
 | `ce-noslop/non-english-runs-tests-only` | French draft gets the kernel tests and a summary saying the catalog did not apply |
 | `ce-noslop/detect-names-patterns-without-rewrite` | A question about a draft is detect mode: quoted lines and fixes, no rewrite |
+| `ce-noslop/clipped-notes-become-sentences` | Decode-forcing notes become sentences from what they state; no invented cause or expansion; a readable line stays |
+| `ce-noslop/figurative-verbs-become-literal` | Figurative verbs and code credited with intent go; literal verbs and all numbers stay |
+| `ce-noslop/single-figure-becomes-literal` | One figurative verb among plain sentences goes; the plain sentences stay byte for byte |
+| `ce-noslop/expected-fragments-stay` | Table cells and changelog lines stay byte for byte |
+| `ce-noslop/detect-uses-plain-labels` | Detect names the patterns without grammar-term labels |
