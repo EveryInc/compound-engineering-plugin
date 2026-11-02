@@ -2,6 +2,8 @@
 
 Read this after the engine is resolved and before dispatching any worker or scheduling a parallel wave. `SKILL.md` resolves the route and enforces the checks on in-progress files and writes; the reference for the selected engine holds any engine-specific lock. This file describes how native work is scheduled, packaged, dispatched, and integrated.
 
+A spawned worker or peer starts a new context and does not continue the parent conversation.
+
 For the inline/subagent engine, **run each dependency layer's independent units together as a parallel wave of fresh workers.** This is the default, not an optimization to opt into: a wave spends more tokens than inline work in exchange for finishing sooner, and that is the intended trade. Serialize writes only where the dependency graph actually demands it, and only for the specific units that demand it. Let the plan's `Dependencies` and `Files` drive batching: run an independent dependency layer together, then the next. Serializing a whole plan is justified only by a genuinely linear dependency chain, or by units that can neither meet the shared-workspace wave contract below nor obtain an isolated workspace. Blanket caution never justifies it.
 
 A unit that must run in sequence gains no time from a worker, so run it inline in this context. Give a sequential unit a fresh worker only when this context is crowded enough that a clean window would materially help that unit.
