@@ -37,6 +37,7 @@ const ANNOTATION_WAIT_BASE_REF = "d1734f7ed5341b6d0b683405da82895f0a0a25f7"
 /** main before streak interpretation accounted for estimated baselines and candidate selection (#1698). */
 const RETUNE_STREAK_BASE_REF = "53af1a2eab6415be9881c1987dbc986dcb54465c"
 export const SUSTAINED_HANDOFF_BASE_REF = "153e605e1622154a0d7da095fceed13edcb68bf7"
+export const LFG_ONE_PASS_BASE_REF = "6035b2519123fdcaabd609a757852a0aabc06be3"
 /** main before judgment-bound escalations were adjudicated through ce-pov instead of parking as needs-human. */
 export const ADJUDICATE_BASE_REF = "020c5e10d49aed19ee9354917780e94e665f5977"
 /** main before the resolver weighed whether an existing signal already bounds a true finding's failure. */
@@ -5431,14 +5432,58 @@ Use "Correct widget limit" as the description in the subject and any required bo
     handoff_probe: ["ce-plan"],
     timeout_secs: 900,
     fixture: `${FIX}/tiny-lib`,
-    why: "Autonomous ship still plans first. Post-shrink step 1 is a required read of plan-brief.md.",
-    pre_contract: "Plan FIRST, then work. Never skip the plan.",
-    task: `lfg: add a --quiet flag to the greeter and ship it.`,
+    why: "A change with a risk surface still plans first. Post-shrink step 1 is a required read of plan-brief.md.",
+    pre_contract: "Plan FIRST, then work, for anything past one pass.",
+    task: `lfg: require an API key and authenticate every caller of the greeter, then ship it.`,
     grade: {
       files_read_post: ["references/plan-brief.md"],
       // The stand-in ce-plan writes no plan, so the run stops at the work-source gate.
       shim_log_must: ["handoff ce-plan"],
       ...handoffOnly(),
+    },
+  },
+  {
+    id: "lfg/one-pass-skips-plan",
+    baseline_ref: LFG_ONE_PASS_BASE_REF,
+    skill: "lfg",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    post_only: true,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-plan", "ce-work"],
+    timeout_secs: 900,
+    fixture: `${FIX}/tiny-lib`,
+    why: "A one-pass change stopped on Codex: ce-plan wrote no plan file for it, and lfg required one.",
+    pre_contract: "lfg requires an implementation-ready plan or a fixed debug return.",
+    task: `lfg: add src/shout.js exporting one function, shout(name), that returns greet(name) in upper case, and ship it.`,
+    grade: {
+      shim_log_must: ["handoff ce-work"],
+      ...handoffOnly(["handoff ce-plan"]),
+    },
+  },
+  {
+    id: "lfg/unsettled-values-still-plan",
+    baseline_ref: LFG_ONE_PASS_BASE_REF,
+    skill: "lfg",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    post_only: true,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-plan", "ce-work"],
+    timeout_secs: 900,
+    fixture: `${FIX}/tiny-lib`,
+    why: "Codex took a multi-module rate limiter through the one-pass route and chose the limits itself.",
+    pre_contract: "A change that needs a behavior, value, or interface nobody settled gets a plan.",
+    task: `lfg: add a small rate limiter that the greeter and a new report module both use, with a config file for the limits, and ship it.`,
+    grade: {
+      shim_log_must: ["handoff ce-plan"],
+      ...handoffOnly(["handoff ce-work"]),
     },
   },
   {

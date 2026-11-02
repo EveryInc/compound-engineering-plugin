@@ -22,7 +22,7 @@ ce-code-review mode:agent plan:<plan-path-from-step-1>
 
 Read the **Actionable Findings** summary and artifact path. Do not pass `mode:autofix`.
 
-Pass the plan file path from step 1 so `ce-code-review` can verify requirements completeness. On the defect route there is no plan: omit `plan:` and pass the `root_cause` summary as review context; the requirements check is additive by `ce-code-review`'s own contract and review still covers the diff. Also read any findings stamped `settled_conflict` (each names the conflicting KTD). Stamped findings that are matters of preference do not stop the pipeline (they are report-only), but they must reach step 6's record of unapplied findings.
+Pass the plan file path from step 1 so `ce-code-review` can verify requirements completeness. On a one-pass statement there is no plan: omit `plan:` and pass the statement as review context. On the defect route there is no plan: omit `plan:` and pass the `root_cause` summary as review context; the requirements check is additive by `ce-code-review`'s own contract and review still covers the diff. Also read any findings stamped `settled_conflict` (each names the conflicting KTD). Stamped findings that are matters of preference do not stop the pipeline (they are report-only), but they must reach step 6's record of unapplied findings.
 
 `mode:agent` is report-only **by design**: it reports findings but never edits the tree, and LFG applies the eligible ones in step 5. When narrating progress to the user, frame this as "review found X -> applied X in step 5," not as "code review did not auto-fix." A report-only review followed by an LFG-applied fix is the intended contract, not a gap.
 

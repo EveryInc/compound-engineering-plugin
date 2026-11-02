@@ -38,8 +38,10 @@ describe("lfg work source and routes", () => {
     }
   })
 
-  test("only a verified plan or a fixed debug return is a work source, and nothing is discovered on disk", () => {
-    expect(lfg).toMatch(/only two things qualify/)
+  test("only a verified plan, a one-pass statement, or a fixed debug return is a work source, and nothing is discovered on disk", () => {
+    expect(lfg).toMatch(/only three things qualify/)
+    expect(intake).toContain("One pass, no plan.")
+    expect(workTriage).toContain("a work statement the caller already sized")
     expect(lfg).toMatch(/`fixed` return from `ce-debug`/)
     expect(lfg).toMatch(/Never search the plans directory/)
     // ce-work's blank-invocation discovery exists; lfg must never reach it.

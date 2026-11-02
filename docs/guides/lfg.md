@@ -14,7 +14,7 @@ It works best after `/ce-brainstorm`, because the pipeline can then plan against
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Routes the request to a work source (plan, `ce-debug` fix, or brainstorm then plan), implements, simplifies, reviews, applies eligible fixes, captures learnings, runs browser tests, commits, pushes, opens a PR, and watches CI |
+| What does it do? | Routes the request to a work source (plan, `ce-debug` fix, brainstorm then plan, or no plan at all for a change that fits one pass), implements, simplifies, reviews, applies eligible fixes, captures learnings, runs browser tests, commits, pushes, opens a PR, and watches CI |
 | When to use it | A software task or bug you want shipped hands-off: a plan from `/ce-brainstorm` or `/ce-plan`, a clear feature, or a reproducible defect |
 | What it produces | Code changes, commits, usually a PR. Unresolved review or CI leftovers become durable notes. No remote: local commits only. |
 | What's next | Review the PR. Run `/ce-babysit-pr` to watch it through review toward merge. |

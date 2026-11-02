@@ -12,15 +12,19 @@ When `ce-work` cannot re-read the reference file that defines its return after i
 
 ## What `status: complete` must carry
 
-Verify that implementation work was performed: files were created or modified beyond the plan. Require `status`, `plan_path`, `changed_files`, `u_ids_attempted`, `u_ids_completed`, `verification_results`, `verification_evidence`, `source_kind`, `source_digest`, `settled_decision_conflicts`, `behavior_change`, and `standalone_shipping_skipped: true`. The source fields must identify the same plan authority that entered the implementation run. Evidence and conflict fields are present on every complete return; empty arrays are valid when their conditions did not occur.
+Verify that implementation work was performed: files were created or modified beyond the plan. Require `status`, `plan_path`, `changed_files`, `u_ids_attempted`, `u_ids_completed`, `verification_results`, `verification_evidence`, `source_kind`, `source_digest`, `settled_decision_conflicts`, `behavior_change`, and `standalone_shipping_skipped: true`. The source fields must identify the same plan authority that entered the implementation run. On a one-pass statement, `plan_path` is null, `source_kind` is `prompt`, `source_digest` is the digest the controller recorded or null on a native run, and `u_ids_attempted` and `u_ids_completed` are empty arrays. A recovery invocation repeats the statement unchanged in place of the plan path. Evidence and conflict fields are present on every complete return; empty arrays are valid when their conditions did not occur.
 
 Also require the fields that record which route actually ran: `implementation_engine_binding`, `requested_route`, `actual_route`, `requested_model`, `actual_model`, `fallback_reason`, `run_id`, `unit_receipts`, `plan_checkpoint`, `blockers`, and `recovery_path`. These fields are required even when native execution makes some values `null`. Together they carry where the binding came from, requested-versus-actual identity, fallback, the durable run, per-unit process/integration/verification/commit state, checkpoint disclosure, blockers, and recovery. A resumed return must carry the same `run_id`; never treat resume as permission to start a new unit or a second LFG shipping run.
+
+## The work must be committed
+
+`ce-code-review` leaves out untracked files, so files this run added go unreviewed until they are committed. Before step 3, confirm the return's `changed_files` are committed. If any are not, commit those files and continue. Do not stop for this.
 
 ## Verification evidence
 
 When `behavior_change: true`, `verification_evidence` must name the relevant units/tasks, existing tests inspected, tests added/changed or used unchanged, red failure or characterization evidence when applicable, verification run, and any deliberate test exception. Do NOT decide the test strategy inside LFG; the evidence is ce-work's contract.
 
-Also read `settled_decision_conflicts` from the return: blocker-routed entries arrive as `status: blocked` and stop the pipeline. **Record any proceeded-and-flagged entries**: they must reach step 6's lasting record of unapplied findings and step 8's PR-description context, since later review may not rediscover them.
+Also read `settled_decision_conflicts` from the return: blocker-routed entries arrive as `status: blocked` and stop the pipeline. **Record any proceeded-and-flagged entries**: they must reach step 6's lasting record of unapplied findings and step 9's PR-description context, since later review may not rediscover them.
 
 ## The one recovery invocation
 
