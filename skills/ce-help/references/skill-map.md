@@ -47,14 +47,14 @@ Recommend one skill. Bring in a second when the situation falls between two skil
 ## Skills that sound alike
 
 - `ce-ideate` finds what to work on. `ce-brainstorm` shapes an idea the user already has. `ce-plan` works out how to build what is already decided.
-- `ce-work` takes a plan or scoped request through to a PR, and pauses when it needs a decision. `lfg` also plans or diagnoses first when needed, does not wait for approval, and adds learning capture and browser tests. Which to use is a preference; `references/workflow.md` covers it.
-- `ce-debug` is for a cause that is not known yet, including "why is this slow?". `ce-work` is for a change that is already known. `ce-optimize` is for moving a metric on a working system, and needs a repeatable measurement.
+- `ce-work` takes a plan or scoped request through to a PR. `lfg` hands off everything from the current point without waiting for approval. Which to use is a preference; `references/workflow.md` covers it.
+- `ce-debug` is for a cause that is not known yet, including "why is this slow?". `ce-work` is for a change that is already known. `ce-optimize` is for moving a metric on a working system.
 - `ce-explain` says how and why something is the way it is. `ce-pov` gives a judgment. `wtf` explains text the user did not follow and investigates nothing.
-- `ce-pov` judges options that already exist, and asking it to "oracle this" adds other models' opinions. `ce-bakeoff` develops the options first. `ce-doc-review` returns findings on a document and corrects proven errors, but gives no overall verdict.
+- `ce-pov` judges options that already exist, and asking it to "oracle this" adds other models' opinions. `ce-bakeoff` develops the options first. `ce-doc-review` reviews a document but gives no overall verdict.
 - `ce-prototype` tests how something should work or feel. `ce-brainstorm` decides what to build. `ce-polish` refines something that already works.
 - `ce-simplify-code` improves code with behavior unchanged. `ce-code-review` looks for bugs and regressions.
-- `ce-code-review` produces new findings. `ce-resolve-pr-feedback` handles feedback already on a PR. `ce-babysit-pr` watches a PR over time and calls `ce-resolve-pr-feedback` and `ce-debug` as needed.
-- `ce-test-browser` tests the current change and asks before fixing anything. `ce-dogfood` works through the user flows hands-off, commits fixes for small breakages, and writes a report.
+- `ce-code-review` produces new findings. `ce-resolve-pr-feedback` handles feedback already on a PR. `ce-babysit-pr` watches a PR over time.
+- `ce-test-browser` tests the current change. `ce-dogfood` works through the user flows hands-off and fixes small breakages.
 - `ce-compound` writes or updates one learning. `ce-compound-refresh` maintains the ones already captured.
 
 ## Explaining one skill

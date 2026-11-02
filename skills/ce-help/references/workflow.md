@@ -20,10 +20,7 @@ To choose between `ce-brainstorm` and `ce-plan`, ask whether two reasonable peop
 
 ## How `ce-brainstorm`, `ce-plan`, and `ce-work` connect
 
-- `ce-brainstorm` writes a requirements-only plan. Its lightest tier may write nothing.
-- `ce-plan` enriches that same file in place and does not reopen the product decisions. It will not plan past open product blockers: it offers to resume `ce-brainstorm` or turn them into assumptions. Small work may get a short answer or a chat brief from `ce-plan` instead of a plan file.
-- `ce-work` refuses a requirements-only plan and points back to `ce-plan`.
-- Run with no argument, `ce-plan` uses the current conversation, and `ce-work` looks at the newest plan and stops unless it is implementation-ready.
+`ce-brainstorm` writes requirements, `ce-plan` adds implementation planning to that same file without reopening the product decisions, and `ce-work` builds from the result. `ce-work` will not build from requirements alone.
 
 ## How hands-on to stay
 
@@ -31,28 +28,22 @@ To choose between `ce-brainstorm` and `ce-plan`, ask whether two reasonable peop
 
 | Where they are | Run the next skill | Hand off |
 |---|---|---|
-| A clear request, nothing written yet | `ce-plan`, or `ce-work` if it needs no plan | `lfg <request>`. `lfg` plans with less product context than it would have after a brainstorm. If the request has several plausible readings and the user is there to answer, `lfg` runs `ce-brainstorm` first. |
-| Just finished `ce-brainstorm` | `ce-plan` | `lfg`. It plans from the brainstorm, then carries on. This is the usual path in the `lfg` guide. Passing the plan path also works. Running `ce-plan` first and `lfg` afterward is fine too, for someone who wants to review the plan before handing off. |
-| `ce-plan` wrote a plan this session | `ce-work` | `lfg`, with or without the path. It does not plan again and goes straight to implementing. |
-| A plan from an earlier session | `ce-work <path>` if it is implementation-ready, otherwise `ce-plan <path>` | `lfg <path>`. It runs `ce-plan` first to enrich the plan or check it for drift. `lfg` never searches for a plan, so pass the path. |
-| A bug | `ce-debug` | `lfg <bug>`, which sends it to `ce-debug`. Use `ce-debug` directly to see the diagnosis before any fix. |
+| A clear request, nothing written yet | `ce-plan`, or `ce-work` if it needs no plan | `lfg <request>` |
+| Just finished `ce-brainstorm` | `ce-plan` | `lfg` |
+| `ce-plan` wrote a plan this session | `ce-work` | `lfg` |
+| A plan from an earlier session | `ce-work <path>` if it is implementation-ready, otherwise `ce-plan <path>` | `lfg <path>` |
+| A bug | `ce-debug` | `lfg <bug>` |
 
-What the choice changes:
+What the choice comes down to:
 
-- Running the skills separately gives the user a checkpoint between them. `ce-brainstorm` and `ce-plan` confirm scope and offer next steps.
-- `ce-work` does not stop between its own stages. It implements, simplifies larger changes, reviews, and opens a PR, pausing only when it needs a decision, so handing off is not the only route to a PR. Someone who wants to look before anything is pushed can tell `ce-work` to commit only.
-- `lfg` does not pause for approval of the plan, diff, or findings. It pushes and opens a PR without asking. It applies eligible review fixes and lists the rest in the PR. It captures any durable learning, runs browser tests, and watches CI within a limited repair budget. Merging normally stays with the user.
-- A PR from `ce-work` is watched too, because `ce-commit-push-pr` hands off to `ce-babysit-pr` by default. So a CI watch is not a reason to choose `lfg`.
-- Neither route can push without a git remote; both stop at local commits. Mention this only when the repo has no remote.
-- `lfg` is a poor fit for non-software work, or for repos whose shipping needs hand-driven steps. Given a request that is not a code change, such as an explanation, `lfg` ends with the owning skill's result.
+- Running the skills separately gives the user a checkpoint between them.
+- `ce-work` also reaches a PR, so a PR is not a reason to choose `lfg`. Someone who wants to read the code before anything is pushed can ask `ce-work` to commit only.
+- `lfg` does not wait for approval of the plan, diff, or findings, and it pushes without asking. Merging normally stays with the user.
+
+The `lfg` guide page owns how it handles each starting point and what each stage does, so fetch it before describing them.
 
 ## What already runs on its own
 
-Tell the user not to repeat a step that a skill runs itself.
+Do not send someone to repeat a step a skill runs itself. `ce-work` carries work through simplification, review, and the PR, and that PR gets watched. `ce-debug` can carry a fix through review and a PR. `ce-plan` reviews its own plan. Check the recommended skill's guide page for its current chain and thresholds.
 
-- `ce-work` runs `ce-simplify-code` on changes of about 30 or more substantive lines, then `ce-code-review`, then `ce-commit-push-pr`.
-- `ce-commit-push-pr` hands off to `ce-babysit-pr` by default, which calls `ce-resolve-pr-feedback` and `ce-debug` as needed.
-- `ce-debug` runs simplify and review on an interactive fix. It opens a PR without asking when the branch holds only that fix.
-- `ce-plan` runs `ce-doc-review` on its plan. Run `ce-doc-review` by hand to go deeper.
-- `ce-code-review` and `ce-simplify-code` start nothing afterward. Run by hand, both report first: `ce-code-review` only reports, and `ce-simplify-code` changes code after the user picks findings.
-- `lfg` runs `ce-compound` when the work taught something the final code does not show, `ce-debug` can offer it, and a standing instruction can make it automatic. `ce-work` and the skills it runs do not start it, so on that route the user runs it, ideally while the learning can still go in the same PR.
+`ce-compound` is the exception on the `ce-work` route: the user runs it when the work taught something the final code does not show. `lfg` can run it, and a standing instruction can make it automatic.

@@ -48,9 +48,9 @@ This skill resolves `<root>` only when an answer needs an artifact folder, and i
 
 ## Sources
 
-The references in this skill ship with the install, so they match the skills the user has. A CE skill's description in your context is the current statement of what it does, and it wins if it disagrees with the map. A skill absent from your context is not a disagreement, because hosts often leave manual-only skills out and can shorten long lists.
+The references in this skill hold routing and stable boundaries, not how each skill works. Each skill's description and guide page own that, and they win if they disagree with a reference. A skill absent from your context is not a disagreement, because hosts often leave manual-only skills out and can shorten long lists.
 
-Public docs hold the details. Fetch a page before repeating a detail from it, and never state a flag, config key, or default from memory. Link `https://github.com/EveryInc/compound-engineering-plugin/blob/main/<path>`. If that will not load, fetch `https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/<path>`.
+Do not answer from memory of CE. Skills change with every release, so what you recall may be out of date. State how a skill behaves only from these references, its description in your context, or a guide page you read during this run. Fetch the page when the answer depends on something they do not cover, such as a flag, config key, default, or what one of its stages does. Link `https://github.com/EveryInc/compound-engineering-plugin/blob/main/<path>`. If that will not load, fetch `https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/main/<path>`.
 
 | Path | Holds |
 |---|---|
