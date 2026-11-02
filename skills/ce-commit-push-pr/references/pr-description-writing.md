@@ -82,7 +82,7 @@ When program context is present, extend the map with: (1) **Program outcome** â€
 
 > Prefer the shortest description that still lets a reviewer decide â€” context (including program placement when present), evidence, and residual uncertainty they can't get from the diff, and nothing they can.
 
-Decision cost raises the content floor, not the length ceiling (high-uncertainty *small* diffs get a sharper lead, not an essay). Uncertainty moves a change at most one row down the table below. Fold risk into the narrative unless the PR is already large. Include evidence only when it changes confidence in a material claim. Subtract fix-up commits when sizing. Large PRs need more selectivity, not more content.
+Decision cost raises the content floor, not the length ceiling (high-uncertainty *small* diffs get a sharper lead, not an essay). Uncertainty moves a change at most one row down the table below. Fold risk into the narrative unless the PR is already large. Include evidence only when it changes confidence in a material claim. A measured number placed in the body names what bounds it, such as its sample count and spread, its workload, or the threshold it cleared. A number with no bound is not claimed as a result: label it inconclusive or leave it out. Subtract fix-up commits when sizing. Large PRs need more selectivity, not more content.
 
 | Change profile | Description approach |
 |---|---|
