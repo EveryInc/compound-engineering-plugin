@@ -37,7 +37,7 @@ The skill then picks the cheapest form that would stop the repeat, in the order 
 
 1. **One owner and one way.** The mistake was possible because two ways to do the thing exist. This changes product code, so the skill reports it for the code's owner.
 2. **A test or lint rule** whose failure names the fix. The skill keeps it only after seeing it pass on the current tree and fail on the defect in a throwaway copy. A check that needs product code changed, such as a log field or metric, is reported instead.
-3. **A rule in `CODING_STANDARDS.md`**, under the same bar [`ce-setup`](./ce-setup.md) applies, when no check can hold the lesson. The skill never creates that file. It recommends `/ce-setup standards` only when this lesson is itself a rule and the repo has no file.
+3. **A rule in `CODING_STANDARDS.md`**, under the same bar [`ce-setup`](./ce-setup.md) applies, when no check can hold the lesson. The skill never creates that file. A repo without one has made a valid choice, so the learning states the rule and never asks you to set anything up. An attended run says once that the lesson could be a standard. [`/ce-setup standards`](./ce-setup.md) drafts rules from those learnings if you adopt standards later.
 4. **A learning**, only for reasoning the other forms cannot carry, such as measured facts or rejected alternatives.
 
 A stronger form that was reported rather than written appears as `Recommended form` in the report, and the learning holds the whole lesson so it survives a lost report.

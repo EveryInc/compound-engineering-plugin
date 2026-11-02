@@ -39,6 +39,9 @@ Files written:
 
 Recommended form: <none | form, where, and the failure message or rule text>
 
+[If the lesson met the standard form and the repo has no CODING_STANDARDS.md:]
+This could be a coding standard if you adopt them.
+
 [If discoverability check found instruction files don't surface the knowledge store:]
 Tip: Your AGENTS.md/CLAUDE.md doesn't surface <root>/solutions/ to agents —
 a brief mention helps all agents discover these learnings.
