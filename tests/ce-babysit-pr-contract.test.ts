@@ -650,19 +650,21 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
   })
 
-  test("pipeline success requires clean chain currency in both loaded contracts", async () => {
-    const [babysit, watchLoop] = await Promise.all([
+  test("pipeline success requires clean chain currency, owned by pipeline.md", async () => {
+    const [babysit, watchLoop, pipeline] = await Promise.all([
       readBabysit(),
       readRepoFile(WATCH_LOOP),
+      readRepoFile("skills/ce-babysit-pr/references/pipeline.md"),
     ])
     const pipelineStart = babysit.indexOf("3. **Bounded stop, derived from that set.**")
     const pipelineEnd = babysit.indexOf("## Pipeline stop", pipelineStart)
     const pipelineDelta = babysit.slice(pipelineStart, pipelineEnd)
 
-    for (const text of [babysit, watchLoop]) {
-      expect(text).toMatch(/success only when[^.]{0,320}`all_checks_ok`[^.]{0,320}`stack_blocker`[^.]{0,80}(null|clear)/i)
-      expect(text).toMatch(/success only when[^.]{0,640}`mergeability_certain`[^.]{0,160}`merge_state_status == "CLEAN"`[^.]{0,240}`branch_currency_blocker`[^.]{0,100}(null|clear)/i)
-    }
+    expect(pipeline).toMatch(/success only when[^.]{0,320}`all_checks_ok`[^.]{0,320}`stack_blocker`[^.]{0,80}(null|clear)/i)
+    expect(pipeline).toMatch(/success only when[^.]{0,640}`mergeability_certain`[^.]{0,160}`merge_state_status == "CLEAN"` or `update_branch_at_merge`[^.]{0,240}`branch_currency_blocker`[^.]{0,100}(null|clear)/i)
+    // The gate was once restated in watch-loop.md; a second copy drifts when only one is edited.
+    expect(watchLoop).toMatch(/pipeline stop in `references\/pipeline.md`[^.]{0,120}owns both gates/)
+    expect(watchLoop).not.toContain('`merge_state_status == "CLEAN"`')
     expect(pipelineStart).toBeGreaterThan(-1)
     expect(pipelineEnd).toBeGreaterThan(pipelineStart)
     expect(babysit).toMatch(/`all_checks_ok`[\s\S]{0,260}`mergeability_certain`[\s\S]{0,160}`merge_state_status == "CLEAN"`[\s\S]{0,260}`stack_blocker`[\s\S]{0,160}`branch_currency_blocker`[^.]{0,80}(null|clear)/i)
@@ -723,11 +725,11 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(debugPipeline).toMatch(/thread_urls[^.]{0,180}every owned open thread/i)
 
     expect(babysitPipeline).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)
-    expect(babysitWatch).toMatch(/success only when[^.]{0,500}`needs_human_residuals`[^.]{0,120}empty/i)
+    expect(babysitWatch).toMatch(/pipeline stop in `references\/pipeline.md` returns success or `needs-human`/)
     expect(babysitPipeline).toContain('status: "needs-human"')
     expect(babysitPipeline).toMatch(/residual[^.]{0,120}unchanged/i)
+    expect(babysitPipeline).toMatch(/(non-empty|not empty)[^.]{0,80}(canonical )?(set|`needs_human_residuals`)[^.]{0,240}no autonomous work(?: remains)?[^.]{0,240}status: "needs-human"|(canonical )?(set|`needs_human_residuals`)[^.]{0,180}(non-empty|not empty)[^.]{0,240}no autonomous work(?: remains)?[^.]{0,240}status: "needs-human"/i)
     for (const text of [babysitPipeline, babysitWatch]) {
-      expect(text).toMatch(/(non-empty|not empty)[^.]{0,80}(canonical )?(set|`needs_human_residuals`)[^.]{0,240}no autonomous work(?: remains)?[^.]{0,240}status: "needs-human"|(canonical )?(set|`needs_human_residuals`)[^.]{0,180}(non-empty|not empty)[^.]{0,240}no autonomous work(?: remains)?[^.]{0,240}status: "needs-human"/i)
       expect(text).toMatch(/(?:without|never) wait(?:ing)?[^.]{0,160}(human|budget)/i)
     }
     expect(babysitTick).toMatch(/immediately[^.]{0,180}`## Needs your decision`/i)
@@ -823,6 +825,24 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(behindEnd).toBeGreaterThan(behindStart)
     expect(behindBlock).toMatch(/confirm the exact claimed observation[^.]{0,180}fresh snapshot[^.]{0,180}ancestry evidence[^.]{0,180}observed base OID/i)
     expect(behindBlock).toMatch(/claimed item's own `branch_currency_blocker`[^.]{0,120}need not be null beforehand/i)
+  })
+
+  test("a BEHIND branch is left for the merger under non-merging postures (#1989)", async () => {
+    const [currency, tick, settle, report, script] = await Promise.all([
+      readRepoFile(BRANCH_CURRENCY),
+      readRepoFile("skills/ce-babysit-pr/references/tick.md"),
+      readRepoFile("skills/ce-babysit-pr/references/settle.md"),
+      readRepoFile("skills/ce-babysit-pr/references/report.md"),
+      readRepoFile("skills/ce-babysit-pr/scripts/pr-snapshot"),
+    ])
+    expect(script).toContain('"--defer-behind-to-merge"')
+    expect(script).toContain('"update_branch_at_merge"')
+    expect(currency).toMatch(/Under `target` and `stack-ready`[^.]{0,160}pass `--defer-behind-to-merge`/)
+    expect(currency).toMatch(/Omit the flag under `stack-land` or when the user asked to keep the branch current/)
+    expect(currency).toMatch(/`DIRTY` is unaffected/)
+    expect(tick).toMatch(/`--defer-behind-to-merge`[^.]{0,120}`references\/branch-currency.md`/)
+    expect(settle).toMatch(/`merge_state_status == "CLEAN"`[^\n]{0,400}or `update_branch_at_merge` is true/)
+    expect(report).toMatch(/`update_branch_at_merge`[^\n]{0,120}Update the branch when you merge/)
   })
 
   test("dirty maintenance proves push authority, previews exact-base conflicts, and parks semantic choices", async () => {
@@ -944,7 +964,7 @@ describe("ce-babysit-pr always-loaded body pins", () => {
     expect(description).not.toMatch(/base movement/i)
     expect(body).toMatch(/Branch currency is consumption-only/)
     expect(body).toMatch(/only for the exact `branch_currency` item the snapshot emitted/)
-    expect(body).toMatch(/`BEHIND`, `DIRTY`, a branch-protection requirement, or an explicit always-current policy/)
+    expect(body).toMatch(/which owns who updates a `BEHIND` branch/)
     expect(body).toMatch(/Never infer an item from[^.]*base movement[^.]*sibling PR merging[^.]*`CLEAN`\/`MERGEABLE`[^.]*`BLOCKED`[^.]*"update the branch"/)
     expect(body).toMatch(/push that restarts green CI without a claimed item is a defect/)
     expect(body).toMatch(/`update-branch` with `expected_head_sha`, never a local merge/)

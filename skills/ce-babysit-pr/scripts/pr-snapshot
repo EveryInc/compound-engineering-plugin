@@ -1308,7 +1308,7 @@ def _prepare_open_currency_item(state, currency, key, item, now):
     item["reconciliation_only"] = False
 
 
-def _apply_branch_currency(state, cur, head, head_changed, now):
+def _apply_branch_currency(state, cur, head, head_changed, now, defer_behind=False):
     currency = _load_branch_currency_state(state)
     carried_claims = _claimed_currency_items(currency)
     carried_semantic_parks = dict(currency.get("semantic_parks") or {})
@@ -1329,7 +1329,7 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
         return _prepare_claimed_currency_item(state, item, cur, head)
 
     observation = _branch_currency_observation(cur, head)
-    if observation is None:
+    if observation is None or (defer_behind and observation["status"] == "BEHIND"):
         currency["current_key"] = None
         return None
 
@@ -2057,9 +2057,10 @@ def _reconcile_human_decisions(state, threads, feedback, checks, now):
     return public, covered
 
 
-def diff(state, cur, now=None, advance_trajectory=True):
+def diff(state, cur, now=None, advance_trajectory=True, defer_behind=False):
     """Pure: given prior state + current snapshot, compute the actionable set
-    and the persisted observed state. `now` is injectable for tests."""
+    and the persisted observed state. `now` is injectable for tests. `defer_behind` leaves a
+    BEHIND branch for whoever merges to update, so it yields no currency item."""
     now = now or _now()
     # A transient null/empty head (a gh hiccup) falls back to the last known head,
     # so a momentary null does not look like a new head and wipe ci_dispatched.
@@ -2122,7 +2123,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         cur.get("feedback") or [], "id", prior_feedback,
         identity_fn=lambda c: [c.get("edit_id")], reactivate_dispositions=())
     # Reconcile currency before exact decision observations are compared.
-    branch_currency = _apply_branch_currency(state, cur, head, head_changed, now)
+    branch_currency = _apply_branch_currency(state, cur, head, head_changed, now, defer_behind)
     needs_human_residuals, decision_coverage = _reconcile_human_decisions(
         state, new_threads, new_feedback, new_checks, now)
     dispatched = set(state.get("ci_dispatched", {}).get(head, []))
@@ -2282,6 +2283,13 @@ def diff(state, cur, now=None, advance_trajectory=True):
             "disposition": branch_currency.get("disposition"),
             "recovery_state": branch_currency.get("recovery_state"),
         } if branch_currency else None),
+        # GitHub may report BEHIND where it would otherwise say BLOCKED, so a review it still
+        # requires keeps this false.
+        "update_branch_at_merge": bool(
+            defer_behind and branch_currency is None
+            and cur.get("merge_state_status") == "BEHIND"
+            and _branch_currency_observation(cur, head) is not None
+            and cur.get("review_decision") not in ("CHANGES_REQUESTED", "REVIEW_REQUIRED")),
         "url": cur["url"],
         "has_failing_checks": has_failing,
         "checks_terminal": checks_terminal,
@@ -2574,7 +2582,8 @@ def _apply_snapshot(box, args, cur, now, advance_trajectory):
     if box["state"].get("pr", {}).get("url") is None and cur.get("url"):
         box["state"]["pr"]["url"] = cur["url"]
     _apply_invocation(box, args, now)
-    return diff(box["state"], cur, now, advance_trajectory=advance_trajectory)
+    return diff(box["state"], cur, now, advance_trajectory=advance_trajectory,
+                defer_behind=bool(getattr(args, "defer_behind_to_merge", False)))
 
 
 def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
@@ -2676,7 +2685,7 @@ def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_
         mergeability_certain = _mergeability_certain(
             a.get("mergeable"), a.get("merge_state_status"), a.get("base"))
     if (mergeability_certain and a.get("mergeable") == "MERGEABLE"
-            and a.get("merge_state_status") == "CLEAN"
+            and (a.get("merge_state_status") == "CLEAN" or a.get("update_branch_at_merge"))
             and a.get("checks_terminal") and not a.get("has_failing_checks")
             and a.get("checks_awaiting_approval", 0) == 0
             and a.get("branch_currency_blocker") is None
@@ -3562,6 +3571,8 @@ def main():
     s.add_argument("--continue-dead-time-seconds", type=float, default=None,
                    help="carry the prior layer's accumulated dead time into a managed-stack layer "
                         "(with --continue-invocation), so the shared active-time budget stays correct")
+    s.add_argument("--defer-behind-to-merge", action="store_true",
+                   help="leave a BEHIND branch for whoever merges to update: no currency item, update_branch_at_merge instead")
     s.set_defaults(func=cmd_snapshot)
 
     m = sub.add_parser("mark")
@@ -3624,6 +3635,8 @@ def main():
                    help="fixed anchor emitted by the first snapshot")
     w.add_argument("--invocation-budget-seconds", type=float, required=True,
                    help="fixed budget emitted by the invocation's first snapshot")
+    w.add_argument("--defer-behind-to-merge", action="store_true",
+                   help="leave a BEHIND branch for whoever merges to update: no currency item, update_branch_at_merge instead")
     w.set_defaults(func=cmd_watch)
 
     args = p.parse_args()

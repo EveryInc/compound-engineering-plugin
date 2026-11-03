@@ -2294,6 +2294,65 @@ print(json.dumps({
     expect(wakeReason(behind, 0)).toBe("branch-currency")
   })
 
+  // #1989: under strict up-to-date protection every base move reports BEHIND. Under the non-merging
+  // postures an update-branch before the human merges only restarts CI, so BEHIND is left for the
+  // merger and is no readiness gap; postures that keep the branch current omit the flag.
+  describe("BEHIND left for the merger (--defer-behind-to-merge)", () => {
+    const DEFER = ["--defer-behind-to-merge"]
+
+    test("target/stack-ready: green BEHIND emits no currency item and reads merge-ready", () => {
+      const fetch = fetchFile(dir, "behind-deferred.json", quietCurrencyFixture())
+      const deferred = snapshot(state, fetch, DEFER)
+      expect(deferred.mergeability_certain).toBe(true)
+      expect(deferred.branch_currency).toBeNull()
+      expect(deferred.branch_currency_blocker).toBeNull()
+      expect(deferred.update_branch_at_merge).toBe(true)
+      expect(wakeReason(deferred, 0)).toBe("merge-ready")
+      expect(watch(state, fetch, [...DEFER, "--settle-seconds", "0"]).reason).toBe("merge-ready")
+
+      const moved = snapshot(state, fetchFile(dir, "behind-deferred-moved.json", quietCurrencyFixture({
+        base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+      })), DEFER)
+      expect(moved.branch_currency).toBeNull()
+      expect(moved.update_branch_at_merge).toBe(true)
+    })
+
+    test("a review GitHub still requires is not hidden behind BEHIND", () => {
+      for (const decision of ["REVIEW_REQUIRED", "CHANGES_REQUESTED"]) {
+        const value = snapshot(path.join(dir, `review-${decision}`), fetchFile(dir, `behind-${decision}.json`,
+          quietCurrencyFixture({ review_decision: decision })), DEFER)
+        expect(value.branch_currency).toBeNull()
+        expect(value.update_branch_at_merge).toBe(false)
+        expect(wakeReason(value, 0)).toBeNull()
+      }
+    })
+
+    test("stack-land / always-current (flag omitted): BEHIND still emits the claimable item", () => {
+      const value = snapshot(state, fetchFile(dir, "behind-kept-current.json", quietCurrencyFixture()))
+      expect(value.branch_currency).toMatchObject({ status: "BEHIND", attention: "claim" })
+      expect(value.branch_currency_blocker).not.toBeNull()
+      expect(value.update_branch_at_merge).toBe(false)
+      expect(wakeReason(value, 0)).toBe("branch-currency")
+    })
+
+    test("DIRTY still emits its currency item when BEHIND is deferred", () => {
+      const value = snapshot(state, fetchFile(dir, "dirty-deferred.json",
+        quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })), DEFER)
+      expect(value.branch_currency).toMatchObject({ status: "DIRTY", attention: "claim" })
+      expect(value.update_branch_at_merge).toBe(false)
+      expect(wakeReason(value, 0)).toBe("branch-currency")
+    })
+
+    test("an earlier claimed BEHIND item still owns the lane until reconciled", () => {
+      const fetch = fetchFile(dir, "behind-claimed.json", quietCurrencyFixture())
+      const open = snapshot(state, fetch)
+      markCurrency(state, open.branch_currency.key, "claimed")
+      const deferred = snapshot(state, fetch, DEFER)
+      expect(deferred.branch_currency).toMatchObject({ key: open.branch_currency.key, disposition: "claimed" })
+      expect(deferred.update_branch_at_merge).toBe(false)
+    })
+  })
+
   test("watch does not turn ordinary historical base movement into a standing base-ref residual", () => {
     const historicalBase = "1".repeat(40)
     const liveBase = "2".repeat(40)
@@ -4435,7 +4494,7 @@ assert json.load(open(state_path))["head_sha"] == "base-head", "preflight mutate
 
 original_diff = m.diff
 child = None
-def diff_with_incumbent_race(state, current, now=None, advance_trajectory=True):
+def diff_with_incumbent_race(state, current, now=None, advance_trajectory=True, **kwargs):
     global child
     child_code = '''
 import json
@@ -4461,7 +4520,7 @@ else:
                              stderr=subprocess.PIPE, text=True)
     time.sleep(0.2)
     assert child.poll() is None, "incumbent was not blocked by atomic activation"
-    return original_diff(state, current, now, advance_trajectory=advance_trajectory)
+    return original_diff(state, current, now, advance_trajectory=advance_trajectory, **kwargs)
 
 m.diff = diff_with_incumbent_race
 previous, actionable = m._activate_watch(args, generation, m._now(), cur)
