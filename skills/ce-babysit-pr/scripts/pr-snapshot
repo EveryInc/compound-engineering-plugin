@@ -845,14 +845,20 @@ def _actions_run_id(check):
 
 
 def _drop_superseded_runs(checks):
-    """Drop a check only when a later Actions run of it exists on this head. A workflow can run
-    twice on one head, such as on open and again on ready_for_review, and the rollup lists both.
-    Jobs in one run that share a display name, and non-Actions checks, are all kept."""
-    newest = {}
+    """For each check, keep only the most recently started Actions run on this head. A workflow can
+    run twice on one head, and an older run can be re-run after a newer one, so run ID alone can't
+    order them. A run with an unstarted job counts as newest. Non-Actions checks are all kept."""
+    runs = {}
     for check in checks:
         run_id = _actions_run_id(check)
         if run_id is not None:
-            newest[check["key"]] = max(run_id, newest.get(check["key"], run_id))
+            runs.setdefault(check["key"], {}).setdefault(run_id, []).append(check)
+
+    def recency(run):
+        run_id, jobs = run
+        return (max(job.get("started_at") or "~" for job in jobs), run_id)
+
+    newest = {key: max(by_run.items(), key=recency)[0] for key, by_run in runs.items()}
     return [check for check in checks
             if _actions_run_id(check) in (None, newest.get(check["key"]))]
 

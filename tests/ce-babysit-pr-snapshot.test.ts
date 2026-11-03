@@ -1815,15 +1815,15 @@ print(json.dumps(m.fetch(7, "o/r")["checks"][0]))
     })
   })
 
-  test("live fetch drops a check only when a later run of it exists on the head", () => {
+  test("live fetch keeps only the most recently started run of a check on the head", () => {
     const python = `
 import json
 from importlib.machinery import SourceFileLoader
 m = SourceFileLoader("pr_snapshot", ${JSON.stringify(SCRIPT)}).load_module()
 class Result: pass
-def run(name, conclusion, status, url):
+def run(name, conclusion, status, url, started=None):
     return {"__typename": "CheckRun", "workflowName": "Review", "name": name, "conclusion": conclusion,
-            "status": status, "startedAt": None, "completedAt": None, "detailsUrl": url}
+            "status": status, "startedAt": started, "completedAt": None, "detailsUrl": url}
 def actions(run_id, job=1):
     return f"https://github.com/o/r/actions/runs/{run_id}/job/{job}"
 def checked(cmd, label):
@@ -1837,12 +1837,14 @@ def checked(cmd, label):
         "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
         "comments": [], "reviews": [],
         "statusCheckRollup": [
-            run("superseded", "FAILURE", "COMPLETED", actions(1)),
-            run("superseded", "SUCCESS", "COMPLETED", actions(2)),
-            run("queued-rerun", "FAILURE", "COMPLETED", actions(1)),
-            run("queued-rerun", None, "QUEUED", actions(2)),
-            run("same-run", "FAILURE", "COMPLETED", actions(3, 1)),
-            run("same-run", "SUCCESS", "COMPLETED", actions(3, 2)),
+            run("superseded", "FAILURE", "COMPLETED", actions(1), "2026-01-01T00:00:00Z"),
+            run("superseded", "SUCCESS", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
+            run("queued-rerun", "FAILURE", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
+            run("queued-rerun", None, "QUEUED", actions(1)),
+            run("older-run-rerun", "FAILURE", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
+            run("older-run-rerun", "SUCCESS", "COMPLETED", actions(1), "2026-01-01T00:02:00Z"),
+            run("same-run", "FAILURE", "COMPLETED", actions(3, 1), "2026-01-01T00:00:00Z"),
+            run("same-run", "SUCCESS", "COMPLETED", actions(3, 2), "2026-01-01T00:00:00Z"),
             run("external", "FAILURE", "COMPLETED", "https://ci.example.test/1"),
             run("external", "SUCCESS", "COMPLETED", "https://ci.example.test/2"),
         ]})
@@ -1863,6 +1865,7 @@ print(json.dumps([[c["name"], c["status"], c["conclusion"]] for c in m.fetch(7, 
     expect(JSON.parse(r.stdout)).toEqual([
       ["superseded", "COMPLETED", "SUCCESS"],
       ["queued-rerun", "QUEUED", null],
+      ["older-run-rerun", "COMPLETED", "SUCCESS"],
       ["same-run", "COMPLETED", "FAILURE"],
       ["same-run", "COMPLETED", "SUCCESS"],
       ["external", "COMPLETED", "FAILURE"],
