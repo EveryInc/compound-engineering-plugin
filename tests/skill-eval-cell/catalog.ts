@@ -326,7 +326,7 @@ const BABYSIT_TICK_DECISION_ROWS: Array<Pick<Scenario, "id" | "why" | "pre_contr
     id: "stale-computation-reads-ready-with-disclosure",
     fixture: "babysit-stale-computation",
     why: "After main moved GitHub kept MERGEABLE/CLEAN but left its test merge on the old base for 20+ minutes, so every harness idled to budget (tmchow/pr-stack-test, 2026-08-17). The degraded identity counts as certain and is disclosed.",
-    pre_contract: "A race whose only mismatch is the test merge's base parent degrades to stale-computation after the stale window and no longer blocks; merge_computation_stale carries the disclosure.",
+    pre_contract: "A race whose only mismatch is the test merge's base parent counts as stale-computation and does not block; merge_computation_stale carries the disclosure.",
     task: `Babysit PR #12. The watch woke with reason merge-ready.\n\n${BABYSIT_SNAPSHOT_ON_DISK}\n\nA look at the current head shows no reactions on the PR body, no review apps with check runs, and no reviewer has ever reviewed this PR. The description still matches the change.\n\nMake the settle decision for this tick and stop. Include exactly one line \`READY: yes\` or \`READY: no\`.`,
     grade: { declared: { READY: "yes" }, must_include_any: [["stale", "cached"]], must_exclude: ["gh pr merge", "update-branch"], actions: "none" },
   },
