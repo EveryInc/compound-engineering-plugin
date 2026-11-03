@@ -1815,15 +1815,17 @@ print(json.dumps(m.fetch(7, "o/r")["checks"][0]))
     })
   })
 
-  test("live fetch keeps only the newest run of a check on one head, so a superseded failure does not block", () => {
+  test("live fetch drops a check only when a later run of it exists on the head", () => {
     const python = `
 import json
 from importlib.machinery import SourceFileLoader
 m = SourceFileLoader("pr_snapshot", ${JSON.stringify(SCRIPT)}).load_module()
 class Result: pass
-def run(name, conclusion, status, started):
+def run(name, conclusion, status, url):
     return {"__typename": "CheckRun", "workflowName": "Review", "name": name, "conclusion": conclusion,
-            "status": status, "startedAt": started, "completedAt": started, "detailsUrl": "https://x.test/run"}
+            "status": status, "startedAt": None, "completedAt": None, "detailsUrl": url}
+def actions(run_id, job=1):
+    return f"https://github.com/o/r/actions/runs/{run_id}/job/{job}"
 def checked(cmd, label):
     result = Result()
     result.returncode = 0
@@ -1835,12 +1837,14 @@ def checked(cmd, label):
         "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
         "comments": [], "reviews": [],
         "statusCheckRollup": [
-            run("gate", "FAILURE", "COMPLETED", "2026-08-20T04:00:00Z"),
-            run("gate", "SUCCESS", "COMPLETED", "2026-08-20T05:00:00Z"),
-            run("later", "SUCCESS", "COMPLETED", "2026-08-20T04:00:00Z"),
-            run("later", None, "IN_PROGRESS", "2026-08-20T05:00:00Z"),
-            run("queued", "FAILURE", "COMPLETED", "2026-08-20T04:00:00Z"),
-            run("queued", None, "QUEUED", None),
+            run("superseded", "FAILURE", "COMPLETED", actions(1)),
+            run("superseded", "SUCCESS", "COMPLETED", actions(2)),
+            run("queued-rerun", "FAILURE", "COMPLETED", actions(1)),
+            run("queued-rerun", None, "QUEUED", actions(2)),
+            run("same-run", "FAILURE", "COMPLETED", actions(3, 1)),
+            run("same-run", "SUCCESS", "COMPLETED", actions(3, 2)),
+            run("external", "FAILURE", "COMPLETED", "https://ci.example.test/1"),
+            run("external", "SUCCESS", "COMPLETED", "https://ci.example.test/2"),
         ]})
     return result
 m._run_checked = checked
@@ -1852,15 +1856,18 @@ m.fetch_threads = lambda *args: []
 m.fetch_awaiting_approval = lambda *args: 0
 m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
                                   "default_branch": "main", "parent_prs": [], "dependent_prs": []}
-print(json.dumps({c["key"]: [c["status"], c["conclusion"]] for c in m.fetch(7, "o/r")["checks"]}))
+print(json.dumps([[c["name"], c["status"], c["conclusion"]] for c in m.fetch(7, "o/r")["checks"]]))
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
     expect(r.status, r.stderr).toBe(0)
-    expect(JSON.parse(r.stdout)).toEqual({
-      "Review/gate": ["COMPLETED", "SUCCESS"],
-      "Review/later": ["IN_PROGRESS", null],
-      "Review/queued": ["QUEUED", null],
-    })
+    expect(JSON.parse(r.stdout)).toEqual([
+      ["superseded", "COMPLETED", "SUCCESS"],
+      ["queued-rerun", "QUEUED", null],
+      ["same-run", "COMPLETED", "FAILURE"],
+      ["same-run", "COMPLETED", "SUCCESS"],
+      ["external", "COMPLETED", "FAILURE"],
+      ["external", "COMPLETED", "SUCCESS"],
+    ])
   })
 
   test("live fetch normalizes an impossible CheckRun status only with same-head parent corroboration", () => {

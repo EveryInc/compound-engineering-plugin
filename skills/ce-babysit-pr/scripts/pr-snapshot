@@ -839,19 +839,22 @@ def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, hos
     return result
 
 
-def _latest_check_per_key(checks):
-    """Keep the newest run of each check. A workflow can run twice on one head, such as on open
-    and again on ready_for_review, and the rollup lists both; the older run's result is superseded.
-    A queued run has no start time yet and sorts as newest, so it can't hide behind an old result."""
-    def moment(check):
-        return check.get("started_at") or check.get("created_at") or "~"
+def _actions_run_id(check):
+    match = re.search(r"/actions/runs/(\d+)", check.get("details_url") or "")
+    return int(match.group(1)) if match else None
 
-    latest = {}
+
+def _drop_superseded_runs(checks):
+    """Drop a check only when a later Actions run of it exists on this head. A workflow can run
+    twice on one head, such as on open and again on ready_for_review, and the rollup lists both.
+    Jobs in one run that share a display name, and non-Actions checks, are all kept."""
+    newest = {}
     for check in checks:
-        current = latest.get(check["key"])
-        if current is None or moment(check) >= moment(current):
-            latest[check["key"]] = check
-    return list(latest.values())
+        run_id = _actions_run_id(check)
+        if run_id is not None:
+            newest[check["key"]] = max(run_id, newest.get(check["key"], run_id))
+    return [check for check in checks
+            if _actions_run_id(check) in (None, newest.get(check["key"]))]
 
 
 def fetch(pr, repo, light=False):
@@ -899,7 +902,7 @@ def fetch(pr, repo, light=False):
                 "started_at": c.get("startedAt"),
                 "completed_at": c.get("completedAt"),
             })
-    checks = _latest_check_per_key(checks)
+    checks = _drop_superseded_runs(checks)
 
     merge_identity = None if light else fetch_pr_merge_identity(v.get("number") or pr, owner, name, host)
     merge_observation = merge_identity or v
