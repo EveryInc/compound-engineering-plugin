@@ -6,6 +6,7 @@ Every stop — and every checkpoint tick — ends with a summary. Below the firs
 
 - **Outcome first, unmissable — open with one status line.** Emoji, state, then one clause of evidence taken from the final snapshot (quiet time, CI, remaining backlog, parked residuals — your wording, real values), so the state is scannable instead of buried in prose. Only the state phrases are fixed:
   - `✅ Looks merge-ready — <evidence>. Your call to merge.` — for a confirmed managed stack `✅ Ready as the next PR in the stack — <evidence>.`, for a manual dependency chain `✅ Ready relative to its parent — <evidence>.`
+  - When the final snapshot reports `update_branch_at_merge`: `✅ Looks merge-ready — <evidence>. Update the branch when you merge; your call to merge.`
   - `🟡 Cautiously looks ready — <stalled-reviewer evidence>. Your call to merge.`
 
   Other stops follow the same shape with an emoji that states the condition — `🎉 Merged`, `🚫 Closed`, `⛔ Blocked`, `⏱️ Budget exhausted`, `⏸️ Paused` are the common ones. An old-PR intake verdict that stops the run opens with `🔧 Rework recommended — <reason>.` or `🛑 Close recommended — <reason>.` and then follows `references/intake.md`'s report order. A ready declaration never opens with anything but ✅ or 🟡, and no other state may open with those two.
