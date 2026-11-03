@@ -1,0 +1,88 @@
+schema_version: 1
+sources:
+  gh-issues:
+    cursor: "2026-10-20T00:00:00Z"
+items:
+  "gh-issues:acme/widgets#100":
+    source: "gh-issues"
+    id: "acme/widgets#100"
+    status: "source_closed"
+    url: "https://github.com/acme/widgets/issues/100"
+    body: "Export drops the last row"
+    source_closed_at: "2026-10-12T09:00:00Z"
+    source_close_reason: "NOT_PLANNED"
+  "gh-issues:acme/widgets#101":
+    source: "gh-issues"
+    id: "acme/widgets#101"
+    status: "acknowledged"
+    url: "https://github.com/acme/widgets/issues/101"
+    body: "Search ignores accented names"
+  "gh-issues:acme/widgets#102":
+    source: "gh-issues"
+    id: "acme/widgets#102"
+    status: "fix_pending"
+    url: "https://github.com/acme/widgets/issues/102"
+    body: "Dark mode for the invoice PDF"
+    fix_ref: "#78"
+  "gh-issues:acme/widgets#103":
+    source: "gh-issues"
+    id: "acme/widgets#103"
+    status: "acknowledged"
+    url: "https://github.com/acme/widgets/issues/103"
+    body: "Tooltip text is cut off"
+  "gh-issues:acme/widgets#104":
+    source: "gh-issues"
+    id: "acme/widgets#104"
+    status: "acknowledged"
+    url: "https://github.com/acme/widgets/issues/104"
+    body: "Date picker opens off screen"
+  "gh-issues:acme/widgets#105":
+    source: "gh-issues"
+    id: "acme/widgets#105"
+    status: "acknowledged"
+    url: "https://github.com/acme/widgets/issues/105"
+    body: "Webhook retries stop after one failure"
+  "gh-issues:acme/widgets#106":
+    source: "gh-issues"
+    id: "acme/widgets#106"
+    status: "fix_pending"
+    url: "https://github.com/acme/widgets/issues/106"
+    body: "Totals round the wrong way"
+    fix_ref: "#81"
+  "gh-issues:acme/widgets#107":
+    source: "gh-issues"
+    id: "acme/widgets#107"
+    status: "acknowledged"
+    url: "https://github.com/acme/widgets/issues/107"
+    body: "Logo blurry on retina screens"
+  "gh-issues:acme/widgets#108":
+    source: "gh-issues"
+    id: "acme/widgets#108"
+    status: "in_plan"
+    url: "https://github.com/acme/widgets/issues/108"
+    body: "Password reset email arrives late"
+  "gh-issues:acme/widgets#109":
+    source: "gh-issues"
+    id: "acme/widgets#109"
+    status: "acknowledged"
+    url: "https://github.com/acme/widgets/issues/109"
+    body: "Reports time out for large teams"
+  "gh-issues:acme/widgets#110":
+    source: "gh-issues"
+    id: "acme/widgets#110"
+    status: "fix_pending"
+    url: "https://github.com/acme/widgets/issues/110"
+    body: "Invoice totals ignore tax"
+    fix_ref: "7d2e91c4a0b36f58e1c7d4a29b60f3e8c5a1d7b3"
+  "gh-issues:acme/widgets#111":
+    source: "gh-issues"
+    id: "acme/widgets#111"
+    status: "in_plan"
+    url: "https://github.com/acme/widgets/issues/111"
+    body: "CSV import times out on large files"
+  "gh-issues:acme/widgets#112":
+    source: "gh-issues"
+    id: "acme/widgets#112"
+    status: "acknowledged"
+    url: "https://github.com/acme/widgets/issues/112"
+    body: "Sidebar flickers on resize"

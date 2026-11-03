@@ -1,0 +1,2 @@
+feedback_sources:
+  - { type: github-issues, id: gh-issues, target: acme/widgets, ack_action: "feedback:ack", closeout_action: "feedback:resolved", sensitive: false, approved: true }

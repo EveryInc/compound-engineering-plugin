@@ -73,7 +73,7 @@ For each new item the order is fixed: acknowledge at the source, confirm the ack
 
 ### Merge evidence, not thread claims
 
-A message that says "this is fixed" does not close the item. Close-out needs a verified merge to the default branch, recorded with the merge SHA. Unverified claims stay open. An item deleted at the source is marked gone and drains from the plan.
+A message that says "this is fixed" does not close the item. Close-out needs a verified merge to the default branch, recorded with the merge SHA. Unverified claims stay open while the item is open at the source. An item deleted at the source is marked gone and drains from the plan. An issue closed at the source with no verified fix is marked `source_closed` and drains the same way.
 
 ### One rolling plan, not a log
 
@@ -93,7 +93,7 @@ You have a Slack alpha channel and a GitHub issues inbox. You run `/ce-sweep`. N
 
 You add sources one at a time: type, target (Slack channel ID, or `owner/repo`), ack and close-out actions, standing approval for those writes, and whether content is sensitive. Then you pick where state lives (committed under `docs/feedback-sweep/`, or machine-local under `/tmp`), set the ack cap, and optionally import a legacy tracker so already-seen items are not acked again. Setup offers a schedule, then the first sweep runs.
 
-A later `/ce-sweep` fetches items newer than each cursor, applies the approved ack, analyzes any recordings in parallel, checks `fix_pending` items against `gh` / git, and rewrites the machine-owned region of the plan. Interactive mode may ask one product question per category. The summary lists new items, recordings, closes with evidence, anything stuck or deferred, and the `/lfg` line for `docs/plans/feedback-sweep-plan.md`.
+A later `/ce-sweep` fetches items newer than each cursor, applies the approved ack, analyzes any recordings in parallel, looks up tracked GitHub issues by id, checks `fix_pending` items and completed closes against `gh`, and rewrites the machine-owned region of the plan. Interactive mode may ask one product question per category. The summary lists new items, recordings, closes with evidence, `source_closed` items, anything stuck or deferred, and the `/lfg` line for `docs/plans/feedback-sweep-plan.md`.
 
 ---
 

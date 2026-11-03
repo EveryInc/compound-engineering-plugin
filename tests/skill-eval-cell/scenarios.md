@@ -145,6 +145,18 @@ bun run test:skill-eval-pack -- --skill ce-babysit-pr --arm ab
 | `ce-babysit-pr/manual-root-behind-updates-target-only` | Manual-chain root BEHIND → claimed `update-branch` on the target, dependents untouched |
 | `ce-babysit-pr/checkpoint-resume-keeps-posture` | Checkpoint resume invocation keeps the `posture:` token |
 
+## ce-sweep (post-only; the baseline has no `source_closed` status)
+
+Read-only over canned `gh` output in `fixtures/sweep-closed-at-source`. `declared` grades the status, close-out, and plan decision for each issue, plus the merge SHA of each `closed` item.
+
+```bash
+bun run test:skill-eval-pack -- --id ce-sweep/closed-at-source-reconciles --arm post
+```
+
+| ID | Pre-contract |
+|---|---|
+| `ce-sweep/closed-at-source-reconciles` | Completed close with a verified merge -> `closed`, trying same-repository closing PRs after a stored ref fails; any other close or no merge -> `source_closed`, no close-out; both drain. Missing issue -> `source_gone`. Open or failed lookup -> unchanged, and a failed issue lookup stops that source. Reopened -> `acknowledged` (#1768) |
+
 ## Named gaps
 
 - **Reaping a peer session the cell never launched.** A timed-out host is killed by process group, but `ce-pov`'s peer runner double-forks and calls `setsid()`, so its supervisor lives in a new session outside that group and survives. The driver has no handle on it — it never sees the run id the runner keys its jobs by. Containing it means running each cell inside a cleanup boundary that owns new sessions too (a container, cgroup, or jail), not a change to the kill call.

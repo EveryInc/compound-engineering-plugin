@@ -1,0 +1,13 @@
+[
+  {
+    "id": "acme/widgets#100",
+    "source": "gh-issues",
+    "origin": "https://github.com/acme/widgets/issues/100",
+    "author_class": "customer",
+    "body": "Export drops the last row. Still happening on the latest release.",
+    "media": [],
+    "existing_ack": true,
+    "existing_closeout": false,
+    "cursor": "2026-10-29T14:02:11Z"
+  }
+]

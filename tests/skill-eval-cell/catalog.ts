@@ -1043,6 +1043,23 @@ const VISUAL_EVIDENCE_ROWS: Scenario[] = (
   ] satisfies VisualEvidenceCase[]
 ).map(visualEvidenceRow)
 
+/** Issue number -> status, close-out, plan after one sweep of fixtures/sweep-closed-at-source. */
+const SWEEP_CLOSED_AT_SOURCE_OUTCOMES: Record<number, [string, string, string]> = {
+  100: ["acknowledged", "no", "open"], // reopened
+  101: ["closed", "yes", "drained"], // completed, merged closing PR
+  102: ["source_closed", "no", "drained"], // NOT_PLANNED with a merged stored ref
+  103: ["source_closed", "no", "drained"], // completed, no ref at all
+  104: ["acknowledged", "no", "open"], // still open
+  105: ["source_closed", "no", "drained"], // closing PR in another repository
+  106: ["closed", "yes", "drained"], // unmerged stored ref, merged closing PR
+  107: ["source_gone", "no", "drained"], // issue does not resolve
+  108: ["in_plan", "no", "open"], // gh pr view failed
+  109: ["closed", "yes", "drained"], // verifiable after that failure, which stops nothing
+  110: ["closed", "yes", "drained"], // stored SHA merged on GitHub, local main stale
+  111: ["in_plan", "no", "open"], // rate-limited lookup
+  112: ["acknowledged", "no", "open"], // closed, but after checks stopped
+}
+
 export const SCENARIOS: Scenario[] = [
   ...VISUAL_EVIDENCE_ROWS,
   ...["md", "html"].map((format): Scenario => ({
@@ -6165,6 +6182,49 @@ Use "Correct widget limit" as the description in the subject and any required bo
       declared: { ROUTE: "antigravity", FIRST_MODEL: "gemini-4-argon", SECOND_MODEL: "gemini-3.8-flash" },
       actions: "none",
       delegates: "none",
+    },
+  },
+  {
+    id: "ce-sweep/closed-at-source-reconciles",
+    skill: "ce-sweep",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    post_only: true,
+    baseline_ref: "406b85c4562de3d415927fccc5e614c6554aab00",
+    fixture: `${FIX}/sweep-closed-at-source`,
+    why: "Issue #1768: the fetch reads open issues only and 2f read only fix_pending items, so an acknowledged issue closed at the source stayed in the plan forever. One fixture holds the main by-id outcomes and fix-verification paths, including a stale local default branch, a gh pr view failure ahead of a verifiable issue, and a rate-limited lookup ahead of a later closed issue.",
+    pre_contract: "A completed close with a verified merge closes with evidence and gets the close-out, trying same-repository closing PRs when the stored ref does not verify. Any other close, or a read showing no merge, is source_closed with no close-out, and both drain. An open issue or a failed lookup changes nothing, and a failed issue lookup stops checks for that source. A missing issue is source_gone. A reopened source_closed item returns to acknowledged.",
+    task: `Use the ce-sweep skill with mode:non-interactive for one sweep of this repository. GitHub, subagents, and the state engine are not available in this session, so run nothing and write nothing. Work out what the run would do from the files.
+
+The default branch is main, and local main is 25 commits behind the remote. canned/fetch.json is what the gh-issues connector returned at 2b. canned/gh-outputs.json holds the output each gh or git command would give this run, keyed by command. The run works through items in id order. Assume the lease is yours, validate downgraded nothing, the source has no media, and every ack and close-out write confirms on read-back.
+
+End with these lines for each issue n from 100 to 112, in plain text with no backticks:
+
+ITEM_<n>: <the item's status in the state file after this run>
+CLOSEOUT_<n>: <yes if the run performs the close-out action on the issue, otherwise no>
+PLAN_<n>: <open if the plan lists the item after this run, otherwise drained>
+
+For each item whose status is closed after this run, also end with:
+
+MERGE_SHA_<n>: <the verified_merge_sha this run records>`,
+    grade: {
+      files_read_post: ["references/run.md"],
+      workspace_read: ["canned/gh-outputs.json"],
+      declared: {
+        ...Object.fromEntries(
+          Object.entries(SWEEP_CLOSED_AT_SOURCE_OUTCOMES).flatMap(([n, [item, closeout, plan]]) => [
+            [`ITEM_${n}`, item],
+            [`CLOSEOUT_${n}`, closeout],
+            [`PLAN_${n}`, plan],
+          ]),
+        ),
+        MERGE_SHA_101: "9f3c2ab14e7d60b85c1f4a2e6d0b7c3e8a5d1f42",
+        MERGE_SHA_106: "c41d7f2e8b03a96d5e1f7c4b2a08d3e6f9b5a723",
+        MERGE_SHA_109: "e08b3f61d7c24a95b1e6d0f7a3c9852b4d16f0ca",
+        MERGE_SHA_110: "7d2e91c4a0b36f58e1c7d4a29b60f3e8c5a1d7b3",
+      },
+      actions: "none",
     },
   },
 ]
