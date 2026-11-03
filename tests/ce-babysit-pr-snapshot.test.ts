@@ -1844,6 +1844,14 @@ def conclusions(merge_state, identity_head=None, base_identity="current"):
     m.fetch_pr_merge_identity = lambda *args: identity_head and {
         "headRefOid": identity_head, "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": merge_state}
     return [c["conclusion"] for c in m.fetch(7, "o/r")["checks"]]
+def other_head_race():
+    m._run_checked = view("CLEAN")
+    m.fetch_pr_merge_identity = lambda *args: {
+        "headRefOid": "c" * 40, "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"}
+    m.fetch_base_ref = lambda *args: {"identity": "race", "oid": "b" * 40, "stale_computation_candidate": True}
+    current = m.fetch(7, "o/r")
+    m._apply_stale_merge_computation(current, current["head_sha"])
+    return current["base"]["identity"]
 m._corroborated_terminal_check_status = lambda *args: None
 m.fetch_eyes_reactors = lambda *args: []
 m.fetch_threads = lambda *args: []
@@ -1852,7 +1860,8 @@ m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_stat
                                   "default_branch": "main", "parent_prs": [], "dependent_prs": []}
 print(json.dumps({"clean": conclusions("CLEAN"), "unstable": conclusions("UNSTABLE"),
                   "other_head": conclusions("CLEAN", "c" * 40),
-                  "base_moved": conclusions("CLEAN", "a" * 40, "race")}))
+                  "base_moved": conclusions("CLEAN", "a" * 40, "race"),
+                  "other_head_race": other_head_race()}))
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
     expect(r.status, r.stderr).toBe(0)
@@ -1861,6 +1870,7 @@ print(json.dumps({"clean": conclusions("CLEAN"), "unstable": conclusions("UNSTAB
       unstable: ["FAILURE", "SUCCESS"],
       other_head: ["FAILURE", "SUCCESS"],
       base_moved: ["SUCCESS"],
+      other_head_race: "race",
     })
   })
 
