@@ -1823,7 +1823,7 @@ m = SourceFileLoader("pr_snapshot", ${JSON.stringify(SCRIPT)}).load_module()
 class Result: pass
 def run(name, conclusion, status, started):
     return {"__typename": "CheckRun", "workflowName": "Review", "name": name, "conclusion": conclusion,
-            "status": status, "startedAt": started, "completedAt": started, "detailsUrl": "https://x.test/" + started}
+            "status": status, "startedAt": started, "completedAt": started, "detailsUrl": "https://x.test/run"}
 def checked(cmd, label):
     result = Result()
     result.returncode = 0
@@ -1839,6 +1839,8 @@ def checked(cmd, label):
             run("gate", "SUCCESS", "COMPLETED", "2026-08-20T05:00:00Z"),
             run("later", "SUCCESS", "COMPLETED", "2026-08-20T04:00:00Z"),
             run("later", None, "IN_PROGRESS", "2026-08-20T05:00:00Z"),
+            run("queued", "FAILURE", "COMPLETED", "2026-08-20T04:00:00Z"),
+            run("queued", None, "QUEUED", None),
         ]})
     return result
 m._run_checked = checked
@@ -1857,6 +1859,7 @@ print(json.dumps({c["key"]: [c["status"], c["conclusion"]] for c in m.fetch(7, "
     expect(JSON.parse(r.stdout)).toEqual({
       "Review/gate": ["COMPLETED", "SUCCESS"],
       "Review/later": ["IN_PROGRESS", null],
+      "Review/queued": ["QUEUED", null],
     })
   })
 

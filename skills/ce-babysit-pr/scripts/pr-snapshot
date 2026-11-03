@@ -841,12 +841,15 @@ def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, hos
 
 def _latest_check_per_key(checks):
     """Keep the newest run of each check. A workflow can run twice on one head, such as on open
-    and again on ready_for_review, and the rollup lists both; the older run's result is superseded."""
+    and again on ready_for_review, and the rollup lists both; the older run's result is superseded.
+    A queued run has no start time yet and sorts as newest, so it can't hide behind an old result."""
+    def moment(check):
+        return check.get("started_at") or check.get("created_at") or "~"
+
     latest = {}
     for check in checks:
         current = latest.get(check["key"])
-        moment = check.get("started_at") or check.get("created_at") or ""
-        if current is None or moment >= (current.get("started_at") or current.get("created_at") or ""):
+        if current is None or moment(check) >= moment(current):
             latest[check["key"]] = check
     return list(latest.values())
 
