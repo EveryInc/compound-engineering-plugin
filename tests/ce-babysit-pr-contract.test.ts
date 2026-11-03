@@ -313,6 +313,11 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(script, "the script must own the 300s settle default").toMatch(/^DEFAULT_SETTLE_SECONDS = 300\.0$/m)
     // No prose may reintroduce the bots-present pre-widening rule the wake protocol replaced.
     expect(babysit).not.toMatch(/whenever the repo uses review bots/i)
+    for (const file of ["tick.md", "watch-loop.md"]) {
+      const arm = await readRepoFile(`skills/ce-babysit-pr/references/${file}`)
+      expect(arm, `${file} must allow the shorter stack-land window on the arm`)
+        .toMatch(/--settle-seconds[^\n]*stack-land/)
+    }
   })
 
   test("readiness gate: GitHub's mergeability is one conjunct, never the whole answer", async () => {
