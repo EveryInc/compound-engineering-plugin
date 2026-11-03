@@ -2599,11 +2599,19 @@ def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
     return actionable
 
 
+def _timed_wait(a):
+    """Non-null when only the settle window stands between this PR and a merge-ready wake."""
+    if _wake_reason(a, 0) != "merge-ready" or _wake_reason(a, DEFAULT_SETTLE_SECONDS) == "merge-ready":
+        return None
+    return {"reason": "settle", "seconds_remaining": round(DEFAULT_SETTLE_SECONDS - a.get("quiet_seconds", 0))}
+
+
 def cmd_snapshot(args):
     result = _run_snapshot(args, _now())
     if (getattr(args, "_started_new_invocation", False)
             and _elapsed(result.get("invocation_started_at"), _now()) > 60):
         raise SystemExit("new invocation unexpectedly inherited more than 60 seconds of elapsed time")
+    result["timed_wait"] = _timed_wait(result)
     print(json.dumps(result, separators=(",", ":")))
 
 

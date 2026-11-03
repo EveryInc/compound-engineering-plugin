@@ -5011,6 +5011,32 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(moved.base.identity).toBe("stale-computation")
   })
 
+  test("timed_wait names the settle window only when nothing else is left", () => {
+    const clean = {
+      ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED",
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [], head_sha: "a".repeat(40),
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "2".repeat(40), graphql_oid: "2".repeat(40),
+        historical_oid: "1".repeat(40), merge_parent_oids: ["2".repeat(40), "a".repeat(40)], identity: "current" },
+    }
+    const quiet = snapshot(state, fetchFile(dir, "timed-wait.json", clean))
+    expect(quiet.timed_wait.reason).toBe("settle")
+    expect(quiet.timed_wait.seconds_remaining).toBeGreaterThan(290)
+
+    const statePath = path.join(state, "state.json")
+    const persisted = JSON.parse(readFileSync(statePath, "utf8"))
+    persisted.last_change_at = "2026-07-17T12:00:00+00:00"
+    writeFileSync(statePath, JSON.stringify(persisted))
+    expect(snapshot(state, fetchFile(dir, "timed-wait.json", clean)).timed_wait).toBeNull()
+
+    const running = snapshot(path.join(dir, "timed-wait-running"), fetchFile(dir, "timed-wait-running.json", {
+      ...clean, checks: [{ ...clean.checks[0], status: "IN_PROGRESS", conclusion: null }] }))
+    expect(running.timed_wait).toBeNull()
+    const failing = snapshot(path.join(dir, "timed-wait-failing"), fetchFile(dir, "timed-wait-failing.json", {
+      ...clean, merge_state_status: "UNSTABLE", checks: [{ ...clean.checks[0], conclusion: "FAILURE" }] }))
+    expect(failing.timed_wait).toBeNull()
+  })
+
   test("genuine base identity transitions still change the settle signature", () => {
     const frozen = "2026-07-17T12:00:00+00:00"
     const baseCore = {
