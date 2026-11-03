@@ -1838,20 +1838,30 @@ def view(merge_state):
             "statusCheckRollup": [run("FAILURE", "COMPLETED"), run("SUCCESS", "COMPLETED")]})
         return result
     return checked
-def conclusions(merge_state, identity_head=None):
+def conclusions(merge_state, identity_head=None, base_identity="current"):
     m._run_checked = view(merge_state)
+    m.fetch_base_ref = lambda *args: {"identity": base_identity, "oid": "b" * 40}
     m.fetch_pr_merge_identity = lambda *args: identity_head and {
         "headRefOid": identity_head, "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": merge_state}
     return [c["conclusion"] for c in m.fetch(7, "o/r")["checks"]]
+def other_head_race():
+    m._run_checked = view("CLEAN")
+    m.fetch_pr_merge_identity = lambda *args: {
+        "headRefOid": "c" * 40, "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"}
+    m.fetch_base_ref = lambda *args: {"identity": "race", "oid": "b" * 40, "stale_computation_candidate": True}
+    current = m.fetch(7, "o/r")
+    m._apply_stale_merge_computation(current, current["head_sha"])
+    return current["base"]["identity"]
 m._corroborated_terminal_check_status = lambda *args: None
-m.fetch_base_ref = lambda *args: {"identity": "current", "oid": "b" * 40}
 m.fetch_eyes_reactors = lambda *args: []
 m.fetch_threads = lambda *args: []
 m.fetch_awaiting_approval = lambda *args: 0
 m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
                                   "default_branch": "main", "parent_prs": [], "dependent_prs": []}
 print(json.dumps({"clean": conclusions("CLEAN"), "unstable": conclusions("UNSTABLE"),
-                  "other_head": conclusions("CLEAN", "c" * 40)}))
+                  "other_head": conclusions("CLEAN", "c" * 40),
+                  "base_moved": conclusions("CLEAN", "a" * 40, "race"),
+                  "other_head_race": other_head_race()}))
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
     expect(r.status, r.stderr).toBe(0)
@@ -1859,6 +1869,8 @@ print(json.dumps({"clean": conclusions("CLEAN"), "unstable": conclusions("UNSTAB
       clean: ["SUCCESS"],
       unstable: ["FAILURE", "SUCCESS"],
       other_head: ["FAILURE", "SUCCESS"],
+      base_moved: ["SUCCESS"],
+      other_head_race: "race",
     })
   })
 
@@ -4937,9 +4949,8 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
 
   // Observed live (tmchow/pr-stack-test, 2026-08-17): after a squash-merge to main GitHub kept
   // MERGEABLE/CLEAN but left potentialMergeCommit on the old base for 20+ minutes, so `race`
-  // never cleared and every harness idled to budget. The degrade accepts the cached verdict once
-  // head and live base have been stable that long, and discloses it.
-  test("stale merge computation: a head-matching race degrades to stale-computation after the bounded window", () => {
+  // never cleared and every harness idled to budget. The cached verdict is accepted and disclosed.
+  test("stale merge computation: a head-matching race counts as stale-computation right away", () => {
     const race = {
       ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED",
       checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
@@ -4952,15 +4963,12 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     }
     const file = fetchFile(dir, "stale-race.json", race)
     const first = snapshot(state, file)
-    expect(first.base_ref_blocker).toBe("race")
-    expect(first.mergeability_certain).toBe(false)
-    expect(wakeReason(first)).toBe("base-ref-blocked")
+    expect(first.base.identity).toBe("stale-computation")
+    expect(first.base_ref_blocker).toBeNull()
+    expect(first.mergeability_certain).toBe(true)
 
     const statePath = path.join(state, "state.json")
     const persisted = JSON.parse(readFileSync(statePath, "utf8"))
-    expect(persisted.stale_merge_computation?.key).toBe(
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:2222222222222222222222222222222222222222")
-    persisted.stale_merge_computation.first_seen_at = "2026-07-17T12:00:00+00:00"
     persisted.last_change_at = "2026-07-17T12:00:00+00:00"
     writeFileSync(statePath, JSON.stringify(persisted))
 
@@ -4974,14 +4982,28 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(JSON.parse(readFileSync(statePath, "utf8")).last_change_at).toBe("2026-07-17T12:00:00+00:00")
     expect(wakeReason(later, 300)).toBe("merge-ready")
 
+    // A busy base branch moving again does not reset the quiet clock.
+    const movedTip = snapshot(state, fetchFile(dir, "stale-race-tip.json", { ...race,
+      base: { ...race.base, oid: "3".repeat(40), graphql_oid: "3".repeat(40) } }))
+    expect(movedTip.base.identity).toBe("stale-computation")
+    expect(wakeReason(movedTip, 300)).toBe("merge-ready")
+    expect(JSON.parse(readFileSync(statePath, "utf8")).last_change_at).toBe("2026-07-17T12:00:00+00:00")
+
+    // GitHub recomputing after the tip moved blocks that one read and does not reset the quiet clock.
+    const recomputing = snapshot(state, fetchFile(dir, "stale-race-recompute.json", { ...race,
+      mergeable: "UNKNOWN", merge_state_status: "UNKNOWN",
+      base: { ...race.base, identity: "mergeability-pending", stale_computation_candidate: undefined } }))
+    expect(recomputing.mergeability_certain).toBe(false)
+    const recomputed = snapshot(state, file)
+    expect(recomputed.base.identity).toBe("stale-computation")
+    expect(wakeReason(recomputed, 300)).toBe("merge-ready")
+    expect(JSON.parse(readFileSync(statePath, "utf8")).last_change_at).toBe("2026-07-17T12:00:00+00:00")
+
     // A pending (unclassified) head forces uncertainty even through the stale-computation degrade.
     const pendingStale = snapshot(state, fetchFile(dir, "stale-race-pending.json", { ...race,
       head_sha: "cccccccccccccccccccccccccccccccccccccccc", head_parents: null,
       base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "cccccccccccccccccccccccccccccccccccccccc"] } }))
     expect(pendingStale.unrequested_base_merge_pending).toBe(true)
-    const sp = JSON.parse(readFileSync(statePath, "utf8"))
-    sp.stale_merge_computation.first_seen_at = "2026-07-17T12:00:00+00:00"
-    writeFileSync(statePath, JSON.stringify(sp))
     const pendingStale2 = snapshot(state, fetchFile(dir, "stale-race-pending.json", { ...race,
       head_sha: "cccccccccccccccccccccccccccccccccccccccc", head_parents: null,
       base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "cccccccccccccccccccccccccccccccccccccccc"] } }))
@@ -4992,11 +5014,37 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     const genuine = snapshot(path.join(dir, "genuine-race"), fetchFile(dir, "genuine-race.json", {
       ...race, base: { ...race.base, stale_computation_candidate: false } }))
     expect(genuine.base_ref_blocker).toBe("race")
-    // A moved head resets the window.
+    // A moved head is judged the same way.
     const moved = snapshot(state, fetchFile(dir, "stale-race-moved.json", { ...race,
       head_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"] } }))
-    expect(moved.base_ref_blocker).toBe("race")
+    expect(moved.base.identity).toBe("stale-computation")
+  })
+
+  test("timed_wait names the settle window only when nothing else is left", () => {
+    const clean = {
+      ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED",
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [], head_sha: "a".repeat(40),
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "2".repeat(40), graphql_oid: "2".repeat(40),
+        historical_oid: "1".repeat(40), merge_parent_oids: ["2".repeat(40), "a".repeat(40)], identity: "current" },
+    }
+    const quiet = snapshot(state, fetchFile(dir, "timed-wait.json", clean))
+    expect(quiet.timed_wait.reason).toBe("settle")
+    expect(quiet.timed_wait.seconds_remaining).toBeGreaterThan(290)
+
+    const statePath = path.join(state, "state.json")
+    const persisted = JSON.parse(readFileSync(statePath, "utf8"))
+    persisted.last_change_at = "2026-07-17T12:00:00+00:00"
+    writeFileSync(statePath, JSON.stringify(persisted))
+    expect(snapshot(state, fetchFile(dir, "timed-wait.json", clean)).timed_wait).toBeNull()
+
+    const running = snapshot(path.join(dir, "timed-wait-running"), fetchFile(dir, "timed-wait-running.json", {
+      ...clean, checks: [{ ...clean.checks[0], status: "IN_PROGRESS", conclusion: null }] }))
+    expect(running.timed_wait).toBeNull()
+    const failing = snapshot(path.join(dir, "timed-wait-failing"), fetchFile(dir, "timed-wait-failing.json", {
+      ...clean, merge_state_status: "UNSTABLE", checks: [{ ...clean.checks[0], conclusion: "FAILURE" }] }))
+    expect(failing.timed_wait).toBeNull()
   })
 
   test("genuine base identity transitions still change the settle signature", () => {
@@ -5017,7 +5065,7 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     const file = fetchFile(dir, "identity-steps.json", green)
     snapshot(state, file)
     const statePath = path.join(state, "state.json")
-    const identities = ["race", "mergeability-pending", "current"]
+    const identities = ["race", "current"]
     for (const identity of identities) {
       const persisted = JSON.parse(readFileSync(statePath, "utf8"))
       persisted.last_change_at = frozen

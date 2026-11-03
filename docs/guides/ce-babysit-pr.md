@@ -117,7 +117,7 @@ A clean rebase does not prove a PR still belongs. A PR that only adds a file und
 
 | Verdict | Meaning | What happens |
 |---------|---------|--------------|
-| Update | The goal still matters and the implementation is the right shape | Watching continues. If you asked for an update, or said yes when asked, it rebases first |
+| Update | The goal still matters and the implementation is the right shape | Watching continues. If you asked for an update, it rebases first |
 | Rework | The goal still matters, but a mechanical update would keep the wrong implementation | It describes the smallest credible rework and stops. Ask and it hands the rework to `/ce-work` |
 | Close | Superseded, obsolete, directionally wrong, or not worth its cost | It recommends closing with the evidence and stops. It closes only with your permission |
 
@@ -258,7 +258,7 @@ It classifies (flaky -> one rerun; real -> `/ce-debug`) and delegates. Comments 
 It previews the exact observed base first. It completes a merge only when every conflict has one mechanical answer that preserves the PR's intent, and when push authority to that head is known. Otherwise it parks a `needs-human`. Its routine conflict handling never rebases or force-pushes. Managed stacks stay on the manager's restack path.
 
 **Will it rebase my PR?**
-Only when you ask it to update or rebase the PR, or say yes when the old-PR check asks. It first decides whether the PR still belongs, then rebases with a series comparison and a lease on the starting head. Unattended runs never rebase.
+Only when you ask it to update or rebase the PR. A moved base alone is not a reason. It first decides whether the PR still belongs, then rebases with a series comparison and a lease on the starting head. Unattended runs never rebase.
 
 **What happens when the base keeps moving?**
 Each distinct head/base/status observation has a bounded claim-and-confirm cycle. Routine movement can be applied many times. The same unchanged observation is not retried across restarts. A parked semantic conflict stays parked when later base commits do not change the conflict.

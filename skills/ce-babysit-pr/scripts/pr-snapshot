@@ -85,13 +85,10 @@ RELATIONSHIP_INDEPENDENT = "independent"
 RELATIONSHIP_PROBE_ERROR = "probe-error"
 BASE_REF_CURRENT = "current"
 BASE_REF_RACE = "race"
-BASE_REF_STALE_COMPUTATION = "stale-computation"
 # GitHub can leave potentialMergeCommit parented on the old base indefinitely after main moves
-# (observed 20+ min on tmchow/pr-stack-test, unrefreshed by polls or a body PATCH). Once the live
-# base is stable this long with the same head, the cached CLEAN/DIRTY verdict is accepted with a
-# disclosure instead of blocking readiness forever. Waiting longer adds nothing: GitHub does not
-# refresh it, and it recomputes at merge time.
-STALE_MERGE_COMPUTATION_SECONDS = 180
+# (observed 20+ min on tmchow/pr-stack-test, unrefreshed by polls or a body PATCH). The cached verdict
+# for this head is accepted with a disclosure: waiting adds nothing, and GitHub rechecks at merge.
+BASE_REF_STALE_COMPUTATION = "stale-computation"
 BASE_REF_MERGEABILITY_PENDING = "mergeability-pending"
 BASE_REF_PROBE_ERROR = "probe-error"
 BASE_REF_LEGACY_STALE = "stale"
@@ -564,7 +561,7 @@ def fetch_base_ref(owner, name, ref, merge_identity, host=None):
                 or merge_parent_oids[1].lower() != head_oid.lower()):
             base["identity"] = BASE_REF_RACE
             # Only the base parent lags while head and live base agree: a stale test merge,
-            # eligible for the bounded degrade in diff().
+            # accepted with a disclosure in diff().
             base["stale_computation_candidate"] = (
                 merge_parent_oids[1].lower() == head_oid.lower())
             return base
@@ -905,8 +902,12 @@ def fetch(pr, repo, light=False):
             # The checks and review payload came from `v`; do not combine them with mergeability
             # observed for a different head or base branch.
             base["identity"] = BASE_REF_RACE
+            base["stale_computation_candidate"] = False
     # The rollup lists every run on a head, even replaced ones. CLEAN is GitHub's own verdict on them.
-    if merge_state_status == "CLEAN" and base.get("identity") not in (BASE_REF_RACE, BASE_REF_PROBE_ERROR):
+    # It stays valid for this head when only the base moved; mergeability_certain guards that separately.
+    if (merge_state_status == "CLEAN"
+            and _same_head(merge_observation.get("headRefOid"), head)
+            and merge_observation.get("baseRefName") == v.get("baseRefName")):
         checks = [c for c in checks if c["conclusion"] not in FAILING]
     pr_chain = fetch_pr_chain(v.get("number") or pr, repo, v.get("url"),
                               v.get("baseRefName"), v.get("headRefName"), owner, name, host)
@@ -1215,28 +1216,10 @@ def _prepare_claimed_currency_item(state, item, cur=None, head=None):
     return item
 
 
-def _apply_stale_merge_computation(state, cur, head, now):
-    """Bounded degrade for a `race` whose only mismatch is GitHub's stale test merge. Tracks the
-    first time the same (head, live base) pair was seen in that state; after
-    STALE_MERGE_COMPUTATION_SECONDS the identity becomes `stale-computation` and the base carries
-    `merge_computation_stale: true` so the report can disclose it. Any head/base movement resets."""
+def _apply_stale_merge_computation(cur, head):
     base = cur.get("base") if isinstance(cur.get("base"), dict) else None
-    if not base:
-        state["stale_merge_computation"] = None
-        return
-    live = base.get("oid")
-    candidate = (base.get("identity") == BASE_REF_RACE
-                 and base.get("stale_computation_candidate")
-                 and _valid_oid(live) and _valid_oid(head))
-    if not candidate:
-        state["stale_merge_computation"] = None
-        return
-    key = f"{str(head).lower()}:{str(live).lower()}"
-    tracked = state.get("stale_merge_computation")
-    if not isinstance(tracked, dict) or tracked.get("key") != key:
-        tracked = {"key": key, "first_seen_at": _iso(now)}
-        state["stale_merge_computation"] = tracked
-    if _elapsed(tracked.get("first_seen_at"), now) >= STALE_MERGE_COMPUTATION_SECONDS:
+    if (base and base.get("identity") == BASE_REF_RACE and base.get("stale_computation_candidate")
+            and _valid_oid(base.get("oid")) and _valid_oid(head)):
         base["identity"] = BASE_REF_STALE_COMPUTATION
         base["merge_computation_stale"] = True
 
@@ -2082,7 +2065,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
     # so a momentary null does not look like a new head and wipe ci_dispatched.
     head = cur["head_sha"] or state.get("head_sha")
     head_changed = state.get("head_sha") is not None and head != state["head_sha"]
-    _apply_stale_merge_computation(state, cur, head, now)
+    _apply_stale_merge_computation(cur, head)
 
     prior_threads = state.get("threads", {})
     prior_feedback = state.get("feedback", {})
@@ -2187,6 +2170,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
     state["review_decision"] = cur["review_decision"]
     state["mergeable"] = cur["mergeable"]
     state["merge_state_status"] = cur["merge_state_status"]
+    if (cur.get("mergeable") not in (None, "UNKNOWN")
+            and cur.get("merge_state_status") not in (None, "UNKNOWN")):
+        state["settled_merge"] = [cur["mergeable"], cur["merge_state_status"]]
     observed_awaiting_approval = cur.get("awaiting_approval")
     approval_probe_succeeded = observed_awaiting_approval is not None
     awaiting_approval = (
@@ -2216,7 +2202,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
     if unrequested_base_merge_pending and isinstance(cur.get("base"), dict) \
             and _base_ref_blocker(cur["base"]) is None:
         # An unclassified head is a pending merge computation: whatever else the base identity says
-        # (current or a bounded stale-computation degrade), it is not certain, not ready, not landable.
+        # (current or stale-computation), it is not certain, not ready, not landable.
         cur["base"]["identity"] = BASE_REF_MERGEABILITY_PENDING
     state["base"] = cur.get("base")
     if branch_currency and branch_currency.get("disposition") == DISPOSITION_OPEN:
@@ -2350,17 +2336,16 @@ def diff(state, cur, now=None, advance_trajectory=True):
 def _settle_base(base):
     """Base fields whose movement should reset the settle clock.
 
-    `stale-computation` is a presentation of a still-stable `race` candidate
-    (same head + live base) plus a report flag. Hashing those presentation
-    fields would reset last_change_at and add a synthetic settle delay.
-    Genuine identity values and freshness stay in the signature.
+    The base tip moves constantly on a busy repo, so its SHAs stay out, and a test merge that lags
+    that tip or is being recomputed counts as current. Otherwise no quiet window would ever finish.
     """
     if not isinstance(base, dict):
         return base
-    payload = {k: v for k, v in base.items() if k != "merge_computation_stale"}
-    if payload.get("identity") == BASE_REF_STALE_COMPUTATION:
-        payload["identity"] = BASE_REF_RACE
-    return payload
+    identity = base.get("identity")
+    if (identity in (BASE_REF_STALE_COMPUTATION, BASE_REF_MERGEABILITY_PENDING)
+            or base.get("stale_computation_candidate")):
+        identity = BASE_REF_CURRENT
+    return {"ref": base.get("ref"), "identity": identity, "freshness": base.get("freshness")}
 
 
 def _change_sig(state):
@@ -2377,8 +2362,7 @@ def _change_sig(state):
     currency = _load_branch_currency_state(state)
     current_currency = currency.get("items", {}).get(currency.get("current_key")) or {}
     return (checks, threads, feedback, human_decisions,
-            state.get("review_decision"), state.get("mergeable"),
-            state.get("merge_state_status"),
+            state.get("review_decision"), state.get("settled_merge"),
             json.dumps(state.get("pr_chain") or _default_pr_chain(), sort_keys=True),
             json.dumps(_settle_base(state.get("base")), sort_keys=True),
             (current_currency.get("host_branch_update_capability")
@@ -2616,11 +2600,19 @@ def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
     return actionable
 
 
+def _timed_wait(a):
+    """Non-null when only the settle window stands between this PR and a merge-ready wake."""
+    if _wake_reason(a, 0) != "merge-ready" or _wake_reason(a, DEFAULT_SETTLE_SECONDS) == "merge-ready":
+        return None
+    return {"reason": "settle", "seconds_remaining": round(DEFAULT_SETTLE_SECONDS - a.get("quiet_seconds", 0))}
+
+
 def cmd_snapshot(args):
     result = _run_snapshot(args, _now())
     if (getattr(args, "_started_new_invocation", False)
             and _elapsed(result.get("invocation_started_at"), _now()) > 60):
         raise SystemExit("new invocation unexpectedly inherited more than 60 seconds of elapsed time")
+    result["timed_wait"] = _timed_wait(result)
     print(json.dumps(result, separators=(",", ":")))
 
 
