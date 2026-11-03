@@ -31,7 +31,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
 
 In a confirmed managed stack under `stack-ready`/`stack-land`, append `--downstack-pr <N>` for every open lower layer to that arm so the watcher probes below (`references/stack.md`).
 
-Do **not** pass `--settle-seconds` or `--blocked-external-drain-seconds` on the ordinary arm. The script's 300s default is the initial merge-ready settle window. Step 3 alone decides when to set `--settle-seconds`: the shorter `stack-land` window, or the longer window after a rejected `merge-ready` wake. It sets `--blocked-external-drain-seconds` after a `blocked-external` (approval-gate) wake begins the bounded review drain.
+Do **not** pass `--settle-seconds` or `--blocked-external-drain-seconds` on the ordinary arm. The script's 300s default is the initial merge-ready settle window. Only Step 3 (`references/settle.md`) decides when to set `--settle-seconds`. It sets `--blocked-external-drain-seconds` after a `blocked-external` (approval-gate) wake begins the bounded review drain.
 
 **Shell state does not persist between separate tool calls.** `SKILL_DIR` and `STATE_DIR` are set only for the command they appear in. The later `mark` calls (Steps 3 and 5) run as their own invocations, so re-set both inline in each of those commands, or pass the absolute paths directly. A bare `$SKILL_DIR` in a fresh call is empty and resolves to the wrong path.
 

@@ -1782,7 +1782,7 @@ def checked(cmd, label):
     result.returncode = 0
     result.stderr = ""
     result.stdout = json.dumps({
-        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "UNSTABLE",
         "reviewDecision": None, "headRefOid": "a" * 40, "baseRefOid": "b" * 40,
         "baseRefName": "main", "headRefName": "feature", "number": 7,
         "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
@@ -1815,75 +1815,51 @@ print(json.dumps(m.fetch(7, "o/r")["checks"][0]))
     })
   })
 
-  test("live fetch keeps only the most recently started run of a check on the head", () => {
+  test("live fetch ignores failed runs in the rollup only when GitHub says CLEAN for this head", () => {
     const python = `
 import json
 from importlib.machinery import SourceFileLoader
 m = SourceFileLoader("pr_snapshot", ${JSON.stringify(SCRIPT)}).load_module()
 class Result: pass
-def run(name, conclusion, status, url, started=None):
-    return {"__typename": "CheckRun", "workflowName": "Review", "name": name, "conclusion": conclusion,
-            "status": status, "startedAt": started, "completedAt": None, "detailsUrl": url}
-def actions(run_id, job=1):
-    return f"https://github.com/o/r/actions/runs/{run_id}/job/{job}"
-def checked(cmd, label):
-    result = Result()
-    result.returncode = 0
-    result.stderr = ""
-    result.stdout = json.dumps({
-        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
-        "reviewDecision": None, "headRefOid": "a" * 40, "baseRefOid": "b" * 40,
-        "baseRefName": "main", "headRefName": "feature", "number": 7,
-        "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
-        "comments": [], "reviews": [],
-        "statusCheckRollup": [
-            run("superseded", "FAILURE", "COMPLETED", actions(1), "2026-01-01T00:00:00Z"),
-            run("superseded", "SUCCESS", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
-            run("queued-rerun", "FAILURE", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
-            run("queued-rerun", None, "QUEUED", actions(1)),
-            run("older-run-rerun", "FAILURE", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
-            run("older-run-rerun", "SUCCESS", "COMPLETED", actions(1), "2026-01-01T00:02:00Z"),
-            run("queued-zero-time", "FAILURE", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
-            run("queued-zero-time", None, "QUEUED", actions(1), "0001-01-01T00:00:00Z"),
-            run("cancelled-unstarted", "CANCELLED", "COMPLETED", actions(1)),
-            run("cancelled-unstarted", "SUCCESS", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
-            run("cancelled-zero-time", "CANCELLED", "COMPLETED", actions(1), "0001-01-01T00:00:00Z"),
-            run("cancelled-zero-time", "SUCCESS", "COMPLETED", actions(2), "2026-01-01T00:01:00Z"),
-            run("newer-cancelled", "SUCCESS", "COMPLETED", actions(1), "2026-01-01T00:01:00Z"),
-            run("newer-cancelled", "CANCELLED", "COMPLETED", actions(2), "0001-01-01T00:00:00Z"),
-            run("same-run", "FAILURE", "COMPLETED", actions(3, 1), "2026-01-01T00:00:00Z"),
-            run("same-run", "SUCCESS", "COMPLETED", actions(3, 2), "2026-01-01T00:00:00Z"),
-            run("external", "FAILURE", "COMPLETED", "https://ci.example.test/1"),
-            run("external", "SUCCESS", "COMPLETED", "https://ci.example.test/2"),
-        ]})
-    return result
-m._run_checked = checked
+def run(conclusion, status):
+    return {"__typename": "CheckRun", "workflowName": "CI", "name": "test", "conclusion": conclusion,
+            "status": status, "startedAt": None, "completedAt": None, "detailsUrl": "https://x.test/run"}
+def view(merge_state):
+    def checked(cmd, label):
+        result = Result()
+        result.returncode = 0
+        result.stderr = ""
+        result.stdout = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": merge_state,
+            "reviewDecision": None, "headRefOid": "a" * 40, "baseRefOid": "b" * 40,
+            "baseRefName": "main", "headRefName": "feature", "number": 7,
+            "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
+            "comments": [], "reviews": [],
+            "statusCheckRollup": [run("FAILURE", "COMPLETED"), run("SUCCESS", "COMPLETED")]})
+        return result
+    return checked
+def conclusions(merge_state, identity_head=None):
+    m._run_checked = view(merge_state)
+    m.fetch_pr_merge_identity = lambda *args: identity_head and {
+        "headRefOid": identity_head, "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": merge_state}
+    return [c["conclusion"] for c in m.fetch(7, "o/r")["checks"]]
 m._corroborated_terminal_check_status = lambda *args: None
-m.fetch_pr_merge_identity = lambda *args: None
 m.fetch_base_ref = lambda *args: {"identity": "current", "oid": "b" * 40}
 m.fetch_eyes_reactors = lambda *args: []
 m.fetch_threads = lambda *args: []
 m.fetch_awaiting_approval = lambda *args: 0
 m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
                                   "default_branch": "main", "parent_prs": [], "dependent_prs": []}
-print(json.dumps([[c["name"], c["status"], c["conclusion"]] for c in m.fetch(7, "o/r")["checks"]]))
+print(json.dumps({"clean": conclusions("CLEAN"), "unstable": conclusions("UNSTABLE"),
+                  "other_head": conclusions("CLEAN", "c" * 40)}))
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
     expect(r.status, r.stderr).toBe(0)
-    expect(JSON.parse(r.stdout)).toEqual([
-      ["superseded", "COMPLETED", "SUCCESS"],
-      ["queued-rerun", "QUEUED", null],
-      ["older-run-rerun", "COMPLETED", "SUCCESS"],
-      ["queued-zero-time", "QUEUED", null],
-      ["cancelled-unstarted", "COMPLETED", "SUCCESS"],
-      ["cancelled-zero-time", "COMPLETED", "SUCCESS"],
-      ["newer-cancelled", "COMPLETED", "SUCCESS"],
-      ["newer-cancelled", "COMPLETED", "CANCELLED"],
-      ["same-run", "COMPLETED", "FAILURE"],
-      ["same-run", "COMPLETED", "SUCCESS"],
-      ["external", "COMPLETED", "FAILURE"],
-      ["external", "COMPLETED", "SUCCESS"],
-    ])
+    expect(JSON.parse(r.stdout)).toEqual({
+      clean: ["SUCCESS"],
+      unstable: ["FAILURE", "SUCCESS"],
+      other_head: ["FAILURE", "SUCCESS"],
+    })
   })
 
   test("live fetch normalizes an impossible CheckRun status only with same-head parent corroboration", () => {

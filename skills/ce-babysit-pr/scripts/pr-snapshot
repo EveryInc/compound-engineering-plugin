@@ -839,38 +839,6 @@ def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, hos
     return result
 
 
-def _actions_run_id(check):
-    match = re.search(r"/actions/runs/(\d+)", check.get("details_url") or "")
-    return int(match.group(1)) if match else None
-
-
-def _drop_superseded_runs(checks):
-    """Drop an Actions run of a check only on evidence that a newer run replaced it. The most
-    recently started run wins, since an older run can be re-run after a newer one. A job waiting to
-    start counts as newest. A run that ended without starting has no time, so it stays if its ID is
-    higher than the winner's. gh can report a missing time as year 0001. Other checks are all kept."""
-    def moment(job):
-        started = job.get("started_at") or ""
-        if started[:4] in ("", "0001"):
-            return "" if job["status"] == "COMPLETED" else "~"
-        return started
-
-    runs = {}
-    for check in checks:
-        run_id = _actions_run_id(check)
-        if run_id is not None:
-            by_run = runs.setdefault(check["key"], {})
-            by_run[run_id] = max(by_run.get(run_id, ""), moment(check))
-
-    kept = {}
-    for key, by_run in runs.items():
-        winner = max(by_run, key=lambda run_id: (by_run[run_id], run_id))
-        kept[key] = {run_id for run_id, when in by_run.items()
-                     if run_id == winner or (not when and run_id > winner)}
-    return [check for check in checks
-            if _actions_run_id(check) is None or _actions_run_id(check) in kept[check["key"]]]
-
-
 def fetch(pr, repo, light=False):
     """Fetch both event streams via gh into one combined snapshot dict. `light` skips the probes a
     downstack signature never reads (merge identity/base ref, eyes reactions, awaiting-approval)."""
@@ -916,7 +884,6 @@ def fetch(pr, repo, light=False):
                 "started_at": c.get("startedAt"),
                 "completed_at": c.get("completedAt"),
             })
-    checks = _drop_superseded_runs(checks)
 
     merge_identity = None if light else fetch_pr_merge_identity(v.get("number") or pr, owner, name, host)
     merge_observation = merge_identity or v
@@ -938,6 +905,9 @@ def fetch(pr, repo, light=False):
             # The checks and review payload came from `v`; do not combine them with mergeability
             # observed for a different head or base branch.
             base["identity"] = BASE_REF_RACE
+    # The rollup lists every run on a head, even replaced ones. CLEAN is GitHub's own verdict on them.
+    if merge_state_status == "CLEAN" and base.get("identity") not in (BASE_REF_RACE, BASE_REF_PROBE_ERROR):
+        checks = [c for c in checks if c["conclusion"] not in FAILING]
     pr_chain = fetch_pr_chain(v.get("number") or pr, repo, v.get("url"),
                               v.get("baseRefName"), v.get("headRefName"), owner, name, host)
     currency_probe = {
