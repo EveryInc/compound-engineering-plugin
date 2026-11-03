@@ -89,8 +89,9 @@ BASE_REF_STALE_COMPUTATION = "stale-computation"
 # GitHub can leave potentialMergeCommit parented on the old base indefinitely after main moves
 # (observed 20+ min on tmchow/pr-stack-test, unrefreshed by polls or a body PATCH). Once the live
 # base is stable this long with the same head, the cached CLEAN/DIRTY verdict is accepted with a
-# disclosure instead of blocking readiness forever.
-STALE_MERGE_COMPUTATION_SECONDS = 600
+# disclosure instead of blocking readiness forever. Waiting longer adds nothing: GitHub does not
+# refresh it, and it recomputes at merge time.
+STALE_MERGE_COMPUTATION_SECONDS = 180
 BASE_REF_MERGEABILITY_PENDING = "mergeability-pending"
 BASE_REF_PROBE_ERROR = "probe-error"
 BASE_REF_LEGACY_STALE = "stale"
@@ -904,6 +905,9 @@ def fetch(pr, repo, light=False):
             # The checks and review payload came from `v`; do not combine them with mergeability
             # observed for a different head or base branch.
             base["identity"] = BASE_REF_RACE
+    # The rollup lists every run on a head, even replaced ones. CLEAN is GitHub's own verdict on them.
+    if merge_state_status == "CLEAN" and base.get("identity") not in (BASE_REF_RACE, BASE_REF_PROBE_ERROR):
+        checks = [c for c in checks if c["conclusion"] not in FAILING]
     pr_chain = fetch_pr_chain(v.get("number") or pr, repo, v.get("url"),
                               v.get("baseRefName"), v.get("headRefName"), owner, name, host)
     currency_probe = {

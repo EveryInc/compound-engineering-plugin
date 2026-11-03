@@ -1522,6 +1522,16 @@ This is a decision only. Do not access GitHub or start monitoring. Include exact
       next: "set-timer",
     },
     {
+      id: "stack-land-finished-review-short-window",
+      state: "Posture is stack-land on a confirmed managed stack, authorized by the user. The host's PR watch is the wake source, and this tick's snapshot of the bottom layer shows MERGEABLE, CLEAN, checks terminal, no backlog, and no parked decisions. quiet_seconds is 90. The repository's review bot has posted its completed review on the current head with no findings, and no other review looks to be coming.",
+      next: "land-layer",
+    },
+    {
+      id: "target-finished-review-keeps-window",
+      state: "Posture is target on an independent PR. The host's PR watch is the wake source, a timer can be scheduled, and this tick's snapshot shows MERGEABLE, CLEAN, checks terminal, no backlog, and no parked decisions. quiet_seconds is 90. The repository's review bot has posted its completed review on the current head with no findings, and no other review looks to be coming.",
+      next: "set-timer",
+    },
+    {
       id: "host-event-merged-snapshot-open",
       state: "The host's PR watch is this run's wake source. A host event just said the PR merged. A fresh snapshot shows pr_state OPEN, and the merge queue still holds the PR. Posture is target. There is no actionable backlog.",
       next: "keep-watching",
@@ -1543,7 +1553,7 @@ This is a decision only. Do not access GitHub or start monitoring. Include exact
     pre_contract: "Merge-ready needs the settle window. The snapshot, not a noticed event, decides. A run's own stack-land merge is a layer transition.",
     task: `Use ce-babysit-pr mid-run. ${state}
 
-This is a decision only. Do not access GitHub or change anything. Include exactly one line: NEXT: report-ready (call it merge-ready and stop), NEXT: wait-armed (report that it is clean but not yet settled and end the turn with the watch still armed), NEXT: set-timer (schedule a one-shot return to this thread after the wait, then end the turn), NEXT: hold-turn (hold this turn open until the time passes), NEXT: stop-terminal (report the run as finished and stop), NEXT: keep-watching (the PR is still open, so keep the run going), or NEXT: layer-transition (release this PR's watch and continue on the next layer). Then explain it.`,
+This is a decision only. Do not access GitHub or change anything. Include exactly one line: NEXT: report-ready (call it merge-ready and stop), NEXT: wait-armed (report that it is clean but not yet settled and end the turn with the watch still armed), NEXT: set-timer (schedule a one-shot return to this thread after the wait, then end the turn), NEXT: hold-turn (hold this turn open until the time passes), NEXT: stop-terminal (report the run as finished and stop), NEXT: land-layer (land this layer now), NEXT: keep-watching (the PR is still open, so keep the run going), or NEXT: layer-transition (release this PR's watch and continue on the next layer). Then explain it.`,
     grade: { declared: { NEXT: next }, actions: "none", delegates: "none" },
   })),
   ...[
