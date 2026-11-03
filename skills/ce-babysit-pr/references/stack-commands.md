@@ -13,6 +13,14 @@ gh stack push --remote <tracking-remote>
 
 Starting at the first dependent excludes the active target from the cascading rebase. Quote the branch name — git branch names may contain shell metacharacters. On conflict: `gh stack rebase --abort`, then surface a needs-human / stack-sync residual.
 
+## Check out a layer on a fresh checkout
+
+```bash
+gh stack checkout <PR_NUMBER>
+```
+
+Use the PR number, which pulls the stack from GitHub. A branch name only resolves stacks already known locally, and `gh pr checkout` leaves the manager unaware of the branch.
+
 ## Discover order / next open layer
 
 ```bash

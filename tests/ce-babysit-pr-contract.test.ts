@@ -431,7 +431,9 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/separate read-only lookup[\s\S]{0,100}default branch/i)
     expect(babysit).toMatch(/auth, transport, rate-limit, malformed[\s\S]{0,100}.probe-error./i)
     expect(babysit).toContain("Discovery never runs `gh stack checkout`")
-    expect(babysit).not.toMatch(/gh stack checkout\s+<[^>]+>/)
+    // Checkout is for a stack a probe already confirmed: a fresh checkout otherwise leaves
+    // `gh stack view` unable to see the branch. It must never become the probe itself.
+    expect(babysit).toMatch(/In a confirmed managed stack, run `gh stack checkout <PR number>`/)
     expect(watchLoop).not.toMatch(/gh stack checkout\s+<[^>]+>/)
   })
 

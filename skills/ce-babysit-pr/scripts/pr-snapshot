@@ -89,8 +89,9 @@ BASE_REF_STALE_COMPUTATION = "stale-computation"
 # GitHub can leave potentialMergeCommit parented on the old base indefinitely after main moves
 # (observed 20+ min on tmchow/pr-stack-test, unrefreshed by polls or a body PATCH). Once the live
 # base is stable this long with the same head, the cached CLEAN/DIRTY verdict is accepted with a
-# disclosure instead of blocking readiness forever.
-STALE_MERGE_COMPUTATION_SECONDS = 600
+# disclosure instead of blocking readiness forever. Waiting longer adds nothing: GitHub does not
+# refresh it, and it recomputes at merge time.
+STALE_MERGE_COMPUTATION_SECONDS = 180
 BASE_REF_MERGEABILITY_PENDING = "mergeability-pending"
 BASE_REF_PROBE_ERROR = "probe-error"
 BASE_REF_LEGACY_STALE = "stale"
@@ -838,6 +839,18 @@ def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, hos
     return result
 
 
+def _latest_check_per_key(checks):
+    """Keep the newest run of each check. A workflow can run twice on one head, such as on open
+    and again on ready_for_review, and the rollup lists both; the older run's result is superseded."""
+    latest = {}
+    for check in checks:
+        current = latest.get(check["key"])
+        moment = check.get("started_at") or check.get("created_at") or ""
+        if current is None or moment >= (current.get("started_at") or current.get("created_at") or ""):
+            latest[check["key"]] = check
+    return list(latest.values())
+
+
 def fetch(pr, repo, light=False):
     """Fetch both event streams via gh into one combined snapshot dict. `light` skips the probes a
     downstack signature never reads (merge identity/base ref, eyes reactions, awaiting-approval)."""
@@ -883,6 +896,7 @@ def fetch(pr, repo, light=False):
                 "started_at": c.get("startedAt"),
                 "completed_at": c.get("completedAt"),
             })
+    checks = _latest_check_per_key(checks)
 
     merge_identity = None if light else fetch_pr_merge_identity(v.get("number") or pr, owner, name, host)
     merge_observation = merge_identity or v
