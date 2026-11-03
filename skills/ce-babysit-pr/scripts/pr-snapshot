@@ -845,27 +845,30 @@ def _actions_run_id(check):
 
 
 def _drop_superseded_runs(checks):
-    """For each check, keep only the most recently started Actions run on this head. A workflow can
-    run twice on one head, and an older run can be re-run after a newer one, so run ID alone can't
-    order them. A job still waiting to start counts as newest; one that ended without starting has
-    no recency. gh can report a missing time as year 0001. Non-Actions checks are all kept."""
+    """Drop an Actions run of a check only on evidence that a newer run replaced it. The most
+    recently started run wins, since an older run can be re-run after a newer one. A job waiting to
+    start counts as newest. A run that ended without starting has no time, so it stays if its ID is
+    higher than the winner's. gh can report a missing time as year 0001. Other checks are all kept."""
+    def moment(job):
+        started = job.get("started_at") or ""
+        if started[:4] in ("", "0001"):
+            return "" if job["status"] == "COMPLETED" else "~"
+        return started
+
     runs = {}
     for check in checks:
         run_id = _actions_run_id(check)
         if run_id is not None:
-            runs.setdefault(check["key"], {}).setdefault(run_id, []).append(check)
+            by_run = runs.setdefault(check["key"], {})
+            by_run[run_id] = max(by_run.get(run_id, ""), moment(check))
 
-    def moment(job):
-        started = job.get("started_at") or ""
-        return "~" if job["status"] != "COMPLETED" and started[:4] in ("", "0001") else started
-
-    def recency(run):
-        run_id, jobs = run
-        return (max(moment(job) for job in jobs), run_id)
-
-    newest = {key: max(by_run.items(), key=recency)[0] for key, by_run in runs.items()}
+    kept = {}
+    for key, by_run in runs.items():
+        winner = max(by_run, key=lambda run_id: (by_run[run_id], run_id))
+        kept[key] = {run_id for run_id, when in by_run.items()
+                     if run_id == winner or (not when and run_id > winner)}
     return [check for check in checks
-            if _actions_run_id(check) in (None, newest.get(check["key"]))]
+            if _actions_run_id(check) is None or _actions_run_id(check) in kept[check["key"]]]
 
 
 def fetch(pr, repo, light=False):
