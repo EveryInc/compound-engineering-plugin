@@ -21,6 +21,7 @@ const STARTS: [string, string][] = [
   ["ce-debug", "ce-code-review"],
   ["ce-debug", "ce-commit-push-pr"],
   ["ce-plan", "ce-doc-review"],
+  ["ce-setup", "ce-commit-push-pr"],
   ["lfg", "ce-compound"],
   ["ce-compound-refresh", "ce-compound"],
 ]

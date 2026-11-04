@@ -5931,7 +5931,6 @@ Use "Correct widget limit" as the description in the subject and any required bo
       workspace_read: ["AGENTS.md"],
       must_include: [
         "docs/solutions/  # documented solutions to past problems",
-        "Add a standing instruction so agents capture qualifying learnings with ce-compound?",
         "After a solved, verified problem, automatically invoke the `ce-compound` skill with `mode:non-interactive`",
       ],
       actions: "none",

@@ -89,7 +89,29 @@ const JOB_OPENING = "Add a nightly job that charges each customer's saved card f
 const DUNNING_OPENING =
   "Build a complete dunning system for overdue invoices: a nightly job that charges each customer's saved card, a configurable retry schedule (for example day 1, 3 and 7 after the due date), customer emails before each attempt and after a failure, an admin page that lists failed collections with a manual \"retry now\" button, and a per-customer switch to pause collection."
 
+/** main before ce-setup's offer and summary goals. */
+export const SETUP_COMMUNICATION_BASE_REF = "57968f0b76d5d23efa4fff4adf4b86aef3b0473e"
+
+export const SETUP_TASK = `Use the ce-setup skill. I'm here and will answer your questions: ask in chat and wait for my reply. The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation).
+
+Request: {opening}`
+
 export const JUDGED_SCENARIOS: JudgedScenario[] = [
+  {
+    id: "ce-setup/communication-codex-reviewer",
+    skill: "ce-setup",
+    companions: [],
+    fixture: `${FIX}/setup-review-docs-codex`,
+    persona: "setup-owner.md",
+    opening: "Set up Compound Engineering for this repository.",
+    task: SETUP_TASK,
+    rubric: "setup-communication.md",
+    base_ref: SETUP_COMMUNICATION_BASE_REF,
+    hosts: ["claude", "codex"],
+    trials: 2,
+    max_turns: 30,
+    timeout_secs: 3600,
+  },
   brainstorm("conversion", "judged-webapp", "We need to improve sign-up conversion.", 3),
   brainstorm("animation", "judged-webapp", "Let's add a better animation on the transition when our sign-up page is loading.", 3),
   brainstorm("csv", "judged-shop", "Customers keep asking for their order history; add a \"Download CSV\" button to the orders page that exports the signed-in user's order history."),

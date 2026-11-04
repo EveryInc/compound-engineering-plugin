@@ -26,17 +26,7 @@ Every AI code reviewer the repository uses should reach the rules from the file 
 
 When the user asked for these docs directly, that request is the yes: skip the offer and go to Drafting, still covering every file that applies. Otherwise, make one offer for everything that applies, never one question per file. First check what exists: `CODING_STANDARDS.md` and `REVIEW.md` at the repository root, any in subdirectories, whether the root agent-instructions file points to them, and which AI code reviewers the repository uses and whether their files point to them.
 
-State in plain words what setup would create and what it would change, why each matters to the user (one line per file, kept even when this offer is asked alongside other setup questions), that the drafts come from the repository's own pull requests and history, and that the user sees them before anything is written. When a file already exists, say that setup would bring it up to date with pull requests and review feedback since it was last written, and that the user sees the changes as a diff. When setup would only add pointers, the offer is that small. Calibration for a repository with neither file:
-
-```text
-I can draft two files from your recent pull requests:
-- CODING_STANDARDS.md: the rules your code follows, taken from bugs reviewers caught and fixes you shipped. Code review checks every change against it.
-- REVIEW.md: what review should skip and what counts as serious here, taken from findings your team declined. It also lets Claude Code Review read your coding standards.
-I'd also add a line to AGENTS.md pointing agents to both. You'll see the drafts before anything is written.
-
-1. Yes, draft them
-2. No thanks
-```
+The user should be able to judge, from the offer alone, what they would get and whether they want it. Name each file setup would create or change, and each pointer line it would add to or edit in an existing file, with one line each on what that file does for this repository. Name only the reviewers that the check above found reading it; when none reads a file, say so plainly rather than describing a benefit the repository does not get. Say that the drafts come from the repository's own pull requests and review feedback, that an existing file would be brought up to date with what came after it last changed, and that the user sees every new rule with its source before anything is written. When setup would only add pointers, the offer is that small.
 
 Skip the offer, and say why in the summary, when the repository has nothing to draft from: no reachable pull request history, fix commits, solution records, or rules already written in its instructions or an AI reviewer's file. Never offer a template in place of evidence.
 
@@ -74,4 +64,4 @@ Focus on evidence the file has not yet accounted for. Usually that is what came 
 
 ## Preview and write
 
-Show each new file in full and each change to an existing file as a diff. Beside each rule, outside the file, name the evidence that supports it: pull request numbers, commits, or records. Ask once whether to write all drafts, then apply the user's corrections and write only what they approve. Do not commit. Report each file under Fixed or Skipped in the Phase 3 summary, along with how many pull requests the drafts drew on.
+Before writing, give the user a short account they can read once and decide from. For each file, say whether it is new or changed and what it does for them. Under it, put each rule you would add, change, or remove as one plain line, with the pull requests, commits, or records behind it. Do not paste the drafts or diffs unless the user asks; nothing is committed, so the user can read the written files afterwards. Ask once whether to write all drafts, then apply the user's corrections and write only what they approve. Do not commit. In the Phase 3 summary, report what happened to each file and how many pull requests the drafts drew on.
