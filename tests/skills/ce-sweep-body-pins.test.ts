@@ -16,6 +16,8 @@ const body = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 // a concatenation of every reference - a sibling reference that happens to
 // mention the same token must not stand in for the rule the run actually reads.
 const runMd = readFileSync(path.join(SKILL_DIR, "references", "run.md"), "utf8")
+const planTemplate = readFileSync(path.join(SKILL_DIR, "references", "plan-template.md"), "utf8")
+const stateSchema = readFileSync(path.join(SKILL_DIR, "references", "state-schema.md"), "utf8")
 
 describe("ce-sweep always-loaded body pins", () => {
   test("states its outcome and done bar", () => {
@@ -73,6 +75,10 @@ describe("ce-sweep relocated invariants stay in the reference Phase 2 loads", ()
     // 2f
     "verified_merge_sha",
     "source_gone",
+    "closedByPullRequestsReferences",
+    "status: source_closed",
+    "Could not resolve to an issue",
+    "leave the item unchanged for the next run",
     // 2g
     "never read or write inside the human-owned notes region",
     // 2i
@@ -86,4 +92,14 @@ describe("ce-sweep relocated invariants stay in the reference Phase 2 loads", ()
       expect(runMd).toContain(invariant)
     })
   }
+})
+
+describe("ce-sweep source_closed stays terminal in the files that own it", () => {
+  test("the plan drains source_closed items", () => {
+    expect(planTemplate).toContain("`closed`, `source_closed`, or `source_gone`")
+  })
+
+  test("the status enum defines source_closed", () => {
+    expect(stateSchema).toContain("| `source_closed` |")
+  })
 })

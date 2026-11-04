@@ -64,7 +64,12 @@ Closed set of known lifecycle states. Unknown values are preserved, never droppe
 | `in_plan` | Folded into a plan or tracked work item. |
 | `fix_pending` | A fix is underway or awaiting verification. Also the downgrade target for an under-evidenced `closed`. |
 | `closed` | Resolved and verified. REQUIRES all three evidence fields (see below). |
+| `source_closed` | Closed at the source with no verified fix. Carries `source_closed_at` and `source_close_reason`, not the evidence fields. |
 | `source_gone` | The originating source or message no longer exists. |
+
+## Requirement identity
+
+`requirement_id` stores the item’s stable plan identifier (`R<n>`). It survives closure and reopening. Plan reconciliation owns allocation and migration of existing plan mappings; see `plan-template.md`.
 
 ## Evidence fields and the `validate` downgrade rule
 
