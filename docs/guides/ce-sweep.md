@@ -75,7 +75,7 @@ For each new item the order is fixed: acknowledge at the source, confirm the ack
 
 A message that says "this is fixed" does not close the item. Close-out needs a verified merge to the default branch, recorded with the merge SHA. Unverified claims stay open while the item is open at the source. An item deleted at the source is marked gone and drains from the plan. An issue closed at the source with no verified fix is marked `source_closed` and drains the same way.
 
-Entering or reopening `source_closed` clears prior fix evidence. SHA verification uses the checkout repository’s GitHub host, including GitHub Enterprise.
+Entering or reopening `source_closed` clears prior fix evidence. Fix verification uses the checkout’s full host/owner/repository identity. PR numbers from another host or repository cannot supply merge evidence, even when their numbers and repository names match.
 
 ### One rolling plan, not a log
 
