@@ -44,6 +44,6 @@ The `lfg` guide page owns how it handles each starting point and what each stage
 
 ## What already runs on its own
 
-Do not send someone to repeat a step a skill runs itself. `ce-work` carries work through simplification, review, and the PR, and that PR gets watched. `ce-debug` can carry a fix through review and a PR. `ce-plan` reviews its own plan. Check the recommended skill's guide page for its current chain and thresholds.
+Do not send someone to repeat a step a skill runs itself. `ce-work` carries work through simplification, review, and the PR, and that PR gets watched. `ce-debug` can carry a fix through review and a PR. `ce-plan` reviews its own plan. `ce-setup` ends by offering to commit its changes and open a PR with `ce-commit-push-pr`. Check the recommended skill's guide page for its current chain and thresholds.
 
 `ce-compound` is the exception on the `ce-work` route: the user runs it when the work taught something the final code does not show. `lfg` can run it, and a standing instruction can make it automatic. Refreshing existing learnings is a job of `ce-compound`. The old `ce-compound-refresh` name still works: it prints a deprecation notice and runs that job.

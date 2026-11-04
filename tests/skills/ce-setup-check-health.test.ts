@@ -832,7 +832,6 @@ describe("ce-setup check-health", () => {
         readFile(path.join(repoRoot, "skills", "ce-setup", "references", "repo-fixes.md"), "utf8"),
       ])
     ).join("\n")
-    expect(skill).toContain("Set up a repo config file for this project?")
     expect(skill).toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`")
     expect(skill).toContain("Do not create `config.local.yaml`")
     expect(skill).toContain("offer to move it into `config.yaml`")

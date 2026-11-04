@@ -63,7 +63,7 @@ Each question uses the host's blocking question tool when one exists. It never s
 
 ## Review docs
 
-Most teams want a coding-standards file and never get past the blank page. Setup drafts a starting point from evidence the repository already has: review findings authors fixed, findings the team declined, fix commits, solution records, and rules already sitting in the agent-instructions file. It shows every draft, with the pull requests behind each rule, before writing anything.
+Most teams want a coding-standards file and never get past the blank page. Setup drafts a starting point from evidence the repository already has: review findings authors fixed, findings the team declined, fix commits, solution records, and rules already sitting in the agent-instructions file. Before writing anything, it gives a short account of each file: whether it is new or changed, what it does, and each rule it adds, changes, or removes, with the pull requests behind that rule. Ask to see a full draft or diff and it shows it.
 
 | File | Holds | Read by |
 |------|-------|---------|
@@ -79,7 +79,7 @@ A rule needs evidence: a fixed review finding, a fix commit, or a solution recor
 Two things keep the review docs current:
 
 - **Each change.** The pointer line in your agent-instructions file tells agents to update a review doc when a change establishes or retires a rule, so most upkeep happens in the pull request that caused it.
-- **A periodic refresh.** Teams change how they work, and some of that only shows up across many pull requests: findings under a rule that reviewers keep declining, a rule a new lint check now enforces, a fix pattern that keeps recurring. Run `/ce-setup standards` (or ask to refresh your coding standards) after a stretch of heavy review activity, or on a regular cadence such as quarterly. Setup reads the pull requests and review feedback each file has not yet accounted for, usually everything since its rules last changed, checks every existing rule against them, and proposes additions, changes, and retirements as a diff, with the evidence for each. It writes nothing until you approve.
+- **A periodic refresh.** Teams change how they work, and some of that only shows up across many pull requests: findings under a rule that reviewers keep declining, a rule a new lint check now enforces, a fix pattern that keeps recurring. Run `/ce-setup standards` (or ask to refresh your coding standards) after a stretch of heavy review activity, or on a regular cadence such as quarterly. Setup reads the pull requests and review feedback each file has not yet accounted for, usually everything since its rules last changed, checks every existing rule against them, and proposes additions, changes, and retirements, one line each with the evidence behind it. Ask for the diff to see the exact text. It writes nothing until you approve.
 
 There is no standing instruction for the refresh, and setup does not run unattended: the preview needs someone to approve it. This mirrors a [`ce-compound` refresh](./ce-compound.md#refresh), the periodic pass for the knowledge store.
 
@@ -149,7 +149,7 @@ Skip it when:
 - You want to update the plugin itself (use the host plugin manager)
 - You want every possible CE binary installed in one shot. It will not do that.
 
-`ce-setup` is not a pipeline stage. Run it whenever you need a diagnosis or a safe config write; the summary prints the invocation so you can re-run it later.
+`ce-setup` is not a pipeline stage. Run it whenever you need a diagnosis or a safe config write; the summary prints the invocation so you can re-run it later. When setup leaves changes uncommitted, it ends by asking whether to commit them and open a pull request (through [`ce-commit-push-pr`](./ce-commit-push-pr.md)), commit only, or leave them for you to review.
 
 ---
 
@@ -159,7 +159,7 @@ Skip it when:
 |-------|------|
 | Diagnose | Plugin version when the host exposes it, optional capabilities, project config, artifact root, work-engine block |
 | Fix | Obsolete local-md, example refresh, create repo config if wanted, gitignore safety, scratch-space gitignore, repair invalid `docs_root` or work-engine prefs, knowledge-store mention, compounding directive, and `ce-noslop` chat-register directive in the agent-instructions file |
-| Summary | Fixes applied, skipped actions, missing optional tools |
+| Summary | Fixes applied, skipped actions, missing optional tools, then a commit or pull request offer when changes are uncommitted |
 
 ---
 

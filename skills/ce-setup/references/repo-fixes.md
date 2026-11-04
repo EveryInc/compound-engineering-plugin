@@ -1,4 +1,4 @@
-# Repo-local fixes (Phase 2) and the summary (Phase 3)
+# Repo-local fixes (Phase 2)
 
 ## Inline health-check equivalent (Step 2 fallback)
 
@@ -35,17 +35,7 @@ If the bundled template cannot be located by the current platform, print the sou
 
 ### Step 6: Create Repo Config If Missing
 
-If `.compound-engineering/config.yaml` does not exist, ask — even when health is otherwise green:
-
-```text
-Set up a repo config file for this project?
-This creates .compound-engineering/config.yaml with optional Compound Engineering team defaults.
-Everything starts commented out -- you only enable what you need.
-It does not create config.local.yaml.
-
-1. Yes, create it
-2. No thanks
-```
+If `.compound-engineering/config.yaml` does not exist, offer to create it, even when health is otherwise green. The user should learn that it is a shared file where the team can turn on Compound Engineering settings, that every setting starts commented out so nothing changes until someone enables one, and that declining keeps the defaults.
 
 If the user approves, copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`. Never overwrite an existing `config.yaml` or `config.local.yaml`.
 
@@ -97,28 +87,15 @@ Runs whenever the repository has a root agent-instructions file (`AGENTS.md`, `C
 <root>/solutions/  # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
 ```
 
-**Compounding directive.** Offer it only when the repository treats the store as tracked, committed knowledge: git tracks at least one file under the resolved `<root>/solutions/` (`git ls-files` there is non-empty; an untracked or gitignored directory is not evidence), or the user just accepted the store mention. Skip the offer when the file already carries a standing instruction to invoke `ce-compound` at a completion checkpoint, in any wording. Otherwise ask:
+**Compounding directive.** Offer it only when the repository treats the store as tracked, committed knowledge: git tracks at least one file under the resolved `<root>/solutions/` (`git ls-files` there is non-empty; an untracked or gitignored directory is not evidence), or the user just accepted the store mention. Skip the offer when the file already carries a standing instruction to invoke `ce-compound` at a completion checkpoint, in any wording. Otherwise offer it. The user should learn that agents would then record a lesson after fixing a problem whose reasoning the code alone does not show, so the next agent does not repeat the mistake. The choices are that agents ask first, that they do it without asking, or no instruction.
 
-```text
-Add a standing instruction so agents capture qualifying learnings with ce-compound?
-1. Offer first -- the agent asks before capturing
-2. Run automatically -- the agent captures without asking
-3. No thanks
-```
+Insert the chosen variant verbatim from `assets/compounding-directive.md` in this skill's directory; the wording is pinned by a test, so do not paraphrase it. Place it beside the store mention when that landed in a conventions or working-agreement block, otherwise in the block where the file states how agents should work. Match the surrounding form (a bullet in a bullet list, a paragraph in prose). Say where the text would go and what it asks agents to do, and show the exact text if the user asks. Append only on approval and leave the rest of the file untouched.
 
-Insert the chosen variant verbatim from `assets/compounding-directive.md` in this skill's directory; the wording is pinned by a test, so do not paraphrase it. Place it beside the store mention when that landed in a conventions or working-agreement block, otherwise in the block where the file states how agents should work. Match the surrounding form (a bullet in a bullet list, a paragraph in prose). Preview the exact text and location, then append only on approval and leave the rest of the file untouched.
+**Chat-register directive.** Offer it whenever this step runs. Skip the offer only when the file already carries an instruction that covers all three parts of the bundled one: the report boundary (a user-facing report, summary, or handoff about to be written), the invocation (use the `ce-noslop` skill for that writing), and the exclusions (code, config, verbatim quotes, text the user asked to post as written). A partial instruction, such as one naming only the boundary or a generic "write plainly", or an unrelated writing rule still gets the offer. The user should learn that agents' reports and summaries would then be written plainly, without AI writing habits, and that code and text they asked to post as written are untouched.
 
-**Chat-register directive.** Offer it whenever this step runs. Skip the offer only when the file already carries an instruction that covers all three parts of the bundled one: the report boundary (a user-facing report, summary, or handoff about to be written), the invocation (use the `ce-noslop` skill for that writing), and the exclusions (code, config, verbatim quotes, text the user asked to post as written). A partial instruction, such as one naming only the boundary or a generic "write plainly", or an unrelated writing rule still gets the offer. Ask:
+Insert the text verbatim from `assets/noslop-directive.md` in this skill's directory; do not paraphrase it. Place it beside the compounding directive when that landed or already exists, otherwise where the compounding directive would go. Match the surrounding form. Say where the text would go and what it asks agents to do, and show the exact text if the user asks. Append only on approval and leave the rest of the file untouched.
 
-```text
-Add a standing instruction so agents write reports and summaries to you with ce-noslop?
-1. Yes, add it
-2. No thanks
-```
-
-Insert the text verbatim from `assets/noslop-directive.md` in this skill's directory; do not paraphrase it. Place it beside the compounding directive when that landed or already exists, otherwise where the compounding directive would go. Match the surrounding form. Preview the exact text and location, then append only on approval and leave the rest of the file untouched.
-
-Report all three outcomes in the Phase 3 summary under Fixed or Skipped.
+Report all three outcomes in the Phase 3 summary.
 
 ### Step 10: Offer Starting Drafts Of The Project's Review Docs
 

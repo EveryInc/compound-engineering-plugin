@@ -11,11 +11,11 @@ disable-model-invocation: true
 
 Ask each question below using the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to a numbered list on the host's user-visible chat surface only when no such tool is in the list or a real question call errors. Never silently skip or auto-configure.
 
-`ce-setup` is a lightweight health check and repo-local config helper. It does **not** bulk-install every optional dependency. Missing tools are reported as optional capabilities so the user can install only the workflows they use.
+Read `references/communication.md` from this skill's directory before your first offer. It says what each offer, question, and preview must tell the user.
 
 ## Pack Scaffold
 
-When the invocation names a Compound Pack to add, create, or scaffold (the `pack:<id>` argument, or the same request in words), read `references/pack-scaffold.md` from this skill's directory and follow it in place of Phases 1-2 (Diagnose and Fix Repo-Local Issues): it writes the pack and its config entry only after the user approves, runs the health check itself, and reports into Phase 3 (Summary).
+When the invocation names a Compound Pack to add, create, or scaffold (the `pack:<id>` argument, or the same request in words), read `references/pack-scaffold.md` from this skill's directory and follow it in place of Phases 1-2: it writes the pack and its config entry only after the user approves, runs the health check itself, and reports into Phase 3 (Summary).
 
 ## Review Docs
 
@@ -23,7 +23,7 @@ When the invocation asks to draft, refresh, or update coding standards or review
 
 ## Artifact Root Resolution
 
-Every Compound Engineering skill that writes or reads an artifact directory (`solutions`, `plans`, `ideation`, and the other CE-owned trees) resolves its root through the rule below. `ce-setup` carries the canonical statement and reports the resolved root so an operator can confirm where artifacts land before running other skills.
+Every Compound Engineering skill that reads or writes a CE-owned artifact tree (`solutions`, `plans`, and others) resolves its root by this rule. Step 2 reports the resolved root.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -60,7 +60,7 @@ Use the same command without `--version VERSION` if Step 1 could not determine a
 
 If the script is unavailable, run the inline equivalent listed in `references/repo-fixes.md`.
 
-Display the diagnostic output to the user. Missing optional tools are not setup failures. The health report includes the resolved artifact root and which config layer supplied it (per Artifact Root Resolution above); show that line so the operator can confirm where CE artifacts will be written. Missing `config.yaml` is a reported absence, not a project issue.
+Display the diagnostic output to the user. The health report includes the resolved artifact root and which config layer supplied it (per Artifact Root Resolution above); show that line so the operator can confirm where CE artifacts will be written. Missing `config.yaml` is a reported absence, not a project issue.
 
 ### Step 3: Decide Whether Fixes Are Needed
 
@@ -88,15 +88,11 @@ Every change to a user-owned file is offered and applied only if the user approv
 
 **User-runnable invocation rendering.** In setup summaries, default to `/ce-setup` and `/ce-help`; use `$ce-setup` and `$ce-help` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-setup` and `/skill:ce-help`. Render only the invocation as inline code and output one form only.
 
-Display a brief summary:
+Write the summary that `references/summary.md` describes. End it with these two lines, with the rendered invocations filled in:
 
 ```text
-✅ Compound Engineering setup complete
-
-Fixed:     <fixes applied, or none>
-Skipped:   <fixes declined, or none>
-Optional:  <missing optional tools, or all available>
-
 Run `<rendered invocation>` anytime to re-check.
 Run `<rendered ce-help invocation>` to ask which skill fits or what comes next.
 ```
+
+When setup left changes uncommitted, close with a question after those lines: commit them and open a pull request, commit only, or leave them for the user to review first. Run `ce-commit-push-pr` or `ce-commit` for the user's choice.
