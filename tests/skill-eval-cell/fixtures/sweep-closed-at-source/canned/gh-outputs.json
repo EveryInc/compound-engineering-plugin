@@ -1,13 +1,4 @@
 {
-  "gh repo view --json nameWithOwner,defaultBranchRef": {
-    "exit": 0,
-    "stdout": {
-      "defaultBranchRef": {
-        "name": "main"
-      },
-      "nameWithOwner": "acme/widgets"
-    }
-  },
   "gh issue view 100": {
     "exit": 0,
     "stdout": {
@@ -247,14 +238,24 @@
       "mergedAt": "2026-10-30T17:09:40Z"
     }
   },
-  "gh api repos/acme/widgets/compare/main...7d2e91c4a0b36f58e1c7d4a29b60f3e8c5a1d7b3 --jq .status": {
-    "exit": 0,
-    "stdout": "behind"
-  },
   "git merge-base --is-ancestor 7d2e91c4a0b36f58e1c7d4a29b60f3e8c5a1d7b3 main": {
     "exit": 1
   },
-  "gh api repos/acme/widgets/compare/main...main --jq .status": {
+  "gh repo view --json nameWithOwner,defaultBranchRef,url": {
+    "exit": 0,
+    "stdout": {
+      "defaultBranchRef": {
+        "name": "main"
+      },
+      "nameWithOwner": "acme/widgets",
+      "url": "https://github.example.com/acme/widgets"
+    }
+  },
+  "gh api --hostname github.example.com repos/acme/widgets/compare/main...7d2e91c4a0b36f58e1c7d4a29b60f3e8c5a1d7b3 --jq .status": {
+    "exit": 0,
+    "stdout": "behind"
+  },
+  "gh api --hostname github.example.com repos/acme/widgets/compare/main...main --jq .status": {
     "exit": 0,
     "stdout": "identical"
   }

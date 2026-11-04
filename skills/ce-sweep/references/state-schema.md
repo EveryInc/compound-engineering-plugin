@@ -67,6 +67,10 @@ Closed set of known lifecycle states. Unknown values are preserved, never droppe
 | `source_closed` | Closed at the source with no verified fix. Carries `source_closed_at` and `source_close_reason`, not the evidence fields. |
 | `source_gone` | The originating source or message no longer exists. |
 
+## Requirement identity
+
+`requirement_id` stores the item’s stable plan identifier (`R<n>`). It survives closure and reopening. Plan reconciliation owns allocation and migration of existing plan mappings; see `plan-template.md`.
+
 ## Evidence fields and the `validate` downgrade rule
 
 A `closed` item is a claim that work shipped and was verified, so the engine holds it to proof. An item may only remain `closed` if it carries all three:

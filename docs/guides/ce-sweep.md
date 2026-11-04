@@ -75,11 +75,15 @@ For each new item the order is fixed: acknowledge at the source, confirm the ack
 
 A message that says "this is fixed" does not close the item. Close-out needs a verified merge to the default branch, recorded with the merge SHA. Unverified claims stay open while the item is open at the source. An item deleted at the source is marked gone and drains from the plan. An issue closed at the source with no verified fix is marked `source_closed` and drains the same way.
 
+Entering or reopening `source_closed` clears prior fix evidence. SHA verification uses the checkout repository’s GitHub host, including GitHub Enterprise.
+
 ### One rolling plan, not a log
 
 Every run reconciles `docs/plans/feedback-sweep-plan.md`. New items append, closed items drain, and a human-owned notes region is left untouched. If the file at that path is no longer a `ce-sweep` requirements-only plan (for example after `/lfg` has enriched it), the sweep archives it to a dated sibling and writes a fresh view rather than overwriting someone else's execution state.
 
 Customer quotes in the plan are marked untrusted data. Sensitive sources withhold body and quote from both state and the plan.
+
+Plan requirement IDs are retained in state when items drain, so reopened items keep their original IDs.
 
 ### Safe to schedule
 

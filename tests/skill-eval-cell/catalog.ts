@@ -6207,7 +6207,14 @@ PLAN_<n>: <open if the plan lists the item after this run, otherwise drained>
 
 For each item whose status is closed after this run, also end with:
 
-MERGE_SHA_<n>: <the verified_merge_sha this run records>`,
+MERGE_SHA_<n>: <the verified_merge_sha this run records>
+
+Also declare the resulting fields (null as the literal null):
+FIX_REF_100: <fix_ref>
+FIX_REF_102: <fix_ref>
+REQUIREMENT_ID_100: <requirement_id>
+REQUIREMENT_ID_102: <requirement_id retained after drainage>
+COMPARE_HOST: <hostname receiving both the SHA compare and its control>`,
     grade: {
       files_read_post: ["references/run.md"],
       workspace_read: ["canned/gh-outputs.json"],
@@ -6219,6 +6226,11 @@ MERGE_SHA_<n>: <the verified_merge_sha this run records>`,
             [`PLAN_${n}`, plan],
           ]),
         ),
+        FIX_REF_100: "null",
+        FIX_REF_102: "null",
+        REQUIREMENT_ID_100: "R20",
+        REQUIREMENT_ID_102: "R3",
+        COMPARE_HOST: "github.example.com",
         MERGE_SHA_101: "9f3c2ab14e7d60b85c1f4a2e6d0b7c3e8a5d1f42",
         MERGE_SHA_106: "c41d7f2e8b03a96d5e1f7c4b2a08d3e6f9b5a723",
         MERGE_SHA_109: "e08b3f61d7c24a95b1e6d0f7a3c9852b4d16f0ca",

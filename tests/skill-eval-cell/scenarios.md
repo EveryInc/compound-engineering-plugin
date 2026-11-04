@@ -147,7 +147,7 @@ bun run test:skill-eval-pack -- --skill ce-babysit-pr --arm ab
 
 ## ce-sweep (post-only; the baseline has no `source_closed` status)
 
-Read-only over canned `gh` output in `fixtures/sweep-closed-at-source`. `declared` grades the status, close-out, and plan decision for each issue, plus the merge SHA of each `closed` item.
+Read-only over canned `gh` output in `fixtures/sweep-closed-at-source`. `declared` grades the status, close-out, and plan decision for each issue, plus the merge SHA of each `closed` item, invalidation of old fix claims, retained requirement IDs, and the host used for SHA comparisons.
 
 ```bash
 bun run test:skill-eval-pack -- --id ce-sweep/closed-at-source-reconciles --arm post
