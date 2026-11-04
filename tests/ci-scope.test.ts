@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
 import { load } from "js-yaml"
-import { scopeForBase, selectScope } from "../scripts/ci-scope"
+import { changedFilesForBase, scopeForBase, selectScope } from "../scripts/ci-scope"
 
 setDefaultTimeout(15_000)
 const roots: string[] = []
@@ -65,6 +65,16 @@ describe("specialized CI selection", () => {
     git("add", ".")
     git("-c", "commit.gpgsign=false", "commit", "-m", "docs")
     expect(scopeForBase(moved, dir)).toEqual({ windows: false, transport: false })
+    expect(changedFilesForBase(moved, dir)).toEqual(["docs/worker.md"])
+    writeFileSync(path.join(dir, "docs/worker.md"), "uncommitted change\n")
+    expect(changedFilesForBase(moved, dir)).toBeNull()
+    git("add", "docs/worker.md")
+    expect(changedFilesForBase(moved, dir)).toBeNull()
+    git("-c", "commit.gpgsign=false", "commit", "-m", "updated docs")
+    expect(changedFilesForBase(moved, dir)).toEqual(["docs/worker.md"])
+    writeFileSync(path.join(dir, "new-worker.sh"), "echo new\n")
+    expect(changedFilesForBase(moved, dir)).toBeNull()
+    expect(scopeForBase(moved, dir)).toEqual(full)
   })
 
   test("workflow fails open to full coverage and keeps baseline checks unconditional", () => {

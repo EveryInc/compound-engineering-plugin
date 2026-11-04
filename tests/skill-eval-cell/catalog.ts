@@ -3460,6 +3460,41 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     },
   },
   ...IDEATE_RUN_SCALING,
+  ...[
+    {
+      name: "unchanged-inputs",
+      evidence: "The implementation phase ran the project's selected test suite and typecheck successfully. The recorded commands, selection base, tested files, dependencies, configuration, and environment match the current candidate. Only the commit message was amended afterward. Neither check reads commit metadata.",
+      decision: "reuse",
+    },
+    {
+      name: "changed-inputs",
+      evidence: "The implementation phase ran the project's selected test suite and typecheck successfully. Review then changed a source file covered by those checks. The fix is now committed. No check has run since that edit.",
+      decision: "rerun",
+    },
+    {
+      name: "metadata-input",
+      evidence: "The project requires a check of the current commit's message. It passed on the previous message. The only subsequent change is an amended commit message, and the message check has not run again.",
+      decision: "rerun",
+    },
+    {
+      name: "masked-failure",
+      evidence: "The project requires the selected test suite before publishing. Its last run used `bun run test 2>&1 | tail -8` in a shell without pipefail. The shell returned 0, but the captured runner output reports an assertion failure and 1 failed test. There is no later passing run.",
+      decision: "blocked",
+    },
+  ].map(({ name, evidence, decision }): Scenario => ({
+    id: `ce-commit-push-pr/publishing-evidence-${name}`,
+    baseline_ref: "a76c45cef80bc5564a4fc7c06614ed278e4c3736",
+    skill: "ce-commit-push-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/tiny-lib`,
+    why: "Publishing must reuse valid verification without accepting stale evidence or a formatter's successful exit after a test failure.",
+    pre_contract: "Project publishing requirements need successful evidence valid for the exact state being sent. Resolve this gate before publishing.",
+    task: `Use ce-commit-push-pr in mode:pipeline. We are at the project publishing gate, before any external write. The project accepts its shared CI test selection locally and does not require a separate full-suite run. ${evidence}
+Resolve only this gate; do not execute checks or publish. End with CHECKS: reuse, rerun, or blocked, where reuse means the existing results satisfy the gate, rerun means evidence is stale, and blocked means a required check failed. Explain the evidence behind your decision.`,
+    grade: { declared: { CHECKS: decision }, actions: "none" },
+  })),
   {
     id: "ce-commit-push-pr/project-publishing-gate",
     post_only: true,

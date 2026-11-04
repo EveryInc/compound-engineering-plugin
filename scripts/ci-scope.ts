@@ -21,6 +21,10 @@ export function selectScope(files: readonly string[]): Scope {
 
 export function changedFilesForBase(base: string | undefined, cwd = process.cwd()): string[] | null {
   if (!base || !/^[0-9a-f]{40}$/.test(base)) return null
+  const status = spawnSync("git", ["status", "--porcelain=v1", "-z", "--untracked-files=normal"], {
+    cwd, encoding: "utf8", timeout: 10_000,
+  })
+  if (status.status !== 0 || status.stdout !== "") return null
   // Compare the tested merge tree with its base; --no-renames includes both sides of moves.
   const diff = spawnSync("git", ["diff", "--name-only", "--no-renames", "-z", base, "HEAD", "--"], {
     cwd, encoding: "utf8", timeout: 10_000,

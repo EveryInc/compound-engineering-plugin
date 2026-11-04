@@ -88,6 +88,10 @@ There is no fixed template. A typo fix can be one or two sentences. A large refa
 
 When a PR changes rendered UI that a reviewer would judge by looking, the skill takes screenshots with a browser the host already has, or with `agent-browser` when it is installed. It uploads them with `gh --attach`, so nothing is committed and nothing goes to a third-party host. For the before image it uses the first cheap source available: a before screenshot you supplied, or a deployed copy of the base such as a preview deployment or production. When neither exists, it posts the after images alone, labeled Preview. It does not build the old version just to photograph it. Backend, refactor, CLI, and docs changes get no screenshots. When no browser tool, running app, or `gh` attachment support is available, the PR still opens with a written validation note.
 
+### Project publishing requirements
+
+Before pushing, the skill enforces the project's applicable pre-push and review-ready requirements. It does not impose a universal full-suite policy. Successful earlier checks can satisfy the gate while their inputs and relevant environment remain unchanged; a new commit ID alone does not require a rerun. Evidence must still apply to the exact state being published, including commit metadata when a check depends on it. Missing or failing required checks stop publication. Output formatting must preserve the check's actual exit status, and the gate is evaluated before the publish call.
+
 ### Named-file commits, then a branch decision tree
 
 Same commit rules as `/ce-commit`: never `git add -A`, splits at file level only, convention from context, then recent history, then conventional commits (`fix:` wins when `fix:` and `feat:` both fit). A plan unit ID already in hand gets appended to the subject in parentheses (`(U3)` for unit 3).

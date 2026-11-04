@@ -460,9 +460,12 @@ describe("run-tests: dependency preflight", () => {
 })
 
 describe("run-tests: changed input selection", () => {
-  function selectionFixture() {
-    const dir = fixture('import { test } from "bun:test"; import { writeFileSync } from "node:fs"; test("baseline", () => writeFileSync("baseline-ran", "yes"))')
-    const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "test@example.com", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "test@example.com" }
+  function selectionFixture(body = 'import { test } from "bun:test"; import { writeFileSync } from "node:fs"; test("baseline", () => writeFileSync("baseline-ran", "yes"))') {
+    const dir = fixture(body)
+    const home = path.join(dir, ".test-home")
+    mkdirSync(home)
+    writeFileSync(path.join(dir, ".gitignore"), "/.test-home/\n")
+    const env = { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "Test", GIT_AUTHOR_EMAIL: "test@example.com", GIT_COMMITTER_NAME: "Test", GIT_COMMITTER_EMAIL: "test@example.com" }
     for (const [file, marker] of [["tests/ce-babysit-pr-snapshot.test.ts", "babysit-ran"], ["tests/skills/ce-prototype-server.test.ts", "prototype-ran"]]) {
       mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
       writeFileSync(path.join(dir, file), `import { test } from "bun:test"; import { writeFileSync } from "node:fs"; test("sentinel", () => writeFileSync(${JSON.stringify(path.join(dir, marker))}, "yes"))`)
@@ -480,11 +483,14 @@ describe("run-tests: changed input selection", () => {
     writeFileSync(path.join(dir, "skills/ce-babysit-pr/SKILL.md"), "changed")
     git("add", ".")
     git("-c", "commit.gpgsign=false", "commit", "-m", "change")
-    return { dir, env, base }
+    return { dir, env, base, git }
   }
 
-  test.each(["selected", "default", "invalid", "empty"])("%s invocation executes its complete promised coverage", (mode) => {
-    const { dir, env, base } = selectionFixture()
+  test.each(["selected", "default", "invalid", "empty", "unstaged", "staged", "untracked"])("%s invocation executes its complete promised coverage", (mode) => {
+    const { dir, env, base, git } = selectionFixture()
+    if (mode === "unstaged" || mode === "staged") writeFileSync(path.join(dir, "fixture.test.ts"), 'import { test } from "bun:test"; import { writeFileSync } from "node:fs"; test("changed baseline", () => writeFileSync("baseline-ran", "yes"))')
+    if (mode === "staged") git("add", "fixture.test.ts")
+    if (mode === "untracked") writeFileSync(path.join(dir, "new-input.ts"), "export const value = 1")
     const args = mode === "default" ? [] : [`--changed-since=${mode === "invalid" ? "bad" : mode === "empty" ? "" : base}`]
     const result = spawnSync(process.execPath, [RUNNER, ...args], { cwd: dir, env, encoding: "utf8", timeout: 30_000 })
     expect(result.status, result.stderr).toBe(0)
@@ -495,8 +501,7 @@ describe("run-tests: changed input selection", () => {
   })
 
   test("selected timeout-only retry keeps timing options and excludes unrelated groups", () => {
-    const { dir, env, base } = selectionFixture()
-    writeFileSync(path.join(dir, "fixture.test.ts"), `import { test } from "bun:test"
+    const { dir, env, base } = selectionFixture(`import { test } from "bun:test"
 import { existsSync, writeFileSync } from "node:fs"
 test("timeout once", async () => {
   if (!existsSync("attempted")) {
