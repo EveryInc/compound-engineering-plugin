@@ -6084,6 +6084,27 @@ Use "Correct widget limit" as the description in the subject and any required bo
     },
   },
   {
+    id: "ce-compound/refresh-worth-vacuous-check-is-not-coverage",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    fixture: `${FIX}/refresh-worth-vacuous-check`,
+    timeout_secs: 900,
+    why: "A lint rule whose message states a doc's reasoning but whose selector matches code that no longer exists (cache.set became cache.put) is not coverage, so the doc survives and the rule is reported for retargeting without being edited. Claude and Codex both held this on a3bcedfc7 with no prose for it, so the row guards the behavior rather than measuring a change.",
+    pre_contract:
+      "Recoverability needs positive evidence: a named in-repo artifact whose own text states the reasoning. A refresh writes no checks.",
+    task: "Use the ce-compound skill mode:refresh on the workflow category. Report each doc's verdict with its evidence, and list which skill files you read. Do not write anything. End with exactly two lines in this form and nothing else on those lines:\n\nDOC_DELETED: <yes or no, for write-prices-through-store.md>\nCHECK_TO_CHANGE: <path of a test or lint rule your report recommends changing, or none>",
+    grade: {
+      files_read_post: ["references/refresh/worth-audit.md"],
+      workspace_read: ["eslint.config.js"],
+      declared: { DOC_DELETED: "no", CHECK_TO_CHANGE: "eslint.config.js" },
+      actions: "none",
+    },
+  },
+  {
     id: "ce-code-review/antigravity-last-automatic-target",
     skill: "ce-code-review",
     cohort: "untouched",
