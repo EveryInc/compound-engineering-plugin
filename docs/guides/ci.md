@@ -18,13 +18,17 @@ PRs pass `--changed-since=<base SHA>` to the same test runner. `scripts/test-sco
 
 Changing a grouped test selects its entire group. Shared helpers and fixtures, runner/CI/dependency/configuration changes, unknown paths, and unavailable or empty comparisons run full coverage. Inputs inside an owning directory include prose and resources: the subprocess tests read these files as well as executing scripts. Outside those owners, converter source, ordinary documentation, ungrouped tests, and skill Markdown need only baseline coverage. Unrecognized skill executables run the full suite.
 
-For a local comparison against a committed base:
+For local pre-push validation, use the intended PR base SHA on a clean, committed candidate:
 
 ```bash
 bun run test --changed-since=<40-character-base-SHA>
 ```
 
-This compares the base to `HEAD`, not uncommitted edits. Selected mode accepts only the optional `--timings=<path>` and `--update-timings` Bun flags; other arguments are rejected so a caller cannot accidentally narrow the baseline. Use an ordinary full run to verify working-tree changes.
+This compares the base to `HEAD`. If tracked or untracked changes are present, or Git cannot establish a clean checkout, the runner falls back to full coverage so uncommitted inputs cannot escape selection. Selected mode accepts only the optional `--timings=<path>` and `--update-timings` Bun flags; other arguments are rejected so a caller cannot accidentally narrow the baseline. An ordinary `bun run test` always runs full coverage.
+
+During implementation, use focused tests and skill guards for feedback. Before publishing, the shared selection (or a full run), typecheck, release validation, and strict plugin validation must pass. Skill behavior changes also need the fresh-agent evals required by the repository instructions. CI remains the merge gate, including platform checks that were not run locally.
+
+Carry successful verification evidence through review and shipping while its inputs, selection base, and relevant environment remain unchanged. Record the command, result, and tested state; rerun checks whose evidence was invalidated by later changes. A commit-message-only amendment preserves evidence for checks that do not inspect commit metadata. Capture the runner's actual exit status before formatting its output: a successful `tail` is not a successful test run. Missing or failing required checks block publication.
 
 The runner prints selection mode, file counts, groups, and fallback reason, and copies them to the Actions summary. Linux starts independently of the specialized-job selector. Actions uploads Bun's per-file timing data as `linux-test-timings`, including on test failure when available; a missing timing artifact does not turn a failing test green.
 
