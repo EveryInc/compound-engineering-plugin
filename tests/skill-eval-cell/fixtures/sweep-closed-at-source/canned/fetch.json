@@ -2,7 +2,7 @@
   {
     "id": "acme/widgets#100",
     "source": "gh-issues",
-    "origin": "https://github.com/acme/widgets/issues/100",
+    "origin": "https://github.example.com/acme/widgets/issues/100",
     "author_class": "customer",
     "body": "Export drops the last row. Still happening on the latest release.",
     "media": [],

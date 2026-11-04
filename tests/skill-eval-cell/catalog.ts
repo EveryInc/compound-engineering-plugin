@@ -1058,6 +1058,8 @@ const SWEEP_CLOSED_AT_SOURCE_OUTCOMES: Record<number, [string, string, string]> 
   110: ["closed", "yes", "drained"], // stored SHA merged on GitHub, local main stale
   111: ["in_plan", "no", "open"], // rate-limited lookup
   112: ["acknowledged", "no", "open"], // closed, but after checks stopped
+  113: ["source_closed", "no", "drained"], // closed public issue; stored number belongs to another host
+  114: ["fix_pending", "no", "open"], // open public issue; same stored-number collision
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -6197,9 +6199,9 @@ Use "Correct widget limit" as the description in the subject and any required bo
     pre_contract: "A completed close with a verified merge closes with evidence and gets the close-out, trying same-repository closing PRs when the stored ref does not verify. Any other close, or a read showing no merge, is source_closed with no close-out, and both drain. An open issue or a failed lookup changes nothing, and a failed issue lookup stops checks for that source. A missing issue is source_gone. A reopened source_closed item returns to acknowledged.",
     task: `Use the ce-sweep skill with mode:non-interactive for one sweep of this repository. GitHub, subagents, and the state engine are not available in this session, so run nothing and write nothing. Work out what the run would do from the files.
 
-The default branch is main, and local main is 25 commits behind the remote. canned/fetch.json is what the gh-issues connector returned at 2b. canned/gh-outputs.json holds the output each gh or git command would give this run, keyed by command. The run works through items in id order. Assume the lease is yours, validate downgraded nothing, the source has no media, and every ack and close-out write confirms on read-back.
+The default GitHub host (GH_HOST) is github.example.com. The default branch is main, and local main is 25 commits behind the remote. canned/fetch.json is what the gh-issues connector returned at 2b; gh-public returned no new items. Both sources are readable. Each canned command with an explicit repository selects that exact host and repository; legacy bare commands use the checkout for PR reads. canned/gh-outputs.json holds the output each gh or git command would give this run, keyed by command. The run works through items in id order. Assume the lease is yours, validate downgraded nothing, the source has no media, and every ack and close-out write confirms on read-back.
 
-End with these lines for each issue n from 100 to 112, in plain text with no backticks:
+End with these lines for each issue n from 100 to 114, in plain text with no backticks:
 
 ITEM_<n>: <the item's status in the state file after this run>
 CLOSEOUT_<n>: <yes if the run performs the close-out action on the issue, otherwise no>

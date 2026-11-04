@@ -76,6 +76,7 @@ describe("ce-sweep relocated invariants stay in the reference Phase 2 loads", ()
     "verified_merge_sha",
     "source_gone",
     "closedByPullRequestsReferences",
+    '--repo "<checkout-host>/<checkout-repo>"',
     "status: source_closed",
     "Could not resolve to an issue",
     "leave the item unchanged for the next run",

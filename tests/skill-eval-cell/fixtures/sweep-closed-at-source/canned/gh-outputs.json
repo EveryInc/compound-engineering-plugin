@@ -16,6 +16,16 @@
       "closedAt": "2026-10-28T17:40:02Z",
       "closedByPullRequestsReferences": [
         {
+          "number": 90,
+          "repository": {
+            "name": "widgets",
+            "owner": {
+              "login": "acme"
+            }
+          },
+          "url": "https://github.com/acme/widgets/pull/90"
+        },
+        {
           "id": "PR_77",
           "number": 77,
           "repository": {
@@ -26,7 +36,7 @@
               "login": "acme"
             }
           },
-          "url": "https://github.com/acme/widgets/pull/77"
+          "url": "https://github.example.com/acme/widgets/pull/77"
         }
       ]
     }
@@ -99,7 +109,7 @@
               "login": "acme"
             }
           },
-          "url": "https://github.com/acme/widgets/pull/82"
+          "url": "https://github.example.com/acme/widgets/pull/82"
         }
       ]
     }
@@ -126,7 +136,7 @@
               "login": "acme"
             }
           },
-          "url": "https://github.com/acme/widgets/pull/84"
+          "url": "https://github.example.com/acme/widgets/pull/84"
         }
       ]
     }
@@ -149,7 +159,7 @@
               "login": "acme"
             }
           },
-          "url": "https://github.com/acme/widgets/pull/85"
+          "url": "https://github.example.com/acme/widgets/pull/85"
         }
       ]
     }
@@ -258,5 +268,304 @@
   "gh api --hostname github.example.com repos/acme/widgets/compare/main...main --jq .status": {
     "exit": 0,
     "stdout": "identical"
+  },
+  "gh repo view github.com/acme/widgets --json nameWithOwner,url": {
+    "exit": 0,
+    "stdout": {
+      "nameWithOwner": "acme/widgets",
+      "url": "https://github.com/acme/widgets"
+    }
+  },
+  "gh issue view 113": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-30T00:00:00Z",
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh issue view 114": {
+    "exit": 0,
+    "stdout": {
+      "state": "OPEN",
+      "stateReason": "REOPENED",
+      "closedAt": null,
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh issue view 100 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "OPEN",
+      "stateReason": "REOPENED",
+      "closedAt": null,
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh issue view 101 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-28T17:40:02Z",
+      "closedByPullRequestsReferences": [
+        {
+          "number": 90,
+          "repository": {
+            "name": "widgets",
+            "owner": {
+              "login": "acme"
+            }
+          },
+          "url": "https://github.com/acme/widgets/pull/90"
+        },
+        {
+          "id": "PR_77",
+          "number": 77,
+          "repository": {
+            "id": "R_widgets",
+            "name": "widgets",
+            "owner": {
+              "id": "O_acme",
+              "login": "acme"
+            }
+          },
+          "url": "https://github.example.com/acme/widgets/pull/77"
+        }
+      ]
+    }
+  },
+  "gh issue view 102 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "NOT_PLANNED",
+      "closedAt": "2026-10-27T08:11:41Z",
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh issue view 103 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-26T10:05:00Z",
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh issue view 104 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "OPEN",
+      "stateReason": "",
+      "closedAt": null,
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh issue view 105 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-25T12:30:00Z",
+      "closedByPullRequestsReferences": [
+        {
+          "id": "PR_90",
+          "number": 90,
+          "repository": {
+            "id": "R_webhooks",
+            "name": "webhooks",
+            "owner": {
+              "id": "O_acme",
+              "login": "acme"
+            }
+          },
+          "url": "https://github.com/acme/webhooks/pull/90"
+        }
+      ]
+    }
+  },
+  "gh issue view 106 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-29T09:15:00Z",
+      "closedByPullRequestsReferences": [
+        {
+          "id": "PR_82",
+          "number": 82,
+          "repository": {
+            "id": "R_widgets",
+            "name": "widgets",
+            "owner": {
+              "id": "O_acme",
+              "login": "acme"
+            }
+          },
+          "url": "https://github.example.com/acme/widgets/pull/82"
+        }
+      ]
+    }
+  },
+  "gh issue view 107 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 1,
+    "stderr": "GraphQL: Could not resolve to an issue or pull request with the number of 107. (repository.issue)"
+  },
+  "gh issue view 108 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-30T16:00:00Z",
+      "closedByPullRequestsReferences": [
+        {
+          "id": "PR_84",
+          "number": 84,
+          "repository": {
+            "id": "R_widgets",
+            "name": "widgets",
+            "owner": {
+              "id": "O_acme",
+              "login": "acme"
+            }
+          },
+          "url": "https://github.example.com/acme/widgets/pull/84"
+        }
+      ]
+    }
+  },
+  "gh issue view 109 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-30T17:10:00Z",
+      "closedByPullRequestsReferences": [
+        {
+          "id": "PR_85",
+          "number": 85,
+          "repository": {
+            "id": "R_widgets",
+            "name": "widgets",
+            "owner": {
+              "id": "O_acme",
+              "login": "acme"
+            }
+          },
+          "url": "https://github.example.com/acme/widgets/pull/85"
+        }
+      ]
+    }
+  },
+  "gh issue view 110 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-30T17:45:00Z",
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh issue view 111 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 1,
+    "stderr": "GraphQL: API rate limit exceeded for user ID 1234."
+  },
+  "gh issue view 112 --repo github.example.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-30T18:20:00Z",
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh pr view 77 --repo github.example.com/acme/widgets --json mergedAt,baseRefName,mergeCommit": {
+    "exit": 0,
+    "stdout": {
+      "baseRefName": "main",
+      "mergeCommit": {
+        "oid": "9f3c2ab14e7d60b85c1f4a2e6d0b7c3e8a5d1f42"
+      },
+      "mergedAt": "2026-10-28T17:40:00Z"
+    }
+  },
+  "gh pr view 78 --repo github.example.com/acme/widgets --json mergedAt,baseRefName,mergeCommit": {
+    "exit": 0,
+    "stdout": {
+      "baseRefName": "main",
+      "mergeCommit": {
+        "oid": "1b7e04d9c2a65f38e0d4b6c1a97f2e5d3c8b4a10"
+      },
+      "mergedAt": "2026-10-26T11:00:00Z"
+    }
+  },
+  "gh pr view 81 --repo github.example.com/acme/widgets --json mergedAt,baseRefName,mergeCommit": {
+    "exit": 0,
+    "stdout": {
+      "baseRefName": "main",
+      "mergeCommit": null,
+      "mergedAt": null
+    }
+  },
+  "gh pr view 82 --repo github.example.com/acme/widgets --json mergedAt,baseRefName,mergeCommit": {
+    "exit": 0,
+    "stdout": {
+      "baseRefName": "main",
+      "mergeCommit": {
+        "oid": "c41d7f2e8b03a96d5e1f7c4b2a08d3e6f9b5a723"
+      },
+      "mergedAt": "2026-10-29T09:14:50Z"
+    }
+  },
+  "gh pr view 84 --repo github.example.com/acme/widgets --json mergedAt,baseRefName,mergeCommit": {
+    "exit": 1,
+    "stderr": "HTTP 502: Bad Gateway (https://api.github.com/graphql)"
+  },
+  "gh pr view 90 --repo github.example.com/acme/widgets --json mergedAt,baseRefName,mergeCommit": {
+    "exit": 0,
+    "stdout": {
+      "baseRefName": "main",
+      "mergeCommit": {
+        "oid": "5e2a9c70d1b84f36a7c0e3d5f1b6a8492c7d0e1f"
+      },
+      "mergedAt": "2026-09-30T13:00:00Z"
+    }
+  },
+  "gh pr view 85 --repo github.example.com/acme/widgets --json mergedAt,baseRefName,mergeCommit": {
+    "exit": 0,
+    "stdout": {
+      "baseRefName": "main",
+      "mergeCommit": {
+        "oid": "e08b3f61d7c24a95b1e6d0f7a3c9852b4d16f0ca"
+      },
+      "mergedAt": "2026-10-30T17:09:40Z"
+    }
+  },
+  "gh issue view 113 --repo github.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "CLOSED",
+      "stateReason": "COMPLETED",
+      "closedAt": "2026-10-30T00:00:00Z",
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh issue view 114 --repo github.com/acme/widgets --json state,stateReason,closedAt,closedByPullRequestsReferences": {
+    "exit": 0,
+    "stdout": {
+      "state": "OPEN",
+      "stateReason": "REOPENED",
+      "closedAt": null,
+      "closedByPullRequestsReferences": []
+    }
+  },
+  "gh repo view acme/widgets --json nameWithOwner,url": {
+    "exit": 0,
+    "stdout": {
+      "nameWithOwner": "acme/widgets",
+      "url": "https://github.example.com/acme/widgets"
+    }
   }
 }
