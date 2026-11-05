@@ -28,6 +28,10 @@ export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e263
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 /** main before ce-doc-review chose its own depth: every plan ran the full team, and adversarial fired on any plan without a brainstorm. */
 export const DOC_REVIEW_DEPTH_BASE_REF = "799ac9aeb97bf1c51238c38122915470413c26c5"
+/** main before reviewers and synthesis kept traced money, security, and stored-data harm the work newly reaches. */
+export const DOC_REVIEW_ADMISSION_BASE_REF = "9d04578ce9fad2347ae0cfd17e7678dcec99ee67"
+const docReviewFindingsTask = (args: string) =>
+  `Use ce-doc-review with the arguments: mode:non-interactive ${args}. End your final message with these lines and nothing after them: "FINDINGS:" followed by one line per finding the review raised or fixed, each starting with "- ", or the line "- none", then "TEAM: <comma-separated reviewer names you dispatched>".`
 /** main after #2003: adversarial and the lite reviewer still sent a plan full for a product choice no requester made. */
 export const DOC_REVIEW_PROVENANCE_BASE_REF = "b8841ebab4d2105b9eaeeb26645424173cd452f4"
 /** Depth scenarios grade the depth and team decision from trailers; they do not prove a reviewer actually ran. */
@@ -111,6 +115,8 @@ export type Grade = {
    * so declaring nothing cannot pass.
    */
   must_include_field?: string
+  /** Text that must be absent from the must_include_field block. The run fails when it emitted no such field, so staying silent cannot pass. */
+  field_must_not_include?: string[]
   /**
    * Exactly one `LABEL: value` line anywhere in the answer, per label (heading and bold
    * decoration ignored, label and value case-insensitive), with the exact value. Zero
@@ -5433,6 +5439,45 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     },
   },
   {
+    id: "ce-doc-review/findings-keep-traced-money-harm",
+    baseline_ref: DOC_REVIEW_ADMISSION_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-token-withdrawal`,
+    timeout_secs: 1800,
+    why: "The withdraw command newly exposes an existing transfer to users: a negative amount passes the balance check and raises the balance, and read-broadcast-write lets concurrent withdrawals spend twice. Both trace from a CLI input to lost money even though the code already exists and the chain adapter is a stub.",
+    pre_contract: "Codex reviewers suppressed both as pre-existing or without a realistic exploit path, and Codex synthesis rejected peer money findings as derivable.",
+    task: docReviewFindingsTask("docs/plans/2026-11-01-015-feat-withdraw-command-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [
+        ["negative", "non-positive", "nonpositive", "positive amount", "amount > 0", "amount <= 0", "greater than zero", "zero or less"],
+        ["concurren", "double-spend", "double spend", "race", "atomic", "spend twice", "twice"],
+      ],
+    },
+  },
+  {
+    id: "ce-doc-review/findings-quiet-on-unreached-code",
+    baseline_ref: DOC_REVIEW_ADMISSION_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-findings-quiet-flag`,
+    timeout_secs: 1800,
+    why: "Guard for the money/security admission rule: a sound --json flag plan, reviewed by the full team, next to store code it never calls (saveTasks, archiveDone, which corrupts its archive). Harm in code the work does not reach, and extra error handling, stay out.",
+    pre_contract: "Pre-existing issues the document did not introduce are suppressed.",
+    task: docReviewFindingsTask("depth:full docs/plans/2026-11-01-001-feat-list-json-flag-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      field_must_not_include: ["savetasks", "archivedone", "archive", "enoent"],
+    },
+  },
+  {
     id: "ce-doc-review/depth-full-unstated-session",
     baseline_ref: DOC_REVIEW_DEPTH_BASE_REF,
     skill: "ce-doc-review",
@@ -6820,6 +6865,7 @@ export function scenarioHasDecisionGrade(s: Scenario): boolean {
   if (g.must_include?.length || g.must_include_any?.length || g.must_exclude?.length) return true
   if (g.declared && Object.keys(g.declared).length) return true
   if (g.delegates_must_not_include?.length) return true
+  if (g.must_include_field && g.field_must_not_include?.length) return true
   if (g.classification || g.structured_status || g.delegates === "some") return true
   if (g.workspace_contains?.length || g.workspace_lacks?.length || g.json_field?.length || g.committed_must_not?.length) return true
   if (g.workspace_read?.length) return true

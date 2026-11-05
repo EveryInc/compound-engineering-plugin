@@ -350,6 +350,12 @@ export function gradeHost(opts: {
       reasons.push(`missing required text (any of): ${options.join(" | ")}`)
     }
   }
+  if (opts.grade.field_must_not_include?.length && !scopeField) {
+    reasons.push("field_must_not_include needs must_include_field")
+  }
+  for (const needle of scopedText ? opts.grade.field_must_not_include ?? [] : []) {
+    if (scopedText.includes(needle.toLowerCase())) reasons.push(`forbidden text in ${scopeField} field: ${needle}`)
+  }
   if (opts.grade.result_must_not_include?.length || opts.grade.result_must_include?.length) {
     const block = resultBlock(stdout)?.toLowerCase() ?? null
     if (block === null) reasons.push("missing RESULT-START/RESULT-END block")
