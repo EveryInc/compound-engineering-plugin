@@ -43,18 +43,33 @@ fs.writeFileSync(path.join(hostDir, "prompt.md"), prompt)
 fs.writeFileSync(path.join(hostDir, "argv.json"), `${JSON.stringify(plan.argv.map((a) => (a === prompt ? "<prompt.md>" : a)), null, 2)}\n`)
 writeJSON(path.join(out, "input-manifest.json"), { schema_version: 1, arm: "vanilla", started_at: new Date().toISOString(), host, effort, fixture, task_file: taskFile, timeout_ms: timeoutMs }, true)
 
-const child = spawn(plan.argv[0], plan.argv.slice(1), { cwd: workspace, env: plan.env, stdio: ["ignore", "pipe", "pipe"] })
+// Detached so a timeout can kill the host's whole process group; its subprocesses would
+// otherwise keep running and billing, and hold the pipes open past the timeout.
+const child = spawn(plan.argv[0], plan.argv.slice(1), { cwd: workspace, env: plan.env, stdio: ["ignore", "pipe", "pipe"], detached: true })
+const killTree = () => {
+  try {
+    if (child.pid) process.kill(-child.pid, "SIGKILL")
+  } catch {}
+}
+process.on("exit", killTree)
 let stdout = ""
 let stderr = ""
 child.stdout.on("data", (d) => (stdout += d))
 child.stderr.on("data", (d) => (stderr += d))
 let timedOut = false
-const timer = setTimeout(() => {
-  timedOut = true
-  child.kill("SIGTERM")
-}, timeoutMs)
-const exitCode = await new Promise<number | null>((resolve) => child.on("close", resolve))
-clearTimeout(timer)
+let backstop: ReturnType<typeof setTimeout> | undefined
+const exitCode = await new Promise<number | null>((resolve) => {
+  const timer = setTimeout(() => {
+    timedOut = true
+    killTree()
+    backstop = setTimeout(() => resolve(null), 5000)
+  }, timeoutMs)
+  child.on("close", (code) => {
+    clearTimeout(timer)
+    if (backstop) clearTimeout(backstop)
+    resolve(timedOut ? null : code)
+  })
+})
 fs.writeFileSync(path.join(hostDir, "stdout.txt"), stdout)
 fs.writeFileSync(path.join(hostDir, "stderr.txt"), stderr)
 fs.writeFileSync(path.join(hostDir, "exit.json"), `${JSON.stringify({ exitCode, timedOut }, null, 2)}\n`)
