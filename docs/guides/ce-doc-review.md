@@ -68,7 +68,8 @@ Document review is harder than code review in specific ways:
 
 `ce-doc-review` runs document review as a pipeline with explicit gates:
 
-- Two personas on every review: coherence and feasibility
+- A review depth chosen from what a wrong plan would cost: a routine plan gets one combined reviewer, everything else gets the full team
+- Two personas on every full review: coherence and feasibility
 - Conditional personas selected from doc content: product-lens, design-lens, security-lens, scope-guardian, adversarial
 - Parallel persona dispatch with bounded concurrency
 - Reviewers and the lead agent check whether each concern is worth acting on, including FYIs and remaining questions. A requirement does not need repeating in every unit to count as covered. The lead agent checks what would go wrong with the plan as written and whether the proposed correction actually resolves it. A reviewer’s preferred alternative does not itself create a decision for you. Reviewer agreement can strengthen evidence but does not make a nit important. A proposed addition (a requirement, guard, retry, step, or test) has to show the work would go wrong without it, not just that it would be more thorough, and a proposal to cut something the plan does not need gets the same footing instead of becoming an FYI. FYIs appear only when they name a concrete cost, and mechanical consistency fixes are reported as one line. Proven corrections required by an existing decision apply automatically, subject to reviewer support and any edit restrictions. Changes outside existing edit authority need approval, and choices reserved for the user are asked separately
@@ -89,9 +90,17 @@ Conditional personas activate from what the doc says, not keyword matching:
 - **design-lens** when it contains UI/UX references, user flows, or visual design language
 - **security-lens** when it touches auth, public APIs, sensitive data, payments, or third-party trust boundaries
 - **scope-guardian** on every plan, where it checks that each mechanism the request did not ask for earns its place, that nothing left out lets harm land unnoticed, and that no requested behavior was narrowed; on other docs, when it has multiple priority tiers, a large requirement count, or scope-boundary language that looks misaligned
-- **adversarial** when it touches high-stakes domains, proposes new abstractions, has missing or extended origin, contains requirements-shape premise content, or presents explicit alternatives
+- **adversarial** when it touches high-stakes domains, changes a public contract that outside consumers rely on, proposes new abstractions, makes a product choice nobody made, extends scope beyond its origin, contains requirements-shape premise content, or presents explicit alternatives. A plan that simply has no brainstorm behind it does not trigger it
 
-`coherence-reviewer` and `feasibility-reviewer` run on every review.
+`coherence-reviewer` and `feasibility-reviewer` run on every full review.
+
+### Lite and full review
+
+A wrong plan can ship silently, so the review's depth follows what a wrong plan would cost, not how long the plan is. A plan runs **lite** when no conditional persona other than scope-guardian activates. Lite is one independent reviewer on a mid-tier model that applies the coherence, feasibility, and scope-guardian lenses together, with no cross-model pass. To judge activation, the skill reads the files and code paths the plan names, so a plan that never says "payment" still gets the full team when the handler it names moves money.
+
+Everything else runs **full**: requirements docs, plans that cross a money, access, sensitive-data, or public-contract boundary, and plans that make a product choice nobody made. If the lite reviewer finds one of those consequences, the review escalates to the full team in the same run, and the lite findings join synthesis. Severity alone never escalates.
+
+Depth never lowers: a later round or resume keeps or raises it. Callers can force full with `depth:full`; `ce-plan` passes it when you ask for a deeper or full review. No caller can request lite. A lite review always says so in Coverage.
 
 Personas also scope their techniques by doc shape. On plan-shape docs with validated upstream Product Contract provenance, product-lens, adversarial, and scope-guardian suppress premise-level techniques and run only implementation-level checks. On requirements-shape docs they run their full technique set. Feasibility inverts: deep implementability checks on plan-shape docs, a tight "would this direction force a fundamental rework?" check on requirements docs.
 
@@ -145,7 +154,7 @@ You can return to existing findings without running another review when the docu
 
 ### Coverage, settled decisions, and the rendering floor
 
-The review names its reviewers once, when it starts. The report adds a Coverage line only when something limited the review: a reviewer that failed or timed out, a cross-model pass that did not run, or findings suppressed because you rejected them earlier.
+The review names its reviewers once, when it starts. The report adds a Coverage line when the review ran lite, and otherwise only when something limited the review: a reviewer that failed or timed out, a cross-model pass that did not run, or findings suppressed because you rejected them earlier.
 
 Decisions you examined and settled carry a `session-settled:` annotation. The safe-auto pass never strips it. A persona that wants to challenge a settled decision must frame the challenge as infeasibility, not preference, and it is never auto-applied.
 
@@ -175,7 +184,7 @@ Each peer runs from an empty workspace, and every permission request it makes is
 
 `/ce-plan` finishes a Standard plan for a notification-mute feature and invokes `/ce-doc-review` in `mode:non-interactive` with the plan path.
 
-The skill reads the doc, classifies it as a plan from content-shape signals (U-IDs, plan section structure), and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates coherence (always-on), feasibility (always-on, plan-shape techniques), scope-guardian (every plan), and design-lens (UI surface). Adversarial, security-lens, and product-lens skip.
+The skill reads the doc, classifies it as a plan from content-shape signals (U-IDs, plan section structure), and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates coherence (always-on), feasibility (always-on, plan-shape techniques), scope-guardian (every plan), and design-lens (UI surface). Adversarial, security-lens, and product-lens skip. Because design-lens activated, the review runs full; without the UI surface, this plan would get the single lite reviewer.
 
 Two reviewers flag a broken cross-reference, a CSV test method that contradicts the required quoting behavior, and several requests to repeat instructions already present elsewhere. The lead drops the repetition requests and verifies both actual defects.
 

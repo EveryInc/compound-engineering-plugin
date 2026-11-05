@@ -1003,6 +1003,36 @@ describe("ce-doc-review contract", () => {
     expect(block).toMatch(/\*Strategic weight\*/)
   })
 
+  test("adversarial fires on an unmade product choice, not on a missing brainstorm", async () => {
+    const content = await readRepoFile("skills/ce-doc-review/references/persona-selection.md")
+    const block = sliceSection(content, "**adversarial**", "## Announce the review team")
+    expect(block).toMatch(/makes a product choice\*\* .* that no requester, upstream contract, or settled decision made/)
+    expect(block).toMatch(/high-stakes domain/)
+    expect(block).toMatch(/change to a public contract\*\* that an outside consumer already relies on/)
+    expect(block).not.toMatch(/no validated upstream Product Contract signal/)
+    expect(block).not.toMatch(/ce-plan-bootstrap/)
+  })
+
+  test("plan review depth is lite only when no challenge lens activates, and never lowers", async () => {
+    const skill = await readRepoFile("skills/ce-doc-review/SKILL.md")
+    const depth = await readRepoFile("skills/ce-doc-review/references/depth.md")
+    const handoff = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
+    expect(skill).toContain("references/depth.md")
+    expect(depth).toMatch(/Only a plan document .* can run lite/)
+    expect(depth).toMatch(/conditional persona other than `scope-guardian-reviewer` activates/)
+    expect(depth).toMatch(/what the files and code paths it names actually do/)
+    expect(depth).toContain("`depth:full`")
+    expect(depth).toMatch(/keeps or raises the recorded depth, never lowers it/)
+    expect(depth).toMatch(/Lite never runs the cross-model pass/)
+    expect(depth).toMatch(/Severity alone never escalates/)
+    expect(depth).toContain("`ESCALATE:`")
+    expect(depth).toMatch(/switch to `full` in the same invocation/)
+    expect(depth).toMatch(/unless the caller passed `depth:full`/)
+    expect(depth).toMatch(/lite review was not independent/)
+    expect(depth).toMatch(/does not begin with the word "depth"/)
+    expect(handoff).toContain("`depth:full`")
+  })
+
   test("keeps security document review on the parent capability tier", async () => {
     const content = await readRepoFile("skills/ce-doc-review/references/dispatch.md")
     const modelTierSection = content.slice(content.indexOf("Model tiering lives here"))
