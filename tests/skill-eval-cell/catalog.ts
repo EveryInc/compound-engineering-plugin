@@ -182,6 +182,13 @@ export type Scenario = {
   shim_gh_pr?: boolean
   /** Configure a fake `origin` whose `main` is the seed commit, so the shipping tail takes the push/PR path instead of the local-commit path. Pair with shim_git_push. */
   git_remote?: boolean
+  /** Fixture paths left out of the workspace, so one fixture can serve stages that must not see each other's inputs. */
+  fixture_omit?: string[]
+  /**
+   * A fixture-relative patch committed on `branch` over the seed with `message`, so a review cell
+   * sees a branch diff whose only stated intent is the commit message. `origin/main` stays at the seed.
+   */
+  git_change?: { patch: string; branch: string; message: string }
   fixture?: string
   timeout_secs?: number
   why: string
@@ -1060,6 +1067,84 @@ const SWEEP_CLOSED_AT_SOURCE_OUTCOMES: Record<number, [string, string, string]> 
   112: ["acknowledged", "no", "open"], // closed, but after checks stopped
   113: ["source_closed", "no", "drained"], // closed public issue; stored number belongs to another host
   114: ["fix_pending", "no", "open"], // open public issue; same stored-number collision
+}
+
+function boundaryDiagnosticScenarios(): Scenario[] {
+  const fixture = `${FIX}/boundary-release-before-paid`
+  const plans = {
+    named: "docs/plans/2026-11-04-1000-feat-zoom-details-confirmation-plan.md",
+    unnamed: "docs/plans/2026-11-04-1100-feat-confirmation-email-zoom-fields-plan.md",
+    routine: "docs/plans/2026-11-04-1200-feat-receipt-event-start-plan.md",
+  }
+  const base = {
+    cohort: "untouched" as const,
+    key_behavior: "judgment" as const,
+    read_only: false,
+    git_init: true,
+    fixture,
+    post_only: true,
+    pre_contract: "Diagnostic only: no prior contract is under test.",
+  }
+  const rawReturns = "Save each reviewer's raw return, verbatim and before any synthesis, to .eval-raw/<reviewer-name>.md in this repo."
+  const docReview = (id: string, plan: string, why: string): Scenario => ({
+    ...base,
+    id: `ce-doc-review/boundary-${id}`,
+    skill: "ce-doc-review",
+    fixture_omit: ["patches"],
+    timeout_secs: 1500,
+    why,
+    task: `Use ce-doc-review with the arguments: mode:non-interactive ${plan}. ${rawReturns} End your final message with one line of the form "TEAM: <comma-separated reviewer names you dispatched>" and nothing after it.`,
+    grade: { must_include: ["coherence"], workspace_tree: [{ dir: ".eval-raw", contains: "" }] },
+  })
+  const codeReview = (id: string, patch: string, branch: string, message: string, why: string): Scenario => ({
+    ...base,
+    id: `ce-code-review/boundary-${id}`,
+    skill: "ce-code-review",
+    fixture_omit: ["docs/plans", "patches"],
+    git_remote: true,
+    git_change: { patch: `patches/${patch}`, branch, message },
+    timeout_secs: 2400,
+    why,
+    task: "Use ce-code-review with mode:agent on the current branch against main. When the review finishes, copy its whole run directory, including review.json and every reviewer's raw return, to .eval-run/ in this repo. Do not edit any other file.",
+    grade: { workspace_contains: [{ path: ".eval-run/review.json", needle: "\"verdict\"" }] },
+  })
+  return [
+    {
+      ...base,
+      id: "ce-plan/boundary-fresh-plan",
+      skill: "ce-plan",
+      with_skill: ["ce-doc-review"],
+      fixture_omit: ["docs/plans", "patches"],
+      timeout_secs: 3600,
+      why: "Discovery stage: whether planning the Zoom request from the code alone surfaces that the confirmation email goes out before payment.",
+      task: `Use ce-plan with mode:pipeline for this request: Add a Zoom link and passcode to guest confirmation emails. If the run invokes ce-doc-review, have it save each reviewer's raw return, verbatim and before any synthesis, to .eval-raw/<reviewer-name>.md in this repo. Do not implement the plan. End your final message with two lines: "PLAN: <plan path>" and "TEAM: <comma-separated doc-review reviewer names, or none>".`,
+      grade: { must_include: ["coherence"], workspace_tree: [{ dir: "docs/plans", contains: "Zoom" }] },
+    },
+    docReview("named-plan", plans.named, "Persona selection and finding on a plan that states the email is sent while the registration is pending payment."),
+    docReview("unnamed-plan", plans.unnamed, "Persona selection and finding on a plan whose diff crosses the payment boundary but never names payment or timing."),
+    docReview("routine-plan", plans.routine, "Control: a receipt-email change after payment, with no boundary to find."),
+    codeReview(
+      "framed",
+      "zoom-in-confirmation.patch",
+      "feat/zoom-in-confirmation",
+      "feat(emails): add Zoom link and passcode to guest confirmation email\n\nGuests now receive the Zoom link and passcode in the confirmation email sent when they register, so they have everything they need to join.\n",
+      "Code-review stage with the plan's framing in the commit message, testing whether the stated intent anchors reviewers away from the boundary.",
+    ),
+    codeReview(
+      "neutral",
+      "zoom-in-confirmation.patch",
+      "update-emails",
+      "update emails.js\n",
+      "Code-review stage on the same diff with a neutral commit message and no stated intent.",
+    ),
+    codeReview(
+      "routine",
+      "receipt-start-time.patch",
+      "feat/receipt-start-time",
+      "feat(emails): add event start time to receipt email\n",
+      "Control: a receipt change sent after payment, with no boundary to find.",
+    ),
+  ]
 }
 
 export const SCENARIOS: Scenario[] = [
@@ -5250,6 +5335,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
       must_include: ["Review complete"],
     },
   },
+  ...boundaryDiagnosticScenarios(),
   {
     id: "ce-brainstorm/lightweight-ends-in-chat",
     baseline_ref: RIGHT_SIZE_BASE_REF,

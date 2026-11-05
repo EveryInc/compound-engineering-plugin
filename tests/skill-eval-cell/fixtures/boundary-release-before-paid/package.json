@@ -1,0 +1,8 @@
+{
+  "name": "event-registration-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

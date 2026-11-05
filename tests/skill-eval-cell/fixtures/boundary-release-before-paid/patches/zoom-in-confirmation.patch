@@ -1,0 +1,23 @@
+diff --git a/src/emails.js b/src/emails.js
+--- a/src/emails.js
++++ b/src/emails.js
+@@ -9,6 +9,9 @@ export function confirmationEmail({ guest, event, registration }) {
+       "",
+       `Thanks for registering for ${event.title} on ${formatStart(event.startsAt)}.`,
+       `Complete your payment here: ${registration.paymentUrl}`,
++      "",
++      `Join on Zoom: ${event.zoomUrl}`,
++      `Passcode: ${event.zoomPasscode}`,
+     ].join("\n"),
+   }
+ }
+diff --git a/test/registrations.test.js b/test/registrations.test.js
+--- a/test/registrations.test.js
++++ b/test/registrations.test.js
+@@ -10,4 +10,6 @@ test("registering emails a confirmation with the payment link", () => {
+   assert.equal(sent.to, "ada@example.test")
+   assert.match(sent.subject, /Spring Launch Webinar/)
+   assert.ok(sent.body.includes(registration.paymentUrl))
++  assert.ok(sent.body.includes("https://zoom.us/j/81234567890"))
++  assert.ok(sent.body.includes("Passcode: launch42"))
+ })

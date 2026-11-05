@@ -75,6 +75,8 @@ function runCell(scenario: Scenario, arm: EvalArm, out: string, hosts?: string) 
   if (scenario.git_staged?.length) argv.push("--git-staged", scenario.git_staged.join(","))
   if (scenario.git_deleted?.length) argv.push("--git-deleted", scenario.git_deleted.join(","))
   if (scenario.git_remote) argv.push("--git-remote")
+  if (scenario.fixture_omit?.length) argv.push("--fixture-omit", scenario.fixture_omit.join(","))
+  if (scenario.git_change) argv.push("--git-change", JSON.stringify(scenario.git_change))
   if (scenario.shim_git_push) {
     argv.push("--shim-git-push")
     if (typeof scenario.shim_git_push === "object") {
