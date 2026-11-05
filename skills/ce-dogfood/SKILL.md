@@ -26,7 +26,7 @@ This is **diff-scoped**, not whole-app exploration. You test what *this branch* 
 
 ## Prerequisites
 
-**User-runnable invocation rendering.** In prerequisite failures, default to `/ce-setup` and `/ce-dogfood <original arguments>`; use `$ce-setup` and `$ce-dogfood <original arguments>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-setup` and `/skill:ce-dogfood <original arguments>`. Render only each invocation as inline code and output one form only.
+**User-runnable invocation rendering.** In prerequisite failures, default to `/ce-setup` and `/ce-dogfood <original arguments>`; use `$ce-setup` and `$ce-dogfood <original arguments>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), keep `/ce-setup` and use `/skill:ce-dogfood <original arguments>`. Render only each invocation as inline code and output one form only.
 
 - A local dev server you can start (`bin/dev`, `rails server`, `npm run dev`, etc.).
 - A browser per the Boundaries. When the run needs `agent-browser` and it is not installed, stop and tell the user to install it: print the rendered `ce-setup` invocation for the current install command, followed by the rendered `ce-dogfood <original arguments>` invocation to retry.
