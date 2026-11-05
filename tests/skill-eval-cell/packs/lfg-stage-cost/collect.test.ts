@@ -81,6 +81,23 @@ describe("lfg stage-cost collector", () => {
     expect(rows).toEqual({ unattributed: 1, intake: 1, work: 3, "work > ce-simplify-code": 2, simplify: 1 })
   })
 
+  test("a batched call that reads a step skill and an lfg file opens that step", () => {
+    const u = { input: 1, cacheWrite5m: 0, cacheWrite1h: 0, cacheRead: 0, output: 0 }
+    const turn = (...files: string[]) => ({ model: "claude-opus-5-5", usage: { ...u }, calls: files.map((f) => ({ text: `cat ${f}` })) })
+    const thread: Thread = {
+      turns: [
+        turn(`${HOST}/skill/SKILL.md`),
+        turn(`${HOST}/skills/ce-work/SKILL.md`),
+        { ...turn(), calls: [{ text: `Promise.all([exec("cat ${HOST}/skills/ce-simplify-code/SKILL.md"), exec("cat ${HOST}/skill/references/review-followup.md")])` }] },
+        turn(),
+        turn(),
+      ],
+      children: {},
+    }
+    const rows = Object.fromEntries(attribute(thread).map((r) => [r.stage, r.usage.input]))
+    expect(rows).toEqual({ unattributed: 1, intake: 1, work: 1, simplify: 2 })
+  })
+
   test("Claude cache writes are priced by TTL", () => {
     const usage = { input: 0, cacheWrite5m: 1e6, cacheWrite1h: 1e6, cacheRead: 1e6, output: 0 }
     expect(dollars("claude-opus-5-5", usage)).toBeCloseTo(4 * 1.25 + 4 * 2 + 0.2)

@@ -148,7 +148,9 @@ export function attribute(root: Thread, mainSkill = "lfg"): StageRow[] {
         for (const m of totals.models) target.modelSet.add(m)
         continue
       }
-      for (const read of skillReads(call.text, mainSkill)) apply(read)
+      // Reads batched in one call (Codex runs several per exec) have no order, so lfg's own reads close the old step first.
+      const reads = skillReads(call.text, mainSkill)
+      for (const read of [...reads.filter((s) => s === mainSkill), ...reads.filter((s) => s !== mainSkill)]) apply(read)
     }
   }
   for (const [name, r] of rows) {
