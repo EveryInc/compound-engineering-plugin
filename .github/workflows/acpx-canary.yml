@@ -72,9 +72,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install
-
       - name: acpx contract suite against acpx ${{ needs.resolve.outputs.latest }}
         shell: bash
         env:

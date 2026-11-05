@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import path from "node:path"
 import { ACPX_MIN_VERSION, ACPX_PIN } from "../tests/helpers/acpx-pin"
 
@@ -29,6 +29,41 @@ export function supportedAcpxVersions(versions: unknown, minimum: string, maximu
   return supported
 }
 
+export function selectAcpxVersions(supported: string[], range: string | undefined): string[] {
+  if (range === undefined || range === "full") return supported
+  if (range === "boundaries") return [...new Set([supported[0]!, supported.at(-1)!])]
+  throw new Error(`ACPX_CONTRACT_RANGE must be full or boundaries, not ${JSON.stringify(range)}`)
+}
+
+function contractRun(version: string): Promise<{ version: string; code: number; output: string }> {
+  return new Promise((resolve) => {
+    const child = spawn("bun", ["test", path.resolve(import.meta.dir, "../tests/acpx-contract.test.ts")], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, ACPX_CONTRACT: "1", ACPX_VERSION: version },
+    })
+    let output = ""
+    child.stdout.on("data", (chunk) => (output += chunk))
+    child.stderr.on("data", (chunk) => (output += chunk))
+    child.on("error", (error) => resolve({ version, code: 1, output: `${output}${error.message}\n` }))
+    child.on("close", (code) => resolve({ version, code: code ?? 1, output }))
+  })
+}
+
+// Concurrency is safe only because each contract run uses a private HOME and its own npx install.
+async function runAll(versions: string[], jobs: number): Promise<string[]> {
+  const queue = [...versions]
+  const failed: string[] = []
+  const worker = async () => {
+    for (let version = queue.shift(); version !== undefined; version = queue.shift()) {
+      const run = await contractRun(version)
+      process.stdout.write(`Validating acpx@${run.version}\n${run.output}`)
+      if (run.code !== 0) failed.push(run.version)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(jobs, versions.length) }, worker))
+  return failed.sort(compareVersions)
+}
+
 if (import.meta.main) {
   try {
     if (process.platform === "win32") throw new Error("the real acpx contract suite requires a POSIX host")
@@ -37,6 +72,8 @@ if (import.meta.main) {
     if (exact !== undefined && process.env.ACPX_MAX_VERSION !== undefined) {
       throw new Error("set either ACPX_VERSION or ACPX_MAX_VERSION, not both")
     }
+    const jobs = Number(process.env.ACPX_CONTRACT_JOBS ?? "4")
+    if (!Number.isInteger(jobs) || jobs < 1) throw new Error("ACPX_CONTRACT_JOBS must be a positive integer")
     let versions: string[]
     if (exact !== undefined) {
       compareVersions(exact, exact)
@@ -47,16 +84,11 @@ if (import.meta.main) {
         env: { ...process.env, npm_config_prefer_offline: "false", npm_config_prefer_online: "true" },
       })
       if (registry.status !== 0) throw new Error(`npm could not list acpx releases (exit ${registry.status})`)
-      versions = supportedAcpxVersions(JSON.parse(registry.stdout), ACPX_MIN_VERSION, process.env.ACPX_MAX_VERSION ?? ACPX_PIN)
+      const supported = supportedAcpxVersions(JSON.parse(registry.stdout), ACPX_MIN_VERSION, process.env.ACPX_MAX_VERSION ?? ACPX_PIN)
+      versions = selectAcpxVersions(supported, process.env.ACPX_CONTRACT_RANGE)
     }
-    for (const version of versions) {
-      console.log(`Validating acpx@${version}`)
-      const run = spawnSync("bun", ["test", path.resolve(import.meta.dir, "../tests/acpx-contract.test.ts")], {
-        stdio: "inherit",
-        env: { ...process.env, ACPX_CONTRACT: "1", ACPX_VERSION: version },
-      })
-      if (run.status !== 0) process.exit(run.status ?? 1)
-    }
+    const failed = await runAll(versions, jobs)
+    if (failed.length > 0) throw new Error(`failed for acpx ${failed.join(", ")}`)
     console.log(`Validated ${versions.length} acpx release(s)`)
   } catch (error) {
     console.error(`acpx contract: ${error instanceof Error ? error.message : String(error)}`)
