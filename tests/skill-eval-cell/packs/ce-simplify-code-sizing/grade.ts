@@ -21,6 +21,32 @@ const simplifyRead = /skills\/ce-simplify-code\/(SKILL\.md|references\/)|"skill"
 const stdout = read(path.join(hostDir, "stdout.txt"))
 const fn = (src: string, name: string) => src.match(new RegExp(`export function ${name}\\b[\\s\\S]*?\\n\\}\\n`))?.[0] ?? null
 const same = (rel: string) => read(path.join(workspace, rel)) === read(path.join(fixture, rel))
+const filesUnder = (root: string, rel: string): string[] => {
+  const dir = path.join(root, rel)
+  if (!fs.existsSync(dir)) return []
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const child = path.join(rel, e.name)
+    return e.isDirectory() ? filesUnder(root, child) : [child]
+  })
+}
+const treeSame = (rel: string) => {
+  const files = new Set([...filesUnder(workspace, rel), ...filesUnder(fixture, rel)])
+  return [...files].every(same)
+}
+
+// Planted simplifications in the `par` fixture, judged on the code the run left behind.
+const orders = read(path.join(workspace, "src/orders.ts"))
+const loyalty = fn(orders, "loyaltyPoints") ?? orders
+const shape = read(path.join(workspace, "tests/loyalty-shape.test.ts"))
+const planted = {
+  reuse: /roundCents\(|subtotal\(/.test(loyalty) && !/Math\.round\(total \* 100\)/.test(loyalty),
+  efficiency: /new Set|\.has\(/.test(loyalty) && !/indexOf\(/.test(loyalty),
+  quality: !/\? true : false/.test(loyalty) && !/=== true/.test(loyalty),
+  comment: !orders.includes("Returns the loyalty points for the order"),
+  tests: !shape.includes('toBe("function")'),
+}
+const parity = scenario.startsWith("par_")
+const testsPass = parity ? Bun.spawnSync(["bun", "test"], { cwd: workspace, stdout: "ignore", stderr: "ignore" }).exitCode === 0 : null
 
 const obs = {
   completed: runCompleted(hostDir),
@@ -31,9 +57,16 @@ const obs = {
   src_unchanged: same("src/orders.ts") && same("src/money.ts"),
   plan_unchanged: same("docs/plans/2026-11-04-discount-plan.md"),
   pre_sha_untouched: ["taxFor", "shippingFor", "grandTotal"].every(
-    (name) => fn(read(path.join(workspace, "src/orders.ts")), name) === fn(read(path.join(fixture, "src/orders.ts")), name),
+    (name) => fn(orders, name) === fn(read(path.join(fixture, "src/orders.ts")), name),
   ),
+  skills_unchanged: treeSame("skills"),
+  ...(parity && {
+    planted_found: Object.entries(planted).filter(([, ok]) => ok).map(([k]) => k),
+    proof_unchanged: same("tests/loyalty.test.ts"),
+    tests_pass: testsPass,
+  }),
 }
+const parityChecks: [string, boolean][] = parity ? [["proof test unchanged", obs.proof_unchanged === true], ["tests pass", testsPass === true]] : []
 
 const expect: Record<string, [string, boolean][]> = {
   cut12: [["one reviewer or inline", (obs.agents ?? 9) <= 1], ["summary names single-pass", obs.names_single_pass]],
@@ -46,6 +79,15 @@ const expect: Record<string, [string, boolean][]> = {
   nocut12: [["full team (3+ reviewers)", (obs.agents ?? 0) >= 3], ["no single-pass", !obs.names_single_pass]],
   s_bare12: [["tree unchanged", obs.src_unchanged], ["full team (3+ reviewers)", (obs.agents ?? 0) >= 3], ["no single-pass", !obs.names_single_pass]],
   lfg5: [["no agents", obs.agents === 0], ["tree unchanged", obs.src_unchanged], ["reports the skip", /skip/i.test(stdout)]],
+  md_direct: [["no agents", obs.agents === 0], ["skills untouched", obs.skills_unchanged]],
+  lfg_md: [["no agents", obs.agents === 0], ["skills untouched", obs.skills_unchanged], ["reports the skip", /skip/i.test(stdout)]],
+  mixmd12: [
+    ["one reviewer or inline", (obs.agents ?? 9) <= 1],
+    ["summary names single-pass", obs.names_single_pass],
+    ["skills untouched", obs.skills_unchanged],
+  ],
+  par_single: [["one reviewer or inline", (obs.agents ?? 9) <= 1], ...parityChecks],
+  par_team: [["full team (3+ reviewers)", (obs.agents ?? 0) >= 3], ...parityChecks],
   lfg_ae6: [
     ["ce-simplify-code read", obs.simplify_read === true],
     ["one reviewer or inline", (obs.agents ?? 9) <= 1],

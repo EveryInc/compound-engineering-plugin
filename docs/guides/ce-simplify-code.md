@@ -67,7 +67,7 @@ Scope is the main knob. A scope you name is authoritative and never widened.
 
 Outside git, or with no diff, it uses files named or edited in the conversation. If that is still empty, it asks rather than guessing.
 
-A docs-only, generated, vendored, lockfile, or purely mechanical scope stops with "nothing to simplify." Mixed diffs keep the code files. That is a kind gate, not a size gate: a small function you named still runs. Size floors and cost thresholds belong to callers and standing instructions, not to this skill.
+The skill works only on code: source in a programming language that a compiler, interpreter, or shell runs, and the tests written in one. Prose is not code in any format, and that includes markdown that agents read, such as skills, prompts, and agent instructions, even in a repo that ships them as its product. Documentation, plans, data, configuration, generated or vendored files, and lockfiles are not code either. A scope with no code, or only mechanical churn, stops with "nothing to simplify." Mixed diffs keep the code files. That is a kind gate, not a size gate: a small function you named still runs. Size floors and cost thresholds belong to callers and standing instructions, not to this skill.
 
 Callers may also pass a plan path as structure-pin context. Its `session-settled:` decisions that name structure (keep this duplication, keep this wrapper) are pins the skill preserves; the plan is not the simplification scope.
 

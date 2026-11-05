@@ -1412,8 +1412,19 @@ describe("ce-simplify-code pipeline callers", () => {
     expect(skill).toContain("any size or cost threshold is the caller's to set")
     expect(singlePass).toContain("A count of N or more runs Step 2 as written")
     expect(singlePass).toContain("A count below N runs one combined reviewer")
-    expect(singlePass).toContain("Do not count tests, test fixtures, documentation or plan files")
+    expect(singlePass).toContain("Anything the preflight says is not code never counts")
     expect(singlePass).toContain("Step 5's summary names the mode that ran")
+  })
+
+  // Skill and prompt markdown is product code in some repos, but it is never code to simplify.
+  test("the callee and lfg both say prose, including agent-read markdown, is not code", async () => {
+    const skill = await readRepoFile("skills/ce-simplify-code/SKILL.md")
+    const followup = await readRepoFile("skills/lfg/references/review-followup.md")
+    for (const text of [skill, followup]) {
+      expect(text).toContain("Prose is not code")
+      expect(text).toContain("markdown that agents read")
+    }
+    expect(followup).toContain("A change with none of that code is docs-only for step 3's skip, however large it is")
   })
 })
 

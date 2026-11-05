@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds one ce-simplify-code sizing fixture: a committed baseline with a
 # rounding helper, plus a change of a known substantive size.
-# Usage: build-fixture.sh <dest-dir> <l5|l12|l12noise|l45|ae6>
+# Usage: build-fixture.sh <dest-dir> <l5|l12|l12noise|l45|ae6|md|mixmd|par>
 # l45 and the l12 variants leave the change uncommitted on main, as a
 # simplify pass after implementation sees it. l5 and ae6 commit it on a
 # feature branch instead, as lfg's step 3 sees it; ae6 writes the
@@ -161,7 +161,104 @@ test("grandTotal adds tax and shipping", () => {
 EOF
 }
 
+# A skill directory of prose: SKILL.md plus references. Args: lines per file, file count.
+# The repo instructions call skills product code, so the agent has a reason to treat them as code.
+add_skill_markdown() {
+  local per="$1" files="$2"
+  mkdir -p skills/release-notes/references
+  {
+    printf -- '---\nname: release-notes\ndescription: "Draft release notes from merged pull requests. Use when preparing a release."\n---\n\n# Release Notes\n\n'
+    for i in $(seq 1 "$per"); do
+      echo "$i. Read the merged pull request for change $i, and note what it changes for a user and what it leaves the same."
+    done
+  } > skills/release-notes/SKILL.md
+  for ((f = 2; f <= files; f++)); do
+    {
+      printf '# Reference %s\n\n' "$f"
+      for i in $(seq 1 "$per"); do
+        echo "- When a pull request in group $f touches area $i, describe the change for a user, then say how the user can confirm it."
+      done
+    } > "skills/release-notes/references/part-$f.md"
+  done
+}
+
+# About 20 code lines with five planted simplifications, one per reviewer:
+# reuse (re-implements subtotal/roundCents), efficiency (indexOf inside a loop),
+# quality (redundant boolean ternary and === true), comments (a comment that
+# restates the code), tests (a file of tautological tests beside the real ones).
+add_loyalty() {
+cat >> src/orders.ts <<'EOF'
+
+// Returns the loyalty points for the order.
+export function loyaltyPoints(lines: Line[], bonusSkus: string[]): number {
+  let total = 0
+  for (const l of lines) {
+    total = total + l.price * l.qty
+  }
+  const rounded = Math.round(total * 100) / 100
+  let bonus = 0
+  for (const l of lines) {
+    if (bonusSkus.indexOf(l.sku) !== -1) {
+      bonus = bonus + l.qty
+    }
+  }
+  const isBig = rounded > 100 ? true : false
+  if (isBig === true) {
+    return Math.floor(rounded) + bonus * 2
+  } else {
+    return Math.floor(rounded) + bonus
+  }
+}
+EOF
+cat > tests/loyalty.test.ts <<'EOF'
+import { expect, test } from "bun:test"
+import { loyaltyPoints } from "../src/orders"
+
+test("loyaltyPoints adds one point per bonus item", () => {
+  expect(loyaltyPoints([{ sku: "a", price: 10, qty: 2 }, { sku: "b", price: 5, qty: 3 }], ["b"])).toBe(38)
+})
+
+test("loyaltyPoints doubles bonus points over 100", () => {
+  expect(loyaltyPoints([{ sku: "a", price: 60, qty: 2 }], ["a"])).toBe(124)
+})
+EOF
+cat > tests/loyalty-shape.test.ts <<'EOF'
+import { expect, test } from "bun:test"
+import { loyaltyPoints } from "../src/orders"
+
+test("loyaltyPoints is a function", () => {
+  expect(typeof loyaltyPoints).toBe("function")
+})
+
+test("loyaltyPoints returns a number", () => {
+  expect(typeof loyaltyPoints([], [])).toBe("number")
+})
+EOF
+}
+
+if [ "$V" = md ] || [ "$V" = mixmd ]; then
+  cat >> AGENTS.md <<'EOF'
+
+Files under `skills/` are product code: each SKILL.md is the prompt an agent runs.
+EOF
+  git commit -q -am "Note that skills are product code"
+fi
+
 case "$V" in
+  md)
+    git checkout -q -b feature/release-notes-skill
+    add_skill_markdown 300 5
+    git add -A; git commit -q -m "feat: add release-notes skill"
+    ;;
+  mixmd)
+    add_skill_markdown 300 1
+    add_discount
+    git add -N tests/discount.test.ts skills
+    ;;
+  par)
+    add_loyalty
+    git add -N tests/loyalty.test.ts tests/loyalty-shape.test.ts
+    ;;
   l5)
     git checkout -q -b feature/item-count
     cat >> src/orders.ts <<'EOF'

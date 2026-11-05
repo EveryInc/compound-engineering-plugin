@@ -2,7 +2,7 @@
 
 Read this when the input carried a `size-cutoff:<N>` token. The caller sets the threshold. This file says how to measure the scope against it and what runs on each side.
 
-**Measure.** After the preflight, count the added or changed lines of human-authored source code in the resolved scope. Do not count tests, test fixtures, documentation or plan files, generated or vendored files, lockfiles, or blank lines. Tests stay in scope for review; they only do not count toward the size.
+**Measure.** After the preflight, count the added or changed lines of code, as the preflight defines it, in the resolved scope. Count only the code outside tests: leave out tests, test fixtures, and blank lines. Anything the preflight says is not code never counts, however many lines it has. Tests stay in scope for review; they only do not count toward the size.
 
 **Choose.**
 - A count of N or more runs Step 2 as written: the full team, one reviewer per persona.

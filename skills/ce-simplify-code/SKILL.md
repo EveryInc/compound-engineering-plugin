@@ -25,7 +25,7 @@ In pipeline mode the scope is what the caller passed, else the branch diff. With
 
 If none of the above produces a non-empty scope, pipeline mode reports "nothing to simplify" and returns. Standalone mode asks the user what to simplify, as `references/standalone-report.md` describes.
 
-**Preflight.** If the scope has no substantive human-authored code — only documentation, generated or vendored files, dependencies or lockfiles, or mechanical churn — report that there is nothing to simplify and stop without reviewers. For mixed scopes, retain only the code and its tests. This check is about the kind of change, never its size: explicit small scopes still run, and any size or cost threshold is the caller's to set.
+**Preflight.** Code, for this skill, is human-authored source in a programming language that a compiler, interpreter, or shell runs, such as TypeScript, Python, shell, or SQL. Tests written in one are code too. Nothing else is code, whatever it is for. Prose is not code, in any format, including markdown that agents read: skills, prompts, and agent instructions. Neither are documentation, plans, data, configuration, generated or vendored files, dependencies, or lockfiles. If the scope holds no code, or only mechanical churn in code, report that there is nothing to simplify and stop without reviewers. For mixed scopes, retain only the code and the test fixtures it uses. This check is about the kind of change, never its size: explicit small scopes still run, and any size or cost threshold is the caller's to set.
 
 When the platform's task-tracking capability is available, show the review, apply, and verification outcomes without creating one task per reviewer. Otherwise continue without simulating a task list in chat.
 
