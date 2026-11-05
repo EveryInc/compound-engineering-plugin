@@ -1,14 +1,14 @@
 ---
 name: ce-simplify-code
 description: "Simplify code for clarity, reuse, quality, and efficiency while preserving behavior, and prune tests and comments that carry no value. Use after implementation and before review, or to audit tests or comments in any part of a repo; use ce-debug for bugs."
-argument-hint: "[blank for current branch changes, or describe what to simplify or audit] [mode:pipeline] [proof-test:<path>]"
+argument-hint: "[blank for current branch changes, or describe what to simplify or audit] [mode:pipeline] [size-cutoff:<N>] [proof-test:<path>]"
 ---
 
 Simplify code for clarity, reuse, quality, and efficiency, and prune tests and comments that carry no value, while preserving exact behavior. Prioritize readable, explicit code over compact code — fewer lines is not the goal.
 
 ## Mode
 
-Strip a `mode:pipeline` token and every `proof-test:<path>` token from the input before reading the rest as the scope. The proof-test path is context for Step 3, never scope; a caller may pass several.
+Strip a `mode:pipeline` token, a `size-cutoff:<N>` token, and every `proof-test:<path>` token from the input before reading the rest as the scope. The proof-test path is context for Step 3, never scope; a caller may pass several.
 
 - **Pipeline** when `mode:pipeline` is present, or when no one asked for this run in their own current message: a step of another skill, or a run the agent starts itself, such as at a completion boundary. Work only on the current work, apply fixes without asking or waiting, and return the Step 5 summary to the caller. That summary is for the caller's record; never paste it into a commit, PR body, or other artifact.
 - **Standalone** when the user's own current message asked for this run. Their request sets the scope and focus. Report findings before editing anything, unless the request says to just fix them. Read `references/standalone-report.md` now, and again before applying any reported finding.
@@ -25,7 +25,7 @@ In pipeline mode the scope is what the caller passed, else the branch diff. With
 
 If none of the above produces a non-empty scope, pipeline mode reports "nothing to simplify" and returns. Standalone mode asks the user what to simplify, as `references/standalone-report.md` describes.
 
-**Preflight.** If the scope has no substantive human-authored code — only documentation, generated or vendored files, dependencies or lockfiles, or mechanical churn — report that there is nothing to simplify and stop without reviewers. For mixed scopes, retain only the code and its tests. This check is about the kind of change, never its size: explicit small scopes still run, and any size or cost threshold is the caller's to set.
+**Preflight.** Code, for this skill, is human-authored source in a programming language that a compiler, interpreter, or shell runs, such as TypeScript, Python, shell, or SQL. Tests written in one are code too. Nothing else is code, whatever it is for. Prose is not code, in any format, including markdown that agents read: skills, prompts, and agent instructions. Neither are documentation, plans, data, configuration, generated or vendored files, dependencies, or lockfiles. If the scope holds no code, or only mechanical churn in code, report that there is nothing to simplify and stop without reviewers. For mixed scopes, retain only the code and the test fixtures it uses. This check is about the kind of change, never its size: explicit small scopes still run, and any size or cost threshold is the caller's to set.
 
 When the platform's task-tracking capability is available, show the review, apply, and verification outcomes without creating one task per reviewer. Otherwise continue without simulating a task list in chat.
 
@@ -43,11 +43,9 @@ A standalone request about only tests or only comments runs only that reviewer.
 
 Do not paraphrase these rubrics from memory. Read each file and pass it verbatim, or the reviewer loses the rules that keep the pass behavior-preserving.
 
-Read `references/reviewer-dispatch.md` before dispatching; it covers a full harness, releasing review agents, and the permission mode.
+When the input carried `size-cutoff:<N>`, read `references/single-pass.md` before dispatching; it decides whether the full team or one combined reviewer runs.
 
-**Model selection.** Use the platform's balanced mid-tier model for these reviewers when the current harness exposes a known override. In Claude Code this is the Sonnet class. In Codex, apply this tier only when the active dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. Otherwise omit the override and inherit the parent model -- a working pass on the parent model beats a broken dispatch.
-
-If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for the subagents being dispatched. Without such an instruction, a model configured for this subagent's role takes precedence over the default tier.
+Read `references/reviewer-dispatch.md` before dispatching; it covers the reviewers' model, a full harness, releasing review agents, and the permission mode.
 
 ## Step 3: Fix issues
 
@@ -73,4 +71,4 @@ If no test suite, lint, or typecheck is configured, state that explicitly in the
 
 ## Step 5: Summarize
 
-Summarize what was already sound and what improved. Report applied counts by reuse, quality, efficiency, tests, and comments; skipped count; check outcomes; and any comment kept because its constraint could not be encoded. If nothing changed, say so. Do not use net lines removed as the success metric. In pipeline mode this summary ends the skill, not the turn: the caller's next step follows it.
+Summarize what was already sound and what improved. Report applied counts by reuse, quality, efficiency, tests, and comments; skipped count; check outcomes; and any comment kept because its constraint could not be encoded. When `references/single-pass.md` applied, name the mode it chose. If nothing changed, say so. Do not use net lines removed as the success metric. In pipeline mode this summary ends the skill, not the turn: the caller's next step follows it.

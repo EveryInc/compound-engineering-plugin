@@ -92,6 +92,8 @@ If **`ce-simplify-code`** is available, invoke it with `mode:pipeline` at phase 
 
 When the plan carries `session-settled:`-labeled KTDs or Key Decisions, pass the plan path as context for which structures must stay as they are, not as the simplification scope, with the one-line constraint that labeled entries are settled decisions the simplification must preserve (e.g., deliberate duplication stays duplicated).
 
+In return-to-caller mode, commit the pass's edits once its checks pass, then record that commit's SHA (HEAD when the pass changed nothing) as `simplified_through`. The caller's own simplify step then covers only what came after it. A later pass replaces the recorded SHA. Reviewing the files yourself records nothing.
+
 4. **UI Verification** (if applicable)
 
 For UI work built from a Figma design, read `references/agents/figma-design-sync.md` and dispatch a generic subagent seeded with that local prompt to compare the implementation against the design. Do not dispatch a standalone agent by type/name. Apply the reported fixes that hold up against the project's conventions, then compare again until it reports a match or only differences you judge intentional.
