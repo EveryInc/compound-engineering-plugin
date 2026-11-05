@@ -16,6 +16,8 @@ function collectionContext(scenario: Scenario) {
     git_init: scenario.git_init ?? false, git_remote: scenario.git_remote ?? false,
     git_untracked: scenario.git_untracked ?? [], git_staged: scenario.git_staged ?? [],
     ...(scenario.git_deleted?.length ? { git_deleted: scenario.git_deleted } : {}),
+    ...(scenario.fixture_omit?.length ? { fixture_omit: scenario.fixture_omit } : {}),
+    ...(scenario.git_change ? { git_change: scenario.git_change } : {}),
     shim_git_push: scenario.shim_git_push ?? false, shim_gh_pr: scenario.shim_gh_pr ?? false,
   }
 }
@@ -101,7 +103,8 @@ export function regradePack(packPath: string, mode: RegradeMode = "current"): { 
       if (!unavailable && mode === "current" && current?.fixture) {
         const fixture = path.join(REPO_ROOT, current.fixture)
         const input = JSON.parse(fs.readFileSync(path.join(out, "input-manifest.json"), "utf8"))
-        if (!fs.existsSync(fixture) || fingerprint(fixture).sha256 !== input.initial_workspace.sha256) {
+        const recorded = (input.fixture_source ?? input.initial_workspace).sha256
+        if (!fs.existsSync(fixture) || fingerprint(fixture).sha256 !== recorded) {
           unavailable = "fixture contents changed; collect a new run"
         }
       }
