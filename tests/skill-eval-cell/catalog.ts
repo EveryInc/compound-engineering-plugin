@@ -5480,13 +5480,13 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     git_init: true,
     fixture: `${FIX}/doc-review-depth-unmade-choice`,
     timeout_secs: 1500,
-    why: "The plan crosses no boundary, but it adds a streak and defers a streak freeze that the request never asked for; that scope extension keeps full review with product-lens and adversarial.",
+    why: "The plan crosses no boundary, but it adds a streak and defers a streak freeze that the request never asked for; product-lens judges that unrequested position and keeps the review full. Adversarial may also fire on scope extension, but the grade does not depend on that reading.",
     pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
     task: docReviewDepthTask("docs/plans/2026-11-01-012-feat-tasks-stats-command-plan.md"),
     grade: {
       files_read_post: ["references/depth.md"],
       declared: { DEPTH: "full" },
-      must_include: ["adversarial"],
+      must_include: ["product-lens"],
     },
   },
   {
