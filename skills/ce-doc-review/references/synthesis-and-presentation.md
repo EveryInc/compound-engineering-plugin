@@ -32,7 +32,7 @@ Route each finding by its `confidence` anchor value. Anchors are discrete intege
 
 | Anchor | Meaning | Route |
 |--------|---------|-------|
-| `0`    | False positive or pre-existing issue | Drop silently |
+| `0`    | False positive, or pre-existing issue the work does not reach | Drop silently |
 | `25`   | Might be real but could not verify | Drop silently |
 | `50`   | Verified, useful advisory concern below the actionable bar | Show in FYI subsection |
 | `75`   | Double-checked, will hit in practice, directly impacts correctness | Enter actionable tier (classify by `autofix_class`) |
