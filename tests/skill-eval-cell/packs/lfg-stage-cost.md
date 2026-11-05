@@ -13,7 +13,7 @@ Every run is a real `lfg` or vanilla run against a throwaway repository. Costs c
    bash tests/skill-eval-cell/packs/lfg-stage-cost/run-one.sh "$root" <small|zoom|medium> <lfg|vanilla> <claude|codex> <trial>
    ```
 
-   Each call appends one line to `$root/runs.jsonl`. Calls are independent, so run them side by side. An `lfg` run takes 10-40 minutes. Both arms run at `xhigh` effort, so neither inherits the operator's default. The `lfg` arm is a skill-eval cell with every skill `lfg` routes to bundled from the same checkout, a fake `origin`, and a `git push` shim, so the shipping step runs and fails at the push. The vanilla arm (`vanilla.ts`) gives the bare task to the same CLI and tells it not to use skills (Claude also gets `--disable-slash-commands`). Zoom runs are graded right after by `check-booking.mjs`.
+   Each call appends one line to `$root/runs.jsonl`. Calls are independent, so run them side by side. An `lfg` run takes 10-40 minutes, and each call stops at 3600 seconds. That limit was 2400 seconds until three of nine Claude zoom and medium runs, all started at once, ran past it; stagger starts when running many calls together. Both arms run at `xhigh` effort, so neither inherits the operator's default. The `lfg` arm is a skill-eval cell with every skill `lfg` routes to bundled from the same checkout, a fake `origin`, and a `git push` shim, so the shipping step runs and fails at the push. The vanilla arm (`vanilla.ts`) gives the bare task to the same CLI and tells it not to use skills (Claude also gets `--disable-slash-commands`). Zoom runs are graded right after by `check-booking.mjs`.
 2. Collect:
 
    ```bash

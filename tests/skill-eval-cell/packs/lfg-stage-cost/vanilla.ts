@@ -16,11 +16,11 @@ const fixture = arg("--fixture")
 const taskFile = arg("--task-file")
 const outArg = arg("--out")
 if (!["claude", "codex"].includes(host) || !fixture || !taskFile || !outArg) {
-  console.error("usage: vanilla.ts --host claude|codex --fixture <dir> --task-file <f> --out <dir> [--effort xhigh] [--timeout-secs 2400]")
+  console.error("usage: vanilla.ts --host claude|codex --fixture <dir> --task-file <f> --out <dir> [--effort xhigh] [--timeout-secs 3600]")
   process.exit(2)
 }
 const effort = arg("--effort") ?? "xhigh"
-const timeoutMs = Number(arg("--timeout-secs") ?? 2400) * 1000
+const timeoutMs = Number(arg("--timeout-secs") ?? 3600) * 1000
 
 const out = prepareOutput(outArg)
 const hostDir = path.join(out, "hosts", host)

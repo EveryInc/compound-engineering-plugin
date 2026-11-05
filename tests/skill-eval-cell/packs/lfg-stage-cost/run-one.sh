@@ -11,7 +11,7 @@ mkdir -p "$root/runs"
 if [ "$arm" = lfg ]; then
   env -u CLAUDECODE bun run test:skill-eval-cell -- --skill lfg --fixture "$fixture" --git-init --git-remote --shim-git-push \
     --with-skill ce-plan,ce-doc-review,ce-work,ce-simplify-code,ce-code-review,ce-commit-push-pr,ce-commit,ce-compound,ce-test-browser,ce-babysit-pr,ce-debug,ce-pov,ce-brainstorm \
-    --hosts "$host" --reasoning-effort xhigh --out "$out" --timeout-secs 2400 --task-file "$pack/tasks/$task.md" >"$out.log" 2>&1
+    --hosts "$host" --reasoning-effort xhigh --out "$out" --timeout-secs 3600 --task-file "$pack/tasks/$task.md" >"$out.log" 2>&1
 else
   env -u CLAUDECODE bun "$pack/vanilla.ts" --host "$host" --fixture "$fixture" --task-file "$pack/tasks/$task.md" --out "$out" --effort xhigh >"$out.log" 2>&1
 fi
