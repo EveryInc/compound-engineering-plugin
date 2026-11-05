@@ -16,7 +16,7 @@ Each selected reviewer needs three files in full: its persona asset `references/
 
 - `coherence-reviewer`: cheapest capable extraction/reasoning tier.
 - `security-lens-reviewer`, `feasibility-reviewer`, `product-lens-reviewer`, `adversarial-document-reviewer`: inherit the parent model unless the harness has an established high-capability review tier.
-- `design-lens-reviewer`, `scope-guardian-reviewer`: platform mid-tier model.
+- `design-lens-reviewer`, `scope-guardian-reviewer`, and the lite reviewer from `references/depth.md`: platform mid-tier model.
 
 If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for the subagents being dispatched. Without such an instruction, a model configured for this subagent's role takes precedence over the default tier.
 

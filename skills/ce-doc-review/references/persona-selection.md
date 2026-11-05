@@ -4,7 +4,7 @@ The team is `coherence-reviewer` and `feasibility-reviewer` always, plus each co
 
 **Later rounds in the same session.** Rerun only the reviewers whose lens covers something that changed since their last return, whether the change came from applied fixes or from the user's own edits. Coherence reruns whenever anything changed, because edits are where new contradictions appear. Every other reviewer's previous return carries forward: its findings were already applied, deferred, or rejected, and its scope has not moved. Rerun the whole team when the user asks for a fresh full review, or when the changes reach most of the document. Name the carried-over reviewers in the announcement. The cross-model pass runs only when a lens that triggers it reruns.
 
-Activate a conditional persona when the document shows its signals:
+Activate a conditional persona when the document shows its signals. For a plan, `references/depth.md` decides from this selection whether the review runs lite or full, and owns the lite pass and its later rounds.
 
 **product-lens** — the document stakes a product position — what to build, why, or what comes first — that a knowledgeable stakeholder could reasonably challenge and that no upstream Product Contract settled, or the work carries strategic weight beyond the immediate problem. Users may be end users, developers, operators, maintainers, or any other audience; the criteria are domain-agnostic. Either leg qualifies:
 
@@ -21,12 +21,13 @@ Activate a conditional persona when the document shows its signals:
 
 - A **requirements document** with 2+ challengeable claims (problem framing, solution selection, prioritization, predicted outcomes) — premise scrutiny is core to the brainstorm phase
 - A **high-stakes domain** — auth, payments, billing, data migrations, privacy/compliance, external integrations, cryptography — regardless of doc type or size
+- A **change to a public contract** that an outside consumer already relies on: an API, CLI output or flag, file format, or published schema that the plan renames, removes, or changes the meaning of, even when the requester asked for it. A purely additive change that leaves existing consumers working is not one
 - A **new abstraction, framework, or significant architectural pattern**, regardless of doc type
-- A **plan with no validated upstream Product Contract signal** (no legacy `origin:` requirements doc and no `product_contract_source: ce-brainstorm` or `legacy-requirements`) — the premise wasn't validated upstream
+- A **plan that makes a product choice** (what users get, what is deferred, who can do what) that no requester, upstream contract, or settled decision made. A choice the requester or a feedback item asked for counts as made, and so does a choice its origin settled; a plan that merely lacks a brainstorm makes no unmade choice by that alone
 - A **plan that explicitly extends scope** beyond its origin requirements doc (new actors, new flows, deferred-then-restored features)
 - An **explicit alternatives section** or unresolved tradeoffs — adversarial helps stress-test the chosen direction
 
-Do NOT activate adversarial on a routine plan that derives from a validated upstream Product Contract, stays in scope, and introduces no high-stakes domain or new abstraction. Validated provenance includes legacy `origin: docs/brainstorms/...`, `product_contract_source: ce-brainstorm`, and `product_contract_source: legacy-requirements`; a direct `product_contract_source: ce-plan-bootstrap` plan is greenfield and does not suppress premise-level techniques by itself. A well-structured plan with stated rationale is the plan doing its job, not adversarial signal — activating on that alone re-litigates settled questions.
+Do NOT activate adversarial on a routine plan that carries out choices already made, stays in scope, and introduces no high-stakes domain or new abstraction. A well-structured plan with stated rationale is the plan doing its job, not adversarial signal — activating on that alone re-litigates settled questions.
 
 ## Announce the review team
 

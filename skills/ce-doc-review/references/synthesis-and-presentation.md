@@ -269,6 +269,8 @@ Deferred questions:
 Recorded in the document: N items under Deferred / Open Questions
 Not recorded in the document: N items (<reason>)
 
+Coverage: <what limited this review, including a lite review as references/depth.md words it>
+
 peer.outcome: <folded | in-process-fallback>
 cross-model <lens> peer: <what happened to the peer's result>
 <lens>: in-process fallback (cross-model peer not run: <reason>)
@@ -277,7 +279,7 @@ whole-doc: not run (cross-model peer not run: <reason>)
 Review complete
 ```
 
-Omit any section with zero items. The bucket names are the user-facing vocabulary for the routes 3.7 assigned. "Applied N fixes" reports what already changed. The obligations block and "Proposed fixes" together render the grouped confirmation: obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule. The caller re-narrates this result to a reader who has seen none of it, so a flat list here becomes a flat list there. "Decisions" carries the decisions the user must still make, and "FYI observations" carries anchor `50`. End with "Review complete" as the final line so callers can detect completion.
+Omit any section with zero items; Coverage follows the same condition as the interactive Coverage line in `references/review-output-template.md`. The bucket names are the user-facing vocabulary for the routes 3.7 assigned. "Applied N fixes" reports what already changed. The obligations block and "Proposed fixes" together render the grouped confirmation: obligations first, then the rest of the batch, each shaped by the floor's "Presenting a batch" rule. The caller re-narrates this result to a reader who has seen none of it, so a flat list here becomes a flat list there. "Decisions" carries the decisions the user must still make, and "FYI observations" carries anchor `50`. End with "Review complete" as the final line so callers can detect completion.
 
 **Deliver the result through a file.** Write the block, exactly as specified, to `result.md` in a private run directory, then print only the three lines below as your final output. Create the directory with this block (`<run-id>` is the current date and time plus a short random suffix, e.g. `20261030-0114-a3f9c1`):
 
