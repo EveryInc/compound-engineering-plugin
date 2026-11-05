@@ -29,9 +29,10 @@ Bare, one command covers first install, a re-check after an upgrade, a missing-t
 /ce-setup
 /ce-setup pack:house-rules
 /ce-setup standards
+/ce-setup standards mode:non-interactive
 ```
 
-On oh-my-pi the invocation is `/skill:ce-setup`. On Codex it is `$ce-setup` when that host uses dollar-prefixed skills.
+On Codex it is `$ce-setup` when that host uses dollar-prefixed skills.
 
 ---
 
@@ -81,7 +82,11 @@ Two things keep the review docs current:
 - **Each change.** The pointer line in your agent-instructions file tells agents to update a review doc when a change establishes or retires a rule, so most upkeep happens in the pull request that caused it.
 - **A periodic refresh.** Teams change how they work, and some of that only shows up across many pull requests: findings under a rule that reviewers keep declining, a rule a new lint check now enforces, a fix pattern that keeps recurring. Run `/ce-setup standards` (or ask to refresh your coding standards) after a stretch of heavy review activity, or on a regular cadence such as quarterly. Setup reads the pull requests and review feedback each file has not yet accounted for, usually everything since its rules last changed, checks every existing rule against them, and proposes additions, changes, and retirements, one line each with the evidence behind it. Ask for the diff to see the exact text. It writes nothing until you approve.
 
-There is no standing instruction for the refresh, and setup does not run unattended: the preview needs someone to approve it. This mirrors a [`ce-compound` refresh](./ce-compound.md#refresh), the periodic pass for the knowledge store.
+To run the refresh on a schedule, such as a weekly job, use `/ce-setup standards mode:non-interactive`, or ask for an unattended run in words. An unattended run asks nothing, and the pull request it opens takes the place of the preview: its description lists each rule added, changed, or retired with the evidence behind it. Because a scheduled run sees a short window, a new rule needs its defect class to show up more than once in the evidence. A rule a reviewer removed from an earlier refresh pull request, or that sat in one closed without merging, is not proposed again unless newer evidence supports it. An open refresh pull request is updated rather than joined by a second one, and a week with nothing to change opens no pull request. Changes only a person can decide, such as creating `config.yaml`, the standing directives, or moving rules out of your agent-instructions file, are listed in the pull request instead of made. The final line reads `Setup complete: <pull request URL>` or `Setup skipped: <reason>`, so a job can tell what happened.
+
+A bare unattended run (`/ce-setup mode:non-interactive`) refreshes the generated example config and adds the `.gitignore` entries, reports everything else, and leaves review docs alone.
+
+Asking `ce-compound` to create or update your coding standards hands the work to `ce-setup`. The refresh mirrors a [`ce-compound` refresh](./ce-compound.md#refresh), the periodic pass for the knowledge store.
 
 ## Scaffold a Compound Pack
 

@@ -85,18 +85,19 @@ const modelVisibleRendererCases = [
 
 const explicitOnlyRendererCases = [
   {
+    // ce-setup is model-visible (ce-compound invokes it), so only ce-help takes /skill: here.
     file: "skills/ce-setup/SKILL.md",
-    defaults: ["/ce-setup"],
-    codex: ["$ce-setup"],
-    omp: ["/skill:ce-setup"],
-    targets: ["ce-setup"],
+    defaults: ["/ce-setup", "/ce-help"],
+    codex: ["$ce-setup", "$ce-help"],
+    omp: ["/skill:ce-help"],
+    targets: ["ce-help"],
   },
   {
     file: "skills/ce-dogfood/SKILL.md",
     defaults: ["/ce-setup", "/ce-dogfood <original arguments>"],
     codex: ["$ce-setup", "$ce-dogfood <original arguments>"],
-    omp: ["/skill:ce-setup", "/skill:ce-dogfood <original arguments>"],
-    targets: ["ce-setup", "ce-dogfood"],
+    omp: ["/skill:ce-dogfood <original arguments>"],
+    targets: ["ce-dogfood"],
   },
   {
     file: "skills/ce-sweep/references/interview.md",

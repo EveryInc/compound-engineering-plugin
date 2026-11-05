@@ -895,6 +895,91 @@ const SETUP_STANDARDS_BASE_REF = "121a3bd60d296be72b2d3c0b08131b7b08fadc5a"
 const SETUP_STANDARDS_HISTORY =
   "The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation). I approve every draft and change you preview: write them all without asking me again, and do not commit."
 
+const SETUP_UNATTENDED_HISTORY =
+  "CODING_STANDARDS.md and REVIEW.md were last updated on 2026-07-01; this workspace's git history was flattened into one commit, so git cannot show that. The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation)."
+const SETUP_UNATTENDED_PRE = "Setup previews every standards change and writes only on the user's approval."
+
+/** A publishing row runs the real ce-commit-push-pr against the push and PR shims; an attended row probes for any handoff instead. */
+function setupUnattendedRow(name: string, why: string, task: string, grade: Grade, fixture = "setup-standards-refresh", publishes = true): Scenario {
+  return {
+    id: `ce-setup/${name}`,
+    post_only: true,
+    skill: "ce-setup",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    git_remote: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    ...(publishes ? { with_skill: ["ce-commit-push-pr"] } : { handoff_probe: ["ce-commit-push-pr", "ce-commit"] }),
+    fixture: `${FIX}/${fixture}`,
+    timeout_secs: 1500,
+    why,
+    pre_contract: SETUP_UNATTENDED_PRE,
+    task,
+    grade,
+  }
+}
+
+const SETUP_UNATTENDED_ROWS: Scenario[] = [
+  setupUnattendedRow(
+    "unattended-token-refresh-publishes",
+    "The token alone makes the refresh unattended: it writes the supported changes and hands publishing to ce-commit-push-pr in pipeline mode instead of asking.",
+    `Use the ce-setup skill with these arguments: standards mode:non-interactive. ${SETUP_UNATTENDED_HISTORY}`,
+    {
+      committed_must: ["CODING_STANDARDS.md"],
+      must_include: ["ce-setup/refresh-"],
+      must_include_any: [["Setup complete:", "Setup skipped:"]],
+      workspace_contains: [{ path: "CODING_STANDARDS.md", needle: "timingSafeEqual" }],
+      workspace_lacks: [
+        { path: "CODING_STANDARDS.md", needle: "wraps its body in try/catch" },
+        { path: ".compound-engineering/config.yaml" },
+      ],
+    },
+  ),
+  setupUnattendedRow(
+    "unattended-intent-refresh-publishes",
+    "A scheduled job that says nobody is watching is unattended without the token, so it must not stop at an offer.",
+    `This is our weekly scheduled job and nobody reads this session; the only output anyone looks at is what it publishes. Use the ce-setup skill to refresh our coding standards. ${SETUP_UNATTENDED_HISTORY}`,
+    {
+      committed_must: ["CODING_STANDARDS.md"],
+      must_include: ["ce-setup/refresh-"],
+      must_include_any: [["Setup complete:", "Setup skipped:"]],
+      workspace_contains: [{ path: "CODING_STANDARDS.md", needle: "timingSafeEqual" }],
+      workspace_lacks: [
+        { path: "CODING_STANDARDS.md", needle: "wraps its body in try/catch" },
+        { path: ".compound-engineering/config.yaml" },
+      ],
+    },
+  ),
+  setupUnattendedRow(
+    "automatically-is-still-attended",
+    "'Automatically' says when setup runs, not that nobody can answer, so the refresh still previews and writes nothing unapproved.",
+    `Use the ce-setup skill to automatically refresh our coding standards. ${SETUP_UNATTENDED_HISTORY} Nobody answers questions in this session, so treat any question you would ask as unanswered.`,
+    {
+      shim_log_must_not: ["handoff ce-commit-push-pr", "handoff ce-commit", "git push", "pr create", "pr merge"],
+      workspace_unchanged: true,
+      no_new_commits: true,
+    },
+    "setup-standards-refresh",
+    false,
+  ),
+  setupUnattendedRow(
+    "unattended-bare-run-reports-person-choices",
+    "A bare unattended run applies only what a reviewer can judge from the PR. Creating config.yaml and adding instruction-file directives are a person's choice, and review docs were not asked for.",
+    "Use the ce-setup skill with these arguments: mode:non-interactive.",
+    {
+      workspace_lacks: [
+        { path: ".compound-engineering/config.yaml" },
+        { path: "AGENTS.md", needle: "automatically invoke the `ce-compound` skill" },
+        { path: "CODING_STANDARDS.md" },
+      ],
+    },
+    "setup-instructions-gap",
+  ),
+]
+
 /** Cheap read-only cells that pin a real decision. Live mutation/delegation is not in this set. */
 export const WAVE1 = [
   "ce-babysit-pr/refuse-unasked-update",
@@ -6681,6 +6766,53 @@ Use "Correct widget limit" as the description in the subject and any required bo
         { path: ".cursor/BUGBOT.md", needle: "REVIEW.md" },
         { path: "REVIEW.md", needle: "@CODING_STANDARDS.md" },
       ],
+    },
+  },
+  ...SETUP_UNATTENDED_ROWS,
+  {
+    id: "ce-compound/standards-request-routes-to-setup",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-setup"],
+    fixture: `${FIX}/setup-standards-refresh`,
+    timeout_secs: 900,
+    why: "Maintaining the standards as a whole is ce-setup's job; an attended ce-compound asked for it hands off with `standards` instead of writing a learning.",
+    pre_contract: "A qualifying lesson becomes one learning; anything else writes nothing.",
+    task: `Use the ce-compound skill to bring our coding standards up to date with what reviewers keep flagging. ${SETUP_UNATTENDED_HISTORY}`,
+    grade: {
+      shim_log_must: ["handoff ce-setup", "standards"],
+      shim_log_must_not: ["git push", "pr create", "pr merge"],
+      no_new_commits: true,
+      workspace_unchanged: true,
+    },
+  },
+  {
+    id: "ce-compound/unattended-standards-words-stay-capture",
+    post_only: true,
+    skill: "ce-compound",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    shim_git_push: true,
+    shim_gh_pr: true,
+    handoff_probe: ["ce-setup"],
+    fixture: `${FIX}/setup-standards-refresh`,
+    timeout_secs: 900,
+    why: "A non-interactive run without mode:refresh is always capture, so standards words in its context never hand off to ce-setup.",
+    pre_contract: "A non-interactive run without mode:refresh is always capture.",
+    task: `Use the ce-compound skill with these arguments: mode:non-interactive update the coding standards. ${COMPOUND_REPORT}`,
+    grade: {
+      shim_log_must_not: ["handoff ce-setup", "git push", "pr create", "pr merge"],
+      result_must_include: ["Documentation"],
+      no_new_commits: true,
+      workspace_unchanged: true,
     },
   },
   {

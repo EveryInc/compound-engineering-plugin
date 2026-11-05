@@ -197,7 +197,6 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
   // it, and model-routing it would let a cheaper request escalate into an
   // expensive measurement program, so it stays user-invoked.
   "ce-retune",
-  "ce-setup",
   "ce-sweep",
   "ce-test-xcode",
   // wtf: answers a user who says they did not follow something. No skill or
@@ -222,6 +221,8 @@ const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
   "ce-prototype",
   "ce-resolve-pr-feedback",
   "ce-riffrec-feedback-analysis",
+  // ce-setup: ce-compound hands standards work to it.
+  "ce-setup",
   "ce-simplify-code",
   "ce-strategy",
   "ce-test-browser",

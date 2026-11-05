@@ -12,6 +12,8 @@ This skill does one of two jobs. **Capture** holds the lesson of one solved prob
 
 Run refresh when the arguments contain `mode:refresh`, or when an interactive run was invoked to do one, as in `/ce-compound refresh payments`, "clean up the learnings", or a standalone request to create `CONCEPTS.md`. An earlier remark in the session does not count. Read `references/refresh/overview.md` and follow it instead of the rest of this file. The refresh references name the parts of this file they reuse.
 
+When an interactive run is asked to create or update the project's coding standards or review docs as a whole, invoke the `ce-setup` skill with `standards` and stop.
+
 Otherwise run capture. A non-interactive run without `mode:refresh` is always capture, whatever its context says. Capture takes free-text context, so `refresh token rotation` after fixing that bug is a capture. If an interactive run's words could mean either job, ask once with the host's blocking question tool, and capture if there is no answer.
 
 ## Capture
@@ -37,15 +39,9 @@ An existing learning that became materially inaccurate or incomplete qualifies b
 
 ## Mode Detection
 
-```bash
-/ce-compound [brief context]
-/ce-compound mode:non-interactive depth:lightweight [context]
-/ce-compound mode:non-interactive depth:full [context]
-```
-
 Enter non-interactive mode when **either** holds: the arguments you were invoked with contain the `mode:non-interactive` token or its deprecated alias `mode:headless`, **or** the invocation makes non-interactive intent unmistakable, such as a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". Both tokens together is not a conflict. Bare "automatically" or "auto-run" is **not** on its own a non-interactive signal: it speaks to *invoking* the skill, not to suppressing its prompts. An ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` or `depth:` are flags, not context: strip them before treating the remainder as the brief context hint. Once detected, non-interactive mode applies for the entire run.
 
-`references/modes.md` decides depth, including what a `depth:` token does.
+`references/modes.md` decides depth, including what a `depth:` token does, as in `mode:non-interactive depth:lightweight` or `mode:non-interactive depth:full`. **Read it before step 1.**
 
 **Non-interactive mode asks nothing.** It asks no blocking question of any kind, in any phase, because a caller reaching this path has no human to answer one. Every non-interactive exit, including one taken before any phase runs, ends on a terminal signal a caller parses: `Documentation complete`, or `Documentation skipped` with the reason when the run wrote nothing. Interactive mode asks only where a step's own reference says to.
 
@@ -66,10 +62,6 @@ Resolve `<root>` when you first compose a `<root>/solutions/` path, and pass a s
 **Only the orchestrator writes product files.** Phase 1 subagents write to per-run scratch only, and never touch `<root>/`, project instruction files, or any other tracked path.
 
 The orchestrator writes what `references/form.md` chooses, in every mode and without asking: at most one added test, added or tightened lint rule with any baseline entries it needs, or condition in an existing `CODING_STANDARDS.md`, and at most one learning under `<root>/solutions/`. It never changes product code. It also writes two maintenance side effects that their own step describes: `CONCEPTS.md` during vocabulary capture, and — **only in interactive Full mode after consent** — a small discoverability line in a project instruction file. Two further writes exist **only in interactive Full mode when the user selects them at the assembly destination step**: a rule file inside a writable declared Compound Pack, and the `packs:` entry appended to `.compound-engineering/config.yaml`. An instruction file is only ever edited, never created. Nothing else in the tree is written. Edits to *other* docs belong to a refresh, which a capture recommends or runs with a narrow scope.
-
-## Choosing the path
-
-**Read `references/modes.md` before step 1.**
 
 ## Full Mode
 

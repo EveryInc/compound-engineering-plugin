@@ -41,7 +41,7 @@ Recommend one skill. Bring in a second when the situation falls between two skil
 | Rewrite, check, or draft prose with no AI tells | `ce-noslop` |
 | Have the last message, or supplied text, explained plainly | `wtf` (manual) |
 | Turn a Riffrec recording, video, or notes into feedback | `ce-riffrec-feedback-analysis` |
-| Check tools and repo config, or scaffold a pack or review docs | `ce-setup` (manual) |
+| Check tools and repo config, or scaffold a pack or review docs | `ce-setup` |
 | Retune a skill collection for a new model | `ce-retune` (manual) |
 | Get oriented in CE | `ce-help` (manual) |
 
