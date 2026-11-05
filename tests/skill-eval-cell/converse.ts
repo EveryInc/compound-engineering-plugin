@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import type { Host } from "./hosts"
+import { CLAUDE_SETTING_SOURCES, type Host } from "./hosts"
 
 export const CONVERSE_HOSTS: Host[] = ["claude", "codex"]
 
@@ -33,6 +33,7 @@ export function hostTurnArgv(
     return [
       "claude", "-p", opts.message, ...session,
       "--dangerously-skip-permissions", "--disallowedTools", "AskUserQuestion", "--output-format", "text",
+      ...CLAUDE_SETTING_SOURCES,
     ]
   }
   if (host === "codex") {

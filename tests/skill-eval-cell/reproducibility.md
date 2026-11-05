@@ -86,8 +86,10 @@ not only immediate scoring imports. Mutable catalog criteria are snapshotted
 separately: editing or removing today's scenario must not block original mode.
 
 This is local consistency verification, not hermetic replay or authenticity
-against an actor replacing evidence and hashes together. User configuration,
-hooks, provider state, and external resources are not frozen. CLI version probes
+against an actor replacing evidence and hashes together. Claude and Codex cells
+skip the operator's user-level instructions, skills, settings, plugins, and hooks
+(see the README); Grok and OpenCode cells still load them. Login, managed policy,
+provider state, and external resources are not frozen. CLI version probes
 are bounded; requested/observed models remain unknown when inherited from host
 configuration. No new metadata dumps credentials, but existing transcripts and
 workspace files may contain sensitive material. Host permission policies are

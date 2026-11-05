@@ -1,6 +1,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { codexSessionsRoot } from "../../hosts"
 
 export type Usage = { input: number; cacheWrite5m: number; cacheWrite1h: number; cacheRead: number; output: number }
 export type Turn = { model: string; fast?: boolean; usage: Usage; calls: Call[] }
@@ -282,8 +283,7 @@ export function codexThread(entries: any[], childFor: (taskName: string) => Thre
   return { turns, children }
 }
 
-export function codexRun(workspace: string, since: number): Thread | null {
-  const root = path.join(os.homedir(), ".codex", "sessions")
+export function codexRun(workspace: string, since: number, root: string): Thread | null {
   if (!fs.existsSync(root)) return null
   const files: string[] = []
   const walk = (dir: string) => {
@@ -333,7 +333,7 @@ function main() {
     const workspace = path.join(run.out, "hosts", run.host, "workspace")
     const manifest = path.join(run.out, "input-manifest.json")
     const started = fs.existsSync(manifest) ? Date.parse(JSON.parse(fs.readFileSync(manifest, "utf8")).started_at) : 0
-    const thread = run.host === "codex" ? codexRun(workspace, started - 60_000) : claudeRun(workspace)
+    const thread = run.host === "codex" ? codexRun(workspace, started - 60_000, codexSessionsRoot(run.out)) : claudeRun(workspace)
     const stages = thread ? attribute(thread) : []
     const total = stages.reduce((s, r) => (s === null || r.dollars === null ? null : s + r.dollars), 0 as number | null)
     const tokens = stages.reduce((s, r) => s + contextOf(r.usage) + r.usage.output, 0)
