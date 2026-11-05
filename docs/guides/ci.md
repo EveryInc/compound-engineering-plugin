@@ -46,6 +46,8 @@ The runner prints selection mode, file counts, groups, and fallback reason, and 
 
 Markdown inside skills contains executable scratch-root preambles. Those need real Git Bash coverage: Linux previously passed a shell primitive that failed on Windows. The acpx and macOS jobs exercise scripts and their test fixtures, so prose-only changes do not require them. The allowlist covers independent inputs rather than enumerating every dependency of those jobs; new and unclassified paths run everything.
 
+When the acpx job runs on a pull request, it tests only the supported range's minimum and maximum unless the PR changes a contract input: the runner script, the contract test, the stub agent, the pin helper, the CI workflow, or `package.json`. Published acpx releases are immutable, so the middle of the range can only change verdict through those files or through acpx's own dependencies drifting. Main pushes, manual dispatch, and unavailable comparisons test every release in range, which catches dependency drift after merge. The runner tests up to four releases at once (`ACPX_CONTRACT_JOBS`).
+
 The selector publishes its decision in the workflow summary. If the selector job fails or produces no output, specialized jobs run. The Linux gate starts independently, so classification adds no dependency to its critical path. Specialized jobs retain their names for existing required-check configuration.
 
 New commits cancel older CI runs for the same PR. Main pushes and manual dispatches have unique concurrency groups and are never coalesced. All jobs run on main, providing an ongoing check of the selection boundary, and manual dispatch is the full-coverage escape hatch.

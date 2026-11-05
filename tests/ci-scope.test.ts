@@ -9,26 +9,33 @@ import { changedFilesForBase, scopeForBase, selectScope } from "../scripts/ci-sc
 setDefaultTimeout(15_000)
 const roots: string[] = []
 afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
-const full = { windows: true, transport: true }
+const full = { windows: true, transport: true, acpxRange: true }
 
 describe("specialized CI selection", () => {
   test.each([
     { files: ["docs/guides/ce-work.md"] }, { files: ["src/converters/codex.ts"] },
     { files: ["README.md", "docs/solutions/example.md"] },
   ])("independent surface %j keeps only baseline checks", ({ files }) => {
-    expect(selectScope(files)).toEqual({ windows: false, transport: false })
+    expect(selectScope(files)).toEqual({ windows: false, transport: false, acpxRange: false })
   })
 
   test("skill Markdown retains native execution of embedded shell", () => {
-    expect(selectScope(["skills/ce-work/SKILL.md", "docs/guides/ce-work.md"])).toEqual({ windows: true, transport: false })
+    expect(selectScope(["skills/ce-work/SKILL.md", "docs/guides/ce-work.md"]))
+      .toEqual({ windows: true, transport: false, acpxRange: false })
+  })
+
+  test.each([
+    "tests/helpers/acpx-pin.ts", "tests/fixtures/acp-stub-agent.mjs", "tests/acpx-contract.test.ts",
+    "scripts/test-acpx-contract.ts", ".github/workflows/ci.yml", "package.json", "docs/../scripts/worker.sh",
+  ])("acpx contract input %s runs everything across the full acpx range", (file) => {
+    expect(selectScope(["README.md", file])).toEqual(full)
   })
 
   test.each([
     "skills/ce-pov/scripts/cross-model-pov.sh", "skills/ce-babysit-pr/scripts/pr-snapshot",
-    "tests/helpers/acpx-pin.ts", "tests/fixtures/acp-stub-agent.mjs", "scripts/ci-scope.ts",
-    ".github/workflows/ci.yml", "package.json", "bun.lock", "new-module/file.ts", "docs/../scripts/worker.sh",
-  ])("shared, executable, or unknown input %s runs everything", (file) => {
-    expect(selectScope(["README.md", file])).toEqual(full)
+    "scripts/ci-scope.ts", "bun.lock", "new-module/file.ts",
+  ])("other executable or unknown input %s runs every job at the acpx range boundaries", (file) => {
+    expect(selectScope(["README.md", file])).toEqual({ windows: true, transport: true, acpxRange: false })
   })
 
   test("missing evidence runs everything", () => {
@@ -59,12 +66,12 @@ describe("specialized CI selection", () => {
     expect(scopeForBase(base, dir)).toEqual(full)
     git("mv", "worker.sh", "docs/worker.md")
     git("-c", "commit.gpgsign=false", "commit", "-m", "move")
-    expect(scopeForBase(base, dir)).toEqual(full)
+    expect(scopeForBase(base, dir)).toEqual({ ...full, acpxRange: false })
     const moved = git("rev-parse", "HEAD")
     writeFileSync(path.join(dir, "docs/worker.md"), "documentation only\n")
     git("add", ".")
     git("-c", "commit.gpgsign=false", "commit", "-m", "docs")
-    expect(scopeForBase(moved, dir)).toEqual({ windows: false, transport: false })
+    expect(scopeForBase(moved, dir)).toEqual({ windows: false, transport: false, acpxRange: false })
     expect(changedFilesForBase(moved, dir)).toEqual(["docs/worker.md"])
     writeFileSync(path.join(dir, "docs/worker.md"), "uncommitted change\n")
     expect(changedFilesForBase(moved, dir)).toBeNull()
@@ -87,6 +94,9 @@ describe("specialized CI selection", () => {
       expect(workflow.jobs[job].if).toBeUndefined()
       expect(workflow.jobs[job].needs).toBeUndefined()
     }
+    expect(workflow.jobs.scope.outputs.acpxRange).toBe("${{ steps.scope.outputs.acpxRange }}")
+    expect(workflow.jobs["acpx-contract"].steps.find((step: any) => step.run === "bun run test:acpx-contract").env.ACPX_CONTRACT_RANGE)
+      .toBe("${{ (needs.scope.result != 'success' || needs.scope.outputs.acpxRange != 'false') && 'full' || 'boundaries' }}")
     expect(workflow.jobs.scope.steps.find((step: any) => step.id === "scope").env.CI_PR_BASE)
       .toBe("${{ github.event.pull_request.base.sha }}")
     const linux = workflow.jobs.test.steps

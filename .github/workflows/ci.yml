@@ -20,6 +20,7 @@ jobs:
     outputs:
       windows: ${{ steps.scope.outputs.windows }}
       transport: ${{ steps.scope.outputs.transport }}
+      acpxRange: ${{ steps.scope.outputs.acpxRange }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -177,8 +178,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run typecheck
 
-  # Tests every published acpx release in the supported range against the stub agent. Kept out
-  # of `bun run test` because it needs network access to fetch acpx.
+  # Tests published acpx releases against the stub agent. Kept out of `bun run test` because it
+  # needs network access to fetch acpx.
   acpx-contract:
     needs: scope
     if: ${{ !cancelled() && (needs.scope.result != 'success' || needs.scope.outputs.transport != 'false') }}
@@ -203,10 +204,9 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: bun install
-
       - name: acpx contract suite
+        env:
+          ACPX_CONTRACT_RANGE: ${{ (needs.scope.result != 'success' || needs.scope.outputs.acpxRange != 'false') && 'full' || 'boundaries' }}
         run: bun run test:acpx-contract
 
   # Focused Windows gate for the skill scripts that reach for POSIX process and
