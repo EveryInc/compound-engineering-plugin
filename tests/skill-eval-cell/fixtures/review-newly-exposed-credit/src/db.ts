@@ -1,6 +1,8 @@
 type Row = Record<string, any>
 
-const tables = new Map<string, Map<string, Row>>()
+const tables = new Map<string, Map<string, Row>>([
+  ["accounts", new Map([["acct_1001", { id: "acct_1001", balanceCents: 2500 }]])],
+])
 
 export const db = {
   async get(table: string, id: string): Promise<Row> {
