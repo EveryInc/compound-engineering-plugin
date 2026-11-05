@@ -233,7 +233,7 @@ When another workflow owns the post-implementation shipping gates (final simplif
 /ce-work mode:return-to-caller <plan path>
 ```
 
-This mode keeps `ce-work` on implementation and local verification. Mid-implementation "Simplify as You Go" still runs during Phase 2. After that, `ce-work` returns a structured envelope with changed files, completed units, verification evidence, and blockers, sets `standalone_shipping_skipped: true`, and does not run the standalone shipping tail. The caller remains responsible for every post-implementation gate.
+This mode keeps `ce-work` on implementation and local verification. Mid-implementation "Simplify as You Go" still runs during Phase 2. After that, `ce-work` returns a structured envelope with changed files, completed units, verification evidence, and blockers, sets `standalone_shipping_skipped: true`, and does not run the standalone shipping tail. When a mid-implementation `ce-simplify-code` pass ran, the envelope also carries `simplified_through: <sha>`, so the caller can simplify only what came after it. The caller remains responsible for every post-implementation gate.
 
 Automatic callers can also pass `implementation_engine:<compact-json>` (one `mode`, `target`, `model`, and `source` binding) and `implementation_run:<safe-id>` (resume that existing run) before the plan path.
 

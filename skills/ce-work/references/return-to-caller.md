@@ -26,6 +26,7 @@ Return:
 - `recovery_path`: the run/workspace location the controller preserved and checked, when recovery remains; otherwise `null`
 - `settled_decision_conflicts`: conflicts with `session-settled:`-labeled KTDs or Key Decisions encountered during implementation — each entry names the labeled entry, the evidence, and how it was routed (proceeded-and-flagged vs blocker); empty when none
 - `behavior_change`: whether behavior-bearing code changed
+- `simplified_through`: present only when a phase-boundary `ce-simplify-code` pass ran; the commit SHA its latest pass covered, as `references/implementation-loop.md` records it. Omit the field otherwise.
 - `standalone_shipping_skipped: true`
 
 Return `status: complete` only when behavior-bearing work has verification evidence or a deliberate exception. Before returning it, re-open the plan and re-check its active units, Verification Contract, and Definition of Done against the diff, because context may have been compacted to a summary that dropped detail. Remove code left over from approaches that did not pan out. If a previous return-to-caller run implemented code but omitted evidence, a later same-plan return-to-caller run should use the idempotency check to inspect the existing work, complete the evidence, and return without reimplementing.
