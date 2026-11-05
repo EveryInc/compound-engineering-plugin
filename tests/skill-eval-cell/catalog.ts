@@ -28,6 +28,7 @@ export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e263
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 /** main before ce-doc-review chose its own depth: every plan ran the full team, and adversarial fired on any plan without a brainstorm. */
 export const DOC_REVIEW_DEPTH_BASE_REF = "799ac9aeb97bf1c51238c38122915470413c26c5"
+/** Depth scenarios grade the depth and team decision from trailers; they do not prove a reviewer actually ran. */
 const docReviewDepthTask = (plan: string) =>
   `Use ce-doc-review with the arguments: mode:non-interactive ${plan}. End your final message with two lines and nothing after them: "TEAM: <comma-separated reviewer names you dispatched>" and then "DEPTH: <the review depth this run's result records, or full if it records none>".`
 /** main before Goal Capsule required a holdable goal, not only a user-checkable outcome. */
@@ -5337,7 +5338,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     git_init: true,
     fixture: `${FIX}/doc-review-depth-escalation`,
     timeout_secs: 1500,
-    why: "The plan reads routine, but its query drops the per-user filter and returns other customers' bookings; the run must end at full, with security-lens dispatched, before findings return, whether the gate or an escalation got it there.",
+    why: "The plan reads routine, but its query drops the per-user filter and returns other customers' bookings; the run must decide full with security-lens on the team, whether the gate or an escalation got it there.",
     pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
     task: docReviewDepthTask("docs/plans/2026-11-01-009-feat-recent-bookings-card-plan.md"),
     grade: {
