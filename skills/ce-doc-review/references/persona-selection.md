@@ -23,11 +23,10 @@ Activate a conditional persona when the document shows its signals. For a plan, 
 - A **high-stakes domain** — auth, payments, billing, data migrations, privacy/compliance, external integrations, cryptography — regardless of doc type or size
 - A **change to a public contract** that an outside consumer already relies on: an API, CLI output or flag, file format, or published schema that the plan renames, removes, or changes the meaning of, even when the requester asked for it. A purely additive change that leaves existing consumers working is not one
 - A **new abstraction, framework, or significant architectural pattern**, regardless of doc type
-- A **plan that makes a product choice** (what users get, what is deferred, who can do what) that no requester, upstream contract, or settled decision made. A choice the requester or a feedback item asked for counts as made, and so does a choice its origin settled; a plan that merely lacks a brainstorm makes no unmade choice by that alone
 - A **plan that explicitly extends scope** beyond its origin requirements doc (new actors, new flows, deferred-then-restored features)
 - An **explicit alternatives section** or unresolved tradeoffs — adversarial helps stress-test the chosen direction
 
-Do NOT activate adversarial on a routine plan that carries out choices already made, stays in scope, and introduces no high-stakes domain or new abstraction. A well-structured plan with stated rationale is the plan doing its job, not adversarial signal — activating on that alone re-litigates settled questions.
+Do NOT activate adversarial on a routine plan that stays in scope and introduces no high-stakes domain or new abstraction. A well-structured plan with stated rationale is the plan doing its job, not adversarial signal — activating on that alone re-litigates settled questions.
 
 ## Announce the review team
 
