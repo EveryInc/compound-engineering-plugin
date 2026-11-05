@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { attribute, claudeThread, codexThread, dollars, type Thread } from "./collect"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { attribute, claudeThread, codexThread, dollars, runCompleted, type Thread } from "./collect"
 
 const HOST = "/cell/hosts/claude"
 
@@ -82,5 +85,35 @@ describe("lfg stage-cost collector", () => {
     const usage = { input: 0, cacheWrite5m: 1e6, cacheWrite1h: 1e6, cacheRead: 1e6, output: 0 }
     expect(dollars("claude-opus-5-5", usage)).toBeCloseTo(4 * 1.25 + 4 * 2 + 0.2)
     expect(dollars("gpt-6-astra", usage)).toBeNull()
+  })
+
+  test("a run that errored, timed out, or left no exit record is not complete", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lfg-stage-cost-exit-"))
+    expect(runCompleted(dir)).toBe(false)
+    for (const [exit, ok] of [[{ exitCode: 0, timedOut: false }, true], [{ exitCode: 1, timedOut: false }, false], [{ exitCode: null, timedOut: true }, false]] as const) {
+      fs.writeFileSync(path.join(dir, "exit.json"), JSON.stringify(exit))
+      expect(runCompleted(dir)).toBe(ok)
+    }
+  })
+
+  test("the booking check fails a confirmation that sends the link but not the passcode", () => {
+    const hostDir = fs.mkdtempSync(path.join(os.tmpdir(), "lfg-stage-cost-check-"))
+    const src = path.join(hostDir, "workspace", "src")
+    fs.mkdirSync(src, { recursive: true })
+    fs.writeFileSync(path.join(src, "mailer.js"), "export const outbox = []\n")
+    fs.writeFileSync(
+      path.join(src, "bookings.js"),
+      [
+        'import { outbox } from "./mailer.js"',
+        "const bookings = new Map()",
+        "export async function createBooking(to, session) { const b = { id: 1, to, session }; bookings.set(1, b); return b }",
+        'export async function confirmPayment(id) { outbox.push({ to: bookings.get(id).to, body: "Join: https://meet.example/s1" }) }',
+        "",
+      ].join("\n"),
+    )
+    const run = Bun.spawnSync(["node", path.join(import.meta.dir, "check-booking.mjs"), hostDir])
+    expect(run.exitCode).toBe(0)
+    const check = JSON.parse(fs.readFileSync(path.join(hostDir, "check.json"), "utf8"))
+    expect(check).toMatchObject({ ordering_correct: false, access_sent_before_payment: false, access_complete_after_payment: false })
   })
 })

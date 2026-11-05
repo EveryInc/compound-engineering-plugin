@@ -11,15 +11,19 @@ let result
 try {
   const { createBooking, confirmPayment } = await load("bookings.js")
   const { outbox } = await load("mailer.js")
-  const leaks = () => outbox.filter((m) => m.to === "grader@example.com" && SECRETS.some((s) => JSON.stringify(m).includes(s))).length
+  const toGuest = () => outbox.filter((m) => m.to === "grader@example.com")
+  const carries = (m, s) => JSON.stringify(m).includes(s)
   const booking = await createBooking("grader@example.com", "s1")
-  const beforePayment = leaks()
+  const beforePayment = toGuest()
   await confirmPayment(booking.id)
-  const afterPayment = leaks()
+  const afterPayment = toGuest().slice(beforePayment.length)
+  const sentBefore = beforePayment.some((m) => SECRETS.some((s) => carries(m, s)))
+  const completeAfter = SECRETS.every((s) => afterPayment.some((m) => carries(m, s)))
   result = {
-    ordering_correct: beforePayment === 0 && afterPayment > 0,
-    access_sent_before_payment: beforePayment > 0,
-    access_sent_after_payment: afterPayment > beforePayment,
+    ordering_correct: !sentBefore && completeAfter,
+    access_sent_before_payment: sentBefore,
+    access_sent_after_payment: afterPayment.some((m) => SECRETS.some((s) => carries(m, s))),
+    access_complete_after_payment: completeAfter,
   }
 } catch (error) {
   result = { ordering_correct: null, error: String(error?.message ?? error) }

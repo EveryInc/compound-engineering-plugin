@@ -337,10 +337,15 @@ function main() {
     const tokens = stages.reduce((s, r) => s + contextOf(r.usage) + r.usage.output, 0)
     const checkFile = path.join(run.out, "hosts", run.host, "check.json")
     const check = fs.existsSync(checkFile) ? JSON.parse(fs.readFileSync(checkFile, "utf8")) : null
-    return { ...run, found_log: Boolean(thread), total_dollars: total, total_tokens: tokens, stages, check }
+    const completed = runCompleted(path.join(run.out, "hosts", run.host)) && stages.length > 0
+    return { ...run, found_log: Boolean(thread), completed, total_dollars: total, total_tokens: tokens, stages, check }
   })
   const out = get("--out")
   if (out) fs.writeFileSync(out, `${JSON.stringify(results, null, 2)}\n`)
+  const incomplete = results.filter((r) => !r.completed)
+  for (const r of incomplete) console.error(`incomplete run (excluded): ${r.task} ${r.arm} ${r.host} trial ${r.trial} at ${r.out}`)
+  // A run that errored or timed out can look cheaper, so the optimizer must never score one.
+  if (incomplete.length && args.includes("--json")) process.exit(1)
 
   const groups = new Map<string, typeof results>()
   for (const r of results) {
@@ -351,7 +356,7 @@ function main() {
   const lines = ["| task | arm | host | n | median $ | median Mtok | stage | median $ | median Mtok | median agents | median ctx growth (Ktok) |", "|---|---|---|---|---|---|---|---|---|---|---|"]
   for (const [key, rs] of groups) {
     const [task, arm, host] = key.split("\t")
-    const found = rs.filter((r) => r.found_log)
+    const found = rs.filter((r) => r.completed)
     const totalD = found.every((r) => r.total_dollars !== null) ? median(found.map((r) => r.total_dollars as number)) : null
     const stageNames = [...new Set(found.flatMap((r) => r.stages.map((s) => s.stage)))]
     const first = `| ${task} | ${arm} | ${host} | ${found.length} | ${fmt(totalD)} | ${fmt(median(found.map((r) => r.total_tokens / 1e6)))} |`
@@ -368,7 +373,7 @@ function main() {
   lines.push("", "| task | arm | host | median doc-review + simplify share ($) | median share (tokens) | ordering correct |", "|---|---|---|---|---|---|")
   for (const [key, rs] of groups) {
     const [task, arm, host] = key.split("\t")
-    const found = rs.filter((r) => r.found_log)
+    const found = rs.filter((r) => r.completed)
     const dollarShare = found.every((r) => r.total_dollars) ? median(found.map((r) => reviewShare(r.stages, "dollars") / (r.total_dollars as number))) : null
     const tokenShare = found.length ? median(found.map((r) => reviewShare(r.stages, "tokens") / r.total_tokens)) : null
     const checks = rs.map((r) => r.check?.ordering_correct).filter((v) => v !== undefined)
@@ -384,6 +389,15 @@ function main() {
     lines.push(`| ${task} | ${arm} | ${host} | ${dollarShare === null ? "n/a" : `${(dollarShare * 100).toFixed(1)}%`} | ${tokenShare === null ? "n/a" : `${(tokenShare * 100).toFixed(1)}%`} | ${ordering} |`)
   }
   console.log(args.includes("--json") ? JSON.stringify(metrics) : lines.join("\n"))
+}
+
+export function runCompleted(hostDir: string): boolean {
+  try {
+    const exit = JSON.parse(fs.readFileSync(path.join(hostDir, "exit.json"), "utf8"))
+    return exit.exitCode === 0 && exit.timedOut !== true
+  } catch {
+    return false
+  }
 }
 
 export function isReviewSimplify(stage: string): boolean {
