@@ -1003,10 +1003,12 @@ describe("ce-doc-review contract", () => {
     expect(block).toMatch(/\*Strategic weight\*/)
   })
 
-  test("adversarial fires on an unmade product choice, not on a missing brainstorm", async () => {
+  test("adversarial fires on what a plan does, not on who made its choices", async () => {
     const content = await readRepoFile("skills/ce-doc-review/references/persona-selection.md")
     const block = sliceSection(content, "**adversarial**", "## Announce the review team")
-    expect(block).toMatch(/makes a product choice\*\* .* that no requester, upstream contract, or settled decision made/)
+    const depth = await readRepoFile("skills/ce-doc-review/references/depth.md")
+    expect(block).not.toMatch(/product choice/)
+    expect(depth).not.toMatch(/product choice/)
     expect(block).toMatch(/high-stakes domain/)
     expect(block).toMatch(/change to a public contract\*\* that an outside consumer already relies on/)
     expect(block).not.toMatch(/no validated upstream Product Contract signal/)

@@ -90,7 +90,7 @@ Conditional personas activate from what the doc says, not keyword matching:
 - **design-lens** when it contains UI/UX references, user flows, or visual design language
 - **security-lens** when it touches auth, public APIs, sensitive data, payments, or third-party trust boundaries
 - **scope-guardian** on every plan, where it checks that each mechanism the request did not ask for earns its place, that nothing left out lets harm land unnoticed, and that no requested behavior was narrowed; on other docs, when it has multiple priority tiers, a large requirement count, or scope-boundary language that looks misaligned
-- **adversarial** when it touches high-stakes domains, changes a public contract that outside consumers rely on, proposes new abstractions, makes a product choice nobody made, extends scope beyond its origin, contains requirements-shape premise content, or presents explicit alternatives. A plan that simply has no brainstorm behind it does not trigger it
+- **adversarial** when it touches high-stakes domains, changes a public contract that outside consumers rely on, proposes new abstractions, extends scope beyond its origin, contains requirements-shape premise content, or presents explicit alternatives. A plan that simply has no brainstorm behind it does not trigger it
 
 `coherence-reviewer` and `feasibility-reviewer` run on every full review.
 
@@ -98,7 +98,7 @@ Conditional personas activate from what the doc says, not keyword matching:
 
 A wrong plan can ship silently, so the review's depth follows what a wrong plan would cost, not how long the plan is. A plan runs **lite** when no conditional persona other than scope-guardian activates. Lite is one independent reviewer on a mid-tier model that applies the coherence, feasibility, and scope-guardian lenses together, with no cross-model pass. To judge activation, the skill reads the files and code paths the plan names, so a plan that never says "payment" still gets the full team when the handler it names moves money.
 
-Everything else runs **full**: requirements docs, plans that cross a money, access, sensitive-data, or public-contract boundary, and plans that make a product choice nobody made. If the lite reviewer finds one of those consequences, the review escalates to the full team in the same run, and the lite findings join synthesis. Severity alone never escalates.
+Everything else runs **full**: requirements docs, plans that cross a money, access, sensitive-data, or public-contract boundary, and plans that activate any other conditional persona above. If the lite reviewer finds one of those consequences, the review escalates to the full team in the same run, and the lite findings join synthesis. Severity alone never escalates.
 
 Depth never lowers: a later round or resume keeps or raises it. Callers can force full with `depth:full`; `ce-plan` passes it when you ask for a deeper or full review. No caller can request lite. A lite review always says so in Coverage.
 

@@ -28,6 +28,8 @@ export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e263
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 /** main before ce-doc-review chose its own depth: every plan ran the full team, and adversarial fired on any plan without a brainstorm. */
 export const DOC_REVIEW_DEPTH_BASE_REF = "799ac9aeb97bf1c51238c38122915470413c26c5"
+/** main after #2003: adversarial and the lite reviewer still sent a plan full for a product choice no requester made. */
+export const DOC_REVIEW_PROVENANCE_BASE_REF = "b8841ebab4d2105b9eaeeb26645424173cd452f4"
 /** Depth scenarios grade the depth and team decision from trailers; they do not prove a reviewer actually ran. */
 const docReviewDepthTask = (plan: string) =>
   `Use ce-doc-review with the arguments: mode:non-interactive ${plan}. End your final message with two lines and nothing after them: "TEAM: <comma-separated reviewer names you dispatched>" and then "DEPTH: <the review depth this run's result records, or full if it records none>".`
@@ -5272,7 +5274,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     git_init: true,
     fixture: `${FIX}/doc-review-depth-json-flag`,
     timeout_secs: 1500,
-    why: "A requested CLI flag on an existing command crosses no boundary and makes no product choice the requester did not ask for, so one combined reviewer covers it.",
+    why: "A requested CLI flag on an existing command crosses no boundary, so one combined reviewer covers it.",
     pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
     task: docReviewDepthTask("docs/plans/2026-11-01-001-feat-list-json-flag-plan.md"),
     grade: {
@@ -5478,7 +5480,7 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     git_init: true,
     fixture: `${FIX}/doc-review-depth-unmade-choice`,
     timeout_secs: 1500,
-    why: "The plan crosses no boundary, but it adds a streak and defers a streak freeze that the request never asked for; that unmade product choice keeps full review with adversarial.",
+    why: "The plan crosses no boundary, but it adds a streak and defers a streak freeze that the request never asked for; that scope extension keeps full review with product-lens and adversarial.",
     pre_contract: "Every plan runs the full team; adversarial fires on any plan without a brainstorm-sourced Product Contract.",
     task: docReviewDepthTask("docs/plans/2026-11-01-012-feat-tasks-stats-command-plan.md"),
     grade: {
@@ -5504,6 +5506,82 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
       files_read_post: ["references/depth.md"],
       declared: { DEPTH: "full" },
       must_include: ["adversarial"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-planner-assumptions",
+    baseline_ref: DOC_REVIEW_PROVENANCE_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-jot-assumptions`,
+    timeout_secs: 1500,
+    why: "A hands-off lfg plan for jot edit/delete lists its ordinary calls (id reuse fix, usage errors, silent success, refusing an ambiguous id) under Assumptions; who made a call is not a consequence, so it stays lite.",
+    pre_contract: "Adversarial and the lite reviewer send a plan full for a product choice that no requester, upstream contract, or settled decision made.",
+    task: docReviewDepthTask("docs/plans/2026-11-04-2335-feat-note-edit-delete-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-planner-requirements",
+    baseline_ref: DOC_REVIEW_PROVENANCE_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-jot-requirements`,
+    timeout_secs: 1500,
+    why: "The same jot edit/delete calls written as requirements stay lite.",
+    pre_contract: "Adversarial and the lite reviewer send a plan full for a product choice that no requester, upstream contract, or settled decision made.",
+    task: docReviewDepthTask("docs/plans/2026-11-04-2331-feat-note-edit-delete-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-lite-planner-decisions",
+    baseline_ref: DOC_REVIEW_PROVENANCE_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-jot-decisions`,
+    timeout_secs: 1500,
+    why: "The same jot edit/delete calls written as key technical decisions stay lite.",
+    pre_contract: "Adversarial and the lite reviewer send a plan full for a product choice that no requester, upstream contract, or settled decision made.",
+    task: docReviewDepthTask("docs/plans/2026-11-04-2335-feat-note-edit-delete-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "lite" },
+      must_not_include: ["adversarial", "security-lens", "product-lens"],
+    },
+  },
+  {
+    id: "ce-doc-review/depth-full-zoom-confirmation",
+    baseline_ref: DOC_REVIEW_PROVENANCE_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/doc-review-depth-zoom-confirmation`,
+    timeout_secs: 1500,
+    why: "A hands-off lfg plan emails a paid session's join link and passcode on payment and refuses a second payer; access and money keep full review with security-lens without the product-choice leg.",
+    pre_contract: "Adversarial and the lite reviewer send a plan full for a product choice that no requester, upstream contract, or settled decision made.",
+    task: docReviewDepthTask("docs/plans/2026-11-04-2332-feat-booking-confirmation-email-plan.md"),
+    grade: {
+      files_read_post: ["references/depth.md"],
+      declared: { DEPTH: "full" },
+      must_include: ["security-lens"],
     },
   },
   {
