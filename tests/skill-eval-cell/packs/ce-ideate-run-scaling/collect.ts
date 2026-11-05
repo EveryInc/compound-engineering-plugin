@@ -12,6 +12,7 @@ import { randomBytes } from "node:crypto"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { codexSessionsRoot } from "../../hosts"
 import { writeJSON } from "../../provenance"
 
 type Dispatch = Record<string, unknown>
@@ -64,8 +65,7 @@ function claudeDispatches(workspace: string): Dispatch[] {
   return out
 }
 
-function codexRollouts(since: number): string[] {
-  const root = path.join(os.homedir(), ".codex", "sessions")
+function codexRollouts(root: string, since: number): string[] {
   const files: string[] = []
   const walk = (dir: string) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -173,7 +173,12 @@ function main() {
   for (const runDir of runDirs) {
     const pack = JSON.parse(fs.readFileSync(path.join(runDir, "pack.json"), "utf8"))
     const since = Date.parse(pack.started_at) - 60_000
-    let rollouts: Rollout[] | undefined
+    const rolloutsByRoot = new Map<string, { file: string; entries: any[] }[]>()
+    const rolloutsFor = (root: string) => {
+      let rollouts = rolloutsByRoot.get(root)
+      if (!rollouts) rolloutsByRoot.set(root, (rollouts = codexRollouts(root, since).map((file) => ({ file, entries: readJsonl(file) }))))
+      return rollouts
+    }
     for (const row of Object.values<any>(pack.scenarios)) {
       if (!String(row.id).startsWith("ce-ideate/run-scaling-")) continue
       for (const [arm, info] of Object.entries<any>(row.arms)) {
@@ -192,8 +197,9 @@ function main() {
           for (const name of fs.existsSync(ideation) ? fs.readdirSync(ideation) : []) {
             if (name !== ".gitkeep") fs.copyFileSync(path.join(ideation, name), path.join(bundle, "deliverables", name))
           }
-          if (host === "codex") rollouts ??= codexRollouts(since).map((file) => ({ file, entries: readJsonl(file) }))
-          const dispatches = host === "codex" ? codexDispatches(workspace, rollouts!) : claudeDispatches(workspace)
+          const dispatches = host === "codex"
+            ? codexDispatches(workspace, rolloutsFor(codexSessionsRoot(info.out)))
+            : claudeDispatches(workspace)
           writeJSON(path.join(bundle, "dispatches.json"), dispatches)
           const stderr = path.join(hostDir, "stderr.txt")
           if (host === "codex" && fs.existsSync(stderr)) fs.copyFileSync(stderr, path.join(bundle, "orchestrator-transcript.txt"))

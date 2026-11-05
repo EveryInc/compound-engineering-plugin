@@ -43,7 +43,8 @@ if [ "$CE_FAKE_MODE" = "nonzero" ]; then echo 'failure' >&2; exit 7; fi
 printf 'proof\\nFILES_READ: SKILL.md\\nACTIONS: none\\nDELEGATES_DISPATCHED: none\\n'
 `, { mode: 0o755 })
   const executable = process.execPath
-  const env = { ...process.env, PATH: `${bin}${path.delimiter}${path.dirname(executable)}${path.delimiter}${process.env.PATH ?? ""}` }
+  const home = path.join(root, "home")
+  const env = { ...process.env, HOME: home, CODEX_HOME: path.join(home, ".codex"), PATH: `${bin}${path.delimiter}${path.dirname(executable)}${path.delimiter}${process.env.PATH ?? ""}` }
   const call = (script: string, args: string[], moreEnv: NodeJS.ProcessEnv = {}) => spawnSync(executable, [path.join(dir, script), ...args], {
     cwd: repo, env: { ...env, ...moreEnv }, encoding: "utf8", timeout: 20000,
   })

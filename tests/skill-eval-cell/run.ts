@@ -12,7 +12,7 @@ import path from "node:path"
 import { arg, flag } from "./cli"
 import { REPO_ROOT, WORKTREE_REF, extractSkill, mintCellDir } from "./extract"
 import { CONVERSE_HOSTS, codexAgentText, formatTranscript, hostTurnArgv, runUserSim, type ConversationEnd, type Turn } from "./converse"
-import { HOSTS, planHost, resolveRunHosts, wrapPrompt, type Host, type HostPlan } from "./hosts"
+import { HOSTS, planHost, resolveRunHosts, userConfigDir, wrapPrompt, type Host, type HostPlan } from "./hosts"
 import { installHandoffRecorder, installPathShims, writeHandoffProbeSkill, type PathShim } from "./path-shim"
 import { fingerprint, prepareOutput, sealEvidence, sha256, writeJSON } from "./provenance"
 
@@ -381,7 +381,7 @@ async function main() {
     ...(gitChange ? { git_change: gitChange } : {}),
     requested_model: null,
     observed_model: null,
-    limits: ["model/configuration inherited from host; not captured", "provider state and external resources are not frozen", ".git internals and symlink target contents are not hashed"],
+    limits: ["model and login inherited from host; not captured", "user-level instructions, skills, and settings excluded for claude and codex only", "provider state and external resources are not frozen", ".git internals and symlink target contents are not hashed"],
   }, true)
 
   const summary: Record<string, unknown> = {
@@ -429,6 +429,7 @@ async function main() {
       cwd: hostWorkspace,
       prompt: hostPrompt,
       promptFile,
+      userConfigDir: userConfigDir(out, host),
       readOnly,
       reasoningEffort: arg("--reasoning-effort"),
     })

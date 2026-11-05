@@ -3,6 +3,7 @@
 // Prints one JSON line: the observations and, for the post arm, each failed expectation.
 import fs from "node:fs"
 import path from "node:path"
+import { codexSessionsRoot } from "../../hosts"
 import { claudeRun, codexRun, runCompleted, type Thread } from "../lfg-stage-cost/collect"
 
 const [out, host, scenario, arm] = process.argv.slice(2)
@@ -13,7 +14,7 @@ const read = (p: string) => (fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "")
 
 const manifest = path.join(out, "input-manifest.json")
 const started = fs.existsSync(manifest) ? Date.parse(JSON.parse(read(manifest)).started_at) : 0
-const thread = host === "codex" ? codexRun(workspace, started - 60_000) : claudeRun(workspace)
+const thread = host === "codex" ? codexRun(workspace, started - 60_000, codexSessionsRoot(out)) : claudeRun(workspace)
 
 const countAgents = (t: Thread): number => Object.values(t.children).reduce((n, c) => n + 1 + countAgents(c), 0)
 const texts = (t: Thread): string[] => t.turns.flatMap((turn) => turn.calls.flatMap((c) => ("text" in c ? [c.text] : [])))

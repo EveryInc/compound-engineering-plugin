@@ -34,6 +34,14 @@ partial collection outcomes, legacy-pack compatibility, and snapshot limits.
 
 Gotchas baked in (see `docs/solutions/skill-design/size-driven-skill-restructure.md`): Codex stdin `/dev/null`, `CLAUDECODE` unset, `NO_COLOR=1`.
 
+Claude and Codex cells do not load the operator's own instructions or skills, so a result does not depend on who ran it. The cell's workspace instructions still load.
+
+- Claude runs with `--setting-sources project,local`, which skips `~/.claude/CLAUDE.md`, rules, skills, agents, commands, and `settings.json` (with its plugins and hooks). It also sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
+- Codex runs on a private `CODEX_HOME` at `<out>/user-config/codex/codex-home`. It has no `AGENTS.md` and no operator `config.toml`, so the operator's plugins, MCP servers, and custom provider do not load, and Codex uses its default model and provider. `auth.json` and `auth.lock` are symlinks to the operator's own files: a token refresh writes through the link, and nothing secret is copied into the run. Codex also reads `~/.agents/skills` from the real `HOME`, so the private `config.toml` disables each `SKILL.md` there by path. HOME itself is not overridden, because git identity and `gh` login depend on it.
+- Grok and OpenCode cells still load user-level configuration.
+
+Results recorded before this isolation was added ran with the operator's instructions loaded. Pack collectors read Codex rollouts from the private home, and fall back to `~/.codex/sessions` for older runs.
+
 ## Judged conversation evals
 
 `bun run test:skill-eval-judge` evaluates behavior only a model can grade, such as whether an interview skill surfaces what the user needs without building what nobody asked for. For each scenario it runs the skill at the scenario's base ref and at the working tree, on Claude and Codex, as a conversation (`run.ts --persona`: each turn resumes the host session and a separate tool-less simulated user answers from a persona). It then grades every transcript blind under an anonymous id, with cell paths redacted, using the scenario's rubric, and writes `report.md` and `report.json` with totals per host and arm.

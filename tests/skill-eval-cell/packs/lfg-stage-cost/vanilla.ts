@@ -2,7 +2,7 @@
 import { spawn, spawnSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
-import { planHost, type Host } from "../../hosts"
+import { planHost, userConfigDir, type Host } from "../../hosts"
 import { installPathShims } from "../../path-shim"
 import { prepareOutput, writeJSON } from "../../provenance"
 
@@ -36,7 +36,7 @@ git("update-ref", "refs/remotes/origin/main", seed)
 
 const task = fs.readFileSync(taskFile, "utf8").trim()
 const prompt = `${task}\n\nWork in ${fs.realpathSync(workspace)}. Do not use any installed skills or plugins.\n`
-const plan = planHost(host, { cwd: workspace, prompt, promptFile: path.join(hostDir, "prompt.md"), reasoningEffort: effort })
+const plan = planHost(host, { cwd: workspace, prompt, promptFile: path.join(hostDir, "prompt.md"), userConfigDir: userConfigDir(out, host), reasoningEffort: effort })
 if (host === "claude") plan.argv.push("--disable-slash-commands")
 Object.assign(plan.env, installPathShims(hostDir, [{ bin: "git", subcommand: "push", exitCode: 1, stderr: "fatal: no configured remote" }]))
 fs.writeFileSync(path.join(hostDir, "prompt.md"), prompt)

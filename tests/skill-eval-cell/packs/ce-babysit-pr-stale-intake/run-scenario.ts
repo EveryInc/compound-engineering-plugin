@@ -18,7 +18,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { arg } from "../../cli"
 import { REPO_ROOT, WORKTREE_REF, extractSkill } from "../../extract"
-import { planHost, wrapPrompt, type Host } from "../../hosts"
+import { planHost, userConfigDir, wrapPrompt, type Host } from "../../hosts"
 import { prepareOutput, writeJSON } from "../../provenance"
 import type { ScenarioFile } from "./scenarios"
 
@@ -216,7 +216,7 @@ async function main() {
   const prompt = wrapPrompt({ skillDir, workspace, task: scenario.task })
   const promptFile = path.join(out, "prompt.md")
   fs.writeFileSync(promptFile, prompt)
-  const plan = planHost(host, { cwd: workspace, prompt, promptFile })
+  const plan = planHost(host, { cwd: workspace, prompt, promptFile, userConfigDir: userConfigDir(out, host) })
   const finalFile = path.join(out, "final.md")
   const argv = hostArgv(host, plan.argv, finalFile)
   // An empty ZDOTDIR keeps the user's ~/.zshenv from prepending Homebrew (and the real `gh`) in every zsh.

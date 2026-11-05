@@ -10,6 +10,9 @@ describe("hostTurnArgv", () => {
     expect(first[first.indexOf("--disallowedTools") + 1]).toBe("AskUserQuestion")
     const next = hostTurnArgv("claude", { ...base, first: false })
     expect(next.slice(3, 5)).toEqual(["--resume", base.sessionId])
+    for (const argv of [first, next]) {
+      expect(argv.slice(argv.indexOf("--setting-sources"), argv.indexOf("--setting-sources") + 2)).toEqual(["--setting-sources", "project,local"])
+    }
   })
 
   test("codex starts in the workspace and resumes the newest session there", () => {
