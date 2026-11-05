@@ -48,7 +48,7 @@ describe("GPT-5.6 skill migration", () => {
     const [codeReviewSkill, codeReviewDispatch, simplifyCode] = await Promise.all([
       readSkill("ce-code-review/SKILL.md"),
       readSkill("ce-code-review/references/dispatch-reviewers.md"),
-      readSkill("ce-simplify-code/SKILL.md"),
+      readSkill("ce-simplify-code/references/reviewer-dispatch.md"),
     ])
     const codeReview = `${codeReviewSkill}\n${codeReviewDispatch}`
 

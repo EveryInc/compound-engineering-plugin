@@ -62,6 +62,7 @@ Scope is the main knob. A scope you name is authoritative and never widened.
 | `<file path>` | That file only (seams inside it) |
 | `<description>` | User-named scope, e.g. `the function I just wrote` or `the whole repo`. Never widened. A request about only tests or only comments runs only that review |
 | `mode:pipeline` | Set by calling skills: current work only, fixes applied without a report |
+| `size-cutoff:<N>` | Set by calling skills. Below N changed lines of source code (tests, fixtures, docs, and generated files do not count), one combined reviewer runs every review in a single pass; at N or more, the full team runs. The summary names which ran. Without it, the full team runs at any size |
 | `proof-test:<path>` | Set by calling skills, once per test proving the fix: those tests stay untouched. Context, not scope |
 
 Outside git, or with no diff, it uses files named or edited in the conversation. If that is still empty, it asks rather than guessing.

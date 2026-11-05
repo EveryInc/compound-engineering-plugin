@@ -46,7 +46,7 @@ const EXPECTED_EMITTERS = [
   "skills/ce-plan/references/research.md",
   "skills/ce-plan/references/universal-planning.md",
   "skills/ce-pov/references/grounding.md",
-  "skills/ce-simplify-code/SKILL.md",
+  "skills/ce-simplify-code/references/reviewer-dispatch.md",
   "skills/ce-sweep/references/model-tiers.md",
 ]
 
