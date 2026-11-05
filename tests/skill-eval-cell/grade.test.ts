@@ -523,6 +523,25 @@ describe("skill-eval-cell host grade", () => {
     expect(quiet.ok).toBe(true)
   })
 
+  test("a field that quotes angle-bracket syntax in a code span is an answer, not a placeholder", () => {
+    const grade = { must_include_field: "FINDINGS", must_include: ["negative"] }
+    const stdout = (line: string) => ["FINDINGS:", line, "", "FILES_READ: a", "ACTIONS: none", ""].join("\n")
+    const quoted = gradeHost({
+      host: "claude",
+      hostDir: hostDir({ "stdout.txt": stdout("- Negative withdraw amount — negative `<amount>` passes the balance check") }),
+      arm: "post",
+      grade,
+    })
+    expect(quoted.ok).toBe(true)
+    const echoed = gradeHost({
+      host: "claude",
+      hostDir: hostDir({ "stdout.txt": stdout("- <title>, then the negative input and harm") }),
+      arm: "post",
+      grade,
+    })
+    expect(echoed.reasons).toEqual(["missing FINDINGS field"])
+  })
+
   test("result_must_not_include fails when the result block echoes the fixture", () => {
     const dir = hostDir({
       "stdout.txt": [

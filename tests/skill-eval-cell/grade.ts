@@ -33,7 +33,8 @@ export type ArmGrade = {
  * — including the prompt — to stderr, so without this the echo outranks the answer.
  */
 function isPlaceholder(value: string): boolean {
-  return /<[^>]*>/.test(value)
+  const outsideCodeSpans = value.replace(/`[^`]*`/g, "")
+  return /<[^>]*>/.test(outsideCodeSpans)
 }
 
 function lastTrailer(text: string, name: string): string {
