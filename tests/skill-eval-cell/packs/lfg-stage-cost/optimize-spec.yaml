@@ -1,0 +1,72 @@
+name: rightsize-lfg-review-cost
+description: >
+  Lower the median dollars of a small-task lfg run on Claude, mainly the
+  doc-review and simplify stages, while the zoom task still ships with the
+  join link and passcode sent only after payment.
+
+metric:
+  primary:
+    type: hard
+    name: small.lfg.claude.total_dollars
+    direction: minimize
+  objectives:
+    - name: small.lfg.claude.total_dollars
+      direction: minimize
+      role: required
+    - name: small.lfg.claude.review_share_dollars
+      direction: minimize
+      role: secondary
+  degenerate_gates:
+    - name: zoom.lfg.claude.ordering_correct
+      check: "== 1"
+      description: The zoom run must still send access only after payment
+  diagnostics:
+    - name: small.lfg.claude.total_mtok
+    - name: zoom.lfg.claude.total_dollars
+
+measurement:
+  command: "bash tests/skill-eval-cell/packs/lfg-stage-cost/measure.sh claude"
+  timeout_seconds: 6000
+  working_directory: "."
+  stability:
+    mode: repeat
+    repeat_count: 3
+    aggregation: median
+    noise_threshold: 0.5
+    comparison:
+      method: relative
+      relative_threshold: 0.1
+
+scope:
+  mutable:
+    - "skills/lfg/"
+    - "skills/ce-doc-review/"
+    - "skills/ce-simplify-code/"
+    - "skills/ce-plan/"
+  immutable:
+    - "tests/skill-eval-cell/"
+
+execution:
+  mode: serial
+  backend: worktree
+  max_concurrent: 1
+
+parallel:
+  port_strategy: none
+  shared_files: []
+
+dependencies:
+  approved: []
+
+constraints:
+  - "Do not change the collector, the fixtures, the tasks, or the zoom checker"
+  - "A change that drops a review stage for boundary work fails the zoom gate and is rejected"
+  - "Every skill change follows ce-skill-work and passes bun run test:skill-guards"
+
+stopping:
+  max_iterations: 6
+  max_hours: 12
+  plateau_iterations: 3
+  target_reached: false
+
+max_runner_up_merges_per_batch: 0

@@ -129,6 +129,7 @@ export function planHost(
   if (host === "claude") {
     notes.push("print mode ends when the model stops calling tools; not a sustained-watch harness")
     const argv = ["claude", "-p", opts.prompt, "--dangerously-skip-permissions", "--output-format", "text"]
+    if (opts.reasoningEffort) argv.push("--effort", opts.reasoningEffort)
     if (opts.readOnly) {
       // --allowedTools only pre-approves; under --dangerously-skip-permissions every
       // other tool stays callable, so the boundary has to be drawn by --disallowedTools.
@@ -150,6 +151,7 @@ export function planHost(
     } else {
       argv.push("--dangerously-bypass-approvals-and-sandbox")
     }
+    if (opts.reasoningEffort) argv.push("-c", `model_reasoning_effort=${opts.reasoningEffort}`)
     argv.push("--skip-git-repo-check", "-C", opts.cwd, opts.prompt)
     return { host, argv, env, stdin: "null", notes }
   }

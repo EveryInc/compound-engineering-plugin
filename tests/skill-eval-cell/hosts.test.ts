@@ -140,11 +140,17 @@ describe("skill-eval-cell host plans pin measured gotchas", () => {
     expect(prompt).toContain("project .opencode")
   })
 
-  test("grok takes an explicit reasoning effort instead of the operator default", () => {
+  test("each host takes an explicit reasoning effort instead of the operator default", () => {
     const base = { cwd: "/tmp/ws", prompt: "p", promptFile: "/tmp/p.md" }
+    const pair = (argv: string[], flag: string) => argv.slice(argv.indexOf(flag), argv.indexOf(flag) + 2)
     expect(planHost("grok", base).argv).not.toContain("--reasoning-effort")
-    const argv = planHost("grok", { ...base, reasoningEffort: "high" }).argv
-    expect(argv.slice(argv.indexOf("--reasoning-effort"), argv.indexOf("--reasoning-effort") + 2)).toEqual(["--reasoning-effort", "high"])
+    expect(pair(planHost("grok", { ...base, reasoningEffort: "high" }).argv, "--reasoning-effort")).toEqual(["--reasoning-effort", "high"])
+    expect(planHost("claude", base).argv).not.toContain("--effort")
+    expect(pair(planHost("claude", { ...base, reasoningEffort: "xhigh" }).argv, "--effort")).toEqual(["--effort", "xhigh"])
+    expect(planHost("codex", base).argv).not.toContain("-c")
+    const codex = planHost("codex", { ...base, reasoningEffort: "xhigh" }).argv
+    expect(pair(codex, "-c")).toEqual(["-c", "model_reasoning_effort=xhigh"])
+    expect(codex.at(-1)).toBe("p")
   })
 
   test("wrapPrompt points each companion skill at its bundled copy", () => {
