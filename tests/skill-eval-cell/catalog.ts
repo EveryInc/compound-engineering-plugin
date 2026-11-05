@@ -32,6 +32,11 @@ export const DOC_REVIEW_DEPTH_BASE_REF = "799ac9aeb97bf1c51238c38122915470413c26
 export const DOC_REVIEW_ADMISSION_BASE_REF = "9d04578ce9fad2347ae0cfd17e7678dcec99ee67"
 const docReviewFindingsTask = (args: string) =>
   `Use ce-doc-review with the arguments: mode:non-interactive ${args}. End your final message with these lines and nothing after them: "FINDINGS:" followed by one line per finding the review raised or fixed, each starting with "- ", or the line "- none", then "TEAM: <comma-separated reviewer names you dispatched>".`
+const docReviewPersonaTask = (persona: string, plan: string) =>
+  `Use ce-doc-review's ${persona} reviewer on ${plan}. Read the skill's references/subagent-template.md, references/findings-schema.json, and references/personas/${persona}.md, then review the document as that reviewer would, reading the repository code as the template allows. Do not dispatch, edit anything, or invoke another skill. Return the reviewer's findings JSON, then end your final message with these lines and nothing after them: "FINDINGS:" followed by one line per finding in that JSON, each starting with "- " and giving its title, then " — ", then the input and the harm it names in a few words, or the line "- none".`
+export const CODE_REVIEW_PRE_EXISTING_BASE_REF = "4fb543be706b19b4df14fbf69a58e458bed037e6"
+/** main after #2013: a stub on a traced money path still read to Codex as something that might block the harm. */
+export const DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF = "4fb543be706b19b4df14fbf69a58e458bed037e6"
 /** main after #2003: adversarial and the lite reviewer still sent a plan full for a product choice no requester made. */
 export const DOC_REVIEW_PROVENANCE_BASE_REF = "b8841ebab4d2105b9eaeeb26645424173cd452f4"
 /** Depth scenarios grade the depth and team decision from trailers; they do not prove a reviewer actually ran. */
@@ -5475,6 +5480,66 @@ Do not write the plan file yet. I only want the Goal Capsule right now. Print it
     grade: {
       must_include_field: "FINDINGS",
       field_must_not_include: ["savetasks", "archivedone", "archive", "enoent"],
+    },
+  },
+  {
+    id: "ce-doc-review/reviewer-security-keeps-traced-money-harm",
+    baseline_ref: DOC_REVIEW_UNSTATED_BLOCKER_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/doc-review-depth-token-withdrawal`,
+    timeout_secs: 900,
+    why: "The orchestrator-level money scenario passed mostly on main because other reviewers or synthesis caught what one reviewer dropped. This grades the security reviewer's own return on the withdraw plan: the negative amount and the double-spend both trace from a CLI input to lost money.",
+    pre_contract: "The Codex security reviewer saw the negative amount in 3 of 3 runs and dropped it each time because the chain client is a stub that might reject it, even though nothing in the plan or code says it does.",
+    task: docReviewPersonaTask("security-lens-reviewer", "docs/plans/2026-11-01-015-feat-withdraw-command-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      must_include_any: [
+        ["negative", "positive", "amount > 0", "amount <= 0", "greater than zero", "zero or less"],
+        ["concurren", "double-spend", "double spend", "race", "atomic", "spend twice", "twice"],
+      ],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-doc-review/reviewer-adversarial-quiet-on-unreached-code",
+    baseline_ref: DOC_REVIEW_ADMISSION_BASE_REF,
+    skill: "ce-doc-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/doc-review-findings-quiet-flag`,
+    timeout_secs: 900,
+    why: "Guard for the reviewer-level money and stored-data rule: the adversarial reviewer, the one most likely to chase bait, must not report the archive corruption in store code the --json flag plan never calls.",
+    pre_contract: "Pre-existing issues the document did not introduce are suppressed.",
+    task: docReviewPersonaTask("adversarial-document-reviewer", "docs/plans/2026-11-01-001-feat-list-json-flag-plan.md"),
+    grade: {
+      must_include_field: "FINDINGS",
+      field_must_not_include: ["savetasks", "archivedone", "archive", "enoent"],
+      actions: "none",
+      delegates: "none",
+    },
+  },
+  {
+    id: "ce-code-review/newly-exposed-existing-bug-is-primary",
+    baseline_ref: CODE_REVIEW_PRE_EXISTING_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/review-newly-exposed-credit`,
+    timeout_secs: 300,
+    why: "A new refund command passes a staff-typed amount into an existing creditAccount that never checks its sign, so a negative or non-numeric refund silently debits or corrupts the balance. The bug sits in unchanged code but this PR newly exposes it, so it is this PR's finding. The unrelated month-label bug in unchanged report code is bait for the opposite direction.",
+    pre_contract: "Anchor 0 covered 'a pre-existing issue this PR did not introduce' and said to suppress it silently.",
+    task: "Use ce-code-review's correctness reviewer on the change described in PR.md. The changed file is src/cli/refund.ts, entirely new in this PR; every other file is unchanged. Read the skill's references/subagent-template.md, references/diff-scope.md, and references/personas/correctness-reviewer.md and review the change as that persona would. Do not dispatch, edit anything, or invoke another skill. Return the persona's findings JSON, then exactly one line `AMOUNT: <primary | pre-existing | not-flagged>`: primary when a finding at confidence 75 or higher with pre_existing false says a negative or invalid refund amount reaches the balance, pre-existing when such a finding has pre_existing true, otherwise not-flagged.",
+    grade: {
+      workspace_read: ["src/billing/credit.ts"],
+      declared: { AMOUNT: "primary" },
+      actions: "none",
+      delegates: "none",
     },
   },
   {
