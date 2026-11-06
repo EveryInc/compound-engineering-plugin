@@ -77,6 +77,8 @@ beforeAll(() => {
   }
   const bulk: Record<string, string> = {}
   for (let i = 0; i < 30; i++) bulk[`src/gen/f${i}.ts`] = "export {}\n"
+  bulk["src/lone/x.ts"] = "export {}\n"
+  bulk["src/lone/y.ts"] = "export {}\n"
   bulk["src/ui/banner.ts"] = 'import { PROMO } from "../campaigns/promo.js"\n// bulk\n'
   commit("bulk format", bulk)
   commit("bulk format again", Object.fromEntries(Object.keys(bulk).map((k) => [k, bulk[k] + "// again\n"])))
@@ -101,6 +103,12 @@ describe("structure-evidence.py", () => {
     const pairs = pairNames(out)
     expect(pairs).not.toContain(pair(["src/gen/f0.ts", "src/ui/banner.ts"]))
     expect(out.most_changed.find((m: { file: string }) => m.file === "src/ui/banner.ts").changes).toBe(6)
+  })
+
+  test("treats a commit as bulk by every file it touched, not only those in the scope", () => {
+    const out = evidence("src/lone")
+    expect(out.bulk_commits_skipped_for_pairs).toBe(2)
+    expect(out.co_change).toEqual([])
   })
 
   test("resolves tsconfig path aliases and reports a stable file importing a more-changed one", () => {

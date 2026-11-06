@@ -150,18 +150,19 @@ def main() -> int:
     def unit(f: str) -> str:
         return subject_of.get(unit_key(f), f) if TEST_MARKER.search(os.path.basename(f)) else f
 
-    history = log_changes(root, a.max_commits, [s or "." for s in scopes])
+    # --full-diff lists every file a commit touched, so a repo-wide commit counts as bulk in any scope.
+    history = log_changes(root, a.max_commits, [s or "." for s in scopes], "--full-diff")
     churn: Counter[str] = Counter()
     pairs: Counter[tuple[str, str]] = Counter()
     commits = bulk = 0
     for _, changed in history:
-        lines = [l for l in changed if l and l in tracked and in_scope(l, scopes)]
-        code = sorted({unit(l) for l in lines if l.endswith(CODE_EXT)})
+        touched = {unit(l) for l in changed if l in tracked and l.endswith(CODE_EXT)}
+        code = sorted({unit(l) for l in changed if l in tracked and l.endswith(CODE_EXT) and in_scope(l, scopes)})
         if not code:
             continue
         commits += 1
         churn.update(code)
-        if len(code) > BULK_COMMIT_FILES:
+        if len(touched) > BULK_COMMIT_FILES:
             bulk += 1
             continue
         pairs.update(itertools.combinations(code, 2))
