@@ -15,13 +15,13 @@ argument-hint: "[Plan path, work description, or recovery request with run id; b
 
 ## Execution Workflow
 
-**Bundled references must be read, never approximated.** Resolve each reference or script path named below from this skill's loaded `SKILL.md` directory, using the full skill path the harness supplied, and never glob the target repository to find a bundled file. Read each reference when you enter the phase it governs; a read made before that phase does not satisfy it, and a reference this file says to read again is read again at its step even when already in context. If the harness does not expose the skill directory, or a required file cannot be read, stop before the action it governs and report which file is missing. Do not reconstruct its rules from memory; report the missing reference instead of continuing natively.
+**Bundled references must be read, never approximated.** Resolve each reference or script path named below from this skill's loaded `SKILL.md` directory, using the full skill path the harness supplied, and never glob the target repository to find a bundled file. Read each reference when you enter the phase it governs; a read made before that phase does not satisfy it. A reference this file says to read again is read again at its step only when its full text is no longer in context, as after a compaction. If the harness does not expose the skill directory, or a required file cannot be read, stop before the action it governs and report which file is missing. Do not reconstruct its rules from memory; report the missing reference instead of continuing natively.
 
 ### Phase 0: Input Triage
 
 **Recovery activation comes first.** Before classifying the input as a plan, a path, a blank, or a bare prompt, recognize requests to resume, inspect, reap, or clean up an existing run. Recovery never dispatches a new worker, selects a new route, discovers another plan, reruns completed verification, or enters either shipping path. If the run id is missing, ask for it; never guess one.
 
-Before any other input decision, read `references/input-triage.md`. It decides source resolution, control tokens, recovery, read-only discovery, plan readiness, non-code routing, blank input, and bare-prompt sizing. Three rules from it hold here:
+Before any other input decision, read `references/input-triage.md`. It decides the source, control tokens, recovery, read-only discovery, plan readiness, and bare-prompt sizing. Three rules from it hold here:
 
 - A bare prompt that is Trivial — one or two files, no behavioral change — skips the task list but still resolves its execution engine before writing. A purely mechanical diff also ships without a post-PR watch. When either is uncertain, take the fuller route.
 - A bare prompt that `ce-plan` already sized in this session is executed, not planned again. A decision the user would weigh is asked as a question, never as a route back to `ce-plan` or `ce-brainstorm`.
@@ -31,7 +31,7 @@ When triage selects Return-to-Caller Mode, read `references/return-to-caller.md`
 
 ### Phase 1: Quick Start
 
-1. **Establish the workspace.** Before moving branches, editing, dispatching, or committing, read `references/workspace-setup.md`. It decides the writable checkout, plan clarification, branch placement, the pre-work inventory, already-dirty files, and task setup. Never write without a writable canonical checkout, and never write on the real default branch unless the user explicitly directed that in this session.
+1. **Establish the workspace.** Before moving branches, editing, dispatching, or committing, read `references/workspace-setup.md`. It decides the checkout, branch, dirty files, and task setup. Never write without a writable canonical checkout, and never write on the real default branch unless the user explicitly directed that in this session.
 
    **Do not commit or publish anything the user did not offer.** When a unit needs a file that was already dirty, standalone mode asks once whether to include or exclude that file. Return-to-Caller Mode neither asks nor edits it; it returns blocked, naming the collision and how to recover.
 
@@ -39,17 +39,19 @@ When triage selects Return-to-Caller Mode, read `references/return-to-caller.md`
 
    If cross-model execution is selected, read `references/cross-model-execution.md` before any content or authority crosses to the other model. It defines controller initialization, the post-init engine lock, bounded egress, transactions, recovery, and receipts.
 
-   Before choosing inline, serial, or parallel execution, and before dispatching any worker, read `references/execution-strategy.md`. It decides scheduling, isolation, the packet each worker receives, worker lifecycle, and integration. The host orchestrator keeps authoritative verification and makes the canonical commits.
+   On native execution, work that is one unit, or units that each depend on the one before, runs inline in this context without that reference. Otherwise, before choosing inline, serial, or parallel execution, and before dispatching any worker, read `references/execution-strategy.md`. It decides scheduling, worker packets, and integration. The host orchestrator keeps authoritative verification and makes the canonical commits.
 
 ### Phase 2: Execute
 
-Before the first implementation write, including on the Trivial route, read `references/implementation-loop.md`. It decides how evidence is chosen, verification, when to stop a unit, incremental commits, following existing patterns, continuous testing, where simplification stops, UI work, progress tracking, and settled decisions.
+Before the first implementation write, including on the Trivial route, read `references/implementation-loop.md`. It decides evidence, verification, per-unit commits, and simplification.
 
 The commit rule from this file stays in force throughout: every implementation commit names only that unit's owned files. A bare `git commit` can absorb the user's pre-existing index, so it is forbidden.
 
+Keep going until every in-scope unit is done. A progress update does not end the run; stop before that only for a named blocker.
+
 ### Phase 3-4: Quality Check and Finishing Work
 
-After the tasks and local verification are complete, standalone mode reads `references/shipping-workflow.md` before any quality check or delivery. It decides simplification, code-review receipts and fallbacks, leftover findings, final validation, and delivery.
+After the tasks and local verification are complete, standalone mode reads `references/shipping-workflow.md` before any quality check or delivery. It decides simplification, code review, final validation, and delivery.
 
 **Code-review completion gate (standalone only).** Code review must actually happen before shipping. The run is not done, must not call a commit or shipping skill, and must not report that shipping is complete until the shipping reference has recorded either an actual completed `ce-code-review` receipt or one of its exact authorized skip states. Never substitute a mental self-review or findings already applied earlier. This rule does not apply in Return-to-Caller Mode.
 
