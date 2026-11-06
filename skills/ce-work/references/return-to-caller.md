@@ -22,7 +22,7 @@ Return:
 - `source_kind` and `source_digest`: what the controller recorded as the implementation source (`plan` plus its digest for a plan; `prompt` for a bare prompt or work statement)
 - `unit_receipts`: route, model, detached-process, integration, verification, canonical-commit, and cleanup state for each attempted unit
 - `plan_checkpoint`: the disclosed checkpoint commit when the selected plan was the only canonical dirt, otherwise `null`
-- `blockers`: required for any status other than `complete`. Stop before every in-scope unit is complete only for a named blocker; a finished intake or a progress point is not one.
+- `blockers`: every named blocker, or an empty list when none remain. Stop before every in-scope unit is complete only for a named blocker; a finished intake or a progress point is not one.
 - `recovery_path`: the run/workspace location the controller preserved and checked, when recovery remains; otherwise `null`
 - `settled_decision_conflicts`: conflicts with `session-settled:`-labeled KTDs or Key Decisions encountered during implementation — each entry names the labeled entry, the evidence, and how it was routed (proceeded-and-flagged vs blocker); empty when none
 - `behavior_change`: whether behavior-bearing code changed
