@@ -71,4 +71,4 @@ If no test suite, lint, or typecheck is configured, state that explicitly in the
 
 ## Step 5: Summarize
 
-Summarize what was already sound and what improved. Report applied counts by reuse, quality, efficiency, tests, and comments; skipped count; check outcomes; and any comment kept because its constraint could not be encoded. When `references/single-pass.md` applied, name the mode it chose. If nothing changed, say so. Do not use net lines removed as the success metric. In pipeline mode this summary ends the skill, not the turn: the caller's next step follows it.
+Summarize what was already sound and what improved. Report applied counts by reuse, quality, efficiency, structure, tests, and comments; skipped count; check outcomes; and any comment kept because its constraint could not be encoded. When `references/single-pass.md` applied, name the mode it chose. If nothing changed, say so. Do not use net lines removed as the success metric. In pipeline mode this summary ends the skill, not the turn: the caller's next step follows it.
