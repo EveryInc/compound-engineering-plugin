@@ -158,3 +158,19 @@ Same scope and task, graded blind by a second agent. Times were 2m 57s and 3m 06
 - Codex (4m 02s) dispatched one reviewer subagent and reported two findings, one of them structural (the alias table). It never raised the X-key defect before the sentence either. The thin report matches its earlier habit of dispatching fewer reviewers than the skill names, which the pre arm shows too. Tokens: 753k total, against 3.21M for the earlier post run, which dispatched three subagents.
 
 The first Codex post run stopped to ask about a skill that the repository's own instructions require and that was not installed. The rerun went ahead. Both Codex arms dispatched only three of the five reviewers.
+
+## Reviewer dispatch fix (2026-11-06)
+
+Codex used to run some reviewers itself instead of waiting for a free agent slot. Codex allows three agents besides the caller at once. Step 2 now says to dispatch every reviewer as its own subagent and to run one inline only when dispatch is unavailable or fails. `reviewer-dispatch.md` says a full harness means wait, not run inline. Same scope and task. Agent counts come from the Codex session files.
+
+| Run | Wording | Agents | Reviewers covered | Tokens | Time |
+|---|---|---|---|---|---|
+| Codex 1 | wait for a slot | 3 | 6: three were sent as follow-ups to agents that had already reviewed | 1.49M | 3m 16s |
+| Codex 2 | wait for a slot | 3 | 6: combined in pairs | 1.01M | 3m 10s |
+| Codex 3 | + one fresh agent per reviewer | 6 | 6 | 1.49M | 3m 10s |
+| Codex 4 | + one fresh agent per reviewer | 5 | 5: the test reviewer's dispatch hit the agent limit, it was not retried, and the report said so | 1.61M | 3m 03s |
+| Claude 1 | wait for a slot | 6 | 6 | n/a | 7m 03s |
+
+- With only the "wait for a slot" wording, Codex did not run reviewers inline, but it fitted them into three agents. The added sentence says each reviewer starts in a fresh agent holding only its own rubric, never in a combined prompt or an agent that already ran another reviewer. After it, neither run shared an agent.
+- One of the two later runs dropped a reviewer after a limit error, which the existing retry rule already forbids. That rule is left as it is and recorded here as a known gap.
+- No run changed the fixture or made a commit.
