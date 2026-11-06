@@ -24,7 +24,7 @@ Run each one with `bun run test:skill-eval-cell -- --skill ce-simplify-code --ho
 | `fix` | plain | `/ce-simplify-code simplify src/, just fix them, no need to check with me` | Tests pass. The quiet-hours check exists once. `CHANNEL_OPTIONS` is unchanged. Nothing is committed. |
 | `diff` | `--with-diff` | `/ce-simplify-code` | The run does not read `structural-pass.md` or dispatch the structure reviewer. |
 
-Grade the workspace and the `FILES_READ`, `ACTIONS`, and `DELEGATES_DISPATCHED` trailers in each host's `stdout.txt`. Check any history claim in a report against `git log` in the fixture.
+Grade the tree and test results from the workspace. Grade whether the run read `structural-pass.md` and dispatched the structure reviewer from the host's session log, never from the `FILES_READ` or `DELEGATES_DISPATCHED` trailers, which the model writes itself. For Codex that is the rollout under `<out>/user-config/codex/codex-home/sessions/`, where each spawned reviewer has its own rollout. For Claude it is the session log under `~/.claude/projects/` for the cell's workspace path, where each `Agent` call and its prompt appear. A reviewer dispatch counts when a subagent's prompt carries the `structure-reviewer.md` rubric. Grade the report's content from `stdout.txt`, and check any history claim in a report against `git log` in the fixture.
 
 ## Reference results (2026-11-06)
 
