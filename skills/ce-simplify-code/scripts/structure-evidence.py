@@ -37,7 +37,7 @@ JS_IMPORT = re.compile(
     r"""|^\s*import\s+['"]([^'"]+)['"]""",
     re.M,
 )
-PY_IMPORT = re.compile(r"^\s*(?:from\s+([.\w]+)\s+import|import\s+([\w.]+))", re.M)
+PY_IMPORT = re.compile(r"^\s*(?:from\s+([.\w]+)\s+import\s+(\([^)]*\)|[^\n]*)|import\s+([\w.]+))", re.M)
 
 
 def git(root: Path, *args: str) -> str:
@@ -113,6 +113,23 @@ def resolve_py(spec: str, importer: str, files: set[str], roots: list[str]) -> s
     return None
 
 
+def resolve_py_import(m: re.Match, importer: str, files: set[str], roots: list[str]) -> list[str | None]:
+    if m.group(3):
+        return [resolve_py(m.group(3), importer, files, roots)]
+    spec = m.group(1)
+    names = [n.split()[0] for n in re.sub(r"#[^\n]*", "", m.group(2)).strip("()\\ ").split(",") if n.split()]
+    # `from pkg import mod` names a submodule when one exists; other names live in the module itself.
+    subs = [resolve_py(spec + ("" if spec.endswith(".") else ".") + n, importer, files, roots) for n in names if n != "*"]
+    found = [t for t in subs if t]
+    return found if found and len(found) == len(names) else [*found, resolve_py(spec, importer, files, roots)]
+
+
+def log_changes(root: Path, max_commits: int, paths: list[str], *extra: str) -> list[tuple[int, list[str]]]:
+    log = git(root, "log", "--no-merges", "--no-renames", f"-n{max_commits}", *extra,
+              "--format=%x00%ct", "--name-only", "--", *paths)
+    return [(int(b.splitlines()[0]), b.splitlines()[1:]) for b in log.split("\0")[1:]]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", default=".")
@@ -133,13 +150,12 @@ def main() -> int:
     def unit(f: str) -> str:
         return subject_of.get(unit_key(f), f) if TEST_MARKER.search(os.path.basename(f)) else f
 
-    log = git(root, "log", "--no-merges", "--no-renames", f"-n{a.max_commits}",
-              "--format=%x00%h", "--name-only", "--", *(s or "." for s in scopes))
+    history = log_changes(root, a.max_commits, [s or "." for s in scopes])
     churn: Counter[str] = Counter()
     pairs: Counter[tuple[str, str]] = Counter()
     commits = bulk = 0
-    for block in log.split("\0")[1:]:
-        lines = [l for l in block.splitlines()[1:] if l and l in tracked and in_scope(l, scopes)]
+    for _, changed in history:
+        lines = [l for l in changed if l and l in tracked and in_scope(l, scopes)]
         code = sorted({unit(l) for l in lines if l.endswith(CODE_EXT)})
         if not code:
             continue
@@ -167,8 +183,15 @@ def main() -> int:
         if ext in JS_EXT:
             targets = (resolve_js(next(g for g in m.groups() if g), f, tracked_code, aliases) for m in JS_IMPORT.finditer(text))
         else:
-            targets = (resolve_py(m.group(1) or m.group(2), f, tracked_code, py_roots) for m in PY_IMPORT.finditer(text))
+            targets = (t for m in PY_IMPORT.finditer(text) for t in resolve_py_import(m, f, tracked_code, py_roots))
         edges.update((unit(f), t) for t in targets if t and t != unit(f))
+
+    outside = sorted({t for _, t in edges if not in_scope(t, scopes)})
+    if outside:
+        # Count an out-of-scope import target over the same window the scope's history covered.
+        window = [f"--since=@{history[-1][0]}"] if len(history) >= a.max_commits else []
+        for _, changed in log_changes(root, a.max_commits, outside, *window):
+            churn.update({unit(l) for l in changed if l in outside})
 
     co_change = [
         {"files": [x, y], "together": n, "changes": [churn[x], churn[y]],
@@ -177,7 +200,7 @@ def main() -> int:
     ][: a.top]
     toward_volatile = sorted(
         ({"importer": i, "imported": t, "changes": [churn[i], churn[t]]}
-         for i, t in edges if churn[t] > churn[i] + 1),
+         for i, t in sorted(edges) if churn[t] > churn[i] + 1),
         key=lambda e: e["changes"][1] - e["changes"][0], reverse=True,
     )[: a.top]
 

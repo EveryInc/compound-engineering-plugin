@@ -59,7 +59,8 @@ beforeAll(() => {
     "src/campaigns/promo.test.ts": 'import { PROMO } from "./promo"\n',
     "src/ui/banner.ts": 'import { PROMO } from "../campaigns/promo.js"\n',
     "worker/pkg/__init__.py": "",
-    "worker/pkg/a.py": "from . import b\nfrom .b import thing\n",
+    "worker/pkg/a.py": "from . import b\n",
+    "worker/pkg/c.py": "from .b import thing\nfrom pkg import (  # names\n    a,\n)\n",
     "worker/pkg/b.py": "thing = 1\n",
     "worker/run.sh": "echo hi\n",
   })
@@ -70,6 +71,7 @@ beforeAll(() => {
       "src/ui/banner.ts": `import { PROMO } from "../campaigns/promo.js"\n// ${i}\n`,
     })
   }
+  for (let i = 2; i <= 4; i++) commit(`b ${i}`, { "worker/pkg/b.py": `thing = ${i}\n` })
   for (let i = 1; i <= 3; i++) {
     commit(`service ${i}`, { "native/service.c": `int v = ${i};\n`, "native/service.h": `// ${i}\n` })
   }
@@ -112,9 +114,25 @@ describe("structure-evidence.py", () => {
 
   test("parses Python relative imports and counts files it cannot parse", () => {
     const out = evidence("worker")
-    expect(out.import_edges).toBe(2)
+    expect(out.import_edges).toBe(3)
     expect(out.imports_not_parsed).toEqual({ ".sh": 1 })
-    expect(out.files_in_scope).toBe(4)
+    expect(out.files_in_scope).toBe(5)
+  })
+
+  test("resolves a submodule named in a Python from-import to its own file", () => {
+    expect(evidence("worker").imports_toward_more_changed).toContainEqual({
+      importer: "worker/pkg/a.py",
+      imported: "worker/pkg/b.py",
+      changes: [1, 4],
+    })
+  })
+
+  test("counts changes to an imported file outside the scope", () => {
+    expect(evidence("src/core").imports_toward_more_changed).toContainEqual({
+      importer: "src/core/limits.ts",
+      imported: "src/campaigns/promo.ts",
+      changes: [1, 4],
+    })
   })
 
   test("limits files to the scope", () => {
