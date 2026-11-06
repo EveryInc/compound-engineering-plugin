@@ -128,10 +128,10 @@ def main() -> int:
     tracked = set(git(root, "ls-files").splitlines())
     files = sorted(f for f in tracked if f.endswith(CODE_EXT) and in_scope(f, scopes))
     # A test counts as part of the file it tests, so the pair or import between them is not reported.
-    subject_of = {unit_key(f): f for f in tracked if f.endswith(CODE_EXT) and not TEST_MARKER.search(os.path.basename(f))}
+    subject_of = {unit_key(f): f for f in sorted(tracked) if f.endswith(CODE_EXT) and not TEST_MARKER.search(os.path.basename(f))}
 
     def unit(f: str) -> str:
-        return subject_of.get(unit_key(f), f)
+        return subject_of.get(unit_key(f), f) if TEST_MARKER.search(os.path.basename(f)) else f
 
     log = git(root, "log", "--no-merges", "--no-renames", f"-n{a.max_commits}",
               "--format=%x00%h", "--name-only", "--", *(s or "." for s in scopes))

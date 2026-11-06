@@ -70,6 +70,9 @@ beforeAll(() => {
       "src/ui/banner.ts": `import { PROMO } from "../campaigns/promo.js"\n// ${i}\n`,
     })
   }
+  for (let i = 1; i <= 3; i++) {
+    commit(`service ${i}`, { "native/service.c": `int v = ${i};\n`, "native/service.h": `// ${i}\n` })
+  }
   const bulk: Record<string, string> = {}
   for (let i = 0; i < 30; i++) bulk[`src/gen/f${i}.ts`] = "export {}\n"
   bulk["src/ui/banner.ts"] = 'import { PROMO } from "../campaigns/promo.js"\n// bulk\n'
@@ -117,6 +120,10 @@ describe("structure-evidence.py", () => {
   test("limits files to the scope", () => {
     const out = evidence("worker")
     expect(out.most_changed.every((m: { file: string }) => m.file.startsWith("worker/"))).toBe(true)
+  })
+
+  test("keeps same-stem source files apart when neither is a test", () => {
+    expect(pairNames(evidence("native"))).toContain(pair(["native/service.c", "native/service.h"]))
   })
 
   test("reads an absolute scope path the same as a repository-relative one", () => {
