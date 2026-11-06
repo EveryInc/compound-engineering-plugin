@@ -75,6 +75,8 @@ const SIGNAL_NULL = [['"prevention_signal": null', '"prevention_signal":null']]
 export const RELIABILITY_CONTEXT_BASE_REF = "8d9a236dc91b17e114562bd65e9e137d171f39ab"
 /** main before ce-work dropped its goal/workflow engines, ran chained units inline, and ce-plan stopped offering /goal. */
 const WORK_ENGINES_BASE_REF = "030188b4ba27f2dc33fbc4d5a112d3c8cc893e8c"
+/** main before ce-work re-read return-to-caller.md only after compaction and fixed the native route fields to nulls. */
+const WORK_RETURN_BASE_REF = "7dc50943bbf959dbe6a93a175e41e5fff8395e00"
 /** main before the Antigravity cross-model peer route and the codex, claude, grok, antigravity automatic order. */
 const ANTIGRAVITY_PEER_BASE_REF = "bdc53d034ccfa5baf01b6139cd46082145ff95cc"
 /** main before the mode:agent JSON carried the cross-model peer outcome: the A/B base for the peer-outcome rows. */
@@ -6221,12 +6223,35 @@ Units:
       actions: "none",
     },
   },
+  {
+    id: "ce-work/return-to-caller-implements-and-returns",
+    baseline_ref: WORK_RETURN_BASE_REF,
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/implementation-ready-plan`,
+    timeout_secs: 900,
+    why: "The read-only return row blocks at workspace setup, so it never reaches the return step. This row implements a one-unit plan and returns, which is where the re-read and the native route fields cost tokens.",
+    pre_contract:
+      "mode:return-to-caller implements, verifies, commits each unit, and ends with the structured return, without opening a PR.",
+    task: `mode:return-to-caller docs/plans/widget-plan.md`,
+    grade: {
+      files_read_post: ["references/return-to-caller.md"],
+      must_include: ["standalone_shipping_skipped"],
+      must_exclude: ["gh pr create"],
+      committed_must: ["src/quiet.js"],
+    },
+  },
   ...[
     {
       id: "chained-units-run-inline",
       plan: "chained-plan.md",
       declared: { U1: "inline", U2: "inline", U3: "inline" },
-      why: "Units the dependency graph chains gain no wall-clock time from a worker; a fresh worker per unit only spends tokens.",
+      read: "references/execution-engines.md",
+      why: "Units the dependency graph chains gain no wall-clock time from a worker; a fresh worker per unit only spends tokens. A chain decides inline from SKILL.md without loading the strategy reference.",
     },
     {
       id: "independent-units-run-as-wave",
@@ -6240,7 +6265,7 @@ Units:
       declared: { U1: "parallel-wave", U2: "parallel-wave", U3: "inline" },
       why: "Independent units still run as a wave; only the unit that depends on both runs inline.",
     },
-  ].map(({ id, plan, why, declared }): Scenario => ({
+  ].map(({ id, plan, why, declared, read = "references/execution-strategy.md" }): Scenario => ({
     id: `ce-work/${id}`,
     baseline_ref: WORK_ENGINES_BASE_REF,
     skill: "ce-work",
@@ -6254,7 +6279,7 @@ Units:
       "Native execution prefers subagents for any structured multi-unit plan; independent dependency layers dispatch in parallel, and units the graph chains run as serial subagents.",
     task: `Use ce-work on docs/plans/${plan}. The execution engine is native and this harness has a subagent mechanism with no worktree isolation. Resolve only how each implementation unit will run, then stop before any branch change, edit, dispatch, or commit. Output exactly one line per unit in the form U1: <schedule>, where <schedule> is one of inline, serial-subagent, or parallel-wave, then one line of reasoning.`,
     grade: {
-      files_read_post: ["references/execution-strategy.md"],
+      files_read_post: [read],
       declared,
       actions: "none",
       delegates: "none",
