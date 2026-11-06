@@ -118,4 +118,8 @@ describe("structure-evidence.py", () => {
     const out = evidence("worker")
     expect(out.most_changed.every((m: { file: string }) => m.file.startsWith("worker/"))).toBe(true)
   })
+
+  test("reads an absolute scope path the same as a repository-relative one", () => {
+    expect(evidence(path.join(repo, "worker"))).toEqual(evidence("worker"))
+  })
 })

@@ -10,6 +10,7 @@ cd "$D"
 git init -q -b main
 git config user.email eval@example.com
 git config user.name eval
+git config commit.gpgsign false
 commit() { git add -A && git commit -qm "$1"; }
 
 cat > AGENTS.md <<'EOF'

@@ -122,8 +122,7 @@ def main() -> int:
     a = ap.parse_args()
 
     root = Path(git(Path(a.repo), "rev-parse", "--show-toplevel").strip())
-    cwd_rel = os.path.relpath(Path(a.repo).resolve(), root)
-    scopes = [os.path.normpath(os.path.join(cwd_rel, s)) for s in a.scope]
+    scopes = [os.path.relpath((Path(a.repo) / s).resolve(), root) for s in a.scope]
     scopes = ["" if s == "." else s for s in scopes]
 
     tracked = set(git(root, "ls-files").splitlines())
