@@ -53,7 +53,7 @@ All candidates have confidence 50. A coherence reviewer prefers renaming plan.md
     baseline_ref: "153e605e1622154a0d7da095fceed13edcb68bf7",
     why: "A settled-conflict marker previously forced preference-only feedback back into the primary report.",
     pre_contract: "Synthesis retains preferences against settled decisions as report-only findings even when suppressed by the helper.",
-    task: `Use ce-code-review at Stage 5 settlement reconciliation and admission. Read references/finish-review.md. Resolve only the routing of these completed reviewer candidates; do not dispatch, edit files, or run the full review.
+    task: `Use ce-code-review at Stage 5 settlement reconciliation and admission. Read references/finish-merge.md (references/finish-review.md in skill versions that have no finish-merge.md). Resolve only the routing of these completed reviewer candidates; do not dispatch, edit files, or run the full review.
 
 The discovered plan explicitly states: K1 (session-settled: keep function-based injection, rejected a provider class hierarchy). Account isolation is required: only the owning account can receive a signed download URL. Reviewers verified the implementation calls sign(record.id) without checking accountId against record.accountId.
 
