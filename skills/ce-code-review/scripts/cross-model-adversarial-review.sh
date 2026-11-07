@@ -84,7 +84,7 @@ case "$TRANSIENT_RETRY_DELAY_SECS" in ''|*[!0-9]*) skip "transient retry delay m
 # CROSS_MODEL_MODEL_OVERRIDE, same target/family only) and the reasoning effort
 # (CROSS_MODEL_EFFORT_OVERRIDE, validated per route); both fail closed.
 # Keep these in sync with ce-doc-review's script (parity-tested in CI).
-M_CODEX="gpt-6.1-sol"          # codex     (reasoning_effort=high)
+M_CODEX="gpt-6.1-terra"        # codex     (reasoning_effort=high)
 M_CLAUDE="claude-opus-5-5"     # claude    (effort=high)
 M_GROK="grok-4.7"              # grok CLI  (reasoning_effort=xhigh)
 # Cursor's ACP server offers one preset per model and rejects effort variants,
