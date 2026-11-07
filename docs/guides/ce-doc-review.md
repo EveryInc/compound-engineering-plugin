@@ -160,6 +160,10 @@ Decisions you examined and settled carry a `session-settled:` annotation. The sa
 
 Findings lead with a recommendation and a one-sentence consequence that names no opaque token. Document IDs (`R6`, `U3`) keep the ID and get a handle. Code symbols are translated to the role they play. You can decide Apply / Defer / Skip without opening the reviewed codebase.
 
+### Which model the reviewers run on
+
+In Codex, every reviewer subagent, the lite reviewer included, runs on `gpt-6.1-terra` at high reasoning effort. On other hosts each reviewer keeps its own tier. The orchestrator always stays on the session model. `review_subagents` in CE config sets the model and effort per harness, and a model you name in conversation or project instructions wins over both. If the host refuses the model, that reviewer runs once more on the session model and Coverage names the refused model. See the [configuration reference](./configuration.md).
+
 ### Cross-model judgment pass
 
 When adversarial, product, or security review is needed, another model also reviews those concerns in a separate read-only process. Agreement can raise confidence by one level only if the reviewers are confirmed to be independent and their combined evidence meets that level's requirements. Agreement does not make a finding important or give permission to edit. Coherence, scope, and feasibility reviews use one model.

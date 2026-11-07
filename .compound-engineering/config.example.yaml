@@ -135,6 +135,22 @@
 # cross_model_model: fable         # model alias or full id for the resolved peer target (no default)
 # cross_model_effort: xhigh        # reasoning effort for the resolved peer target (no default)
 
+# --- Review subagent model ---
+# `review_subagents` sets the model and reasoning effort for every subagent
+# ce-code-review and ce-doc-review spawn on the same host (reviewers, checks,
+# validators), per harness. Only the current harness's entry applies; a field
+# left out keeps the skill default. Defaults: in Codex, gpt-6.1-terra at high
+# for every subagent; elsewhere, each reviewer's own tier. A model named in
+# conversation or in the project's instructions wins. A model the host refuses
+# falls back once to the session model, and the review says so.
+
+# review_subagents:
+#   codex:
+#     model: "gpt-6.1-terra"
+#     effort: high
+#   claude:
+#     model: sonnet
+
 # --- ce-work implementation engine ---
 # Standing preferences for who authors implementation units. Live
 # task/session/project instructions and LFG's provenance-bearing binding may
