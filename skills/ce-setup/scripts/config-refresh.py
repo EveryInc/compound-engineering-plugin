@@ -159,6 +159,10 @@ class Parsed:
         pending = []
         for lineno, line in enumerate(self.raw_lines, 1):
             if not line.strip() or is_comment(line):
+                if block is not None and not pending and line.startswith((" ", "\t")) and line.strip():
+                    # An indented note right under a setting's last line belongs to that setting.
+                    block.lines.append(line)
+                    continue
                 item = Item("blank" if not line.strip() else "comment", [line], lineno)
                 if block is not None:
                     pending.append(item)

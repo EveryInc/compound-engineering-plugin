@@ -166,6 +166,17 @@ describe("config-refresh rebuild of config.yaml", () => {
     expect(text.indexOf("work_engine_effort:")).toBeLessThan(text.indexOf("feedback_sources:"))
   })
 
+  test("an indented note under a setting's last item stays with that setting", () => {
+    const packs = "packs:\n  - source: compound-packs/a\n  # keep this source through Q4\n"
+    const root = makeRepo({ tracked: `${packs}${TEAM_NOTE}\ncross_model_peer: codex\n` })
+    const result = draft(root, "tracked")
+    expect(result.json.unplaced_comments).toEqual([])
+    const text = draftText(result)
+    expect(text).toContain(`\n${packs}`)
+    expect(text).toContain(`\n${TEAM_NOTE}\ncross_model_peer: codex\n`)
+    expect(result.json.verify).toBe("ok")
+  })
+
   test("a packs list with column-0 items moves whole, and dropping an item fails verify", () => {
     const packs = "packs:\n- source: compound-packs/a\n- source: https://example.com/p\n  ref: v1\n"
     const root = makeRepo({ tracked: packs })

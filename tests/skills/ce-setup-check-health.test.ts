@@ -1507,6 +1507,14 @@ describe("ce-setup check-health config template status", () => {
     expect(result.stdout).toContain("Project config healthy")
   })
 
+  test("a config.yaml with a malformed version line is reported, not refreshed, and counts as an issue", async () => {
+    const malformed = (await readFile(configTemplate, "utf8")).replace(/template-version: \d+/, "template-version: one")
+    const result = await run({ tracked: malformed })
+    expect(result.stdout).toContain("Repo config cannot be refreshed automatically")
+    expect(result.stdout).toContain("is not a whole number")
+    expect(result.stdout).toContain("1 project issue(s) found")
+  })
+
   test("an unrecognized local key is an informational line that leaves the count alone", async () => {
     const result = await run({ local: "work_engine_prefs: []\n" })
     expect(result.stdout).toContain(
