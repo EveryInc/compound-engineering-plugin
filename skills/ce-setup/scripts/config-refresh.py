@@ -346,9 +346,19 @@ def unknown_comment(bundle, item):
     return item.kind == "comment" and not bundle.is_known(item.lines[0])
 
 
-def interior_team_comments(bundle, item):
-    """Team comment lines inside a setting's block, without their indentation."""
-    return [line.strip() for line in item.lines[1:] if is_comment(line) and not bundle.is_known(line.strip())]
+def block_team_comments(bundle, item):
+    """Every team comment a setting's block carries, as `# ...` text: comment lines inside it
+    and inline comments on its lines, minus template text."""
+    out = []
+    for index, line in enumerate(item.lines):
+        if is_comment(line):
+            if not bundle.is_known(line.strip()):
+                out.append(line.strip())
+            continue
+        comment = split_comment(line)[2]
+        if comment and not (index == 0 and bundle.known_inline_comment(item.key, line)):
+            out.append(comment)
+    return out
 
 
 def attach_comments(bundle, parsed):
@@ -450,7 +460,7 @@ def check_change_shapes(bundle, repo, layer, original, changes):
         "comment-move": ("line", "key"),
     }
     comments = [item.lines[0].strip() for item in original.items if unknown_comment(bundle, item)]
-    comments += [line for block in original.blocks() for line in interior_team_comments(bundle, block)]
+    comments += [line for block in original.blocks() for line in block_team_comments(bundle, block)]
     for change in changes:
         kind = change.get("type") if isinstance(change, dict) else None
         if kind not in required:
@@ -577,7 +587,7 @@ def render_in_place(bundle, original, changes):
                 out.extend(comments.moved_to.get(result[0], []))
                 out.extend(result[1])
             else:
-                out.extend(c for c in interior_team_comments(bundle, item) if comments.keep(c))
+                out.extend(c for c in block_team_comments(bundle, item) if comments.keep(c))
         elif not unknown_comment(bundle, item) or comments.keep(item.lines[0]):
             out.append(item.lines[0])
     return out
@@ -595,8 +605,8 @@ def rebuild(bundle, layer, original, changes):
             head = [c.lines[0] for c in item.attached if comments.keep(c.lines[0])]
             result = rebuilt_block(bundle, item, changes)
             if result is None:
-                # A removed setting's own notes survive as loose notes.
-                head += [c for c in interior_team_comments(bundle, item) if comments.keep(c)]
+                # A removed setting's own notes, inline or on their own lines, survive as loose notes.
+                head += [c for c in block_team_comments(bundle, item) if comments.keep(c)]
                 if head:
                     groups.append((None, head))
             else:
@@ -652,7 +662,7 @@ def to_text(original, lines):
 
 def team_comment_counts(bundle, parsed):
     counts = collections.Counter(item.lines[0].strip() for item in parsed.items if unknown_comment(bundle, item))
-    counts.update(line for block in parsed.blocks() for line in interior_team_comments(bundle, block))
+    counts.update(line for block in parsed.blocks() for line in block_team_comments(bundle, block))
     return counts
 
 

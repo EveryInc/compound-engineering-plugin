@@ -192,6 +192,22 @@ describe("config-refresh rebuild of config.yaml", () => {
     expect(draftText(removed)).not.toContain(note)
   })
 
+  test.each([
+    ["config.yaml rebuild", "tracked" as const],
+    ["config.local.yaml in place", "local" as const],
+  ])("a removed setting's inline note survives in a %s, and dropping it fails verify", (_label, layer) => {
+    const note = "# Team: keep reviews on Codex too."
+    const body = `cross_model_peer: codex\nwork_delegate: codex  ${note}\n`
+    const root = makeRepo(layer === "tracked" ? { tracked: body } : { local: body })
+    const result = draft(root, layer)
+    expect(result.json.verify).toBe("ok")
+    const text = draftText(result)
+    expect(text).not.toContain("work_delegate")
+    expect(text).toContain(`\n${note}\n`)
+    const dropped = verifyWith(root, layer, text.replace(`${note}\n`, ""), result.json.changes_recorded)
+    expect(dropped.json.verify).toContain(`team comment \`${note}\` is missing`)
+  })
+
   test("a packs list with column-0 items moves whole, and dropping an item fails verify", () => {
     const packs = "packs:\n- source: compound-packs/a\n- source: https://example.com/p\n  ref: v1\n"
     const root = makeRepo({ tracked: packs })
