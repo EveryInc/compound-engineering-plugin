@@ -51,10 +51,8 @@ HARD_BLOCK_PATTERNS = {
     "migrations": SIGNAL_PATTERNS["migrations"],
 }
 
-# Silent-pass guards the script can name from paths alone. These forbid lite
-# (the change needs the adversarial read the focused path carries) but do not
-# force full; consequence still decides focused versus full. Silent-pass guards
-# outside these paths are the agent's question.
+# Potential silent-pass guards identified by path. The agent assesses what
+# they protect; these signals do not force a depth or select a reviewer.
 SILENT_PASS_PATTERNS = {
     "ci": re.compile(
         r"(^|/)\.github/workflows/|(^|/)\.gitlab-ci\.yml$|(^|/)\.gitlab-ci/"
@@ -65,8 +63,8 @@ SILENT_PASS_PATTERNS = {
 
 # Executable non-test changed lines at or above this run the full spine; it
 # matches the maintainability reviewer's trigger. Below it, consequence decides.
-# Whole-file deletions never count toward it: they band separately, and that
-# band can forbid lite but never forces full.
+# Whole-file deletions never count toward it; their separate band is an
+# inspection cue, not a depth floor.
 FULL_EXEC_LINE_MIN = 200
 
 # Conventions recognized: tests?/spec/__tests__ directories; a .test./.spec.
