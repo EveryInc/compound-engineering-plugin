@@ -32,13 +32,14 @@ The changes file is {"changes": [...]} with one entry per decision:
 Only a subset of YAML is read: top-level `key:` lines with indented or `- ` continuation
 lines and comments. Anything else (duplicate keys, anchors, block scalars, tabs in
 indentation, flow collections spanning lines) is refused with its file and line.
-Standard library only.
 """
 
 from __future__ import annotations
 
 import argparse
+import collections
 import difflib
+import functools
 import hashlib
 import json
 import os
@@ -76,15 +77,16 @@ LOCAL_HEADER = [
 ]
 
 
+Slot = collections.namedtuple("Slot", "start end inline_comment")
+
+
 class Refused(Exception):
     pass
 
 
-# --- line helpers ----------------------------------------------------------------
-
 
 def split_comment(line):
-    """Return (code, gap, comment) for a trailing `# ...` comment outside quotes."""
+    """(code, whitespace before the comment, `# ...` comment) for a comment outside quotes."""
     quote = ""
     for i, ch in enumerate(line):
         prev = line[i - 1] if i else " "
@@ -107,21 +109,19 @@ def is_comment(line):
     return line.lstrip().startswith("#")
 
 
-# --- parsing ---------------------------------------------------------------------
-
 
 class Item:
     def __init__(self, kind, lines, lineno, key=None):
-        self.kind = kind  # "block" | "comment" | "blank"
+        self.kind = kind
         self.lines = lines
         self.lineno = lineno
         self.key = key
-        self.attached = []  # comment Items directly above a block
+        self.attached = []
 
 
 class Parsed:
     def __init__(self, path, text):
-        self.path = path
+        self.text = text
         self.name = os.path.basename(path)
         self.bom = text.startswith("﻿")
         body = text[1:] if self.bom else text
@@ -209,15 +209,19 @@ class Parsed:
         return None
 
     def version(self):
-        """(value, lineno) of the template version line, or (None, None)."""
-        for lineno, line in enumerate(self.raw_lines, 1):
-            match = VERSION_LINE.match(line)
-            if match:
-                return match.group(1).strip(), lineno
-        return None, None
+        return find_version(self.raw_lines)
 
     def is_legacy_local(self):
         return any(line.startswith(marker) for line in self.raw_lines for marker in LEGACY_LOCAL_MARKERS)
+
+
+def find_version(lines):
+    """(value, lineno) of the first template version line, or (None, None)."""
+    for lineno, line in enumerate(lines, 1):
+        match = VERSION_LINE.match(line)
+        if match:
+            return match.group(1).strip(), lineno
+    return None, None
 
 
 def read_parsed(path):
@@ -225,14 +229,15 @@ def read_parsed(path):
         return Parsed(path, fh.read())
 
 
+def inline_value(block):
+    return split_comment(KEY_LINE.match(block.lines[0]).group(2))[0]
+
+
 def block_is_set(block):
     if block is None:
         return False
-    rest = split_comment(KEY_LINE.match(block.lines[0]).group(2))[0].strip()
-    return bool(rest) or any(not is_comment(line) and line.strip() for line in block.lines[1:])
+    return bool(inline_value(block).strip()) or any(not is_comment(line) and line.strip() for line in block.lines[1:])
 
-
-# --- bundled data ----------------------------------------------------------------
 
 
 class Bundle:
@@ -244,15 +249,11 @@ class Bundle:
         self.known.update(line for line in self.template if line.strip())
         self.registry = parse_registry(REGISTRY_PATH)
 
-        self.version = None
-        for line in self.template:
-            match = VERSION_LINE.match(line)
-            if match:
-                self.version = int(match.group(1).strip())
-        if self.version is None:
+        version = find_version(self.template)[0]
+        if version is None:
             raise SystemExit("bundled config-template.yaml has no version line")
+        self.version = int(version)
 
-        # slot key -> (start index, end index exclusive, current inline comment)
         self.slots = {}
         index = 0
         while index < len(self.template):
@@ -264,10 +265,9 @@ class Bundle:
             while end < len(self.template) and SLOT_CONTINUATION.match(self.template[end]):
                 end += 1
             comment = split_comment(self.template[index][2:])[2]
-            self.slots[match.group(1)] = (index, end, comment)
+            self.slots[match.group(1)] = Slot(index, end, comment)
             index = end
 
-        # key -> every inline comment any shipped template gave that key
         self.known_inline = {}
         for line in self.known:
             match = SLOT_LINE.match(line)
@@ -275,6 +275,13 @@ class Bundle:
                 comment = split_comment(line[2:])[2]
                 if comment:
                     self.known_inline.setdefault(match.group(1), set()).add(normalize_comment(comment))
+
+    def known_inline_comment(self, key, line):
+        """Split `line` when its inline comment is one a shipped template gave `key`, else None."""
+        code, gap, comment = split_comment(line)
+        if comment and normalize_comment(comment) in self.known_inline.get(key, set()):
+            return code, gap
+        return None
 
     def is_known(self, line):
         return line in self.known or line == MARKER or bool(VERSION_LINE.match(line))
@@ -304,7 +311,7 @@ def parse_registry(path):
     with open(path, encoding="utf-8") as fh:
         for raw in fh.read().splitlines():
             line = raw.rstrip()
-            if not line.strip() or line.lstrip().startswith("#"):
+            if not line.strip() or is_comment(line):
                 continue
             top = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*$", line)
             if top:
@@ -330,16 +337,13 @@ def parse_registry(path):
     return entries
 
 
-# --- analysis --------------------------------------------------------------------
-
 
 def unknown_comment(bundle, item):
     return item.kind == "comment" and not bundle.is_known(item.lines[0])
 
 
 def attach_comments(bundle, parsed):
-    """Attach each run of team comments that sits directly above a setting to it."""
-    attached_ids = set()
+    """Give each setting the run of team comments directly above it."""
     run = []
     for item in parsed.items:
         if unknown_comment(bundle, item):
@@ -347,26 +351,31 @@ def attach_comments(bundle, parsed):
             continue
         if item.kind == "block":
             item.attached = list(run)
-            attached_ids.update(id(c) for c in run)
         run = []
-    return attached_ids
+    return parsed
+
+
+def attached_ids(parsed, skip_keys=()):
+    return {id(c) for b in parsed.blocks() if b.key not in skip_keys for c in b.attached}
 
 
 def value_lines(bundle, key, lines):
-    """A block's value: its lines with a known template inline comment dropped from the key line."""
-    out = list(lines)
-    code, _gap, comment = split_comment(out[0])
-    if comment and normalize_comment(comment) in bundle.known_inline.get(key, set()):
-        out[0] = code
-    return out
+    """A block's value, ignoring a template inline comment on its key line."""
+    split = bundle.known_inline_comment(key, lines[0])
+    return [split[0]] + list(lines[1:]) if split else list(lines)
 
 
-def winning_layer(bundle, repo, layer, target):
-    """Name the layer whose active `target` would win over a migration into `layer`."""
+@functools.lru_cache(maxsize=None)
+def parsed_layer(path):
+    return read_parsed(path) if os.path.isfile(path) else None
+
+
+def winning_layer(repo, layer, target):
+    """The file whose active `target` would win over a migration into `layer`."""
     order = ["local", "tracked"] if layer == "tracked" else ["local"]
     for name in order:
-        path = os.path.join(repo, ".compound-engineering", LAYER_FILES[name])
-        if os.path.isfile(path) and block_is_set(read_parsed(path).block(target)):
+        parsed = parsed_layer(layer_path(repo, name))
+        if parsed is not None and block_is_set(parsed.block(target)):
             return LAYER_FILES[name]
     return None
 
@@ -383,7 +392,7 @@ def key_report(bundle, repo, layer, parsed):
             if entry.get("kind") == "migrate":
                 row["target"] = entry.get("target")
                 row["values"] = entry.get("values", {})
-                row["target_winning"] = winning_layer(bundle, repo, layer, entry.get("target"))
+                row["target_winning"] = winning_layer(repo, layer, entry.get("target"))
             report["retired"].append(row)
         else:
             report["unrecognized"].append({"key": block.key, "candidates": bundle.candidates(block.key)})
@@ -410,15 +419,13 @@ def layer_state(bundle, parsed, layer):
     return "current", "up to date"
 
 
-# --- changes ---------------------------------------------------------------------
-
 
 def load_changes(path):
     if not path:
         return []
     with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
-    changes = data.get("changes") if isinstance(data, dict) else data
+    changes = data.get("changes") if isinstance(data, dict) else None
     if not isinstance(changes, list):
         raise Refused("changes file must hold {\"changes\": [...]}")
     return changes
@@ -441,12 +448,20 @@ def check_change_shapes(bundle, repo, layer, original, changes):
         for field in required[kind] + ("reason",):
             if not isinstance(change.get(field), str) or (field != "value" and not change[field].strip()):
                 raise Refused(f"{kind} change is missing `{field}`: {json.dumps(change)}")
+
+    gone = {c["key"] for c in changes if c["type"] in ("remove", "migrate")}
+    gone |= {c["from"] for c in changes if c["type"] == "rename"}
+    rebuilt_keys = {b.key for b in original.blocks() if b.key not in gone}
+    rebuilt_keys |= {c["to"] for c in changes if c["type"] == "rename"}
+    rebuilt_keys |= {bundle.registry.get(c["key"], {}).get("target") for c in changes if c["type"] == "migrate"}
+    for change in changes:
+        kind = change["type"]
         if kind == "remove":
             key = change["key"]
             entry = bundle.registry.get(key)
             if entry is None:
                 raise Refused(f"`{key}` is not a retired setting, so it cannot be removed")
-            if entry.get("kind") == "migrate" and not winning_layer(bundle, repo, layer, entry.get("target")):
+            if entry.get("kind") == "migrate" and not winning_layer(repo, layer, entry.get("target")):
                 raise Refused(f"`{key}` must be migrated to `{entry.get('target')}`, which is not already set")
             if original.block(key) is None:
                 raise Refused(f"`{key}` is not set in {original.name}")
@@ -456,12 +471,12 @@ def check_change_shapes(bundle, repo, layer, original, changes):
             if entry is None or entry.get("kind") != "migrate":
                 raise Refused(f"`{key}` has no migration in the registry")
             target = entry.get("target")
-            if winning_layer(bundle, repo, layer, target):
+            if winning_layer(repo, layer, target):
                 raise Refused(f"`{target}` is already set, so `{key}` must be removed, not migrated")
             source = original.block(key)
             if source is None:
                 raise Refused(f"`{key}` is not set in {original.name}")
-            old = _unquote(split_comment(KEY_LINE.match(source.lines[0]).group(2))[0])
+            old = _unquote(inline_value(source))
             expected = entry.get("values", {}).get(old, old) if entry.get("values") else old
             if len(source.lines) > 1 or change["value"] != expected:
                 raise Refused(f"`{key}: {old}` migrates to `{target}: {expected}`, not `{change['value']}`")
@@ -476,14 +491,12 @@ def check_change_shapes(bundle, repo, layer, original, changes):
         else:
             if change["line"] not in comments:
                 raise Refused(f"no team comment `{change['line']}` in {original.name}")
-            if kind == "comment-move" and change["key"] not in [b.key for b in original.blocks()] + [
-                c["to"] for c in changes if c.get("type") == "rename"
-            ] + [bundle.registry.get(c.get("key"), {}).get("target") for c in changes if c.get("type") == "migrate"]:
+            if kind == "comment-move" and change["key"] not in rebuilt_keys:
                 raise Refused(f"comment-move names `{change['key']}`, which is not set in the rebuilt file")
 
 
-def auto_changes(bundle, original, changes):
-    """Registry removals the draft makes on its own, unless the agent already recorded them."""
+def registry_removals(bundle, original, changes):
+    """The registry removals the agent has not already recorded."""
     recorded = {c.get("key") for c in changes if c.get("type") == "remove"}
     out = []
     for block in original.blocks():
@@ -493,11 +506,9 @@ def auto_changes(bundle, original, changes):
     return out
 
 
-# --- rendering -------------------------------------------------------------------
-
 
 class CommentPool:
-    """Comment lines the changes take out of their original place (dropped or moved)."""
+    """Team comment lines that comment-remove and comment-move take out of place."""
 
     def __init__(self, changes):
         self.pool = [c["line"] for c in changes if c["type"] in ("comment-remove", "comment-move")]
@@ -518,66 +529,72 @@ def rename_line(line, old, new):
 
 
 def replace_inline(bundle, key, lines):
-    """Swap a known template inline comment on the key line for the current one."""
-    if key not in bundle.slots:
+    """Swap a template inline comment on the key line for the current template's."""
+    split = bundle.known_inline_comment(key, lines[0]) if key in bundle.slots else None
+    if not split:
         return lines
-    code, gap, comment = split_comment(lines[0])
-    if not comment or normalize_comment(comment) not in bundle.known_inline.get(key, set()):
-        return lines
-    current = bundle.slots[key][2]
+    code, gap = split
+    current = bundle.slots[key].inline_comment
     return [code + (gap + current if current else "")] + lines[1:]
 
 
-def render(bundle, layer, original, changes):
-    attached = attach_comments(bundle, original)
-    removed = {c["key"] for c in changes if c["type"] == "remove"}
-    migrated = {c["key"]: c for c in changes if c["type"] == "migrate"}
-    renamed = {c["from"]: c["to"] for c in changes if c["type"] == "rename"}
-    comments = CommentPool(changes)
-
-    def new_block(item):
-        """(key, lines) a kept or migrated setting becomes; None when it is removed."""
-        if item.key in migrated:
+def rebuilt_block(bundle, item, changes):
+    """(key, lines) a kept or migrated setting becomes, or None when it is removed."""
+    for change in changes:
+        if change["type"] == "migrate" and change["key"] == item.key:
             target = bundle.registry[item.key]["target"]
-            return target, [f"{target}: {migrated[item.key]['value']}"]
-        if item.key in removed:
+            return target, [f"{target}: {change['value']}"]
+        if change["type"] == "remove" and change["key"] == item.key:
             return None
-        key = renamed.get(item.key, item.key)
-        return key, [rename_line(item.lines[0], item.key, key)] + item.lines[1:]
+    key = next((c["to"] for c in changes if c["type"] == "rename" and c["from"] == item.key), item.key)
+    return key, [rename_line(item.lines[0], item.key, key)] + item.lines[1:]
 
+
+def render(bundle, layer, original, changes):
     if layer == "local" and not original.is_legacy_local():
-        # Keep the layout: every line stays where it was, minus what the changes take out.
-        out = []
-        for item in original.items:
-            if item.kind == "block":
-                result = new_block(item)
-                if result:
-                    out.extend(comments.moved_to.get(result[0], []))
-                    out.extend(result[1])
-            elif not unknown_comment(bundle, item) or comments.keep(item.lines[0]):
-                out.append(item.lines[0])
-        return out
+        return render_in_place(bundle, original, changes)
+    return rebuild(bundle, layer, original, changes)
 
-    # Rebuild: settings with their team comments, and loose team comments, in original order.
-    groups = []  # [key or None, lines]
+
+def render_in_place(bundle, original, changes):
+    """Every line stays where it was, minus what the changes take out."""
+    comments = CommentPool(changes)
+    out = []
+    for item in original.items:
+        if item.kind == "block":
+            result = rebuilt_block(bundle, item, changes)
+            if result:
+                out.extend(comments.moved_to.get(result[0], []))
+                out.extend(result[1])
+        elif not unknown_comment(bundle, item) or comments.keep(item.lines[0]):
+            out.append(item.lines[0])
+    return out
+
+
+def rebuild(bundle, layer, original, changes):
+    """The current template with each setting in its slot, or the short local header for a
+    legacy local file; settings without a slot and loose team comments follow, in file order."""
+    comments = CommentPool(changes)
+    tied = attached_ids(original)
+    groups = []
     last_loose = None
     for item in original.items:
         if item.kind == "block":
             head = [c.lines[0] for c in item.attached if comments.keep(c.lines[0])]
-            result = new_block(item)
+            result = rebuilt_block(bundle, item, changes)
             if result is None:
                 if head:
-                    groups.append([None, head])
+                    groups.append((None, head))
             else:
                 key, lines = result
-                groups.append([key, head + comments.moved_to.get(key, []) + replace_inline(bundle, key, lines)])
+                groups.append((key, head + comments.moved_to.get(key, []) + replace_inline(bundle, key, lines)))
             last_loose = None
-        elif unknown_comment(bundle, item) and id(item) not in attached:
+        elif unknown_comment(bundle, item) and id(item) not in tied:
             if comments.keep(item.lines[0]):
                 if last_loose == item.lineno - 1 and groups and groups[-1][0] is None:
                     groups[-1][1].append(item.lines[0])
                 else:
-                    groups.append([None, [item.lines[0]]])
+                    groups.append((None, [item.lines[0]]))
                 last_loose = item.lineno
         else:
             last_loose = None
@@ -595,11 +612,11 @@ def render(bundle, layer, original, changes):
             placed[key] = lines
         else:
             leftover.append(lines)
-    starts = {start: (key, end) for key, (start, end, _comment) in bundle.slots.items()}
+    slot_at = {slot.start: (key, slot.end) for key, slot in bundle.slots.items()}
     out = []
     index = 0
     while index < len(bundle.template):
-        slot = starts.get(index)
+        slot = slot_at.get(index)
         if slot and slot[0] in placed:
             out.extend(placed[slot[0]])
             index = slot[1]
@@ -618,15 +635,9 @@ def to_text(original, lines):
     return ("﻿" if original.bom else "") + text
 
 
-# --- verification ----------------------------------------------------------------
-
 
 def team_comment_counts(bundle, parsed):
-    counts = {}
-    for item in parsed.items:
-        if unknown_comment(bundle, item):
-            counts[item.lines[0]] = counts.get(item.lines[0], 0) + 1
-    return counts
+    return collections.Counter(item.lines[0] for item in parsed.items if unknown_comment(bundle, item))
 
 
 def verify(bundle, repo, layer, original, draft, changes):
@@ -674,15 +685,12 @@ def verify(bundle, repo, layer, original, draft, changes):
 
     before = team_comment_counts(bundle, original)
     after = team_comment_counts(bundle, draft)
-    dropped = {}
-    for change in changes:
-        if change["type"] == "comment-remove":
-            dropped[change["line"]] = dropped.get(change["line"], 0) + 1
+    dropped = collections.Counter(c["line"] for c in changes if c["type"] == "comment-remove")
     for line, count in before.items():
-        kept = count - dropped.get(line, 0)
-        if after.get(line, 0) < kept:
+        kept = count - dropped[line]
+        if after[line] < kept:
             return f"team comment `{line}` is missing from the draft"
-        if after.get(line, 0) > kept:
+        if after[line] > kept:
             return f"comment `{line}` is recorded as removed but is still in the draft"
     allowed = set(LOCAL_HEADER) if layer == "local" else set()
     for line in after:
@@ -690,8 +698,6 @@ def verify(bundle, repo, layer, original, draft, changes):
             return f"the draft adds comment `{line}`, which was not in {original.name}"
     return None
 
-
-# --- commands --------------------------------------------------------------------
 
 
 def repo_root(arg):
@@ -722,17 +728,26 @@ def emit(payload, code=0):
     return code
 
 
-def describe_layer(bundle, repo, layer):
+def load_layer(bundle, repo, layer):
+    """(path, parsed, state, reason); parsed is None when the file is missing or not UTF-8."""
     path = layer_path(repo, layer)
     if not os.path.isfile(path):
-        return {"file": LAYER_FILES[layer], "state": "missing"}
+        return path, None, "missing", f"{LAYER_FILES[layer]} does not exist"
     try:
-        parsed = read_parsed(path)
+        parsed = attach_comments(bundle, read_parsed(path))
     except UnicodeDecodeError as exc:
-        return {"file": LAYER_FILES[layer], "state": "unrefreshable", "reason": f"not UTF-8 text ({exc.reason})"}
-    state, reason = layer_state(bundle, parsed, layer)
-    return {"file": LAYER_FILES[layer], "state": state, "reason": reason,
-            "keys": key_report(bundle, repo, layer, parsed)}
+        return path, None, "unrefreshable", f"not UTF-8 text ({exc.reason})"
+    return (path, parsed) + layer_state(bundle, parsed, layer)
+
+
+def describe_layer(bundle, repo, layer):
+    _path, parsed, state, reason = load_layer(bundle, repo, layer)
+    row = {"file": LAYER_FILES[layer], "state": state}
+    if state != "missing":
+        row["reason"] = reason
+    if parsed is not None:
+        row["keys"] = key_report(bundle, repo, layer, parsed)
+    return row
 
 
 def cmd_status(bundle, repo, _args):
@@ -745,25 +760,31 @@ def cmd_status(bundle, repo, _args):
 
 
 def prepare(bundle, repo, layer):
-    path = layer_path(repo, layer)
-    if not os.path.isfile(path):
-        raise Refused(f"{LAYER_FILES[layer]} does not exist")
-    try:
-        original = read_parsed(path)
-    except UnicodeDecodeError as exc:
-        raise Refused(f"{LAYER_FILES[layer]} is not UTF-8 text ({exc.reason})")
-    state, reason = layer_state(bundle, original, layer)
+    path, original, state, reason = load_layer(bundle, repo, layer)
+    if state == "missing":
+        raise Refused(reason)
     if state in ("newer", "malformed-version", "unrefreshable"):
         raise Refused(f"{LAYER_FILES[layer]} is {state}: {reason}")
     return path, original, state
 
 
+def unplaced_comments(bundle, original, changes):
+    """Team comments not tied to a setting the rebuild keeps; they land in the kept section."""
+    removed = {c["key"] for c in changes if c["type"] == "remove"}
+    tied = attached_ids(original, removed)
+    return [
+        {"line": item.lines[0], "lineno": item.lineno}
+        for item in original.items
+        if unknown_comment(bundle, item) and id(item) not in tied
+    ]
+
+
 def cmd_draft(bundle, repo, args):
     layer = args.layer
     try:
-        path, original, state = prepare(bundle, repo, layer)
+        _path, original, state = prepare(bundle, repo, layer)
         changes = load_changes(args.changes)
-        changes = changes + auto_changes(bundle, original, changes)
+        changes = changes + registry_removals(bundle, original, changes)
         check_change_shapes(bundle, repo, layer, original, changes)
     except (Refused, OSError, ValueError) as exc:
         return emit({"ok": False, "layer": layer, "refused": str(exc)}, 1)
@@ -773,14 +794,6 @@ def cmd_draft(bundle, repo, args):
         return emit({"ok": True, "layer": layer, "state": state, "action": "none", "keys": report})
 
     lines = render(bundle, layer, original, changes)
-    # Team comments the rebuild could not tie to a setting it kept; they land in the kept section.
-    gone = {c.get("key") for c in changes if c["type"] == "remove"}
-    tied = {id(c) for b in original.blocks() if b.key not in gone for c in b.attached}
-    unplaced = [
-        {"line": item.lines[0], "lineno": item.lineno}
-        for item in original.items
-        if unknown_comment(bundle, item) and id(item) not in tied
-    ]
     workdir = tempfile.mkdtemp(prefix=DRAFT_PREFIX)
     draft_path = os.path.join(workdir, LAYER_FILES[layer])
     changes_path = os.path.join(workdir, "changes.json")
@@ -793,8 +806,7 @@ def cmd_draft(bundle, repo, args):
 
     draft = read_parsed(draft_path)
     problem = verify(bundle, repo, layer, original, draft, changes)
-    with open(path, encoding="utf-8", newline="") as fh:
-        before = fh.read()
+    before = original.text
     diff = "".join(difflib.unified_diff(
         before.splitlines(True), text.splitlines(True), LAYER_FILES[layer], LAYER_FILES[layer] + " (draft)"))
     action = "rebuild" if layer == "tracked" else ("cut-down" if original.is_legacy_local() else "edit")
@@ -809,7 +821,7 @@ def cmd_draft(bundle, repo, args):
         "changes": changes_path,
         "changes_recorded": changes,
         "keys": report,
-        "unplaced_comments": unplaced,
+        "unplaced_comments": unplaced_comments(bundle, original, changes),
         "verify": problem or "ok",
         "diff": diff,
     }, 0 if problem is None else 1)
