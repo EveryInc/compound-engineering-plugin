@@ -1,3 +1,4 @@
+import { readFileSync } from "fs"
 import { chmod, copyFile, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
@@ -16,6 +17,8 @@ const configExample = path.join(repoRoot, ".compound-engineering", "config.examp
 const configDocs = path.join(repoRoot, "docs", "guides", "configuration.md")
 const ceWorkDocs = path.join(repoRoot, "docs", "guides", "ce-work.md")
 const lfgDocs = path.join(repoRoot, "docs", "guides", "lfg.md")
+// A hand-written config.yaml reads as current only with the template version line.
+const CURRENT_VERSION_LINE = readFileSync(configTemplate, "utf8").match(/^# ce-config-template-version: \d+\n/m)![0]
 
 type RunResult = {
   exitCode: number
@@ -366,7 +369,7 @@ describe("ce-setup check-health", () => {
     const root = await repoWithLocalConfig("plan_use_fable: true\n")
     try {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
-      expect(result.stdout).toContain("Retired config key 'plan_use_fable'")
+      expect(result.stdout.split("Retired config key 'plan_use_fable' in config.local.yaml").length).toBe(2)
       expect(result.stdout).toContain("plan_model")
     } finally {
       await rm(root, { recursive: true, force: true })
@@ -529,14 +532,15 @@ describe("ce-setup check-health", () => {
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine unavailable: prefer requires work_engine_preferences")
       expect(result.stdout).toContain(
-        "CE Work implementation engine unavailable: prefer cannot use retired scalar routing; migrate work_engine_target, work_engine_model to work_engine_preferences",
+        "Retired config key 'work_engine_target' in config.local.yaml — Never a supported setting; list the harness in a work_engine_preferences entry",
       )
       expect(result.stdout).toContain(
-        "retired config key(s) work_engine_target, work_engine_model detected; migrate routing to work_engine_preferences entries with harness and optional model fields, then remove the retired keys",
+        "Retired config key 'work_engine_model' in config.local.yaml — Never a supported setting; name the model in a work_engine_preferences entry",
       )
-      expect(result.stdout).not.toContain("prefer requires work_engine_preferences")
-      expect(result.stdout).toContain("1 project issue(s) found")
+      expect(result.stdout).not.toContain("prefer -> ")
+      expect(result.stdout).toContain("3 project issue(s) found")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -555,8 +559,37 @@ describe("ce-setup check-health", () => {
 
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
-      expect(result.stdout).toContain("retired config key(s) work_engine_target detected")
+      expect(result.stdout).toContain("Retired config key 'work_engine_target' in config.local.yaml")
       expect(result.stdout).toContain("1 project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("a retired setting the old lists never knew is warned with its replacement", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+      await writeFile(path.join(root, ".compound-engineering", "config.yaml"), `${CURRENT_VERSION_LINE}work_delegate: codex\n`)
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.stdout).toContain("Retired config key 'work_delegate' in config.yaml — ")
+      expect(result.stdout).toContain("set work_engine_mode and work_engine_preferences")
+      expect(result.stdout).toContain("1 project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("a retired key indented under another setting is not the setting", async () => {
+    const root = await repoWithLocalConfig("work_engine_effort:\n  fable_nudge: false\n")
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.stdout).not.toContain("Retired config key")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
@@ -657,7 +690,7 @@ describe("ce-setup check-health", () => {
       await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
       await writeFile(
         path.join(root, ".compound-engineering", "config.yaml"),
-        "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: cursor\n    model: composer\n",
+        CURRENT_VERSION_LINE + "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: cursor\n    model: composer\n",
       )
 
       const result = await runCheckHealth(root, "/usr/bin:/bin")
@@ -1035,7 +1068,10 @@ describe("ce-setup check-health Compound Packs section", () => {
       await writeFile(path.join(pack, "research", "obs-001.md"), knowledgeFile("Observation 1"))
       await writeFile(path.join(pack, "research", "obs-002.md"), knowledgeFile("Observation 2"))
       await writeFile(path.join(pack, "research", "observations", "obs-003.md"), knowledgeFile("Two levels down"))
-      await writeFile(path.join(root, ".compound-engineering", "config.yaml"), "packs:\n  - source: packs/house-rules\n")
+      await writeFile(
+        path.join(root, ".compound-engineering", "config.yaml"),
+        CURRENT_VERSION_LINE + "packs:\n  - source: packs/house-rules\n",
+      )
 
       const result = await runCheckHealth(root, process.env.PATH ?? "/usr/bin:/bin")
 
@@ -1374,5 +1410,92 @@ describe("ce-setup check-health Antigravity peer", () => {
     const result = await runAntigravity({ config: enabledAntigravity.replace("antigravity", "codex") })
 
     expect(result.stdout).not.toMatch(/antigravity/i)
+  })
+})
+
+describe("ce-setup check-health config template status", () => {
+  let sandbox: string
+  let noPythonBin: string
+
+  beforeAll(async () => {
+    sandbox = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-template-"))
+    // The system tools without any Python interpreter, for the skip path.
+    noPythonBin = path.join(sandbox, "no-python-bin")
+    await mkdir(noPythonBin)
+    for (const dir of ["/usr/bin", "/bin"]) {
+      for (const name of await readdir(dir).catch(() => [] as string[])) {
+        if (name.startsWith("python") || name === "py") continue
+        await symlink(path.join(dir, name), path.join(noPythonBin, name)).catch((error) => {
+          if (error.code !== "EEXIST") throw error
+        })
+      }
+    }
+  })
+
+  afterAll(async () => {
+    await rm(sandbox, { recursive: true, force: true })
+  })
+
+  async function run(
+    files: { tracked?: string; local?: string; example?: string },
+    pathValue = "/usr/bin:/bin",
+  ): Promise<RunResult> {
+    const root = await mkdtemp(path.join(sandbox, "run-"))
+    await initGitRepo(root)
+    await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+    await writeFile(
+      path.join(root, ".compound-engineering", "config.example.yaml"),
+      files.example ?? (await readFile(configTemplate, "utf8")),
+    )
+    await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+    if (files.tracked !== undefined) await writeFile(path.join(root, ".compound-engineering", "config.yaml"), files.tracked)
+    if (files.local !== undefined) await writeFile(path.join(root, ".compound-engineering", "config.local.yaml"), files.local)
+    return runCheckHealth(root, pathValue)
+  }
+
+  test("a current config.yaml says so and stays healthy", async () => {
+    const result = await run({ tracked: await readFile(configTemplate, "utf8") })
+    expect(result.stdout).toContain("Repo config matches the current template")
+    expect(result.stdout).toContain("Project config healthy")
+  })
+
+  test("a config.yaml with no version line is out of date and counts as an issue", async () => {
+    const result = await run({ tracked: "cross_model_peer: codex\n" })
+    expect(result.stdout).toContain("Repo config was written from an older template (template version missing")
+    expect(result.stdout).toContain("1 project issue(s) found")
+  })
+
+  test("without Python the status row is skipped and retired settings are still reported", async () => {
+    const result = await run({ tracked: "plan_use_fable: true\n" }, noPythonBin)
+    expect(result.stdout).toContain("No Python interpreter found; config template status not checked")
+    expect(result.stdout).not.toContain("Repo config was written")
+    expect(result.stdout).toContain("Retired config key 'plan_use_fable' in config.yaml")
+  })
+
+  test("files written by a newer plugin are reported, not counted, and the example is not called outdated", async () => {
+    const newer = (await readFile(configTemplate, "utf8")).replace(/template-version: \d+/, "template-version: 99")
+    const result = await run({ tracked: newer, example: newer })
+    expect(result.stdout).toContain("Repo config was written by a newer plugin")
+    expect(result.stdout).toContain("Example config was written by a newer plugin; not refreshed")
+    expect(result.stdout).not.toContain("Example config outdated")
+    expect(result.stdout).toContain("Project config healthy")
+  })
+
+  test("an unrecognized local key is an informational line that leaves the count alone", async () => {
+    const result = await run({ local: "work_engine_prefs: []\n" })
+    expect(result.stdout).toContain(
+      "Unrecognized config key 'work_engine_prefs' in config.local.yaml (close match: work_engine_preferences)",
+    )
+    expect(result.stdout).toContain("Project config healthy")
+  })
+
+  test("a legacy full-template local file is reported for cutting down", async () => {
+    const legacy = await readFile(
+      path.join(repoRoot, "tests", "fixtures", "ce-config-refresh", "config-local-template-2026-08-11.yaml"),
+      "utf8",
+    )
+    const result = await run({ local: legacy })
+    expect(result.stdout).toContain("Local config is a full copy of the old local template")
+    expect(result.stdout).toContain("1 project issue(s) found")
   })
 })

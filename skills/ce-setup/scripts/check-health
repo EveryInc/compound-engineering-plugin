@@ -173,6 +173,10 @@ has_flat_config_key() {
   ' "$config_file"
 }
 
+template_version() {
+  sed -n 's/^# ce-config-template-version:[[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p' "$1" 2>/dev/null | head -n 1
+}
+
 # First non-empty ordinary scalar across local then tracked. Empty/commented
 # local continues to tracked. Sets ordinary_value and ordinary_source.
 resolve_ordinary_scalar() {
@@ -470,7 +474,6 @@ work_engine_cfg="skip"
 work_engine_detail=""
 work_engine_preferences_note=""
 work_engine_preferences_note_level="detail"
-work_engine_migration_note=""
 docs_root_status="skip"
 docs_root_value=""
 docs_root_source=""
@@ -531,21 +534,6 @@ if [ "$in_repo" = "yes" ]; then
   work_engine_preferences_count=0
   work_engine_preferences_detail=""
   work_engine_preferences_error=""
-  retired_work_engine_keys=""
-  for retired_key in work_engine_target work_engine_model; do
-    if { [ -f "$local_config_path" ] && has_flat_config_key "$local_config_path" "$retired_key"; } || \
-       { [ -f "$tracked_config_path" ] && has_flat_config_key "$tracked_config_path" "$retired_key"; }; then
-      if [ -n "$retired_work_engine_keys" ]; then
-        retired_work_engine_keys="${retired_work_engine_keys}, ${retired_key}"
-      else
-        retired_work_engine_keys="$retired_key"
-      fi
-    fi
-  done
-  if [ -n "$retired_work_engine_keys" ]; then
-    work_engine_migration_note="retired config key(s) ${retired_work_engine_keys} detected; migrate routing to work_engine_preferences entries with harness and optional model fields, then remove the retired keys"
-    project_issues=$((project_issues + 1))
-  fi
   if [ -n "$structured_file" ]; then
     while IFS=$'\t' read -r preference_kind preference_harness preference_model; do
       case "$preference_kind" in
@@ -625,9 +613,6 @@ if [ "$in_repo" = "yes" ]; then
         work_engine_cfg="unavailable"
         work_engine_detail="$work_engine_preferences_error"
         project_issues=$((project_issues + 1))
-      elif [ "$work_engine_preferences_count" -eq 0 ] && [ -n "$retired_work_engine_keys" ]; then
-        work_engine_cfg="unavailable"
-        work_engine_detail="$work_engine_mode cannot use retired scalar routing; migrate ${retired_work_engine_keys} to work_engine_preferences"
       elif [ "$work_engine_preferences_count" -eq 0 ]; then
         work_engine_cfg="unavailable"
         work_engine_detail="$work_engine_mode requires work_engine_preferences"
@@ -651,24 +636,61 @@ if [ "$in_repo" = "yes" ]; then
     example_cfg="missing"
   elif [ -f "$template" ] && ! diff -q "$template" "$example" >/dev/null 2>&1; then
     example_cfg="outdated"
+    bundled_template_version="$(template_version "$template")"
+    example_template_version="$(template_version "$example")"
+    if [ -n "$example_template_version" ] && [ "${example_template_version}" -gt "${bundled_template_version:-0}" ] 2>/dev/null; then
+      example_cfg="newer"
+    fi
   else
     example_cfg="ok"
   fi
 
-  # Retired keys set as ACTIVE (non-commented) in either layer. A
-  # commented `# plan_use_fable:` line does not match `^[[:space:]]*<key>:`.
+  have_repo_config="no"
+  { [ -f "$tracked_config_path" ] || [ -f "$local_config_path" ]; } && have_repo_config="yes"
+
+  registry="$script_dir/../references/retired-config-keys.yaml"
   for cfg_file in "$local_config_path" "$tracked_config_path"; do
-    [ -f "$cfg_file" ] || continue
-    for key in plan_use_fable brainstorm_use_fable fable_nudge; do
-      if grep -Eq "^[[:space:]]*${key}[[:space:]]*:" "$cfg_file" 2>/dev/null; then
-        already=""
-        for seen in "${retired_keys[@]}"; do
-          [ "$seen" = "$key" ] && already=1
-        done
-        [ -z "$already" ] && retired_keys+=("$key")
-      fi
-    done
+    [ -f "$registry" ] && [ -f "$cfg_file" ] || continue
+    while IFS=$'\t' read -r retired_key retired_reason; do
+      [ -n "$retired_key" ] && retired_keys+=("${retired_key}"$'\t'"$(basename "$cfg_file")"$'\t'"${retired_reason}")
+    done < <(awk '
+      FNR == 1 { file++ }
+      file == 1 && /^[A-Za-z_][A-Za-z0-9_]*:[[:space:]]*$/ { key = $0; sub(/:.*/, "", key); order[++count] = key; next }
+      file == 1 && key != "" && /^  reason:/ {
+        reason[key] = $0
+        sub(/^  reason:[[:space:]]*/, "", reason[key])
+        gsub(/^"|"$/, "", reason[key])
+        key = ""
+        next
+      }
+      file == 2 && match($0, /^[A-Za-z_][A-Za-z0-9_.-]*[[:space:]]*:/) {
+        name = substr($0, 1, RLENGTH)
+        sub(/[[:space:]]*:$/, "", name)
+        present[name] = 1
+      }
+      END { for (i = 1; i <= count; i++) if (order[i] in present) print order[i] "\t" reason[order[i]] }
+    ' "$registry" "$cfg_file")
   done
+
+  cfg_python="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  config_refresh="$script_dir/config-refresh.py"
+  config_status_report=""
+  if [ -n "$cfg_python" ] && [ -f "$config_refresh" ] && [ "$have_repo_config" = "yes" ]; then
+    config_status_report="$(cd "$repo_root" && "$cfg_python" "$config_refresh" status --repo "$repo_root" 2>/dev/null | "$cfg_python" -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except ValueError:
+    print("FAIL\t")
+    sys.exit(0)
+for layer in ("tracked", "local"):
+    row = data.get(layer) or {}
+    print("STATE\t" + layer + "\t" + row.get("state", "missing") + "\t" + row.get("reason", ""))
+    for key in (row.get("keys") or {}).get("unrecognized", []):
+        hint = (key.get("candidates") or [""])[0]
+        print("UNKNOWN\t" + row.get("file", "") + "\t" + key["key"] + "\t" + hint)
+')"
+  fi
 fi
 
 # Same runtime and helper the peer workers resolve before launching the
@@ -805,7 +827,6 @@ if [ "$in_repo" = "yes" ]; then
   elif [ "$work_engine_cfg" = "invalid" ]; then
     warn "CE Work implementation engine: ${work_engine_detail}"
   fi
-  [ -n "$work_engine_migration_note" ] && warn "$work_engine_migration_note"
   for effort_note in ${work_engine_effort_notes[@]+"${work_engine_effort_notes[@]}"}; do
     warn "$effort_note"
     project_issues=$((project_issues + 1))
@@ -819,31 +840,62 @@ if [ "$in_repo" = "yes" ]; then
   elif [ "$example_cfg" = "outdated" ]; then
     warn "Example config outdated (new settings available)"
     project_issues=$((project_issues + 1))
+  elif [ "$example_cfg" = "newer" ]; then
+    skip "Example config was written by a newer plugin; not refreshed"
   fi
 
-  for key in "${retired_keys[@]}"; do
-    case "$key" in
-      plan_use_fable)       warn "Retired config key '$key' — removed; use 'plan_model' instead" ;;
-      brainstorm_use_fable) warn "Retired config key '$key' — removed; use 'brainstorm_model' instead" ;;
-      fable_nudge)          warn "Retired config key '$key' — removed; model elevation is always available" ;;
+  if [ -z "$cfg_python" ] && [ "$have_repo_config" = "yes" ]; then
+    skip "No Python interpreter found; config template status not checked"
+  elif [ ! -f "$config_refresh" ] && [ "$have_repo_config" = "yes" ]; then
+    skip "config-refresh.py not found beside check-health; config template status not checked"
+  fi
+  while IFS=$'\t' read -r status_kind status_a status_b status_c; do
+    case "$status_kind:$status_a:$status_b" in
+      FAIL:*) warn "config-refresh.py failed to run"; project_issues=$((project_issues + 1)) ;;
+      STATE:tracked:current|STATE:tracked:retired-keys) ok "Repo config matches the current template" ;;
+      STATE:tracked:outdated)
+        warn "Repo config was written from an older template (${status_c})"
+        detail "/ce-setup can rebuild it on the current template with every setting kept."
+        project_issues=$((project_issues + 1)) ;;
+      STATE:tracked:newer) skip "Repo config was ${status_c}; not refreshed" ;;
+      STATE:tracked:malformed-version|STATE:tracked:unrefreshable)
+        warn "Repo config cannot be refreshed automatically: ${status_c}"
+        project_issues=$((project_issues + 1)) ;;
+      STATE:local:legacy)
+        warn "Local config is a full copy of the old local template"
+        detail "/ce-setup can cut it down to the settings and notes you added."
+        project_issues=$((project_issues + 1)) ;;
+      STATE:local:newer) skip "Local config was ${status_c}; not changed" ;;
+      STATE:local:malformed-version|STATE:local:unrefreshable)
+        skip "Local config cannot be changed automatically: ${status_c}" ;;
+      UNKNOWN:*)
+        if [ -n "$status_c" ]; then
+          skip "Unrecognized config key '${status_b}' in ${status_a} (close match: ${status_c})"
+        else
+          skip "Unrecognized config key '${status_b}' in ${status_a}"
+        fi ;;
     esac
+  done < <(printf '%s\n' "$config_status_report")
+
+  for retired in ${retired_keys[@]+"${retired_keys[@]}"}; do
+    IFS=$'\t' read -r retired_key retired_file retired_reason < <(printf '%s\n' "$retired")
+    warn "Retired config key '${retired_key}' in ${retired_file} — ${retired_reason}"
     project_issues=$((project_issues + 1))
   done
   # --- Compound Packs (packs: config key) -------------------------------------
   section "Compound Packs"
-  packs_python="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
   packs_resolver="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/packs-resolve.py"
-  if [ -z "$packs_python" ]; then
+  if [ -z "$cfg_python" ]; then
     skip "No Python interpreter found; pack health not checked"
   elif [ ! -f "$packs_resolver" ]; then
     skip "packs-resolve.py not found beside check-health; pack health not checked"
   else
-    packs_json="$("$packs_python" "$packs_resolver" 2>/dev/null)"
+    packs_json="$("$cfg_python" "$packs_resolver" 2>/dev/null)"
     if [ -z "$packs_json" ]; then
       warn "packs-resolve.py failed to run"
       project_issues=$((project_issues + 1))
     else
-      packs_report="$(printf '%s' "$packs_json" | "$packs_python" -c '
+      packs_report="$(printf '%s' "$packs_json" | "$cfg_python" -c '
 import json, os, re, subprocess, sys
 data = json.load(sys.stdin)
 roots, errors, warns = data.get("roots", []), data.get("errors", []), data.get("warnings", [])
