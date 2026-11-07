@@ -317,7 +317,7 @@ describe("cross-model-adversarial-review route safety", () => {
   })
 
   test.each([
-    ["codex", "--model gpt-6-luna codex exec", ["--config-option mode=read-only", "--config-option reasoning_effort=xhigh"]],
+    ["codex", "--model gpt-6.1-sol codex exec", ["--config-option mode=read-only", "--config-option reasoning_effort=high"]],
     ["claude", "--max-turns 25 --model claude-opus-5-5 claude exec", ["--config-option mode=default", "--config-option effort=high"]],
     ["grok-cli", "--model grok-4.7 grok-build exec", ["--config-option reasoning_effort=xhigh"]],
     ["grok-cursor", "--model grok-4.7[context=256k,reasoning_effort=high,fast=true] cursor exec", ["--config-option mode=ask"]],
@@ -1110,7 +1110,8 @@ describe("cross-model-adversarial-review normalization", () => {
   })
 
   test.each([
-    ["codex", "claude", { quota: { model_usage: [{ model: "gpt-6-luna", token_count: { totalTokens: 1200 } }] } }, "gpt-6-luna", false],
+    ["codex", "claude", { quota: { model_usage: [{ model: "gpt-6.1-sol", token_count: { totalTokens: 1200 } }] } }, "gpt-6.1-sol", false],
+    ["codex", "claude", { quota: { model_usage: [{ model: "gpt-6-luna", token_count: { totalTokens: 1200 } }] } }, "gpt-6-luna", true],
     ["claude", "codex", { quota: { model_usage: [
       { model: "claude-haiku-4-5", token_count: { totalTokens: 5000 } },
       { model: "claude-opus-5-5-20260801", token_count: { totalTokens: 100 } },

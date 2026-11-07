@@ -945,9 +945,10 @@ describe("ce-code-review contract", () => {
     expect(modes).toMatch(/## Review depth/)
     expect(modes).toMatch(/It never awards lite/)
     expect(modes).toMatch(/`hard_block_full` is a floor/)
-    expect(modes).toMatch(
-      /silent-pass guard, an auth \/ money \/ data boundary, or a public contract/,
-    )
+    expect(modes).toMatch(/### Adversarial selection/)
+    expect(modes).toMatch(/Diff size, file paths, domain keywords.*do not select adversarial/)
+    expect(select).not.toMatch(/>=50 changed code lines/)
+    expect(select).toContain("Adversarial selection condition")
     expect(modes).toMatch(/a path may only move toward full/)
     expect(paths).toMatch(/Do not dispatch reviewers or finish leaves/)
     // Size below the full floor is a fact, never a decision: the floor is
@@ -972,6 +973,7 @@ describe("ce-code-review contract", () => {
     // Stage cost instrumentation (plan 2026-09-15-1322, U6): the stage log opens
     // with the run directory and the receipt writer folds it in last.
     const scope = await readRepoFile("skills/ce-code-review/references/scope.md")
+    expect(scope).not.toMatch(/`silent_pass_classes`.*may never send to lite/)
     expect(scope).toMatch(/scripts\/run-log\.py" event --run-dir "\$RUN_DIR" --start scope/)
     expect(modes).toMatch(/run-log\.py summarize --run-dir "\$RUN_DIR"/)
     expect(modes).toMatch(/only writer that touches `metadata\.json` after the receipt write/)
@@ -1265,7 +1267,7 @@ describe("ce-code-review contract", () => {
     expect(content).not.toMatch(/gh pr diff [^`]*\| awk/)
     expect(content).toMatch(/awk '[^`]*deleted file mode/)
     expect(content).toContain('<deleted-files base="<ref>">')
-    expect(content).toMatch(/`deleted_band: large` rules out lite/)
+    expect(content).toMatch(/A CI path or large deletion alone does not require an independent read/)
     const peerScript = await readRepoFile(
       "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
     )

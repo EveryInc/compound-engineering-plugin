@@ -12,7 +12,7 @@ Before reviewing, estimate the size and risk of the diff you received.
 
 **Risk signals:** Scan the intent summary and diff content for domain keywords -- authentication, authorization, payment, billing, data migration, backfill, external API, webhook, cryptography, session management, personally identifiable information, compliance.
 
-**Silent-pass verification mechanism (overrides the size-based depth below):** if the diff *is* a verification mechanism whose failure mode is going green while the real thing is red -- CI/CD gating logic, merge-blocking checks, build/deploy steps, coverage/lint gates, or test infrastructure/mocks that could mask production -- treat it as a strong risk signal. Never pick Quick for it regardless of changed-line count, and run the fidelity lens (technique 5) even when it is the only reason you were selected. This is the case the reviewer roster's silent-pass trigger selects you for; a small CI/config diff still gets the full green-while-red attack.
+**Silent-pass verification mechanism (overrides the size-based depth below):** if the diff *is* a verification mechanism whose failure mode is going green while the real thing is red -- CI/CD gating logic, merge-blocking checks, build/deploy steps, coverage/lint gates, or test infrastructure/mocks that could mask production -- treat it as a strong risk signal. Never pick Quick for it regardless of changed-line count, and run the fidelity lens (technique 5) even when it is the only reason you were selected. Once selected, inspect the guard regardless of diff size.
 
 Select your depth:
 
