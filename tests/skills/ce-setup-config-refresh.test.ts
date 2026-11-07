@@ -177,6 +177,21 @@ describe("config-refresh rebuild of config.yaml", () => {
     expect(result.json.verify).toBe("ok")
   })
 
+  test("a removed setting's own indented note survives, and dropping it fails verify", () => {
+    const note = "# Team: keep reviews on Codex too."
+    const root = makeRepo({ tracked: `cross_model_peer: codex\nwork_delegate: codex\n  ${note}\n` })
+    const result = draft(root, "tracked")
+    expect(result.json.verify).toBe("ok")
+    const text = draftText(result)
+    expect(text).not.toContain("work_delegate")
+    expect(text).toContain(`\n${note}\n`)
+    const dropped = verifyWith(root, "tracked", text.replace(`${note}\n`, ""), result.json.changes_recorded)
+    expect(dropped.json.verify).toContain(`team comment \`${note}\` is missing`)
+    const removed = draft(root, "tracked", [{ type: "comment-remove", line: note, reason: "about the retired setting" }])
+    expect(removed.json.verify).toBe("ok")
+    expect(draftText(removed)).not.toContain(note)
+  })
+
   test("a packs list with column-0 items moves whole, and dropping an item fails verify", () => {
     const packs = "packs:\n- source: compound-packs/a\n- source: https://example.com/p\n  ref: v1\n"
     const root = makeRepo({ tracked: packs })

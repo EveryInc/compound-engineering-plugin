@@ -346,6 +346,11 @@ def unknown_comment(bundle, item):
     return item.kind == "comment" and not bundle.is_known(item.lines[0])
 
 
+def interior_team_comments(bundle, item):
+    """Team comment lines inside a setting's block, without their indentation."""
+    return [line.strip() for line in item.lines[1:] if is_comment(line) and not bundle.is_known(line.strip())]
+
+
 def attach_comments(bundle, parsed):
     """Give each setting the run of team comments directly above it."""
     run = []
@@ -444,7 +449,8 @@ def check_change_shapes(bundle, repo, layer, original, changes):
         "comment-remove": ("line",),
         "comment-move": ("line", "key"),
     }
-    comments = [item.lines[0] for item in original.items if unknown_comment(bundle, item)]
+    comments = [item.lines[0].strip() for item in original.items if unknown_comment(bundle, item)]
+    comments += [line for block in original.blocks() for line in interior_team_comments(bundle, block)]
     for change in changes:
         kind = change.get("type") if isinstance(change, dict) else None
         if kind not in required:
@@ -493,7 +499,7 @@ def check_change_shapes(bundle, repo, layer, original, changes):
             if original.block(target) is not None:
                 raise Refused(f"`{target}` is already set in {original.name}")
         else:
-            if change["line"] not in comments:
+            if change["line"].strip() not in comments:
                 raise Refused(f"no team comment `{change['line']}` in {original.name}")
             if kind == "comment-move" and change["key"] not in rebuilt_keys:
                 raise Refused(f"comment-move names `{change['key']}`, which is not set in the rebuilt file")
@@ -515,15 +521,15 @@ class CommentPool:
     """Team comment lines that comment-remove and comment-move take out of place."""
 
     def __init__(self, changes):
-        self.pool = [c["line"] for c in changes if c["type"] in ("comment-remove", "comment-move")]
+        self.pool = [c["line"].strip() for c in changes if c["type"] in ("comment-remove", "comment-move")]
         self.moved_to = {}
         for change in changes:
             if change["type"] == "comment-move":
                 self.moved_to.setdefault(change["key"], []).append(change["line"])
 
     def keep(self, line):
-        if line in self.pool:
-            self.pool.remove(line)
+        if line.strip() in self.pool:
+            self.pool.remove(line.strip())
             return False
         return True
 
@@ -570,6 +576,8 @@ def render_in_place(bundle, original, changes):
             if result:
                 out.extend(comments.moved_to.get(result[0], []))
                 out.extend(result[1])
+            else:
+                out.extend(c for c in interior_team_comments(bundle, item) if comments.keep(c))
         elif not unknown_comment(bundle, item) or comments.keep(item.lines[0]):
             out.append(item.lines[0])
     return out
@@ -587,6 +595,8 @@ def rebuild(bundle, layer, original, changes):
             head = [c.lines[0] for c in item.attached if comments.keep(c.lines[0])]
             result = rebuilt_block(bundle, item, changes)
             if result is None:
+                # A removed setting's own notes survive as loose notes.
+                head += [c for c in interior_team_comments(bundle, item) if comments.keep(c)]
                 if head:
                     groups.append((None, head))
             else:
@@ -641,7 +651,9 @@ def to_text(original, lines):
 
 
 def team_comment_counts(bundle, parsed):
-    return collections.Counter(item.lines[0] for item in parsed.items if unknown_comment(bundle, item))
+    counts = collections.Counter(item.lines[0].strip() for item in parsed.items if unknown_comment(bundle, item))
+    counts.update(line for block in parsed.blocks() for line in interior_team_comments(bundle, block))
+    return counts
 
 
 def verify(bundle, repo, layer, original, draft, changes):
@@ -689,7 +701,7 @@ def verify(bundle, repo, layer, original, draft, changes):
 
     before = team_comment_counts(bundle, original)
     after = team_comment_counts(bundle, draft)
-    dropped = collections.Counter(c["line"] for c in changes if c["type"] == "comment-remove")
+    dropped = collections.Counter(c["line"].strip() for c in changes if c["type"] == "comment-remove")
     for line, count in before.items():
         kept = count - dropped[line]
         if after[line] < kept:
