@@ -1,0 +1,5 @@
+packs:
+  - source: packs/team-rules
+cross_model_peer: codex
+packs:
+  - source: packs/other-rules
