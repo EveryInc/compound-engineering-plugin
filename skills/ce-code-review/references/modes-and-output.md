@@ -2,6 +2,8 @@
 
 Read this at Stage 0, before scope is resolved. It defines how to parse the arguments, which argument combinations stop the review, the quick-review short-circuit, and what each mode returns.
 
+Give each file you read its own tool call, so its output comes back on its own, never several files in one command or one script. A read counts only when the whole file came back. Some hosts cut the middle out of a long tool output and leave a truncation marker in its place, so when a read comes back shortened, read the missing lines in smaller ranges before you act on that file. That applies to every file you read during this review, not only to references.
+
 ## Argument Parsing
 
 Parse the arguments you were invoked with for optional tokens. Strip each recognized token before interpreting the remainder as a PR number, GitHub URL, or branch name.
@@ -160,4 +162,4 @@ Each object in `triage_groups` carries `{ "title", "findings": [<stable #s>], "c
 
 On failure before review completes, set `"status": "failed"` and `"reason": "<one sentence>"`. When all reviewers fail, use `"status": "degraded"` with a reason. When a PR skip rule applies (closed/merged/trivial), use `"status": "skipped"` with the skip reason. Do not emit markdown tables when `mode:agent` is active.
 
-After Stage 6 on the full path, the review ends with the actionable summary, the run artifacts, and the point where the run stops. `references/finish-review.md` defines that ending for the full spine.
+After Stage 6 on the full path, the review ends with the actionable summary, the run artifacts, and the point where the run stops. `references/finish-report.md` defines that ending for the full spine.

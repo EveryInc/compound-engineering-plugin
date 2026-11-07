@@ -180,7 +180,7 @@ describe("skill-eval-cell catalog", () => {
         "ce-brainstorm/verdict-routes-to-pov:references/phase-0.md",
         "ce-brainstorm/verdict-routes-to-pov:references/verdict-routing.md",
         "ce-brainstorm/write-plan-reads-plan-write:references/plan-write.md",
-        "ce-code-review/artifact-quote-before-filter:references/finish-review.md",
+        "ce-code-review/artifact-quote-before-filter:references/finish-merge.md",
         "ce-code-review/adversarial-ci-deploy:references/modes-and-output.md",
         "ce-code-review/adversarial-explicit:references/modes-and-output.md",
         "ce-code-review/adversarial-full-routine:references/modes-and-output.md",

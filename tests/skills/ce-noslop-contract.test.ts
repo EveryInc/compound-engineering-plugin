@@ -26,7 +26,7 @@ function crlfByteSize(contents: string): number {
 // Siblings that compose prose and write it through ce-noslop at that point.
 const CONSOLIDATION_SET = [
   "skills/ce-commit-push-pr/references/pr-description-writing.md",
-  "skills/ce-code-review/references/finish-review.md",
+  "skills/ce-code-review/references/finish-report.md",
   "skills/ce-plan/references/plan-sections.md",
   "skills/ce-brainstorm/references/brainstorm-sections.md",
   "skills/ce-promote/SKILL.md",
@@ -49,7 +49,8 @@ const REMOVED_SUBSTRINGS: Array<[string, string[]]> = [
     "ASD-STE100",
     [
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
-      "skills/ce-code-review/references/finish-review.md",
+      "skills/ce-code-review/references/finish-report.md",
+      "skills/ce-code-review/references/finish-merge.md",
       "skills/ce-plan/references/plan-sections.md",
       "skills/ce-brainstorm/references/brainstorm-sections.md",
       "skills/ce-doc-review/references/rendering-floor.md",
