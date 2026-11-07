@@ -218,14 +218,28 @@ describe("ce-setup check-health", () => {
       "utf8",
     )
     const step3 = skill.match(/### Step 3:[\s\S]*?(?=## Phase 2)/)?.[0] ?? ""
+    const step5a = repoFixes.match(/### Step 5a:[\s\S]*?(?=### Step 6:)/)?.[0] ?? ""
     const step6a = repoFixes.match(/### Step 6a:[\s\S]*?(?=### Step 7:)/)?.[0] ?? ""
 
     for (const section of [step3, step6a]) {
-      expect(section).toContain("retired scalar routing keys")
       expect(section).toContain("malformed dormant `work_engine_preferences`")
     }
-    expect(step6a).toContain("remove any retired scalar routing keys")
     expect(step6a).toContain("remove malformed dormant preferences")
+    // Retired keys, routing ones included, are the registry-driven refresh's job.
+    expect(step3).toContain("retired config keys")
+    expect(step5a).toContain("names a retired config key")
+    expect(step5a).toContain("`references/config-refresh.md`")
+    expect(step6a).not.toContain("remove any retired scalar routing keys")
+  })
+
+  test("a non-interactive run applies the config.yaml refresh and only reports local changes", async () => {
+    const nonInteractive = await readFile(
+      path.join(repoRoot, "skills", "ce-setup", "references", "non-interactive.md"),
+      "utf8",
+    )
+    const [apply, report] = nonInteractive.split("Report a write instead of making it")
+    expect(apply).toContain("Step 5a's refresh of `config.yaml`")
+    expect(report).toContain("every change to the gitignored `config.local.yaml`")
   })
 
   test("documents the cross-model configuration and lifecycle without overstating worktree isolation", async () => {
@@ -867,6 +881,8 @@ describe("ce-setup check-health", () => {
     ).join("\n")
     expect(skill).toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.yaml`")
     expect(skill).toContain("Do not create `config.local.yaml`")
+    expect(skill).toContain("only through Step 5a's verified refresh")
+    expect(skill).not.toContain("Never overwrite an existing")
     expect(skill).toContain("offer to move it into `config.yaml`")
     expect(skill).not.toContain("Set up a local config file for this project?")
     expect(skill).not.toContain("copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`")
