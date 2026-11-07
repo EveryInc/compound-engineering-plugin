@@ -842,6 +842,25 @@ def cmd_verify(bundle, repo, args):
     return emit({"ok": problem is None, "layer": args.layer, "verify": problem or "ok"}, 0 if problem is None else 1)
 
 
+def remove_draft_files(draft_path, changes_path):
+    """Delete only the two files `draft` wrote, then their directory if it is now empty."""
+    workdir = os.path.dirname(os.path.abspath(draft_path))
+    if not (os.path.basename(workdir).startswith(DRAFT_PREFIX)
+            and os.path.dirname(os.path.realpath(workdir)) == os.path.realpath(tempfile.gettempdir())):
+        return
+    for path in (draft_path, changes_path):
+        if os.path.dirname(os.path.abspath(path)) == workdir and os.path.basename(path) in (
+                *LAYER_FILES.values(), "changes.json"):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    try:
+        os.rmdir(workdir)
+    except OSError:
+        pass
+
+
 def cmd_apply(bundle, repo, args):
     try:
         path, problem = run_verify(bundle, repo, args)
@@ -861,9 +880,7 @@ def cmd_apply(bundle, repo, args):
         if os.path.exists(tmp):
             os.unlink(tmp)
         return emit({"ok": False, "layer": args.layer, "applied": False, "verify": str(exc)}, 1)
-    workdir = os.path.dirname(os.path.abspath(args.draft))
-    if os.path.basename(workdir).startswith(DRAFT_PREFIX):
-        shutil.rmtree(workdir, ignore_errors=True)
+    remove_draft_files(args.draft, args.changes)
     return emit({"ok": True, "layer": args.layer, "applied": True, "file": path,
                  "sha256": hashlib.sha256(data).hexdigest()})
 

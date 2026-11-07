@@ -599,6 +599,16 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  test("a retired key on the first line of a file with a byte-order mark is still reported", async () => {
+    const root = await repoWithLocalConfig("﻿plan_use_fable: true\n")
+    try {
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+      expect(result.stdout).toContain("Retired config key 'plan_use_fable' in config.local.yaml")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("a retired key indented under another setting is not the setting", async () => {
     const root = await repoWithLocalConfig("work_engine_effort:\n  fable_nudge: false\n")
     try {

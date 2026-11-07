@@ -34,7 +34,9 @@ function makeRepo(files: { tracked?: string; local?: string }): string {
 type Result = { status: number; json: any }
 
 function run(root: string, args: string[], scriptPath = script): Result {
-  const res = spawnSync("python3", [scriptPath, ...args, "--repo", root], { encoding: "utf8" })
+  // Drafts land under the test's own scratch dir, and no harness variables reach the child.
+  const env = { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: scratch, TMPDIR: scratch, LANG: "C.UTF-8" }
+  const res = spawnSync("python3", [scriptPath, ...args, "--repo", root], { encoding: "utf8", env })
   if (!res.stdout) throw new Error(`no output: ${res.stderr}`)
   return { status: res.status ?? -1, json: JSON.parse(res.stdout) }
 }
@@ -273,6 +275,20 @@ describe("config-refresh verify", () => {
       "`plan_use_fable` is recorded as removed but is still in the draft",
     ],
     ["a removal nobody recorded", (t: string) => t, removals.slice(0, 1), "retired setting `work_delegate` is still in the draft"],
+    ["the draft adds a setting", (t: string) => `${t}plan_model: fable\n`, removals, "the draft adds `plan_model`"],
+    ["the draft adds a comment", (t: string) => `${t}# injected\n`, removals, "the draft adds comment `# injected`"],
+    [
+      "the draft carries an old template version",
+      (t: string) => t.replace(/template-version: \d+/, "template-version: 0"),
+      removals,
+      "draft template version is 0",
+    ],
+    [
+      "a comment recorded as removed is still in the draft",
+      (t: string) => t,
+      [...removals, { type: "comment-remove", line: TEAM_NOTE, reason: "stale note" }],
+      "is recorded as removed but is still in the draft",
+    ],
     [
       "a value change recorded as a removal of a current setting",
       (t: string) => t.replace("docs_root: specs\n", ""),
@@ -284,6 +300,54 @@ describe("config-refresh verify", () => {
     const result = verifyWith(root, "tracked", mutate(text), changes)
     expect(result.status).toBe(1)
     expect(result.json.verify).toContain(message)
+  })
+
+  test("comment-move places a loose note above its setting and comment-remove drops a note", () => {
+    const loose = "# Team: we keep specs out of docs/."
+    const body = ["docs_root: specs", loose, "", TEAM_NOTE, "cross_model_peer: codex", ""].join("\n")
+    const root = makeRepo({ tracked: body })
+    const result = draft(root, "tracked", [
+      { type: "comment-move", line: loose, key: "docs_root", reason: "describes docs_root" },
+      { type: "comment-remove", line: TEAM_NOTE, reason: "no longer true" },
+    ])
+    expect(result.json.verify).toBe("ok")
+    const text = draftText(result)
+    expect(text).toContain(`\n${loose}\ndocs_root: specs\n`)
+    expect(text).not.toContain(TEAM_NOTE)
+    expect(text).not.toContain("does not recognize, and notes ---")
+    expect(verifyWith(root, "tracked", text.replace(`${loose}\n`, ""), result.json.changes_recorded).json.verify).toContain(
+      `team comment \`${loose}\` is missing`,
+    )
+  })
+
+  test("comment-move keeps a hand-written local file's layout and lands above its setting", () => {
+    const local = "plan_model: fable\n# about the peer\ncustom_team_key: 1\ncross_model_peer: codex\n"
+    const root = makeRepo({ local })
+    const result = draft(root, "local", [
+      { type: "comment-move", line: "# about the peer", key: "cross_model_peer", reason: "describes the peer" },
+    ])
+    expect(result.json.verify).toBe("ok")
+    expect(draftText(result)).toBe("plan_model: fable\ncustom_team_key: 1\n# about the peer\ncross_model_peer: codex\n")
+  })
+
+  test("apply removes only the files draft wrote", () => {
+    const root = makeRepo({ tracked: "cross_model_peer: codex\n" })
+    const result = draft(root, "tracked")
+    const workdir = path.dirname(result.json.draft)
+    expect(applyDraft(root, "tracked", result).json.applied).toBe(true)
+    expect(() => readFileSync(result.json.draft)).toThrow()
+    expect(() => readFileSync(workdir)).toThrow()
+
+    const kept = path.join(scratch, `ce-config-refresh-kept-${counter++}`)
+    mkdirSync(kept)
+    const keep = path.join(kept, "notes.txt")
+    writeFileSync(keep, "mine")
+    const fresh = makeRepo({ tracked: "cross_model_peer: codex\n" })
+    const freshDraft = draft(fresh, "tracked")
+    const moved = path.join(kept, "config.yaml")
+    writeFileSync(moved, draftText(freshDraft))
+    expect(run(fresh, ["apply", "--layer", "tracked", "--draft", moved, "--changes", freshDraft.json.changes]).json.applied).toBe(true)
+    expect(readFileSync(keep, "utf8")).toBe("mine")
   })
 
   test("a typo rename to a candidate moves the value into the slot unchanged", () => {

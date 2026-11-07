@@ -307,7 +307,7 @@ sequenceDiagram
   - `tests/skills/ce-setup-check-health.test.ts` (restate the pins at 208-226 and 826-840)
 - **Approach:**
   1. Run `ce-skill-work` before editing. State the goal, done condition, safe failure direction (leave the file untouched), and the facts the agent cannot derive: the script's subcommands, the registry kinds, R5's no-override rule, and the reason wording for behavior-changing migrations. Do not restate script mechanics the script owns.
-  2. `summary.md` reports the refresh outcome as one of: rebuilt with N changes, declined, refused with the reason, skipped as current, or skipped as newer.
+  2. `summary.md` reports the refresh outcome (rebuilt or cut down, declined, refused with the reason, already current, or left alone as newer) and names each removed, migrated, or renamed setting with its reason and replacement.
   3. In `non-interactive.md`, restate the apply/report condition once (KTD9) rather than adding cases.
 - **Patterns to follow:** Step 6a/6b's edit, rerun health, require-clean loop; the existing Step 9 placement-and-approval wording.
 - **Test scenarios:**

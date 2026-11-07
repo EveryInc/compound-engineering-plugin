@@ -161,9 +161,6 @@ resolve_docs_root() {
   docs_root_status="configured"
 }
 
-# Report whether a retired top-level key is still present without interpreting
-# its value. Detection is intentionally separate from routing so legacy scalar
-# settings can receive a migration diagnostic without remaining supported.
 has_flat_config_key() {
   local config_file="$1"
   local config_key="$2"
@@ -653,7 +650,7 @@ if [ "$in_repo" = "yes" ]; then
     [ -f "$registry" ] && [ -f "$cfg_file" ] || continue
     while IFS=$'\t' read -r retired_key retired_reason; do
       [ -n "$retired_key" ] && retired_keys+=("${retired_key}"$'\t'"$(basename "$cfg_file")"$'\t'"${retired_reason}")
-    done < <(awk '
+    done < <(LC_ALL=C awk '
       FNR == 1 { file++ }
       file == 1 && /^[A-Za-z_][A-Za-z0-9_]*:[[:space:]]*$/ { key = $0; sub(/:.*/, "", key); order[++count] = key; next }
       file == 1 && key != "" && /^  reason:/ {
@@ -663,6 +660,7 @@ if [ "$in_repo" = "yes" ]; then
         key = ""
         next
       }
+      file == 2 && FNR == 1 { sub(/^\357\273\277/, "") }
       file == 2 && match($0, /^[A-Za-z_][A-Za-z0-9_.-]*[[:space:]]*:/) {
         name = substr($0, 1, RLENGTH)
         sub(/[[:space:]]*:$/, "", name)
