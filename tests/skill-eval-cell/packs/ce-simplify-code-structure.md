@@ -26,6 +26,8 @@ Run each one with `bun run test:skill-eval-cell -- --skill ce-simplify-code --ho
 
 Grade the tree and test results from the workspace. Grade whether the run read `structural-pass.md` and dispatched the structure reviewer from the host's session log, never from the `FILES_READ` or `DELEGATES_DISPATCHED` trailers, which the model writes itself. For Codex that is the rollout under `<out>/user-config/codex/codex-home/sessions/`, where each spawned reviewer has its own rollout. For Claude it is the session log under `~/.claude/projects/` for the cell's workspace path, where each `Agent` call and its prompt appear. A reviewer dispatch counts when a subagent's prompt carries the `structure-reviewer.md` rubric. Grade the report's content from `stdout.txt`, and check any history claim in a report against `git log` in the fixture.
 
+The Claude results below were first graded from the trailers. They were then checked against the session logs of all 25 Claude runs, with each tool call counted once by its ID. The logs agree with the trailers in every run. Every post run of `report` or `fix`, on the plain fixture, the large fixture, and the real repository, read `structural-pass.md` and dispatched a subagent with the structure-reviewer rubric. No pre run and no `diff` run did either. Four post `fix` runs dispatched the structure reviewer a second time, after the grouped change was applied.
+
 ## Reference results (2026-11-06)
 
 One trial per scenario and host. Pre is `173bd337f`. Post is the working tree before the reader-pass wording fixes, which clarified grouping, numbering, and the reviewer's overlap with the other reviewers without changing when the pass runs.
