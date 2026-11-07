@@ -21,6 +21,8 @@ Do not feed `fast-pass` candidates into the persona or validator prompts. Those 
 
 #### Model tiering
 
+The tiers below are each reviewer's default tier. Read `references/subagent-model.md` before the first spawn: it decides the model and effort every spawn passes, and in Codex it replaces these tiers.
+
 Three reviewers inherit the session model with no override: `correctness-reviewer`, `security-reviewer`, and `adversarial-reviewer`. These perform the highest-stakes analysis (logic bugs, security vulnerabilities, adversarial failure scenarios) and should run at whatever capability level the user has configured. If the user is on Opus, these get Opus.
 
 All other persona subagents and CE local prompt assets use the platform's mid-tier model to reduce cost and latency. See the Spawning subsection below for the exact dispatch-time override.
@@ -44,7 +46,7 @@ Omit the `mode` parameter when dispatching sub-agents so the user's configured p
 **Model override at dispatch time.** As you select reviewers in Stage 3 (select reviewers), **record the model you will pass for each reviewer in an internal working list**. That list is your external memory (the role the old printed `[session model]`/`[mid-tier]` labels served), and it must exist and be honored even though it is no longer rendered in the user-facing announce:
 
 - **Session model** (no override; inherits the session model): `correctness-reviewer`, `security-reviewer`, and `adversarial-reviewer` only.
-- **Mid-tier**: every other persona and CE agent. Pass the platform's balanced mid-tier model. In Claude Code, that is the Sonnet class. In Codex, apply this tier only when the active dispatch primitive exposes an explicit model or custom-agent selector; task wording alone does not select a different model. Otherwise omit the override and inherit the parent model: a working review on the parent model beats a broken dispatch on an unrecognized name.
+- **Mid-tier**: every other persona and CE agent. Pass the platform's balanced mid-tier model. In Claude Code, that is the Sonnet class. On a host whose dispatch primitive exposes no explicit model or custom-agent selector, omit the override and inherit the parent model, because task wording alone does not select a different model: a working review on the parent model beats a broken dispatch on an unrecognized name.
 
 If the user's or project's active instructions or the live prompt name a model for this subagent, use that model instead of the default tier above. They can name it by the subagent's tier, by its prompt-asset name, or for the subagents being dispatched. Without such an instruction, a model configured for this subagent's role takes precedence over the default tier. Following a named model is not a missed override, and neither is a model configured for this subagent's role.
 
