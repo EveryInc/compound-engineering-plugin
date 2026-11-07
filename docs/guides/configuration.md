@@ -2,7 +2,7 @@
 
 Compound Engineering keeps optional repo defaults in `.compound-engineering/config.yaml`. Ordinary keys may also live in `.compound-engineering/config.local.yaml`, which overrides the repo file per key. Both files are visible to every supported harness that opens the same checkout.
 
-Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-engineering/config.example.yaml`. Setup does not create `config.local.yaml`. Uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in either file.
+Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-engineering/config.example.yaml`. Setup does not create `config.local.yaml`. The template's header carries a `# ce-config-template-version:` line. When `config.yaml` has an older version, setup rebuilds it on the current template with every setting kept (see the [ce-setup guide](./ce-setup.md#what-it-fixes)). Uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in either file.
 
 ## How keys resolve
 
@@ -140,4 +140,4 @@ Current-task wording can select a different route for one run without editing co
 - Commit `config.yaml` when you want team defaults. Keep `config.local.yaml` out of git if it holds personal or checkout-only choices (`/ce-setup` can add `.compound-engineering/*.local.yaml`).
 - Put durable team-wide *instructions* in the project's normal agent-instructions mechanism. Team *defaults* for CE keys may live in `config.yaml`.
 - Prefer per-run instructions for one-off choices.
-- Re-run `/ce-setup` after plugin upgrades to refresh the committed example and diagnose retired or malformed settings.
+- Re-run `/ce-setup` after plugin upgrades. It refreshes the committed example, brings an out-of-date `config.yaml` up to the current template, removes retired settings, and diagnoses malformed ones.
