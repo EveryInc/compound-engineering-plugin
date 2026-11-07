@@ -31,7 +31,7 @@ When the platform's task-tracking capability is available, show the review, appl
 
 ## Step 2: Launch review agents in parallel
 
-Dispatch generic subagents via the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the reviews inline or serially. For each reviewer, read its prompt asset from this skill's directory and pass the **full file content** as the subagent's prompt, together with the resolved scope (the full diff or file set), the mode, any proof test, the user's constraints, and the project standards governing the scope (or their file paths):
+Dispatch each reviewer as its own generic subagent via the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex). Run reviews inline only when the platform has no subagent primitive, or when a dispatch fails as `references/reviewer-dispatch.md` describes. For each reviewer, read its prompt asset from this skill's directory and pass the **full file content** as the subagent's prompt, together with the resolved scope (the full diff or file set), the mode, any proof test, the user's constraints, and the project standards governing the scope (or their file paths):
 
 - `references/personas/code-reuse-reviewer.md`
 - `references/personas/code-quality-reviewer.md`
@@ -71,4 +71,4 @@ If no test suite, lint, or typecheck is configured, state that explicitly in the
 
 ## Step 5: Summarize
 
-Summarize what was already sound and what improved. Report applied counts by reuse, quality, efficiency, tests, and comments; skipped count; check outcomes; and any comment kept because its constraint could not be encoded. When `references/single-pass.md` applied, name the mode it chose. If nothing changed, say so. Do not use net lines removed as the success metric. In pipeline mode this summary ends the skill, not the turn: the caller's next step follows it.
+Summarize what was already sound and what improved. Report applied counts by reuse, quality, efficiency, structure, tests, and comments; skipped count; check outcomes; and any comment kept because its constraint could not be encoded. When `references/single-pass.md` applied, name the mode it chose. If nothing changed, say so. Do not use net lines removed as the success metric. In pipeline mode this summary ends the skill, not the turn: the caller's next step follows it.
