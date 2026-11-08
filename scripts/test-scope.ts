@@ -27,7 +27,11 @@ export const TEST_GROUPS = {
   babysit: { inputs: ["skills/ce-babysit-pr/"], tests: ["tests/ce-babysit-pr-snapshot.test.ts"] },
   setup: {
     inputs: ["skills/ce-setup/", "skills/ce-polish/", "docs/guides/", "README.md", ".compound-engineering/config.example.yaml"],
-    tests: ["tests/skills/ce-setup-check-health.test.ts"],
+    tests: [
+      "tests/skills/ce-setup-check-health.test.ts",
+      "tests/skills/ce-setup-config-refresh.test.ts",
+      "tests/skills/ce-setup-config-template.test.ts",
+    ],
   },
   prototype: { inputs: ["skills/ce-prototype/"], tests: ["tests/skills/ce-prototype-server.test.ts"] },
 }

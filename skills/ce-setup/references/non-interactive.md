@@ -6,9 +6,9 @@ A non-interactive run has no one to answer a question, so it asks none, in any p
 
 ## What a run applies and what it only reports
 
-Apply a write when a reviewer can judge it from the pull request alone. That covers generated output (Step 5's example refresh), the `.gitignore` entries of Steps 7 and 8, and, when the invocation asked for review docs, the drafts and pointer lines `references/project-docs.md` produces.
+Apply a write when a reviewer can judge it from the pull request alone. That covers generated output (Step 5's example refresh), the `.gitignore` entries of Steps 7 and 8, and, when the invocation asked for review docs, the drafts and pointer lines `references/project-docs.md` produces. It also covers Step 5a's refresh of `config.yaml`: the pull request body lists every change with its reason, and the script's verification shows nothing else moved. On a reused refresh branch, first restore `config.yaml` from the default branch and refresh that copy, so edits the team made there since the branch opened are kept.
 
-Report a write instead of making it when it needs a choice only a person can make, removes content a person wrote, or changes this machine rather than the checkout. That covers creating `config.yaml`, deleting `compound-engineering.local.md`, repairing `docs_root` or the `ce-work` engine settings, every Step 9 addition, moving rules out of an agent-instructions file or an AI reviewer's file, removing the legacy Codex tool map, and warming the npm cache.
+Report a write instead of making it when it needs a choice only a person can make, removes content a person wrote, changes a file the pull request cannot show, or changes this machine rather than the checkout. That covers creating `config.yaml`, every change to the gitignored `config.local.yaml`, deleting `compound-engineering.local.md`, repairing `docs_root` or the `ce-work` engine settings, every Step 9 addition, moving rules out of an agent-instructions file or an AI reviewer's file, removing the legacy Codex tool map, and warming the npm cache.
 
 A run that did not ask for review docs leaves them alone. It reports whether they exist, because a repository without them has made a valid choice.
 

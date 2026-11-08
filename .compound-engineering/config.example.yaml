@@ -1,4 +1,5 @@
 # Compound Engineering -- repo config
+# ce-config-template-version: 1
 # Copy to .compound-engineering/config.yaml in your project root (team defaults).
 # Optional override: .compound-engineering/config.local.yaml, same keys.
 # Ordinary keys: local wins when set, then this file, then the skill default.
@@ -214,8 +215,8 @@
 # the team's. Git sources require ref (tag or sha reproduce exactly; a branch
 # freezes at its cached resolution and can drift across machines). path: and
 # pasted GitHub /tree/<ref>/<sub> URLs scope a source to a subfolder.
-# pack: picks one id or a list; omit it to install everything the source
-# publishes. id: renames a single-pack entry.
+# The pack field picks one id or a list; omit it to install everything the
+# source publishes. The id field renames a single-pack entry.
 # Rules are top-level .md files with title + applies_when; subfolders are storage.
 
 # packs:
