@@ -1,9 +1,12 @@
 #
+#     effort: high
 #     model: "gpt-5.6"
 #     model: "gpt-5.6-sol"
 #     model: "gpt-6-sol"
 #     model: "gpt-6.1-sol"
+#     model: "gpt-6.1-terra"
 #     model: composer
+#     model: sonnet
 #     pack: [rails, inertia]
 #     ref: v1.2.0
 #   - harness: claude             # configured default model
@@ -14,7 +17,9 @@
 #   - source: ~/compound-packs/kk-style                        # machine-local, read live
 #   - { type: github-issues, id: gh-issues, target: owner/repo, ack_action: "feedback:ack", closeout_action: "feedback:resolved", sensitive: false, approved: true }
 #   - { type: slack, id: slack-alpha, target: C0XXXXXXX, ack_action: eyes, closeout_action: white_check_mark, sensitive: false, approved: true }
+#   claude:
 #   claude: max
+#   codex:
 #   codex: xhigh
 # (e.g. "output:html" or "make it HTML"); a preference you established earlier
 # (e.g., LFG, disable-model-invocation) always force `md` regardless.
@@ -31,6 +36,7 @@
 # --- PR branding (ce-commit-push-pr) ---
 # --- PR concept teaching (ce-commit-push-pr) ---
 # --- Product pulse ---
+# --- Review subagent model ---
 # --- Sweep (ce-sweep) ---
 # --- Work delegation (Codex) ---
 # --- ce-commit-push-pr babysit handoff ---
@@ -96,6 +102,7 @@
 # `prefer` tries candidates in order, then falls back natively with disclosure.
 # `require` asks before native fallback in an interactive ce-work run and blocks
 # `require` keeps the requested external identity fixed while viable, then also
+# `review_subagents` sets the model and reasoning effort for every subagent
 # a different explicit model in the same harness remains eligible.
 # and archival. Archival additionally writes the explainer to docs/explainers/
 # and links it from the PR (full-workflow runs only; override per run with
@@ -118,6 +125,7 @@
 # byte-identical to today. A configured root becomes the sole location CE reads
 # cannot establish the required host/peer distinction.
 # cannot honor skips the pass with a stated reason -- never substituted.
+# ce-code-review and ce-doc-review spawn on the same host (reviewers, checks,
 # ce-config-template-version: 1
 # ce_promote_spiral_optout: true   # true | (absent) (default: absent -- offer once)
 # codex | claude | grok | antigravity | cursor | opencode. Omit model to use that harness's configured
@@ -125,6 +133,7 @@
 # codex | claude | grok | cursor. Omit model to use that harness's configured
 # composes the summary for itself, records any inferred scope under an
 # conversation ("use codex as the independent reviewer this time") overrides
+# conversation or in the project's instructions wins. A model the host refuses
 # cross-model pass activates. Conversation instructions still win, and the
 # cross_model_effort: xhigh        # reasoning effort for the resolved peer target (no default)
 # cross_model_model: fable         # model alias or full id for the resolved peer target (no default)
@@ -146,10 +155,12 @@
 # explainers, residual-review-findings, pulse-reports, dogfood-reports,
 # fable_nudge: false             # true | false (default: true -- one-time tip when elevation is available but off)
 # falls back natively with disclosure if the route is unavailable. Harnesses:
+# falls back once to the session model, and the review says so.
 # family through Cursor: { harness: cursor, model: composer }. Do not put CLI flags
 # feedback-sweep, personas) under one repo-relative root. Unset -> `docs`,
 # feedback_sources:
 # file and config.local.yaml concatenate -- local adds packs, never replaces
+# for every subagent; elsewhere, each reviewer's own tier. A model named in
 # freezes at its cached resolution and can drift across machines). path: and
 # from committed state/plan text), approved (standing approval for source-side writes).
 # higher-reasoning output even when your session model is cheaper -- no session
@@ -158,6 +169,7 @@
 # is written in: `md` produces a markdown file, `html` produces a single
 # keys (this config is the persisted fallback). A headless or pipeline run
 # keys (this config is the persisted fallback); pipeline contexts (e.g., LFG,
+# left out keeps the skill default. Defaults: in Codex, gpt-6.1-terra at high
 # low|medium|high). OpenCode (2.x) keeps its own per-model default and takes
 # low|medium|high). OpenCode and Cursor routes take no effort. A map in config.local.yaml replaces this one.
 # mapping. The model must belong to that target's family (an alias such as
@@ -209,6 +221,7 @@
 # pulse_tracing_source: sentry                          # sentry | datadog | custom (no default)
 # pulse_value_event: "task_completed"                   # the event that means "user got value"
 # resolves the format the same way; nothing forces `md`.
+# review_subagents:
 # reviewer in place, and reports "disabled by checkout config" instead of an
 # routes through a non-default `model_provider`).
 # routes through a non-default `model_provider`; a `gemini-*` id such as
@@ -241,6 +254,7 @@
 # their current branding and never add or refresh it on their own.
 # this gitignored local file) so the setting propagates to every clone and
 # to watch CI + incoming review and drive the PR toward merge-ready. Set false to
+# validators), per harness. Only the current harness's entry applies; a field
 # without prompting under LFG/headless execution. Harnesses: codex | claude | grok
 # work_delegate: codex           # codex | false (default: false)
 # work_delegate_consent: true    # true | false (default: false)
