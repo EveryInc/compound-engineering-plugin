@@ -197,17 +197,18 @@ describe("review stage grounds in packs", () => {
   // finding set (what lfg applies in mode:agent), not only a Known Pattern note.
   // Two cloud-agent re-verification runs had to guess this route before it was stated.
   test("a contradicted pack rule becomes a numbered finding, not only a Known Pattern note", () => {
-    const CR_FINISH = read("skills/ce-code-review/references/finish-review.md")
+    const CR_MERGE = read("skills/ce-code-review/references/finish-merge.md")
+    const CR_REPORT = read("skills/ce-code-review/references/finish-report.md")
     expect(CR_RESEARCHER).toMatch(/\*\*changed\*\* line that contradicts it/)
     expect(CR_RESEARCHER).toMatch(/\*\*unchanged\*\* line only[^\n]*pre-existing partition/)
-    expect(CR_FINISH).toMatch(/violated only by an unchanged line[^\n]*`pre_existing: true`/)
+    expect(CR_MERGE).toMatch(/violated only by an unchanged line[^\n]*`pre_existing: true`/)
     // The mode:agent JSON contract is defined once, in modes-and-output.md.
     expect(read("skills/ce-code-review/references/modes-and-output.md")).toMatch(/`coverage\.compound_packs`/)
     expect(CR_DISPATCH).toMatch(/contradicts becomes a numbered finding in Stage 5/)
-    expect(section(CR_FINISH, "### Stage 5: Merge findings", "### Stage 5b")).toMatch(
+    expect(section(CR_MERGE, "### Stage 5: Merge findings", "### Stage 5b")).toMatch(
       /\*\*contradicts\*\*[^\n]*compact reviewer return/,
     )
-    expect(CR_FINISH).toMatch(/7\. \*\*Learnings & Past Solutions\.\*\*[^\n]*contradicts entered the finding set in Stage 5/)
+    expect(CR_REPORT).toMatch(/7\. \*\*Learnings & Past Solutions\.\*\*[^\n]*contradicts entered the finding set in Stage 5/)
   })
 
   test("ce-doc-review resolves packs into a template slot personas receive", () => {

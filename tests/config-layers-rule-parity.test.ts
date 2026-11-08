@@ -26,6 +26,8 @@ const CONSUMERS = [
   "skills/ce-promote/references/spiral-cli.md",
   "skills/ce-code-review/references/cross-model-review.md",
   "skills/ce-doc-review/references/cross-model-review.md",
+  "skills/ce-code-review/references/subagent-model.md",
+  "skills/ce-doc-review/references/subagent-model.md",
 ]
 
 const START = "<!-- ce-config-layers:start -->"

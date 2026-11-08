@@ -84,7 +84,7 @@ const PEER_OUTCOME_BASE_REF = "fac349c0c31a543d497fd4825af9b44bdb7e7dfe"
 const PEER_OUTCOME_LIVE_TASK =
   "Use ce-code-review mode:agent to review the staged change. Run the actual review workflow, including any reviewers or peers it dispatches. Do not apply fixes, commit, publish, or create tickets."
 const peerOutcomeReportLeafTask = (runDir: string) =>
-  `You are the report leaf of the ce-code-review skill. The run directory is ./${runDir}. Read ${runDir}/finish-input.json, ${runDir}/synthesized-findings.json, and ${runDir}/validator-outcome.json, then read the skill's references/finish-input.md (its report leaf section) and references/finish-review.md, and do the report leaf's work. Do not write the stage log, metadata.json, or run summarize; the only file to write is ${runDir}/review.json. Return the final report exactly as the report leaf returns it.`
+  `You are the report leaf of the ce-code-review skill. The run directory is ./${runDir}. Read ${runDir}/finish-input.json, ${runDir}/synthesized-findings.json, and ${runDir}/validator-outcome.json, then read the skill's references/finish-input.md (its report leaf section) and references/finish-report.md (references/finish-review.md in skill versions that have no finish-report.md), and do the report leaf's work. Do not write the stage log, metadata.json, or run summarize; the only file to write is ${runDir}/review.json. Return the final report exactly as the report leaf returns it.`
 /** The working tree, not HEAD — the post arm exists to grade the edit you have not committed yet. */
 export const POST_SWEEP_REF = WORKTREE_REF
 
@@ -4397,7 +4397,7 @@ Include exactly one line \`ROUTE: verdict\` or \`ROUTE: brainstorm\` in your ans
 
 Prepare the merge input and run the skill's findings helper. Use a local run/ directory for scratch artifacts. Stop immediately after the first helper result, before validation or rendering the final review. Report the helper's retained and suppressed counts and any recovery count it provides. Do not edit the supplied artifacts or the helper.`,
     grade: {
-      files_read_post: ["references/finish-review.md"],
+      files_read_post: ["references/finish-merge.md"],
       workspace_contains: [{ path: "run/mechanical-findings.json", needle: '"first_evidence_backfilled": 1' }],
     },
   },
@@ -4413,7 +4413,7 @@ Prepare the merge input and run the skill's findings helper. Use a local run/ di
     timeout_secs: 300,
     why: "#1693: the validator could reject a protected-subject finding without evidence and the report leaf dropped it. Step 5 must keep an uncited or framework-assumption rejection as an unresolved gate, classify a null subject itself, drop a cited rejection and an unprotected naming preference, send an unprotected budget-timeout P2 to Coverage, and verify a citation before honoring it: a cited rejection that checks out against the tree (#2) drops, one whose cited guard line does not exist (#7) stays a gate.",
     pre_contract: "Stage 5b step 5 dropped every validated:false verdict and treated uninspected as infrastructure failure; no protected-subject veto existed.",
-    task: `You are the report leaf of the ce-code-review skill. The run directory is ./run. Read run/finish-input.json, run/synthesized-findings.json, run/validator-outcome.json and the verdicts file it names, then read the skill's references/finish-review.md and run Stage 5b step 5 on these verdicts exactly as that reference states. Inspect source files under src/ read-only if you need to.
+    task: `You are the report leaf of the ce-code-review skill. The run directory is ./run. Read run/finish-input.json, run/synthesized-findings.json, run/validator-outcome.json and the verdicts file it names, then read the skill's references/finish-report.md (references/finish-review.md in skill versions that have no finish-report.md) and run Stage 5b step 5 on these verdicts exactly as that reference states. Inspect source files under src/ read-only if you need to.
 
 Stop after step 5. Do not run Stage 5c or Stage 6 and do not write any files. Output only this block, one line per finding number 1 through 7, nothing else:
 

@@ -103,9 +103,8 @@ const codeReview = readRepoFile("skills/ce-code-review/SKILL.md")
 const codeReviewIntent = readRepoFile(
   "skills/ce-code-review/references/intent-and-plan.md",
 )
-const codeReviewFinish = readRepoFile(
-  "skills/ce-code-review/references/finish-review.md",
-)
+const codeReviewMerge = readRepoFile("skills/ce-code-review/references/finish-merge.md")
+const codeReviewReport = readRepoFile("skills/ce-code-review/references/finish-report.md")
 const ceWorkShipping = readRepoFile(
   "skills/ce-work/references/shipping-workflow.md",
 )
@@ -718,7 +717,7 @@ describe("session-settled decision contract", () => {
 
   test("ce-code-review discards settled preferences, retains defects, and protects decisions during apply", () => {
     const stage5 = sliceSection(
-      codeReviewFinish,
+      codeReviewMerge,
       "### Stage 5: Merge findings",
       "### Stage 5b",
     )
@@ -728,7 +727,7 @@ describe("session-settled decision contract", () => {
     expect(stage5).toContain("Keep evidence of a real defect")
     expect(stage5).toContain("with normal severity")
     const stage5c = sliceSection(
-      codeReviewFinish,
+      codeReviewReport,
       "### Stage 5c: Act on findings",
       "### Stage 6",
     )
