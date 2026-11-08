@@ -1155,7 +1155,7 @@ describe("ce-code-review contract", () => {
       "reliability-reviewer",
       "adversarial-reviewer",
       "previous-comments-reviewer",
-      "julik-frontend-races-reviewer",
+      "frontend-races-reviewer",
       "swift-ios-reviewer",
       "agent-native-reviewer",
     ]
@@ -1180,7 +1180,7 @@ describe("ce-code-review contract", () => {
       "skills/ce-code-review/references/persona-catalog.md",
     )
 
-    for (const agent of ["julik-frontend-races-reviewer", "swift-ios-reviewer"]) {
+    for (const agent of ["frontend-races-reviewer", "swift-ios-reviewer"]) {
       expect(content).toContain(agent)
       expect(catalog).toContain(agent)
     }
@@ -1202,8 +1202,8 @@ describe("ce-code-review contract", () => {
   test("stack-specific reviewer agents follow the structured findings contract", async () => {
     const reviewers = [
       {
-        path: personaPromptPath("julik-frontend-races-reviewer"),
-        reviewer: "julik-frontend-races",
+        path: personaPromptPath("frontend-races-reviewer"),
+        reviewer: "frontend-races",
       },
       {
         path: personaPromptPath("swift-ios-reviewer"),
@@ -1243,7 +1243,7 @@ describe("ce-code-review contract", () => {
       "reliability-reviewer",
       "adversarial-reviewer",
       "previous-comments-reviewer",
-      "julik-frontend-races-reviewer",
+      "frontend-races-reviewer",
       "swift-ios-reviewer",
     ]
 
