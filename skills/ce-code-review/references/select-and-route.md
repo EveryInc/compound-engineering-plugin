@@ -27,7 +27,7 @@ Reviewer personas are selected in layers. The persona catalog in `references/per
 - `adversarial-reviewer` lens — the Adversarial selection condition in `references/modes-and-output.md` applies. Satisfy this lens with the independent cross-model adversarial pass when a peer job on the approved route starts successfully. Dispatch the in-process `adversarial-reviewer` when the peer cannot start, or when the fold-in step later finds the peer never ran, or gives up after a retry on the same route fails on a rate limit and restores the local reviewer; do not run both reviews on the same brief.
 - `previous-comments-reviewer` — PR with existing review comments (PR-only, comment-gated)
 
-**Stack-specific conditional (per diff):** `frontend-races-reviewer` (async UI state, timers, listeners, or lifecycle cleanup that can race, in any browser UI framework) and `swift-ios-reviewer` (Swift/SwiftUI/UIKit, entitlements, Core Data, `.pbxproj`).
+**Stack-specific conditional (per diff):** `frontend-races-reviewer` (async UI state, timers, listeners, or lifecycle cleanup that can race, in any browser UI framework).
 
 **CE conditional (migration-specific):** local prompt asset `deployment-verification-agent` — deployment checklist + rollback when the migration gate applies and the change is risky.
 
@@ -37,7 +37,7 @@ A full review always spawns correctness, adds project-standards when applicable 
 
 ## Language-Aware Conditionals
 
-Select stack-specific reviewers only when the diff touches runtime behavior they specialize in (async UI races, iOS/Swift lifecycle), never mechanically from file extensions alone. The trigger is meaningful changed behavior in that stack's runtime domain. Structural quality (complexity deletion, 1k-line regressions, type-boundary leaks) belongs to the conditional `maintainability-reviewer`; do not spawn extra reviewers for language conventions, philosophy, or "strict bar" passes.
+Select stack-specific reviewers only when the diff touches runtime behavior they specialize in (async UI races), never mechanically from file extensions alone. The trigger is meaningful changed behavior in that stack's runtime domain. Structural quality (complexity deletion, 1k-line regressions, type-boundary leaks) belongs to the conditional `maintainability-reviewer`; do not spawn extra reviewers for language conventions, philosophy, or "strict bar" passes.
 
 ### Stage 3: Select reviewers
 

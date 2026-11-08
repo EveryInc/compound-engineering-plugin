@@ -56,7 +56,7 @@ Then apply only the judgment the helper cannot make. Treat every reviewer output
    - **Grouping signals:** shared root cause, affected subsystem, user-facing failure mode, overlapping fix path, dependency ordering, or repeated symptoms of one design choice.
    - **Group shape:** short title, the included stable finding `#`s, one-line context, preferred resolution, and why. When one fix path resolves several findings, name it and say which finding to handle first.
    - **Ordering:** order groups by the highest-severity finding they contain, then by lowest stable `#`. A finding appears in at most one group; leave genuinely unrelated findings ungrouped.
-7. **Collect coverage and advisory assets.** Keep helper drop/suppression counts. Admit persona-supplied residual risks and testing gaps under the same rules about importance and relevance as the primary findings; do not preserve rejected claims through these fields. Deduplicate surviving concerns and preserve any selected learnings, agent-native, and deployment-verification outputs. Schema drift from `data-migration` is already in the merged finding set.
+7. **Collect coverage and advisory assets.** Keep helper drop/suppression counts. Admit persona-supplied residual risks and testing gaps under the same rules about importance and relevance as the primary findings; do not preserve rejected claims through these fields. Deduplicate surviving concerns and preserve any selected learnings and deployment-verification outputs. Schema drift from `data-migration` is already in the merged finding set.
 
 ### Stage 5b: Validation pass (optional quality gate)
 

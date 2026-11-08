@@ -42,7 +42,6 @@ SIGNAL_PATTERNS = {
         r"/(routes?|controllers?|api|serializers?|graphql)/|\.proto$|openapi|swagger",
         re.I,
     ),
-    "swift-ios": re.compile(r"\.(swift|kt|pbxproj|xcconfig|entitlements)$", re.I),
 }
 
 # Classes the script can name from paths alone. These force full; they do not

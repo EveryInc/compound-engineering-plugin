@@ -38,14 +38,13 @@ Spawn one of these when you identify relevant patterns in the diff. Read the ful
 | `adversarial` | `adversarial-reviewer` fallback | The Adversarial selection condition in `references/modes-and-output.md` applies: an explicit user request or an evidenced failure scenario with material consequences, including a verification mechanism that could conceal it. The lens runs through the independent cross-model peer when a sanctioned peer starts. Spawn this in-process persona when the peer cannot start, when fold-in runs the did-not-run fallback, or when fold-in restores local after a failed same-route rate-limit retry. A started peer that produced a review artifact and the fallback are mutually exclusive. |
 | `previous-comments` | `previous-comments-reviewer` | **PR-only AND comment-gated.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1, OR when Stage 1's `hasPriorComments` flag is false (no `reviews` and no `comments` on the PR). |
 
-## Stack-Specific Conditional (2 personas)
+## Stack-Specific Conditional (1 persona)
 
 These reviewers cover specialized runtime behavior. Structural and maintainability concerns belong to the conditional `maintainability` persona — do not spawn extra stack reviewers for philosophy or convention-only passes.
 
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
 | `frontend-races` | `frontend-races-reviewer` | Browser UI code in any framework (React, Turbo/Stimulus, plain DOM, or others) whose changed behavior can race: async fetches or polling that update UI state, timers or animation loops, event listeners, component or controller lifecycle and cleanup, or interactions that can overlap |
-| `swift-ios` | `swift-ios-reviewer` | Swift files, SwiftUI views, UIKit controllers, `.entitlements`, `PrivacyInfo.xcprivacy`, `.xcdatamodeld`, `Package.swift`, `Package.resolved`, storyboards, XIBs, or semantic build-setting / target-membership / code-signing changes in `.pbxproj` |
 
 ## CE Conditional Local Prompt Assets (migration-specific)
 

@@ -1156,7 +1156,6 @@ describe("ce-code-review contract", () => {
       "adversarial-reviewer",
       "previous-comments-reviewer",
       "frontend-races-reviewer",
-      "swift-ios-reviewer",
       "agent-native-reviewer",
     ]
 
@@ -1180,7 +1179,7 @@ describe("ce-code-review contract", () => {
       "skills/ce-code-review/references/persona-catalog.md",
     )
 
-    for (const agent of ["frontend-races-reviewer", "swift-ios-reviewer"]) {
+    for (const agent of ["frontend-races-reviewer"]) {
       expect(content).toContain(agent)
       expect(catalog).toContain(agent)
     }
@@ -1190,6 +1189,7 @@ describe("ce-code-review contract", () => {
       "ce-kieran-rails-reviewer",
       "ce-kieran-python-reviewer",
       "ce-kieran-typescript-reviewer",
+      "swift-ios-reviewer",
     ]) {
       expect(content).not.toContain(removed)
       expect(catalog).not.toContain(removed)
@@ -1199,15 +1199,15 @@ describe("ce-code-review contract", () => {
     expect(content).not.toContain("## Language-Agnostic")
   })
 
-  test("stack-specific reviewer agents follow the structured findings contract", async () => {
+  test("conditional reviewer prompts follow the structured findings contract", async () => {
     const reviewers = [
       {
         path: personaPromptPath("frontend-races-reviewer"),
         reviewer: "frontend-races",
       },
       {
-        path: personaPromptPath("swift-ios-reviewer"),
-        reviewer: "swift-ios",
+        path: personaPromptPath("agent-native-reviewer"),
+        reviewer: "agent-native",
       },
     ]
 
@@ -1244,7 +1244,7 @@ describe("ce-code-review contract", () => {
       "adversarial-reviewer",
       "previous-comments-reviewer",
       "frontend-races-reviewer",
-      "swift-ios-reviewer",
+      "agent-native-reviewer",
     ]
 
     for (const persona of personas) {
