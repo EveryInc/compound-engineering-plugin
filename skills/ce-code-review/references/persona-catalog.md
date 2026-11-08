@@ -21,7 +21,7 @@ These reviewers are broadly applicable but not automatically useful. Spawn one o
 |---------|-------|-------|
 | `testing` | `testing-reviewer` | Test files, test infrastructure, fixtures, mocks, or harness behavior; or meaningful runtime behavior changed without corresponding test work. Behavioral triggers include new or changed branches, state mutation, API/control-flow behavior, and error handling. Production-file presence alone and non-behavioral edits do not select it. |
 | `maintainability` | `maintainability-reviewer` | Large or structural work: substantial refactors, new abstractions, file moves, coupling/type-boundary changes, or at least 200 executable changed lines. |
-| `agent-native` | `agent-native-reviewer` | Agent-facing features or surfaces: skills, agents, prompts, commands, tools, MCP, or a product capability expected to be agent-accessible. |
+| `agent-native` | `agent-native-reviewer` | Agent-facing product surfaces: the diff changes an agent tool surface (MCP tools, agent tool or function definitions, system-prompt construction), or adds or changes a user-facing capability in a product that already has such a surface. Editing only the prose of skills, agent definitions, or instruction files does not select it. |
 | `learnings` | `learnings-researcher` | The change has institutional knowledge to be checked against: an existing `<root>/solutions/` corpus has a plausible path/title match for the changed modules or patterns (run a cheap search first; corpus existence alone does not select it), or, in local scope, the repo's CE config declares Compound Packs (Stage 1b `declared_packs`, semantics in `references/scope.md`). Declared packs select it without a pre-search; the persona matches every rule's `applies_when` itself. |
 
 ## Conditional (7 personas)
@@ -44,7 +44,7 @@ These reviewers cover specialized runtime behavior. Structural and maintainabili
 
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
-| `julik-frontend-races` | `julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM event wiring, timers, async UI flows, animations, or frontend state transitions with race potential |
+| `frontend-races` | `frontend-races-reviewer` | Browser UI code in any framework (React, Turbo/Stimulus, plain DOM, or others) whose changed behavior can race: async fetches or polling that update UI state, timers or animation loops, event listeners, component or controller lifecycle and cleanup, or interactions that can overlap |
 | `swift-ios` | `swift-ios-reviewer` | Swift files, SwiftUI views, UIKit controllers, `.entitlements`, `PrivacyInfo.xcprivacy`, `.xcdatamodeld`, `Package.swift`, `Package.resolved`, storyboards, XIBs, or semantic build-setting / target-membership / code-signing changes in `.pbxproj` |
 
 ## CE Conditional Local Prompt Assets (migration-specific)

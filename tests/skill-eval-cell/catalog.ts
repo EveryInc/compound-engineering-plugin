@@ -81,6 +81,13 @@ const WORK_RETURN_BASE_REF = "7dc50943bbf959dbe6a93a175e41e5fff8395e00"
 const ANTIGRAVITY_PEER_BASE_REF = "bdc53d034ccfa5baf01b6139cd46082145ff95cc"
 /** main before the mode:agent JSON carried the cross-model peer outcome: the A/B base for the peer-outcome rows. */
 const PEER_OUTCOME_BASE_REF = "fac349c0c31a543d497fd4825af9b44bdb7e7dfe"
+/** main before julik-frontend-races became frontend-races and agent-native stopped selecting on skill prose: the A/B base for the roster rows. */
+const ROSTER_BASE_REF = "d307bdb7ce158fc47184097ec258007a1a8e7bb3"
+const ROSTER_PROBE_TASK = `Use the ce-code-review skill on this repo with mode:agent depth:full. Resolve reviewer selection only: decide which reviewer personas Stage 3 would dispatch for the staged change. This is a read-only probe: do not create the run directory, do not start a peer job, and do not dispatch reviewers.
+
+End with exactly one line in this form, naming each persona by its catalog name:
+
+TEAM: <comma-separated persona names>`
 const PEER_OUTCOME_LIVE_TASK =
   "Use ce-code-review mode:agent to review the staged change. Run the actual review workflow, including any reviewers or peers it dispatches. Do not apply fixes, commit, publish, or create tickets."
 const peerOutcomeReportLeafTask = (runDir: string) =>
@@ -5079,6 +5086,52 @@ DEPTH: full`,
       actions: "none",
       delegates: "none",
     },
+  },
+  {
+    id: "ce-code-review/roster-react-poll-frontend-races",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/MeetingStatus.tsx"],
+    fixture: `${FIX}/review-roster-react-poll`,
+    baseline_ref: ROSTER_BASE_REF,
+    why: "A React status chip polls every 3 seconds, and a slow response can land after a newer one. Real runs found this race shape only through the frontend-races reviewer, never on Stimulus code, so a React diff must select it.",
+    pre_contract:
+      "julik-frontend-races was selected for Stimulus/Turbo controllers, DOM event wiring, timers, or async UI flows.",
+    task: ROSTER_PROBE_TASK,
+    grade: { must_include: ["frontend-races"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-code-review/roster-skill-prose-skips-agent-native",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["skills/release-notes/SKILL.md"],
+    fixture: `${FIX}/review-roster-skill-prose`,
+    baseline_ref: ROSTER_BASE_REF,
+    why: "A new skill in a plugin repo is prose only, with no tool surface or product capability for agents to reach. agent-native has nothing to map there, and in real runs on this shape it returned empty or PASS.",
+    pre_contract: "agent-native was selected for any change to skills, agents, prompts, commands, tools, or MCP.",
+    task: ROSTER_PROBE_TASK,
+    grade: { must_include: ["correctness"], must_not_include: ["agent-native"], actions: "none", delegates: "none" },
+  },
+  {
+    id: "ce-code-review/roster-mcp-parity-keeps-agent-native",
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["src/api/archive.ts", "src/ui/ArchiveButton.tsx"],
+    fixture: `${FIX}/review-roster-mcp-parity`,
+    baseline_ref: ROSTER_BASE_REF,
+    why: "The control for the skill-prose cell: an app with an MCP server adds an archive action to the UI and API but no matching tool, the parity gap agent-native exists to catch.",
+    pre_contract: "agent-native was selected for any change to skills, agents, prompts, commands, tools, or MCP.",
+    task: ROSTER_PROBE_TASK,
+    grade: { must_include: ["agent-native"], actions: "none", delegates: "none" },
   },
   {
     id: "ce-code-review/cross-model-fold-in-recovery",

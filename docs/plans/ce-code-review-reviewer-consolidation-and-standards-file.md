@@ -11,7 +11,7 @@ Three rules are each written into three separate personas in near-identical pros
 |---|---|
 | Stand-in guard fidelity | `correctness:10`, `reliability:12`, `adversarial:64` |
 | Sentinel reuse | `correctness:9`, `api-contract:11`, `testing:9` |
-| React effect lifecycle | `correctness:13`, `julik-frontend-races:8`, `testing:7` |
+| React effect lifecycle | `correctness:13`, `frontend-races:8` (was `julik-frontend-races`), `testing:7` |
 
 The corroborating tell: `adversarial-reviewer.md:80-91` is eight bullets naming other personas to disclaim territory, then defines its own scope as "the space between these reviewers."
 
@@ -66,11 +66,18 @@ Splitting standards into two dispatches under one report section preserves the d
 | deployment-verification | Stage 6 checklist template, fired by `migration_check: applicable` |
 | previous-comments | fold -> `spec`; thread fetch moves to §5 |
 | adversarial | cross-model mechanism only; in-process persona deleted |
-| julik-frontend-races | delete -> standards example |
+| julik-frontend-races | **kept**, renamed `frontend-races`, selected for async UI in any framework (see §3.2) |
 | swift-ios | delete -> standards example (honest residue: a narrow Core Data / concurrency pack, not zero) |
-| agent-native | delete -> standards example |
+| agent-native | **kept**, selection narrowed to agent tool surfaces and the product capabilities they expose (see §3.2) |
 | learnings-researcher | recategorize -> §5 evidence, not a findings producer |
 | *(none today)* | **new: `spec`** |
+
+### 3.2 Usage review of julik-frontend-races and agent-native (2026-11-08)
+
+Real review runs replaced the deletions above for these two. Claude transcripts covered 2026-10-05 to 2026-11-07 (56 full review rounds); Codex covered June to November.
+
+- **julik-frontend-races** ran in 6 of 56 rounds, never on Stimulus/Turbo code: every run was React, Next.js, or a plain DOM script. In 3 of the 6 it found a real UI race that no other reviewer raised (a bypassed confirmation, a select that snapped back, out-of-order poll responses), and each was fixed. `correctness` carried the same `useEffect` checklist in those runs and missed all three. The persona was never a Rails procedure; its defect was the name and a Stimulus-first trigger. Ablation 2 still decides any fold into `correctness`.
+- **agent-native** ran 25 times. 12 returns were empty or observations only, one item became a ranked finding (shared with `api-contract`), and every Codex run in the window returned PASS. Its gaps paid off where the product has an MCP/API parity program (last30days PR #462 added agent-facing fields from them). On skill-prose diffs in this repo, where the path signal selected it, it had nothing to map.
 
 ## 4. Output obligations
 
@@ -182,7 +189,7 @@ A fold that misses a decision-relevant defect the 16-persona roster caught is fa
 1. `CODING_STANDARDS.md` discovery + precedence + format-agnostic reading (§6.1, §6.2); update `AGENTS.md:158`.
 2. Amend `subagent-template.md:136`; remove `:169` (§6.6).
 3. `standards-cited` + `standards-structural`; un-gate the floor; add the 2 missing smells and the 2 testing rules. Behind ablation 3.
-4. Delete julik / swift / agent-native; ship as standards examples.
+4. Delete swift; ship as a standards example. (julik and agent-native were re-scoped instead, §3.2.)
 5. Criteria-change disclosure (§6.3).
 6. `spec` axis; §5 evidence layer; fold `previous-comments`.
 7. `correctness` absorption and the §4 obligations **last**, behind ablations 1 and 2 — the only step that can lose a finding.
