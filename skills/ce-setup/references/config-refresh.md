@@ -6,7 +6,7 @@ Read this from Step 5a of `references/repo-fixes.md`. It applies when the health
 
 The person running setup usually cannot judge what an upstream template change means for their file. So make every reconciliation decision yourself, and ask one question per file, not one per setting.
 
-**Safe direction:** if the script refuses the file, verification reports a difference, or no Python interpreter runs, leave the file untouched. Say in the summary what happened and what would let the refresh run.
+**Safe direction:** when the script's complaint names an entry in your own changes file, correct that entry and draft again once. Otherwise, if the script refuses the file, verification still reports a difference, or no Python interpreter runs, leave the file untouched. Say in the summary what happened and what would let the refresh run.
 
 ## The script
 
@@ -33,6 +33,8 @@ The changes file is `{"changes": [...]}`. Every entry needs a `reason`, written 
 - `{"type": "rename", "from": K, "to": T}` renames an unrecognized setting to one of its typo candidates.
 - `{"type": "comment-remove", "line": TEXT}` drops one team comment.
 - `{"type": "comment-move", "line": TEXT, "key": K}` places one team comment above setting K.
+
+When the file holds the same comment text more than once, add `"lineno": N` to a comment entry to name which occurrence you mean.
 
 Decide each one this way:
 

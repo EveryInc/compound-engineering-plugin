@@ -28,6 +28,7 @@ The changes file is {"changes": [...]} with one entry per decision:
   {"type": "comment-remove", "line": TEXT, "reason": R}  drop one comment line the team wrote
   {"type": "comment-move", "line": TEXT, "key": K, "reason": R}
                                                          place one comment line above setting K
+  A comment entry may add "lineno": N to name one of several identical comments.
 
 Only a subset of YAML is read: top-level `key:` lines with indented or `- ` continuation
 lines and comments. Anything else (duplicate keys, anchors, block scalars, tabs in
