@@ -15,6 +15,13 @@ const SLOT = /^# ([A-Za-z][A-Za-z0-9_]*):(?:\s|$)/
 const VERSION_LINE = /^# ce-config-template-version: (\d+)\n/m
 // Historical prose lines that happen to have the slot shape.
 const KNOWN_NON_KEYS = new Set(["pack"])
+// Settings already retired. The history and registry files are append-only, so dropping one of
+// these from both files at once must still fail.
+const RETIRED_AT_LEAST = [
+  "brainstorm_use_fable", "fable_nudge", "plan_use_fable", "pr_branding",
+  "work_delegate", "work_delegate_consent", "work_delegate_decision", "work_delegate_effort",
+  "work_delegate_model", "work_delegate_sandbox", "work_engine_model", "work_engine_target",
+]
 
 function slotKeys(lines: string[]): Set<string> {
   const keys = new Set<string>()
@@ -70,7 +77,7 @@ describe("ce-setup config template data", () => {
   test("a setting cannot leave the template without a registry entry", async () => {
     const { templateKeys, registry, templateLines } = await load()
     const historical = slotKeys(templateLines)
-    expect(historical.has("work_delegate_sandbox")).toBe(true)
+    expect(RETIRED_AT_LEAST.filter((key) => !registry.has(key))).toEqual([])
     const unrecorded = [...historical].filter(
       (key) => !templateKeys.has(key) && !registry.has(key) && !KNOWN_NON_KEYS.has(key),
     )

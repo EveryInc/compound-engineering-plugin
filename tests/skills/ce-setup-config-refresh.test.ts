@@ -274,6 +274,14 @@ describe("config-refresh rebuild of config.yaml", () => {
     expect(run(open, ["draft", "--layer", "tracked", "--changes", changes], copyScript).json.refused).toContain(
       "must be migrated",
     )
+
+    // A quoted value keeps its quotes, so `"123"` stays a string instead of becoming a number.
+    const quoted = makeRepo({ tracked: 'old_peer: "123"\n' })
+    const quotedChanges = path.join(quoted, "changes.json")
+    writeFileSync(quotedChanges, JSON.stringify({ changes: [{ type: "migrate", key: "old_peer", value: "123", reason: "renamed" }] }))
+    const kept = run(quoted, ["draft", "--layer", "tracked", "--changes", quotedChanges], copyScript)
+    expect(kept.json.verify).toBe("ok")
+    expect(draftText(kept)).toContain('\ncross_model_peer: "123"\n')
   })
 })
 
@@ -318,6 +326,18 @@ describe("config-refresh verify", () => {
     ],
     ["a removal nobody recorded", (t: string) => t, removals.slice(0, 1), "retired setting `work_delegate` is still in the draft"],
     ["the draft adds a setting", (t: string) => `${t}plan_model: fable\n`, removals, "the draft adds `plan_model`"],
+    [
+      "the draft deletes template guidance",
+      (t: string) => t.replace("# --- Product pulse ---\n", ""),
+      removals,
+      "differs from the current template at `# Settings written by /ce-product-pulse",
+    ],
+    [
+      "the draft keeps an old template's guidance",
+      (t: string) => t.replace("# --- Product pulse ---\n", "# --- Product pulse ---\n# --- Cross-model review preference ---\n"),
+      removals,
+      "differs from the current template at `# --- Cross-model review preference ---`",
+    ],
     ["the draft adds a comment", (t: string) => `${t}# injected\n`, removals, "the draft adds comment `# injected`"],
     [
       "the draft carries an old template version",
@@ -360,6 +380,21 @@ describe("config-refresh verify", () => {
     expect(verifyWith(root, "tracked", text.replace(`${loose}\n`, ""), result.json.changes_recorded).json.verify).toContain(
       `team comment \`${loose}\` is missing`,
     )
+  })
+
+  test("a line number picks which of two identical team comments a change moves", () => {
+    const todo = "# TODO: confirm with the team"
+    const local = `${todo}\nplan_model: fable\n\n${todo}\ncustom_team_key: 1\ncross_model_peer: codex\n`
+    const root = makeRepo({ local })
+    const result = draft(root, "local", [
+      { type: "comment-move", line: todo, lineno: 4, key: "cross_model_peer", reason: "about the peer" },
+    ])
+    expect(result.json.verify).toBe("ok")
+    expect(draftText(result)).toBe(`${todo}\nplan_model: fable\n\ncustom_team_key: 1\n${todo}\ncross_model_peer: codex\n`)
+    const wrongLine = draft(root, "local", [
+      { type: "comment-move", line: todo, lineno: 2, key: "cross_model_peer", reason: "about the peer" },
+    ])
+    expect(wrongLine.json.refused).toContain("line 2 of config.local.yaml is not the team comment")
   })
 
   test("comment-move keeps a hand-written local file's layout and lands above its setting", () => {

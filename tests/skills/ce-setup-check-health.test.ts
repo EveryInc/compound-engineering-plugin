@@ -1,5 +1,5 @@
 import { readFileSync } from "fs"
-import { chmod, copyFile, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "fs/promises"
+import { chmod, copyFile, cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, symlink, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test"
@@ -1513,6 +1513,37 @@ describe("ce-setup check-health config template status", () => {
     expect(result.stdout).toContain("Repo config cannot be refreshed automatically")
     expect(result.stdout).toContain("is not a whole number")
     expect(result.stdout).toContain("1 project issue(s) found")
+  })
+
+  test("a local config from a newer plugin, or one outside the supported YAML, is skipped and not counted", async () => {
+    const newer = (await readFile(configTemplate, "utf8")).replace(/template-version: \d+/, "template-version: 99")
+    const fromNewer = await run({ local: newer })
+    expect(fromNewer.stdout).toContain("Local config was written by a newer plugin")
+    expect(fromNewer.stdout).toContain("Project config healthy")
+
+    const unrefreshable = await run({ local: "plan_model: fable\ncross_model_peer: codex\nplan_model: opus\n" })
+    expect(unrefreshable.stdout).toContain("Local config cannot be changed automatically: config.local.yaml:3: duplicate setting `plan_model`")
+    expect(unrefreshable.stdout).toContain("Project config healthy")
+  })
+
+  test("a refresh script that prints no status is reported and counted", async () => {
+    const skillCopy = path.join(sandbox, "skill-copy")
+    await cp(path.join(repoRoot, "skills", "ce-setup"), skillCopy, { recursive: true })
+    await writeFile(path.join(skillCopy, "scripts", "config-refresh.py"), "import sys\nsys.exit(3)\n")
+    const root = await mkdtemp(path.join(sandbox, "run-"))
+    await initGitRepo(root)
+    await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+    await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.example.yaml"))
+    await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.yaml"))
+    const proc = Bun.spawn(["bash", path.join(skillCopy, "scripts", "check-health")], {
+      cwd: root,
+      env: { ...process.env, HOME: root, PATH: "/usr/bin:/bin", CODEX_HOME: path.join(root, ".codex") },
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [, stdout] = await Promise.all([proc.exited, new Response(proc.stdout).text()])
+    expect(stdout).toContain("config-refresh.py failed to run")
+    expect(stdout).toContain("1 project issue(s) found")
   })
 
   test("an unrecognized local key is an informational line that leaves the count alone", async () => {

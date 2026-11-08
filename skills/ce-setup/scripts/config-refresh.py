@@ -511,6 +511,11 @@ def check_change_shapes(bundle, repo, layer, original, changes):
         else:
             if change["line"].strip() not in comments:
                 raise Refused(f"no team comment `{change['line']}` in {original.name}")
+            lineno = change.get("lineno")
+            if lineno is not None and not any(
+                    item.lineno == lineno and item.lines[0].strip() == change["line"].strip()
+                    for item in original.items if unknown_comment(bundle, item)):
+                raise Refused(f"line {lineno} of {original.name} is not the team comment `{change['line']}`")
             if kind == "comment-move" and change["key"] not in rebuilt_keys:
                 raise Refused(f"comment-move names `{change['key']}`, which is not set in the rebuilt file")
 
@@ -528,19 +533,22 @@ def registry_removals(bundle, original, changes):
 
 
 class CommentPool:
-    """Team comment lines that comment-remove and comment-move take out of place."""
+    """Team comment lines that comment-remove and comment-move take out of place. A change may
+    carry `lineno` to pick one of several identical comments."""
 
     def __init__(self, changes):
-        self.pool = [c["line"].strip() for c in changes if c["type"] in ("comment-remove", "comment-move")]
+        picked = [c for c in changes if c["type"] in ("comment-remove", "comment-move")]
+        self.pool = sorted(((c["line"].strip(), c.get("lineno")) for c in picked), key=lambda e: e[1] is None)
         self.moved_to = {}
         for change in changes:
             if change["type"] == "comment-move":
-                self.moved_to.setdefault(change["key"], []).append(change["line"])
+                self.moved_to.setdefault(change["key"], []).append(change["line"].strip())
 
-    def keep(self, line):
-        if line.strip() in self.pool:
-            self.pool.remove(line.strip())
-            return False
+    def keep(self, line, lineno=None):
+        for entry in self.pool:
+            if entry[0] == line.strip() and entry[1] in (None, lineno):
+                self.pool.remove(entry)
+                return False
         return True
 
 
@@ -558,12 +566,18 @@ def replace_inline(bundle, key, lines):
     return [code + (gap + current if current else "")] + lines[1:]
 
 
+def migrated_line(bundle, source, change):
+    """The target's line for a migration, keeping the original value's quoting when unchanged."""
+    raw = inline_value(source).strip()
+    value = raw if change["value"] == _unquote(raw) else change["value"]
+    return f"{bundle.registry[source.key]['target']}: {value}"
+
+
 def rebuilt_block(bundle, item, changes):
     """(key, lines) a kept or migrated setting becomes, or None when it is removed."""
     for change in changes:
         if change["type"] == "migrate" and change["key"] == item.key:
-            target = bundle.registry[item.key]["target"]
-            return target, [f"{target}: {change['value']}"]
+            return bundle.registry[item.key]["target"], [migrated_line(bundle, item, change)]
         if change["type"] == "remove" and change["key"] == item.key:
             return None
     key = next((c["to"] for c in changes if c["type"] == "rename" and c["from"] == item.key), item.key)
@@ -588,7 +602,7 @@ def render_in_place(bundle, original, changes):
                 out.extend(result[1])
             else:
                 out.extend(c for c in block_team_comments(bundle, item) if comments.keep(c))
-        elif not unknown_comment(bundle, item) or comments.keep(item.lines[0]):
+        elif not unknown_comment(bundle, item) or comments.keep(item.lines[0], item.lineno):
             out.append(item.lines[0])
     return out
 
@@ -602,7 +616,7 @@ def rebuild(bundle, layer, original, changes):
     last_loose = None
     for item in original.items:
         if item.kind == "block":
-            head = [c.lines[0] for c in item.attached if comments.keep(c.lines[0])]
+            head = [c.lines[0] for c in item.attached if comments.keep(c.lines[0], c.lineno)]
             result = rebuilt_block(bundle, item, changes)
             if result is None:
                 # A removed setting's own notes, inline or on their own lines, survive as loose notes.
@@ -614,7 +628,7 @@ def rebuild(bundle, layer, original, changes):
                 groups.append((key, head + comments.moved_to.get(key, []) + replace_inline(bundle, key, lines)))
             last_loose = None
         elif unknown_comment(bundle, item) and id(item) not in tied:
-            if comments.keep(item.lines[0]):
+            if comments.keep(item.lines[0], item.lineno):
                 if last_loose == item.lineno - 1 and groups and groups[-1][0] is None:
                     groups[-1][1].append(item.lines[0])
                 else:
@@ -666,6 +680,33 @@ def team_comment_counts(bundle, parsed):
     return counts
 
 
+def template_text_problem(bundle, draft):
+    """A rebuilt config.yaml carries exactly the current template's text, minus the commented
+    slot of each setting the draft sets."""
+    active = {block.key for block in draft.blocks()}
+    slot_at = {slot.start: (key, slot.end) for key, slot in bundle.slots.items()}
+    want = []
+    index = 0
+    while index < len(bundle.template):
+        slot = slot_at.get(index)
+        if slot and slot[0] in active:
+            index = slot[1]
+            continue
+        if bundle.template[index].strip():
+            want.append(bundle.template[index])
+        index += 1
+    have = [item.lines[0] for item in draft.items
+            if item.kind == "comment" and bundle.is_known(item.lines[0]) and item.lines[0] != MARKER]
+    for expected, actual in zip(want, have):
+        if expected != actual:
+            return f"the draft's template text differs from the current template at `{actual}`"
+    if len(have) < len(want):
+        return f"the draft is missing current template text, starting at `{want[len(have)]}`"
+    if len(have) > len(want):
+        return f"the draft carries template text the current template does not have: `{have[len(want)]}`"
+    return None
+
+
 def verify(bundle, repo, layer, original, draft, changes):
     """Return None when every difference is recorded and allowed, else the first problem."""
     if draft.errors:
@@ -680,7 +721,7 @@ def verify(bundle, repo, layer, original, draft, changes):
     removed = {c["key"] for c in changes if c["type"] == "remove"}
     migrated = {c["key"]: c for c in changes if c["type"] == "migrate"}
     renamed = {c["from"]: c["to"] for c in changes if c["type"] == "rename"}
-    introduced = {bundle.registry[k]["target"]: [f"{bundle.registry[k]['target']}: {c['value']}"]
+    introduced = {bundle.registry[k]["target"]: [migrated_line(bundle, original.block(k), c)]
                   for k, c in migrated.items()}
 
     for block in original.blocks():
@@ -722,7 +763,7 @@ def verify(bundle, repo, layer, original, draft, changes):
     for line in after:
         if line not in before and line not in allowed:
             return f"the draft adds comment `{line}`, which was not in {original.name}"
-    return None
+    return template_text_problem(bundle, draft) if layer == "tracked" else None
 
 
 
