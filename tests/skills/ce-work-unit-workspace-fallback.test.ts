@@ -44,6 +44,30 @@ setDefaultTimeout(60_000)
 
 registerWorkspaceCleanup()
 
+function nativeFallbackAfterPreservedTransport(runs: string, runId: string, f: ReturnType<typeof makeRepo>) {
+  init(runs, runId, f)
+  ctl(runs, "prepare", "--run-id", runId, "--unit-id", "U", "--base", f.base, "--packet", packetFile("packet"))
+  const workspace = path.join(realpathSync(path.join(runs, runId)), "units", "U", "workspace")
+  writeFileSync(path.join(workspace, "new.txt"), "new\n")
+  const job = fakeDoneJob(runs, runId, "U", "packet")
+  ctl(runs, "record-job", "--run-id", runId, "--unit-id", "U", "--attempt-id", "attempt-1", "--job-id", job)
+  const transport = ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U").body.transport
+  const token = ctl(runs, "integration-acquire", "--run-id", runId, "--unit-id", "U").body.lock_token
+  ctl(runs, "preflight", "--run-id", runId, "--unit-id", "U", "--lock-token", token)
+  git(f.repo, "cherry-pick", "--no-commit", transport.commit)
+  ctl(runs, "mark-applied", "--run-id", runId, "--unit-id", "U", "--lock-token", token)
+  expect(ctl(runs, "restore", "--run-id", runId, "--unit-id", "U", "--lock-token", token).word).toBe("PRESERVED")
+  expect(ctl(runs, "integration-release", "--run-id", runId, "--unit-id", "U", "--lock-token", token).word).toBe("RELEASED")
+  expect(ctl(runs, "claim-fallback", "--run-id", runId, "--unit-id", "U", "--caller-mode", "headless").word).toBe("FALLBACK_AUTHORIZED")
+  writeFileSync(path.join(f.repo, "native.txt"), "native implementation\n")
+  git(f.repo, "add", "native.txt")
+  git(f.repo, "commit", "-m", "native implementation")
+  const head = git(f.repo, "rev-parse", "HEAD")
+  expect(worktreePaths(f.repo)).toContain(workspace)
+  expect(git(f.repo, "for-each-ref", "--format=%(refname)", "refs/ce-work/")).toBe(transport.ref)
+  return { workspace, transport, head }
+}
+
 describe("ce-work unit workspace controller: run discovery and native fallback", () => {
   test("lists matching unfinished runs rather than guessing and fails closed on unsafe candidates", () => {
     const f = makeRepo()
@@ -148,6 +172,7 @@ describe("ce-work unit workspace controller: run discovery and native fallback",
       snapshot: { head: nativeHead, status_empty: true },
     })
     expect(ctl(runs, "status", "--run-id", "run-fallback", "--unit-id", "U").body.unit.state).toBe("native-completed")
+    expect(worktreePaths(f.repo)).not.toContain(path.join(realpathSync(path.join(runs, "run-fallback")), "units", "U", "workspace"))
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).body.run_id).toBe("run-fallback")
     const fallbackVerification = ctl(
       runs, "verify-run", "--run-id", "run-fallback",
@@ -166,6 +191,59 @@ describe("ce-work unit workspace controller: run discovery and native fallback",
     manifest.units.U.attempts[0].fallback.completed.snapshot.status_empty = false
     writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`)
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("UNREADABLE")
+  })
+
+  test("native fallback completion removes the unit workspace and transport ref", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const { workspace, head } = nativeFallbackAfterPreservedTransport(runs, "run-fallback-cleanup", f)
+
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback-cleanup", "--unit-id", "U",
+      "--accepted-head", head, "--evidence-digest", "a".repeat(64), "--summary", "native checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+    expect(worktreePaths(f.repo)).not.toContain(workspace)
+    expect(git(f.repo, "for-each-ref", "refs/ce-work/")).toBe("")
+    expect(ctl(runs, "status", "--run-id", "run-fallback-cleanup", "--unit-id", "U").body.unit).toMatchObject({
+      state: "native-completed",
+      cleanup: { workspace_removed: true, ref_removed: true, abandoned: false, artifact_cleanup: { complete: true } },
+    })
+  })
+
+  test.each([
+    { fault: "cleanup-after-worktree-remove", recorded: null, action: "cleanup-reconciled" },
+    { fault: "cleanup-before-artifact-prune", recorded: { artifact_cleanup: { complete: false } }, action: "artifact-cleanup-reconciled" },
+  ])("resume finds and finishes a native fallback cleanup interrupted at $fault before plan-wide verification", ({ fault, recorded, action }) => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const { workspace, head } = nativeFallbackAfterPreservedTransport(runs, "run-fallback-interrupted", f)
+
+    expect(ctlWithEnv(
+      runs, { CE_WORK_TEST_FAULT: fault },
+      "complete-fallback", "--run-id", "run-fallback-interrupted", "--unit-id", "U",
+      "--accepted-head", head, "--evidence-digest", "a".repeat(64), "--summary", "native checks passed",
+    ).word).toBe("INTERRUPTED")
+    expect(ctl(runs, "status", "--run-id", "run-fallback-interrupted", "--unit-id", "U").body.unit).toMatchObject({
+      state: "native-completed",
+      cleanup: recorded,
+    })
+    expect(ctl(
+      runs, "verify-run", "--run-id", "run-fallback-interrupted",
+      "--verification-summary", "native fallback plan gate passed",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    ).word).toBe("RUN_VERIFIED")
+
+    const resumed = ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest)
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.run_id).toBe("run-fallback-interrupted")
+    expect(resumed.body.actions).toContainEqual({ unit_id: "U", action })
+    expect(worktreePaths(f.repo)).not.toContain(workspace)
+    expect(git(f.repo, "for-each-ref", "refs/ce-work/")).toBe("")
+    expect(ctl(runs, "status", "--run-id", "run-fallback-interrupted", "--unit-id", "U").body.unit.cleanup).toMatchObject({
+      abandoned: false,
+      artifact_cleanup: { complete: true },
+    })
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
   })
 
   test("keeps oversized runner activity logs authoritative for failed-job recovery", () => {
@@ -587,17 +665,10 @@ describe("ce-work unit workspace controller: run discovery and native fallback",
       "--summary", "native dependency checks passed",
     ).word).toBe("FALLBACK_COMPLETED")
 
-    const beforeCleanup = ctl(runs, "status", "--run-id", runId, "--unit-id", "U1").body.unit
-    expect(existsSync(beforeCleanup.packet.path)).toBe(true)
-    expect(existsSync(path.join(runs, runId, "jobs", units[0].job))).toBe(true)
-    expect(ctl(
-      runs, "cleanup", "--run-id", runId, "--unit-id", "U1",
-      "--abandon", "--expect-job", units[0].job,
-    ).word).toBe("CLEANED")
     const cleaned = ctl(runs, "status", "--run-id", runId, "--unit-id", "U1").body.unit
     expect(cleaned).toMatchObject({
       state: "native-completed",
-      cleanup: { abandoned: true, artifact_cleanup: { complete: true } },
+      cleanup: { abandoned: false, artifact_cleanup: { complete: true } },
     })
     expect(existsSync(cleaned.packet.path)).toBe(false)
     expect(existsSync(path.join(runs, runId, "jobs", units[0].job))).toBe(false)
