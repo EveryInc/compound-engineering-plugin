@@ -1494,3 +1494,36 @@ describe("learnings-researcher local prompt domain-agnostic contract", () => {
     expect(integration).not.toContain("ce-doc-review")
   })
 })
+
+// Conditions from the 2026-11-08 ce-debug usage audit (45 real sessions, Claude and Codex).
+describe("ce-debug usage-audit conditions", () => {
+  // Codex cut the middle out of batched skill-file reads in five audited sessions; the same
+  // sentence ce-code-review pins as READ_EACH_FILE_RULE must precede ce-debug's first reference read.
+  test("reads each skill file whole before the first reference read", async () => {
+    const body = await readRepoFile("skills/ce-debug/SKILL.md")
+    const rule = body.indexOf("Give each file you read its own tool call, so its output comes back on its own")
+    expect(rule).toBeGreaterThan(-1)
+    expect(body.indexOf("**Read `references/investigate.md` now")).toBeGreaterThan(rule)
+  })
+
+  test("a bug in instructions a model reads is verified by a behavioral run", async () => {
+    const fix = await readRepoFile("skills/ce-debug/references/fix.md")
+    expect(fix).toMatch(/a test that checks the text is present/)
+  })
+
+  test("a fix that adds an early exit or widens a fallback checks what it now skips", async () => {
+    const fix = await readRepoFile("skills/ce-debug/references/fix.md")
+    expect(fix).toMatch(/what the new path now skips or swallows/)
+  })
+
+  test("an override that stops the handoff names the instruction", async () => {
+    const body = await readRepoFile("skills/ce-debug/SKILL.md")
+    const override = body.slice(body.indexOf("**Contextual override**"))
+    expect(override).toMatch(/say which instruction stopped it/)
+  })
+
+  test("a fix that changes after review is reviewed again", async () => {
+    const handoff = await readRepoFile("skills/ce-debug/references/post-fix-handoff.md")
+    expect(handoff).toMatch(/review the changed part again/)
+  })
+})

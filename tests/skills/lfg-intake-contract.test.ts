@@ -153,6 +153,19 @@ describe("ce-debug return-to-caller seam (ce-debug <-> lfg)", () => {
     expect(debugReturnGate).toMatch(/Step 11, close-out:[^\n]*`prevention_signal`/)
   })
 
+  // Five audited lfg/babysit runs (2026-11-08) ended ce-debug with a commit and no return,
+  // and the same-session caller carried on, so the offered-scope check never ran.
+  test("a ce-debug run that ends without its return stops the run like a malformed one", () => {
+    expect(debugReturnGate).toMatch(/ends without emitting its return at all is malformed/)
+  })
+
+  test("an open PR elsewhere ends the defect route without a fix, and the stop shows why", () => {
+    expect(debugReturn).toMatch(/on a branch other than the one you are fixing/)
+    expect(debugReturn).toMatch(/`diagnosed-no-fix`[^\n]*otherwise `summary` does/)
+    // The link lands in `summary`, so the stop must report it.
+    expect(debugReturnGate).toMatch(/stop the run with the return's `summary`, `root_cause`/)
+  })
+
   test("the debug gate requires the same evidence facts the ce-work gate requires", () => {
     for (const phrase of [
       "existing tests inspected",

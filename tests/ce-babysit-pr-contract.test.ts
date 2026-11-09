@@ -141,6 +141,20 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(consumer).toContain("do not invent `infra-retry`")
   })
 
+  // An audited pipeline run (2026-11-04) pushed a fix and emitted no return; babysit improvised.
+  test("a ce-debug pass with no return is an ordinary red residual, not a guessed outcome", async () => {
+    const tick = await readRepoFile("skills/ce-babysit-pr/references/tick.md")
+    const debugLine = tick.split("\n").find((line) => line.includes("**Real test/build failure**"))
+    expect(debugLine).toMatch(/ends without that return[^\n]*`diagnosed-no-fix`/)
+  })
+
+  test("ce-debug pipeline fixes nothing when an open PR elsewhere already fixes the bug", async () => {
+    const producer = await readRepoFile(CEDEBUG_PIPELINE)
+    expect(producer).toMatch(/on a branch other than the one you are fixing/)
+    // babysit treats diagnosed-no-fix as a red residual; a needs-human residual would park it.
+    expect(producer).toMatch(/`diagnosed-no-fix`[^\n]*otherwise `summary` does/)
+  })
+
   test("ce-debug's pipeline signal proposal reaches babysit's run recap", async () => {
     const [producer, tick, report] = await Promise.all([
       readRepoFile(CEDEBUG_PIPELINE),
