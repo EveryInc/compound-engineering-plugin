@@ -774,28 +774,34 @@ query($owner:String!,$repo:String!,$pr:Int!){
 
 
 def _manual_relationships(pr, repo, base_ref_name, head_ref_name, owner, name,
-                          host=None, default_branch=None):
-    """Find ordinary parent/children with narrow read-only branch filters."""
+                          host=None, default_branch=None, cross_repository=False):
+    """Find ordinary parent/children with narrow read-only branch filters.
+
+    `--head`/`--base` match branch names, not repositories: a parent's head must be in this
+    repository, and no PR here can be based on a fork PR's head.
+    """
     repo_ref = repo or f"{owner}/{name}"
     if host and repo_ref.count("/") == 1:
         repo_ref = f"{host}/{repo_ref}"
-    fields = "number,url,state,isDraft,baseRefName,headRefName"
+    fields = "number,url,state,isDraft,baseRefName,headRefName,isCrossRepository"
     parent_result = None
     if base_ref_name and base_ref_name != default_branch:
         parent_result = _run(["gh", "pr", "list", "--repo", repo_ref, "--state", "all",
                               "--head", base_ref_name, "--limit", "20", "--json", fields])
-    dependent_result = _run(["gh", "pr", "list", "--repo", repo_ref, "--state", "open",
-                             "--base", head_ref_name or "", "--limit", "100", "--json", fields])
-    if ((parent_result is not None and parent_result.returncode != 0)
-            or dependent_result.returncode != 0):
+    dependent_result = None
+    if not cross_repository:
+        dependent_result = _run(["gh", "pr", "list", "--repo", repo_ref, "--state", "open",
+                                 "--base", head_ref_name or "", "--limit", "100", "--json", fields])
+    if any(r is not None and r.returncode != 0 for r in (parent_result, dependent_result)):
         return RELATIONSHIP_PROBE_ERROR, [], []
     try:
         parent_candidates = json.loads(parent_result.stdout) or [] if parent_result else []
-        dependent_candidates = json.loads(dependent_result.stdout) or []
+        dependent_candidates = json.loads(dependent_result.stdout) or [] if dependent_result else []
     except (TypeError, ValueError, json.JSONDecodeError):
         return RELATIONSHIP_PROBE_ERROR, [], []
     parents = [_pr_summary(p) for p in parent_candidates
-               if p.get("number") != pr and p.get("headRefName") == base_ref_name]
+               if p.get("number") != pr and p.get("headRefName") == base_ref_name
+               and not p.get("isCrossRepository")]
     dependents = [_pr_summary(p) for p in dependent_candidates
                   if p.get("number") != pr and p.get("state") == "OPEN"
                   and p.get("baseRefName") == head_ref_name]
@@ -803,7 +809,8 @@ def _manual_relationships(pr, repo, base_ref_name, head_ref_name, owner, name,
     return status, parents, dependents
 
 
-def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, host=None):
+def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, host=None,
+                   cross_repository=False):
     """Classify manager membership and ordinary dependency relationships without mutation.
 
     The local manager is the fast/rich path, but its output is accepted only when it contains the
@@ -824,7 +831,7 @@ def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, hos
         return chain
 
     relationship, parents, dependents = _manual_relationships(
-        pr, repo, base_ref_name, head_ref_name, owner, name, host, default_branch)
+        pr, repo, base_ref_name, head_ref_name, owner, name, host, default_branch, cross_repository)
     result = _default_pr_chain()
     result.update({
         "manager_status": manager_status,
@@ -841,7 +848,7 @@ def fetch(pr, repo, light=False):
     downstack signature never reads (merge identity/base ref, eyes reactions, awaiting-approval)."""
     repo_args = ["--repo", repo] if repo else []
     view = _run_checked(["gh", "pr", "view", str(pr), *repo_args, "--json",
-                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,baseRefName,headRefName,url,number,isDraft,"
+                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,baseRefName,headRefName,isCrossRepository,url,number,isDraft,"
                          "statusCheckRollup,author,comments,reviews"],
                         "gh pr view")
     v = json.loads(view.stdout)
@@ -910,7 +917,8 @@ def fetch(pr, repo, light=False):
             and merge_observation.get("baseRefName") == v.get("baseRefName")):
         checks = [c for c in checks if c["conclusion"] not in FAILING]
     pr_chain = fetch_pr_chain(v.get("number") or pr, repo, v.get("url"),
-                              v.get("baseRefName"), v.get("headRefName"), owner, name, host)
+                              v.get("baseRefName"), v.get("headRefName"), owner, name, host,
+                              bool(v.get("isCrossRepository")))
     currency_probe = {
         "mergeable": mergeable,
         "merge_state_status": merge_state_status,
