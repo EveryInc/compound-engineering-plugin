@@ -46,7 +46,7 @@ Intent: Simplify tax calculation by replacing the multi-tier rate lookup
 with a flat-rate computation. Must not regress edge cases in tax-exempt handling.
 ```
 
-Pass this to every reviewer in their spawn prompt. Intent shapes *how hard each reviewer looks*, not which reviewers are selected. Keep any `session-settled:` annotations (from a plan or the conversation) out of this summary. Reviewers must not see settlement annotations (Stage 2b, Plan discovery).
+Pass this to every reviewer in their spawn prompt. Intent shapes *how hard each reviewer looks*, not which reviewers are selected. When the user stated a limit on what reviewers examine or raise, such as paths to leave out, a concern not to raise, or a focus to keep to, add it to this summary in the user's words, even when the user gave a decision as the reason. A spawned reviewer knows only what its prompt carries, so a limit left out of the summary does not exist for it. Keep any `session-settled:` annotations (from a plan or the conversation) out of this summary. Reviewers must not see settlement annotations (Stage 2b, Plan discovery).
 
 **When intent is ambiguous:** Infer from branch name, commits, PR title/body, diff, `plan:`, and conversation. Write the best-effort intent summary and note uncertainty in Coverage — never block on a clarifying question.
 

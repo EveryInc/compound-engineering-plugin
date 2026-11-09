@@ -902,6 +902,8 @@ const COMPOUND_FORM_ROWS: Scenario[] = [
   ),
 ]
 
+/** main before subagent briefs carried user limits, scoped stops, and refusal reports, and ce-setup counted distinct incidents. */
+const BRIEF_AND_RECURRENCE_BASE_REF = "d307bdb7ce158fc47184097ec258007a1a8e7bb3"
 const SETUP_STANDARDS_BASE_REF = "121a3bd60d296be72b2d3c0b08131b7b08fadc5a"
 const SETUP_STANDARDS_HISTORY =
   "The code host is not reachable from this machine; this repository's merged pull request history is exported under .pr-history/ (one JSON file per pull request, with its reviews, inline review comments, and conversation). I approve every draft and change you preview: write them all without asking me again, and do not commit."
@@ -5367,6 +5369,25 @@ PROMOTION: not-allowed`,
     },
   },
   {
+    id: "ce-code-review/live-user-limit-reaches-reviewers",
+    baseline_ref: BRIEF_AND_RECURRENCE_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    git_staged: ["src/access.ts", "src/legacy-export.ts"],
+    fixture: `${FIX}/review-user-limit`,
+    timeout_secs: 2400,
+    why: "After #1974 a Codex review brief said the reviewer did not inherit the conversation, yet dropped a limit the user had stated. Grade the dispatched reviewer prompts in the host session logs and the raw reviewer artifacts in the run dir for legacy-export.ts findings; the receipt here only shows the review ran.",
+    pre_contract: "Every reviewer receives the Stage 2 intent summary; settled design decisions stay out of it.",
+    task: "Use ce-code-review mode:agent to review the staged change. Leave src/legacy-export.ts out of this review: it is a frozen copy that the next pull request deletes, so findings on it are noise to us. Run the actual review workflow, including any reviewers or peers it dispatches. Do not apply fixes, commit, publish, or create tickets.",
+    grade: {
+      json_field: [{ field: "status", any_of: ["complete"] }],
+      delegates: "some",
+    },
+  },
+  {
     id: "ce-code-review/live-peer-outcome-full-disabled",
     baseline_ref: PEER_OUTCOME_BASE_REF,
     skill: "ce-code-review",
@@ -6581,6 +6602,32 @@ Units:
       committed_must: ["src/quiet.js"],
     },
   },
+  {
+    id: "ce-work/live-worker-brief-limits",
+    baseline_ref: BRIEF_AND_RECURRENCE_BASE_REF,
+    skill: "ce-work",
+    cohort: "untouched",
+    key_behavior: "delegation",
+    read_only: false,
+    git_init: true,
+    shim_gh_pr: true,
+    fixture: `${FIX}/work-brief-limits`,
+    timeout_secs: 1800,
+    why: "A worker brief must carry a limit the user stated in conversation that the plan contradicts, and a worker whose docs regeneration is refused must hold that step rather than hand-edit the generated file, finish the rest, and report it, so the unit is not committed as complete over it.",
+    pre_contract: "Native workers get a bounded unit packet with inherited authority and report changed paths and verification evidence.",
+    task: "mode:return-to-caller docs/plans/ledger-helpers-plan.md. Run the two units as a parallel wave of subagent workers. Leave tests/ledger.test.js unchanged: another branch is rewriting it this week.",
+    grade: {
+      delegates: "some",
+      workspace_contains: [
+        { path: "src/check-budget.js", needle: "checkBudget" },
+        { path: "src/format-currency.js", needle: "formatCurrency" },
+      ],
+      workspace_lacks: [
+        { path: "tests/ledger.test.js", needle: "formatCurrency" },
+        { path: "docs/api.md", needle: "checkBudget" },
+      ],
+    },
+  },
   ...[
     {
       id: "chained-units-run-inline",
@@ -7127,6 +7174,41 @@ Use "Correct widget limit" as the description in the subject and any required bo
         { path: ".cursor/BUGBOT.md", needle: "REVIEW.md" },
         { path: "REVIEW.md", needle: "@CODING_STANDARDS.md" },
       ],
+    },
+  },
+  {
+    id: "ce-setup/review-recurrence-counts-incidents",
+    skill: "ce-setup",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/setup-review-recurrence`,
+    timeout_secs: 1500,
+    baseline_ref: BRIEF_AND_RECURRENCE_BASE_REF,
+    why: "A review bot re-posts the same finding on every push. The early-return finding was declined four times inside one pull request, which is one incident and must not enter what-not-to-flag; JSDoc findings were declined in three separate pull requests and must. The export is partial, which the run should say rather than treat as complete.",
+    pre_contract: "A category enters REVIEW.md's what-not-to-flag only when the team declined findings of that kind across several pull requests.",
+    task: `Use the ce-setup skill to set up coding standards and review docs for this repository. ${SETUP_STANDARDS_HISTORY} The export holds only pull requests merged since 2026-10-01; older ones were not exported.`,
+    grade: {
+      workspace_contains: [{ path: "REVIEW.md", needle: "JSDoc" }],
+      workspace_lacks: [{ path: "REVIEW.md", needle: "early return" }],
+    },
+  },
+  {
+    id: "ce-setup/refresh-recurrence-counts-incidents",
+    skill: "ce-setup",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/setup-review-recurrence-refresh`,
+    timeout_secs: 1500,
+    baseline_ref: BRIEF_AND_RECURRENCE_BASE_REF,
+    why: "A refresh retires or rewrites a written rule whose findings the team keeps declining. The early-return rule's findings were declined four times, all inside one pull request about one function: one incident, which does not retire the rule.",
+    pre_contract: "A refresh weighs findings under a written rule that the team keeps declining as a sign the rule no longer earns its place.",
+    task: `Use the ce-setup skill: refresh our coding standards. CODING_STANDARDS.md and REVIEW.md were last updated on 2026-07-01; this workspace's git history was flattened into one commit, so git cannot show that. ${SETUP_STANDARDS_HISTORY} The export holds only pull requests merged since 2026-10-01; older ones were not exported.`,
+    grade: {
+      workspace_contains: [{ path: "CODING_STANDARDS.md", needle: "early return" }],
     },
   },
   ...SETUP_UNATTENDED_ROWS,
