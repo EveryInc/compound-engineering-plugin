@@ -166,7 +166,7 @@ Across the audit, ce-debug never produced a wrong root cause, and its reproducti
 - **Requirements:** R4, R5, R7, R8.
 - **Dependencies:** U3, U4.
 - **Files:**
-  - `tests/skill-eval-cell/packs/ce-debug-audit-conditions.md` (new pack, following the existing pack shape in `tests/skill-eval-cell/packs/`)
+  - `tests/skill-eval-cell/catalog.ts` (seven read-only `ce-debug/` decision rows, run with `test:skill-eval-pack --id <row>`)
 - **Approach:** write scenarios in the caller's shape, so each one forces the decision the change targets:
   - an LLM-prompt fix where only a text-presence test is on hand (R4);
   - a repo instruction blocking commits at handoff (R5);
