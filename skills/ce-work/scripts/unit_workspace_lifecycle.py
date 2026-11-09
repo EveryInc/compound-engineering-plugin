@@ -75,6 +75,11 @@ def unfinished_run(doc: dict, canonical_head: str) -> bool:
             and completion["snapshot"].get("status_sha256") == digest_bytes(b"")
         ):
             raise TrustFailure(f"native fallback completion receipt is malformed: {uid}")
+    if any(
+        not (isinstance(unit.get("cleanup"), dict) and unit["cleanup"].get("artifact_cleanup", {}).get("complete") is True)
+        for unit in units.values()
+    ):
+        return True
     receipts = doc.get("verifications", [])
     if not isinstance(receipts, list) or any(not isinstance(receipt, dict) for receipt in receipts):
         raise TrustFailure("manifest verification receipts are malformed")
@@ -310,15 +315,9 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
         artifact_cleanup_complete = cleanup.get("artifact_cleanup", {}).get("complete") is True
     if state in {"cleaned", "native-completed"}:
         actions: list[dict] = []
-        if (state == "cleaned" or cleanup) and not artifact_cleanup_complete:
-            cmd_cleanup(SimpleNamespace(
-                run_id=run_id,
-                unit_id=unit_id,
-                abandon=False,
-                expect_transport=None,
-                expect_job=None,
-            ))
-            actions.append({"unit_id": unit_id, "action": "artifact-cleanup-reconciled"})
+        if not artifact_cleanup_complete:
+            cleanup_accepted_unit(run_id, unit_id)
+            actions.append({"unit_id": unit_id, "action": "artifact-cleanup-reconciled" if cleanup else "cleanup-reconciled"})
         if lock and lock.get("unit_id") == unit_id:
             if pending_plan_verification:
                 raise Operational(
@@ -366,13 +365,7 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
             canonical_commit=canonical,
         ))
         actions.append({"unit_id": unit_id, "action": "wave-advance-reconciled", "commit": canonical})
-    cmd_cleanup(SimpleNamespace(
-        run_id=run_id,
-        unit_id=unit_id,
-        abandon=False,
-        expect_transport=None,
-        expect_job=None,
-    ))
+    cleanup_accepted_unit(run_id, unit_id)
     cmd_integration_release(SimpleNamespace(run_id=run_id, unit_id=unit_id, lock_token=lock_token))
     resolve_unit_recovery_blockers(run_id, unit_id)
     actions.append({"unit_id": unit_id, "action": "committed-unit-finalized", "commit": canonical})
@@ -777,11 +770,12 @@ def cmd_complete_fallback(args) -> tuple[str, dict]:
             "accepted_head": args.accepted_head,
             "evidence_digest": args.evidence_digest,
         })
-        return "FALLBACK_COMPLETED", {
-            "unit_id": args.unit_id,
-            "completion": receipt,
-            "eligible_siblings": advanced,
-        }
+    cleanup_accepted_unit(args.run_id, args.unit_id)
+    return "FALLBACK_COMPLETED", {
+        "unit_id": args.unit_id,
+        "completion": receipt,
+        "eligible_siblings": advanced,
+    }
 
 
 def cmd_reap(args) -> tuple[str, dict]:
@@ -894,6 +888,16 @@ def remove_unregistered_owned_workspace(run_id: str, unit_id: str, recorded_work
         raise Operational("BLOCKED", "unregistered workspace remained after cleanup")
 
 
+def cleanup_accepted_unit(run_id: str, unit_id: str) -> tuple[str, dict]:
+    return cmd_cleanup(SimpleNamespace(
+        run_id=run_id,
+        unit_id=unit_id,
+        abandon=False,
+        expect_transport=None,
+        expect_job=None,
+    ))
+
+
 def cmd_cleanup(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         validate_repo(doc)
@@ -940,6 +944,9 @@ def cmd_cleanup(args) -> tuple[str, dict]:
                     if observed != attempt["process_state"] or observed not in terminal_failures:
                         raise Operational("BLOCKED", "terminal job evidence changed; refusing cleanup")
                     abandonment_receipt = {"kind": "terminal-job", "value": attempt["job_id"], "process_state": observed}
+        elif unit["state"] == "native-completed":
+            if unit_accepted_commit(unit) is None:
+                raise Operational("REFUSED", "native fallback cleanup requires a valid completion receipt")
         elif unit["state"] != "committed":
             raise Operational("REFUSED", "uncommitted output is retained unless explicitly abandoned")
         workspace = unit["workspace"]["path"]
