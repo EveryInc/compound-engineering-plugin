@@ -33,6 +33,8 @@ Pass `XHOST_HARNESS` as `CROSS_MODEL_HOST_HARNESS`; pass `XHOST_FAMILY` as the f
 
 Claude Code, Codex, and Grok each serve their own model family, so the snippet takes the family from that harness's marker when it is the only such marker present. Another harness can copy one of those markers (oh-my-pi sets `CLAUDECODE=1` whatever model serves it), and a session started from inside another harness inherits that harness's marker. So the snippet leaves family `unknown` under `OMPCODE` or when more than one of those markers is present. Pass a family the snippet names. Where it leaves family `unknown`, set it only from a model id the runtime publishes as the model serving this session, and only when that id maps to `codex`, `claude`, `grok`, `composer`, or `gemini`. A requested model, the model's own claim, and the product name are not that id. Never infer serving family from the Cursor brand. An unknown host family cannot satisfy automatic same-family exclusion, so skip the automatic cross-model pass.
 
+Under `OMPCODE` this skip does not apply yet: still pass `unknown` and start the job. The worker reads the serving family from the model oh-my-pi's session file records and skips when it names no first-party model.
+
 <!-- ce-config-layers:start -->
 **Resolve ordinary CE yaml keys from the two repo files.**
 

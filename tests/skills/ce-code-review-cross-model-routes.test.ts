@@ -159,6 +159,8 @@ function sandbox(providers: string[], stream = acpStream({ text: review() }), ex
       PATH: bin,
       HOME: home,
       GEMINI_HOME: "",
+      // The omp session file names the serving family; never inherit the developer's real one.
+      PI_SESSION_FILE: "",
       // Mask any real Codex.app bundle so discovery sees only what the test stages.
       CROSS_MODEL_CODEX_APP_DIRS: temp("xmodel-cr-nobundle-"),
       ACP_STUB_NPX_STREAM: stream,
@@ -794,6 +796,85 @@ describe("cross-model-adversarial-review skip paths — non-blocking, no file", 
     expect(r.stderr).toContain("host serving family unattested")
     expect(r.stderr).not.toContain("invalid")
     expect(calls(sb)).toBe(0)
+  })
+
+  describe("omp host family resolved from the session's recorded model", () => {
+    const FOREIGN_HARNESS_MARKERS = ["CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SESSION_ID", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "CODEX_SESSION_ID", "CODEX_THREAD_ID", "CODEX_CI", "GROK_AGENT", "GROK_SESSION_ID", "CURSOR_AGENT", "CURSOR_CONVERSATION_ID", "OPENCODE_TERMINAL"]
+    const entry = (model: string, role?: string) => JSON.stringify({ type: "model_change", model, ...(role ? { role } : {}) })
+    function ompRun(target: string, lines: string[] | null, extra: NodeJS.ProcessEnv = {}) {
+      const sb = sandbox([target])
+      const runDir = makeRunDir()
+      const env: NodeJS.ProcessEnv = { ...sb.env, CROSS_MODEL_HOST_HARNESS: "omp", ...Object.fromEntries(FOREIGN_HARNESS_MARKERS.map((k) => [k, ""])), ...extra }
+      if (lines) {
+        const file = path.join(temp("xmodel-cr-omp-session-"), "session.jsonl")
+        writeFileSync(file, lines.join("\n") + "\n")
+        env.PI_SESSION_FILE = file
+      }
+      return { sb, r: run(["unknown", target, "HEAD", runDir], runDir, env) }
+    }
+
+    test.each([
+      ["anthropic/claude-sonnet-5-5", "codex"],
+      ["openai/gpt-5.4", "claude"],
+      ["openai-codex/gpt-6.1-terra", "claude"],
+      ["xai-oauth/grok-4.20-0309-reasoning", "codex"],
+    ])("%s attests a family that lets a different-family peer publish", (model, target) => {
+      const { r } = ompRun(target, [entry(model)])
+      expect(r.files).toContain(`adversarial-${target}.json`)
+    })
+
+    test("the attested family is excluded as a peer", () => {
+      const { sb, r } = ompRun("claude", [entry("anthropic/claude-sonnet-5-5")])
+      expect(r.files).not.toContain("adversarial-claude.json")
+      expect(calls(sb)).toBe(0)
+    })
+
+    test("an openai-served host excludes the codex peer", () => {
+      const { sb, r } = ompRun("codex", [entry("openai/gpt-5.4")])
+      expect(r.files).not.toContain("adversarial-codex.json")
+      expect(calls(sb)).toBe(0)
+    })
+
+    test("a later default entry wins and non-default roles are ignored", () => {
+      const { r } = ompRun("codex", [entry("openai/gpt-5.4"), entry("anthropic/claude-sonnet-5-5", "smol"), entry("anthropic/claude-opus-4-8")])
+      expect(r.files).toContain("adversarial-codex.json")
+    })
+
+    test.each([
+      ["a gateway-served model", [entry("openrouter/anthropic/claude-sonnet-5-5")]],
+      ["a local model", [entry("ollama/llama3")]],
+      ["a malformed trailing line after a valid entry", [entry("anthropic/claude-sonnet-5-5"), '{"type":"model_change","mod']],
+      ["a latest entry that is a retry fallback", [entry("anthropic/claude-sonnet-5-5"), entry("openai/gpt-5.4", "fallback")]],
+      ["a latest entry with the undocumented temporary role", [entry("anthropic/claude-sonnet-5-5"), entry("openai/gpt-5.4", "temporary")]],
+      ["a session file with no model_change", [JSON.stringify({ type: "message" })]],
+      ["no session file", null],
+    ])("%s stays unattested and skips with the omp-specific reason", (_name, lines) => {
+      const { sb, r } = ompRun("codex", lines)
+      expect(r.files).not.toContain("adversarial-codex.json")
+      expect(r.stderr).toContain("host serving family unattested; oh-my-pi session file names no first-party default model for this runtime")
+      expect(calls(sb)).toBe(0)
+    })
+
+    test.each([
+      ["CODEX_THREAD_ID", "t-1"],
+      ["CLAUDE_CODE_ENTRYPOINT", "cli"],
+      ["GROK_AGENT", "1"],
+    ])("a nested harness marker %s leaves the inherited session unattested", (marker, value) => {
+      const { sb, r } = ompRun("codex", [entry("anthropic/claude-sonnet-5-5")], { [marker]: value })
+      expect(r.files).not.toContain("adversarial-codex.json")
+      expect(r.stderr).toContain("host serving family unattested")
+      expect(calls(sb)).toBe(0)
+    })
+
+    test("a non-omp harness never reads the session file", () => {
+      const sb = sandbox(["codex"])
+      const runDir = makeRunDir()
+      const file = path.join(temp("xmodel-cr-omp-session-"), "session.jsonl")
+      writeFileSync(file, entry("anthropic/claude-sonnet-5-5") + "\n")
+      const r = run(["unknown", "codex", "HEAD", runDir], runDir, { ...sb.env, CROSS_MODEL_HOST_HARNESS: "cursor", PI_SESSION_FILE: file })
+      expect(r.files).not.toContain("adversarial-codex.json")
+      expect(calls(sb)).toBe(0)
+    })
   })
 })
 
