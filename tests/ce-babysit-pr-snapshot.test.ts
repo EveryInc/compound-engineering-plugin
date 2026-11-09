@@ -348,6 +348,7 @@ function probeChain(options: {
   graphql: { status: number; stdout?: unknown; stderr?: string }
   defaultBranch?: { status: number; stdout?: unknown; stderr?: string }
   openPrs?: unknown[]
+  crossRepository?: boolean
 }): { chain: any; calls: string[] } {
   const payload = {
     pr: options.pr ?? 42,
@@ -358,6 +359,7 @@ function probeChain(options: {
     graphql: options.graphql,
     default_branch: options.defaultBranch ?? { status: 0, stdout: "main\n" },
     open_prs: options.openPrs ?? [],
+    cross_repository: options.crossRepository ?? false,
   }
   const python = `
 import json
@@ -388,7 +390,8 @@ def fake(cmd):
     return result
 
 m._run = fake
-chain = m.fetch_pr_chain(p["pr"], "o/r", p["url"], p["base_ref"], p["head_ref"], "o", "r", None)
+chain = m.fetch_pr_chain(p["pr"], "o/r", p["url"], p["base_ref"], p["head_ref"], "o", "r", None,
+                         p["cross_repository"])
 print(json.dumps({"chain": chain, "calls": calls}))
 `
   const r = spawnSync(
@@ -3081,6 +3084,44 @@ print(json.dumps({
     expect(chain.relationship_status).toBe("dependent")
     expect(chain.parent_prs.map((pr: any) => pr.number)).toEqual([41])
     expect(chain.dependent_prs.map((pr: any) => pr.number)).toEqual([43])
+  })
+
+  test("a fork PR whose head shares our base branch name is not a parent", () => {
+    const { chain, calls } = probeChain({
+      baseRef: "dev",
+      headRef: "feature",
+      stackView: { status: 1, stderr: "no current stack" },
+      graphql: { status: 0, stdout: { data: { repository: {
+        defaultBranchRef: { name: "main" },
+        pullRequest: { stackEntry: null, stack: null },
+      } } } },
+      openPrs: [
+        { number: 77, url: "https://github.com/o/r/pull/77", state: "OPEN", baseRefName: "main", headRefName: "dev", isCrossRepository: true },
+        { number: 41, url: "https://github.com/o/r/pull/41", state: "OPEN", baseRefName: "main", headRefName: "dev", isCrossRepository: false },
+      ],
+    })
+    expect(calls.some((call) => call.includes("--head dev") && call.includes("isCrossRepository"))).toBe(true)
+    expect(chain.relationship_status).toBe("dependent")
+    expect(chain.parent_prs.map((pr: any) => pr.number)).toEqual([41])
+  })
+
+  test("a fork PR has no dependents, even when an upstream branch shares its head name", () => {
+    const { chain, calls } = probeChain({
+      baseRef: "main",
+      headRef: "fix-typo",
+      crossRepository: true,
+      stackView: { status: 1, stderr: "no current stack" },
+      graphql: { status: 0, stdout: { data: { repository: {
+        defaultBranchRef: { name: "main" },
+        pullRequest: { stackEntry: null, stack: null },
+      } } } },
+      openPrs: [
+        { number: 90, url: "https://github.com/o/r/pull/90", state: "OPEN", baseRefName: "fix-typo", headRefName: "other", isCrossRepository: false },
+      ],
+    })
+    expect(calls.some((call) => call.includes("--base fix-typo"))).toBe(false)
+    expect(chain.relationship_status).toBe("independent")
+    expect(chain.dependent_prs).toEqual([])
   })
 
   test("a PR based on the default branch ignores unrelated PRs whose head has the default-branch name", () => {
