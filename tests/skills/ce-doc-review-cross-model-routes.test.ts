@@ -603,11 +603,12 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
   })
 
   describe("omp host family resolved from the session's recorded model", () => {
+    const FOREIGN_HARNESS_MARKERS = ["CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SESSION_ID", "CODEX_SANDBOX", "CODEX_SANDBOX_NETWORK_DISABLED", "CODEX_SESSION_ID", "CODEX_THREAD_ID", "CODEX_CI", "GROK_AGENT", "GROK_SESSION_ID", "CURSOR_AGENT", "CURSOR_CONVERSATION_ID", "OPENCODE_TERMINAL"]
     const entry = (model: string, role?: string) => JSON.stringify({ type: "model_change", model, ...(role ? { role } : {}) })
-    function ompRun(target: string, lines: string[] | null, harness = "omp") {
+    function ompRun(target: string, lines: string[] | null, extra: NodeJS.ProcessEnv = {}) {
       const sb = sandbox([target])
       const runDir = makeRunDir()
-      const env: NodeJS.ProcessEnv = { ...sb.env, CROSS_MODEL_HOST_HARNESS: harness }
+      const env: NodeJS.ProcessEnv = { ...sb.env, CROSS_MODEL_HOST_HARNESS: "omp", ...Object.fromEntries(FOREIGN_HARNESS_MARKERS.map((k) => [k, ""])), ...extra }
       if (lines) {
         const file = path.join(temp("xmodel-doc-omp-session-"), "session.jsonl")
         writeFileSync(file, lines.join("\n") + "\n")
@@ -619,6 +620,8 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
     test.each([
       ["anthropic/claude-sonnet-5-5", "codex"],
       ["openai/gpt-5.4", "claude"],
+      ["openai-codex/gpt-6.1-terra", "claude"],
+      ["xai-oauth/grok-4.20-0309-reasoning", "codex"],
     ])("%s attests a family that lets a different-family peer publish", (model, target) => {
       const { r } = ompRun(target, [entry(model)])
       expect(r.files).toContain(`adversarial-${target}.json`)
@@ -649,8 +652,19 @@ describe("cross-model-doc-review skip paths (R11, R16) — non-blocking, no file
       expect(calls(sb)).toBe(0)
     })
 
+    test.each([
+      ["CODEX_THREAD_ID", "t-1"],
+      ["CLAUDE_CODE_ENTRYPOINT", "cli"],
+      ["GROK_AGENT", "1"],
+    ])("a nested harness marker %s leaves the inherited session unattested", (marker, value) => {
+      const { sb, r } = ompRun("codex", [entry("anthropic/claude-sonnet-5-5")], { [marker]: value })
+      expect(r.files).not.toContain("adversarial-codex.json")
+      expect(r.stderr).toContain("host serving family unattested")
+      expect(calls(sb)).toBe(0)
+    })
+
     test("a non-omp harness never reads the session file", () => {
-      const { sb, r } = ompRun("codex", [entry("anthropic/claude-sonnet-5-5")], "cursor")
+      const { sb, r } = ompRun("codex", [entry("anthropic/claude-sonnet-5-5")], { CROSS_MODEL_HOST_HARNESS: "cursor" })
       expect(r.files).not.toContain("adversarial-codex.json")
       expect(calls(sb)).toBe(0)
     })

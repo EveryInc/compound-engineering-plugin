@@ -81,8 +81,10 @@ the snippet; the case 5 probes, which ask the agent to run it, do.
      peer artifact publishes and its receipt records `independent true`. The
      same run with a same-family target (an `openai/gpt-*` host and target
      `codex`), a gateway model (`openrouter/anthropic/claude-sonnet-5-5`), a
-     torn trailing line, a fallback-role latest entry, or no session file makes
-     no provider call and publishes nothing.
+     torn trailing line, a fallback-role latest entry, no session file, or
+     another harness's marker beside omp's (a session started inside omp, such
+     as `CODEX_THREAD_ID` or `CLAUDE_CODE_ENTRYPOINT`) makes no provider call
+     and publishes nothing.
 
 ## Pass criteria
 
