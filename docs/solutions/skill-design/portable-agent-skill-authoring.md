@@ -18,7 +18,7 @@ tags:
   - protocol
   - judgment
   - skill-eval
-last_updated: 2026-09-11
+last_updated: 2026-11-09
 ---
 
 # Portable Agent Skill Authoring
@@ -322,6 +322,14 @@ Always-loaded skill prose remains in context throughout the workflow. Extract su
 
 Dispatch a subagent only for a reason that survives better compaction. There are four: the work must read far more than it returns and the parent will not need the raw material again; independent judgment is the product (review, verification, ideation, judging), so the parent's context would anchor it; substantial units can run in parallel without shared files or state; or the harness can actually select a different model for it. Do the work in the parent when its input lives only in the parent (the conversation, decisions settled this session), when the parent will read the full output back anyway, or when it is a small change to code the parent already read. A fresh subagent sees only what its prompt carries, so a subagent told to "extract the conversation" without being handed it is a broken dispatch, not a cheap one: `ce-compound` once drafted every learning that way. Inlining is not free either. Tokens added to a long-lived parent, such as an `lfg` or `ce-babysit-pr` chain, are re-read on every later turn, and in one measured `ce-code-review` run the orchestrator's cache reads were twice those of its six subagents combined (`review-cost-is-in-entering-the-spine-not-the-findings.md`). Each delegated task still needs a distinct scope, output contract, and synthesis owner.
 
+The brief is everything the child knows about the run. Telling the child that it does not inherit the conversation does not give it what the conversation held. A brief carries three things the child cannot recover on its own:
+
+- **The user's stated constraints that bound the child's work**, in the user's words: limits on scope, mutation, or output, and what to leave alone. This does not include decisions the child exists to judge independently, such as a settled design choice a reviewer should stay free to re-derive. Observed after #1974: a Codex `ce-code-review` brief told the reviewer it did not inherit the conversation, then dropped a constraint the user had stated.
+- **A stop condition scoped to the child's work.** It says what to hold (the refused action, the failed check, and whatever depends on it) and what may continue (independent parts of the same task). It also says that finished work stays in place. A bare "stop and report" makes one refused step throw away finished or partly verified work.
+- **A report of what did not go as briefed**: any action the harness or a permission check refused, any work beyond the assigned scope, and anything skipped, worked around, or left unverified. A summary of what the child did hides these, so the parent integrates the result as if it were complete.
+
+The dispatching skill states these as conditions its briefs must meet, not as fixed brief text. When the child's existing contract already covers one, such as a budget rule that says what to keep or a schema field for uncovered risk, the skill does not repeat it.
+
 Stable cross-skill fields, enums, and return statuses are protocols. Version or parity-test them when independently evolving skills depend on exact agreement.
 
 ## Diagnose before prescribing
@@ -447,6 +455,7 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Inherited authority is explicit and can only narrow.
 - [ ] Delegated tasks have distinct scopes, output contracts, and a synthesis owner.
 - [ ] Each subagent dispatch names its reason (flood protection, independent judgment, parallel units, or a selectable model) and receives every input it needs; work whose input lives only in the parent stays in the parent.
+- [ ] Each brief carries the user's stated constraints on the child's work (not decisions the child should judge independently), says what to hold and what may continue when a step is blocked, and asks for a report of refused actions, scope overruns, and skipped, worked-around, or unverified steps.
 
 ### Evidence and evaluation
 
