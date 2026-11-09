@@ -45,6 +45,8 @@ Resolve `<root>` only when you first compose a `<root>/` path — a run that com
 
 Five phases in order: **0 Triage -> 1 Investigate -> 2 Root Cause -> 3 Fix -> 4 Handoff.** Beyond Phase 0's trivial-bug fast-path there is no skipping and no complexity tiers. A hard bug spends longer in each phase; it does not enter fewer.
 
+Give each file you read its own tool call, so its output comes back on its own, never several files in one command or one script. A read counts only when the whole file came back. Some hosts cut the middle out of a long tool output and leave a truncation marker in its place, so when a read comes back shortened, read the missing lines in smaller ranges before you act on that file.
+
 **Read `references/investigate.md` now and follow it for Phases 0-2** — issue fetching, reproduction, environment sanity and the dirty-tree stash experiment, backward tracing, the tracker/PR-history search, hypothesis grounding, and the escalation table. Only the gates below are stated here.
 
 **The issue of record.** If the user handed you a ticket or issue, that is where this bug already lives, whichever system it is in; a Sentry issue counts as much as a Linear ticket. Carry its identifier and URL through to Phase 4. State its title, as the record gives it, before Phase 1 starts; if the fetch could not get one, say that rather than composing a title. If the input is only a stack trace, test path, or description, this run has **no issue of record**. That is an ordinary state, not a gap to fill: ship the fix without one, never open a ticket to manufacture a record, and never ask the user whether to. Phase 1's tracker search reads prior work and **never establishes a new home for the bug**. An existing ticket for this bug is one to *link* in Phase 4, never one to create.
@@ -123,4 +125,4 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 - **Stays local** when any of those three fails. Invoke the `ce-commit` skill under question 1's scope and push nothing. Say in one line what stayed local and why, and that you will push and open the PR on request. Do not ask first; a local commit is reversible.
 - **Not a git repo**: nothing commits. Stop after the summary and the quality block.
 
-**Contextual override** ("don't open PRs from skills", "commit only", "stop after the fix") — follow what the user said, and **Stop here** without committing when that is what they asked for. A vague tonal cue is not an override.
+**Contextual override** ("don't open PRs from skills", "commit only", "stop after the fix") — follow what the user said, and **Stop here** without committing when that is what they asked for. When an override stops the handoff, say which instruction stopped it and that you will commit, push, or open the PR on request. A vague tonal cue is not an override.

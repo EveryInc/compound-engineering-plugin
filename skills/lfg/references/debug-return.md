@@ -4,7 +4,7 @@ On the defect route, `ce-debug mode:return-to-caller` is the work source and the
 
 ## What advances
 
-Only `status: fixed` advances to step 3. `diagnosed-no-fix`, `needs-human`, and `blocked` stop the run with the return's `root_cause`, `residuals`, blockers, and any non-null `prevention_signal` reported verbatim; nothing has been pushed. A malformed return, or a `fixed` return whose fix-owned files show no change on the branch, stops the run as blocked.
+Only `status: fixed` advances to step 3. `diagnosed-no-fix`, `needs-human`, and `blocked` stop the run with the return's `summary`, `root_cause`, `residuals`, blockers, and any non-null `prevention_signal` reported verbatim; nothing has been pushed. A malformed return, or a `fixed` return whose fix-owned files show no change on the branch, stops the run as blocked. A `ce-debug` run that ends without emitting its return at all is malformed, even when it committed a fix: without its `pre_fix_scope`, nothing in this run can tell what the branch held before the fix.
 
 ## What `status: fixed` must carry
 
