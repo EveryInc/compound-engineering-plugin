@@ -24,6 +24,8 @@ export const PR_OPENING_BASE_REF = "f6c301cafc888f965ffd99195eb5f95ac2c6d9a8"
 export const RIGHT_SIZE_BASE_REF = "925b4ef71cbee0b4205693c4cafc9b2c557a603a"
 /** main before CODING_STANDARDS.md became the designated criteria source: the A/B base for the standards-discovery rows. */
 export const STANDARDS_SOURCE_BASE_REF = "799702cf0f5405c9361548cd86490c5603e2632c"
+/** main before conflicting CODING_STANDARDS.md files had a stated precedence (#2047). */
+export const STANDARDS_PRECEDENCE_BASE_REF = "dd9b7921c9c80498eba84994ff1b8e1e81dbc1db"
 /** main after #1514 merged: the product-lens activation leg still read "alternatives plausibly exist". */
 export const DOC_REVIEW_BASE_REF = "6f6c5779d31c0f847773e0cbc1e7e7fc7b11f272"
 /** main before ce-doc-review chose its own depth: every plan ran the full team, and adversarial fired on any plan without a brainstorm. */
@@ -4579,6 +4581,37 @@ Do not run the review itself.`,
     grade: {
       must_include: ["skills/demo.md=skills/CODING_STANDARDS.md", "src/cart.ts=AGENTS.md"],
       actions: "none",
+    },
+  },
+  {
+    id: "ce-code-review/standards-nested-conflict-precedence",
+    baseline_ref: STANDARDS_PRECEDENCE_BASE_REF,
+    skill: "ce-code-review",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    git_init: true,
+    git_staged: ["packages/api/handler.ts", "src/cart.ts"],
+    fixture: `${FIX}/standards-nested-conflict`,
+    timeout_secs: 300,
+    why: "#2047: a root and a nested CODING_STANDARDS.md contradict each other on return types. The nested rule decides only for changed files under its directory, the root's other rules still apply there, and the root rule still applies outside it. The task supplies the orchestrator's pairing, the path where the persona never sees Stage 1c.",
+    pre_contract: "Every governing CODING_STANDARDS.md still applies together; no rule says which file decides a conflict.",
+    task: `Use ce-code-review's project-standards reviewer on the staged change. The orchestrator passed this block:
+
+<standards-paths>
+CODING_STANDARDS.md: packages/api/handler.ts, src/cart.ts
+packages/api/CODING_STANDARDS.md: packages/api/handler.ts
+</standards-paths>
+
+Read the skill's references/subagent-template.md and references/personas/project-standards-reviewer.md and review the change as that persona would. Do not dispatch, edit anything, or invoke another skill. Return the persona's findings JSON, then exactly these three lines, each saying whether a finding reports that violation:
+
+API_RETURN_TYPE: <flagged | not-flagged>
+API_HEADER: <flagged | not-flagged>
+CART_RETURN_TYPE: <flagged | not-flagged>`,
+    grade: {
+      declared: { API_RETURN_TYPE: "not-flagged", API_HEADER: "flagged", CART_RETURN_TYPE: "flagged" },
+      actions: "none",
+      delegates: "none",
     },
   },
   {

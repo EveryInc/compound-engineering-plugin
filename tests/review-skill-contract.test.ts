@@ -1846,6 +1846,27 @@ describe("cross-model peer skip legibility", () => {
     expect(template).toContain("grade severity on the default scale")
   })
 
+  test("conflicting CODING_STANDARDS.md files resolve by one rule in both graders", async () => {
+    // #2047: the orchestrator (lite, focused) reads Stage 1c, but the dispatched persona
+    // receives only the path mapping, so the persona must carry the same rule.
+    const rule =
+      "every governing `CODING_STANDARDS.md` applies cumulatively. When two of them state rules that cannot both hold for the same changed file, the one whose directory is nearer that file decides it, so a nested file's rule wins only for changed files under its directory."
+    const between = (src: string, start: string, end: string) =>
+      src.split(start)[1].split(end)[0].replace(/\s+/g, " ")
+    const stage1c = between(
+      await readRepoFile("skills/ce-code-review/references/scope.md"),
+      "### Stage 1c",
+      "### Stage log",
+    )
+    const persona = between(
+      await readRepoFile("skills/ce-code-review/references/personas/project-standards-reviewer.md"),
+      "## Standards discovery",
+      "## What you're hunting for",
+    )
+    expect(stage1c).toContain(`Every${rule.slice("every".length)}`)
+    expect(persona).toContain(`Whether the pairing came from the orchestrator or from you, ${rule}`)
+  })
+
   test("the code-review peer receives host-vetted constraints while scoped standards stay local", async () => {
     const reference = await readRepoFile("skills/ce-code-review/references/cross-model-review.md")
     const routing = await readRepoFile("skills/ce-code-review/references/select-and-route.md")
