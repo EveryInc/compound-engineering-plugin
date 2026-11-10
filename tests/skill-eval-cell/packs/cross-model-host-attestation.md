@@ -93,6 +93,8 @@ the snippet; the case 5 probes, which ask the agent to run it, do.
      and `ce-doc-review`. The probe declares harness `pi`, passes family
      `unknown` to the worker, and still starts the job; it never declares
      family `claude` from the session file itself.
+     Repeat with Pi serving a gateway model, such as OpenRouter
+     `~anthropic/claude-sonnet-latest`.
    - **7b, worker run with egress stubbed.** As 6b with harness `pi`: a
      `codex` target publishes with `independent true`; a `claude` target, an
      `openrouter` reply, or another harness's marker beside Pi's (such as
@@ -112,7 +114,10 @@ skips with no provider call for every other variant. The route tests in
 skip matrix but not the receipt, so 6b's `independent true` check is the part
 only this case covers. Run the pre-change arm to show the unconditional skip
 the change fixes.
-Case 7a declares harness `pi` and family `unknown`; on the pre-change arm the
-snippet has no Pi branch, so the probe declares harness `unknown` and the
-worker skips unconditionally. Case 7b publishes only for the first-party
-host/peer pair.
+Case 7a declares harness `pi` and family `unknown` for every serving model.
+On the pre-change arm the snippet has no Pi branch, so the probe declares
+harness `unknown` and attests a family from the model Pi reports. That family
+is wrong for a gateway model: OpenRouter Claude is attested as `claude`, so a
+peer is labeled independent of a host whose serving path is unknown. Case 7b
+publishes only for the first-party host/peer pair; the pre-change worker
+rejects harness `pi`.
