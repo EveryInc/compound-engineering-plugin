@@ -25,13 +25,15 @@ Captures land in `docs/solutions/`, where `ce-plan`'s research and `ce-code-revi
 
 ## What is worth compounding
 
-Use `ce-compound` only when all three conditions hold:
+`ce-compound` writes something only when all three conditions hold:
 
 1. **Non-obvious:** the important reasoning is not readily recoverable from the final code, tests, types, comments, or existing documentation.
 2. **Durable:** it explains an invariant, constraint, root cause, rejected approach, or decision that should remain useful beyond the exact diff.
 3. **Material:** forgetting it would plausibly cause recurrence, meaningful risk, or substantial rediscovery.
 
-Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not compound.
+Apply this counterfactual: without a record of this lesson, would a future engineer working from the current code, tests, checks, standards, and docs still be likely to repeat the mistake or redo substantial investigation? If not, the skill writes nothing.
+
+The skill applies these conditions itself. Callers (you, a standing instruction, `ce-debug`, or `lfg`) decide one thing: whether the work corrected a wrong belief about how something behaves. They leave the rest to the skill. That pre-judgment is how lessons get lost: a caller that reasons "the code shows the fix, so no document is needed" never reaches the test or coding standard that would have held the lesson.
 
 The skill then picks the cheapest form that would stop the repeat, in the order below, and writes it without asking. The commit or pull request that carries the write is its review.
 
@@ -138,7 +140,7 @@ Full mode always runs a cheap two-stage session-history probe. A discovery-and-m
 
 After capturing the new learning, `ce-compound` checks whether the learning suggests a specific older doc may now be stale. Only then does it recommend or run a refresh, with a narrow scope hint. It does not run refresh by default.
 
-Phrases like "that worked", "it's fixed", "working now", and "problem solved" identify the completion checkpoint. They do not establish that a learning qualifies. Automatic capture still applies the non-obvious, durable, and material gate above. `/ce-compound [context]` requests immediate evaluation without waiting for a completion phrase; it does not lower the bar.
+Phrases like "that worked", "it's fixed", "working now", and "problem solved" identify the completion checkpoint. They do not establish that a lesson qualifies. Automatic capture still applies the non-obvious, durable, and material gate above, inside the skill. `/ce-compound [context]` requests immediate evaluation without waiting for a completion phrase; it does not lower the bar.
 
 ---
 
@@ -146,7 +148,7 @@ Phrases like "that worked", "it's fixed", "working now", and "problem solved" id
 
 You've just spent 45 minutes debugging an N+1 query in the brief-generation flow. The root cause spans query assembly and a surprising ORM default that neither the final call site nor its regression test explains. You confirm the fix works and say "that worked, ship it."
 
-The completion phrase marks the checkpoint. The agent applies the counterfactual, determines that a future engineer could plausibly repeat the investigation from the final implementation alone, and auto-invokes `ce-compound`. With plenty of context left, it picks Full mode and notes "Ran Full mode." at the top of its output. No prompt.
+The completion phrase marks the checkpoint. The session corrected a wrong belief about the ORM's default, so the agent auto-invokes `ce-compound`, which applies the counterfactual and finds that a future engineer could plausibly repeat the investigation from the final implementation alone. With plenty of context left, it picks Full mode and notes "Ran Full mode." at the top of its output. No prompt.
 
 The Related Docs Finder dispatches in the background. While it searches, the agent classifies the work as `performance_issue` (bug track), picks the filename and category, and drafts the fix with before/after code and the dead ends from the session. The finder reports moderate overlap with an older doc on a different N+1 case. Alongside them, the session-history probe scans recent sessions; none clear the relevance bar, so it records "no relevant prior sessions."
 
@@ -158,17 +160,16 @@ Phase 3 dispatches the local `performance-oracle` prompt and, because the doc in
 
 ## When to reach for it
 
-Reach for `ce-compound` when a solved and verified problem produced reasoning that is:
+Reach for `ce-compound` when a solved and verified problem corrected a wrong belief about how something behaves: a failed approach, a real defect a review caught, or an assumption, document, or first diagnosis that turned out wrong. The skill then decides whether the lesson is:
 
-- not readily recoverable from the final implementation or existing docs
+- not readily recoverable from the current code, checks, standards, or docs
 - useful beyond the exact diff
 - costly or risky to lose
 
 Skip it when:
 
 - The problem is in-progress or the solution is unverified
-- The final code, tests, types, comments, or existing docs already communicate the reasoning
-- The proposed doc would mainly narrate the diff or preserve change-specific history
+- The work went as first planned, or review changed only naming, style, or preferences
 - You want a repo-wide concept map rather than a learning from one solved problem → `/ce-compound refresh`
 
 ---
@@ -193,11 +194,11 @@ Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your harness's global instru
 
 Offer first (the agent asks before capturing):
 
-> After a solved, verified problem, offer once to invoke the `ce-compound` skill at the completion checkpoint only when the work produced durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not offer. Completion, effort, and diff size alone are not enough. Offer at the checkpoint so a qualifying learning can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.
+> After a solved, verified problem, offer once to invoke the `ce-compound` skill at the completion checkpoint when the work corrected a wrong belief about how something behaves: an approach that failed, a review finding that exposed a real defect, or an assumption, document, or first diagnosis that turned out wrong. A naming, style, or preference change does not count. Work that went as first planned does not need the offer. Do not judge whether the lesson deserves a document: `ce-compound` decides whether it qualifies and what holds it (a test, a lint rule, a coding standard, or a learning), and writes nothing when nothing qualifies. Offer at the checkpoint so what it writes can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.
 
 Run it automatically (no prompt):
 
-> After a solved, verified problem, automatically invoke the `ce-compound` skill with `mode:non-interactive` at the completion checkpoint only when the work produced durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, do not invoke it. Completion, effort, and diff size alone are not enough. Capture at the checkpoint so a qualifying learning can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.
+> After a solved, verified problem, automatically invoke the `ce-compound` skill with `mode:non-interactive` at the completion checkpoint when the work corrected a wrong belief about how something behaves: an approach that failed, a review finding that exposed a real defect, or an assumption, document, or first diagnosis that turned out wrong. A naming, style, or preference change does not count. Work that went as first planned does not need it. Do not judge whether the lesson deserves a document: `ce-compound` decides whether it qualifies and what holds it (a test, a lint rule, a coding standard, or a learning), and writes nothing when nothing qualifies. Capture at the checkpoint so what it writes can ship in the PR that produced it, and only where the repository treats captured learnings as tracked, committed knowledge.
 
 Use `mode:non-interactive depth:lightweight` instead when the standing workflow accepts reduced research and validation in exchange for a single-pass, no-subagent closure.
 
@@ -207,7 +208,7 @@ A few phrases in those standing lines are load-bearing:
 
 - "invoke the `ce-compound` skill", not "run `/ce-compound`": instruction files are read by whatever agent you are using, and the slash-command form is not reliably agent-callable across all of them.
 - "at the completion checkpoint", with the deadline as commit-reachability rather than a PR event: a PR can open early, so any deadline pegged to PR creation is already past by the time the work finishes. Whether the learning can still be committed to the producing PR holds in every case.
-- "not readily recoverable" and the counterfactual: the bar is preserving reasoning that the primary artifacts do not already carry, not the effort or size of the fix.
+- "corrected a wrong belief about how something behaves" and "do not judge whether the lesson deserves a document": the instruction decides only that there may be a lesson. `ce-compound` owns the bar and the form. An instruction that applies the bar itself skips lessons that belong in a test or coding standard, because it asks only whether a document is needed.
 - "treats captured learnings as tracked, committed knowledge", not a named folder: the question is whether the repo welcomes generated docs. Forks and OSS projects you contribute to often do not, and a named path goes stale since `docs_root` can move the store.
 
 ---

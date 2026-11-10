@@ -108,7 +108,7 @@ If the user chose "Diagnosis only," skip to Phase 4's summary. If they chose "Re
 
 **Land the fix without carrying along anything the user did not offer up** — not into a commit, not into a push, not into a PR. Do not ask whether to open a PR; permission is not the gate. Two questions decide the handoff. Answer them from the pre-fix scope Phase 3 recorded, not from how the branch came to exist. **Fire the action itself** via the platform's skill-invocation primitive — never merely tell the user to type a command.
 
-**Settle learning capture before anything commits.** Apply the reference's learning-capture criteria. Only when that gate qualifies the fix, offer capture; if the user accepts, invoke the `ce-compound` skill and add only the artifacts it actually wrote or updated to the fix-owned files, so they ship in the same commit as the fix. If it writes nothing, no artifact joins the commit.
+**Settle learning capture before anything commits.** Apply the reference's learning-capture criteria. Only when they call for it, offer capture; if the user accepts, invoke the `ce-compound` skill and add only the artifacts it actually wrote or updated to the fix-owned files, so they ship in the same commit as the fix. If it writes nothing, no artifact joins the commit.
 
 **1. What may go into the commit — the fix-owned files and nothing else.** This is a constraint on whichever skill commits in question 2, never an action of its own. It holds on every route, remote or not. Do not commit here.
 
