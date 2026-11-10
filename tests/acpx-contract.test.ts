@@ -2,7 +2,7 @@
 // opt-in: `bun run test:acpx-contract` sets ACPX_CONTRACT=1. ACPX_VERSION overrides the pin.
 import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { type ChildProcess, spawn, spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { ACPX_PIN } from "./helpers/acpx-pin"
@@ -42,7 +42,8 @@ function acpx(
   options: { cwd: string; home: string; env?: Record<string, string>; onStdout?: (stdout: string, child: ChildProcess) => void },
 ): Promise<Run> {
   const started = Date.now()
-  const child = spawn("npx", ["-y", "--package", `acpx@${VERSION}`, "--", "acpx", ...args], {
+  // As the workers launch it: npx's npm_config_package would make acpx's own npx-launched adapters resolve inside acpx.
+  const child = spawn("npx", ["-y", "--package", `acpx@${VERSION}`, "--", "env", "-u", "npm_config_package", "acpx", ...args], {
     cwd: options.cwd,
     stdio: ["ignore", "pipe", "pipe"],
     env: {
@@ -118,8 +119,27 @@ describe.skipIf(process.env.ACPX_CONTRACT !== "1" || process.platform === "win32
   test("the built-in worker routes exist throughout the supported range", async () => {
     const run = await acpx(["--help"], workspace())
     expect(run.code).toBe(0)
-    const routes = ["codex", "claude", "cursor", "grok-build", "antigravity"]
+    const routes = ["codex", "claude", "cursor", "grok-build", "antigravity", "pi"]
     for (const route of routes) expect(run.stdout).toMatch(new RegExp(`^\\s{2}${route}\\s`, "m"))
+  })
+
+  // The workers' Pi tool limits live only in the PI_ACP_PI_COMMAND wrapper; a pi-acp that
+  // ignored it would start the pi on PATH with every tool and the checkout's Pi files.
+  test("the built-in pi route starts Pi through PI_ACP_PI_COMMAND, never the pi on PATH", async () => {
+    const ws = workspace()
+    const bin = path.join(ws.home, "bin")
+    mkdirSync(bin)
+    const log = path.join(ws.home, "launches.log")
+    writeFileSync(path.join(bin, "pi"), `#!/bin/sh\necho "path-pi $*" >> '${log}'\nexit 1\n`, { mode: 0o755 })
+    const wrapper = path.join(ws.home, "pi-launch")
+    writeFileSync(wrapper, `#!/bin/sh\necho "wrapper $*" >> '${log}'\nexit 1\n`, { mode: 0o755 })
+    await acpx(["--cwd", ws.cwd, "--format", "json", "--timeout", "30", "pi", "exec", "--file", ws.prompt], {
+      ...ws,
+      env: { PATH: `${bin}:${process.env.PATH}`, PI_ACP_PI_COMMAND: wrapper },
+    })
+    const launches = existsSync(log) ? readFileSync(log, "utf8") : ""
+    expect(launches).toContain("wrapper --mode rpc")
+    expect(launches).not.toContain("path-pi --mode rpc")
   })
 
   test.each(["--approve-reads", "--approve-all"])("worker flags support MCP config, turn limits, and config options with %s", async (permission) => {

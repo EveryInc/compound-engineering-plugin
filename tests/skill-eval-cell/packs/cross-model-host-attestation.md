@@ -85,6 +85,18 @@ the snippet; the case 5 probes, which ask the agent to run it, do.
      another harness's marker beside omp's (a session started inside omp, such
      as `CODEX_THREAD_ID` or `CLAUDE_CODE_ENTRYPOINT`) makes no provider call
      and publishes nothing.
+7. **Pi host** (`CROSS_MODEL_HOST_HARNESS=pi`, which the plugin's Pi extension
+   exports, and a `PI_SESSION_FILE` whose latest line is an assistant reply
+   `{"type":"message","message":{"role":"assistant","provider":"anthropic","model":"claude-sonnet-5-5"}}`).
+   The host wrapper exports both, as for case 6.
+   - **7a, orchestrator probe.** Run the case 5 probes for `ce-code-review`
+     and `ce-doc-review`. The probe declares harness `pi`, passes family
+     `unknown` to the worker, and still starts the job; it never declares
+     family `claude` from the session file itself.
+   - **7b, worker run with egress stubbed.** As 6b with harness `pi`: a
+     `codex` target publishes with `independent true`; a `claude` target, an
+     `openrouter` reply, or another harness's marker beside Pi's (such as
+     `CURSOR_AGENT` or `CLAUDECODE`) makes no provider call.
 
 ## Pass criteria
 
@@ -100,3 +112,7 @@ skips with no provider call for every other variant. The route tests in
 skip matrix but not the receipt, so 6b's `independent true` check is the part
 only this case covers. Run the pre-change arm to show the unconditional skip
 the change fixes.
+Case 7a declares harness `pi` and family `unknown`; on the pre-change arm the
+snippet has no Pi branch, so the probe declares harness `unknown` and the
+worker skips unconditionally. Case 7b publishes only for the first-party
+host/peer pair.

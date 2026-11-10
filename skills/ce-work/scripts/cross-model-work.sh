@@ -9,7 +9,7 @@
 # Usage:
 #   cross-model-work.sh <authorization-json> <workspace> <unit-packet> <expected-packet-sha256> <result-dir>
 #
-# Routes: codex | claude | grok-cli | cursor | composer | grok-cursor | opencode | antigravity
+# Routes: codex | claude | grok-cli | cursor | composer | grok-cursor | opencode | antigravity | pi
 # Output: <result-dir>/implementation-result.json and redacted adapter.log
 # Exit: 0 host-resolvable terminal result, 1 failed/schema-invalid, 2 unavailable
 #
@@ -44,6 +44,7 @@ route_target() {
     codex|claude|cursor|composer|antigravity) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
     opencode) printf 'opencode' ;;
+    pi) printf 'pi' ;;
     *) return 1 ;;
   esac
 }
@@ -56,6 +57,7 @@ route_harness() {
     cursor|composer|grok-cursor) printf 'cursor-agent' ;;
     opencode) printf 'opencode' ;;
     antigravity) printf 'antigravity' ;;
+    pi) printf 'pi' ;;
     *) return 1 ;;
   esac
 }
@@ -75,7 +77,7 @@ route_model() {
     codex|claude|grok-cli|cursor) printf 'auto' ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     composer) printf '%s' "$M_COMPOSER" ;;
-    opencode) printf 'auto' ;;
+    opencode|pi) printf 'auto' ;;
     antigravity) printf '%s' "$M_ANTIGRAVITY" ;;
   esac
 }
@@ -88,6 +90,7 @@ route_available() {
     cursor|composer|grok-cursor) command -v cursor-agent >/dev/null 2>&1 ;;
     opencode) command -v opencode >/dev/null 2>&1 ;;
     antigravity) command -v agy_acp_server.par >/dev/null 2>&1 ;;
+    pi) command -v pi >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -115,6 +118,7 @@ acpx_agent() {   # <route> -> acpx built-in agent name
     grok-cursor|cursor|composer) printf 'cursor' ;;
     opencode) printf 'opencode' ;;
     antigravity) printf 'antigravity' ;;
+    pi) printf 'pi' ;;
     *) return 1 ;;
   esac
 }
@@ -190,6 +194,11 @@ acpx_preflight() {   # <route> <cwd>; nothing is sent to a provider here
       MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "opencode launches through acpx's raw --agent command, which acpx rejects on native Windows"; return 1 ;;
     esac
   fi
+  if [ "$1" = pi ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "pi launches through a POSIX sh wrapper, which pi-acp cannot start on native Windows"; return 1 ;;
+    esac
+  fi
   acpx_config_guard "$1" "$2"
 }
 
@@ -199,6 +208,19 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
   local real wrapper="$1/claude-safe-mode"
   real="$(command -v claude)" || return 1
   printf '#!/bin/sh\nexec %s --safe-mode "$@"\n' "$(printf '%q' "$real")" > "$wrapper" && chmod 700 "$wrapper" || return 1
+  printf '%s' "$wrapper"
+}
+
+# Pi runs its tools without ACP permission requests, so acpx's permission flags
+# do not bound it. pi-acp (0.0.33+) launches PI_ACP_PI_COMMAND instead of the pi
+# on PATH; this wrapper ignores project-local Pi files and adds the worker's
+# tool limits.
+acpx_pi_wrapper() {   # <private-dir> [pi-arg...] -> wrapper path
+  local real wrapper="$1/pi-launch" args="" arg
+  shift
+  real="$(command -v pi)" || return 1
+  for arg in --no-approve "$@"; do args="$args $(printf '%q' "$arg")"; done
+  printf '#!/bin/sh\nexec %s%s "$@"\n' "$(printf '%q' "$real")" "$args" > "$wrapper" && chmod 700 "$wrapper" || return 1
   printf '%s' "$wrapper"
 }
 
@@ -219,7 +241,7 @@ acpx_npm_resolution_retryable() {   # <stderr-log> <stream-log>
 
 # The codex and claude adapters are pointed at the installed CLIs so the pin
 # bounds the transport version, not which models the agent can serve.
-acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home>
+acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home> <pi-wrapper>
   printf '%s\0' env
   # An ambient Google API key or cloud project would bill it instead of the
   # Antigravity subscription. env takes -u only before its first assignment.
@@ -237,6 +259,7 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
     codex) printf '%s\0' "CODEX_PATH=$(command -v codex)" 'CODEX_CONFIG={"features":{"plugins":false}}' ;;
     claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
     antigravity) printf '%s\0' "GEMINI_HOME=$6" "ANTIGRAVITY_HARNESS_PATH=$(acpx_antigravity_helper)" ;;
+    pi) printf '%s\0' "PI_ACP_PI_COMMAND=$7" ;;
   esac
   # Explicit --package avoids npx reusing a global binary that violates npm age policy.
   # npx also exports npm_config_package, which breaks the nested npx acpx uses
@@ -338,7 +361,7 @@ validate_model_override() {
   local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" override_target="${CE_WORK_MODEL_OVERRIDE_TARGET:-}" target base base_lower
   [ -n "$override" ] || { [ -z "$override_target" ]; return; }
   case "$override_target" in
-    codex|claude|grok|cursor|composer|opencode|antigravity) ;;
+    codex|claude|grok|cursor|composer|opencode|antigravity|pi) ;;
     *) return 1 ;;
   esac
   target="$(route_target "$route")" || return 1
@@ -356,7 +379,7 @@ validate_model_override() {
     return 0
   fi
   case "$route:$base" in
-    codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:grok-*|grok-cursor:cursor-grok-*|composer:composer-*|opencode:*/*) ;;
+    codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:grok-*|grok-cursor:cursor-grok-*|composer:composer-*|opencode:*/*|pi:*/*) ;;
     antigravity:gemini-*) [[ "$base" =~ ^gemini-[A-Za-z0-9._-]+$ ]] || return 1 ;;
     *) return 1 ;;
   esac
@@ -368,8 +391,8 @@ validate_model_override() {
 # 2026-10-14; opencode 2.x effort, checked 2026-10-23). Codex and OpenCode
 # levels vary per model, and OpenCode 1.x has no effort option, so a listed
 # level can still be refused before the prompt is sent. Cursor fixes effort in
-# the model preset, so any effort there makes the route unavailable instead of
-# being dropped.
+# the model preset and the Pi route sets no thinking level, so any effort there
+# makes the route unavailable instead of being dropped.
 validate_effort_override() {
   local route="$1" effort="${EFFORT_REQUESTED:-}"
   [ -n "$effort" ] || return 0
@@ -386,15 +409,15 @@ validate_effort_override() {
 # The worker runs in the prepared workspace with every permission request
 # approved. Each adapter runs in its write-capable mode (codex agent, claude
 # default, cursor agent, opencode build, antigravity auto_edit, since its
-# default mode waits on approvals that never come); none of them confines
-# writes to the workspace, which references/cross-model-execution.md records
-# per route. Codex, Claude, and Antigravity run at high effort and native Grok
+# default mode waits on approvals that never come; pi asks for none); none of
+# them confines writes to the workspace, which references/cross-model-execution.md
+# records per route. Codex, Claude, and Antigravity run at high effort and native Grok
 # at xhigh unless the authorization requests another level.
 adapter_argv() {
   local route="$1" model
   acpx_agent "$route" >/dev/null || return 1
   model="$(route_model "$route")"
-  acpx_base_argv "$route" "$WORKSPACE" "$MCP_CONFIG" "$ACPX_TIMEOUT" "$CLAUDE_WRAPPER" "$GEMINI_HOME_DIR"
+  acpx_base_argv "$route" "$WORKSPACE" "$MCP_CONFIG" "$ACPX_TIMEOUT" "$CLAUDE_WRAPPER" "$GEMINI_HOME_DIR" "$PI_WRAPPER"
   printf '%s\0' --approve-all
   [ "$model" = auto ] || printf '%s\0' --model "$model"
   acpx_agent_argv "$route"
@@ -420,6 +443,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   MCP_CONFIG="<mcp-config>"
   CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"
   GEMINI_HOME_DIR="<gemini-home>"
+  PI_WRAPPER="<pi-wrapper>"
   ROUTE="${2:-}"
   EFFORT_REQUESTED="${CROSS_MODEL_EFFORT_OVERRIDE:-}"
   validate_model_override "$ROUTE" || {
@@ -555,6 +579,7 @@ SERVED_MODELS="$SCRATCH/served-models"
 MCP_CONFIG="$SCRATCH/mcp.json"
 CLAUDE_WRAPPER=""
 GEMINI_HOME_DIR=""
+PI_WRAPPER=""
 SESSION_STALL_MARKER="$SCRATCH/session-stalled"
 RAW_LIMIT_MARKER="$SCRATCH/raw-output-limit"
 PACKET_SNAPSHOT="$SCRATCH/unit-packet"
@@ -586,6 +611,7 @@ contracts = {
     "grok-cursor": ("grok", "cursor-agent", ["cursor"], "cooperative"),
     "opencode": ("opencode", "opencode", [], "cooperative"),
     "antigravity": ("antigravity", "antigravity", [], "cooperative"),
+    "pi": ("pi", "pi", [], "cooperative"),
 }
 
 def fail(message):
@@ -611,7 +637,7 @@ def model_allowed(route, model):
         return model in {"auto", "fable", "opus", "sonnet", "haiku"} or bool(re.fullmatch(r"claude-[A-Za-z0-9._-]+", model))
     if route == "grok-cli":
         return model == "auto" or bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
-    if route == "opencode":
+    if route in ("opencode", "pi"):
         return model == "auto" or bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+", model))
     if route == "antigravity":
         return bool(re.fullmatch(r"gemini-[A-Za-z0-9._-]+", model))
@@ -1083,6 +1109,12 @@ if [ "$ROUTE" = antigravity ]; then
     exit 2
   }
 fi
+if [ "$ROUTE" = pi ]; then
+  PI_WRAPPER="$(acpx_pi_wrapper "$SCRATCH")" || {
+    publish_unavailable "transport unavailable (pre-egress, route): cannot prepare the Pi launcher" || exit 2
+    exit 2
+  }
+fi
 printf '{"mcpServers":[]}\n' > "$MCP_CONFIG"
 
 ARGS=()
@@ -1115,6 +1147,7 @@ case "$ROUTE" in
   cursor|composer|grok-cursor)
     [ -n "${CURSOR_CONFIG_DIR:-}" ] && MIN_ENV+=("CURSOR_CONFIG_DIR=$CURSOR_CONFIG_DIR")
     ;;
+  pi) [ -n "${PI_CODING_AGENT_DIR:-}" ] && MIN_ENV+=("PI_CODING_AGENT_DIR=$PI_CODING_AGENT_DIR") ;;
 esac
 
 ACTIVITY_POLL_SECS="${CE_WORK_ACTIVITY_POLL_SECS:-15}"

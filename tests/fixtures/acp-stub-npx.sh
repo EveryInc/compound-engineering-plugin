@@ -8,7 +8,8 @@
 #   ACP_STUB_NPX_ARGV_LOG  if set, receives one argv entry per line
 #   ACP_STUB_NPX_ENV_LOG   if set, receives the npm_config_* settings acpx runs under,
 #                          the adapter launch variables, and the contents of the
-#                          CLAUDE_CODE_EXECUTABLE file when it is one
+#                          CLAUDE_CODE_EXECUTABLE and PI_ACP_PI_COMMAND files when
+#                          they are ones
 #   ACP_STUB_NPX_CALLS     if set, a counter file incremented per invocation; the Nth
 #                          call replays <base>.<N>.* instead of <base>.* when any exist
 #   ACP_STUB_NPX_PROMPT_LOG if set, receives a copy of the --file prompt (suffixed .<N>
@@ -48,6 +49,11 @@ if [ -n "${ACP_STUB_NPX_ENV_LOG:-}" ]; then
     if [ -n "${CLAUDE_CODE_EXECUTABLE:-}" ] && [ -f "$CLAUDE_CODE_EXECUTABLE" ]; then
       printf -- '--- CLAUDE_CODE_EXECUTABLE contents ---\n'
       cat "$CLAUDE_CODE_EXECUTABLE"
+    fi
+    printf 'PI_ACP_PI_COMMAND=%s\n' "${PI_ACP_PI_COMMAND-<unset>}"
+    if [ -n "${PI_ACP_PI_COMMAND:-}" ] && [ -f "$PI_ACP_PI_COMMAND" ]; then
+      printf -- '--- PI_ACP_PI_COMMAND contents ---\n'
+      cat "$PI_ACP_PI_COMMAND"
     fi
   } > "$ACP_STUB_NPX_ENV_LOG"
 fi
