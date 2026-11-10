@@ -50,6 +50,7 @@ const EXPECTED_EMITTERS = [
   "skills/ce-pov/references/grounding.md",
   "skills/ce-simplify-code/references/reviewer-dispatch.md",
   "skills/ce-sweep/references/model-tiers.md",
+  "skills/ce-work/references/worker-model.md",
 ]
 
 function proseOnly(markdown: string): string {

@@ -319,6 +319,8 @@ describe("skill-eval-cell catalog", () => {
         "ce-work/requirements-only-stops:references/input-triage.md",
         "ce-work/return-to-caller-no-pr:references/input-triage.md",
         "ce-work/return-to-caller-no-pr:references/return-to-caller.md",
+        "ce-work/worker-model-mixed-plan:references/worker-model.md",
+        "ce-work/worker-model-specified-plan:references/worker-model.md",
         "ce-work/return-to-caller-implements-and-returns:references/return-to-caller.md",
         "ce-code-review/antigravity-last-automatic-target:references/cross-model-review.md",
         "ce-code-review/composer-not-auto-selected:references/cross-model-review.md",

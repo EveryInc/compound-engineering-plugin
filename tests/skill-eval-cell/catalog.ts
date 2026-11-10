@@ -6702,6 +6702,38 @@ Units:
     },
   })),
   ...[
+    {
+      id: "worker-model-mixed-plan",
+      plan: "tiered-plan.md",
+      declared: { U1: "mid-tier", U2: "session-model", U3: "mid-tier" },
+      why: "Units whose plan section settles what to build run on a mid-tier worker; the unit with an open approach on a shared contract keeps the session model.",
+    },
+    {
+      id: "worker-model-specified-plan",
+      plan: "independent-plan.md",
+      declared: { U1: "mid-tier", U2: "mid-tier", U3: "mid-tier" },
+      why: "A plan whose every unit is fully specified runs every worker on the mid-tier model, not the session default.",
+    },
+  ].map(({ id, plan, why, declared }): Scenario => ({
+    id: `ce-work/${id}`,
+    baseline_ref: "fb5548f246c67044a43940adb3f9b84d3f62606a",
+    skill: "ce-work",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/schedule-plans`,
+    timeout_secs: 300,
+    why,
+    pre_contract: "Native workers carry no model guidance, so every worker inherits the session model.",
+    task: `Use ce-work on docs/plans/${plan}. The execution engine is native and this harness has a subagent mechanism with no worktree isolation whose dispatch accepts a model. Resolve which model each implementation unit's worker will run on, then stop before any branch change, edit, dispatch, or commit. Output exactly one line per unit in the form U1: <model>, where <model> is mid-tier or session-model, then one line of reasoning.`,
+    grade: {
+      files_read_post: ["references/worker-model.md"],
+      declared,
+      actions: "none",
+      delegates: "none",
+    },
+  })),
+  ...[
     { id: "project", fixture: "project", subject: "Correct widget limit", override: "" },
     { id: "recent-log", fixture: "recent-log", subject: "Widget: Correct widget limit", override: "" },
     { id: "fallback", fixture: "fallback", subject: "fix(widget): Correct widget limit", override: "" },
