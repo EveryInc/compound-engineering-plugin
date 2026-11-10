@@ -10,6 +10,8 @@ The orchestrator passes a `<standards-paths>` block pairing each criteria file w
 
 If no `<standards-paths>` block is present (standalone usage), build the same pairing yourself. Find every `CODING_STANDARDS.md`, `CLAUDE.md`, and `AGENTS.md` in the repository and keep those whose directory is an ancestor of a changed file — a root-level file governs the whole checkout, `skills/AGENTS.md` only what is under `skills/`. `CODING_STANDARDS.md` is the designated criteria source, so an instruction file supplies criteria only for changed files that no `CODING_STANDARDS.md` governs.
 
+Whether the pairing came from the orchestrator or from you, every governing `CODING_STANDARDS.md` applies cumulatively. When two of them state rules that cannot both hold for the same changed file, the one whose directory is nearer that file decides it, so a nested file's rule wins only for changed files under its directory.
+
 **The content is the contract, not the format.** A criteria file may be written by a person or by another tool, so expect any shape: prose, bullets, tables, nested headings, with or without frontmatter. Extract the rules whatever the shape. Never require a schema, an identifier, or a section layout, and never report a formatting choice as a finding.
 
 Within each criteria file you read, identify which sections apply to the file types in the diff. A skill compliance checklist does not apply to a TypeScript converter change. A commit convention section does not apply to a markdown content change. Match sections to the file types they address.
