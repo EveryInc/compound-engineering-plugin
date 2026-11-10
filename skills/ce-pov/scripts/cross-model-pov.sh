@@ -24,8 +24,8 @@
 #                   explicitly named peer, but its receipt remains unverified;
 #                   automatic discovery must exclude it before calling this worker.
 #   <fixed-route>   one host-resolved and pre-sanctioned route: codex, claude,
-#                   grok-cli, grok-cursor, cursor, composer, opencode, or
-#                   antigravity. A route failure
+#                   grok-cli, grok-cursor, cursor, composer, opencode,
+#                   antigravity, or pi. A route failure
 #                   returns no artifact; only the host may disclose and retry a
 #                   different recipient.
 #   <subject-payload> framed question plus any conversation-only subject material.
@@ -40,7 +40,7 @@
 #   cross-model-pov.sh --emit-adapter <route>
 #     prints the exact argv the given route would run (route in:
 #     codex | claude | grok-cli | grok-cursor | cursor | composer | opencode |
-#     antigravity). Both this mode and the
+#     antigravity | pi). Both this mode and the
 #     live run build their argv from adapter_argv(), so the route-safety test
 #     asserts on the same command string the peer actually runs.
 #
@@ -116,7 +116,7 @@ route_model() {   # <route> -> the M_* constant that route requests
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
-    opencode)    printf 'auto' ;;
+    opencode|pi) printf 'auto' ;;
     antigravity) printf '%s' "${ANTIGRAVITY_MODEL:-$M_ANTIGRAVITY}" ;;
   esac
 }
@@ -126,6 +126,7 @@ route_target() {
     codex|claude|cursor|composer|antigravity) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
     opencode) printf 'opencode' ;;
+    pi) printf 'pi' ;;
   esac
 }
 
@@ -137,6 +138,7 @@ route_harness() {
     grok-cursor|cursor|composer) printf 'cursor-agent' ;;
     opencode) printf 'opencode' ;;
     antigravity) printf 'antigravity' ;;
+    pi) printf 'pi' ;;
   esac
 }
 
@@ -144,8 +146,7 @@ target_serving_family() {
   case "$1" in
     codex|claude|grok|composer) printf '%s' "$1" ;;
     antigravity) printf 'gemini' ;;
-    cursor) printf 'unknown' ;;
-    opencode) printf 'unknown' ;;
+    cursor|opencode|pi) printf 'unknown' ;;
   esac
 }
 
@@ -157,6 +158,7 @@ route_available() {
     grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
     opencode) command -v opencode >/dev/null 2>&1 ;;
     antigravity) command -v agy_acp_server.par >/dev/null 2>&1 ;;
+    pi) command -v pi >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -184,6 +186,7 @@ acpx_agent() {   # <route> -> acpx built-in agent name
     grok-cursor|cursor|composer) printf 'cursor' ;;
     opencode) printf 'opencode' ;;
     antigravity) printf 'antigravity' ;;
+    pi) printf 'pi' ;;
     *) return 1 ;;
   esac
 }
@@ -259,6 +262,11 @@ acpx_preflight() {   # <route> <cwd>; nothing is sent to a provider here
       MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "opencode launches through acpx's raw --agent command, which acpx rejects on native Windows"; return 1 ;;
     esac
   fi
+  if [ "$1" = pi ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "pi launches through a POSIX sh wrapper, which pi-acp cannot start on native Windows"; return 1 ;;
+    esac
+  fi
   acpx_config_guard "$1" "$2"
 }
 
@@ -268,6 +276,19 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
   local real wrapper="$1/claude-safe-mode"
   real="$(command -v claude)" || return 1
   printf '#!/bin/sh\nexec %s --safe-mode "$@"\n' "$(printf '%q' "$real")" > "$wrapper" && chmod 700 "$wrapper" || return 1
+  printf '%s' "$wrapper"
+}
+
+# Pi runs its tools without ACP permission requests, so acpx's permission flags
+# do not bound it. pi-acp (0.0.33+) launches PI_ACP_PI_COMMAND instead of the pi
+# on PATH; this wrapper ignores project-local Pi files and adds the worker's
+# tool limits.
+acpx_pi_wrapper() {   # <private-dir> [pi-arg...] -> wrapper path
+  local real wrapper="$1/pi-launch" args="" arg
+  shift
+  real="$(command -v pi)" || return 1
+  for arg in --no-approve "$@"; do args="$args $(printf '%q' "$arg")"; done
+  printf '#!/bin/sh\nexec %s%s "$@"\n' "$(printf '%q' "$real")" "$args" > "$wrapper" && chmod 700 "$wrapper" || return 1
   printf '%s' "$wrapper"
 }
 
@@ -288,7 +309,7 @@ acpx_npm_resolution_retryable() {   # <stderr-log> <stream-log>
 
 # The codex and claude adapters are pointed at the installed CLIs so the pin
 # bounds the transport version, not which models the agent can serve.
-acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home>
+acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home> <pi-wrapper>
   printf '%s\0' env
   # An ambient Google API key or cloud project would bill it instead of the
   # Antigravity subscription. env takes -u only before its first assignment.
@@ -306,6 +327,7 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
     codex) printf '%s\0' "CODEX_PATH=$(command -v codex)" 'CODEX_CONFIG={"features":{"plugins":false}}' ;;
     claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
     antigravity) printf '%s\0' "GEMINI_HOME=$6" "ANTIGRAVITY_HARNESS_PATH=$(acpx_antigravity_helper)" ;;
+    pi) printf '%s\0' "PI_ACP_PI_COMMAND=$7" ;;
   esac
   # Explicit --package avoids npx reusing a global binary that violates npm age policy.
   # npx also exports npm_config_package, which breaks the nested npx acpx uses
@@ -433,11 +455,13 @@ EOF
 # Read-only intent on every route: reads are approved, every other permission
 # request is denied, and each adapter runs in its read-only mode where it has
 # one (codex mode=read-only, claude mode=default, cursor mode=ask, opencode
-# mode=plan with edits denied, antigravity mode=default). Claude's --allowed-tools is an auto-approve
-# list, not a restriction: its other tools still ask and are denied. The
-# codex adapter does not enforce its read-only mode, so write denial is best
-# effort. PEER_WORKDIR / PROMPT_FILE / MCP_CONFIG / CLAUDE_WRAPPER / GEMINI_HOME_DIR are resolved
-# by the caller (placeholders in --emit-adapter mode).
+# mode=plan with edits denied, antigravity mode=default). Pi asks no
+# permission, so its launcher enables only its read and search tools. Claude's
+# --allowed-tools is an auto-approve list, not a restriction: its other tools
+# still ask and are denied. The codex adapter does not enforce its read-only
+# mode, so write denial is best effort. PEER_WORKDIR / PROMPT_FILE / MCP_CONFIG /
+# CLAUDE_WRAPPER / GEMINI_HOME_DIR / PI_WRAPPER are resolved by the caller
+# (placeholders in --emit-adapter mode).
 adapter_argv() {
   local route="$1" model
   acpx_agent "$route" >/dev/null || return 1
@@ -448,7 +472,7 @@ adapter_argv() {
     opencode) printf '%s\0' env OPENCODE_DISABLE_PROJECT_CONFIG=1 \
       'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","webfetch":"deny","task":"deny"}}' ;;
   esac
-  acpx_base_argv "$route" "$READ_ROOT" "$MCP_CONFIG" "$HARD_SECS" "$CLAUDE_WRAPPER" "$GEMINI_HOME_DIR"
+  acpx_base_argv "$route" "$READ_ROOT" "$MCP_CONFIG" "$HARD_SECS" "$CLAUDE_WRAPPER" "$GEMINI_HOME_DIR" "$PI_WRAPPER"
   printf '%s\0' --approve-reads --non-interactive-permissions deny
   case "$route" in
     claude) printf '%s\0' --allowed-tools Read,Glob,Grep,WebSearch,WebFetch --max-turns 15 ;;
@@ -482,7 +506,7 @@ apply_model_override() {
     grok-cli:grok-* ) ;;
     grok-cursor:grok-*|grok-cursor:cursor-grok-* ) ;;
     composer:composer-* ) ;;
-    opencode:*/* ) ;;
+    opencode:*/*|pi:*/* ) ;;
     antigravity:gemini-* ) ;;
     *) return 1 ;;
   esac
@@ -491,13 +515,13 @@ apply_model_override() {
 # --- --emit-adapter <route>: print the argv, no model call, no side effects --
 if [ "${1:-}" = "--emit-adapter" ]; then
   READ_ROOT="<read-root>"
-  PROMPT_FILE="<prompt-file>"; MCP_CONFIG="<mcp-config>"; CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"; GEMINI_HOME_DIR="<gemini-home>"
+  PROMPT_FILE="<prompt-file>"; MCP_CONFIG="<mcp-config>"; CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"; GEMINI_HOME_DIR="<gemini-home>"; PI_WRAPPER="<pi-wrapper>"
   HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
   route="${2:-}"
   apply_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity|pi)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -547,19 +571,22 @@ case "$HOST_PROVIDER" in
   *) skip "host serving family '$HOST_PROVIDER' invalid (want codex|claude|grok|composer|gemini|unknown)" ;;
 esac
 case "$HOST_HARNESS" in
-  codex|claude|grok|cursor|opencode|antigravity|omp|unknown) ;;
-  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|antigravity|omp|unknown)" ;;
+  codex|claude|grok|cursor|opencode|antigravity|omp|pi|unknown) ;;
+  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|antigravity|omp|pi|unknown)" ;;
 esac
 
 case "$FIXED_ROUTE" in
-  codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity) ;;
+  codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity|pi) ;;
   *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;
 esac
 TARGET="$(route_target "$FIXED_ROUTE")" || skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress"
 apply_model_override "$FIXED_ROUTE" || skip "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$FIXED_ROUTE'"
-# An Antigravity host can serve several families; never send it to itself.
+# An Antigravity or Pi host can serve several families; never send it to itself.
 if [ "$FIXED_ROUTE" = antigravity ] && { [ "$HOST_PROVIDER" = gemini ] || [ "$HOST_HARNESS" = antigravity ]; }; then
   skip "fixed route 'antigravity' is the host's own Gemini family or Antigravity harness; skipping before egress"
+fi
+if [ "$FIXED_ROUTE" = pi ] && [ "$HOST_HARNESS" = pi ]; then
+  skip "fixed route 'pi' is the host's own Pi harness; skipping before egress"
 fi
 
 # --- self-locate skill root + canonical sibling files ----------------------
@@ -605,7 +632,7 @@ route_allowlisted() {
     grok-cursor)
       in_csv grok "$ALLOW" && { in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
       ;;
-    opencode|antigravity) in_csv "$1" "$ALLOW" ;;
+    opencode|antigravity|pi) in_csv "$1" "$ALLOW" ;;
     *) return 1 ;;
   esac
 }
@@ -665,6 +692,10 @@ fi
 GEMINI_HOME_DIR=""
 if [ "$FIXED_ROUTE" = antigravity ]; then
   GEMINI_HOME_DIR="$(acpx_antigravity_home "$PEER_WORKDIR")" || { cleanup_private_scratch; skip "transport unavailable (pre-egress, route): cannot prepare a private Antigravity home"; }
+fi
+PI_WRAPPER=""
+if [ "$FIXED_ROUTE" = pi ]; then
+  PI_WRAPPER="$(acpx_pi_wrapper "$PEER_WORKDIR" --tools read,grep,find,ls --no-mcp)" || { cleanup_private_scratch; skip "transport unavailable (pre-egress, route): cannot prepare the read-only Pi launcher"; }
 fi
 {
   cat "$PERSONA"

@@ -4,7 +4,7 @@ import { ACPX_PIN } from "../../helpers/acpx-pin"
 
 const STUB_NPX = path.join(process.cwd(), "tests/fixtures/acp-stub-npx.sh")
 // The Antigravity route needs its ACP runtime and the helper beside it.
-const AGENT_BINARIES = ["codex", "claude", "grok", "cursor-agent", "opencode", "agy_acp_server.par", "localharness_external"]
+const AGENT_BINARIES = ["codex", "claude", "grok", "cursor-agent", "opencode", "pi", "agy_acp_server.par", "localharness_external"]
 
 export const COMPLETED_RESULT =
   '{"terminal_status":"completed","summary":"implemented","changed_files":["result.txt"],"evidence":["focused test passed"],"scope_expansion":null}'

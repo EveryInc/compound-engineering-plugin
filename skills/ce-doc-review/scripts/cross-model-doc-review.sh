@@ -53,7 +53,7 @@
 #   cross-model-doc-review.sh --emit-adapter <route>
 #     prints the exact argv the given route would run (route in:
 #     codex | claude | grok-cli | grok-cursor | cursor | composer | opencode |
-#     antigravity).
+#     antigravity | pi).
 #     Both this mode and the live run build their argv from adapter_argv(), so
 #     the route-safety test asserts on the same command string the peer runs.
 #
@@ -121,7 +121,7 @@ route_effort() {   # <route> -> requested effort: the override where the route t
     codex|claude|antigravity) printf 'high' ;;
     grok-cursor) printf 'model-implied-high' ;;
     composer) printf 'fast' ;;
-    cursor|opencode) printf 'unverified' ;;
+    cursor|opencode|pi) printf 'unverified' ;;
   esac
 }
 
@@ -141,7 +141,7 @@ route_model() {   # <route> -> the M_* constant that route requests
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
-    opencode)    printf 'auto' ;;
+    opencode|pi) printf 'auto' ;;
     antigravity) printf '%s' "${ANTIGRAVITY_MODEL:-$M_ANTIGRAVITY}" ;;
   esac
 }
@@ -151,6 +151,7 @@ route_target() {
     codex|claude|cursor|composer|antigravity) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
     opencode) printf 'opencode' ;;
+    pi) printf 'pi' ;;
   esac
 }
 
@@ -162,6 +163,7 @@ route_harness() {
     grok-cursor|cursor|composer) printf 'cursor-agent' ;;
     opencode) printf 'opencode' ;;
     antigravity) printf 'antigravity' ;;
+    pi) printf 'pi' ;;
   esac
 }
 
@@ -169,8 +171,7 @@ target_serving_family() {
   case "$1" in
     codex|claude|grok|composer) printf '%s' "$1" ;;
     antigravity) printf 'gemini' ;;
-    cursor) printf 'unknown' ;;
-    opencode) printf 'unknown' ;;
+    cursor|opencode|pi) printf 'unknown' ;;
   esac
 }
 
@@ -182,6 +183,7 @@ route_available() {
     grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
     opencode) command -v opencode >/dev/null 2>&1 ;;
     antigravity) command -v agy_acp_server.par >/dev/null 2>&1 ;;
+    pi) command -v pi >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -209,6 +211,7 @@ acpx_agent() {   # <route> -> acpx built-in agent name
     grok-cursor|cursor|composer) printf 'cursor' ;;
     opencode) printf 'opencode' ;;
     antigravity) printf 'antigravity' ;;
+    pi) printf 'pi' ;;
     *) return 1 ;;
   esac
 }
@@ -284,6 +287,11 @@ acpx_preflight() {   # <route> <cwd>; nothing is sent to a provider here
       MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "opencode launches through acpx's raw --agent command, which acpx rejects on native Windows"; return 1 ;;
     esac
   fi
+  if [ "$1" = pi ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "pi launches through a POSIX sh wrapper, which pi-acp cannot start on native Windows"; return 1 ;;
+    esac
+  fi
   acpx_config_guard "$1" "$2"
 }
 
@@ -293,6 +301,19 @@ acpx_claude_wrapper() {   # <private-dir> -> wrapper path
   local real wrapper="$1/claude-safe-mode"
   real="$(command -v claude)" || return 1
   printf '#!/bin/sh\nexec %s --safe-mode "$@"\n' "$(printf '%q' "$real")" > "$wrapper" && chmod 700 "$wrapper" || return 1
+  printf '%s' "$wrapper"
+}
+
+# Pi runs its tools without ACP permission requests, so acpx's permission flags
+# do not bound it. pi-acp (0.0.33+) launches PI_ACP_PI_COMMAND instead of the pi
+# on PATH; this wrapper ignores project-local Pi files and adds the worker's
+# tool limits.
+acpx_pi_wrapper() {   # <private-dir> [pi-arg...] -> wrapper path
+  local real wrapper="$1/pi-launch" args="" arg
+  shift
+  real="$(command -v pi)" || return 1
+  for arg in --no-approve "$@"; do args="$args $(printf '%q' "$arg")"; done
+  printf '#!/bin/sh\nexec %s%s "$@"\n' "$(printf '%q' "$real")" "$args" > "$wrapper" && chmod 700 "$wrapper" || return 1
   printf '%s' "$wrapper"
 }
 
@@ -313,7 +334,7 @@ acpx_npm_resolution_retryable() {   # <stderr-log> <stream-log>
 
 # The codex and claude adapters are pointed at the installed CLIs so the pin
 # bounds the transport version, not which models the agent can serve.
-acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home>
+acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home> <pi-wrapper>
   printf '%s\0' env
   # An ambient Google API key or cloud project would bill it instead of the
   # Antigravity subscription. env takes -u only before its first assignment.
@@ -331,6 +352,7 @@ acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper
     codex) printf '%s\0' "CODEX_PATH=$(command -v codex)" 'CODEX_CONFIG={"features":{"plugins":false}}' ;;
     claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
     antigravity) printf '%s\0' "GEMINI_HOME=$6" "ANTIGRAVITY_HARNESS_PATH=$(acpx_antigravity_helper)" ;;
+    pi) printf '%s\0' "PI_ACP_PI_COMMAND=$7" ;;
   esac
   # Explicit --package avoids npx reusing a global binary that violates npm age policy.
   # npx also exports npm_config_package, which breaks the nested npx acpx uses
@@ -458,11 +480,12 @@ EOF
 # Zero-tool intent on every route: the peer runs from an empty per-peer
 # workspace, acpx denies every permission request, and each adapter runs in its
 # read-only mode where it has one (codex mode=read-only, claude mode=default,
-# cursor mode=ask, opencode mode=plan with edits and web denied). Tools that
-# need no permission stay usable; references/cross-model-review.md records
-# which routes can still read files or reach the web. PEER_WORKDIR /
-# PROMPT_FILE / MCP_CONFIG / CLAUDE_WRAPPER are resolved by the caller
-# (placeholders in --emit-adapter mode).
+# cursor mode=ask, opencode mode=plan with edits and web denied). Pi asks no
+# permission, so its launcher disables its tools. Tools that need no permission
+# stay usable; references/cross-model-review.md records which routes can still
+# read files or reach the web. PEER_WORKDIR / PROMPT_FILE / MCP_CONFIG /
+# CLAUDE_WRAPPER / PI_WRAPPER are resolved by the caller (placeholders in
+# --emit-adapter mode).
 adapter_argv() {
   local route="$1" model
   acpx_agent "$route" >/dev/null || return 1
@@ -473,7 +496,7 @@ adapter_argv() {
     opencode) printf '%s\0' env OPENCODE_DISABLE_PROJECT_CONFIG=1 \
       'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","webfetch":"deny","websearch":"deny","task":"deny"}}' ;;
   esac
-  acpx_base_argv "$route" "$PEER_WORKDIR" "$MCP_CONFIG" "$HARD_SECS" "$CLAUDE_WRAPPER" "$GEMINI_HOME_DIR"
+  acpx_base_argv "$route" "$PEER_WORKDIR" "$MCP_CONFIG" "$HARD_SECS" "$CLAUDE_WRAPPER" "$GEMINI_HOME_DIR" "$PI_WRAPPER"
   printf '%s\0' --deny-all
   case "$route" in
     claude) printf '%s\0' --max-turns 15 ;;
@@ -508,7 +531,7 @@ validate_model_override() {
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:grok-*|grok-cursor:cursor-grok-*|composer:composer-*|opencode:*/*|antigravity:gemini-*) ;;
+    codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:grok-*|grok-cursor:cursor-grok-*|composer:composer-*|opencode:*/*|pi:*/*|antigravity:gemini-*) ;;
     *) return 1 ;;
   esac
 }
@@ -540,14 +563,14 @@ validate_effort_override() {
 # --- --emit-adapter <route>: print the argv, no model call, no side effects --
 if [ "${1:-}" = "--emit-adapter" ]; then
   PEER_WORKDIR="<peer-workdir>"
-  PROMPT_FILE="<prompt-file>"; MCP_CONFIG="<mcp-config>"; CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"; GEMINI_HOME_DIR="<gemini-home>"
+  PROMPT_FILE="<prompt-file>"; MCP_CONFIG="<mcp-config>"; CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"; GEMINI_HOME_DIR="<gemini-home>"; PI_WRAPPER="<pi-wrapper>"
   HARD_SECS="${CROSS_MODEL_HARD_SECS:-1200}"
   route="${2:-}"
   validate_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   validate_effort_override "$route" 2>/dev/null || { echo "effort override '${CROSS_MODEL_EFFORT_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity|pi)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -582,28 +605,44 @@ case "$HOST_PROVIDER" in
   *) skip "host serving family '${HOST_PROVIDER:-<empty>}' invalid (want codex|claude|grok|composer|gemini|unknown); skipping cross-model pass" ;;
 esac
 case "$HOST_HARNESS" in
-  codex|claude|grok|cursor|opencode|antigravity|omp|unknown) ;;
-  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|antigravity|omp|unknown); skipping cross-model pass" ;;
+  codex|claude|grok|cursor|opencode|antigravity|omp|pi|unknown) ;;
+  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|antigravity|omp|pi|unknown); skipping cross-model pass" ;;
 esac
-# oh-my-pi copies CLAUDECODE=1 whatever model serves it, so only the session's recorded
-# model names the family. Only first-party provider ids map (openai-codex and xai-oauth are
-# omp's ChatGPT and xAI subscription logins); anything else stays unknown.
-# A harness started inside omp inherits OMPCODE and PI_SESSION_FILE, so the file then names the
+# oh-my-pi copies CLAUDECODE=1 whatever model serves it, and Pi serves any provider, so only the
+# session's recorded model names the family. Only first-party provider ids map (openai-codex and
+# xai-oauth are the ChatGPT and xAI subscription logins); anything else stays unknown.
+# A harness started inside omp or Pi inherits PI_SESSION_FILE, so the file then names the
 # parent's model, not this one.
-if [ "$HOST_HARNESS" = omp ] && [ "$HOST_PROVIDER" = unknown ] \
-  && [ -z "${CLAUDE_CODE_ENTRYPOINT:-}${CLAUDE_CODE_SESSION_ID:-}${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}${GROK_AGENT:-}${GROK_SESSION_ID:-}${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}${OPENCODE_TERMINAL:-}" ]; then
+# Neither can tell which side of that nesting it is on, so another harness marker leaves the family unattested.
+host_nested=
+[ -n "${CLAUDE_CODE_ENTRYPOINT:-}${CLAUDE_CODE_SESSION_ID:-}${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}${GROK_AGENT:-}${GROK_SESSION_ID:-}${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}${OPENCODE_TERMINAL:-}" ] && host_nested=1
+[ "$HOST_HARNESS" = pi ] && [ -n "${CLAUDECODE:-}${OMPCODE:-}" ] && host_nested=1
+if { [ "$HOST_HARNESS" = omp ] || [ "$HOST_HARNESS" = pi ]; } && [ "$HOST_PROVIDER" = unknown ] && [ -z "$host_nested" ]; then
   # pipefail makes a jq parse failure (torn trailing line) fail the substitution; keep the family unknown then.
-  # A fallback or temporary switch (the latter is undocumented by omp but present in real sessions) makes the serving model unknowable.
-  omp_model=$(jq -r 'select(.type=="model_change" and ((.role // "default")=="default" or .role=="fallback" or .role=="temporary")) | if .role=="fallback" or .role=="temporary" then "" else .model // "" end' "${PI_SESSION_FILE:-/dev/null}" 2>/dev/null | tail -n 1) || omp_model=
-  case "$omp_model" in
+  if [ "$HOST_HARNESS" = omp ]; then
+    # A fallback or temporary switch (the latter is undocumented by omp but present in real sessions) makes the serving model unknowable.
+    host_model=$(jq -r 'select(.type=="model_change" and ((.role // "default")=="default" or .role=="fallback" or .role=="temporary")) | if .role=="fallback" or .role=="temporary" then "" else .model // "" end' "${PI_SESSION_FILE:-/dev/null}" 2>/dev/null | tail -n 1) || host_model=
+  elif [ -n "${PI_SESSION_FILE:-}" ]; then
+    # Pi writes each reply with the provider and model that produced it before running the reply's tool calls.
+    host_model=$(jq -r 'select(.type=="message" and .message.role=="assistant") | "\(.message.provider // "")/\(.message.model // "")"' "$PI_SESSION_FILE" 2>/dev/null | tail -n 1) || host_model=
+  else
+    # An ephemeral Pi session has no file; Pi's bash tool then names only the selected model.
+    host_model="${PI_PROVIDER:-}/${PI_MODEL:-}"
+  fi
+  case "$host_model" in
     anthropic/claude-*) HOST_PROVIDER=claude ;;
     openai/gpt-*|openai/codex-*|openai/o[0-9]*|openai-codex/gpt-*|openai-codex/codex-*) HOST_PROVIDER=codex ;;
     xai/grok-*|xai-oauth/grok-*) HOST_PROVIDER=grok ;;
     google/gemini-*) HOST_PROVIDER=gemini ;;
   esac
 fi
-if [ "$HOST_PROVIDER" = unknown ] && [ "$HOST_HARNESS" = omp ]; then
-  skip "host serving family unattested; oh-my-pi session file names no first-party default model for this runtime (PI_SESSION_FILE='${PI_SESSION_FILE:-}'); automatic cross-model review skipped"
+if [ "$HOST_PROVIDER" = unknown ]; then
+  case "$HOST_HARNESS" in
+    omp) skip "host serving family unattested; oh-my-pi session file names no first-party default model for this runtime (PI_SESSION_FILE='${PI_SESSION_FILE:-}'); automatic cross-model review skipped" ;;
+    pi)
+      [ -z "$host_nested" ] || skip "host serving family unattested; another harness's environment marker is set beside Pi's, so Pi's session may belong to an outer or inner harness; automatic cross-model review skipped"
+      skip "host serving family unattested; Pi names no first-party model for this session's latest reply (PI_SESSION_FILE='${PI_SESSION_FILE:-}'); automatic cross-model review skipped" ;;
+  esac
 fi
 [ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
 
@@ -689,6 +728,7 @@ provider_available() {
     composer) command -v cursor-agent >/dev/null 2>&1 ;;
     opencode) command -v opencode >/dev/null 2>&1 ;;
     antigravity) command -v agy_acp_server.par >/dev/null 2>&1 ;;
+    pi)       command -v pi >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
@@ -705,10 +745,10 @@ OLDIFS="$IFS"; IFS=','
 for p in $CANDIDATES; do
   p="$(printf '%s' "$p" | tr -d '[:space:]')"
   [ -n "$p" ] || continue
-  case "$p" in codex|claude|grok|cursor|composer|opencode|antigravity) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
+  case "$p" in codex|claude|grok|cursor|composer|opencode|antigravity|pi) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
   [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
-  # An Antigravity host can serve several families; never send it to itself.
-  [ "$p" = antigravity ] && [ "$HOST_HARNESS" = antigravity ] && continue
+  # An Antigravity or Pi host can serve several families; never send it to itself.
+  [ "$p" = "$HOST_HARNESS" ] && { [ "$p" = antigravity ] || [ "$p" = pi ]; } && continue
   case " $SELECTED " in *" $p "*) continue ;; esac   # dedup
   if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
   if ! provider_available "$p"; then log "provider '$p' has no installed route; skipping"; continue; fi
@@ -718,7 +758,7 @@ IFS="$OLDIFS"
 SELECTED="$(printf '%s' "$SELECTED" | sed 's/^ *//')"
 
 [ "$MAX_PEERS" -ge 1 ] || skip "CROSS_MODEL_MAX_PEERS=0; cross-model pass disabled"
-[ -n "$SELECTED" ] || skip "no different-provider peer reachable (host=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (codex, claude, grok, cursor-agent, opencode, or the Antigravity ACP runtime), not an API key alone; skipping"
+[ -n "$SELECTED" ] || skip "no different-provider peer reachable (host=$HOST_PROVIDER, candidates='$CANDIDATES'); the pass needs a peer agent CLI on PATH (codex, claude, grok, cursor-agent, opencode, pi, or the Antigravity ACP runtime), not an API key alone; skipping"
 log "reachable cross-model candidates for lens $REVIEWER_NAME: $SELECTED (host $HOST_PROVIDER excluded; up to $MAX_PEERS successful peer(s))"
 
 # first_n <max> <space-separated list> -> the first <max> tokens.
@@ -762,6 +802,7 @@ MCP_CONFIG="$SCRATCH/mcp.json"
 printf '{"mcpServers":[]}\n' > "$MCP_CONFIG"
 CLAUDE_WRAPPER=""
 GEMINI_HOME_DIR=""
+PI_WRAPPER=""
 RUN_SUCCEEDED=false
 PROVIDER_OUTCOME="failed"
 # Basename only in the peer prompt: content is already embedded. An absolute
@@ -1160,6 +1201,9 @@ run_provider() {   # <provider>
   fi
   if [ "$primary" = antigravity ]; then
     GEMINI_HOME_DIR="$(acpx_antigravity_home "$SCRATCH")" || { log "transport unavailable (pre-egress, route): cannot prepare a private Antigravity home"; rm -f "$OUT"; return 0; }
+  fi
+  if [ "$primary" = pi ]; then
+    PI_WRAPPER="$(acpx_pi_wrapper "$SCRATCH" --no-tools --no-mcp)" || { log "transport unavailable (pre-egress, route): cannot prepare the no-tool Pi launcher"; rm -f "$OUT"; return 0; }
   fi
   # Track the route that actually produced the fold-in, so the artifact records
   # whether a grok return went out directly (grok-cli -> xAI) or through Cursor

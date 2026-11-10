@@ -35,7 +35,7 @@ const CONTROLLER = path.join(process.cwd(), "skills/ce-work/scripts/unit-workspa
 const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementation-result-schema.json")
 const STREAMS = path.join(process.cwd(), "tests/fixtures/acpx-streams")
 type PreparedUnit = { authorization_path: string; workspace: string; packet_path: string; result_dir: string }
-const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor", "opencode", "antigravity"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor", "opencode", "antigravity", "pi"] as const
 type Route = typeof ROUTES[number]
 const GROK_CURSOR_PRESET = "grok-4.7[context=256k,reasoning_effort=high,fast=true]"
 const COMPOSER_PRESET = "composer-2.5[fast=true]"
@@ -48,6 +48,7 @@ const ROUTE_CONTRACTS = {
   "grok-cursor": { target: "grok", intermediaries: ["cursor"] },
   opencode: { target: "opencode", intermediaries: [] },
   antigravity: { target: "antigravity", intermediaries: [] },
+  pi: { target: "pi", intermediaries: [] },
 } as const
 const roots: string[] = []
 const templateRoots: string[] = []
@@ -275,6 +276,7 @@ describe("ce-work fixed write routes", () => {
       contains: ["GEMINI_HOME=<gemini-home>", "antigravity exec --config-option mode=auto_edit --config-option thinking_level=high"],
       model: "gemini-4-argon",
     },
+    pi: { contains: ["PI_ACP_PI_COMMAND=<pi-wrapper>", "pi exec --file <prompt-file>"] },
   }
 
   test.each([...ROUTES])("%s uses its supported acpx range with every permission approved in the workspace", (route) => {
@@ -313,6 +315,7 @@ describe("ce-work fixed write routes", () => {
     ["grok-cursor", "high"],
     ["opencode", "minimal"],
     ["antigravity", "xhigh"],
+    ["pi", "high"],
   ])("CROSS_MODEL_EFFORT_OVERRIDE rejects %s at %s, failing closed before dispatch", (route, value) => {
     const proc = emit(route, { ...cleanEnv(), CROSS_MODEL_EFFORT_OVERRIDE: value })
     expect(proc.status).toBe(2)
@@ -430,6 +433,22 @@ describe("ce-work fixed write routes", () => {
     expect(launch).toContain(path.join(bin, "claude"))
   })
 
+  test("pi launches the real pi through a private wrapper that ignores project Pi files", () => {
+    const f = fixture()
+    const bin = stubBin(f)
+    const result = run("pi", f, withBin(bin))
+    expect(result.code).toBe(0)
+    const launch = captured(f, "launch-env")
+    expect(launch).toContain(`exec ${path.join(bin, "pi")} --no-approve "$@"`)
+    expect(flagValue(argv(f), "--model")).toBeUndefined()
+  })
+
+  test("a pi model pin must be provider/model", () => {
+    const pin = (model: string) => emit("pi", { ...cleanEnv(), CE_WORK_MODEL_OVERRIDE_TARGET: "pi", CE_WORK_MODEL_OVERRIDE: model })
+    expect(pin("anthropic/claude-opus-5-5").stdout).toContain("--model anthropic/claude-opus-5-5 pi exec")
+    expect(pin("claude-opus-5-5").status).toBe(2)
+  })
+
   test("target-scoped model overrides do not make unrelated route probes unavailable", () => {
     const composerOverride = {
       ...cleanEnv(),
@@ -519,6 +538,7 @@ describe("ce-work fixed write routes", () => {
     ["grok-cursor", null],
     ["opencode", null],
     ["antigravity", "thinking_level=high"],
+    ["pi", null],
   ] as const)("%s without an authorized effort keeps the 13-key schema and its default effort argv", (route, effort) => {
     const f = fixture()
     const result = run(route, f, withBin(stubBin(f)))

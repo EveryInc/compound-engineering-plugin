@@ -965,6 +965,46 @@ describe("ce-pov antigravity route", () => {
   })
 })
 
+describe("ce-pov pi route", () => {
+  test("--emit-adapter pi launches the private Pi wrapper with no model or effort request", () => {
+    const command = emit("pi")
+    expect(command).toContain("PI_ACP_PI_COMMAND=<pi-wrapper>")
+    expect(command).not.toContain("--model")
+    expect(command).toEndWith("pi exec --file <prompt-file>")
+  })
+
+  test("a pi peer reads through a wrapper that ignores project Pi files, allows only read tools, and is never independent", () => {
+    const sb = sandbox(["pi"])
+    const dir = runDir()
+    const result = run(["claude", "pi", payload(), dir], dir, { ...sb.env, CROSS_MODEL_HOST_HARNESS: "claude" })
+    expect(result.files).toContain("pov-pi.json")
+    expect(envLog(sb)).toContain(`exec ${path.join(sb.bin, "pi")} --no-approve --tools read\\,grep\\,find\\,ls --no-mcp "$@"`)
+    const out = published(dir, "pi")
+    expect(out.serving_family).toBe("unknown")
+    expect(out.independence_verified).toBe(false)
+  })
+
+  test("a pi pin must be provider/model, and a pi host skips its own harness before egress", () => {
+    let sb = sandbox(["pi"])
+    let dir = runDir()
+    let result = run(["claude", "pi", payload(), dir], dir, { ...sb.env, CROSS_MODEL_MODEL_OVERRIDE_TARGET: "pi", CROSS_MODEL_MODEL_OVERRIDE: "gpt-6" })
+    expect(result.stderr).toContain("not compatible with route 'pi'")
+    expect(calls(sb)).toBe(0)
+
+    sb = sandbox(["pi"])
+    dir = runDir()
+    result = run(["claude", "pi", payload(), dir], dir, { ...sb.env, CROSS_MODEL_MODEL_OVERRIDE_TARGET: "pi", CROSS_MODEL_MODEL_OVERRIDE: "openai/gpt-6" })
+    expect(published(dir, "pi").model_requested).toBe("openai/gpt-6")
+
+    sb = sandbox(["pi"])
+    dir = runDir()
+    result = run(["unknown", "pi", payload(), dir], dir, { ...sb.env, CROSS_MODEL_HOST_HARNESS: "pi" })
+    expect(result.stderr).toContain("fixed route 'pi' is the host's own Pi harness; skipping before egress")
+    expect(calls(sb)).toBe(0)
+    expect(result.files).toEqual([])
+  })
+})
+
 describe("ce-pov fixed route and egress allowlist", () => {
   test("missing opencode CLI skips the fixed opencode route before egress", () => {
     const sb = sandbox([])

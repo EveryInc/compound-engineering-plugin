@@ -631,6 +631,7 @@ ROUTE_CONTRACTS = {
     "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "grok-4.7[context=256k,reasoning_effort=high,fast=true]", "restriction_posture": "cooperative"},
     "opencode": {"target": "opencode", "harness": "opencode", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
     "antigravity": {"target": "antigravity", "harness": "antigravity", "intermediaries": [], "default_model": "gemini-4-argon", "restriction_posture": "cooperative"},
+    "pi": {"target": "pi", "harness": "pi", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
 }
 # Cursor's ACP model ids may carry a bracketed preset; route families apply to
 # the id before the bracket.
@@ -657,7 +658,7 @@ def route_model_allowed(route: str, model: str) -> bool:
         return model in {"auto", "fable", "opus", "sonnet", "haiku"} or bool(re.fullmatch(r"claude-[A-Za-z0-9._-]+", model))
     if route == "grok-cli":
         return model == "auto" or bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
-    if route == "opencode":
+    if route in ("opencode", "pi"):
         return model == "auto" or bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+", model))
     if route == "antigravity":
         # Antigravity also serves Claude and gpt-oss models; this route exists for Gemini.

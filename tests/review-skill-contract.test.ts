@@ -1980,6 +1980,9 @@ describe("cross-model peer skip legibility", () => {
     expect(attestHost(snippet, { CURSOR_AGENT: "1" })).toBe("cursor unknown")
     expect(attestHost(snippet, { OMPCODE: "1", CLAUDECODE: "1" })).toBe("omp unknown")
     expect(attestHost(snippet, { OMPCODE: "1", CLAUDECODE: "1", CODEX_THREAD_ID: "t" })).toBe("omp unknown")
+    expect(attestHost(snippet, { CROSS_MODEL_HOST_HARNESS: "pi" })).toBe("pi unknown")
+    expect(attestHost(snippet, { CROSS_MODEL_HOST_HARNESS: "pi", CLAUDECODE: "1" })).toBe("pi unknown")
+    expect(attestHost(snippet, { CROSS_MODEL_HOST_HARNESS: "pi", OMPCODE: "1" })).toBe("omp unknown")
     expect(attestHost(snippet, { CLAUDECODE: "1", CODEX_THREAD_ID: "t" })).toBe("unknown unknown")
     expect(attestHost(snippet, { CLAUDECODE: "1", GROK_AGENT: "1" })).toBe("unknown unknown")
     expect(attestHost(snippet, { CODEX_SESSION_ID: "sess", GROK_AGENT: "1" })).toBe("unknown unknown")
@@ -1988,7 +1991,7 @@ describe("cross-model peer skip legibility", () => {
   for (const { worker } of routeTokenPairs) {
     test(`${worker} accepts the harness token the attestation snippet emits for an owning harness`, async () => {
       const src = await readRepoFile(worker)
-      expect(src).toContain("codex|claude|grok|cursor|opencode|antigravity|omp|unknown)")
+      expect(src).toContain("codex|claude|grok|cursor|opencode|antigravity|omp|pi|unknown)")
     })
   }
 
