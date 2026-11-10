@@ -35,19 +35,21 @@ describe("ce-setup instruction-file offers", () => {
     expect(await readRepoFile("AGENTS.md")).toContain(variants["Run automatically"])
   })
 
-  test("both variants state the durable-knowledge bar ce-compound enforces", async () => {
+  // The directive triggers on a session signal and leaves the bar to ce-compound.
+  // A directive that restated the bar made the agent judge eligibility before
+  // invoking, asking only whether a document was needed, and lessons that
+  // belonged in a test or standard went uncaptured.
+  test("both variants trigger on a correction and leave eligibility to ce-compound", async () => {
     const variants = assetVariants(await readRepoFile("skills/ce-setup/assets/compounding-directive.md"))
     for (const text of Object.values(variants)) {
       for (const phrase of [
-        "durable project reasoning",
-        "not readily recoverable from the final code, tests, types, comments, or existing documentation",
-        "recurrence, material risk, or substantial rediscovery",
-        "if the learning document disappeared",
-        "Completion, effort, and diff size alone are not enough",
+        "corrected a wrong belief about how something behaves",
+        "Do not judge whether the lesson deserves a document",
         "tracked, committed knowledge",
       ]) {
         expect(text).toContain(phrase)
       }
+      expect(text).not.toContain("learning document disappeared")
     }
   })
 
@@ -63,6 +65,7 @@ describe("ce-setup instruction-file offers", () => {
     expect(step).toMatch(/git tracks at least one file under the resolved `<root>\/solutions\/`/)
     expect(step).toMatch(/untracked or gitignored directory is not evidence/)
     expect(step).toMatch(/already carries a standing instruction to invoke `ce-compound`/)
+    expect(step).toMatch(/first decide whether the lesson deserves a document, offer to replace it/)
     const skill = await readRepoFile("skills/ce-setup/SKILL.md")
     expect(skill).toContain("Steps 4-10")
   })

@@ -618,27 +618,28 @@ describe("ce-debug regression test selection", () => {
     expect(handoff).toMatch(/never open a new record/i)
   })
 
-  // ce-compound's durable-learning gate must be applied by ce-debug before it
-  // offers the handoff. The old sentence-length and location-count heuristics
-  // admitted routine fixes that the callee then had to reject.
-  test("applies ce-compound eligibility before offering learning capture", async () => {
+  // ce-debug offers capture on a session signal and leaves the durable bar to
+  // ce-compound. A caller that applied the bar itself asked only whether a
+  // document was needed, and skipped lessons ce-compound would hold as a test or
+  // standard. The old sentence-length and location-count heuristics stay out.
+  test("offers capture on a correction signal and leaves eligibility to ce-compound", async () => {
     const compound = await readRepoFile("skills/ce-compound/SKILL.md")
     const debug = await readRepoFile("skills/ce-debug/SKILL.md")
     const handoff = await readRepoFile("skills/ce-debug/references/post-fix-handoff.md")
     const guide = await readRepoFile("docs/guides/ce-debug.md")
 
     for (const condition of [
-      "durable project reasoning",
-      "not readily recoverable from the final code, tests, types, comments, or existing documentation",
       "recurrence, material risk, or substantial rediscovery",
-      "if the learning document disappeared",
       "Completion, effort, and diff size do not establish eligibility",
     ]) {
       expect(compound).toContain(condition)
-      expect(handoff).toContain(condition)
+      expect(handoff).not.toContain(condition)
     }
+    expect(handoff).toContain("corrected a wrong belief about how something behaves")
+    expect(handoff).toContain("Do not judge whether the lesson deserves a document")
+    expect(`${compound}\n${handoff}`).not.toContain("learning document disappeared")
 
-    expect(debug).toMatch(/Only when that gate qualifies the fix, offer capture/i)
+    expect(debug).toMatch(/Only when they call for it, offer capture/i)
     expect(debug).toMatch(/only the artifacts it actually wrote or updated/i)
     expect(debug).toMatch(/If it writes nothing, no artifact joins the commit/i)
     // Capture is settled before the fix commits, so an accepted learning ships with the

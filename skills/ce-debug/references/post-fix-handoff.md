@@ -53,8 +53,8 @@ SKILL.md's Phase 4 **Routing** block defines the bare per-case actions: which sk
 
 ## Learning-capture criteria (before anything commits)
 
-Offer once only when the verified fix produced non-obvious, durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery.
+Offer once when the diagnosis or fix corrected a wrong belief about how something behaves: a first hypothesis the evidence disproved, a cause other than the one the symptom pointed to, a review finding that exposed a real defect, or an assumption or document that turned out wrong. Skip silently when the cause was evident from the symptom and the first fix held.
 
-Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? If not, skip silently. Completion, effort, and diff size do not establish eligibility.
+Do not judge whether the lesson deserves a document: `ce-compound` decides whether it qualifies and what holds it (a test, a lint rule, a coding standard, or a learning), and writes nothing when nothing qualifies.
 
 These are the criteria only; SKILL.md's Routing block defines what runs when the user accepts.

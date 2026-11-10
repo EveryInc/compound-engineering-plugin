@@ -20,6 +20,6 @@ Both are decisions the agent is better positioned to make than the user. Depth d
 
 ## Auto-Invoke
 
-Completion phrases such as "that worked", "it's fixed", "working now", and "problem solved" identify the completion checkpoint; they do not establish that a learning is worth documenting. Auto-invoke only when the Preconditions in `SKILL.md` qualify the learning.
+Completion phrases such as "that worked", "it's fixed", "working now", and "problem solved" identify the completion checkpoint; they do not establish that a lesson qualifies. The Preconditions in `SKILL.md` decide that on every run, automatic or explicit, and a run where nothing qualifies writes nothing.
 
 An explicit invocation with optional context requests immediate evaluation without waiting for auto-detection. It does not waive the solved, verified, and durable-learning preconditions.

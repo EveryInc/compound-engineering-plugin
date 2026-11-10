@@ -1,6 +1,6 @@
 ---
 name: ce-compound
-description: Capture a solved problem's lesson in its cheapest durable form, a test or lint rule, a coding standard, or a repo learning, or refresh existing learnings against the codebase. Use when verified work produced non-obvious reasoning absent from its final code, tests, or existing docs, or when auditing stale, overlapping, or drifted learnings. Avoid routine fixes whose artifacts already explain the lesson.
+description: Capture a solved problem's lesson in its cheapest durable form, a test or lint rule, a coding standard, or a repo learning, or refresh existing learnings against the codebase. Use when verified work corrected a wrong belief about how something behaves, such as a failed approach, a real defect a review caught, or a wrong assumption or document, or when auditing stale, overlapping, or drifted learnings. Do not auto-invoke it for work that went as first planned.
 argument-hint: "[optional: brief context, or refresh and a scope] [mode:refresh] [mode:non-interactive] [depth:lightweight|full]"
 ---
 
@@ -30,7 +30,7 @@ Otherwise run capture. A non-interactive run without `mode:refresh` is always ca
 Document only a problem that is solved and verified.
 
 <!-- ce-durable-bar:start -->
-A learning earns its place only when it holds durable project reasoning that is not readily recoverable from the final code, tests, types, comments, or existing documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: if the learning document disappeared, would a future engineer reading the final implementation still be likely to repeat the mistake or redo substantial investigation? Completion, effort, and diff size do not establish eligibility.
+A lesson earns a durable form only when it holds durable project reasoning that is not readily recoverable from the current code, tests, checks, coding standards, comments, or documentation, and losing it would plausibly cause recurrence, material risk, or substantial rediscovery. Apply this counterfactual: without a record of this lesson, would a future engineer working from the current tree still be likely to repeat the mistake or redo substantial investigation? Completion, effort, and diff size do not establish eligibility.
 <!-- ce-durable-bar:end -->
 
 If the counterfactual fails, write nothing and report why. Judge this from the session rather than asking. An explicit invocation requests the judgment now but does not lower the bar.
