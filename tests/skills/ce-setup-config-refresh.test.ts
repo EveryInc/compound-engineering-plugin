@@ -16,7 +16,7 @@ const legacyLocal = readFileSync(path.join(fixtures, "config-local-template-2026
 
 // The 2026-08-12 template's cross_model_peer line, with its five-option list.
 const OLD_PEER = "# cross_model_peer: codex          # codex | claude | grok | cursor | composer"
-const CURRENT_PEER = "cross_model_peer: codex          # codex | claude | grok | antigravity | cursor | composer | opencode"
+const CURRENT_PEER = "cross_model_peer: codex          # codex | claude | grok | antigravity | cursor | composer | opencode | pi"
 const TEAM_NOTE = "# Team: Codex reviews everything we ship."
 
 const scratch = mkdtempSync(path.join(tmpdir(), "ce-config-refresh-test-"))
@@ -87,7 +87,7 @@ describe("config-refresh status", () => {
   })
 
   test("a newer file is reported and never drafted", () => {
-    const root = makeRepo({ tracked: template.replace("template-version: 1", "template-version: 2") })
+    const root = makeRepo({ tracked: template.replace(/template-version: (\d+)/, (_, v) => `template-version: ${Number(v) + 1}`) })
     expect(run(root, ["status"]).json.tracked.state).toBe("newer")
     const result = draft(root, "tracked")
     expect(result.status).toBe(1)
@@ -95,7 +95,7 @@ describe("config-refresh status", () => {
   })
 
   test("a malformed version line is reported and never drafted", () => {
-    const root = makeRepo({ tracked: template.replace("template-version: 1", "template-version: one") })
+    const root = makeRepo({ tracked: template.replace(/template-version: \d+/, "template-version: one") })
     expect(run(root, ["status"]).json.tracked.state).toBe("malformed-version")
     expect(draft(root, "tracked").status).toBe(1)
   })

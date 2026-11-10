@@ -1000,7 +1000,7 @@ const SETUP_CONFIG_REFRESH_BASE_REF = "5702b7b2e9449a2e38044fd429f5372bfa309ce3"
 const SETUP_CONFIG_REFRESH_TASK =
   "Use the ce-setup skill to check and fix this repository's Compound Engineering setup. I approve every change you preview: write them all without asking me again, and do not commit. Decline the offers to draft review docs and to warm the npm cache."
 const SETUP_TEAM_NOTE = "# Team: Codex reviews everything we ship."
-const SETUP_CURRENT_PEER = "cross_model_peer: codex          # codex | claude | grok | antigravity | cursor | composer | opencode"
+const SETUP_CURRENT_PEER = "cross_model_peer: codex          # codex | claude | grok | antigravity | cursor | composer | opencode | pi"
 const SETUP_OLD_PEER_OPTIONS = "# codex | claude | grok | cursor | composer\n"
 
 function setupConfigRefreshRow(name: string, fixture: string, why: string, pre_contract: string, grade: Grade, task = SETUP_CONFIG_REFRESH_TASK): Scenario {
@@ -1030,7 +1030,7 @@ const SETUP_CONFIG_REFRESH_ROWS: Scenario[] = [
     "Setup never touches an existing config.yaml.",
     {
       workspace_contains: [
-        { path: ".compound-engineering/config.yaml", needle: "# ce-config-template-version: 1\n" },
+        { path: ".compound-engineering/config.yaml", needle: "# ce-config-template-version: 2\n" },
         { path: ".compound-engineering/config.yaml", needle: `${SETUP_TEAM_NOTE}\n${SETUP_CURRENT_PEER}\n` },
       ],
       workspace_lacks: [{ path: ".compound-engineering/config.yaml", needle: SETUP_OLD_PEER_OPTIONS }],
@@ -1076,7 +1076,7 @@ const SETUP_CONFIG_REFRESH_ROWS: Scenario[] = [
     "Setup never touches an existing config.yaml.",
     {
       workspace_contains: [
-        { path: ".compound-engineering/config.yaml", needle: `# ce-config-template-version: 1\n` },
+        { path: ".compound-engineering/config.yaml", needle: `# ce-config-template-version: 2\n` },
         { path: ".compound-engineering/config.yaml", needle: `${SETUP_TEAM_NOTE}\n${SETUP_CURRENT_PEER}\n` },
       ],
       no_new_commits: true,

@@ -705,6 +705,22 @@ describe("ce-setup check-health", () => {
     }
   })
 
+  test("a pi preference with a provider/model pin is a supported harness", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, "work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: pi\n    model: anthropic/claude-opus-5-5\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> pi@anthropic/claude-opus-5-5")
+      expect(result.stdout).not.toContain("unsupported harness")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   test("tracked-only work_engine_mode prefer is honored", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
@@ -796,6 +812,7 @@ describe("ce-setup check-health", () => {
     ["a list value", "work_engine_effort:\n  - codex\n", "work_engine_effort in config.local.yaml is not a map of harness to effort"],
     ["an unknown harness", "work_engine_effort:\n  mystery: high\n", "work_engine_effort in config.local.yaml names unknown harness 'mystery'"],
     ["cursor", "work_engine_effort:\n  codex: high\n  cursor: high\n", "work_engine_effort in config.local.yaml names 'cursor', which takes no effort; ce-work treats Cursor entries as unavailable while it is set"],
+    ["pi", "work_engine_effort:\n  codex: high\n  pi: high\n", "work_engine_effort in config.local.yaml names 'pi', which takes no effort; ce-work treats Pi entries as unavailable while it is set"],
     ["cursor in an inline map", 'work_engine_effort: {codex: high, "cursor": high}  # inline\n', "work_engine_effort in config.local.yaml names 'cursor', which takes no effort"],
     ["an unknown harness in an inline map", "work_engine_effort: {codex: high, mystery: low}\n", "work_engine_effort in config.local.yaml names unknown harness 'mystery'; ce-work ignores that entry"],
     ["an inline pair with no value", "work_engine_effort: {codex}\n", "work_engine_effort in config.local.yaml is not a map of harness to effort; ce-work ignores the value"],
