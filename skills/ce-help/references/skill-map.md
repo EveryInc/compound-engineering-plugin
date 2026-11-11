@@ -17,6 +17,7 @@ Recommend one skill. Bring in a second when the situation falls between two skil
 | Write or update `STRATEGY.md` | `ce-strategy` |
 | Get a report on usage, errors, and performance | `ce-product-pulse` (manual) |
 | Collect feedback from Slack or GitHub into a plan | `ce-sweep` (manual) |
+| Find what slowed agents down in this repo and fix the environment | `ce-retro` (manual) |
 | Find and fix the cause of a bug or failing behavior | `ce-debug` |
 | Move a measurable metric on a working system | `ce-optimize` |
 | Learn how or why something works, or what happened over a stretch of work | `ce-explain` |

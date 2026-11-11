@@ -192,6 +192,9 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
   "ce-polish",
   "ce-product-pulse",
   "ce-promote",
+  // ce-retro: reads every agent session store on the machine and offers edits to
+  // instruction files. That reach should start only when the user asks for it.
+  "ce-retro",
   // ce-retune: a measurement-first corpus retune that refuses to run without a
   // benchmark harness and spends many paid runs. No skill or pipeline dispatches
   // it, and model-routing it would let a cheaper request escalate into an
