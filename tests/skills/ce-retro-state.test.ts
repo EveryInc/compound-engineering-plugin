@@ -139,6 +139,22 @@ describe("retro-state store", () => {
     expect(existsSync(path.join(wt, ".context"))).toBe(false)
   })
 
+  test("Windows backup paths stay under the backup directory", () => {
+    const probe = [
+      "import importlib.util, ntpath, sys, json",
+      `spec = importlib.util.spec_from_file_location("rs", ${JSON.stringify(SCRIPT)})`,
+      "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)",
+      "base = 'D:\\\\repo\\\\.context\\\\compound-engineering\\\\ce-retro\\\\backups\\\\r1'",
+      "print(json.dumps([m.backup_dest(base, s, ntpath) for s in sys.argv[1:]]))",
+    ].join("\n")
+    const r = spawnSync("python3", ["-c", probe, "C:\\Users\\Test\\.claude\\settings.json", "\\\\server\\share\\cfg.json"], { encoding: "utf8" })
+    expect(r.status).toBe(0)
+    const [local, unc] = JSON.parse(r.stdout)
+    const base = "D:\\repo\\.context\\compound-engineering\\ce-retro\\backups\\r1\\"
+    expect(local).toBe(base + "C\\Users\\Test\\.claude\\settings.json")
+    expect(unc).toBe(base + "server_share\\cfg.json")
+  })
+
   test("a symlinked ledger file is refused and its target is left untouched", () => {
     const { root, env } = sandbox()
     const main = repo(env, root)

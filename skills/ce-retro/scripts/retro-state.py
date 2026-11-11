@@ -332,6 +332,19 @@ def cmd_read(args):
     emit(out)
 
 
+def backup_dest(backup_dir, source, pathmod=os.path):
+    # A drive or UNC prefix becomes one ordinary component, so the result never escapes backup_dir.
+    drive, rest = pathmod.splitdrive(source)
+    parts = [p for p in rest.replace("\\", "/").split("/") if p not in ("", ".", "..")]
+    drive = "".join(c if c.isalnum() else "_" for c in drive).strip("_")
+    if drive:
+        parts.insert(0, drive)
+    dest = pathmod.join(backup_dir, *parts)
+    if pathmod.commonpath([backup_dir, dest]) != pathmod.normpath(backup_dir):
+        raise Failure(EXIT_INVALID, "invalid-input", f"backup path escapes the backup directory: {source}")
+    return dest
+
+
 def cmd_backup(args):
     run = args.run
     if not run or run in (".", "..") or "/" in run or os.sep in run:
@@ -347,7 +360,7 @@ def cmd_backup(args):
         root = resolve_store(os.getcwd())["store"]
 
     path = guard_chain(root, ("backups", run), True)
-    dest = os.path.join(path, source.lstrip(os.sep))
+    dest = backup_dest(path, source)
     old = os.umask(0o077)
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
