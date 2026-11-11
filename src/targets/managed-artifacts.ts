@@ -148,6 +148,23 @@ export async function writeManagedInstallManifest(
   await writeJson(path.join(managedDir, MANAGED_INSTALL_MANIFEST), manifest)
 }
 
+// Claimed before any write: with the manifest written only last, an install that
+// fails partway leaves files every later install preserves as unmanaged.
+export async function entriesToClaim(
+  rootDir: string,
+  owned: readonly string[],
+  current: readonly string[],
+  escaped: boolean,
+): Promise<string[]> {
+  const claimed = new Set(owned)
+  if (escaped) return [...claimed]
+  for (const entry of current) {
+    if (claimed.has(entry)) continue
+    if (!(await lstatOrNull(resolveArtifactPath(rootDir, entry)))) claimed.add(entry)
+  }
+  return [...claimed]
+}
+
 export async function cleanupRemovedManagedDirectories(
   rootDir: string,
   manifest: ManagedInstallManifest | null,

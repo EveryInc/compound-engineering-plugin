@@ -15,7 +15,7 @@ import { transformContentForPi } from "../converters/claude-to-pi"
 import type { PiBundle } from "../types/pi"
 import { getLegacyPiArtifacts } from "../data/plugin-legacy-artifacts"
 import { cleanupStaleAgents, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
-import { isPathWithinRoot, isPreservedSymlink, lstatOrNull, resolveLegacyManagedDir, resolveManagedSegment, storeRootEscapesManagedRoot } from "./managed-artifacts"
+import { entriesToClaim, isPathWithinRoot, isPreservedSymlink, lstatOrNull, resolveLegacyManagedDir, resolveManagedSegment, storeRootEscapesManagedRoot } from "./managed-artifacts"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
 const PI_AGENTS_BLOCK_END = "<!-- END COMPOUND PI TOOL MAP -->"
@@ -91,6 +91,17 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   if (!skillsEscaped) await cleanupRemovedSkills(paths.skillsDir, manifest, currentSkills)
   if (!agentsEscaped) await cleanupRemovedAgents(paths.agentsDir, manifest, currentAgents)
   if (!extensionsEscaped) await cleanupRemovedExtensions(paths.extensionsDir, manifest, currentExtensions)
+
+  if (pluginName) {
+    await writeInstallManifest(paths.managedDir, {
+      version: 1,
+      pluginName,
+      skills: await entriesToClaim(paths.skillsDir, manifest?.skills ?? [], currentSkills, skillsEscaped),
+      prompts: await entriesToClaim(paths.promptsDir, manifest?.prompts ?? [], currentPrompts, promptsEscaped),
+      extensions: await entriesToClaim(paths.extensionsDir, manifest?.extensions ?? [], currentExtensions, extensionsEscaped),
+      agents: await entriesToClaim(paths.agentsDir, manifest?.agents ?? [], currentAgents, agentsEscaped),
+    })
+  }
 
   const preservedPromptNames = new Set<string>()
   if (!promptsEscaped) {

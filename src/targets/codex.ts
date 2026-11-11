@@ -6,7 +6,7 @@ import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
 import { getLegacyCodexArtifacts } from "../data/plugin-legacy-artifacts"
 import { classifyCodexLegacyPromptOwnership, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
-import { isContainedPath, isPathWithinRoot, isPreservedSymlink, lstatOrNull, storeRootEscapesManagedRoot } from "./managed-artifacts"
+import { entriesToClaim, isContainedPath, isPathWithinRoot, isPreservedSymlink, lstatOrNull, storeRootEscapesManagedRoot } from "./managed-artifacts"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -53,6 +53,33 @@ export async function writeCodexBundle(
   // record nothing as owned.
   const promptsDir = path.join(codexRoot, "prompts")
   const promptsEscaped = await storeRootEscapesManagedRoot(codexRoot, promptsDir)
+  const skillsRoot = pluginName
+    ? path.join(codexRoot, "skills", pluginName)
+    : path.join(codexRoot, "skills")
+  // Include `externallyManagedSkillNames` so agents-only installs (default
+  // `--to codex`) treat skills installed via Codex's native plugin flow as
+  // "current" for cleanup purposes. Without this, `cleanupLegacyAgentSkillDirs`
+  // would see an empty `currentSkills` set and sweep allow-listed names such
+  // as `ce-plan` out of `.codex/skills/<plugin>/` into legacy-backup on every
+  // re-run of `install --to codex`.
+  const currentSkills = Array.from(new Set([
+    ...bundle.skillDirs.map((skill) => sanitizePathName(skill.name)),
+    ...bundle.generatedSkills.map((skill) => sanitizePathName(skill.name)),
+    ...(bundle.externallyManagedSkillNames ?? []).map((name) => sanitizePathName(name)),
+  ]))
+  const skillsEscaped = await storeRootEscapesManagedRoot(codexRoot, skillsRoot)
+  const agentsEscaped = await storeRootEscapesManagedRoot(codexRoot, agentsRoot)
+
+  if (pluginName) {
+    await writeInstallManifest(codexRoot, {
+      version: 1,
+      pluginName,
+      skills: await entriesToClaim(skillsRoot, manifest?.skills ?? [], currentSkills, skillsEscaped),
+      prompts: await entriesToClaim(promptsDir, manifest?.prompts ?? [], currentPrompts, promptsEscaped),
+      agents: await entriesToClaim(agentsRoot, manifest?.agents ?? [], currentAgents, agentsEscaped),
+    })
+  }
+
   const preservedPromptNames = new Set<string>()
   if (!promptsEscaped) {
     if (bundle.prompts.length > 0) {
@@ -72,21 +99,6 @@ export async function writeCodexBundle(
     }
   }
 
-  const skillsRoot = pluginName
-    ? path.join(codexRoot, "skills", pluginName)
-    : path.join(codexRoot, "skills")
-  // Include `externallyManagedSkillNames` so agents-only installs (default
-  // `--to codex`) treat skills installed via Codex's native plugin flow as
-  // "current" for cleanup purposes. Without this, `cleanupLegacyAgentSkillDirs`
-  // would see an empty `currentSkills` set and sweep allow-listed names such
-  // as `ce-plan` out of `.codex/skills/<plugin>/` into legacy-backup on every
-  // re-run of `install --to codex`.
-  const currentSkills = Array.from(new Set([
-    ...bundle.skillDirs.map((skill) => sanitizePathName(skill.name)),
-    ...bundle.generatedSkills.map((skill) => sanitizePathName(skill.name)),
-    ...(bundle.externallyManagedSkillNames ?? []).map((name) => sanitizePathName(name)),
-  ]))
-  const skillsEscaped = await storeRootEscapesManagedRoot(codexRoot, skillsRoot)
   if (!skillsEscaped) await cleanupRemovedSkills(skillsRoot, manifest, currentSkills)
 
   const preservedSkillNames = new Set<string>()
@@ -134,7 +146,6 @@ export async function writeCodexBundle(
     }
   }
 
-  const agentsEscaped = await storeRootEscapesManagedRoot(codexRoot, agentsRoot)
   const preservedAgentNames = new Set<string>()
 
   if (!agentsEscaped) await cleanupRemovedAgents(agentsRoot, manifest, currentAgents)

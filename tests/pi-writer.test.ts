@@ -526,6 +526,34 @@ describe("writePiBundle preserves user-managed skill paths", () => {
     expect(manifest.skills).not.toContain("skill-one")
   })
 
+  test("replaces a skill left behind by an install that failed partway", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-partial-install-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+    const installed = path.join(outputRoot, "skills", "skill-one", "SKILL.md")
+    const skillOne = {
+      name: "skill-one",
+      sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+    }
+    const bundle = (skillDirs: PiBundle["skillDirs"]): PiBundle => ({
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs,
+      generatedSkills: [],
+      agents: [],
+      extensions: [],
+    })
+
+    await expect(
+      writePiBundle(outputRoot, bundle([skillOne, { name: "skill-two", sourceDir: path.join(tempRoot, "missing") }])),
+    ).rejects.toThrow()
+    await fs.writeFile(installed, "# left by the failed install\n")
+
+    await writePiBundle(outputRoot, bundle([skillOne]))
+
+    expect(await fs.readFile(installed, "utf8")).not.toBe("# left by the failed install\n")
+    expect((await readInstallManifest(outputRoot)).skills).toContain("skill-one")
+  })
+
   test("still replaces a real skill directory previously installed by this tool", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-replace-managed-skill-"))
     const outputRoot = path.join(tempRoot, ".pi")

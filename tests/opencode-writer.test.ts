@@ -865,6 +865,34 @@ describe("writeOpenCodeBundle preserves user-managed skill and command paths", (
     expect(manifest.groups.skills).not.toContain("skill-one")
   })
 
+  test("replaces a skill left behind by an install that failed partway", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-partial-install-"))
+    const outputRoot = path.join(tempRoot, ".opencode")
+    const installed = path.join(outputRoot, "skills", "skill-one", "SKILL.md")
+    const skillOne = {
+      name: "skill-one",
+      sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+    }
+    const bundle = (skillDirs: OpenCodeBundle["skillDirs"]): OpenCodeBundle => ({
+      pluginName: "compound-engineering",
+      config: { $schema: "https://opencode.ai/config.json" },
+      agents: [],
+      plugins: [],
+      commandFiles: [],
+      skillDirs,
+    })
+
+    await expect(
+      writeOpenCodeBundle(outputRoot, bundle([skillOne, { name: "skill-two", sourceDir: path.join(tempRoot, "missing") }])),
+    ).rejects.toThrow()
+    await fs.writeFile(installed, "# left by the failed install\n")
+
+    await writeOpenCodeBundle(outputRoot, bundle([skillOne]))
+
+    expect(await fs.readFile(installed, "utf8")).not.toBe("# left by the failed install\n")
+    expect((await readInstallManifest(outputRoot)).groups.skills).toContain("skill-one")
+  })
+
   test("still replaces a real skill directory previously installed by this tool", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-replace-managed-skill-"))
     const outputRoot = path.join(tempRoot, ".opencode")
