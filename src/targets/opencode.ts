@@ -9,6 +9,7 @@ import {
   cleanupCurrentManagedDirectory,
   cleanupRemovedManagedDirectories,
   cleanupRemovedManagedFiles,
+  entriesToClaim,
   isPathWithinRoot,
   lstatOrNull,
   type ManagedInstallManifest,
@@ -136,6 +137,20 @@ export async function writeOpenCodeBundle(
   if (!skillsEscaped) await cleanupRemovedManagedDirectories(openCodePaths.skillsDir, manifest, "skills", currentSkills)
 
   if (configChanged) await writeJson(openCodePaths.configPath, merged)
+
+  if (pluginName) {
+    const owned = manifest?.groups ?? {}
+    await writeManagedInstallManifest(openCodePaths.managedDir, {
+      version: 1,
+      pluginName,
+      groups: {
+        agents: await entriesToClaim(openCodePaths.agentsDir, owned.agents ?? [], currentAgents, agentsEscaped),
+        commands: await entriesToClaim(openCodePaths.commandDir, owned.commands ?? [], currentCommands, commandsEscaped),
+        plugins: await entriesToClaim(openCodePaths.pluginsDir, owned.plugins ?? [], currentPlugins, pluginsEscaped),
+        skills: await entriesToClaim(openCodePaths.skillsDir, owned.skills ?? [], currentSkills, skillsEscaped),
+      },
+    })
+  }
 
   const seenAgents = new Set<string>()
   const preservedAgentNames = new Set<string>()
