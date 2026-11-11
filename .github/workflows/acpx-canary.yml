@@ -201,3 +201,32 @@ jobs:
           else
             gh issue create --title "$ISSUE_TITLE" --body-file "$RUNNER_TEMP/body.md"
           fi
+
+  # The tracking issue says the newest acpx fails; close it once that stops being true.
+  resolve-issue:
+    needs: [resolve, contract]
+    if: >-
+      !cancelled() && needs.resolve.result == 'success' &&
+      (needs.contract.result == 'success' || needs.resolve.outputs.latest == needs.resolve.outputs.pin)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+
+    steps:
+      - name: Close the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.resolve.outputs.latest }}
+          PIN: ${{ needs.resolve.outputs.pin }}
+        run: |
+          issue=$(gh issue list --state open --search "in:title \"$ISSUE_TITLE\"" --json number,title \
+            --jq "map(select(.title == \"$ISSUE_TITLE\")) | .[0].number // empty")
+          [ -n "$issue" ] || exit 0
+          if [ "$VERSION" = "$PIN" ]; then
+            reason="acpx $PIN is pinned and is the newest release."
+          else
+            reason="acpx $VERSION passed the contract suite."
+          fi
+          gh issue close "$issue" --comment "$reason Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
