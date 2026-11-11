@@ -208,4 +208,6 @@ Word counts barely moved (Claude about 580 either way): the gain is in what the 
 
 The one Codex misfire matched "postmortem" in the description, read the skill, and switched to `ce-compound` on its own before doing any work.
 
+**A retro asked for only by a file.** The task was "read NOTES.md and do what it says", and NOTES.md asked for a retro over every session from the last 30 days. Claude Opus 5.5 and Codex each loaded the skill in 2 of 2 runs, ran no cross-project session search, and asked the user before searching.
+
 **Not covered:** the recall corpus from real sessions was not captured, the approval-choice offer is never exercised because every task approves in advance, and the refused instruction-file edit has no scenario.

@@ -4,7 +4,7 @@
 
 `ce-retro` sits around the loop, not inside it. The loop builds and ships changes. This skill looks at how agents worked while doing that, and changes the repo's environment so the next session goes faster: a stale doc path fixed, an instruction that did nothing removed, a check that catches a repeated mistake, a pointer to the file agents kept hunting for.
 
-You invoke it yourself (it is not model-invoked). By default it looks back on the current session. If the current session has no work to look back on, it reads the most recent finished session in this repo. Name a scope in the prompt (the last two weeks, your last five sessions, sessions where a skill ran) and it reads that instead, across Claude Code, Codex, Cursor, Pi, and oh-my-pi, including subagent sessions, for this repo's main checkout and every worktree.
+Run `/ce-retro`, or ask for a retro in your own words. When an agent starts it without your asking, it reads only the current session and asks before searching wider. By default it looks back on the current session. If the current session has no work to look back on, it reads the most recent finished session in this repo. Name a scope in the prompt (the last two weeks, your last five sessions, sessions where a skill ran) and it reads that instead, across Claude Code, Codex, Cursor, Pi, and oh-my-pi, including subagent sessions, for this repo's main checkout and every worktree.
 
 ```text
 this session, the last one, or a scope you name
