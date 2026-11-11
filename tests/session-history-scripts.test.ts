@@ -1042,6 +1042,17 @@ describe("extract-metadata", () => {
       }
     })
 
+    test("--keyword matches a Codex user turn recorded as an item_completed UserMessage", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "invoice rounding",
+        path.join(FIXTURES_DIR, "codex-items-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const sessions = parseJsonLines(stdout).filter((l) => !l._meta)
+      expect(sessions[0].keyword_matches["invoice rounding"]).toBe(1)
+    })
+
     test("--cwd-filter is applied before keyword scan (skips full-file scan for filtered sessions)", async () => {
       // Codex discovery returns sessions across all repos, so --cwd-filter
       // must be evaluated before the expensive full-file keyword scan to
@@ -1231,6 +1242,36 @@ describe("extract-skeleton", () => {
     expect(toolLines.length).toBeGreaterThan(0)
     // function_call lines should NOT appear (they're skipped)
     expect(stdout).not.toContain("exec_command:")
+  })
+
+  test("extracts Codex item_completed user turns, commands, edits, and MCP calls", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "codex-items-session.jsonl")
+    ).text()
+    const { stdout } = await runScript("extract-skeleton.py", [], fixture)
+    expect(stdout).toContain("[user] Fix the invoice rounding bug in the renderer")
+    expect(stdout).not.toContain("AGENTS.md instructions")
+    expect(stdout).toContain("exec cat src/render.js -> ok")
+    expect(stdout).toContain("npm run test:unit -> error(exit 1)")
+    expect(stdout).toContain("/Users/test/Code/my-repo/src/render.js")
+    expect(stdout).toContain("mcp tracker.get_issue")
+    const meta = JSON.parse(stdout.trim().split("\n").at(-1)!)
+    expect(meta.user).toBe(1)
+    expect(meta.tool).toBe(4)
+    expect(meta.warning).toBeUndefined()
+  })
+
+  test("warns when a long session yields no tool calls", async () => {
+    const lines = [
+      JSON.stringify({ timestamp: "2026-11-06T17:00:00.000Z", type: "session_meta", payload: { id: "fmt", cwd: "/x" } }),
+      ...Array.from({ length: 220 }, (_, i) =>
+        JSON.stringify({ timestamp: "2026-11-06T17:00:01.000Z", type: "event_msg", payload: { type: "future_tool_event", n: i } })
+      ),
+    ]
+    const { stdout } = await runScript("extract-skeleton.py", [], lines.join("\n"))
+    const meta = JSON.parse(stdout.trim().split("\n").at(-1)!)
+    expect(meta.tool).toBe(0)
+    expect(meta.warning).toContain("format may have changed")
   })
 
   test("extracts Cursor messages and strips user_query tags", async () => {
@@ -1642,6 +1683,19 @@ describe("extract-errors", () => {
     expect(exitCode).toBe(0)
     expect(stdout).toContain("[error]")
     expect(stdout).toContain("exit=1")
+  })
+
+  test("extracts Codex item_completed command and MCP failures", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "codex-items-session.jsonl")
+    ).text()
+    const { stdout, exitCode } = await runScript("extract-errors.py", [], fixture)
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("exit=1 cmd=npm run test:unit: npm error Missing script")
+    expect(stdout).toContain("mcp tracker.get_issue: issue not found")
+    expect(stdout).not.toContain("cat src/render.js")
+    const meta = JSON.parse(stdout.trim().split("\n").at(-1)!)
+    expect(meta.errors_found).toBe(2)
   })
 
   test("Cursor produces no errors (tool results not logged)", async () => {

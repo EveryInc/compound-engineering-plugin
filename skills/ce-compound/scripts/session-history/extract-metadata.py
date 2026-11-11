@@ -331,6 +331,13 @@ def _extract_user_assistant_text(filepath):
                     if isinstance(msg, str):
                         parts = msg.split("</system_instruction>")
                         chunks.append(parts[-1] if parts else msg)
+                elif p.get("type") == "item_completed":
+                    # Codex 0.16x records user turns only as UserMessage items.
+                    item = p.get("item")
+                    if isinstance(item, dict) and item.get("type") == "UserMessage":
+                        for block in item.get("content", []):
+                            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                                chunks.append(block["text"].split("</system_instruction>")[-1])
                 continue
             if t == "response_item":
                 p = obj.get("payload", {})

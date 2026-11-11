@@ -223,6 +223,55 @@ def handle_claude(obj):
                     pending_tools.append(entry)
 
 
+codex_user_texts = set()
+
+
+def _codex_user(ts, text):
+    user_text = text.split("</system_instruction>")[-1].strip()
+    if len(user_text) <= 15 or user_text in codex_user_texts:
+        return
+    codex_user_texts.add(user_text)
+    flush_tools()
+    print(f"[{ts}] [user] {user_text[:800]}")
+    print("---")
+    stats["user"] += 1
+
+
+def _codex_item_status(item):
+    code = item.get("exit_code")
+    if isinstance(code, int) and code != 0:
+        return f"error(exit {code})"
+    if item.get("status") == "failed":
+        return "error"
+    return "ok"
+
+
+def _codex_item(ts, item):
+    if not isinstance(item, dict):
+        return
+    kind = item.get("type")
+    if kind == "UserMessage":
+        texts = [
+            block.get("text", "")
+            for block in item.get("content", [])
+            if isinstance(block, dict) and isinstance(block.get("text"), str)
+        ]
+        _codex_user(ts, "\n".join(texts))
+    elif kind == "CommandExecution":
+        command = item.get("command")
+        cmd_str = command[-1] if isinstance(command, list) and command else command
+        target = _safe_slice(cmd_str, 120)
+        if target:
+            pending_tools.append({"ts": ts, "name": "exec", "target": target, "status": _codex_item_status(item)})
+    elif kind == "FileChange":
+        changes = item.get("changes")
+        paths = ", ".join(changes) if isinstance(changes, dict) else ""
+        pending_tools.append({"ts": ts, "name": "edit", "target": paths[:120], "status": _codex_item_status(item)})
+    elif kind == "McpToolCall":
+        name = f"mcp {item.get('server', '')}.{item.get('tool', '')}"
+        pending_tools.append({"ts": ts, "name": name, "target": "", "status": _codex_item_status(item)})
+
+
 def handle_codex(obj):
     msg_type = obj.get("type")
     ts = obj.get("timestamp", "")[:19]
@@ -231,14 +280,11 @@ def handle_codex(obj):
         p = obj.get("payload", {})
         if p.get("type") == "user_message":
             text = p.get("message", "")
-            if isinstance(text, str) and len(text) > 15:
-                parts = text.split("</system_instruction>")
-                user_text = parts[-1].strip() if parts else text
-                if len(user_text) > 15:
-                    flush_tools()
-                    print(f"[{ts}] [user] {user_text[:800]}")
-                    print("---")
-                    stats["user"] += 1
+            if isinstance(text, str):
+                _codex_user(ts, text)
+
+        elif p.get("type") == "item_completed":
+            _codex_item(ts, p.get("item"))
 
         elif p.get("type") == "exec_command_end":
             # This is the deduplicated result — has status info
@@ -578,6 +624,9 @@ for obj in objects:
 
 # Flush any remaining buffered tools
 flush_tools()
+
+if stats["lines"] >= 200 and stats["tool"] == 0:
+    stats["warning"] = "no tool calls recognized in a long session; the format may have changed, so read the raw file"
 
 print(json.dumps({"_meta": True, **stats}))
 
