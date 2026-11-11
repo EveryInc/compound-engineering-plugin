@@ -235,7 +235,9 @@ export type Scenario = {
   env?: Record<string, string>
 }
 
-const UNDERSTANDING_BASE_REF = "8df67793b9733d2220fa9a7fc37139931471af62"
+/** main before ce-babysit-pr stated how to read an incomplete review lookup (#1618). */
+const REVIEW_LOOKUP_BASE_REF = "bd55f988365586bb3f408a5fbe0a81f83d6f2304"
+const UNDERSTANDING_BASE_REF ="8df67793b9733d2220fa9a7fc37139931471af62"
 /** main before Standard/Deep choices that depend on existing behavior were traced through ce-explain (the optional-sentence contract). */
 const BEHAVIOR_TRACE_BASE_REF = "c152896f1cda13548fc1a05b2aff88caf8ae8dba"
 
@@ -3167,6 +3169,57 @@ Include exactly one line \`MERGE: no\` or \`MERGE: yes\` or \`MERGE: later\` in 
     grade: {
       must_include: ["your call to merge"],
       must_exclude: ["gh pr merge", "1800"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/failed-review-lookup-is-not-all-clear",
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    baseline_ref: REVIEW_LOOKUP_BASE_REF,
+    why: "A read that failed is not an absent signal: the missing part may hold the announcement, so it must not clear the review-still-coming check (#1618).",
+    pre_contract: "An absent signal tells you nothing and never blocks on its own; nothing says how to read a lookup that failed.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: no reviews on this head, no top-level comments from any bot, and the only check runs on this head are the repo's own CI jobs, all SUCCESS. The request for reactions on the PR body failed with `HTTP 502: Bad Gateway`. This repo's reviewer, `reviewbot[bot]`, usually announces itself with a 👀 reaction before reviewing.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.\nInclude exactly one line `SETTLE: ready` or `SETTLE: re-arm` in your answer.",
+    grade: {
+      declared: { SETTLE: "re-arm" },
+      must_exclude: ["gh pr merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/truncated-review-lookup-is-not-all-clear",
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    baseline_ref: REVIEW_LOOKUP_BASE_REF,
+    why: "A first page that shows nothing is not a look at every place; the announcement can sit on a page that was never read (#1618).",
+    pre_contract: "The look covers every place an announcement can arrive; nothing says a page limit leaves it incomplete.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: no reactions on the PR body, no reviews on this head, and only the repo's own CI check runs, all SUCCESS. The top-level comments request returned its first page of 30 of the PR's 74 comments, oldest first; none of those 30 is from a bot. The remaining pages were not fetched.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.\nInclude exactly one line `SETTLE: ready` or `SETTLE: re-arm` in your answer.",
+    grade: {
+      declared: { SETTLE: "re-arm" },
+      must_exclude: ["gh pr merge"],
+      actions: "none",
+    },
+  },
+  {
+    id: "ce-babysit-pr/bot-suffix-is-the-same-reviewer",
+    skill: "ce-babysit-pr",
+    cohort: "resized",
+    key_behavior: "judgment",
+    read_only: true,
+    fixture: `${FIX}/babysit-review-judgment`,
+    baseline_ref: REVIEW_LOOKUP_BASE_REF,
+    why: "REST and GraphQL name the same app differently; a reviewer that finished must not read as one that never answered its own announcement (#1618).",
+    pre_contract: "Look for what that same reviewer produced on this head; nothing says its login differs between APIs.",
+    task: "Babysit PR #12.\n\nThe latest pr-snapshot output is already on disk at snapshot.json. Treat that file as this tick's snapshot. Do not call git, gh, or pr-snapshot.\n\nA look at the current head shows: the PR-body reactions endpoint lists a 👀 reaction from `reviewbot[bot]`, added eight minutes ago, after the current head was pushed. `gh pr view --json reviews` lists one review on this head, by `reviewbot`, submitted three minutes ago, state COMMENTED, body \"No issues found.\" There are no other reactions, no top-level comments from any bot, and only the repo's own CI check runs, all SUCCESS.\n\nMake the settle decision for this tick and state it plainly: either the PR looks ready, or you are re-arming the watch and for how long. Stop after one tick.\nInclude exactly one line `SETTLE: ready` or `SETTLE: re-arm` in your answer.",
+    grade: {
+      declared: { SETTLE: "ready" },
+      must_exclude: ["gh pr merge"],
       actions: "none",
     },
   },
