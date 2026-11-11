@@ -36,6 +36,7 @@ import argparse
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -121,7 +122,8 @@ def guard_dir(path, create, restrict):
     st = os.lstat(path)
     if os.path.islink(path) or not os.path.isdir(path):
         raise Failure(EXIT_UNSAFE, "store-unsafe", f"not a directory: {path}")
-    if st.st_uid != os.getuid():
+    # Native Windows has no uid; there the symlink and directory checks above are the guard.
+    if hasattr(os, "getuid") and st.st_uid != os.getuid():
         raise Failure(EXIT_UNSAFE, "store-unsafe", f"not owned by the current user: {path}")
     if restrict and st.st_mode & 0o077:
         try:
@@ -199,8 +201,15 @@ def now_iso():
 
 def append_line(path, obj):
     line = (json.dumps(obj, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
-    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    if os.path.islink(path):
+        raise Failure(EXIT_UNSAFE, "store-unsafe", f"refusing symlink: {path}")
     try:
+        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    except OSError as e:
+        raise Failure(EXIT_UNSAFE, "store-unsafe", f"cannot open {path} safely: {e}")
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise Failure(EXIT_UNSAFE, "store-unsafe", f"not a regular file: {path}")
         if fcntl:
             fcntl.flock(fd, fcntl.LOCK_EX)
         os.write(fd, line)

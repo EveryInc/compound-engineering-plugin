@@ -139,6 +139,19 @@ describe("retro-state store", () => {
     expect(existsSync(path.join(wt, ".context"))).toBe(false)
   })
 
+  test("a symlinked ledger file is refused and its target is left untouched", () => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    expect(run(env, main, ["store"]).code).toBe(0)
+    const outside = path.join(root, "home", "settings.json")
+    writeFileSync(outside, "original\n")
+    symlinkSync(outside, path.join(main, ".context/compound-engineering/ce-retro/decisions.jsonl"))
+
+    const r = run(env, main, ["record"], JSON.stringify({ target: "AGENTS.md", kind: "stale-path", state: "rejected", reason: "not worth it", session_ids: ["s1"], harness: "claude" }))
+    expect(r.code).toBe(5)
+    expect(readFileSync(outside, "utf8")).toBe("original\n")
+  })
+
   test("a symlinked .context is refused with a reason", () => {
     const { root, env } = sandbox()
     const main = repo(env, root)
