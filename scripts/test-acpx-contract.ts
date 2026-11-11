@@ -1,4 +1,6 @@
 import { spawn, spawnSync } from "node:child_process"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
 import path from "node:path"
 import { ACPX_MIN_VERSION, ACPX_PIN } from "../tests/helpers/acpx-pin"
 
@@ -36,20 +38,26 @@ export function selectAcpxVersions(supported: string[], range: string | undefine
 }
 
 function contractRun(version: string): Promise<{ version: string; code: number; output: string }> {
+  // npx installs adapters under the npm cache, so parallel runs sharing one cache race on the same install dir.
+  const cache = mkdtempSync(path.join(tmpdir(), "acpx-contract-npm-"))
+  const finish = (result: { version: string; code: number; output: string }) => {
+    rmSync(cache, { recursive: true, force: true })
+    return result
+  }
   return new Promise((resolve) => {
     const child = spawn("bun", ["test", path.resolve(import.meta.dir, "../tests/acpx-contract.test.ts")], {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ACPX_CONTRACT: "1", ACPX_VERSION: version },
+      env: { ...process.env, ACPX_CONTRACT: "1", ACPX_VERSION: version, npm_config_cache: cache },
     })
     let output = ""
     child.stdout.on("data", (chunk) => (output += chunk))
     child.stderr.on("data", (chunk) => (output += chunk))
-    child.on("error", (error) => resolve({ version, code: 1, output: `${output}${error.message}\n` }))
-    child.on("close", (code) => resolve({ version, code: code ?? 1, output }))
+    child.on("error", (error) => resolve(finish({ version, code: 1, output: `${output}${error.message}\n` })))
+    child.on("close", (code) => resolve(finish({ version, code: code ?? 1, output })))
   })
 }
 
-// Concurrency is safe only because each contract run uses a private HOME and its own npx install.
+// Concurrency is safe only because each contract run uses a private HOME and its own npm cache.
 async function runAll(versions: string[], jobs: number): Promise<string[]> {
   const queue = [...versions]
   const failed: string[] = []

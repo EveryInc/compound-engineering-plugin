@@ -48,7 +48,7 @@ function acpx(
     stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
-      // A private HOME keeps ~/.acpx/config.json out; the npm cache stays shared.
+      // A private HOME keeps ~/.acpx/config.json out; the runner gives each parallel run its own npm cache.
       HOME: options.home,
       npm_config_cache: process.env.npm_config_cache || path.join(homedir(), ".npm"),
       npm_config_prefer_offline: "true",
@@ -133,11 +133,13 @@ describe.skipIf(process.env.ACPX_CONTRACT !== "1" || process.platform === "win32
     writeFileSync(path.join(bin, "pi"), `#!/bin/sh\necho "path-pi $*" >> '${log}'\nexit 1\n`, { mode: 0o755 })
     const wrapper = path.join(ws.home, "pi-launch")
     writeFileSync(wrapper, `#!/bin/sh\necho "wrapper $*" >> '${log}'\nexit 1\n`, { mode: 0o755 })
-    await acpx(["--cwd", ws.cwd, "--format", "json", "--timeout", "30", "pi", "exec", "--file", ws.prompt], {
+    const run = await acpx(["--cwd", ws.cwd, "--format", "json", "--timeout", "30", "pi", "exec", "--file", ws.prompt], {
       ...ws,
       env: { PATH: `${bin}:${process.env.PATH}`, PI_ACP_PI_COMMAND: wrapper },
     })
     const launches = existsSync(log) ? readFileSync(log, "utf8") : ""
+    // An adapter that never started leaves the log empty; acpx's output says why.
+    if (!launches) console.error(`acpx exited ${run.code}:\n${run.stdout.slice(-2000)}\n${run.stderr.slice(-2000)}`)
     expect(launches).toContain("wrapper --mode rpc")
     expect(launches).not.toContain("path-pi --mode rpc")
   })
