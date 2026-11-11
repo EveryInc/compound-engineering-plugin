@@ -34,8 +34,13 @@ log() { printf '[elevation] %s\n' "$*" >&2; }
 # CE_ELEVATION_EFFORT overrides the reasoning effort passed to the Claude CLI
 # (plan_effort / brainstorm_effort in CE config, resolved by the calling
 # skill and forwarded on the `start` env prefix). Unset preserves the
-# existing "high" default so behavior is unchanged.
-EFFORT="${CE_ELEVATION_EFFORT:-high}"
+# existing "high" default so behavior is unchanged; a set-but-empty value is
+# kept as empty so validate_effort rejects it instead of defaulting to high.
+if [ -n "${CE_ELEVATION_EFFORT+x}" ]; then
+  EFFORT="$CE_ELEVATION_EFFORT"
+else
+  EFFORT="high"
+fi
 
 # Accept only effort values the Claude CLI --effort flag documents (matches
 # the claude case in cross-model-adversarial-review.sh's validate_effort_override,
@@ -126,8 +131,11 @@ fi
 # calling skill's Recovery path degrades to inline instead of losing the run.
 if ! validate_effort "$EFFORT"; then
   log "invalid effort override '$EFFORT' (want low|medium|high|xhigh|max); degrading to inline"
-  printf '{"status":"failed","requested_model":"%s","requested_effort":"%s","evidence":"invalid effort override: %s"}' \
-    "$MODEL" "$EFFORT" "$EFFORT" > "$RESULT_PATH" 2>/dev/null || true
+  # jq builds the envelope so a rejected value carrying quotes or backslashes
+  # cannot forge a valid object with a status the recovery path reads as success.
+  jq -cn --arg model "$MODEL" --arg effort "$EFFORT" \
+    '{status:"failed", requested_model:$model, requested_effort:$effort, evidence:("invalid effort override: " + $effort)}' \
+    > "$RESULT_PATH" 2>/dev/null || true
   exit 0
 fi
 
