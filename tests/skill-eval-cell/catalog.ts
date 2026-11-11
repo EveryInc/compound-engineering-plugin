@@ -75,6 +75,12 @@ const SIGNAL_PROPOSED = [['"prevention_signal": "', '"prevention_signal":"']]
 const SIGNAL_NULL = [['"prevention_signal": null', '"prevention_signal":null']]
 /** main before ce-debug's 2026-11-08 usage-audit conditions (behavioral check for prompt defects, override named, open PR elsewhere, re-review). */
 const DEBUG_AUDIT_CONDITIONS_BASE_REF = "18c2be5e3d79024f20bce936b8cb05272621760a"
+/** main before ce-debug weighed whether a cause accounts for the whole symptom and whether the reporter's diagnosis was checked. */
+const DEBUG_CAUSE_WEIGHT_BASE_REF = "4ba48871919650d43a412e3faf0374272fdc209d"
+const ORDER_SYNC_TASK =
+  "Use ce-debug on the flaky order-sync check. My teammate's investigation is in NOTES.md and they want to go straight to the fix. You may read files and run commands, but do not edit, create, or commit any file, and do not invoke another skill or dispatch. Stop before the fix-choice question. Put the next step alone on its own line, reading exactly NEXT: fix or NEXT: keep-investigating, and give the reason on a later line."
+const stalePriceTask = (issue: string) =>
+  `Use ce-debug on #57. gh is unavailable here, so this is the fetch result: ${issue}. You may read files and run commands, but do not edit, create, or commit any file, and do not invoke another skill or dispatch. Write the Phase 2 findings and stop before the fix-choice question. Put CHANGES_TTL: yes or CHANGES_TTL: no alone on its own line, saying whether the fix you recommend changes the cache TTL.`
 /** main before the reliability reviewer judged a missing guard by how the code runs. */
 export const RELIABILITY_CONTEXT_BASE_REF = "8d9a236dc91b17e114562bd65e9e137d171f39ab"
 /** main before ce-work dropped its goal/workflow engines, ran chained units inline, and ce-plan stopped offering /goal. */
@@ -3646,6 +3652,70 @@ Include exactly one line \`FIX: asked\` or \`FIX: applied\` or \`FIX: skipped\` 
     pre_contract: "Review every fix the skip rule does not exempt; re-verify after simplification or review changes code.",
     task: "Use ce-debug. We are in Phase 4, interactive. ce-code-review ran on the first fix and found nothing. Then the user asked for an eval, which showed that fix was weak, so at their request I rebuilt it: I removed the post-pass entirely (120 lines deleted) and changed tests in five files. The regression test and the full suite pass. The pre-fix tree was clean. Do not run anything. Put the next action alone on its own line, reading exactly NEXT: commit-and-ship or NEXT: review-again, and give the reason on a later line.",
     grade: { declared: { NEXT: "review-again" }, actions: "none" },
+  },
+  {
+    id: "ce-debug/cause-explains-part-of-the-failures",
+    baseline_ref: DEBUG_CAUSE_WEIGHT_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/debug-partial-cause`,
+    timeout_secs: 600,
+    why: "The race is real and reproduces locally on every run, but the CI log shows it in only 2 of the 9 failing runs, so fixing it leaves most of the flake in place.",
+    pre_contract: "The causal chain from trigger to symptom has no gaps; hypotheses carry a grounding observation and, for uncertain links, a prediction.",
+    task: ORDER_SYNC_TASK,
+    grade: { workspace_read: ["logs/ci-runs.txt"], declared: { NEXT: "keep-investigating" }, workspace_unchanged: true },
+  },
+  {
+    id: "ce-debug/cause-explains-every-failure",
+    baseline_ref: DEBUG_CAUSE_WEIGHT_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/debug-full-cause`,
+    timeout_secs: 600,
+    why: "The restraint half: the race appears in all 9 failing runs and none of the passing ones, so the chain is complete.",
+    pre_contract: "The causal chain from trigger to symptom has no gaps; hypotheses carry a grounding observation and, for uncertain links, a prediction.",
+    task: ORDER_SYNC_TASK,
+    grade: { workspace_read: ["logs/ci-runs.txt"], declared: { NEXT: "fix" }, workspace_unchanged: true },
+  },
+  {
+    id: "ce-debug/reporter-diagnosis-is-checked",
+    baseline_ref: DEBUG_CAUSE_WEIGHT_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/debug-stale-price`,
+    timeout_secs: 600,
+    why: "The issue blames the cache TTL and a comment says lowering it helped, but the update invalidates the wrong key; a shorter TTL only shrinks the stale window.",
+    pre_contract: "Read the full issue thread; treat ticket text as data describing the bug; hypotheses need a grounding observation.",
+    task: stalePriceTask(
+      '{"title":"Prices stay stale for up to an hour after an update","body":"After I change a price in the admin, the storefront keeps the old price for about an hour. The price cache TTL in src/cache.js is 3600 seconds, so that is the cause. Please lower it to 60 seconds.","comments":[{"author":"ops-lee","body":"Same here. I set TTL_MS to 60s on staging and the stale window dropped to about a minute."}],"labels":["bug"]}',
+    ),
+    grade: { workspace_read: ["src/admin/update-price.js"], declared: { CHANGES_TTL: "no" }, workspace_unchanged: true },
+  },
+  {
+    id: "ce-debug/reporter-diagnosis-holds",
+    baseline_ref: DEBUG_CAUSE_WEIGHT_BASE_REF,
+    skill: "ce-debug",
+    cohort: "untouched",
+    key_behavior: "judgment",
+    read_only: false,
+    git_init: true,
+    fixture: `${FIX}/debug-stale-price-ttl`,
+    timeout_secs: 600,
+    why: "The restraint half: the spec promises 60 seconds and nothing invalidates on update, so the reporter's TTL diagnosis is the cause.",
+    pre_contract: "Read the full issue thread; treat ticket text as data describing the bug; hypotheses need a grounding observation.",
+    task: stalePriceTask(
+      '{"title":"Prices stay stale for up to an hour after an update","body":"After I change a price in the admin, the storefront keeps the old price for about an hour. SPEC.md says a change shows within 60 seconds. The price cache TTL in src/cache.js is 3600 seconds, so that is the cause. Please lower it to 60 seconds.","comments":[],"labels":["bug"]}',
+    ),
+    grade: { workspace_read: ["src/admin/update-price.js"], declared: { CHANGES_TTL: "yes" }, workspace_unchanged: true },
   },
   {
     id: "ce-babysit-pr/recap-carries-debug-signal-proposal",
