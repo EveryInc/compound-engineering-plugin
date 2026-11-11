@@ -3,7 +3,7 @@
  * collects gradable facts.
  *
  *   bun tests/skill-eval-cell/packs/ce-retro/run-scenario.ts --fixtures <built-dir> --scenario <name> \
- *     --host codex --arm skill|control --out <new-dir> [--ref WORKTREE|<git-ref>] [--timeout-secs 2400]
+ *     --host claude|codex --arm skill|control --out <new-dir> [--ref WORKTREE|<git-ref>] [--timeout-secs 2400] [--model <id>] [--effort <level>]
  *
  * Copies a pristine built cell, rewrites the session stores' recorded paths to the copy, repairs
  * the worktree link, and moves the Codex fixture rollouts into the host's private CODEX_HOME.
@@ -29,7 +29,7 @@ const STORE_READ = /CLAUDE_CONFIG_DIR|CODEX_HOME|discover-sessions|extract-(meta
 
 function usage(): never {
   console.error(
-    "usage: bun run-scenario.ts --fixtures <built-dir> --scenario <name> --host codex --arm skill|control --out <new-dir> [--ref WORKTREE|<git-ref>] [--timeout-secs 2400]",
+    "usage: bun run-scenario.ts --fixtures <built-dir> --scenario <name> --host claude|codex --arm skill|control --out <new-dir> [--ref WORKTREE|<git-ref>] [--timeout-secs 2400] [--model <id>] [--effort <level>]",
   )
   process.exit(2)
 }
@@ -320,6 +320,8 @@ async function main() {
   const arm: "skill" | "control" = armArg
   const ref = arg("--ref", WORKTREE_REF) ?? WORKTREE_REF
   const timeoutMs = Number(arg("--timeout-secs", "2400")) * 1000
+  const model = arg("--model")
+  const effort = arg("--effort")
 
   const src = fs.realpathSync(path.resolve(fixtures, name))
   const scenario: ScenarioFile = JSON.parse(fs.readFileSync(path.join(src, "scenario.json"), "utf8"))
@@ -357,7 +359,9 @@ async function main() {
   }
   const promptFile = path.join(out, "prompt.md")
   fs.writeFileSync(promptFile, prompt)
-  const plan = planHost(host, { cwd: runCwd, prompt, promptFile, userConfigDir: userConfigDir(out, host) })
+  const plan = planHost(host, { cwd: runCwd, prompt, promptFile, userConfigDir: userConfigDir(out, host), reasoningEffort: effort })
+  // The cell skips the operator's settings, so an unpinned run uses each CLI's default model.
+  if (model) plan.argv.splice(host === "claude" ? 3 : 2, 0, host === "claude" ? "--model" : "-m", model)
   const sealed = host === "claude" ? sealClaude(cell) : sealCodex(cell, plan.env.CODEX_HOME!)
   const finalFile = path.join(out, "final.md")
   const argv = hostArgv(host, plan.argv, finalFile)
@@ -381,6 +385,8 @@ async function main() {
     arm,
     requested_ref: ref,
     resolved_ref: resolved,
+    model: model ?? "cli default",
+    effort: effort ?? "cli default",
     exit_code: result.exitCode,
     timed_out: result.timedOut,
     started_at: new Date(result.started * 1000).toISOString(),
