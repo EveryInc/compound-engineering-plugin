@@ -25,11 +25,11 @@ Give each file you read its own tool call, so its output comes back on its own, 
 
 ## Authority
 
-Invoking this skill authorizes these actions without asking each time: reading every agent session store on this machine, running read-only checks against the tree, writing scratch files and the ledger, and, for items the user approved, editing environment files inside the repo (instruction files, docs, small scripts, the repo's harness settings), committing each such edit with only its own files, and invoking `ce-compound`, `ce-setup`, or `ce-plan` with an approved item. It does not authorize editing product code or its tests, pushing, posting to any issue tracker, or writing a file outside the repo without that item's own diff approval. A project or user rule that requires asking first still wins. When one refuses an edit, report that item as stopped rather than finding another way to make it.
+Invoking this skill authorizes these actions without asking each time: reading every agent session store on this machine, running read-only checks against the tree, writing scratch files and the ledger, and, for items the user approved, editing environment files inside the repo (instruction files, docs, small scripts, the repo's harness settings), committing each such edit with only its own files, and invoking `ce-compound`, `ce-setup`, or `ce-plan` with an approved item. Tests of product behavior count as product code; a check whose subject is the repo itself, such as a test that scans files for a rule, is environment. It does not authorize editing product code, pushing, posting to any issue tracker, or writing a file outside the repo without that item's own diff approval. A project or user rule that requires asking first still wins. When one refuses an edit, report that item as stopped rather than finding another way to make it.
 
 ## Writing to the user
 
-Write the approval account and the final report through the `ce-noslop` skill. When it is unavailable, write them plainly yourself.
+Invoke the `ce-noslop` skill before the approval account, and write the account and final report under its tests; without it, write plainly yourself. Talk about the user's repo, not this skill's machinery: words for its own steps, such as bar, candidate, miner, and batch, never reach the user.
 
 ## Run
 
@@ -46,4 +46,4 @@ When no user can answer, run steps 1 through 4, then follow the no-user branch i
 
 ## Pacing
 
-Before the first batch of tool calls in each step, list what that step needs and issue every call that does not depend on another's result in one response. Dispatch all session-mining batches together. After step 3, tell the user in one line how many sessions were read and how many candidates cleared the bar. A step is done only after it ran. Do not end the turn with an approved item still described but not applied or routed.
+Before the first batch of tool calls in each step, list what that step needs and issue every call that does not depend on another's result in one response. Dispatch all session-mining batches together. While they run, say at most one line as each returns, with how many sessions are read so far; hold findings until all are back, because partial tallies change. After step 3, tell the user in one line how many sessions were read and how many problems are worth fixing. A step is done only after it ran. Do not end the turn with an approved item still described but not applied or routed.

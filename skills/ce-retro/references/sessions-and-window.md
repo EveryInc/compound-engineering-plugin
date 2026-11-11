@@ -58,7 +58,7 @@ This search opens the first lines of recent session files from every project on 
 
 The output is JSONL: one object per kept session, then a `_meta` line per batch. `xargs` may split the file list, so sum `files_processed` across `_meta` lines. Optional fields are omitted, not null. Rank recency by `last_ts`, falling back to `ts`. A subagent session carries `parent_session`. Fold it into its parent when you count evidence, so one session with twelve subagents counts as one session, and list subagents separately in coverage.
 
-Leave out sessions that are themselves skill evaluations or synthetic runs, such as a prompt that begins by pointing at a skill file to test. They show friction no real user hit.
+Leave out the session this run is in. Match it by the harness session id or its transcript file, never by a scratch or worktree directory name, which can carry a different id. Leave out sessions that are themselves skill evaluations or synthetic runs, such as a prompt that begins by pointing at a skill file to test. They show friction no real user hit.
 
 The bundled scripts recognize the session file shapes and folder layouts that Claude, Codex, Cursor, Pi, and oh-my-pi use today, and a harness update can change them. When a session file in scope is not recognized, read its raw JSONL yourself instead; it is plain text. A file is not recognized when metadata leaves it out and `_meta` counts it under `files_without_metadata`, or when its skeleton comes back empty.
 
@@ -71,7 +71,7 @@ When the user asked for a span of time or many sessions:
 - Take new candidates only from sessions after each harness's cutoff in the ledger, unless the user named the span. A harness with no cutoff has none.
 - Prefer evidence that describes the repo as it is now. Older friction may point at code that has since moved, so the current-tree check in the next step matters more the further back you read.
 - Grading earlier accepted changes may read further back than the scope.
-- Extract skeletons and errors only for the sessions that rank highest by size, branch match, and signs of friction, at most about 20, into the run's scratch directory. Name every session left out in coverage.
+- Extract skeletons and errors only for the sessions that rank highest by size, branch match, and signs of friction, at most about 20, into the run's scratch directory, together with each chosen session's subagent transcripts, since that is often where the commands ran. Name every session left out in coverage.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";

@@ -77,7 +77,7 @@ A long list of small irritations is noise, so a candidate has to earn its place.
 
 ### A summary you can decide from
 
-The account opens with the takeaway: how many sessions were read, how many items survived, and which cost the most. Items are grouped by what approving them would do (fixes it makes in the repo, items handed to another skill, changes outside the repo) and numbered. Each gets one line saying what slowed the agent, what it cost, and the fix. It proposes at most about five items, counts the rest in one line, and writes every item, including the ones it dropped and why, to a file it names. You can approve a whole group, pick by number, or go one at a time.
+The account opens with the takeaway: how many sessions were read, how many items survived, and which cost the most. Items are grouped by what approving them would do (fixes it makes in the repo, items handed to another skill, changes outside the repo) and numbered. Each gets a short title naming what keeps happening to agents and a sentence or two on how often, what it cost, and what changes, in plain words. Code and the evidence behind each item stay out of the account: instruction or settings text a fix would add is quoted exactly, and a code change is written to a diff file the account names. It proposes at most about five items, counts the rest in one line, and writes every item, including the ones it dropped and why, to a file it names. You can approve a whole group, pick by number, or go one at a time.
 
 ### It lands environment fixes and routes the rest
 

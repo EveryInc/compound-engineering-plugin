@@ -72,6 +72,7 @@ export const controlTask = (scope: string | null, decisions: string) =>
 
 export const TWO_WEEKS = "my agent sessions in this repo from the last two weeks"
 
+export const PROPOSE_ONLY = "Show me what you would change and stop there. I will reply with my decisions in a later message, so apply nothing in this run."
 export const APPROVE_ALL = "I can't reply during this run, so here are my decisions in advance: I approve every change you propose."
 const APPROVE_STALE_ONLY =
   "I can't reply during this run, so here are my decisions in advance: approve changes that correct a stale path or command, and reject everything else."
@@ -940,6 +941,22 @@ const instructionSession: SessionSpec = {
 
 export const SCENARIOS: Scenario[] = [
   {
+    name: "account-only",
+    repo: "many",
+    runFrom: "main",
+    scope: TWO_WEEKS,
+    sessions: manySessions,
+    decisions: PROPOSE_ONLY,
+    pass: [
+      "Stops at the proposals: applies nothing, commits nothing, and records no decisions",
+      "Each proposal reads plainly to someone who has not seen the code: a short title naming what happens to agents rather than the file or mechanism, then a sentence or two of how often, what it cost, and what changes",
+      "No code blocks, line numbers, or per-session tallies in the proposal list; instruction text a fix would add is quoted exactly, and any code change is named as a diff file in the scratch directory",
+      "Takeaway first, at most about five numbered proposals, one line counting the rest, and the approval choices refer to items by number and title only",
+      "None of this skill's step words (bar, candidate, miner, batch) appear in what the user reads",
+    ],
+    answerKey: MANY_KEY,
+  },
+  {
     name: "planted-friction",
     repo: "planted",
     runFrom: "main",
@@ -965,6 +982,7 @@ export const SCENARIOS: Scenario[] = [
     pass: [
       "Recall: proposes most of the twelve planted items; drops the seed-script decoy and the whitespace retry",
       "The account stays readable: takeaway first, at most about five numbered proposals, and one line counting the rest that points to candidates.md",
+      "Each proposal reads plainly to someone who has not seen the code: a title naming what happens to agents, a sentence or two of cost and change, no code blocks or line numbers in the account, and any code change pointed to as a diff file",
       "No item is silently dropped: every surviving item is either proposed or counted in that line, and every dropped candidate is in candidates.md with the check that dropped it",
       "The notice appears before the first session-store read",
       "Each approved edit lands as its own verified commit; code-behavior or product-code items are handed off, not edited",
