@@ -31,7 +31,28 @@ RUN_SUCCEEDED=false
 
 log() { printf '[elevation] %s\n' "$*" >&2; }
 
-EFFORT="high"   # settled: elevation runs at high effort
+# CE_ELEVATION_EFFORT overrides the reasoning effort passed to the Claude CLI
+# (plan_effort / brainstorm_effort in CE config, resolved by the calling
+# skill and forwarded on the `start` env prefix). Unset preserves the
+# existing "high" default so behavior is unchanged; a set-but-empty value is
+# kept as empty so validate_effort rejects it instead of defaulting to high.
+if [ -n "${CE_ELEVATION_EFFORT+x}" ]; then
+  EFFORT="$CE_ELEVATION_EFFORT"
+else
+  EFFORT="high"
+fi
+
+# Accept only effort values the Claude CLI --effort flag documents (matches
+# the claude case in cross-model-adversarial-review.sh's validate_effort_override,
+# this route's sole adapter). An invalid explicit override fails closed rather
+# than silently falling back to high, per issue #1415's "reject or visibly
+# skip unsupported values" contract.
+validate_effort() {
+  case "$1" in
+    low|medium|high|xhigh|max) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # Read-only tool posture: the available built-in set, not a denylist. The
 # elevated step reads the repo (Read/Glob/Grep) and may check current facts on
@@ -73,6 +94,7 @@ build_cmd() {   # <model> <handoff-dir> -> sets CMD array (claude CLI, streaming
 # --add-dir; without it the flag is omitted (no dir to grant).
 if [ "${1:-}" = "--emit-adapter" ]; then
   [ -n "${2:-}" ] || { log "--emit-adapter requires <model>"; exit 2; }
+  validate_effort "$EFFORT" || { log "invalid effort override '$EFFORT' (want low|medium|high|xhigh|max)"; exit 2; }
   build_cmd "$2" "${3:-}"
   printf '%s\0' "${CMD[@]}"
   exit 0
@@ -100,6 +122,20 @@ HANDOFF_DIR="$(cd "$HANDOFF_DIR" 2>/dev/null && pwd || printf '%s' "$HANDOFF_DIR
 if ! command -v jq >/dev/null 2>&1; then
   log "jq not found on PATH; cannot parse the elevated result — degrading to inline"
   printf '{"status":"failed","requested_model":"%s","evidence":"jq unavailable on PATH"}' "$MODEL" > "$RESULT_PATH" 2>/dev/null || true
+  exit 0
+fi
+
+# Reject an unsupported effort override rather than silently running at high
+# (issue #1415): fail closed with the same exit-0-plus-failure-envelope shape
+# as the jq preflight above, so the runner still reads the envelope and the
+# calling skill's Recovery path degrades to inline instead of losing the run.
+if ! validate_effort "$EFFORT"; then
+  log "invalid effort override '$EFFORT' (want low|medium|high|xhigh|max); degrading to inline"
+  # jq builds the envelope so a rejected value carrying quotes or backslashes
+  # cannot forge a valid object with a status the recovery path reads as success.
+  jq -cn --arg model "$MODEL" --arg effort "$EFFORT" \
+    '{status:"failed", requested_model:$model, requested_effort:$effort, evidence:("invalid effort override " + ($effort|tojson) + " (want low|medium|high|xhigh|max)")}' \
+    > "$RESULT_PATH" 2>/dev/null || true
   exit 0
 fi
 
@@ -270,19 +306,22 @@ if [ "$RUN_SUCCEEDED" = true ] && [ "$HAS_OUTPUT" = "yes" ] \
   # internally — never pass the plan text as an argv --arg, which would exceed
   # ARG_MAX for a large Deep plan.
   tmp="${RESULT_PATH}.tmp.$$"
-  if printf '%s' "$EVENT" | jq --arg m "$MODEL" --arg s "$SERVED" --arg r "$RECEIPT" \
-       '{status:"ok", requested_model:$m, served_model:$s, receipt:$r, output:.result}' \
+  # served_effort stays "unverified": the stream-json terminal event carries no
+  # per-call reasoning-effort field (only modelUsage token counts), so there is
+  # no receipt to classify it against, unlike served_model.
+  if printf '%s' "$EVENT" | jq --arg m "$MODEL" --arg s "$SERVED" --arg r "$RECEIPT" --arg ef "$EFFORT" \
+       '{status:"ok", requested_model:$m, served_model:$s, receipt:$r, requested_effort:$ef, served_effort:"unverified", output:.result}' \
        > "$tmp" 2>/dev/null; then
     mv -f "$tmp" "$RESULT_PATH"
-    log "elevated step complete: requested=$MODEL served=$SERVED receipt=$RECEIPT"
+    log "elevated step complete: requested=$MODEL served=$SERVED receipt=$RECEIPT effort=$EFFORT"
   else
     rm -f "$tmp"
-    write_result "$(jq -n --arg m "$MODEL" '{status:"failed", requested_model:$m, evidence:"result envelope build failed"}')"
+    write_result "$(jq -n --arg m "$MODEL" --arg ef "$EFFORT" '{status:"failed", requested_model:$m, requested_effort:$ef, evidence:"result envelope build failed"}')"
     log "elevated step: result envelope build failed"
   fi
 else
-  write_result "$(jq -n --arg m "$MODEL" --arg e "$(bounded_failure_evidence)" \
-    '{status:"failed", requested_model:$m, evidence:$e}')"
+  write_result "$(jq -n --arg m "$MODEL" --arg ef "$EFFORT" --arg e "$(bounded_failure_evidence)" \
+    '{status:"failed", requested_model:$m, requested_effort:$ef, evidence:$e}')"
   log "elevated step failed; wrote failure envelope"
 fi
 rm -f "$PEERLOG"

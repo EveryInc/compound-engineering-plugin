@@ -246,7 +246,7 @@ Not from the Phase 4 menu. Software next steps are `ce-plan` or `lfg` (which pla
 
 ## Model elevation
 
-When you want a specific model for the heavy reasoning step, `ce-brainstorm` can generate approaches on that model instead of your session model. Only approach generation is dispatched, with read access so it can verify its brief; the rest of the skill stays on your session model. Name a model in the prompt (`use fable`, `have opus generate these`), or set `brainstorm_model: <model>` in CE config.
+When you want a specific model for the heavy reasoning step, `ce-brainstorm` can generate approaches on that model instead of your session model. Only approach generation is dispatched, with read access so it can verify its brief; the rest of the skill stays on your session model. Name a model in the prompt (`use fable`, `have opus generate these`), or set `brainstorm_model: <model>` in CE config. `brainstorm_effort: <low|medium|high|xhigh|max>` sets the reasoning effort for approach generation. Unset keeps `high` on the Claude CLI route and the harness default on native dispatch. If the host's subagent tool takes no effort setting, the step still runs natively and the run says the effort was not applied. An unrecognized value is rejected, and the step runs inline instead of dispatching at an effort you did not configure.
 
 This works on any harness. The host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and says which precondition was unmet.
 
