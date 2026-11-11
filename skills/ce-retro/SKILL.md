@@ -1,7 +1,6 @@
 ---
 name: ce-retro
 description: "Look back over an agent session in this repo, the current one by default or any scope the user names across harnesses, and find what in the repo's environment keeps costing agents effort or leading them into mistakes, keeping only fixes the evidence shows are worth it. Lands the approved environment fixes and hands the rest to their owners. Use for a retro, postmortem, or papercut sweep of how agents worked in this repo. Use ce-compound to keep the lesson of one solved problem, and ce-debug for a bug in product code."
-disable-model-invocation: true
 argument-hint: "[scope: blank for this session, or e.g. last session, last two weeks, sessions where ce-plan ran]"
 ---
 

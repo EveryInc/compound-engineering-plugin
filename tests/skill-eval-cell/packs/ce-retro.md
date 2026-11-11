@@ -198,4 +198,14 @@ Word counts barely moved (Claude about 580 either way): the gain is in what the 
 
 **The opening notice.** Codex sent the notice before its first session read in every run after the notice became the first run step. Claude never did, at default or medium effort, across four wordings of the step, including a task without "I can't reply during this run". In single-turn print mode, Opus 5.5 goes from reading the skill straight to tool calls and first addresses the user with the approval account. Whether an interactive Claude session sends it is untested, because this harness is single-turn.
 
+**Activation, after the skill became model-invokable.** Fresh sessions in a throwaway repo, with the skill installed from this checkout and not injected, two runs per prompt per host. Graded on the first skill each run loaded.
+
+| Prompt | Claude Opus 5.5 | Codex |
+|---|---|---|
+| A retro on how agents worked in this repo over the last week | ce-retro 2/2 | ce-retro 2/2 |
+| A postmortem of a product bug just fixed | no skill 2/2 | ce-compound 1/2; ce-retro then ce-compound 1/2 |
+| Add a CLI flag | no skill 2/2 | ce-work 2/2 |
+
+The one Codex misfire matched "postmortem" in the description, read the skill, and switched to `ce-compound` on its own before doing any work.
+
 **Not covered:** the recall corpus from real sessions was not captured, the approval-choice offer is never exercised because every task approves in advance, and the refused instruction-file edit has no scenario.
