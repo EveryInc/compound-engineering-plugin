@@ -14,6 +14,11 @@ import {
 import { tmpdir } from "node:os"
 import path from "node:path"
 
+// A caller or CI shell may export CE_ELEVATION_EFFORT, which sandbox() would
+// inherit through process.env and turn the default-effort assertions into a
+// test of the ambient environment.
+delete process.env.CE_ELEVATION_EFFORT
+
 // Drives real detached workers and idle-window reaping; its slowest case
 // measured 4338ms on CI against bun's 5000ms default, so runner busyness —
 // not correctness — decided whether it passed.
@@ -198,6 +203,15 @@ describe("elevation-dispatch worker", () => {
     expect(result.status).toBe("failed")
     expect(result.requested_model).toBe("fable")
     expect(result.requested_effort).toBe("bogus")
+  })
+
+  test("a valid non-default effort reaches the success envelope", () => {
+    const stub =
+      "#!/bin/sh\n" + `printf '%s\\n' '${RESULT_LINE("PLAN BODY", null)}'\n`
+    const { result } = runWorker("fable", stub, { CE_ELEVATION_EFFORT: "low" })
+    expect(result.status).toBe("ok")
+    expect(result.requested_effort).toBe("low")
+    expect(result.served_effort).toBe("unverified")
   })
 
   test("an explicitly empty CE_ELEVATION_EFFORT is rejected, not defaulted to high", () => {
