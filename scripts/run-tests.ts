@@ -175,7 +175,30 @@ function run(args: string[]): number {
   return result.status ?? 1
 }
 
-type PassResult = { status: number; stalled: boolean; lostExit: boolean; interrupted: boolean }
+type PassOutcome =
+  | { kind: "exited"; status: number }
+  | { kind: "interrupted"; status: number }
+  | { kind: "lostExit" }
+  | { kind: "stalled" }
+
+const signalStatus = (signal: NodeJS.Signals): number => 128 + (constants.signals[signal] ?? 0)
+
+export function passOutcome(end: {
+  code: number | null
+  signal: NodeJS.Signals | null
+  interrupted: NodeJS.Signals | null
+  lostExit: boolean
+  stalled: boolean
+}): PassOutcome {
+  const killed = end.lostExit || end.stalled
+  if (end.interrupted) {
+    const status = killed ? signalStatus(end.interrupted) : end.code ?? signalStatus(end.signal ?? end.interrupted)
+    return { kind: "interrupted", status }
+  }
+  if (end.lostExit) return { kind: "lostExit" }
+  if (end.stalled) return { kind: "stalled" }
+  return { kind: "exited", status: end.code ?? (end.signal ? signalStatus(end.signal) : 0) }
+}
 
 /** Every live process that belongs to the pass: its descendants plus anything left in its process group. */
 function passProcesses(root: number): PsRow[] {
@@ -219,7 +242,7 @@ function killPass(child: ChildProcess, signal: NodeJS.Signals, extra: number[] =
  * job and nothing is reported. The pass runs in its own process group so a
  * stall or an interrupt can take down every process it started.
  */
-function runPass(args: string[], limitMs: number | null, lostMs: number): Promise<PassResult> {
+function runPass(args: string[], limitMs: number | null, lostMs: number): Promise<PassOutcome> {
   return new Promise((resolve, reject) => {
     let child: ChildProcess | undefined
     let stalled = false
@@ -277,10 +300,7 @@ function runPass(args: string[], limitMs: number | null, lostMs: number): Promis
       clearTimers()
       // Anything still in the group outlived the pass; do not leave it running.
       killPass(child, "SIGKILL")
-      // A signal death keeps its conventional status (130 for SIGINT), so Ctrl-C is not a test failure.
-      const signalled = signal ?? interrupted
-      const status = stalled || lostExit ? 1 : code ?? (signalled ? 128 + (constants.signals[signalled] ?? 0) : 0)
-      resolve({ status, stalled, lostExit, interrupted: interrupted !== null })
+      resolve(passOutcome({ code, signal, interrupted, lostExit, stalled }))
     })
   })
 }
@@ -319,16 +339,16 @@ async function main(argv: string[]): Promise<number> {
     const lostMs = lostExitMs(process.env)
     let pass = await runPass(passArgs, limitMs, lostMs)
     // A killed pass writes no junit report, so the whole pass is repeated, once, in a fresh process.
-    if (pass.lostExit) {
+    if (pass.kind === "lostExit") {
       console.error("Re-running the whole first pass once in a fresh process.\n")
       pass = await runPass(passArgs, limitMs, lostMs)
     }
     // A stall is never re-run into a green result: without a lost-exit zombie its cause is unknown.
-    if (pass.stalled || pass.lostExit) {
+    if (pass.kind === "stalled" || pass.kind === "lostExit") {
       console.error("\nNo junit report, so no recap: the test pass was killed before a report was written. See bun's output above.")
       return 1
     }
-    if (pass.interrupted) return pass.status
+    if (pass.kind === "interrupted") return pass.status
     const first = pass.status
     if (first === 0) return 0
 

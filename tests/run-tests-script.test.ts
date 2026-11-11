@@ -3,7 +3,7 @@ import { spawn, spawnSync } from "node:child_process"
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { junitCases, lostExitMs, lostExitZombies, parsePs, passTimeoutMs, passthroughArgs, rerunCandidates } from "../scripts/run-tests"
+import { junitCases, lostExitMs, lostExitZombies, parsePs, passOutcome, passTimeoutMs, passthroughArgs, rerunCandidates } from "../scripts/run-tests"
 import { alive, survivors } from "./helpers/process"
 
 setDefaultTimeout(30_000)
@@ -346,6 +346,28 @@ describe.skipIf(process.platform === "win32")("run-tests: lost child-exit", () =
   104   103   100 Z       00:30 [git] <defunct>
 `)
     expect(lostExitZombies(rows).map((r) => r.pid)).toEqual([102])
+  })
+})
+
+describe("run-tests: pass outcome", () => {
+  const end = { code: null, signal: null, interrupted: null, lostExit: false, stalled: false } as const
+
+  test("an interrupt outranks the runner's own kill, so Ctrl-C never starts a re-run", () => {
+    const killed = { ...end, signal: "SIGKILL", interrupted: "SIGINT" } as const
+    expect(passOutcome({ ...killed, lostExit: true })).toEqual({ kind: "interrupted", status: 130 })
+    expect(passOutcome({ ...killed, stalled: true })).toEqual({ kind: "interrupted", status: 130 })
+  })
+
+  test("a kill with no interrupt is a lost exit before it is a stall", () => {
+    expect(passOutcome({ ...end, signal: "SIGKILL", lostExit: true, stalled: true })).toEqual({ kind: "lostExit" })
+    expect(passOutcome({ ...end, signal: "SIGKILL", stalled: true })).toEqual({ kind: "stalled" })
+  })
+
+  test("an unkilled pass keeps its exit code, or the conventional status of its signal", () => {
+    expect(passOutcome({ ...end, code: 1 })).toEqual({ kind: "exited", status: 1 })
+    expect(passOutcome({ ...end, signal: "SIGTERM" })).toEqual({ kind: "exited", status: 143 })
+    expect(passOutcome({ ...end, code: 1, interrupted: "SIGINT" })).toEqual({ kind: "interrupted", status: 1 })
+    expect(passOutcome({ ...end, signal: "SIGINT", interrupted: "SIGINT" })).toEqual({ kind: "interrupted", status: 130 })
   })
 })
 
