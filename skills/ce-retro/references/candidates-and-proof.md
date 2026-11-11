@@ -26,6 +26,18 @@ For each candidate, ask the ledger for earlier decisions on the same target and 
 
 Every candidate must cite at least one session and a cost that actually happened there: calls or time spent, a user correction, a failed command, or a defect caught later. A candidate with no recorded cost is dropped, however plausible it sounds.
 
+## Prove the fix is needed
+
+For each candidate, write one sentence saying what you would observe if the fix were needed, then run the narrowest check that could show it is not: a transcript count, a `git log`, a read of the current file. Aim the check at what the friction cost and whether it will cost again, not at how often a pattern appears. A pattern can recur many times and never cost anything. Drop a candidate the check defeats.
+
+## Weigh it against the fix
+
+Keep a candidate only when its recorded cost, across the sessions that show it, clearly outweighs what the fix will cost from then on. Removing a line or correcting a stale path costs almost nothing, so a modest recorded cost justifies it. A new always-loaded instruction is read by every future session, so it needs friction that is both costly and recurring. A one-off cost that is small in its session does not justify any fix.
+
+The ledger shows what the user turned down before. When they rejected several items of the same kind, raise the bar for that kind this run, and say so.
+
+Record every dropped candidate in `candidates.md` with one line naming the check or comparison that dropped it, so the user can see why something was left out without investigating.
+
 ## Confirm on the current tree
 
 Before showing a candidate, confirm its cause is still present now.
@@ -40,4 +52,6 @@ When two candidates would change the same file region, such as one pruning a lin
 
 ## Rank
 
-Rank by recorded cost, weighted by how many sessions show it. One expensive session can outrank many cheap ones. Tell the user how many sessions were read and how many candidates survived proof.
+Rank by recorded cost, weighted by how many sessions show it. One expensive session can outrank many cheap ones. Tell the user how many sessions were read, how many candidates survived proof, and how many were dropped.
+
+No surviving candidates is a complete retro. Do not lower the bar to have something to show.

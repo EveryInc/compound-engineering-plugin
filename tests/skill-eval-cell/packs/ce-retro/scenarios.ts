@@ -45,7 +45,7 @@ type DecisionSeed = { target: string; kind: string; reason: string; session_ids:
 
 export type Scenario = {
   name: string
-  repo: "planted" | "many" | "clean"
+  repo: "planted" | "many" | "clean" | "trivial"
   worktree?: { dir: string; branch: string }
   runFrom: "main" | "worktree"
   sessions: SessionSpec[]
@@ -283,9 +283,13 @@ const MANY_EXTRA: Commit = {
   },
 }
 
+const TEST_ONE_LINE = "- Run one test file with `npm run test:one <file>`.\n"
+const TRIVIAL_AGENTS = CLEAN_AGENTS.replace("- Run the tests with `npm test`.\n", "- Run the tests with `npm test`.\n" + TEST_ONE_LINE)
+
 export const HISTORIES: Record<Scenario["repo"], RepoHistory> = {
   planted: PLANTED_HISTORY,
   clean: CLEAN_HISTORY,
+  trivial: [...CLEAN_HISTORY, { message: "Document running one test file", daysAgo: 11, write: { "AGENTS.md": TRIVIAL_AGENTS } }],
   many: [PLANTED_HISTORY[0], MOVE_RENDER, MANY_EXTRA, ...PLANTED_HISTORY.slice(2)],
 }
 
@@ -537,6 +541,87 @@ const cleanSessions: SessionSpec[] = [
   },
 ]
 
+const TEST_ONE_MISSING = `npm error Missing script: "test:one"
+npm error
+npm error To see a list of scripts, run:
+npm error   npm run`
+
+const testOneDetour: Turn[] = [
+  { sh: "npm run test:one test/render.test.js", out: TEST_ONE_MISSING, exit: 1 },
+  { sh: "cat package.json", out: PACKAGE_JSON.trimEnd() },
+  { sh: "npm run", out: "Lifecycle scripts included in ledgerly@0.3.0:\n  test\n    node --test" },
+  { say: "There is no test:one script. Running the file directly with node --test." },
+  { sh: "node --test test/render.test.js", out: NPM_PASS(2) },
+]
+
+const trivialSessions: SessionSpec[] = [
+  {
+    harness: "claude", cwd: "main", branch: "fix/jpy", daysAgo: 9,
+    turns: [
+      { user: "Add CLP, which has no decimals." },
+      { read: "AGENTS.md", out: TRIVIAL_AGENTS },
+      { sh: "npm tset", out: "Unknown command: \"tset\"\n\nDid you mean this?\n  npm test", exit: 1 },
+      { sh: "npm test", out: NPM_PASS() },
+      { read: "src/render/invoice.js", out: RENDER_JS },
+      { edit: "src/render/invoice.js", old: "JPY: 0, KWD: 3", new: "JPY: 0, CLP: 0, KWD: 3" },
+      ...testOneDetour,
+      { say: "CLP now prints with no decimals. Tests pass." },
+    ],
+  },
+  {
+    harness: "codex", cwd: "main", branch: "feat/notes", daysAgo: 7,
+    turns: [
+      { user: "Add a notes field to ledger lines." },
+      { sh: "cat AGENTS.md", out: TRIVIAL_AGENTS.trimEnd() },
+      { grep: "parseLedger src/render", out: "" },
+      { grep: "parseLedger src", out: "src/ledger.js:4:export function parseLedger(text) {" },
+      { sh: "sed -n '1,80p' src/ledger.js", out: LEDGER_JS.trimEnd() },
+      { edit: "src/ledger.js", old: 'const [date, client, amount, currency = "USD"]', new: 'const [date, client, amount, currency = "USD", notes = ""]' },
+      { edit: "src/ledger.js", old: "amount: Number(amount), currency }", new: "amount: Number(amount), currency, notes }" },
+      ...testOneDetour,
+      { say: "Ledger lines accept an optional notes column." },
+    ],
+  },
+  {
+    harness: "claude", cwd: "main", branch: "chore/rename", daysAgo: 5,
+    turns: [
+      { user: "Rename the lines variable in renderInvoice." },
+      { read: "src/render/invoice.js", out: RENDER_JS },
+      { say: "Renaming lines to items." },
+      { user: "Call it rows, not items." },
+      { edit: "src/render/invoice.js", old: "const lines = entries.map", new: "const rows = entries.map" },
+      { edit: "src/render/invoice.js", old: "...lines, ", new: "...rows, " },
+      ...testOneDetour,
+      { say: "Renamed to rows. Tests pass." },
+    ],
+  },
+  {
+    harness: "codex", cwd: "main", branch: "fix/kwd", daysAgo: 2,
+    turns: [
+      { user: "Add a 'Due in 30 days' line under the invoice heading." },
+      { sh: "cat AGENTS.md", out: TRIVIAL_AGENTS.trimEnd() },
+      { sh: "cat src/render/invoice.js", out: RENDER_JS.trimEnd() },
+      { sh: "cat src/render/invoice.js", out: RENDER_JS.trimEnd() },
+      { edit: "src/render/invoice.js", old: "`Invoice for ${client}`", new: "`Invoice for ${client}`, \"Due in 30 days\"" },
+      ...testOneDetour,
+      { say: "The heading is now followed by a due line." },
+    ],
+  },
+]
+
+const TRIVIAL_KEY: AnswerItem[] = [
+  {
+    id: "missing-test-one-script",
+    role: "planted",
+    summary: "AGENTS.md documents `npm run test:one <file>`, which package.json does not define; all four sessions failed it and spent three to four extra calls finding `node --test <file>`.",
+    checks: [{ file_contains: "AGENTS.md", text: "npm run test:one" }, { file_lacks: "package.json", text: "test:one" }],
+  },
+  { id: "npm-typo", role: "noise", summary: "One typed `npm tset`, corrected at once by npm's own suggestion.", checks: [] },
+  { id: "grep-wrong-dir", role: "noise", summary: "One grep searched the wrong directory, the next found the function.", checks: [] },
+  { id: "one-naming-correction", role: "noise", summary: "The user corrected a variable name once; a preference, not a recurring habit.", checks: [] },
+  { id: "file-read-twice", role: "noise", summary: "One session read the same small file twice in a row.", checks: [] },
+]
+
 const LINT_FAIL = "src/render/invoice.js: trailing whitespace"
 const manySessions: SessionSpec[] = [
   C1,
@@ -723,7 +808,7 @@ export const SCENARIOS: Scenario[] = [
       "Proposes each planted item (stale test command, moved render path, dead changelog instruction, repeated console.log correction), each with sessions and a recorded cost",
       "Drops the seed-script decoy (cause is gone on the current tree) and does not propose the whitespace edit retry",
       "A plain notice of what will be read, how far back, and that nothing changes until approval appears before the first session-store read",
-      "The account leads with a two-or-three-sentence takeaway, then groups items by what approval does and numbers them; every item in candidates.md appears in the account",
+      "The account leads with a two-or-three-sentence takeaway, then groups items by what approval does and numbers them; every proposed item is in candidates.md",
       "Approved environment edits are committed one item per commit, each verified; no product code in src/ is edited",
     ],
     answerKey: PLANTED_KEY,
@@ -737,8 +822,8 @@ export const SCENARIOS: Scenario[] = [
     decisions: APPROVE_ALL,
     pass: [
       "Recall: proposes most of the twelve planted items; drops the seed-script decoy and the whitespace retry",
-      "The account stays readable: takeaway first, items grouped and numbered, every item one line, only the top few expanded",
-      "No item is silently dropped: every item in candidates.md appears in the account, and every proposed item is in candidates.md",
+      "The account stays readable: takeaway first, at most about five numbered proposals, and one line counting the rest that points to candidates.md",
+      "No item is silently dropped: every surviving item is either proposed or counted in that line, and every dropped candidate is in candidates.md with the check that dropped it",
       "The notice appears before the first session-store read",
       "Each approved edit lands as its own verified commit; code-behavior or product-code items are handed off, not edited",
     ],
@@ -758,6 +843,21 @@ export const SCENARIOS: Scenario[] = [
       "Reports coverage per harness, so a thin window does not read as a clean one",
     ],
     answerKey: [{ ...PLANTED_KEY[5] }],
+  },
+  {
+    name: "trivial-friction",
+    repo: "trivial",
+    runFrom: "main",
+    scope: TWO_WEEKS,
+    sessions: trivialSessions,
+    decisions: APPROVE_ALL,
+    pass: [
+      "Proposes the missing test:one script fix (remove or correct the AGENTS.md line), with its four sessions and their cost",
+      "Proposes none of the cheap one-off items: the npm typo, the wrong-directory grep, the single naming correction, the repeated small read",
+      "Adds no new always-loaded instruction to AGENTS.md",
+      "The dropped candidates, if any were considered, appear in candidates.md with the check that dropped them",
+    ],
+    answerKey: TRIVIAL_KEY,
   },
   {
     name: "worktree-run",

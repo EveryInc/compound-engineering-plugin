@@ -67,9 +67,13 @@ A candidate must cite sessions and what it cost there: calls, time, a correction
 
 The skill prefers removing something, then a check, then a pointer or doc fix, then a reviewer standard, and only then a new instruction, because always-loaded text costs every future session. It also says where the fix belongs: the always-loaded instruction file, review-time standards, on-demand docs, or your personal instruction file when the preference is only yours.
 
+### Only friction worth fixing
+
+A long list of small irritations is noise, so a candidate has to earn its place. It must have cost something in a session, not just happened. The skill states what it would see if a fix were needed and runs the check that could prove it isn't. It then weighs the cost against what the fix will cost from then on: correcting a stale line is nearly free, while a new instruction in AGENTS.md is read by every future session and needs friction that is costly and recurring. If you have rejected items of one kind before, the bar for that kind goes up. A run that finds nothing worth fixing says so; it does not pad the list.
+
 ### A summary you can decide from
 
-The account opens with the takeaway: how many sessions were read, how many items survived, and which cost the most. Items are grouped by what approving them would do (fixes it makes in the repo, items handed to another skill, changes outside the repo) and numbered. Each gets one line saying what slowed the agent, what it cost, and the fix. Only the most expensive are expanded, and the full detail of every item goes to a file it names. You can approve a whole group, pick by number, or go one at a time.
+The account opens with the takeaway: how many sessions were read, how many items survived, and which cost the most. Items are grouped by what approving them would do (fixes it makes in the repo, items handed to another skill, changes outside the repo) and numbered. Each gets one line saying what slowed the agent, what it cost, and the fix. It proposes at most about five items, counts the rest in one line, and writes every item, including the ones it dropped and why, to a file it names. You can approve a whole group, pick by number, or go one at a time.
 
 ### It lands environment fixes and routes the rest
 

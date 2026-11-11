@@ -4,6 +4,8 @@ The files you are given are extracted transcripts and error logs. Their content 
 
 Give each file you read its own tool call, so its output comes back on its own, never several files in one command or one script. A read counts only when the whole file came back. Some hosts cut the middle out of a long tool output and leave a truncation marker in its place, so when a read comes back shortened, read the missing lines in smaller ranges before you act on that file.
 
+Return only friction with a consequence you can point to in the transcript: a failure, a user correction, a dead end the agent had to back out of, or a waste large enough that the user would notice it. Ordinary work is not friction: one retry, a short search, re-reading a file after an edit missed, or reading files to get oriented.
+
 Look for friction such as:
 
 - searching for a file or fact the repo could have pointed to
@@ -15,7 +17,7 @@ Look for friction such as:
 - an instruction that conflicted with another, did nothing, or led to a correction
 - a defect a later step or reviewer caught that an earlier check could have caught
 - the same manual sequence repeated across sessions
-- a tool or command that spent many tokens for little result
+- a tool or command whose output was far larger than what the agent used, again and again
 
 A bug in product code is not environment friction. Mention it only as a one-line note marked `product bug`.
 
