@@ -1,12 +1,13 @@
-const { insertOrder, sendToWarehouse } = require("./store.js");
+const { insertOrder, insertPending, sendToWarehouse } = require("./store.js");
 
-async function syncOrder(order, { retries = 1 } = {}) {
+async function syncOrder(order, { retries = 5 } = {}) {
   const key = `${order.id}:${order.syncedAt}`;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       await sendToWarehouse(order, { timeoutMs: 200 });
       break;
     } catch (err) {
+      insertPending(order);
       if (attempt === retries) throw err;
     }
   }
