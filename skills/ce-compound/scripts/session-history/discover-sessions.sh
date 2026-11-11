@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Discover session files across Claude Code, Codex, Cursor, Pi, and oh-my-pi (omp).
 #
-# Usage: discover-sessions.sh <repo-name> <days> [--cwd /abs/repo/root] [--platform claude|codex|cursor|pi|omp]
+# Usage: discover-sessions.sh <repo-name> <days> [--cwd /abs/repo/root]... [--platform claude|codex|cursor|pi|omp] [--include-subagents]
 #
 # Outputs one file path per line. Safe in both bash and zsh (all globs guarded).
 # Pass output to extract-metadata.py:
@@ -13,7 +13,12 @@
 #   --cwd      Absolute repo root. Used for exact Pi encoded-CWD discovery
 #              and the omp raw-bucket probe. Claude listing is unfiltered;
 #              extract-metadata.py --cwd-filter matches recorded cwd.
+#              Repeatable: each further root (e.g. a linked worktree) adds its
+#              own Pi directory, omp raw bucket, and Cursor basename match.
 #   --platform Restrict to a single platform. Omit to search all.
+#   --include-subagents
+#              Also list Claude subagent transcripts
+#              (<project>/<session-id>/subagents/*.jsonl). Off by default.
 
 set -euo pipefail
 
@@ -21,13 +26,18 @@ REPO_NAME="${1:?Usage: discover-sessions.sh <repo-name> <days> [--cwd /abs/repo/
 DAYS="${2:?Usage: discover-sessions.sh <repo-name> <days> [--cwd /abs/repo/root] [--platform claude|codex|cursor|pi|omp]}"
 PLATFORM="all"
 REPO_CWD=""
+EXTRA_CWDS=()
+INCLUDE_SUBAGENTS=0
 
 # Parse optional --platform flag
 shift 2
 while [ $# -gt 0 ]; do
     case "$1" in
-        --cwd) REPO_CWD="$2"; shift 2 ;;
+        --cwd)
+            if [ -z "$REPO_CWD" ]; then REPO_CWD="$2"; else EXTRA_CWDS+=("$2"); fi
+            shift 2 ;;
         --platform) PLATFORM="$2"; shift 2 ;;
+        --include-subagents) INCLUDE_SUBAGENTS=1; shift ;;
         *) shift ;;
     esac
 done
@@ -48,6 +58,9 @@ discover_claude() {
     local base="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
     [ -d "$base" ] || return 0
     find "$base" -mindepth 2 -maxdepth 2 -type f -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+    if [ "$INCLUDE_SUBAGENTS" = 1 ]; then
+        find "$base" -mindepth 4 -maxdepth 4 -type f -path "*/subagents/*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+    fi
 }
 
 # --- Codex ---
@@ -68,12 +81,18 @@ discover_cursor() {
     local base="$HOME/.cursor/projects"
     [ -d "$base" ] || return 0
 
-    for dir in "$base"/*"$REPO_NAME"*/; do
-        [ -d "$dir" ] || continue
-        local transcripts="$dir/agent-transcripts"
-        [ -d "$transcripts" ] || continue
-        find "$transcripts" -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+    local names=("$REPO_NAME") name extra
+    for extra in ${EXTRA_CWDS[@]+"${EXTRA_CWDS[@]}"}; do
+        names+=("$(basename "$extra")")
     done
+    for name in "${names[@]}"; do
+        for dir in "$base"/*"$name"*/; do
+            [ -d "$dir" ] || continue
+            local transcripts="$dir/agent-transcripts"
+            [ -d "$transcripts" ] || continue
+            find "$transcripts" -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+        done
+    done | awk '!seen[$0]++'
 }
 
 # --- Pi ---
@@ -100,9 +119,12 @@ discover_pi() {
     # When the caller supplies an exact repo root, probe only that encoded
     # directory so sibling repos like my-repo-old never enter the pipeline.
     if [ -n "$REPO_CWD" ]; then
-        local dir="$base/$(encode_pi_cwd "$REPO_CWD")"
-        [ -d "$dir" ] || return 0
-        find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+        local root dir
+        for root in "$REPO_CWD" ${EXTRA_CWDS[@]+"${EXTRA_CWDS[@]}"}; do
+            dir="$base/$(encode_pi_cwd "$root")"
+            [ -d "$dir" ] || continue
+            find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+        done | awk '!seen[$0]++'
         return 0
     fi
 
@@ -209,19 +231,18 @@ discover_omp() {
         esac
     fi
     {
-        local root dir encoded
-        if [ -n "$REPO_CWD" ]; then
-            encoded="$(encode_omp_raw_cwd "$REPO_CWD")"
-            if [ -n "$encoded" ]; then
-                for root in "$agent_dir/sessions" \
-                            "$HOME/$config_dir"/profiles/*/agent/sessions \
-                            ${xdg_omp:+"$xdg_omp/sessions"} \
-                            ${xdg_omp:+"$xdg_omp"/profiles/*/sessions}; do
-                    [ -d "$root/$encoded" ] || continue
-                    find "$root/$encoded" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
-                done
-            fi
-        fi
+        local root dir encoded repo_root
+        for repo_root in ${REPO_CWD:+"$REPO_CWD"} ${EXTRA_CWDS[@]+"${EXTRA_CWDS[@]}"}; do
+            encoded="$(encode_omp_raw_cwd "$repo_root")"
+            [ -n "$encoded" ] || continue
+            for root in "$agent_dir/sessions" \
+                        "$HOME/$config_dir"/profiles/*/agent/sessions \
+                        ${xdg_omp:+"$xdg_omp/sessions"} \
+                        ${xdg_omp:+"$xdg_omp"/profiles/*/sessions}; do
+                [ -d "$root/$encoded" ] || continue
+                find "$root/$encoded" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+            done
+        done
         for root in "$agent_dir/sessions" \
                     "$HOME/$config_dir"/profiles/*/agent/sessions \
                     ${xdg_omp:+"$xdg_omp/sessions"} \

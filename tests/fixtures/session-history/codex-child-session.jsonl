@@ -1,0 +1,4 @@
+{"timestamp":"2026-04-06T14:05:00.000Z","type":"session_meta","payload":{"id":"test-codex-child-1","timestamp":"2026-04-06T14:05:00.000Z","cwd":"/Users/test/Code/my-repo","originator":"codex_exec","cli_version":"0.130.0","source":{"subagent":{"thread_spawn":{"parent_thread_id":"test-codex-session-1","depth":1,"agent_role":"researcher"}}},"model_provider":"openai"}}
+{"timestamp":"2026-04-06T14:05:01.000Z","type":"turn_context","payload":{"turn_id":"turn-1","cwd":"/Users/test/Code/my-repo","model":"gpt-5.4"}}
+{"timestamp":"2026-04-06T14:05:02.000Z","type":"event_msg","payload":{"type":"user_message","message":"Find prior learnings about auth middleware"}}
+{"timestamp":"2026-04-06T14:05:05.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"No prior learnings found."}]}}

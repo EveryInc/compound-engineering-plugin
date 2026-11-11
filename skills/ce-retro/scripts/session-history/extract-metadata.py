@@ -1,0 +1,614 @@
+#!/usr/bin/env python3
+"""Extract session metadata from Claude Code, Codex, Cursor, Pi, and oh-my-pi (omp) JSONL files.
+
+Batch mode (preferred — one invocation for all files):
+  python3 extract-metadata.py /path/to/dir/*.jsonl
+  python3 extract-metadata.py file1.jsonl file2.jsonl file3.jsonl
+
+Single-file mode (stdin):
+  head -20 <session.jsonl> | python3 extract-metadata.py
+
+Auto-detects platform from the JSONL structure.
+Outputs one JSON object per file, one per line.
+Includes a final _meta line with processing stats.
+
+Filters (batch mode):
+  --cwd-filter ROOT  Keep sessions whose recorded cwd is ROOT, inside it, or an
+                     ancestor of it (a bare name matches a path component).
+                     Repeatable: a session matching any root is kept.
+  --no-ancestor      Drop a session whose cwd is only an ancestor of the
+                     absolute roots unless its content names one of the roots
+                     or a path inside one.
+  --keyword K1,K2    Keep only sessions whose conversation text names a keyword.
+
+Child sessions (a Claude subagent transcript, a Codex thread_spawn rollout)
+carry a parent_session field naming the session that spawned them.
+"""
+import sys
+import json
+import os
+import re
+
+MAX_LINES = 200  # Resumed Claude sessions front-load dozens of non-message records before the first user record
+
+
+def try_claude(lines):
+    result = None
+    cwd = ""
+    for line in lines:
+        try:
+            obj = json.loads(line.strip())
+        except (json.JSONDecodeError, KeyError):
+            continue
+        if not cwd and obj.get("cwd"):
+            cwd = obj["cwd"]
+        if result is None and obj.get("type") == "user" and "gitBranch" in obj:
+            result = {
+                "platform": "claude",
+                "branch": obj["gitBranch"],
+                "ts": obj.get("timestamp", ""),
+                "session": obj.get("sessionId", ""),
+            }
+            if obj.get("cwd"):
+                cwd = obj["cwd"]
+        if result is not None and cwd:
+            break
+    if result is not None and cwd:
+        result["cwd"] = cwd
+    return result
+
+
+def try_codex(lines):
+    meta = {}
+    for line in lines:
+        try:
+            obj = json.loads(line.strip())
+            if obj.get("type") == "session_meta":
+                p = obj.get("payload", {})
+                meta["platform"] = "codex"
+                meta["cwd"] = p.get("cwd", "")
+                meta["session"] = p.get("id", "")
+                meta["ts"] = p.get("timestamp", obj.get("timestamp", ""))
+                meta["source"] = p.get("source", "")
+                meta["cli_version"] = p.get("cli_version", "")
+                parent = _codex_parent_thread(meta["source"])
+                if parent:
+                    meta["parent_session"] = parent
+            elif obj.get("type") == "turn_context":
+                p = obj.get("payload", {})
+                meta["model"] = p.get("model", "")
+                meta["cwd"] = meta.get("cwd") or p.get("cwd", "")
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return meta if meta else None
+
+
+def _codex_parent_thread(source):
+    if not isinstance(source, dict):
+        return None
+    spawn = (source.get("subagent") or {}).get("thread_spawn")
+    if not isinstance(spawn, dict):
+        return None
+    parent = spawn.get("parent_thread_id")
+    return parent if isinstance(parent, str) and parent else None
+
+
+def try_omp(lines):
+    """oh-my-pi (omp) sessions: a fixed-width type='title' slot line physically
+    first, then a pi-shaped type='session' header with cwd. Checked before Pi:
+    a bare pi file has no title slot and must still detect as pi."""
+    seen_first = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            obj = json.loads(stripped)
+        except (json.JSONDecodeError, KeyError):
+            if not seen_first:
+                return None
+            continue
+        if not seen_first:
+            seen_first = True
+            if obj.get("type") != "title":
+                return None
+            continue
+        if obj.get("type") == "session" and "cwd" in obj:
+            return {
+                "platform": "omp",
+                "cwd": obj.get("cwd", ""),
+                "session": obj.get("id", ""),
+                "ts": obj.get("timestamp", ""),
+            }
+    return None
+
+
+def try_pi(lines):
+    """Pi sessions: type='session' header with cwd, followed by message entries."""
+    for line in lines:
+        try:
+            obj = json.loads(line.strip())
+            if obj.get("type") == "session" and "cwd" in obj:
+                return {
+                    "platform": "pi",
+                    "cwd": obj.get("cwd", ""),
+                    "session": obj.get("id", ""),
+                    "ts": obj.get("timestamp", ""),
+                }
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return None
+
+
+def try_cursor(lines):
+    """Cursor agent transcripts: role-based entries, no timestamps or metadata fields."""
+    for line in lines:
+        try:
+            obj = json.loads(line.strip())
+            # Cursor entries have 'role' at top level but no 'type'
+            if obj.get("role") in ("user", "assistant") and "type" not in obj:
+                return {"platform": "cursor"}
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return None
+
+
+def extract_from_lines(lines):
+    return try_claude(lines) or try_codex(lines) or try_omp(lines) or try_pi(lines) or try_cursor(lines)
+
+
+TAIL_BYTES = 16384  # Read last 16KB to find final timestamp past trailing metadata
+
+
+def get_last_timestamp(filepath, size):
+    """Read the tail of a file to find the last message with a timestamp."""
+    try:
+        with open(filepath, "rb") as f:
+            f.seek(max(0, size - TAIL_BYTES))
+            tail = f.read().decode("utf-8", errors="ignore")
+            lines = tail.strip().split("\n")
+        for line in reversed(lines):
+            try:
+                obj = json.loads(line.strip())
+                if "timestamp" in obj:
+                    return obj["timestamp"]
+            except (json.JSONDecodeError, KeyError):
+                pass
+    except (OSError, IOError):
+        pass
+    return None
+
+
+def _pi_active_path_objects(objects):
+    """Return only entries on Pi's active leaf-to-root path.
+
+    Pi session files are append-only trees. The final non-session entry is the
+    active leaf; abandoned branches remain in the file but are not in context.
+    """
+    by_id = {
+        obj.get("id"): obj
+        for obj in objects
+        if isinstance(obj.get("id"), str) and obj.get("type") != "session"
+    }
+    leaf_id = None
+    for obj in objects:
+        if obj.get("type") != "session" and isinstance(obj.get("id"), str):
+            leaf_id = obj["id"]
+    if not leaf_id:
+        return objects
+
+    active_ids = set()
+    current = leaf_id
+    while isinstance(current, str) and current and current not in active_ids:
+        active_ids.add(current)
+        parent = by_id.get(current, {}).get("parentId")
+        current = parent if isinstance(parent, str) else None
+    return [
+        obj
+        for obj in objects
+        if obj.get("type") == "session" or obj.get("id") in active_ids
+    ]
+
+
+def _pi_context_objects(objects):
+    """Return Pi entries that participate in active LLM context."""
+    active = _pi_active_path_objects(objects)
+    compactions = [obj for obj in active if obj.get("type") == "compaction"]
+    if not compactions:
+        return active
+
+    # Pi emits compaction summary first, then entries from firstKeptEntryId
+    # onward. Exclude older ancestors so keyword search mirrors context.
+    first_kept = compactions[-1].get("firstKeptEntryId")
+    if not isinstance(first_kept, str):
+        return active
+
+    latest_compaction_id = compactions[-1].get("id")
+    started = False
+    found_first_kept = False
+    context = [obj for obj in active if obj.get("type") == "session"]
+    context.append(compactions[-1])
+    for obj in active:
+        if obj.get("type") == "session":
+            continue
+        if obj.get("id") == first_kept:
+            started = True
+            found_first_kept = True
+        if obj.get("id") == latest_compaction_id:
+            continue
+        if started:
+            context.append(obj)
+    return context if found_first_kept and len(context) > 1 else active
+
+
+def _append_pi_content_text(chunks, content):
+    if isinstance(content, str):
+        chunks.append(content)
+    elif isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                chunks.append(block.get("text", ""))
+
+
+def _append_pi_tool_call_targets(chunks, content):
+    """Append searchable Pi toolCall targets without indexing tool output."""
+    if not isinstance(content, list):
+        return
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "toolCall":
+            continue
+        args = block.get("arguments", {})
+        if not isinstance(args, dict):
+            continue
+        for key in ("path", "file_path", "command", "pattern", "query", "prompt"):
+            value = args.get(key)
+            if isinstance(value, str):
+                chunks.append(value)
+
+
+def _extract_user_assistant_text(filepath):
+    """Return concatenated user + assistant text content from a session JSONL.
+
+    Skips JSONL metadata field names and values (sessionId, gitBranch, uuid,
+    timestamps, type tags), tool_use blocks (tool names + tool inputs),
+    tool_result blocks (tool outputs), and thinking/reasoning blocks. Only
+    content the user or assistant actually said is included.
+
+    Without this filtering, common topic words like "session" would match every
+    JSONL file via the sessionId field, drowning out real content matches.
+    """
+    chunks = []
+    try:
+        objects = []
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    objects.append(json.loads(line.strip()))
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+        # omp files share the pi-shaped session header, so this covers both.
+        is_pi = any(
+            obj.get("type") == "session" and "cwd" in obj for obj in objects
+        )
+        if is_pi:
+            objects = _pi_context_objects(objects)
+
+        for obj in objects:
+            # Claude Code: type-tagged top-level
+            t = obj.get("type")
+            if t == "user":
+                msg = obj.get("message", {})
+                content = msg.get("content")
+                if isinstance(content, str):
+                    chunks.append(content)
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            chunks.append(block.get("text", ""))
+                        # Skip tool_result blocks — tool outputs are not user content.
+                continue
+            if t == "assistant":
+                msg = obj.get("message", {})
+                content = msg.get("content", [])
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            chunks.append(block.get("text", ""))
+                        # Skip tool_use and thinking blocks.
+                continue
+
+            # Codex: payload-typed events
+            if t == "event_msg":
+                p = obj.get("payload", {})
+                if p.get("type") == "user_message":
+                    # Strip Codex/Conductor `<system_instruction>...</system_instruction>`
+                    # wrapper before counting. Without this, generic wrapper terms
+                    # (e.g., "Conductor", environment labels) false-match against
+                    # boilerplate the user did not author. Mirrors the same split
+                    # used in ce-session-extract/scripts/extract-skeleton.py.
+                    msg = p.get("message", "")
+                    if isinstance(msg, str):
+                        parts = msg.split("</system_instruction>")
+                        chunks.append(parts[-1] if parts else msg)
+                continue
+            if t == "response_item":
+                p = obj.get("payload", {})
+                if p.get("type") == "message" and p.get("role") == "assistant":
+                    for block in p.get("content", []):
+                        if isinstance(block, dict) and block.get("type") == "output_text":
+                            chunks.append(block.get("text", ""))
+                continue
+
+            # Pi: type='message' envelope with AgentMessage under message.
+            if t == "message" and "message" in obj:
+                msg = obj.get("message", {})
+                role = msg.get("role", "")
+                if role == "bashExecution":
+                    command = msg.get("command", "")
+                    if isinstance(command, str):
+                        chunks.append(command)
+                    # Search command text only. Output is tool output and can
+                    # be large/noisy in the same way as toolResult content.
+                    continue
+                content = msg.get("content", [])
+                if role == "custom":
+                    _append_pi_content_text(chunks, content)
+                    continue
+                if role not in ("user", "assistant"):
+                    continue
+                _append_pi_content_text(chunks, content)
+                if role == "assistant":
+                    _append_pi_tool_call_targets(chunks, content)
+                continue
+
+            if t in ("compaction", "branch_summary"):
+                summary = obj.get("summary", "")
+                if isinstance(summary, str):
+                    chunks.append(summary)
+                continue
+
+            if t == "custom_message":
+                _append_pi_content_text(chunks, obj.get("content", []))
+                continue
+
+            # Cursor: role-tagged with no top-level type
+            if obj.get("role") in ("user", "assistant") and "type" not in obj:
+                msg = obj.get("message", {})
+                for block in msg.get("content", []) if isinstance(msg.get("content"), list) else []:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        chunks.append(block.get("text", ""))
+                continue
+    except (OSError, IOError):
+        pass
+    return "\n".join(chunks)
+
+
+def count_keyword_matches(filepath, keywords):
+    """Case-insensitive substring count for each keyword in user/assistant text.
+
+    Returns a dict {original_keyword: count}. Scans only content the user or
+    assistant said — not JSONL metadata, tool calls, tool outputs, or thinking
+    blocks — so common topic words like "session" do not false-match against
+    the sessionId field.
+    """
+    text_lower = _extract_user_assistant_text(filepath).lower()
+    return {kw: text_lower.count(kw.lower()) for kw in keywords}
+
+
+def process_file(filepath):
+    """Extract metadata only. Keyword scanning is done separately so callers
+    can apply cheap filters (e.g. --cwd-filter) before paying the full-file
+    content scan cost.
+
+    Returns (result, error): (dict, None) on success, (None, None) when the
+    file is readable but matches no platform, (None, filepath) on read error."""
+    try:
+        size = os.path.getsize(filepath)
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            lines = []
+            for i, line in enumerate(f):
+                if i >= MAX_LINES:
+                    break
+                lines.append(line)
+        result = extract_from_lines(lines)
+        if result:
+            if result["platform"] == "claude":
+                # Subagent transcripts live at <project>/<session-id>/subagents/*.jsonl.
+                parent_dir = os.path.dirname(os.path.abspath(filepath))
+                if os.path.basename(parent_dir) == "subagents":
+                    result["parent_session"] = os.path.basename(os.path.dirname(parent_dir))
+            result["file"] = filepath
+            result["size"] = size
+            return result, None
+        else:
+            return None, None
+    except (OSError, IOError) as e:
+        return None, filepath
+
+
+def _normalize_cwd(path):
+    path = path.replace("\\", "/").strip()
+    if len(path) > 1 and path.endswith("/") and not (
+        len(path) == 3 and path[1] == ":"
+    ):
+        path = path.rstrip("/")
+    # Windows drive paths are case-insensitive. Do not rewrite POSIX /d/...
+    # to D:/ — those are different filesystems.
+    if len(path) >= 2 and path[1] == ":":
+        path = path[0].upper() + ":" + path[2:].casefold()
+    return path
+
+
+def _is_abs_cwd(path):
+    if os.path.isabs(path):
+        return True
+    return len(path) >= 2 and path[1] == ":"
+
+
+def _cwd_paths_related(session_cwd, cwd_filter):
+    if session_cwd == cwd_filter:
+        return True
+    prefix = cwd_filter if cwd_filter.endswith("/") else cwd_filter + "/"
+    if session_cwd.startswith(prefix):
+        return True
+    prefix = session_cwd if session_cwd.endswith("/") else session_cwd + "/"
+    return cwd_filter.startswith(prefix)
+
+
+def _attach_timestamps(result, filepath):
+    if result["platform"] == "cursor":
+        # Cursor transcripts have no timestamps in JSONL.
+        # Use file modification time as the best available signal.
+        # Derive session ID from the parent directory name (UUID).
+        mtime = os.path.getmtime(filepath)
+        from datetime import datetime, timezone
+
+        result["ts"] = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+        result["session"] = os.path.basename(os.path.dirname(filepath))
+        return
+    last_ts = get_last_timestamp(filepath, result["size"])
+    if last_ts:
+        result["last_ts"] = last_ts
+
+
+def cwd_match_kind(session_cwd, cwd_filter):
+    """Return "ancestor" when session_cwd is only a strict ancestor of an
+    absolute cwd_filter, "direct" for any other match, None for no match."""
+    if not session_cwd or not cwd_filter:
+        return "direct"
+    session = _normalize_cwd(session_cwd)
+    filt = _normalize_cwd(cwd_filter)
+    if not session or not filt:
+        return "direct"
+    if _is_abs_cwd(filt):
+        if not _cwd_paths_related(session, filt):
+            return None
+        if session != filt and filt.startswith(session.rstrip("/") + "/"):
+            return "ancestor"
+        return "direct"
+    return "direct" if filt in session.split("/") else None
+
+
+def content_names_root(filepath, roots):
+    """True when the raw session file names a root or a path inside it."""
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except (OSError, IOError):
+        return False
+    for root in roots:
+        root = _normalize_cwd(root)
+        if _is_abs_cwd(root) and re.search(re.escape(root) + r"(?![\w.-])", text):
+            return True
+    return False
+
+
+# Parse arguments: files and optional --cwd-filter / --keyword
+files = []
+cwd_filters = []
+no_ancestor = False
+keywords = None
+args = sys.argv[1:]
+i = 0
+while i < len(args):
+    if args[i] == "--cwd-filter" and i + 1 < len(args):
+        cwd_filters.append(args[i + 1])
+        i += 2
+    elif args[i] == "--no-ancestor":
+        no_ancestor = True
+        i += 1
+    elif args[i] == "--keyword" and i + 1 < len(args):
+        keywords = [k for k in args[i + 1].split(",") if k]
+        i += 2
+    elif not args[i].startswith("-"):
+        files.append(args[i])
+        i += 1
+    else:
+        i += 1
+
+if files:
+    # Batch mode: process all files
+    processed = 0
+    parse_errors = 0
+    no_metadata = 0
+    filtered = 0
+    matched = 0
+    for filepath in files:
+        if not filepath.endswith(".jsonl"):
+            continue
+        result, error = process_file(filepath)
+        processed += 1
+        if result:
+            # Apply CWD filter first: cheap metadata-only check. Skip
+            # sessions from other repos before paying the full-file keyword
+            # scan cost — Claude and Codex discovery list across projects,
+            # so without this ordering --keyword would scan files that are
+            # immediately discarded.
+            if cwd_filters:
+                session_cwd = result.get("cwd")
+                if session_cwd:
+                    kinds = {cwd_match_kind(session_cwd, f) for f in cwd_filters}
+                    if kinds == {None}:
+                        filtered += 1
+                        continue
+                    if (
+                        no_ancestor
+                        and "direct" not in kinds
+                        and not content_names_root(filepath, cwd_filters)
+                    ):
+                        filtered += 1
+                        continue
+                elif result.get("platform") in ("claude", "codex", "pi", "omp"):
+                    filtered += 1
+                    continue
+            _attach_timestamps(result, filepath)
+            # Apply keyword scan only after cheap filters pass.
+            if keywords:
+                matches = count_keyword_matches(filepath, keywords)
+                result["keyword_matches"] = matches
+                result["match_count"] = sum(matches.values())
+                if result["match_count"] == 0:
+                    continue
+                matched += 1
+            print(json.dumps(result))
+        elif error:
+            parse_errors += 1
+        else:
+            no_metadata += 1
+
+    meta = {"_meta": True, "files_processed": processed, "parse_errors": parse_errors}
+    if no_metadata:
+        meta["files_without_metadata"] = no_metadata
+    if filtered:
+        meta["filtered_by_cwd"] = filtered
+    if keywords:
+        meta["files_matched"] = matched
+    print(json.dumps(meta))
+else:
+    # No file arguments: either single-file stdin mode or empty xargs invocation.
+    # When xargs runs us with no input (e.g., discover found no files), stdin is
+    # empty or a TTY — emit a clean zero-file result instead of a false parse error.
+    if sys.stdin.isatty():
+        lines = []
+    else:
+        lines = list(sys.stdin)
+
+    if not lines:
+        # No input at all — zero-file result (clean exit for empty pipelines).
+        # When --keyword was supplied, emit files_matched: 0 so callers relying
+        # on its presence to terminate quickly in zero-match scans see a
+        # consistent shape with the batch-mode no-match case.
+        meta = {"_meta": True, "files_processed": 0, "parse_errors": 0}
+        if keywords:
+            meta["files_matched"] = 0
+        print(json.dumps(meta))
+    else:
+        # Genuine single-file stdin mode (backward compatible)
+        result = extract_from_lines(lines)
+        meta = {"_meta": True, "files_processed": 1, "parse_errors": 0}
+        if result:
+            print(json.dumps(result))
+        else:
+            meta["files_without_metadata"] = 1
+        print(json.dumps(meta))
