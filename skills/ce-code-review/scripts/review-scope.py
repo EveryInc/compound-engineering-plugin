@@ -86,7 +86,7 @@ AGENT_SURFACE_PATTERN = re.compile(
 
 def git(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", *args], capture_output=True, text=True, check=False
+        ["git", *args], capture_output=True, encoding="utf-8", check=False
     )
 
 

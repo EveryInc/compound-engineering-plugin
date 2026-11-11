@@ -18,15 +18,29 @@ function scriptPath(skillDir: string): string {
 function runValidator(
   skillDir: string,
   docPath: string,
+  env?: NodeJS.ProcessEnv,
 ): { code: number; stdout: string; stderr: string } {
   const result = spawnSync("python3", [scriptPath(skillDir), docPath], {
     encoding: "utf8",
+    env,
   })
   return {
     code: result.status ?? -1,
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",
   }
+}
+
+// Forces Python's locale codec off UTF-8 (cp1252 on Windows, ascii here):
+// PYTHONCOERCECLOCALE=0 stops C -> C.UTF-8 promotion, PYTHONUTF8=0 keeps
+// UTF-8 mode off.
+const NON_UTF8_LOCALE = {
+  ...process.env,
+  LC_ALL: "C",
+  LANG: "C",
+  LC_CTYPE: "C",
+  PYTHONUTF8: "0",
+  PYTHONCOERCECLOCALE: "0",
 }
 
 function writeTempDoc(content: string): string {
@@ -268,6 +282,15 @@ Body.
         const result = runValidator(skillDir, docPath)
         expect(result.code).toBe(0)
         expect(result.stderr).toBe("")
+      })
+
+      test("reads a UTF-8 doc under a non-UTF-8 locale", () => {
+        const docPath = writeTempDoc(
+          VALID_DOC.replace("Sample valid doc", "The “report” leaf — fixed"),
+        )
+        const result = runValidator(skillDir, docPath, NON_UTF8_LOCALE)
+        expect(result.stderr).toBe("")
+        expect(result.code).toBe(0)
       })
     })
   }

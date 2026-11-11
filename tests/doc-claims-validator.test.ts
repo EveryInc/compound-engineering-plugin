@@ -15,15 +15,29 @@ function scriptPath(skillDir: string): string {
 function runValidator(
   skillDir: string,
   docPath: string,
+  env?: NodeJS.ProcessEnv,
 ): { code: number; stdout: string; stderr: string } {
   const result = spawnSync("python3", [scriptPath(skillDir), docPath], {
     encoding: "utf8",
+    env,
   })
   return {
     code: result.status ?? -1,
     stdout: result.stdout ?? "",
     stderr: result.stderr ?? "",
   }
+}
+
+// Forces Python's locale codec off UTF-8 (cp1252 on Windows, ascii here):
+// PYTHONCOERCECLOCALE=0 stops C -> C.UTF-8 promotion, PYTHONUTF8=0 keeps
+// UTF-8 mode off.
+const NON_UTF8_LOCALE = {
+  ...process.env,
+  LC_ALL: "C",
+  LANG: "C",
+  LC_CTYPE: "C",
+  PYTHONUTF8: "0",
+  PYTHONCOERCECLOCALE: "0",
 }
 
 function sh(cwd: string, cmd: string, args: string[]): string {
@@ -668,6 +682,28 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
         expect(result.stdout).toContain("not a git repository")
         expect(result.stdout).toContain("FLAG scaffold")
         expect(result.stdout).toContain("FLAG link (./gone.md)")
+      })
+
+      test("reads a UTF-8 doc in a non-ASCII repo path under a non-UTF-8 locale", () => {
+        const dir = mkdtempSync(path.join(tmpdir(), "claims-café-"))
+        sh(dir, "git", ["init", "-q"])
+        mkdirSync(path.join(dir, "src"))
+        writeFileSync(path.join(dir, "src", "real.ts"), "export {}\n")
+        sh(dir, "git", ["add", "."])
+        sh(dir, "git", [
+          "-c", "user.email=t@example.com", "-c", "user.name=t",
+          "commit", "-qm", "base",
+        ])
+        const docPath = path.join(dir, "doc.md")
+        writeFileSync(
+          docPath,
+          FRONTMATTER + "\nThe “report” leaf reads `src/real.ts`.\n",
+          "utf8",
+        )
+        const result = runValidator(skillDir, docPath, NON_UTF8_LOCALE)
+        expect(result.stderr).not.toContain("Traceback")
+        expect(result.code).toBe(0)
+        expect(result.stdout).toContain("0 flags")
       })
 
       test("exits 2 (usage error) on missing file", () => {

@@ -366,6 +366,26 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.deleted_band).toBe("large")
   })
 
+  test("scope helper decodes non-ASCII git paths as UTF-8 under a non-UTF-8 locale", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "src"))
+    writeFileSync(path.join(dir, "src", "café.ts"), "export const a = 1\n")
+    writeFileSync(path.join(dir, "src", "“quoted”.ts"), "export const b = 1\n")
+    git(dir, "add", ".")
+
+    // PYTHONCOERCECLOCALE=0 and PYTHONUTF8=0 keep Python on the C locale's ascii codec.
+    const result = spawnSync("python3", [SCOPE_SCRIPT, "--base", base], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, LC_ALL: "C", LANG: "C", LC_CTYPE: "C", PYTHONUTF8: "0", PYTHONCOERCECLOCALE: "0" },
+    })
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.status).toBe("complete")
+    expect(scope.changed_files).toEqual(["src/café.ts", "src/“quoted”.ts"])
+  })
+
   test("scope helper still hard-blocks a deleted file whose path class forces full", () => {
     const { dir } = fixtureRepo()
     const pruneBase = commitDeadFiles(dir, { "db/migrate/001_add_users.rb": "class AddUsers; end\n" })
