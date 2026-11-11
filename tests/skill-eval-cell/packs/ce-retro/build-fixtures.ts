@@ -50,9 +50,6 @@ export function encodeClaudeProject(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, "-")
 }
 
-// ---------------------------------------------------------------------------
-// Repository
-
 function buildRepo(dir: string, s: Scenario) {
   fs.mkdirSync(dir, { recursive: true })
   git(dir, ["init", "-q", "-b", "main"])
@@ -89,9 +86,6 @@ function verifyAnswerKey(root: string, key: AnswerItem[] | { id: string; checks?
   const bad = key.flatMap((item) => runChecks(root, item.checks ?? []).map((f) => `${item.id}: ${f}`))
   if (bad.length) throw new Error(`answer key does not hold on the built tree:\n${bad.join("\n")}`)
 }
-
-// ---------------------------------------------------------------------------
-// Session rendering
 
 type Clock = { t: number; tick(): string }
 const clock = (start: number): Clock => {
@@ -270,9 +264,6 @@ function writeSessions(cell: string, roots: { main: string; worktree: string | n
   return recorded
 }
 
-// ---------------------------------------------------------------------------
-// Cell furniture
-
 function installNetShims(cell: string) {
   const bin = path.join(cell, "bin")
   fs.mkdirSync(bin, { recursive: true })
@@ -324,9 +315,6 @@ function prepareScenarioDir(outRoot: string, name: string): { dir: string; cell:
   return { dir, cell: fs.realpathSync(cell) }
 }
 
-// ---------------------------------------------------------------------------
-// Synthetic scenarios
-
 function buildScenario(outRoot: string, s: Scenario): ScenarioFile {
   const { dir, cell } = prepareScenarioDir(outRoot, s.name)
   const repoDir = `ledgerly-${hex(2)}`
@@ -365,9 +353,6 @@ function buildScenario(outRoot: string, s: Scenario): ScenarioFile {
   return file
 }
 
-// ---------------------------------------------------------------------------
-// Captured-corpus scenarios (maintainer machine only)
-
 function listFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) return []
   return fs.readdirSync(dir, { recursive: true, withFileTypes: true })
@@ -389,7 +374,6 @@ function buildCorpus(outRoot: string, opts: { corpus: string; repo: string; at: 
   for (const [k, v] of [["user.name", AUTHOR.name], ["user.email", AUTHOR.email], ["commit.gpgsign", "false"]]) git(main, ["config", k, v])
   verifyAnswerKey(main, findings)
 
-  // Every root the sessions recorded (the source checkout and its worktrees by default) maps to the clone.
   const listed = opts.from.length
     ? opts.from
     : git(path.resolve(opts.repo), ["worktree", "list", "--porcelain"]).split("\n").filter((l) => l.startsWith("worktree ")).map((l) => l.slice(9))
@@ -397,8 +381,14 @@ function buildCorpus(outRoot: string, opts: { corpus: string; repo: string; at: 
 
   const files = { claude: listFiles(path.join(opts.corpus, "claude")), codex: listFiles(path.join(opts.corpus, "codex")) }
   if (!files.claude.length && !files.codex.length) throw new Error(`no .jsonl under ${opts.corpus}/claude or ${opts.corpus}/codex`)
-  const all = [...files.claude, ...files.codex].map((f) => fs.readFileSync(f, "utf8"))
-  const newest = Math.max(...all.flatMap((t) => [...t.matchAll(/"timestamp":"([^"]+)"/g)].map((m) => Date.parse(m[1]))).filter(Number.isFinite))
+  const texts = new Map([...files.claude, ...files.codex].map((f) => [f, fs.readFileSync(f, "utf8")]))
+  let newest = -Infinity
+  for (const text of texts.values()) {
+    for (const m of text.matchAll(/"timestamp":"([^"]+)"/g)) {
+      const t = Date.parse(m[1])
+      if (t > newest) newest = t
+    }
+  }
   const shift = BUILD_TIME - 2 * 3_600_000 - newest
   const rewrite = (text: string) => {
     for (const r of roots) text = text.replaceAll(r, main)
@@ -409,16 +399,15 @@ function buildCorpus(outRoot: string, opts: { corpus: string; repo: string; at: 
   const sessionIds: ScenarioFile["session_ids"] = []
   const project = path.join(stores, "claude", "projects", encodeClaudeProject(main))
   for (const f of files.claude) {
-    // <corpus>/claude/<project-dir>/<rest>: keep <rest> (<id>.jsonl or <id>/subagents/agent-*.jsonl).
     const rest = path.relative(path.join(opts.corpus, "claude"), f).split(path.sep).slice(1)
     const dest = path.join(project, ...rest)
     fs.mkdirSync(path.dirname(dest), { recursive: true })
-    fs.writeFileSync(dest, rewrite(fs.readFileSync(f, "utf8")))
+    fs.writeFileSync(dest, rewrite(texts.get(f)!))
     setMtimeFromContent(dest)
     sessionIds.push({ harness: "claude", id: path.basename(f, ".jsonl"), cwd: main })
   }
   for (const f of files.codex) {
-    const text = rewrite(fs.readFileSync(f, "utf8"))
+    const text = rewrite(texts.get(f)!)
     const meta = JSON.parse(text.split("\n")[0])
     const id = meta.payload?.id ?? path.basename(f, ".jsonl")
     const dest = codexRolloutPath(stores, Date.parse(meta.timestamp), id)
@@ -454,8 +443,6 @@ function buildCorpus(outRoot: string, opts: { corpus: string; repo: string; at: 
   fs.writeFileSync(path.join(dir, "scenario.json"), `${JSON.stringify(file, null, 2)}\n`)
   return file
 }
-
-// ---------------------------------------------------------------------------
 
 function repeated(flag: string): string[] {
   const out: string[] = []

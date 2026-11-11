@@ -473,8 +473,6 @@ def _attach_timestamps(result, filepath):
 
 
 def cwd_match_kind(session_cwd, cwd_filter):
-    """Return "ancestor" when session_cwd is only a strict ancestor of an
-    absolute cwd_filter, "direct" for any other match, None for no match."""
     if not session_cwd or not cwd_filter:
         return "direct"
     session = _normalize_cwd(session_cwd)
@@ -490,17 +488,23 @@ def cwd_match_kind(session_cwd, cwd_filter):
     return "direct" if filt in session.split("/") else None
 
 
-def content_names_root(filepath, roots):
-    """True when the raw session file names a root or a path inside it."""
-    try:
-        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
-            text = f.read()
-    except (OSError, IOError):
-        return False
+def root_patterns(roots):
+    patterns = []
     for root in roots:
         root = _normalize_cwd(root)
-        if _is_abs_cwd(root) and re.search(re.escape(root) + r"(?![\w.-])", text):
-            return True
+        if _is_abs_cwd(root):
+            patterns.append(re.compile(re.escape(root) + r"(?![\w.-])"))
+    return patterns
+
+
+def content_names_root(filepath, patterns):
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if any(p.search(line) for p in patterns):
+                    return True
+    except (OSError, IOError):
+        pass
     return False
 
 
@@ -526,6 +530,8 @@ while i < len(args):
         i += 1
     else:
         i += 1
+
+cwd_patterns = root_patterns(cwd_filters)
 
 if files:
     # Batch mode: process all files
@@ -555,7 +561,7 @@ if files:
                     if (
                         no_ancestor
                         and "direct" not in kinds
-                        and not content_names_root(filepath, cwd_filters)
+                        and not content_names_root(filepath, cwd_patterns)
                     ):
                         filtered += 1
                         continue

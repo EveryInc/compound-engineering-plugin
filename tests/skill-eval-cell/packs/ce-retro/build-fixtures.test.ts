@@ -22,8 +22,6 @@ describe("ce-retro eval fixtures", () => {
     expect(fs.existsSync(path.join(REPO_ROOT, ".ce-retro-fixture-probe"))).toBe(false)
   })
 
-  // The answer key is verified by the builder itself; this pins that the skill's own discovery
-  // finds every planted session, so fixture drift cannot silently empty a scenario.
   test("the skill's session scripts discover every session of a worktree scenario", () => {
     const r = build(tmp, "worktree-run")
     expect(r.status).toBe(0)

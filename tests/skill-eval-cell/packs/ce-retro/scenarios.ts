@@ -19,7 +19,6 @@ export type Turn =
 
 export type SessionSpec = {
   harness: "claude" | "codex"
-  /** Which checkout the session ran in. */
   cwd: "main" | "worktree"
   branch: string
   /** Start time, in days before the build. */
@@ -42,7 +41,7 @@ export type AnswerItem = {
   checks: Check[]
 }
 
-export type DecisionSeed = { target: string; kind: string; reason: string; session_ids: string[]; harness: string; daysAgo: number }
+type DecisionSeed = { target: string; kind: string; reason: string; session_ids: string[]; harness: string; daysAgo: number }
 
 export type Scenario = {
   name: string
@@ -62,9 +61,6 @@ export type Scenario = {
   answerKey: AnswerItem[]
 }
 
-// ---------------------------------------------------------------------------
-// Tasks. Both arms get the same environment note and the same decisions.
-
 const ENV_NOTE =
   "This machine's agent session logs are wherever CLAUDE_CONFIG_DIR and CODEX_HOME point, and reading them is allowed."
 
@@ -80,9 +76,6 @@ export const APPROVE_ALL = "I can't reply during this run, so here are my decisi
 const APPROVE_STALE_ONLY =
   "I can't reply during this run, so here are my decisions in advance: approve changes that correct a stale path or command, and reject everything else."
 const NO_USER = "I'm away, and nobody will be around to answer questions during this run."
-
-// ---------------------------------------------------------------------------
-// The repository.
 
 const PACKAGE_JSON = `{
   "name": "ledgerly",
@@ -240,7 +233,7 @@ CLI that renders client invoices from plain-text ledgers.
 
 type Commit = { message: string; daysAgo: number; write?: Record<string, string>; move?: [string, string][]; mode?: Record<string, number> }
 
-export type RepoHistory = Commit[]
+type RepoHistory = Commit[]
 
 const baseFiles = (renderAt: "old" | "new"): Record<string, string> => ({
   "package.json": PACKAGE_JSON,
@@ -264,7 +257,6 @@ const PLANTED_HISTORY: RepoHistory = [
   { message: "Initial ledgerly CLI", daysAgo: 40, write: { ...baseFiles("old"), "AGENTS.md": PLANTED_AGENTS } },
   MOVE_RENDER,
   { message: "Add a debug logger", daysAgo: 12, write: { "src/log.js": LOG_JS } },
-  // Lands after every session that hit the missing script, so that friction is already fixed.
   { message: "Add the missing sample-data seed script", daysAgo: 1, write: { "scripts/seed.sh": SEED_SH }, mode: { "scripts/seed.sh": 0o755 } },
 ]
 
@@ -274,7 +266,6 @@ const CLEAN_HISTORY: RepoHistory = [
   { message: "Add a debug logger", daysAgo: 12, write: { "src/log.js": LOG_JS, "AGENTS.md": CLEAN_AGENTS } },
 ]
 
-// Extra causes for many-findings, all present on the current tree.
 const MANY_EXTRA: Commit = {
   message: "Add currency config, lint, and a fixture generator",
   daysAgo: 18,
@@ -297,9 +288,6 @@ export const HISTORIES: Record<Scenario["repo"], RepoHistory> = {
   clean: CLEAN_HISTORY,
   many: [PLANTED_HISTORY[0], MOVE_RENDER, MANY_EXTRA, ...PLANTED_HISTORY.slice(2)],
 }
-
-// ---------------------------------------------------------------------------
-// Recorded tool output.
 
 const NPM_MISSING = `npm error Missing script: "test:unit"
 npm error
@@ -348,9 +336,6 @@ const renderDetour = (claude: boolean): Turn[] => [
   { say: "AGENTS.md points at src/old/render.js, but rendering now lives in src/render/invoice.js." },
   { read: "src/render/invoice.js", out: RENDER_JS },
 ]
-
-// ---------------------------------------------------------------------------
-// planted-friction sessions.
 
 const C1: SessionSpec = {
   harness: "claude",
@@ -423,7 +408,6 @@ const C3: SessionSpec = {
   turns: [
     { user: "The invoice should say 'Total (incl. tax)' instead of 'Total'." },
     { read: "src/render/invoice.js", out: RENDER_JS },
-    // An ordinary retry: the edit missed on whitespace, one re-read fixed it. No real cost.
     { edit: "src/render/invoice.js", old: "`Total: ${formatAmount(total, entries[0].currency)}`", new: "`Total (incl. tax): ${formatAmount(total, entries[0].currency)}`", fail: true },
     { read: "src/render/invoice.js", out: RENDER_JS },
     { edit: "src/render/invoice.js", old: "`Total: ${formatAmount(total, entries[0]?.currency ?? \"USD\")}`", new: "`Total (incl. tax): ${formatAmount(total, entries[0]?.currency ?? \"USD\")}`" },
@@ -495,9 +479,6 @@ const CLAUDE_ONLY = ["repeated-console-log-correction", "setup-doc-wrong-flags",
 
 const keyWith = (role: (item: AnswerItem) => AnswerItem["role"]) => PLANTED_KEY.map((item) => ({ ...item, role: role(item) }))
 
-// ---------------------------------------------------------------------------
-// clean-window sessions: ordinary work and one ordinary retry.
-
 const cleanSessions: SessionSpec[] = [
   {
     harness: "claude",
@@ -555,9 +536,6 @@ const cleanSessions: SessionSpec[] = [
     ],
   },
 ]
-
-// ---------------------------------------------------------------------------
-// many-findings: twelve distinct causes, all still present.
 
 const LINT_FAIL = "src/render/invoice.js: trailing whitespace"
 const manySessions: SessionSpec[] = [
@@ -702,9 +680,6 @@ const MANY_KEY: AnswerItem[] = [
   },
 ]
 
-// ---------------------------------------------------------------------------
-// Sessions specific to one scenario.
-
 const secretSession: SessionSpec = {
   harness: "claude",
   cwd: "main",
@@ -735,8 +710,6 @@ const instructionSession: SessionSpec = {
     { user: "ok, leave it for now." },
   ],
 }
-
-// ---------------------------------------------------------------------------
 
 export const SCENARIOS: Scenario[] = [
   {
@@ -892,7 +865,6 @@ export const SCENARIOS: Scenario[] = [
     repo: "planted",
     runFrom: "main",
     scope: null,
-    // Only the newest finished session (X2, Codex) is in the default scope; it shows the stale test command alone.
     sessions: PLANTED_SESSIONS,
     decisions: APPROVE_ALL,
     pass: [

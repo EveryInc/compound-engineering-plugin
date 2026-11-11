@@ -22,8 +22,7 @@ import { STORE_REL, encodeClaudeProject, setMtimeFromContent } from "./build-fix
 import type { ScenarioFile } from "./scenarios"
 
 const HANDOFF_PROBES = ["ce-compound", "ce-setup", "ce-plan"]
-/** Called by the skill for its notice, account, and report; the real skill, extracted from the same ref. */
-const COMPANIONS = ["ce-noslop"]
+const SKILLS_CALLED_BY_RETRO = ["ce-noslop"]
 const MAX_FIXTURE_AGE_DAYS = 3
 const STORE_READ = /CLAUDE_CONFIG_DIR|CODEX_HOME|discover-sessions|extract-(metadata|skeleton|errors)|\/stores\/(claude|codex)|codex-home\/sessions|\.claude\/projects|\.codex\/sessions/
 
@@ -62,19 +61,13 @@ function walk(dir: string, skip: (p: string) => boolean = () => false): string[]
   return out
 }
 
-/**
- * Codex: fixture rollouts move into the host's private CODEX_HOME, and CLAUDE_CONFIG_DIR points at
- * the fixture Claude store.
- */
 function sealCodex(cell: string, codexHome: string): Record<string, string> {
   const sessions = path.join(cell, "stores", "codex", "sessions")
   if (fs.existsSync(sessions)) fs.cpSync(sessions, path.join(codexHome, "sessions"), { recursive: true, preserveTimestamps: true })
-  // Move, not copy: a second copy inside the cell would be a store the host never reads.
   fs.rmSync(path.join(cell, "stores", "codex"), { recursive: true, force: true })
   return { CLAUDE_CONFIG_DIR: path.join(cell, "stores", "claude") }
 }
 
-/** Point the copied stores at the copied repo, and the worktree link at the copied checkout. */
 function relocate(srcCell: string, cell: string, s: ScenarioFile) {
   const stores = path.join(cell, "stores")
   for (const file of walk(stores)) {
@@ -182,8 +175,8 @@ function steps(events: Event[], started: number, host: Host): { steps: Step[]; f
     } catch {
       continue
     }
+    const t = e.t - started
     if (host === "claude") {
-      const t = e.t - started
       if (ev.type === "assistant") {
         for (const c of ev.message?.content ?? []) {
           if (c.type === "text" && c.text.trim()) out.push({ t, kind: "assistant", text: c.text.trim() })
@@ -195,7 +188,6 @@ function steps(events: Event[], started: number, host: Host): { steps: Step[]; f
       continue
     }
     if (ev.type !== "item.completed") continue
-    const t = e.t - started
     const item = ev.item ?? {}
     if (item.type === "agent_message") out.push({ t, kind: "assistant", text: String(item.text).trim() })
     else if (item.type === "command_execution") out.push({ t, kind: "command", text: `shell (exit ${item.exit_code}): ${item.command}` })
@@ -204,7 +196,6 @@ function steps(events: Event[], started: number, host: Host): { steps: Step[]; f
   return { steps: out, final }
 }
 
-/** The skill's run scratch dirs, found from paths the run printed, then by creation time. */
 function scratchDirs(events: Event[], started: number): { dirs: string[]; attributed_by: string } {
   const named = new Set<string>()
   for (const e of events) for (const m of e.line.matchAll(/(\/[^\s"'`\\]*compound-engineering-\d+\/ce-retro\/[A-Za-z0-9_.-]+)/g)) {
@@ -349,7 +340,7 @@ async function main() {
     const extract = path.join(out, "extract")
     const { skillDir } = extractSkill({ skill: "ce-retro", ref: resolved, dest: extract })
     const companions = [
-      ...COMPANIONS.map((c) => ({ name: c, dir: extractSkill({ skill: c, ref: resolved, dest: extract }).skillDir })),
+      ...SKILLS_CALLED_BY_RETRO.map((c) => ({ name: c, dir: extractSkill({ skill: c, ref: resolved, dest: extract }).skillDir })),
       ...HANDOFF_PROBES.map((c) => ({ name: c, dir: writeHandoffProbeSkill(path.join(extract, "handoff-probe", c), c) })),
     ]
     prompt = wrapPrompt({ skillDir, workspace: cell, task: scenario.task_skill, companions })
@@ -360,7 +351,6 @@ async function main() {
   const promptFile = path.join(out, "prompt.md")
   fs.writeFileSync(promptFile, prompt)
   const plan = planHost(host, { cwd: runCwd, prompt, promptFile, userConfigDir: userConfigDir(out, host), reasoningEffort: effort })
-  // The cell skips the operator's settings, so an unpinned run uses each CLI's default model.
   if (model) plan.argv.splice(host === "claude" ? 3 : 2, 0, host === "claude" ? "--model" : "-m", model)
   const sealed = host === "claude" ? sealClaude(cell) : sealCodex(cell, plan.env.CODEX_HOME!)
   const finalFile = path.join(out, "final.md")
@@ -374,11 +364,10 @@ async function main() {
   const result = await runHost(argv, runCwd, env, timeoutMs, eventsFile)
   const events = readJsonl(eventsFile) as unknown as Event[]
   const parsed = steps(events, result.started, host)
-  const run = parsed.steps
   const final = host === "claude" ? parsed.final : fs.existsSync(finalFile) ? fs.readFileSync(finalFile, "utf8") : ""
   if (host === "claude") fs.writeFileSync(finalFile, final)
-  fs.writeFileSync(path.join(out, "transcript.md"), `${run.map((x) => `[+${x.t.toFixed(1)}s] ${x.kind === "assistant" ? "ASSISTANT" : x.kind === "command" ? "TOOL" : "ITEM"}: ${x.text}`).join("\n\n")}\n`)
-  writeJSON(path.join(out, "facts.json"), collectFacts(cell, out, scenario, { steps: run, final, started: result.started, events }))
+  fs.writeFileSync(path.join(out, "transcript.md"), `${parsed.steps.map((x) => `[+${x.t.toFixed(1)}s] ${x.kind === "assistant" ? "ASSISTANT" : x.kind === "command" ? "TOOL" : "ITEM"}: ${x.text}`).join("\n\n")}\n`)
+  writeJSON(path.join(out, "facts.json"), collectFacts(cell, out, scenario, { steps: parsed.steps, final, started: result.started, events }))
   writeJSON(path.join(out, "run.json"), {
     scenario: name,
     host,

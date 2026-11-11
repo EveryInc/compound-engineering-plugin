@@ -99,7 +99,6 @@ def roots(cwd):
 
 
 def guard_dir(path, create):
-    """Refuse symlinks and foreign ownership; create owner-only; narrow, never widen, permissions."""
     if os.path.islink(path):
         raise Failure(EXIT_UNSAFE, "store-unsafe", f"refusing symlink: {path}")
     if not os.path.exists(path):
@@ -127,9 +126,18 @@ def guard_dir(path, create):
     return True
 
 
+def guard_chain(base, parts, create):
+    path = base
+    for part in parts:
+        path = os.path.join(path, part)
+        if not guard_dir(path, create):
+            break
+    return os.path.join(base, *parts)
+
+
 def resolve_store(cwd, create=True):
     info = roots(cwd)
-    if info["bare"] or info["main_checkout"] is None:
+    if info["main_checkout"] is None:
         base = info["common_dir"]
         chain = ["compound-engineering", "ce-retro"]
         gitignored = None
@@ -138,12 +146,7 @@ def resolve_store(cwd, create=True):
         chain = [".context", "compound-engineering", "ce-retro"]
         gitignored = git(base, "check-ignore", "-q", ".context/compound-engineering/").returncode == 0
 
-    path = base
-    for part in chain:
-        path = os.path.join(path, part)
-        if not guard_dir(path, create):
-            break
-    store = os.path.join(base, *chain)
+    store = guard_chain(base, chain, create)
 
     if create:
         try:
@@ -202,9 +205,11 @@ def append_line(path, obj):
 
 def read_lines(path):
     records, skipped = [], 0
-    if not os.path.exists(path):
+    try:
+        f = open(path, encoding="utf-8")
+    except FileNotFoundError:
         return records, skipped
-    with open(path, encoding="utf-8") as f:
+    with f:
         for line in f:
             if not line.strip():
                 continue
@@ -322,18 +327,24 @@ def cmd_backup(args):
         raise Failure(EXIT_INVALID, "invalid-input", f"not a file: {args.file}")
     store = resolve_store(os.getcwd())["store"]
 
-    path = store
-    for part in ("backups", run):
-        path = os.path.join(path, part)
-        guard_dir(path, True)
+    path = guard_chain(store, ("backups", run), True)
     dest = os.path.join(path, source.lstrip(os.sep))
     old = os.umask(0o077)
     try:
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        if os.path.exists(dest):
+        try:
+            out = open(dest, "xb")
+        except FileExistsError:
             emit({"backup": dest, "existing": True})
             return
-        shutil.copyfile(source, dest)
+        with out:
+            try:
+                src = open(source, "rb")
+            except OSError:
+                os.unlink(dest)
+                raise
+            with src:
+                shutil.copyfileobj(src, out)
     except OSError as e:
         raise Failure(EXIT_UNWRITABLE, "store-unwritable", f"could not back up {source}: {e}")
     finally:
