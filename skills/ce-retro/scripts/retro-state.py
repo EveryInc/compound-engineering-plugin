@@ -411,6 +411,21 @@ def run_dir(path):
     return out
 
 
+def session_roots(rows):
+    parent_of = {r["session"]: r["parent_session"] for r in rows
+                 if r.get("parent_session") and isinstance(r.get("session"), str) and r["session"] != r["parent_session"]}
+    roots_by_row = {}
+    for i, row in enumerate(rows):
+        node, seen = row.get("parent_session"), set()
+        if not node:
+            continue
+        while node in parent_of and node not in seen:
+            seen.add(node)
+            node = parent_of[node]
+        roots_by_row[i] = node
+    return roots_by_row
+
+
 def cmd_sessions(args):
     if args.days < 1:
         raise Failure(EXIT_INVALID, "invalid-input", "--days must be at least 1")
@@ -446,12 +461,13 @@ def cmd_sessions(args):
             else:
                 rows.append(obj)
 
+    roots_by_row = session_roots(rows)
     children = [row for row in rows if row.get("parent_session")]
     sessions = [row for row in rows if not row.get("parent_session")]
     subagents = {}
-    for row in children:
-        n, size = subagents.get(row["parent_session"], (0, 0))
-        subagents[row["parent_session"]] = (n + 1, size + row.get("size", 0))
+    for i, root in roots_by_row.items():
+        n, size = subagents.get(root, (0, 0))
+        subagents[root] = (n + 1, size + rows[i].get("size", 0))
     counts = {}
     for row in sessions:
         n, size = subagents.get(row.get("session"), (0, 0))
@@ -494,11 +510,12 @@ def cmd_extract(args):
         chosen.append(hits[0])
 
     summary = {"dir": os.path.join(out, "extracts"), "sessions": {}, "unrecognized": [], "failed": []}
+    roots_by_row = session_roots(rows)
     plan = []
     for top in chosen:
         sid = single_component(top["session"], "session id")
         dest_dir = guard_chain(out, ("extracts", sid), True)
-        files = [top["file"]] + [r["file"] for r in rows if r.get("parent_session") == sid and r.get("file")]
+        files = [top["file"]] + [rows[i]["file"] for i, root in roots_by_row.items() if root == sid and rows[i].get("file")]
         plan.append((sid, [(f, os.path.join(dest_dir, os.path.basename(f))) for f in files]))
 
     jobs = [(script, source, base + suffix) for _, pairs in plan for source, base in pairs

@@ -393,6 +393,29 @@ describe("retro-state ledger", () => {
     expect(run(sealed, main, ["extract", "--out", out, "99999999"]).code).toBe(EXIT_INVALID)
   })
 
+  test("extract includes a subagent's own subagents under the top-level session", () => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const out = mkdtempSync(path.join(root, "run-"))
+    const source = path.join(__dirname, "../fixtures/session-history/codex-session.jsonl")
+    const file = (name: string) => {
+      const p = path.join(root, `${name}.jsonl`)
+      writeFileSync(p, readFileSync(source))
+      return p
+    }
+    const rows = [
+      { platform: "codex", session: "root-1", file: file("root") },
+      { platform: "codex", session: "child-1", parent_session: "root-1", file: file("child") },
+      { platform: "codex", session: "grandchild-1", parent_session: "child-1", file: file("grandchild") },
+    ]
+    writeFileSync(path.join(out, "sessions.jsonl"), rows.map((r) => JSON.stringify(r)).join("\n") + "\n")
+
+    const ex = run(env, main, ["extract", "--out", out, "root-1"])
+    expect(ex.code).toBe(0)
+    expect(ex.json.sessions["root-1"].files).toBe(3)
+    expect(readdirSync(path.join(out, "extracts", "root-1"))).toContain("grandchild.jsonl.skeleton.txt")
+  })
+
   test.each(["..", ".", "a/b"])("--run %p is refused", (name) => {
     const { root, env } = sandbox()
     const main = repo(env, root)
