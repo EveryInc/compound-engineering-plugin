@@ -345,6 +345,54 @@ describe("retro-state ledger", () => {
     expect(existsSync(path.join(main, ".context"))).toBe(false)
   })
 
+  test("sessions and extract fold subagents under their parent and extract them together", () => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const home = env.HOME as string
+    const sealed = {
+      ...env,
+      CLAUDE_CONFIG_DIR: path.join(home, ".claude"),
+      CODEX_HOME: path.join(home, ".codex"),
+      PI_CODING_AGENT_DIR: path.join(home, ".pi"),
+      XDG_DATA_HOME: path.join(home, ".local/share"),
+    }
+    const parentId = "11111111-2222-3333-4444-555555555555"
+    const project = path.join(home, ".claude/projects/-tmp-repo")
+    const fixture = (name: string) =>
+      readFileSync(path.join(__dirname, "../fixtures/session-history", name), "utf8").replaceAll(
+        "/Users/test/Code/my-repo",
+        main,
+      )
+    mkdirSync(path.join(project, parentId, "subagents"), { recursive: true })
+    writeFileSync(path.join(project, `${parentId}.jsonl`), fixture("claude-session.jsonl").replaceAll("test-claude-session-1", parentId))
+    for (const agent of ["agent-a1.jsonl", "agent-b2.jsonl"]) {
+      writeFileSync(path.join(project, parentId, "subagents", agent), fixture("claude-subagent-session.jsonl"))
+    }
+    const out = mkdtempSync(path.join(root, "run-"))
+
+    const found = run(sealed, main, ["sessions", "--days", "7", "--out", out])
+    expect(found.code).toBe(0)
+    expect(found.json.by_harness).toEqual({ claude: { sessions: 1, subagents: 2 } })
+    const rows = readFileSync(path.join(out, "sessions.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l))
+    expect(rows[0]).toMatchObject({ session: parentId, subagents: 2 })
+    expect(rows.slice(1).every((r) => r.parent_session === parentId)).toBe(true)
+
+    const ex = run(sealed, main, ["extract", "--out", out, "11111111"])
+    expect(ex.code).toBe(0)
+    expect(ex.json.sessions[parentId].files).toBe(3)
+    expect(ex.json.failed).toEqual([])
+    expect(readdirSync(path.join(out, "extracts", parentId)).sort()).toEqual([
+      `${parentId}.jsonl.errors.txt`,
+      `${parentId}.jsonl.skeleton.txt`,
+      "agent-a1.jsonl.errors.txt",
+      "agent-a1.jsonl.skeleton.txt",
+      "agent-b2.jsonl.errors.txt",
+      "agent-b2.jsonl.skeleton.txt",
+    ])
+
+    expect(run(sealed, main, ["extract", "--out", out, "99999999"]).code).toBe(EXIT_INVALID)
+  })
+
   test.each(["..", ".", "a/b"])("--run %p is refused", (name) => {
     const { root, env } = sandbox()
     const main = repo(env, root)

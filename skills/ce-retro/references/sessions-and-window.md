@@ -6,6 +6,8 @@
 
 Run the bundled state helper for the repo's directories, the ledger location, and earlier decisions. It is the only writer of the ledger, so never edit ledger files by hand.
 
+Run each command in this skill as its own tool call, in the form shown. Some hosts refuse a command they cannot check, such as one that changes directory, loops, or pipes a script in through a heredoc. When a step needs several commands, make several calls. When a bundled subcommand does the job, use it instead of a loop or script of your own.
+
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
@@ -44,23 +46,23 @@ A single session is not filtered by the ledger's run cutoffs. Earlier decisions 
 
 ## Find sessions
 
-A single current session needs no search. For the last session or a wider scope, use the bundled session-history scripts. Pass every root from `roots` as its own `--cwd` to discovery and its own `--cwd-filter` to metadata extraction. Include subagent transcripts, and drop sessions started only from a parent folder unless their content names a path inside the repo:
+A single current session needs no search. For the last session or a wider scope, the `sessions` subcommand finds this repo's sessions from every worktree, with their subagent transcripts, and drops sessions started only from a parent folder unless their content names a path inside the repo:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
-bash "$SKILL_DIR/scripts/session-history/discover-sessions.sh" "<repo-name>" "<days>" --include-subagents --cwd "<root-1>" --cwd "<root-2>" | tr '\n' '\0' | xargs -0 "$PY" "$SKILL_DIR/scripts/session-history/extract-metadata.py" --no-ancestor --cwd-filter "<root-1>" --cwd-filter "<root-2>"
+"$PY" "$SKILL_DIR/scripts/retro-state.py" sessions --days "<days>" --out "<this run's scratch directory>"
 ```
 
 For the last session, search about 30 days back and take the newest finished one. For a time span the user named, pass that span as the days.
 
 This search opens the first lines of recent session files from every project on the machine to read where each one ran, then keeps only this repo's. Say so in the notice whenever the run searches. It reads conversation text only from the sessions in scope.
 
-The output is JSONL: one object per kept session, then a `_meta` line per batch. `xargs` may split the file list, so sum `files_processed` across `_meta` lines. Optional fields are omitted, not null. Rank recency by `last_ts`, falling back to `ts`. A subagent session carries `parent_session`. Fold it into its parent when you count evidence, so one session with twelve subagents counts as one session, and list subagents separately in coverage.
+It prints counts per harness, plus `warnings` when part of the search failed, which coverage then names. It writes `sessions.jsonl` to the scratch directory: sessions newest first, each with its subagent count and size, then the subagent rows, which carry `parent_session`. Optional fields are omitted, not null. Fold subagents into their parent when you count evidence, so one session with twelve subagents counts as one session, and list subagents separately in coverage.
 
-Leave out the session this run is in. Match it by the harness session id or its transcript file, never by a scratch or worktree directory name, which can carry a different id. Leave out sessions that are themselves skill evaluations or synthetic runs, such as a prompt that begins by pointing at a skill file to test. They show friction no real user hit.
+Leave out the session this run is in. Match it by the harness session id or its transcript file, never by a scratch or worktree directory name, which can carry a different id. Leave out sessions that are themselves skill evaluations or synthetic runs, such as a prompt that begins by pointing at a skill file to test, and sessions that only processed other transcripts, such as an earlier retro's readers, which some hosts log as sessions of their own. Their first prompt shows it. They show friction no real user hit.
 
-The bundled scripts recognize the session file shapes and folder layouts that Claude, Codex, Cursor, Pi, and oh-my-pi use today, and a harness update can change them. A file is not recognized when metadata leaves it out and `_meta` counts it under `files_without_metadata`, when its skeleton comes back empty, or when the skeleton's `_meta` carries a `warning`. Then work from the raw JSONL instead; it is plain text. Raw session logs often run to tens of megabytes, mostly tool output and repeated context, so never read one whole: search it for the user's turns, the commands run, and the failures, and write what you find to the run's scratch directory as that session's extract.
+The bundled scripts recognize the session file shapes and folder layouts that Claude, Codex, Cursor, Pi, and oh-my-pi use today, and a harness update can change them. A file is not recognized when its skeleton comes back empty or the skeleton's `_meta` carries a `warning`; `extract` lists such files under `unrecognized`. A harness whose store holds recent files that `sessions` keeps none of may have changed format too. The search's `files_without_metadata` count alone does not mean that: it spans every project on the machine and is mostly stub files with no user turn. Then work from the raw JSONL instead; it is plain text. Raw session logs often run to tens of megabytes, mostly tool output and repeated context, so never read one whole: search it for the user's turns, the commands run, and the failures, and write what you find to the run's scratch directory as that session's extract.
 
 For a scope wider than one session, record a status for every harness: **searched** (found N), **present but not read** (a store exists that the scripts do not read, such as Codex archived sessions), or **absent**. List an unrecognized file as present with its format not recognized, never as clean. When a harness's store exists but discovery finds nothing in it, say so rather than reporting zero sessions. A thin search must not read as a clean one.
 
@@ -75,10 +77,20 @@ When the user asked for a span of time or many sessions:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-RUN_DIR="<this run's scratch directory>";
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+"$PY" "$SKILL_DIR/scripts/retro-state.py" extract --out "<this run's scratch directory>" "<session-id>" "<session-id>"
+```
+
+It takes full ids or unique prefixes from `sessions.jsonl` and writes each session's extracts, its subagents' included, to `extracts/<session-id>/`, named after each session file. It prints each session's file count and size, and the files it could not extract or that came back unrecognized.
+
+To read one session file directly, as the current session, run the bundled extractors on it, each in its own call, into the scratch directory. Name the output after the session file, never the session id: a Claude subagent transcript shares its parent's session id, so id-named outputs overwrite each other.
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
+RUN_DIR="<this run's scratch directory>";
 SESSION_FILE="<session-file>";
 "$PY" "$SKILL_DIR/scripts/session-history/extract-skeleton.py" --output "$RUN_DIR/$(basename "$SESSION_FILE").skeleton.txt" < "$SESSION_FILE"
 ```
 
-Run `extract-errors.py` the same way with an `.errors.txt` output. Name outputs after the session file, never the session id: a Claude subagent transcript shares its parent's session id, so id-named outputs overwrite each other. Use the same two scripts on a single session file when you read one. Cursor transcripts do not log tool results, so they yield no errors.
+Run `extract-errors.py` the same way with an `.errors.txt` output. Cursor transcripts do not log tool results, so they yield no errors.

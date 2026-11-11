@@ -40,6 +40,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 try:
@@ -217,26 +218,36 @@ def append_line(path, obj):
         os.close(fd)
 
 
-def read_lines(path):
+def parse_lines(lines):
     records, skipped = [], 0
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            skipped += 1
+            continue
+        if isinstance(obj, dict):
+            records.append(obj)
+        else:
+            skipped += 1
+    return records, skipped
+
+
+def read_lines(path):
     try:
         f = open(path, encoding="utf-8")
     except FileNotFoundError:
-        return records, skipped
+        return [], 0
     with f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                obj = json.loads(line)
-            except ValueError:
-                skipped += 1
-                continue
-            if isinstance(obj, dict):
-                records.append(obj)
-            else:
-                skipped += 1
-    return records, skipped
+        return parse_lines(f)
+
+
+def single_component(value, flag):
+    if not value or value in (".", "..") or "/" in value or os.sep in value:
+        raise Failure(EXIT_INVALID, "invalid-input", f"{flag} must be a single path component: {value!r}")
+    return value
 
 
 def cmd_roots(args):
@@ -346,9 +357,7 @@ def backup_dest(backup_dir, source, pathmod=os.path):
 
 
 def cmd_backup(args):
-    run = args.run
-    if not run or run in (".", "..") or "/" in run or os.sep in run:
-        raise Failure(EXIT_INVALID, "invalid-input", f"--run must be a single path component: {run!r}")
+    run = single_component(args.run, "--run")
     source = os.path.realpath(args.file)
     if not os.path.isfile(source):
         raise Failure(EXIT_INVALID, "invalid-input", f"not a file: {args.file}")
@@ -389,6 +398,127 @@ def cmd_backup(args):
     emit({"backup": dest, "existing": False})
 
 
+HISTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session-history")
+SESSIONS_FILE = "sessions.jsonl"
+# Keeps each extract-metadata.py call well under the OS argument-length limit.
+METADATA_CHUNK = 400
+
+
+def run_dir(path):
+    out = os.path.realpath(path)
+    if not os.path.isdir(out):
+        raise Failure(EXIT_INVALID, "invalid-input", f"--out is not a directory: {path}")
+    return out
+
+
+def cmd_sessions(args):
+    if args.days < 1:
+        raise Failure(EXIT_INVALID, "invalid-input", "--days must be at least 1")
+    out = run_dir(args.out)
+    r = roots(os.getcwd())
+    paths = r["worktrees"] or [os.path.dirname(r["common_dir"])]
+    name = os.path.basename(r["main_checkout"] or r["common_dir"]).removesuffix(".git")
+    cwd_args = [a for p in paths for a in ("--cwd", p)]
+    found = subprocess.run(
+        ["bash", os.path.join(HISTORY, "discover-sessions.sh"), name, str(args.days), "--include-subagents", *cwd_args],
+        capture_output=True, text=True,
+    )
+    files = [f for f in found.stdout.splitlines() if f]
+    warnings = []
+    if found.returncode != 0:
+        if not files:
+            raise Failure(EXIT_INVALID, "invalid-input", f"session discovery failed: {found.stderr.strip()}")
+        warnings.append(f"discovery exited {found.returncode}, so some stores may be missing: {found.stderr.strip()[:300]}")
+
+    rows, totals = [], {"files_processed": 0, "parse_errors": 0, "files_without_metadata": 0, "filtered_by_cwd": 0}
+    filters = [a for p in paths for a in ("--cwd-filter", p)]
+    for i in range(0, len(files), METADATA_CHUNK):
+        meta = subprocess.run(
+            [sys.executable, "-I", os.path.join(HISTORY, "extract-metadata.py"), "--no-ancestor", *filters, *files[i:i + METADATA_CHUNK]],
+            capture_output=True, text=True,
+        )
+        if meta.returncode != 0:
+            warnings.append(f"metadata failed on files {i + 1}-{i + len(files[i:i + METADATA_CHUNK])}: {meta.stderr.strip()[-300:]}")
+        for obj in parse_lines(meta.stdout.splitlines())[0]:
+            if obj.get("_meta"):
+                for k in totals:
+                    totals[k] += obj.get(k, 0)
+            else:
+                rows.append(obj)
+
+    children = [row for row in rows if row.get("parent_session")]
+    sessions = [row for row in rows if not row.get("parent_session")]
+    subagents = {}
+    for row in children:
+        n, size = subagents.get(row["parent_session"], (0, 0))
+        subagents[row["parent_session"]] = (n + 1, size + row.get("size", 0))
+    counts = {}
+    for row in sessions:
+        n, size = subagents.get(row.get("session"), (0, 0))
+        row["subagents"], row["subagent_size"] = n, size
+        c = counts.setdefault(row.get("platform", "unknown"), {"sessions": 0, "subagents": 0})
+        c["sessions"] += 1
+        c["subagents"] += n
+    sessions.sort(key=lambda s: s.get("last_ts") or s.get("ts") or "", reverse=True)
+
+    dest = os.path.join(out, SESSIONS_FILE)
+    with open(dest, "w", encoding="utf-8") as f:
+        for row in sessions + children:
+            f.write(json.dumps(row) + "\n")
+    emit({"wrote": dest, "by_harness": counts, "files_searched": len(files), **totals, "warnings": warnings})
+
+
+def extract_one(job):
+    script, source, dest = job
+    with open(source, "rb") as fin:
+        r = subprocess.run([sys.executable, "-I", os.path.join(HISTORY, script), "--output", dest], stdin=fin, capture_output=True, text=True)
+    try:
+        status = json.loads(r.stdout.strip().splitlines()[-1])
+    except (IndexError, json.JSONDecodeError):
+        status = {}
+    return r.returncode == 0, status
+
+
+def cmd_extract(args):
+    out = run_dir(args.out)
+    rows, _ = read_lines(os.path.join(out, SESSIONS_FILE))
+    if not rows:
+        raise Failure(EXIT_INVALID, "invalid-input", f"no {SESSIONS_FILE} in {out}; run sessions first")
+    tops = [r for r in rows if not r.get("parent_session") and isinstance(r.get("session"), str)]
+
+    chosen = []
+    for want in args.session:
+        hits = [r for r in tops if r["session"] == want] or [r for r in tops if r["session"].startswith(want)]
+        if len(hits) != 1:
+            raise Failure(EXIT_INVALID, "invalid-input", f"session {want!r} matches {len(hits)} sessions")
+        chosen.append(hits[0])
+
+    summary = {"dir": os.path.join(out, "extracts"), "sessions": {}, "unrecognized": [], "failed": []}
+    plan = []
+    for top in chosen:
+        sid = single_component(top["session"], "session id")
+        dest_dir = guard_chain(out, ("extracts", sid), True)
+        files = [top["file"]] + [r["file"] for r in rows if r.get("parent_session") == sid and r.get("file")]
+        plan.append((sid, [(f, os.path.join(dest_dir, os.path.basename(f))) for f in files]))
+
+    jobs = [(script, source, base + suffix) for _, pairs in plan for source, base in pairs
+            for script, suffix in (("extract-skeleton.py", ".skeleton.txt"), ("extract-errors.py", ".errors.txt"))]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
+        results = iter(pool.map(extract_one, jobs))
+
+    for sid, pairs in plan:
+        size = 0
+        for source, _ in pairs:
+            (ok, skel), (ok_err, err) = next(results), next(results)
+            if not (ok and ok_err):
+                summary["failed"].append(source)
+            elif skel.get("warning") or not (skel.get("user") or skel.get("assistant") or skel.get("tool")):
+                summary["unrecognized"].append(source)
+            size += skel.get("bytes", 0) + err.get("bytes", 0)
+        summary["sessions"][sid] = {"files": len(pairs), "bytes": size}
+    emit(summary)
+
+
 def main():
     p = argparse.ArgumentParser(
         description=__doc__.split("\n\n")[0],
@@ -411,6 +541,12 @@ def main():
     bk.add_argument("--run", required=True, help="run name, one path component")
     bk.add_argument("--file", required=True)
     bk.add_argument("--dest-root", help="put backups/<run>/ under this existing directory instead of the store")
+    ss = sub.add_parser("sessions", help=f"find this repo's sessions and subagents from every worktree; write <out>/{SESSIONS_FILE}")
+    ss.add_argument("--days", type=int, required=True)
+    ss.add_argument("--out", required=True, help="this run's scratch directory")
+    ex = sub.add_parser("extract", help="extract skeletons and errors for sessions and their subagents into <out>/extracts/<session>/")
+    ex.add_argument("--out", required=True, help="this run's scratch directory, holding the sessions output")
+    ex.add_argument("session", nargs="+", help="session id or unique prefix")
     args = p.parse_args()
 
     handlers = {
@@ -420,6 +556,8 @@ def main():
         "record-run": cmd_record_run,
         "read": cmd_read,
         "backup": cmd_backup,
+        "sessions": cmd_sessions,
+        "extract": cmd_extract,
     }
     try:
         handlers[args.command](args)
