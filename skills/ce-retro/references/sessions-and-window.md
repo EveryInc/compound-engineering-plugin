@@ -6,7 +6,7 @@
 
 Run the bundled state helper for the repo's directories, the ledger location, and earlier decisions. It is the only writer of the ledger, so never edit ledger files by hand.
 
-Run each command in this skill as its own tool call, in the form shown. Some hosts refuse a command they cannot check, such as one that changes directory, loops, or pipes a script in through a heredoc. When a step needs several commands, make several calls. When a bundled subcommand does the job, use it instead of a loop or script of your own.
+Run each command in this skill as its own tool call. Some hosts refuse a command they cannot check, such as one that changes directory, loops, or pipes a script in through a heredoc. When a step needs several commands, make several calls. When a bundled subcommand does the job, use it instead of a loop or script of your own. The interpreter lookup that opens each block below only finds a working Python. Once a call has found one, later calls can name it directly, and when a host refuses a block, run its pieces as separate calls.
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
