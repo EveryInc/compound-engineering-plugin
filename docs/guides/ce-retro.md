@@ -69,6 +69,10 @@ The skill prefers removing something, then a check, then a pointer or doc fix, t
 
 ### Only friction worth fixing
 
+Friction is anything in the repo's environment that keeps costing agents effort or leading them into mistakes. That includes costs that look ordinary each time but repeat: every session spending a few calls finding the same module, re-learning the same convention, or making the same mistake and catching it itself. Miners report those small costs, and the retro adds them up across sessions, so repetition is what makes them count. A mistake the agent recovered from counts too, more so when nothing reliable caught it.
+
+Something seen once can still matter. A consequence that reached beyond the session, such as a pushed secret or a bad commit, weighs heavily on its own. Whether a one-off will happen again is judged from where its cause sits in the repo (on the path most work takes, or in a corner few tasks touch), not from what could happen.
+
 A long list of small irritations is noise, so a candidate has to earn its place. It must have cost something in a session, not just happened. The skill states what it would see if a fix were needed and runs the check that could prove it isn't. It then weighs the cost against what the fix will cost from then on: correcting a stale line is nearly free, while a new instruction in AGENTS.md is read by every future session and needs friction that is costly and recurring. If you have rejected items of one kind before, the bar for that kind goes up. A run that finds nothing worth fixing says so; it does not pad the list.
 
 ### A summary you can decide from

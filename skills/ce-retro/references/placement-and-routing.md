@@ -8,9 +8,11 @@ Prefer the fix that removes the most cost while adding the least to what every f
 
 1. **Remove something.** Delete an instruction that did nothing or caused the friction, a stale doc passage, or a rule a check now covers. Removal is a fix, not a side effect. When an instruction asks for something the repo does not have and no session suffered for its absence, remove the instruction rather than create what it asks for.
 2. **A check.** A lint rule, test, hook, or CI step that catches the mistake mechanically. Use one when the mistake has a fixed shape a tool can detect.
-3. **A pointer or a doc fix.** Correct the stale path or command, or add a short pointer where the agent looked first. Use one when the agent lost time finding something that exists.
+3. **A pointer or a doc fix.** Correct the stale path or command, or add a short pointer where the agent looked first. Use one when agents keep spending effort finding or learning something that exists. A pointer in an always-loaded file needs that effort to recur; otherwise put it in the doc agents already read for that area.
 4. **A standard.** A condition for reviewers in the nearest `CODING_STANDARDS.md` or equivalent. Use one for a judgment call a reviewer can see in a diff and no tool can check.
 5. **A new instruction.** Use one only when nothing above holds. It costs every future session.
+
+For a mistake agents keep making, prefer the fix that stops it earliest: remove what invites it, then a check that fires at the moment it is made, and only then a note telling agents to avoid it.
 
 A missing tool, script, or access path (tee a dev-server log, a read-only service credential, a script for a repeated sequence) is its own fix. Treat it as a small script when it lives in the repo, and as a routed item when it needs product code or a credential only the user has.
 

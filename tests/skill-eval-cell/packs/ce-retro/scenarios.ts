@@ -45,7 +45,7 @@ type DecisionSeed = { target: string; kind: string; reason: string; session_ids:
 
 export type Scenario = {
   name: string
-  repo: "planted" | "many" | "clean" | "trivial"
+  repo: "planted" | "many" | "clean" | "trivial" | "diffuse" | "severe"
   worktree?: { dir: string; branch: string }
   runFrom: "main" | "worktree"
   sessions: SessionSpec[]
@@ -253,17 +253,20 @@ const MOVE_RENDER: Commit = {
   write: { "src/cli.js": CLI_JS("./render/invoice.js"), "test/render.test.js": RENDER_TEST("../src/render/invoice.js") },
 }
 
+const ADD_LOGGER: Commit = { message: "Add a debug logger", daysAgo: 12, write: { "src/log.js": LOG_JS } }
+const LOG_AGENTS_LINE = "- `src/log.js`: debug logging. Use `log()` from here instead of `console.log` in `src/`.\n"
+
 const PLANTED_HISTORY: RepoHistory = [
   { message: "Initial ledgerly CLI", daysAgo: 40, write: { ...baseFiles("old"), "AGENTS.md": PLANTED_AGENTS } },
   MOVE_RENDER,
-  { message: "Add a debug logger", daysAgo: 12, write: { "src/log.js": LOG_JS } },
+  ADD_LOGGER,
   { message: "Add the missing sample-data seed script", daysAgo: 1, write: { "scripts/seed.sh": SEED_SH }, mode: { "scripts/seed.sh": 0o755 } },
 ]
 
 const CLEAN_HISTORY: RepoHistory = [
   { message: "Initial ledgerly CLI", daysAgo: 40, write: { ...baseFiles("old"), "scripts/seed.sh": SEED_SH, "AGENTS.md": PLANTED_AGENTS.replace("npm run test:unit", "npm test").replace("- Update `CHANGELOG.md` with every user-facing change.\n", "") }, mode: { "scripts/seed.sh": 0o755 } },
-  { ...MOVE_RENDER, write: { ...MOVE_RENDER.write, "AGENTS.md": CLEAN_AGENTS.replace("- `src/log.js`: debug logging. Use `log()` from here instead of `console.log` in `src/`.\n", "") } },
-  { message: "Add a debug logger", daysAgo: 12, write: { "src/log.js": LOG_JS, "AGENTS.md": CLEAN_AGENTS } },
+  { ...MOVE_RENDER, write: { ...MOVE_RENDER.write, "AGENTS.md": CLEAN_AGENTS.replace(LOG_AGENTS_LINE, "") } },
+  { ...ADD_LOGGER, write: { ...ADD_LOGGER.write, "AGENTS.md": CLEAN_AGENTS } },
 ]
 
 const MANY_EXTRA: Commit = {
@@ -286,7 +289,21 @@ const MANY_EXTRA: Commit = {
 const TEST_ONE_LINE = "- Run one test file with `npm run test:one <file>`.\n"
 const TRIVIAL_AGENTS = CLEAN_AGENTS.replace("- Run the tests with `npm test`.\n", "- Run the tests with `npm test`.\n" + TEST_ONE_LINE)
 
+const DIFFUSE_AGENTS = CLEAN_AGENTS
+  .replace("- `src/render/invoice.js`: invoice rendering and amount formatting\n", "")
+  .replace(LOG_AGENTS_LINE, "")
+
+const SEVERE_AGENTS = CLEAN_AGENTS.replace("## Commands\n\n", "## Commands\n\n- Copy \`.env.example\` to \`.env\` and set \`LEDGERLY_API_KEY\` before running the CLI.\n")
+const ENV_EXAMPLE = "LEDGERLY_API_KEY=\n"
+const SEVERE_CLI_JS = CLI_JS("./render/invoice.js").replace(
+  "const [file, client]",
+  `try { process.loadEnvFile(".env") } catch {}\nif (!process.env.LEDGERLY_API_KEY) {\n  console.error("set LEDGERLY_API_KEY in .env (see .env.example)")\n  process.exit(2)\n}\nconst [file, client]`,
+)
+const SEED_SH_STALE = SEED_SH.replace("# Writes sample ledgers for local runs.", "# Writes sample ledgers to data/ for local runs.")
+
 export const HISTORIES: Record<Scenario["repo"], RepoHistory> = {
+  severe: [...CLEAN_HISTORY, { message: "Read the API key from .env", daysAgo: 10, write: { "AGENTS.md": SEVERE_AGENTS, ".env.example": ENV_EXAMPLE, "scripts/seed.sh": SEED_SH_STALE, "src/cli.js": SEVERE_CLI_JS } }],
+  diffuse: [CLEAN_HISTORY[0], { ...MOVE_RENDER, write: { ...MOVE_RENDER.write, "AGENTS.md": DIFFUSE_AGENTS } }, ADD_LOGGER],
   planted: PLANTED_HISTORY,
   clean: CLEAN_HISTORY,
   trivial: [...CLEAN_HISTORY, { message: "Document running one test file", daysAgo: 11, write: { "AGENTS.md": TRIVIAL_AGENTS } }],
@@ -622,6 +639,131 @@ const TRIVIAL_KEY: AnswerItem[] = [
   { id: "file-read-twice", role: "noise", summary: "One session read the same small file twice in a row.", checks: [] },
 ]
 
+const findRenderer = (claude: boolean): Turn[] => [
+  claude ? { find: "src/*.js", out: ["@ROOT@/src/cli.js", "@ROOT@/src/ledger.js", "@ROOT@/src/log.js"] } : { sh: "ls src", out: "cli.js\nledger.js\nlog.js\nrender" },
+  { grep: "Invoice", out: "src/cli.js:3:import { renderInvoice } from \"./render/invoice.js\"\nsrc/render/invoice.js:7:export function renderInvoice(client, entries) {" },
+  claude ? { find: "src/render/**", out: ["@ROOT@/src/render/invoice.js"] } : { sh: "ls src/render", out: "invoice.js" },
+  { read: "src/render/invoice.js", out: RENDER_JS },
+]
+
+const selfCorrectedLog: Turn[] = [
+  { edit: "src/render/invoice.js", old: "export function renderInvoice(client, entries) {", new: "export function renderInvoice(client, entries) {\n  console.log(\"render\", client)" },
+  { grep: "export function log", out: "src/log.js:2:export function log(...args) {" },
+  { say: "This repo has a debug logger in src/log.js; switching to it instead of console.log." },
+  { edit: "src/render/invoice.js", old: "  console.log(\"render\", client)", new: "  log(\"render\", client)" },
+]
+
+const diffuseSession = (harness: "claude" | "codex", daysAgo: number, task: string, withLog: boolean, branch: string): SessionSpec => {
+  const claude = harness === "claude"
+  return {
+    harness, cwd: "main", branch, daysAgo,
+    turns: [
+      { user: task },
+      claude ? { read: "AGENTS.md", out: DIFFUSE_AGENTS } : { sh: "cat AGENTS.md", out: DIFFUSE_AGENTS.trimEnd() },
+      ...findRenderer(claude),
+      ...(withLog ? selfCorrectedLog : []),
+      { sh: "npm test", out: NPM_PASS() },
+      { say: "Done; tests pass." },
+    ],
+  }
+}
+
+const diffuseSessions: SessionSpec[] = [
+  diffuseSession("claude", 9, "Show the currency code before the amount on invoice lines.", true, "feat/currency-first"),
+  diffuseSession("codex", 7, "Add a blank line between the heading and the entries.", true, "feat/spacing"),
+  diffuseSession("claude", 4, "Sort invoice entries by date.", true, "feat/sort"),
+  diffuseSession("codex", 2, "Put the client name in the total line.", false, "feat/total-client"),
+]
+
+const diffuseControlSessions: SessionSpec[] = [
+  { harness: "claude", cwd: "main", branch: "feat/notes", daysAgo: 8, turns: [
+    { user: "Ledger lines should accept a trailing notes column." },
+    { grep: "parseLedger", out: "src/ledger.js:4:export function parseLedger(text) {" },
+    { read: "src/ledger.js", out: LEDGER_JS },
+    { edit: "src/ledger.js", old: "amount: Number(amount), currency }", new: "amount: Number(amount), currency, notes }" },
+    { sh: "npm test", out: NPM_PASS() },
+  ] },
+  { harness: "codex", cwd: "main", branch: "feat/args", daysAgo: 6, turns: [
+    { user: "Print usage when the CLI gets no arguments." },
+    { sh: "cat src/cli.js", out: CLI_JS("./render/invoice.js").trimEnd() },
+    { sh: "npm test", out: NPM_PASS() },
+  ] },
+  { harness: "claude", cwd: "main", branch: "feat/heading", daysAgo: 4, turns: [
+    { user: "Bold the invoice heading." },
+    { grep: "Invoice for", out: "src/render/invoice.js:10:  return [`Invoice for ${client}`, ...lines" },
+    { read: "src/render/invoice.js", out: RENDER_JS },
+    ...selfCorrectedLog,
+    { sh: "npm test", out: NPM_PASS() },
+  ] },
+  { harness: "codex", cwd: "main", branch: "docs/seed", daysAgo: 2, turns: [
+    { user: "Say in docs/SETUP.md that seeding needs no network." },
+    { sh: "cat docs/SETUP.md", out: SETUP_MD.trimEnd() },
+    { edit: "docs/SETUP.md", old: "into `samples/`.", new: "into `samples/`. It needs no network." },
+  ] },
+]
+
+const DIFFUSE_KEY: AnswerItem[] = [
+  {
+    id: "renderer-not-pointed-to",
+    role: "planted",
+    summary: "Nothing tells agents where invoices are rendered; every session spent three or four calls finding src/render/invoice.js before starting. No step failed.",
+    checks: [{ file_lacks: "AGENTS.md", text: "render/invoice.js" }, { path_exists: "src/render/invoice.js" }],
+  },
+  {
+    id: "logger-self-correction",
+    role: "planted",
+    summary: "Three sessions added console.log to src/, then found the project logger themselves and switched; nothing in the instructions or a check mentions it.",
+    checks: [{ file_lacks: "AGENTS.md", text: "log.js" }, { path_exists: "src/log.js" }],
+  },
+]
+
+const severeSessions: SessionSpec[] = [
+  { harness: "claude", cwd: "main", branch: "feat/api-key", daysAgo: 6, turns: [
+    { user: "Keep the API key in a variable so the CLI can pass it to the renderer later." },
+    { read: "AGENTS.md", out: SEVERE_AGENTS },
+    { sh: "cp .env.example .env", out: "" },
+    { edit: ".env", old: "LEDGERLY_API_KEY=", new: "LEDGERLY_API_KEY=lk_live_placeholder_value" },
+    { edit: "src/cli.js", old: "const [file, client] = process.argv.slice(2)", new: "const [file, client] = process.argv.slice(2)\nconst apiKey = process.env.LEDGERLY_API_KEY" },
+    { sh: "npm test", out: NPM_PASS() },
+    { sh: "git add -A && git commit -m \"Keep the API key in a variable\"", out: "[feat/api-key 3f2a9c1] Keep the API key in a variable\n 2 files changed, 2 insertions(+)\n create mode 100644 .env" },
+    { sh: "git push -u origin feat/api-key", out: "To origin\n * [new branch]      feat/api-key -> feat/api-key" },
+    { user: "You committed and pushed .env with my real API key. I had to rotate the key and force-push to scrub it from the branch. That took most of the afternoon." },
+    { sh: "git rm --cached .env", out: "rm '.env'" },
+    { say: "Sorry. .env is not in .gitignore, so git add -A picked it up. Removed it from the index." },
+  ] },
+  { harness: "codex", cwd: "main", branch: "feat/currency-flag", daysAgo: 4, turns: [
+    { user: "Add a --currency flag that overrides the ledger's currency." },
+    { sh: "cat AGENTS.md", out: SEVERE_AGENTS.trimEnd() },
+    { sh: "cp .env.example .env", out: "" },
+    { sh: "cat src/cli.js", out: SEVERE_CLI_JS.trimEnd() },
+    { sh: "npm test", out: NPM_PASS() },
+    { say: "Added --currency. Tests pass." },
+  ] },
+  { harness: "claude", cwd: "main", branch: "chore/samples", daysAgo: 2, turns: [
+    { user: "Add a sample ledger for a JPY client to the seed script." },
+    { read: "scripts/seed.sh", out: SEED_SH_STALE },
+    { sh: "ls data", out: "ls: data: No such file or directory", exit: 1 },
+    { say: "The comment says data/, but the script writes samples/." },
+    { edit: "scripts/seed.sh", old: "EOF\necho", new: "EOF\ncat > samples/tanaka.ledger <<'EOF'\n2026-01-05 | Tanaka KK | 30000 | JPY\nEOF\necho" },
+    { say: "Added a JPY sample." },
+  ] },
+]
+
+const SEVERE_KEY: AnswerItem[] = [
+  {
+    id: "env-not-ignored",
+    role: "planted",
+    summary: "AGENTS.md tells every agent to create .env with the API key, but .gitignore does not ignore it; once, a broad git add committed and pushed a real key, which the user had to rotate and scrub. Seen once, but on the main setup path and severe.",
+    checks: [{ file_contains: "AGENTS.md", text: ".env" }, { file_lacks: ".gitignore", text: ".env" }, { path_exists: ".env.example" }],
+  },
+  {
+    id: "seed-comment-stale",
+    role: "noise",
+    summary: "The seed script's comment says data/ but it writes samples/; one session spent one extra call. Rarely touched and cheap; should not be a proposal.",
+    checks: [{ file_contains: "scripts/seed.sh", text: "data/" }],
+  },
+]
+
 const LINT_FAIL = "src/render/invoice.js: trailing whitespace"
 const manySessions: SessionSpec[] = [
   C1,
@@ -858,6 +1000,47 @@ export const SCENARIOS: Scenario[] = [
       "The dropped candidates, if any were considered, appear in candidates.md with the check that dropped them",
     ],
     answerKey: TRIVIAL_KEY,
+  },
+  {
+    name: "diffuse-friction",
+    repo: "diffuse",
+    runFrom: "main",
+    scope: TWO_WEEKS,
+    sessions: diffuseSessions,
+    decisions: APPROVE_ALL,
+    pass: [
+      "Proposes a fix for the renderer every session had to hunt for, citing the repeated search cost across sessions even though no step failed",
+      "Proposes a fix for the console.log mistake agents kept making and correcting themselves, preferring a check or the earliest catch over a note",
+      "Each proposal cites the sessions and the combined cost",
+    ],
+    answerKey: DIFFUSE_KEY,
+  },
+  {
+    name: "diffuse-control",
+    repo: "diffuse",
+    runFrom: "main",
+    scope: TWO_WEEKS,
+    sessions: diffuseControlSessions,
+    decisions: APPROVE_ALL,
+    pass: [
+      "Proposes nothing: each search was different and short, and the one self-corrected console.log happened once",
+      "No commits and no new always-loaded instruction",
+    ],
+    answerKey: DIFFUSE_KEY.map((item) => ({ ...item, role: "noise" as const })),
+  },
+  {
+    name: "severe-once",
+    repo: "severe",
+    runFrom: "main",
+    scope: TWO_WEEKS,
+    sessions: severeSessions,
+    decisions: APPROVE_ALL,
+    pass: [
+      "Proposes keeping .env out of commits (for example ignoring it in .gitignore), citing the one pushed-key incident and that the setup instruction puts .env in every agent's path",
+      "Does not propose the seed-script comment as a numbered item; at most it is counted among smaller items or dropped",
+      "The fix is a check or a one-line correction, not a new always-loaded instruction",
+    ],
+    answerKey: SEVERE_KEY,
   },
   {
     name: "worktree-run",
