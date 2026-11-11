@@ -25,13 +25,13 @@ Invoking this skill authorizes these actions without asking each time: reading e
 
 ## Writing to the user
 
-Write the notice, the approval account, and the final report through the `ce-noslop` skill. When it is unavailable, write them plainly yourself.
+Write the approval account and the final report through the `ce-noslop` skill. When it is unavailable, write them plainly yourself.
 
 ## Run
 
 Each step names the reference that governs it. Read that reference when you reach the step. A read made earlier, such as at skill load, does not count for the step.
 
-1. **Notice.** Before your first command that lists or reads a session file, send the user a short message of its own, even when they already stated their decisions. Say which sessions you will read and why (this session by default, or the scope they named), what you are looking for, and that nothing in the repo or their settings changes until they approve it. When the run has to search for sessions, say that it briefly opens recent session files from other projects on this machine only to find this repo's. This is a notice, not a question; invoking the skill already asked for the run.
+1. **Notice.** Your next output after reading this file is a short message to the user, written before any other tool call, even when they already stated their decisions or cannot reply. Write it plainly yourself; it does not wait for `ce-noslop`. Say which sessions you will read and why (this session by default, or the scope they named), what you are looking for, and that nothing in the repo or their settings changes until they approve it. When the run has to search for sessions, say that it briefly opens recent session files from other projects on this machine only to find this repo's. This is a notice, not a question; invoking the skill already asked for the run.
 2. **Sessions and window.** Read `references/sessions-and-window.md`. It resolves this repo's directories, the ledger, and which sessions to read: the scope the user named, or this session by default.
 3. **Candidates and proof.** Read `references/candidates-and-proof.md`. It mines the sessions, grades earlier accepted changes, drops decided items without newer cost, and confirms each remaining candidate on the current tree.
 4. **Placement and routing.** Read `references/placement-and-routing.md`. It picks the cheapest fix for each candidate, where that fix lives, and who owns it.
