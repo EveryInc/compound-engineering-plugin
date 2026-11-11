@@ -116,14 +116,18 @@ discover_pi() {
     fi
 
     # Pi stores sessions under --<absolute-cwd-with-slashes-as-hyphens>--.
-    # When the caller supplies an exact repo root, probe only that encoded
-    # directory so sibling repos like my-repo-old never enter the pipeline.
+    # When the caller supplies an exact repo root, probe that bucket and the
+    # buckets of directories below it (a session started in <root>/src). The
+    # encoding cannot tell <root>/old from a sibling <root>-old, so the cwd
+    # filter in extract-metadata.py decides which of those belong.
     if [ -n "$REPO_CWD" ]; then
-        local root dir
+        local root dir encoded
         for root in "$REPO_CWD" ${EXTRA_CWDS[@]+"${EXTRA_CWDS[@]}"}; do
-            dir="$base/$(encode_pi_cwd "$root")"
-            [ -d "$dir" ] || continue
-            find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+            encoded="$(encode_pi_cwd "$root")"
+            for dir in "$base/$encoded" "$base/${encoded%--}"-*--; do
+                [ -d "$dir" ] || continue
+                find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+            done
         done | awk '!seen[$0]++'
         return 0
     fi

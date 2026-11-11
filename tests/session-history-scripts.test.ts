@@ -2185,35 +2185,36 @@ describe("discover-sessions", () => {
     expect(files).toEqual([sessionPath])
   })
 
-  test("--platform pi with --cwd discovers only the exact encoded CWD directory", async () => {
+  test("--platform pi with --cwd finds sessions started below the root, and the cwd filter drops a sibling repo", async () => {
     const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "pi-home-"))
-    const sessionPath = path.join(
-      tempHome,
-      ".pi/agent/sessions/--Users-test-Code-my-repo--/2026-04-07T09-00-00-000Z_test.jsonl"
-    )
-    const siblingPath = path.join(
-      tempHome,
-      ".pi/agent/sessions/--Users-test-Code-my-repo-old--/2026-04-07T09-00-00-000Z_test.jsonl"
-    )
-    await writeFixture(sessionPath, "pi-session.jsonl")
-    await writeFixture(siblingPath, "pi-session.jsonl")
+    const fixture = fs.readFileSync(path.join(FIXTURES_DIR, "pi-session.jsonl"), "utf8")
+    const write = async (bucket: string, cwd: string) => {
+      const p = path.join(tempHome, ".pi/agent/sessions", bucket, "2026-04-07T09-00-00-000Z_test.jsonl")
+      await fs.promises.mkdir(path.dirname(p), { recursive: true })
+      await fs.promises.writeFile(p, fixture.replaceAll("/Users/test/Code/my-repo", cwd))
+      return p
+    }
+    const rootPath = await write("--Users-test-Code-my-repo--", "/Users/test/Code/my-repo")
+    const srcPath = await write("--Users-test-Code-my-repo-src--", "/Users/test/Code/my-repo/src")
+    const siblingPath = await write("--Users-test-Code-my-repo-old--", "/Users/test/Code/my-repo-old")
+    await write("--Users-test-Code-other--", "/Users/test/Code/other")
 
     const { stdout, stderr, exitCode } = await runDiscover(
-      [
-        "my-repo",
-        "7",
-        "--cwd",
-        "/Users/test/Code/my-repo",
-        "--platform",
-        "pi",
-      ],
+      ["my-repo", "7", "--cwd", "/Users/test/Code/my-repo", "--platform", "pi"],
       { HOME: tempHome }
     )
-
     expect(exitCode).toBe(0)
     expect(stderr).toBe("")
     const files = stdout.trim().split("\n").filter((l) => l.trim())
-    expect(files).toEqual([sessionPath])
+    expect([...files].sort()).toEqual([rootPath, siblingPath, srcPath].sort())
+
+    const extracted = await runScript("extract-metadata.py", [
+      "--cwd-filter",
+      "/Users/test/Code/my-repo",
+      ...files,
+    ])
+    const kept = parseJsonLines(extracted.stdout).filter((l) => !l._meta).map((l) => l.file)
+    expect(kept.sort()).toEqual([rootPath, srcPath].sort())
   })
 
   test("--cwd works without an explicit --platform flag", async () => {
