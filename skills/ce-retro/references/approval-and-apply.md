@@ -19,6 +19,8 @@ A rejection needs a reason the next run can read. When the user gives none, reco
 
 ## Apply what `ce-retro` owns
 
+Apply removals and corrections of instructions first. An instruction this run found stale, dead, or harmful does not bind the work this run does, even while it is still in the file: do not create what it asks for, and do not follow it in the other commits. When the user rejected changing it, it binds again.
+
 For each approved item `ce-retro` owns:
 
 1. Make the edit.

@@ -168,6 +168,8 @@ Round 1 also found three skill defects, fixed before later rounds:
 - One run edited a test file directly. Tests are now off limits like product code. No later run edited one.
 - One bash block failed when flattened to a single line.
 
+**After the code review.** The runner was resealed with an empty `HOME`, and six skill runs were repeated on it with no regression in commits, ledger, secret handling, or scope. Codex then answered the dead changelog instruction by creating `CHANGELOG.md` in 2 of 3 runs, obeying it as a live project instruction while committing. A rule that an instruction the run found stale does not bind its own work brought that to 5 of 6 clean runs across `planted-friction` (Codex x3, Claude x1), `many-findings`, and `planted-secret`. The remaining Codex run diagnosed the changelog as missing rather than dead and created it; that is the placement judgment, not the instruction overriding it.
+
 **The opening notice.** Codex sent the notice before its first session read in every run after the notice became the first run step. Claude never did, at default or medium effort, across four wordings of the step, including a task without "I can't reply during this run". In single-turn print mode, Opus 5.5 goes from reading the skill straight to tool calls and first addresses the user with the approval account. Whether an interactive Claude session sends it is untested, because this harness is single-turn.
 
 **Not covered:** the recall corpus from real sessions was not captured, the approval-choice offer is never exercised because every task approves in advance, and the refused instruction-file edit has no scenario.
