@@ -377,7 +377,7 @@ describe("ce-code-review deterministic mechanics", () => {
     const result = spawnSync("python3", [SCOPE_SCRIPT, "--base", base], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, LC_ALL: "C", LANG: "C", LC_CTYPE: "C", PYTHONUTF8: "0", PYTHONCOERCECLOCALE: "0" },
+      env: { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, LC_ALL: "C", LANG: "C", LC_CTYPE: "C", PYTHONUTF8: "0", PYTHONCOERCECLOCALE: "0" },
     })
     expect(result.status).toBe(0)
     const scope = JSON.parse(result.stdout)

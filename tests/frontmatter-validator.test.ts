@@ -35,7 +35,8 @@ function runValidator(
 // PYTHONCOERCECLOCALE=0 stops C -> C.UTF-8 promotion, PYTHONUTF8=0 keeps
 // UTF-8 mode off.
 const NON_UTF8_LOCALE = {
-  ...process.env,
+  PATH: process.env.PATH,
+  SYSTEMROOT: process.env.SYSTEMROOT,
   LC_ALL: "C",
   LANG: "C",
   LC_CTYPE: "C",

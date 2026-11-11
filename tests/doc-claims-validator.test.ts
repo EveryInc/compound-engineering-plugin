@@ -32,7 +32,8 @@ function runValidator(
 // PYTHONCOERCECLOCALE=0 stops C -> C.UTF-8 promotion, PYTHONUTF8=0 keeps
 // UTF-8 mode off.
 const NON_UTF8_LOCALE = {
-  ...process.env,
+  PATH: process.env.PATH,
+  SYSTEMROOT: process.env.SYSTEMROOT,
   LC_ALL: "C",
   LANG: "C",
   LC_CTYPE: "C",
@@ -686,13 +687,13 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
 
       test("reads a UTF-8 doc in a non-ASCII repo path under a non-UTF-8 locale", () => {
         const dir = mkdtempSync(path.join(tmpdir(), "claims-café-"))
-        sh(dir, "git", ["init", "-q"])
+        sh(dir, "git", ["init", "-q", "-b", "main"])
         mkdirSync(path.join(dir, "src"))
         writeFileSync(path.join(dir, "src", "real.ts"), "export {}\n")
         sh(dir, "git", ["add", "."])
         sh(dir, "git", [
           "-c", "user.email=t@example.com", "-c", "user.name=t",
-          "commit", "-qm", "base",
+          "-c", "commit.gpgSign=false", "commit", "-qm", "base",
         ])
         const docPath = path.join(dir, "doc.md")
         writeFileSync(
