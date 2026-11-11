@@ -41,7 +41,7 @@ A single empirical finding is not an authoring rule until it is validated agains
 - Another sidesteps in-place execution entirely (copies a hook into `.claude/hooks/`, or ships a `.template.sh` referenced in prose).
 - A third, a multi-host research skill, adopted the explicit `SKILL_DIR` anchor for its critical engine *after* a path-resolution regression.
 
-The tiers reconcile these: relative is the ecosystem norm and works via agent resolution; the anchor is the determinism upgrade reserved for executed shell, where a fenced block copied verbatim into a Bash call otherwise misses (the #764 / #811 / #898 bug class). Apply the anchor only to Tier 3; on Tier 1 and 2 it is noise. `tests/skill-conventions.test.ts` enforces an existence guard only when a skill-dir *platform var* is used, so anchor-based skills pass it.
+The tiers reconcile these: relative is the ecosystem norm and works via agent resolution; the anchor is the determinism upgrade reserved for executed shell, where a fenced block copied verbatim into a Bash call otherwise misses (the #764 / #811 / #898 bug class). Apply the anchor only to Tier 3; on Tier 1 and 2 it is noise. `tests/skill-conventions.test.ts` enforces an existence guard when a skill-dir *platform var* is used, and fails a Tier 3 call with no anchor: an interpreter running a bare `scripts/...` path in a fence or code span, or a bare `scripts/...` command head in a fence. A bare `scripts/x` prose pointer stays Tier 2 and passes.
 
 Open caveat (#949): if a `Read references/X` is ever observed to resolve against the project CWD on a target, treat that read as Tier 2 and add the cue.
 
