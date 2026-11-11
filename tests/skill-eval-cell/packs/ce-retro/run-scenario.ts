@@ -422,6 +422,10 @@ async function main() {
   // Written only after the host exited, so the agent could not read the answer key.
   fs.copyFileSync(path.join(src, "scenario.json"), path.join(out, "scenario.json"))
   console.log(out)
+  if (result.timedOut || result.exitCode !== 0) {
+    console.error(`host ${result.timedOut ? "timed out" : `exited ${result.exitCode}`}; artifacts kept in ${out}`)
+    process.exitCode = 3
+  }
 }
 
 if (import.meta.main) {
