@@ -83,8 +83,11 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
    PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
    SKILL_NAME="<this skill's name: ce-plan or ce-brainstorm>";
+   # Include the CE_ELEVATION_EFFORT= line only when plan_effort / brainstorm_effort
+   # resolved to a valid value. With no effort key configured, delete that line
+   # entirely: an empty assignment is rejected as an invalid override, not unset.
    CE_PEER_HARD_SECS=5400 CE_ELEVATION_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
-     CE_ELEVATION_EFFORT="<resolved effort, or omit to keep the high default>" \
+     CE_ELEVATION_EFFORT="<resolved effort>" \
      "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \
@@ -101,7 +104,7 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 "<job-id>"
    ```
 
-4. **Read the result** — the worker writes a JSON object of the shape `{status, requested_model, served_model, receipt, requested_effort, served_effort, output}` (`served_effort` is always `"unverified"`: the CLI's terminal event carries no per-call effort field to confirm it against, unlike `served_model`):
+4. **Read the result** — a successful run writes `{status, requested_model, served_model, receipt, requested_effort, served_effort, output}` (`served_effort` is always `"unverified"`: the CLI's terminal event carries no per-call effort field to confirm it against, unlike `served_model`). A failed envelope carries `status: failed`, `requested_model`, `requested_effort`, and `evidence`, and has no `served_model`, `receipt`, or `served_effort` key:
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
@@ -125,5 +128,6 @@ Recovery **never substitutes a different model** — a plan the user believes ca
 ## Transparency
 
 - **Elevation ran** → print one line naming the **model**, the **route**, and **why** it ran (config key, explicit user instruction, or caller carrier). Name the model as **served** when a receipt confirms it; otherwise name it as **requested** with an explicit *unverified* marker — on every route, including native.
+- **A configured effort was rejected** → the step degrades to inline, so print one line naming the offending value and the accepted set (`low`, `medium`, `high`, `xhigh`, `max`). Without it, a rejected value looks exactly like a checkout that never configured effort.
 - **Print no line** when elevation did not run, and when the session model already is the model a **config key** requested. An **explicit user instruction** always produces a line, including when the session model already matches (so a recognized request is never indistinguishable from an unparsed one).
 - **Requested but unavailable before provider-capable dispatch** (no native support, `claude` absent, or the required launch permission unavailable) → run the step inline on the session model, name **which routing precondition was unmet**, and state what would make the requested model reachable. Once provider-capable dispatch is established, an authentication failure is instead a route-level Recovery outcome: name the observed authentication failure and the login or credential-refresh remediation.

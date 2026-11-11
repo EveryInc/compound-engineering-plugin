@@ -203,6 +203,9 @@ describe("elevation-dispatch worker", () => {
     expect(result.status).toBe("failed")
     expect(result.requested_model).toBe("fable")
     expect(result.requested_effort).toBe("bogus")
+    // Recovery only reads the envelope, so the accepted set must travel in it.
+    expect(result.evidence).toContain("bogus")
+    expect(result.evidence).toContain("low|medium|high|xhigh|max")
   })
 
   test("a valid non-default effort reaches the success envelope", () => {

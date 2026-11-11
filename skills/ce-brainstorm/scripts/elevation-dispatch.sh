@@ -134,7 +134,7 @@ if ! validate_effort "$EFFORT"; then
   # jq builds the envelope so a rejected value carrying quotes or backslashes
   # cannot forge a valid object with a status the recovery path reads as success.
   jq -cn --arg model "$MODEL" --arg effort "$EFFORT" \
-    '{status:"failed", requested_model:$model, requested_effort:$effort, evidence:("invalid effort override: " + $effort)}' \
+    '{status:"failed", requested_model:$model, requested_effort:$effort, evidence:("invalid effort override " + ($effort|tojson) + " (want low|medium|high|xhigh|max)")}' \
     > "$RESULT_PATH" 2>/dev/null || true
   exit 0
 fi

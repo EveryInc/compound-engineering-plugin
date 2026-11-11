@@ -288,7 +288,7 @@ Only when you named Proof, in the request or in your own instructions or prefere
 
 When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on that model instead of your session model. The interpret-findings-then-author step is dispatched with read access so it can verify its brief. A Bake-off, automatic or requested, receives the model preference and owns its candidate dispatch. Dialogue and research stay on your session model. Name a model in the prompt (`use fable`, `have opus plan this`) or set `plan_model: <model>` in CE config; a prompt request overrides the config key.
 
-This works on any harness. The host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and says which precondition was unmet.
+This works on any harness. The host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and says which precondition was unmet. On the Claude CLI route, `plan_effort: <low|medium|high|xhigh|max>` sets the reasoning effort that step runs at. Unset keeps `high`; an unrecognized value is rejected, and the step runs inline instead of dispatching at an effort you did not configure.
 
 ## See Also
 
