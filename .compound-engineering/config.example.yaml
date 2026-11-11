@@ -73,12 +73,12 @@
 # elevation.
 #
 # `plan_effort` and `brainstorm_effort` separately set the reasoning effort the
-# elevated step runs at on the Claude CLI route (one of low, medium, high,
-# xhigh, max). Unset keeps the existing default of high. An unrecognized value
-# is invalid -- it is rejected and the run skips elevation rather than silently
-# using a different effort than configured. The native-dispatch route has no
-# per-call effort override, so these keys only take effect when the elevated
-# step runs through the Claude CLI.
+# elevated step runs at (one of low, medium, high, xhigh, max). Unset keeps the
+# existing defaults: high on the Claude CLI route, the harness default on native
+# dispatch. An unrecognized value is invalid -- it is rejected and the run skips
+# elevation rather than silently using a different effort than configured. If
+# the host's native subagent tool takes no effort setting, the step still runs
+# there and the run says the configured effort was not applied.
 
 # plan_model: fable              # model alias for plan authoring; candidate preference when a Bake-off runs (no default)
 # brainstorm_model: fable        # model alias for approach generation; candidate preference when a Bake-off runs (no default)

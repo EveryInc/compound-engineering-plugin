@@ -18,9 +18,15 @@ Resolve the per-skill **model choice immediately before adapter selection**, so 
 
 If the session model already **is** the resolved model, there is nothing to elevate: skip dispatch (see Transparency for whether a line is still printed).
 
-### Effort resolution (Claude CLI route only)
+### Effort resolution
 
-Once a model is resolved, separately resolve the reasoning effort the Claude CLI worker runs at, from the matching per-skill config key: `plan_effort` for ce-plan, `brainstorm_effort` for ce-brainstorm. Read it from the same config layer as the model (`config.local.yaml` then `config.yaml`, ordinary-key rule). One of `low`, `medium`, `high`, `xhigh`, `max` is a valid override; anything else — an unrecognized word, a number, a blank value — is **invalid, not a fallback to high**: name the offending value and the accepted set, and skip elevation for that run rather than dispatch at a silently different effort than configured. **Unset or absent stays `high`** — the effort key is opt-in and never changes existing behavior for a checkout that has not set it. There is no live-conversation or caller-carrier source for effort; config is the only input, and the skill forwards the resolved effort to the dispatch boundary (using `high` when no key is configured) so an ambient `CE_ELEVATION_EFFORT` in the launching harness cannot change the default. The native adapter (Claude Code `Agent`/`Task` tool) has no per-dispatch effort override, so this key only affects the Claude CLI route (see Adapter selection): a native dispatch always runs at whatever effort the invoking harness uses by default.
+Once a model is resolved, resolve the reasoning effort for the elevated step from the matching config key: `plan_effort` for ce-plan, `brainstorm_effort` for ce-brainstorm. Read it from the same config layer as the model (`config.local.yaml` then `config.yaml`, ordinary-key rule). Config is the only source; neither the conversation nor a caller carrier sets effort.
+
+- `low`, `medium`, `high`, `xhigh`, and `max` are valid; a valid value is the configured effort.
+- Any other value, including a number or a blank, is invalid. Do not fall back to `high`: skip elevation for this run and print the rejection line under Transparency.
+- With no key set, nothing changes: the Claude CLI route runs at `high` and the native route runs at the harness default.
+
+Apply a configured effort on whichever route serves the model. On the native route, pass it through the subagent primitive's effort setting when the primitive has one (for example, `effort` on the Claude Code `Agent` tool). When it has none, still dispatch natively and say in the Elevation ran line that the configured effort was not applied. On the Claude CLI route, pass the effort to the worker as Off-host dispatch describes.
 
 ## Adapter selection
 
@@ -83,19 +89,15 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
    PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
    SKILL_NAME="<this skill's name: ce-plan or ce-brainstorm>";
-   # Always forward the resolved effort, including high when no effort key is
-   # set: peer-job-runner copies its own environment into the detached worker,
-   # so an omitted assignment would inherit whatever CE_ELEVATION_EFFORT the
-   # launching harness happens to export.
    CE_PEER_HARD_SECS=5400 CE_ELEVATION_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
-     CE_ELEVATION_EFFORT="<resolved effort, or high when no effort key is configured>" \
+     CE_ELEVATION_EFFORT="<configured effort, or high when no effort key is set>" \
      "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \
      -- bash "$SKILL_DIR/scripts/elevation-dispatch.sh" "<model>" "<prompt-file>" "<result-path>"
    ```
 
-`CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure. `CE_ELEVATION_EFFORT` carries the effort resolved above (see Effort resolution) into the detached worker's environment — the runner passes its own environment through unfiltered, so setting it here is sufficient; omit it entirely to leave the worker's own `high` default in place. `start` returns a job id in under ~2s.
+`CE_PEER_HARD_SECS` (the outer runner cap) and `CE_ELEVATION_HARD_SECS` (the worker's own inner cap) are set to the **same** raised backstop well above any legitimate run — keep them equal so the inner cap never reaps a healthy run before the outer one. `CE_PEER_LOG_MAX_BYTES` is raised for the streaming route so a healthy high-volume run is not reaped as a failure. Always set `CE_ELEVATION_EFFORT`; use `high` when no effort key is set. The runner copies its own environment into the worker, so leaving it out lets whatever `CE_ELEVATION_EFFORT` the launching shell exports decide the effort. `start` returns a job id in under ~2s.
 
 3. **Poll** between your other work until the job reaches a terminal state (resolve `$PY` again — each tool call is a fresh shell):
 
@@ -128,7 +130,7 @@ Recovery **never substitutes a different model** — a plan the user believes ca
 
 ## Transparency
 
-- **Elevation ran** → print one line naming the **model**, the **route**, and **why** it ran (config key, explicit user instruction, or caller carrier). Name the model as **served** when a receipt confirms it; otherwise name it as **requested** with an explicit *unverified* marker — on every route, including native.
+- **Elevation ran** → print one line naming the **model**, the **route**, and **why** it ran (config key, explicit user instruction, or caller carrier). Name the model as **served** when a receipt confirms it; otherwise name it as **requested** with an explicit *unverified* marker — on every route, including native. When a configured effort was not applied because the native subagent tool takes no effort setting, say so in the same line. The CLI result's `served_effort: "unverified"` does not count as not applied.
 - **A configured effort was rejected** → the step degrades to inline, so print one line naming the offending value and the accepted set (`low`, `medium`, `high`, `xhigh`, `max`). Without it, a rejected value looks exactly like a checkout that never configured effort.
-- **Print no line** when elevation did not run, and when the session model already is the model a **config key** requested. An **explicit user instruction** always produces a line, including when the session model already matches (so a recognized request is never indistinguishable from an unparsed one).
+- **Print no line** when elevation did not run (except the rejected-effort line above), and when the session model already is the model a **config key** requested. An **explicit user instruction** always produces a line, including when the session model already matches (so a recognized request is never indistinguishable from an unparsed one).
 - **Requested but unavailable before provider-capable dispatch** (no native support, `claude` absent, or the required launch permission unavailable) → run the step inline on the session model, name **which routing precondition was unmet**, and state what would make the requested model reachable. Once provider-capable dispatch is established, an authentication failure is instead a route-level Recovery outcome: name the observed authentication failure and the login or credential-refresh remediation.
