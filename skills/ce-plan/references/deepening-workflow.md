@@ -1,6 +1,6 @@
 # Deepening Workflow
 
-This file contains the confidence-check execution path (5.3.3-5.3.7). Load it only when the deepening gate at 5.3.2 determines that deepening is warranted.
+This file contains the confidence-check execution path (5.3.3-5.3.7). Load it only when step 5.3.2 (Gate: Decide Whether to Deepen) determines that deepening is warranted.
 
 ## 5.3.3 Score Confidence Gaps
 
@@ -8,12 +8,10 @@ Use a checklist-first, risk-weighted scoring pass.
 
 For each section, compute:
 - **Trigger count** - number of checklist problems that apply
-- **Risk bonus** - add 1 if the topic is high-risk and this section is materially relevant to that risk
 - **Critical-section bonus** - add 1 for `Key Technical Decisions`, `Implementation Units`, `System-Wide Impact`, `Risks & Dependencies`, or `Open Questions` in `Standard` or `Deep` plans
 
 Treat a section as a candidate if:
-- it hits **2+ total points**, or
-- it hits **1+ point** in a high-risk domain and the section is materially important
+- it hits **2+ total points**
 
 Choose only the top **2-5** sections by score. If deepening a lightweight plan (high-risk exception), cap at **1-2** sections.
 
@@ -41,7 +39,7 @@ If the plan already has a `deepened:` date:
 - Rationale does not explain tradeoffs or rejected alternatives
 - The decision does not connect back to scope, requirements, or origin context
 - An obvious design fork exists but the plan never addresses why one path won
-- Agent/tool/workflow features lack an explicit decision about action parity, context parity, shared workspace, tool granularity, or approval posture
+- Agent/tool/workflow features lack an explicit decision about action parity, context parity, shared workspace, tool granularity, or approval boundaries
 
 **Open Questions**
 - Product blockers are hidden as assumptions
@@ -65,7 +63,7 @@ If the plan already has a `deepened:` date:
 - File paths or test file paths are missing where they should be explicit
 - Units are too large, too vague, or broken into micro-steps
 - Approach notes are thin or do not name the pattern to follow
-- Test scenarios are vague (don't name inputs and expected outcomes), skip applicable categories (e.g., no error paths for a unit with failure modes, no integration scenarios for a unit crossing layers), or are disproportionate to the unit's complexity
+- Test scenarios are vague (don't name inputs and expected outcomes), skip behavior the unit builds (e.g., no scenario for failure handling the unit includes, no integration scenario for a unit crossing layers), or are disproportionate to the unit's complexity
 - Feature-bearing units have blank or missing test scenarios (feature-bearing units require actual test scenarios; the `Test expectation: none` annotation is only valid for non-feature-bearing units)
 - Verification outcomes are vague or not expressed as observable results
 - Agent-relevant units do not include agent-native verification: parity checks, context-injection checks, tool-result checks, approval/failure behavior, or checkpoint/resume where applicable
@@ -74,16 +72,12 @@ If the plan already has a `deepened:` date:
 
 **System-Wide Impact**
 - Affected interfaces, callbacks, middleware, entry points, or parity surfaces are missing
-- Failure propagation is underexplored
-- State lifecycle, caching, or data integrity risks are absent where relevant
 - Integration coverage is weak for cross-layer work
 - Agent-facing tools, prompts, runtime context, shared workspaces, approval gates, or human-only boundaries are missing when the feature affects agent-capable systems
 
 **Risks & Dependencies / Documentation / Operational Notes**
-- Risks are listed without mitigation
-- Rollout, monitoring, migration, or support implications are missing when warranted
+- A named risk has no decision: it is neither mitigated nor recorded as considered and not built (`references/structure.md` 3.8). A risk accepted with a reason is decided; a missing mitigation alone is not a gap
 - External dependency assumptions are weak or unstated
-- Security, privacy, performance, or data risks are absent where they obviously apply
 
 Use the plan's own `Context & Research` and `Sources & References` as evidence. If those sections cite a pattern, learning, or risk that never affects decisions, implementation units, or verification, treat that as a confidence gap.
 
@@ -95,11 +89,13 @@ Before dispatching agents, report what sections are being strengthened and why:
 Strengthening [section names] — [brief reason for each, e.g., "decision rationale is thin", "cross-boundary effects aren't mapped"]
 ```
 
-At every native subagent boundary in this phase, classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and otherwise follow that boundary's stated fallback or failed-pass handling.
+Wherever this phase dispatches a subagent, classify a rejected dispatch by whether an agent launched: correct a pre-launch argument rejection once, leave capacity-limited work queued, and otherwise follow the fallback or failed-pass handling stated for that dispatch.
 
 For each selected section, choose the smallest useful agent set. Do **not** run every agent. Use at most **1-3 agents per section** and usually no more than **8 agents total**.
 
-The names below are skill-local prompt asset file stems under `references/agents/`, not standalone agent types. For each selected name, read `references/agents/<name>.md` and seed a generic subagent with that prompt content plus the section context described below. Do not use `subagent_type`, typed `Agent` names, or platform-level CE agent registration.
+The names below are skill-local prompt asset file stems under `references/agents/`, not standalone agent types. For each selected name, read `references/agents/<name>.md` and seed a generic subagent with that prompt content plus the section context described below. Do not name a persona or CE agent through `subagent_type`, typed `Agent` names, or platform-level CE agent registration; when the host requires an agent-name field, it carries the plain generic agent.
+
+A generic subagent is one whose whole brief is the prompt you send it. When the host's subagent tool makes you name an agent, use only a name you have seen the host list, and list its agents before the first dispatch if you have not. Pick the plain one that adds no role of its own, which still counts as a generic subagent. Never pick a specialist, such as a reviewer or worker agent, whose own role prompt, output format, or tool limits would replace or narrow your prompt.
 
 **Deterministic Section-to-Agent Mapping:**
 
@@ -142,8 +138,7 @@ The names below are skill-local prompt asset file stems under `references/agents
 **Risks & Dependencies / Operational Notes**
 - Use the specialist that matches the actual risk:
   - `security-sentinel` for security, auth, privacy, and exploit risk
-  - `data-integrity-guardian` for migrations, backfills, persistent data safety, constraints, transaction boundaries, and production data transformation risk (plan context — not the PR-review `data-migration-reviewer` persona)
-  - `deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
+  - `data-integrity-guardian` for migrations, backfills, persistent data safety, constraints, transaction boundaries, and production data transformation risk
   - `performance-oracle` for capacity, latency, and scaling concerns
 
 **Agent Prompt Shape:**
@@ -152,7 +147,7 @@ For each selected section, pass:
 - The scope prefix from the mapping above when the agent supports scoped invocation
 - A short plan summary
 - The exact section text
-- Why the section was selected, including which checklist triggers fired
+- Why the section was selected, including which checklist problems applied
 - The plan depth and risk profile
 - A specific question to answer
 
@@ -235,19 +230,19 @@ Strengthen only the selected sections. Keep the plan coherent and preserve its o
 
 **In interactive mode:** Only integrate findings the user accepted in 5.3.6b. If some findings from different agents touch the same section, reconcile them coherently but do not reintroduce rejected findings.
 
-**Session-settled KTD stability.** Deepening may append rationale or a conflict call-out to a `session-settled:`-labeled Key Technical Decision, but never removes the annotation or inverts the decision. Contradiction evidence routes through the severity ladder: nothing found — proceed silently; suboptimal-but-workable — proceed as settled and attach a conflict call-out to the KTD; invalidating — stop as blocked per the SKILL.md Phase 5.2 pipeline contract.
+**Session-settled KTD stability.** Deepening may append rationale or a conflict call-out to a `session-settled:`-labeled Key Technical Decision, but never removes the annotation or inverts the decision. Handle contradicting evidence by its severity. Nothing found: proceed silently. Suboptimal but workable: proceed as settled and attach a conflict call-out to the KTD. Invalidating: stop as blocked per the SKILL.md Phase 5.2 pipeline contract.
 
 Deepening may tighten, not only grow. A section can be strengthened by cutting as well as adding — collapse multi-idea sentences, drop hedges, and delete superseded text outright rather than leaving it as strikethrough or stacking a separate "resolutions" layer on top of it. A shorter, contradiction-free section is a stronger one. This is distinct from "rewrite the entire plan from scratch" below, which stays forbidden.
 
-**Strengthen at the owning entry.** A rule owned by an R or KTD gains evidence, rationale, or precision at that entry; a sibling section that needs it cites the owning ID. Never restate an owned rule into a Key Decision, Scope bullet, or unit Approach — deleting an unlinked sibling restatement found in a strengthened section is itself a valid tightening move.
+**Strengthen at the owning entry.** The owning entry is the R or KTD that states a rule in full. That rule gains evidence, rationale, or precision at that entry; a sibling section that needs it cites the owning ID. Never restate an owned rule into a Key Decision, Scope bullet, or unit Approach — deleting an unlinked sibling restatement found in a strengthened section is itself a valid tightening move.
 
 Allowed changes:
-- Tighten prose in a strengthened section: cut hedges, split sentences carrying more than one idea, remove superseded text in place (version control holds the history), and replace unlinked restatements with citations of the owning R/KTD
+- Tighten prose in a strengthened section through the `ce-noslop` skill: remove superseded text in place (version control holds the history), and replace unlinked restatements with citations of the owning R/KTD
 - Clarify or strengthen decision rationale
 - Tighten requirements trace or origin fidelity
 - Reorder or split implementation units when sequencing is weak — but **never renumber existing U-IDs**. Reordering preserves U-IDs in their new order (e.g., U1, U3, U5 reordered is correct; renumbering to U1, U2, U3 is not). Splitting keeps the original U-ID on the original concept and assigns the next unused number to the new unit. Renumbering breaks ce-work blocker and verification references that were written against the original IDs
 - Add missing pattern references, file/test paths, or verification outcomes
-- Expand system-wide impact, risks, or rollout treatment where justified
+- Expand system-wide impact, risks, or rollout treatment where a finding passes `references/structure.md` 3.8. Each agent finding is a claim to judge by that test; one that fails it is recorded as considered and not built, not merged into units
 - Reclassify open questions between `Resolved During Planning` and `Deferred to Implementation` when evidence supports the change
 - Strengthen, replace, or add a High-Level Technical Design section when the work warrants it and the current representation is weak
 - Strengthen or add per-unit technical design fields where the unit's approach is non-obvious
@@ -258,7 +253,7 @@ Do **not**:
 - Add git commands, commit choreography, or exact test command recipes
 - Add generic `Research Insights` subsections everywhere
 - Rewrite the entire plan from scratch
-- Invent new product requirements, scope changes, or success criteria without surfacing them explicitly
+- Invent new product requirements, scope changes, or success criteria without stating them explicitly
 - Renumber existing U-IDs as part of reordering, splitting, deletion, or "tidying" the unit list. Deepening is the most likely accidental-renumber vector — preserve U-IDs even when the new order would look cleaner with sequential numbering
 - Restate a rule a cited R or KTD already owns into a sibling section — synthesis folds section-isolated findings back per section, which is exactly where duplicate restatements creep in; cite the owning ID instead
 

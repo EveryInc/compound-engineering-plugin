@@ -1,0 +1,20 @@
+[
+  {
+    "reviewer": "correctness",
+    "findings": [
+      {
+        "title": "refreshSession dereferences a missing session for an unknown token",
+        "severity": "P2",
+        "file": "src/session.js",
+        "line": 3,
+        "confidence": 75,
+        "autofix_class": "manual",
+        "owner": "downstream-resolver",
+        "requires_verification": false,
+        "pre_existing": false,
+        "suggested_fix": "Return null (or throw a typed error) when store.get(token) is undefined before touching expiresAt.",
+        "first_evidence": "session.expiresAt = Date.now() + 30 * 60 * 1000;"
+      }
+    ]
+  }
+]

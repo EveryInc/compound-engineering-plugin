@@ -1,7 +1,7 @@
 ---
 title: "A preserve-user-content guard must cover every destructive path to the target, not just the main one"
 date: 2026-07-09
-category: docs/solutions/best-practices/
+category: best-practices
 module: src/targets
 problem_type: best_practice
 component: tooling
@@ -29,10 +29,10 @@ The gap was not academic: the issue's own repro skill, `ce-session-inventory`, i
 
 ## Guidance
 
-When you add a guard to preserve user content against a destructive writer, treat the **set of destructive paths to that target as a completeness obligation**, the same way a correctness cache treats its invalidation-input set (see Related). Guarding the one path in front of you is a partial fix by default.
+When you add a guard to preserve user content against a destructive writer, treat the **set of destructive paths to that target as a completeness obligation**, the same way a correctness cache treats its invalidation-input set. Guarding the one path in front of you is a partial fix by default.
 
 1. **Enumerate every function that can `rm`, `rename`, overwrite, or move the protected target — then guard all of them.** In the Pi writer that meant three call sites, not one. Grep the module for `fs.rm`, `fs.rename`, `fs.unlink`, `writeText`/copy-into-place against the same directory root.
-2. **Prefer guarding the single destructive choke point over each call site.** The follow-up fix put the `lstat` check inside `moveLegacyArtifactToBackup` (`src/targets/pi.ts:561`), the one function all five legacy sweeps (skills, agents, prompts, extensions, mcporter) funnel through — reusing the existing `isPreservedSymlink` helper (`src/targets/pi.ts:434`) and covering kinds the reviewer didn't even name, for free. A choke-point guard cannot be forgotten by a future sibling call the way a per-call-site guard can.
+2. **Prefer guarding the single destructive choke point over each call site.** The follow-up fix put the `lstat` check inside the Pi writer's `moveLegacyArtifactToBackup` (`src/targets/pi.ts`), the one function all five legacy sweeps (skills, agents, prompts, extensions, mcporter) funnel through — reusing the `isPreservedSymlink` helper (now exported from `src/targets/managed-artifacts.ts`) and covering kinds the reviewer didn't even name, for free. A choke-point guard cannot be forgotten by a future sibling call the way a per-call-site guard can.
 3. **Order the guard before any existence check that follows the link.** `pathExists` (stat/access) follows a symlink and reports a dangling link as absent; `lstat` sees the link node. Check `isPreservedSymlink` *before* `pathExists` so live and dangling user symlinks are both preserved.
 4. **Distrust a fix whose own reproduction case routes through the unguarded path.** If the bug report's example still traverses code you didn't touch, the fix is unverified — reproduce the exact reported case, don't just test the path you changed.
 
@@ -40,7 +40,7 @@ When you add a guard to preserve user content against a destructive writer, trea
 
 Silent user-data loss is the worst failure class for an installer: no error, and the run actively logs reassurance ("existing user-managed symlink (not overwritten)") while a different code path deletes the same override moments later. A partial guard is arguably worse than no guard because the warning manufactures false confidence.
 
-The failure mode is structural, not a one-off: a resource protected against operation A is still exposed to sibling operations B and C that touch it independently. Codex (`src/targets/codex.ts`) and managed-artifacts (`src/targets/managed-artifacts.ts`, used by the OpenCode writer) now share `moveLegacyArtifactToBackup` and `isPreservedSymlink` with the Pi writer — the completeness obligation was applied. Keep that choke-point: any new destructive path must go through the same helper, not a fresh unconditional rm-then-copy.
+The failure mode is structural, not a one-off: a resource protected against operation A is still exposed to sibling operations B and C that touch it independently. The completeness obligation was applied across writers: Pi (`src/targets/pi.ts`), Codex (`src/targets/codex.ts`), and the OpenCode writer (via `src/targets/managed-artifacts.ts`) each route their legacy sweeps through a `moveLegacyArtifactToBackup` choke point, and all of them call the shared `isPreservedSymlink` from `managed-artifacts.ts`. Keep that shape: any new destructive path must go through its writer's choke point and the shared guard, not a fresh unconditional rm-then-copy.
 
 ## When to Apply
 
@@ -58,23 +58,17 @@ async function moveLegacyArtifactToBackup(managedDir, kind, artifactPath) {
   // Checked before pathExists (which follows the link) so a user symlink is
   // preserved whether it is live or dangling.
   if (await isPreservedSymlink(artifactPath)) return
+  // A symlinked ancestor (e.g. the whole store dir repointed at a fork) is
+  // caught by containment, since isPreservedSymlink only sees the leaf.
+  if (!(await isPathWithinRoot(path.dirname(managedDir), artifactPath))) return
   if (!(await pathExists(artifactPath))) return
   // ... ensureDir + fs.rename(artifactPath, backupPath)
 }
 ```
 
-Testing the exact repro, not just the changed path. The regression test symlinks `ce-session-inventory` (a legacy-only skill that reaches *only* the legacy sweep) and asserts ownership would have fired absent the guard, so it fails loudly if the fingerprint ever drifts instead of passing for the wrong reason:
+Testing the exact repro, not just the changed path. The regression test must route through the legacy sweep only: symlink a legacy-named skill to a user fork, write a bundle that omits it, and assert the symlink survives and nothing lands in `legacy-backup`. The current test is "a legacy-named skill symlinked to a user fork is not swept into legacy-backup" in `tests/pi-writer.test.ts`.
 
-```ts
-// Guard against silent false-green: if the fingerprint stops matching,
-// ownership goes false and the sweep skips for the wrong reason.
-expect(await isLegacySkillArtifactOwned(symlinkPath, "ce-session-inventory")).toBe(true)
-await writePiBundle(outputRoot, bundle) // bundle omits the skill -> legacy sweep only
-expect((await fs.lstat(symlinkPath)).isSymbolicLink()).toBe(true)
-expect(await exists(path.join(outputRoot, "compound-engineering", "legacy-backup"))).toBe(false)
-```
-
-That false-green assertion earned its keep on the first run: an em-dash mismatch in the fork's description made ownership return `false`, which the assertion caught — otherwise the test would have "passed" without exercising the guard at all.
+The fork must keep the CE ownership fingerprint, or the sweep skips it for the wrong reason and the test passes without exercising the guard. The original version asserted ownership explicitly (`isLegacySkillArtifactOwned(...)` is `true`) before running the writer, and that assertion earned its keep on the first run: an em-dash mismatch in the fork's description made ownership return `false`, which the assertion caught. The current test relies on a fork built from the CE description instead, with no explicit ownership assertion.
 
 ## Related
 - Issue #1048 (repro) and PR #1089 (merged), which fixed both the main-loop clobber and — as a follow-up commit on the same branch — the legacy-sweep gap described here.

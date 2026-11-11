@@ -21,7 +21,7 @@ Tokens exist so automation and chained calls can force a decision. Plain languag
 - `diff:main..HEAD`, or `audience:team` leading a request — genuine flags: nothing is left to garble.
 
 - A token in flag position beats inference. A colon inside prose does not.
-- `diff:` and `since:` together conflict — say so and ask which mode the user wants.
+- `diff:` and `since:` together conflict — resolve the intended subject under the skill body's interaction rule.
 - An unrecognized `<word>:<word>` token (including conventional-commit prefixes like `feat:` appearing inside a topic) is not a flag — it passes through verbatim as request text. The same holds for a *recognized* token that fails the reads-as-a-flag test above.
 - A token with an empty or missing value is not a flag — treat it as prose.
 - `output:` with an unknown value: drop the token, note `Ignored unknown output: value '<value>' — using html`, and continue.
@@ -41,16 +41,10 @@ Classify the remaining text by shape:
 
 **Repo footprint check (concept mode):** a concept grounds in the repo only when it actually touches it. An external subject (a language feature, an interview topic, a paper) gets no repo grounding — do not force it.
 
-## Audience resolution
+## Reader and delivery
 
-Audience is orthogonal to input shape — resolve it for every shape, including recaps.
+Resolve who will use the explanation and for what purpose from the request and context. The user is the default reader. Someone preparing to speak from the explanation is still its reader. When someone requests content for others, those people are the intended readers. Adapt terminology, orientation, depth, and presentation to that use without changing the evidence or attributing others' work to the user.
 
-- **Default: the user personally.** Absent a signal, do not ask and do not adapt.
-- **Another reader** when the `audience:` token is present, or when the request plainly says someone else will read it — "write this up for the team", "I'm sharing this with <person/group>", "for the design review", "a share-out", "something I can post in <channel>". The test is whether the *artifact itself* lands in front of other people. Carry the named reader forward verbatim; the rendering rule lives in the compose-time reference.
-- Wanting to *speak* from the material is not an audience signal. "Prep me for standup", "catch me up before the meeting", "walk engineering through it — get me ready", and "so I can explain it to them" all stay personal: the user is still the reader. That resolves the case, so no re-render note is needed.
-- **A request to share is not a request for a status update.** "Something I can drop in the #eng channel about this week's work" reads like a status-update ask in ordinary usage, and this skill does not write status updates. Honor the *audience* and refuse the *form*: render the explainer for that reader at full depth. Decline only if the user wants the terse update itself rather than an explainer for it — and say which you're doing.
-- Ambiguous between personal and another reader (for example, "write up what shipped this week"), default to personal and say in one line that it can be re-rendered for a reader. Do not spend a blocking question on this.
+Return an answer or text for another document when that satisfies the request. A request to learn deeply, keep an explainer, or produce a standalone document warrants an artifact; use HTML by default for that artifact and markdown when requested. A named `diff:` or `since:` selects the subject, not whether a document must be created. An explicit `output:` selects the artifact format. Honor requests for a shorter explanation or a shareable excerpt without requiring a full teaching document.
 
-## Operational-question gate
-
-Not every *concept by inference* wants the teaching flow this skill runs — many just want a direct answer. When such a request (no `diff:`/`since:` token, no wording that plainly asks to learn or build like "teach me how X works") reads as one better answered in chat — e.g. diagnosing or operating current behavior ("why is X doing Y", "is X configured right") — answer it directly. Then offer to teach it only when a real underlying concept sits behind the question that the user would plausibly want to learn — not as a reflexive add-on to every answer — phrased plainly, e.g. "Want me to actually walk you through how this works? I can build you a visual explainer to keep." Create the run directory and profile the repo only if they take it. A request that plainly wants to learn, or that carries a build signal, skips the gate and is taught in full.
+Select delivery before creating a run directory or loading rendering instructions. No extra mode or confirmation is needed when the intended use is clear. Missing subject or material ambiguity follows the skill body's interaction rule.

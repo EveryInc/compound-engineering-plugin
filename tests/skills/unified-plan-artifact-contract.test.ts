@@ -87,7 +87,7 @@ const lfgStageRouting = readRepoFile("skills/lfg/references/stage-routing.md")
 const lfgPlanBrief = readRepoFile("skills/lfg/references/plan-brief.md")
 const lfgWorkReturn = readRepoFile("skills/lfg/references/work-return.md")
 const lfgReviewFollowup = readRepoFile("skills/lfg/references/review-followup.md")
-const lfgCloseOut = readRepoFile("skills/lfg/references/shipping-tail.md")
+const lfgCloseOut = readRepoFile("skills/lfg/references/shipping.md")
 const docReview = readRepoFile("skills/ce-doc-review/SKILL.md")
 const docReviewTemplate = readRepoFile(
   "skills/ce-doc-review/references/subagent-template.md",
@@ -103,9 +103,8 @@ const codeReview = readRepoFile("skills/ce-code-review/SKILL.md")
 const codeReviewIntent = readRepoFile(
   "skills/ce-code-review/references/intent-and-plan.md",
 )
-const codeReviewFinish = readRepoFile(
-  "skills/ce-code-review/references/finish-review.md",
-)
+const codeReviewMerge = readRepoFile("skills/ce-code-review/references/finish-merge.md")
+const codeReviewReport = readRepoFile("skills/ce-code-review/references/finish-report.md")
 const ceWorkShipping = readRepoFile(
   "skills/ce-work/references/shipping-workflow.md",
 )
@@ -121,15 +120,14 @@ const ideate = readRepoFile("skills/ce-ideate/references/post-ideation-workflow.
 const agents = readRepoFile("AGENTS.md")
 
 describe("unified plan artifact contract", () => {
-  test("plan section contract defines unified metadata, readiness, and section ids", () => {
+  test("plan section contract defines unified metadata, content-based execution, and section ids", () => {
     expect(planSections).toContain("artifact_contract: ce-unified-plan/v1")
-    expect(planSections).toContain("artifact_readiness")
+    expect(planSections).toContain("remove `artifact_readiness`")
     expect(planSections).toContain("product_contract_source")
     expect(planSections).toContain("requirements-only")
     expect(planSections).toContain("implementation-ready")
-    expect(planSections).toContain("Do **not** use `artifact_readiness: approach-plan`")
     expect(planSections).not.toMatch(/^\s+- `approach-plan`/m)
-    expect(planSections).toMatch(/active.*in_progress.*completed.*done/s)
+    expect(planSections).toContain("Do not write a readiness or execution-status field")
     expect(planSections).toMatch(/no `status` field|no .*status.*field/i)
 
     for (const id of [
@@ -151,7 +149,7 @@ describe("unified plan artifact contract", () => {
   test("brainstorm writes requirements-only unified plan skeletons under docs/plans", () => {
     expect(brainstormSections).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan")
     expect(brainstormSections).toContain("no daily sequence number")
-    expect(brainstormSections).toContain("artifact_readiness: requirements-only")
+    expect(brainstormSections).not.toContain("artifact_readiness")
     expect(brainstormSections).toContain("product_contract_source: ce-brainstorm")
     // Requirements-only is slimmed for standalone readability: no Goal Launch
     // Block and no Reader Index (the launch prompt is skill-emitted at handoff).
@@ -161,7 +159,7 @@ describe("unified plan artifact contract", () => {
 
     expect(brainstormSkill).toContain("<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan")
     expect(brainstormSkill).toContain("local wall-clock time at write")
-    expect(brainstormSkill).toContain("artifact_readiness: requirements-only")
+    expect(brainstormSkill).not.toContain("artifact_readiness")
     expect(brainstormSkill).toContain("product_contract_source: ce-brainstorm")
     expect(brainstormSkill).toContain("Do **not** emit a Goal Launch Block or Reader Index")
     // 2026-08-18: the legacy-path rule (Phase 0.1) and the non-software carve-out
@@ -246,7 +244,7 @@ describe("unified plan artifact contract", () => {
     expect(planCorpus).toContain("Search `docs/brainstorms/`")
     expect(planCorpus).toContain("create a new unified plan in `<root>/plans/`")
     expect(planCorpus).toContain("product_contract_source: ce-plan-bootstrap")
-    expect(planFinalReview).toContain("artifact_readiness: implementation-ready")
+    expect(planFinalReview).toContain("Material claims about existing code and fixtures")
     expect(planCorpus).toContain("Definition of Done")
     // The launch prompt is generated at handoff, never written into the doc.
     expect(planCorpus).toContain("Do not write a launch prompt into the doc")
@@ -255,9 +253,9 @@ describe("unified plan artifact contract", () => {
   test("ce-work is readiness-aware before execution", () => {
     expect(ceWork).toContain("plan readiness")
     expect(ceWork).toContain("references/input-triage.md")
-    expect(ceWorkTriage).toContain("classify `artifact_readiness` before reading the body")
-    expect(ceWorkTriage).toContain("requirements-only` -> stop")
-    expect(ceWorkTriage).toContain("Any other readiness value")
+    expect(ceWorkTriage).toContain("inspect its contents")
+    expect(ceWorkTriage).toContain("Product Contract without enough implementation direction")
+    expect(ceWorkTriage).toContain("Explicitly planned additions need not exist yet")
     expect(ceWorkIntake).toContain("Build a section map")
     expect(ceWorkStrategy).toContain("Do not send \"read the whole plan\"")
     expect(ceWorkTriage).toContain("mode:return-to-caller <plan-path>")
@@ -268,9 +266,9 @@ describe("unified plan artifact contract", () => {
   test("lfg delegates implementation to ce-work return-to-caller mode", () => {
     // The dispatch strings and the /goal boundary fire from the body; the readiness
     // values are applied by step 1's gate, whose first action is reading plan-brief.
-    expect(lfgPlanBrief).toContain("artifact_readiness: implementation-ready")
-    expect(lfgPlanBrief).toContain("execution: code")
-    expect(lfgPlanBrief).toContain("any unrecognized readiness value")
+    expect(lfgPlanBrief).toContain("Inspect the returned plan")
+    expect(lfgPlanBrief).toContain("code implementation")
+    expect(lfgPlanBrief).toContain("no launch-blocking question or finding")
     expect(lfg).toContain("readiness check in `references/plan-brief.md`")
     expect(lfg).toContain("LFG never launches `/goal` directly")
     expect(lfg).toContain("mode:return-to-caller <plan-path-from-step-1>")
@@ -293,7 +291,7 @@ describe("unified plan artifact contract", () => {
   test("lfg offers an opt-in fresh-session handoff for separately planned future work", () => {
     // The closeout that gates the offer moved into the reference step 10 requires
     // before it prints anything.
-    expect(lfg).toContain("references/shipping-tail.md")
+    expect(lfg).toContain("references/shipping.md")
     expect(lfgCloseOut).toContain("semantic role `work-relationships`")
     expect(lfgCloseOut).toContain("cautious legacy semantic fallback")
     expect(lfgCloseOut).toContain("references/next-work-handoff.md")
@@ -333,9 +331,10 @@ describe("unified plan artifact contract", () => {
 
   test("lfg carries per-stage routing carriers at each stage seam", () => {
     const carrier = lfgStageRouting
-    expect(sliceSection(lfg, "## Per-stage routing carriers", "1. **Read `references/plan-brief.md` first**")).toContain(
-      "semantic intent",
-    )
+    // The body's routing block became the Interaction clause of the outcome spine
+    // (lfg front-half restatement, 2026-09); the body keeps the condition that
+    // triggers the required read, and the reference owns the semantic-intent test.
+    expect(lfg).toMatch(/assigns planning or implementation to a model or harness[^\n]*`references\/stage-routing\.md`|`references\/stage-routing\.md`[^\n]*assigns planning or implementation to a model or harness/)
     expect(carrier).toContain("semantic intent")
     expect(carrier).toContain("not keyword or prompt-token matching")
     expect(carrier).toContain("plain mention")
@@ -363,9 +362,9 @@ describe("unified plan artifact contract", () => {
     expect(carrier).toMatch(/disable-model-invocation.*headless run, never ask/is)
     expect(carrier).toContain("default path is mandatory")
 
-    // Step 1 threads the plan_model carrier to ce-plan beside the sanitized request;
-    // the body names the carrier at the seam and the reference owns its exact form.
-    expect(sliceSection(lfg, "1. **Read `references/plan-brief.md` first**", "2. **Read `references/work-return.md` first**")).toContain(
+    // Route 6 in intake.md threads the plan_model carrier to ce-plan beside the sanitized
+    // request; stage-routing.md owns its exact form.
+    expect(readFileSync(path.join(process.cwd(), "skills/lfg/references/intake.md"), "utf8")).toContain(
       "`plan_model:<alias>` carrier",
     )
     const step1 = carrier
@@ -376,7 +375,7 @@ describe("unified plan artifact contract", () => {
     expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> <plan-path-from-step-1>")
     expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> implementation_run:<safe-id> <plan-path-from-step-1>")
     expect(step2).toContain('implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}')
-    expect(step2).toContain("portable string envelope")
+    expect(step2).toContain("portable string any host can pass through")
     expect(step2).toContain("standing per-checkout configuration")
     expect(carrier).toContain("Do not construct a carrier from standing configuration")
     expect(lfgWorkReturn).toContain("same `implementation_engine:<compact-json>` carrier")
@@ -413,7 +412,7 @@ describe("unified plan artifact contract", () => {
   test("review and publishing skills understand unified artifacts", () => {
     expect(docReview).toContain("unified-requirements")
     expect(docReview).toContain("unified-plan")
-    expect(docReview).toContain("Product Contract only")
+    expect(docReview).toContain("only a Product Contract")
     expect(docReview).toContain("HTML unified artifacts")
     expect(docReviewDispatch).toContain("section slice")
     expect(docReviewIntake).toContain("product_contract_source: ce-brainstorm")
@@ -423,8 +422,8 @@ describe("unified plan artifact contract", () => {
 
     expect(codeReviewIntent).toContain("<root>/plans/*.{md,html}")
     expect(codeReviewIntent).toContain("Product Contract` -> `### Requirements")
-    expect(codeReviewIntent).toContain("readiness before checking completeness")
-    expect(codeReviewIntent).toContain("must not trigger implementation-unit completeness findings")
+    expect(codeReviewIntent).toContain("inspect the contents before checking completeness")
+    expect(codeReviewIntent).toContain("does not create implementation-unit obligations")
 
     expect(proof).toContain("Only publish markdown")
     expect(proof).toContain("requirements-only")
@@ -436,14 +435,14 @@ describe("unified plan artifact contract", () => {
     expect(agents).toContain("Historical `docs/brainstorms/*-requirements.*` files remain readable legacy inputs")
   })
 
-  test("launch prompt is skill-emitted at handoff, not a baked doc section", () => {
+  test("no launch prompt is baked into the doc or emitted at handoff", () => {
     // No Goal Launch Block in the artifact contract (anchor or section bullet).
     expect(planSections).not.toContain("goal-launch-block")
     expect(planSections).not.toContain("**Goal Launch Block**")
-    // The prompt is generated by the handoff from the plan's current content,
-    // thin, pointing to the plan's sections rather than copying them.
-    expect(planHandoff).toMatch(/generated here at handoff, never written into the doc/i)
-    expect(planHandoff).toMatch(/do \*\*not\*\* copy the plan's resolved decisions/i)
+    // Execution goes through ce-work; the handoff no longer composes a /goal objective
+    // that would bypass ce-work's review receipt and WIP protections.
+    expect(planHandoff).not.toContain("Run it as a `/goal`")
+    expect(planHandoff).not.toContain("create_goal")
   })
 
   test("consuming skills carry a size-aware heading-scan algorithm, not full-doc-first", () => {
@@ -468,15 +467,15 @@ describe("unified plan artifact contract", () => {
     expect(planMarkdownRendering).toMatch(/concrete repo commands such as `bun test` rather than generic "run tests"/i)
   })
 
-  test("contract guides measurable exit thresholds and dead-code cleanup for long goal runs", () => {
-    // Reinforced by Kundel's /goal guide: optimization-shaped goals need a
-    // measurable exit threshold, and long autonomous runs must remove
-    // abandoned-attempt code before declaring done.
+  test("contract guides measurable exit thresholds and dead-code cleanup for long runs", () => {
+    // Optimization-shaped goals need a measurable exit threshold, and long autonomous
+    // runs must remove abandoned-attempt code before declaring done.
     expect(planSections).toMatch(/optimization-shaped/i)
     expect(planSections).toMatch(/measurable threshold|metric target/i)
     expect(planSections).toContain("ce-optimize")
     expect(planSections).toMatch(/abandoned-attempt code is removed|dead-end and experimental code/i)
-    expect(ceWorkEngines).toMatch(/dead-end or experimental code .* has been removed|experimental code from approaches that did not pan out/i)
+    expect(ceWorkShipping).toContain("code from approaches that did not pan out has been removed from the diff")
+    expect(ceWorkReturn).toContain("Remove code left over from approaches that did not pan out")
   })
 
   test("conversion/pipeline override keeps one canonical discovery target", () => {
@@ -516,37 +515,32 @@ describe("unified plan artifact contract", () => {
     // Product Contract > Requirements, matching the completeness contract.
     expect(codeReviewIntent).toContain("<root>/plans/*.{md,html}")
     expect(codeReviewIntent).toMatch(/unified `Product Contract` -> `### Requirements`/)
-    expect(codeReviewIntent).toMatch(/requirements-only artifact[\s\S]{0,80}product intent only/i)
+    expect(codeReviewIntent).toMatch(/Product Contract without implementation planning[\s\S]{0,80}product intent only/i)
   })
 
   test("ce-plan 5.1.5 synthesis gate fires for unified-plan sources, not only legacy docs", () => {
     // Codex #972 P2: new ce-brainstorm -> ce-plan <unified-plan> enrichment
     // must still get the plan-time scoping-synthesis checkpoint.
     expect(planCorpus).toMatch(/whenever Phase 0\.2 resolved an upstream Product Contract source/i)
-    expect(planCorpus).toMatch(/enrichment flow is brainstorm-sourced and MUST fire this gate/i)
+    expect(planCorpus).toMatch(/enrichment flow is brainstorm-sourced and must run this check/i)
     expect(planCorpus).toMatch(/Skip Phase 0\.7 only in solo invocation|Skip Phase 5\.1\.5 only in solo invocation/i)
   })
 
-  test("evaluator-complete launch prompt lives in the engine template, not the doc", () => {
-    // The goal prompt is also the completion criteria, so it must be
-    // self-contained — but it lives in the emitted template (ce-work's
-    // execution-engines.md), not as a baked plan-sections doc section.
-    expect(ceWorkEngines).toMatch(/Done when the transcript shows/i)
-    // The standalone /goal prompt is plan-agnostic and hardcodes no PR directive;
-    // instead it carries the PR-precedence line (plan strategy, repo/user override).
-    // (Structural no-PR lives only in return-to-caller mode, asserted separately below.)
-    expect(ceWorkEngines).toMatch(/plan-agnostic/i)
-    expect(ceWorkEngines).toMatch(/don't hardcode an open-a-PR/i)
-    expect(ceWorkEngines).toMatch(/Follow the plan's PR\/landing strategy if it defines one/i)
+  test("ce-work re-checks the plan against the diff before declaring done", () => {
+    // Context may have been compacted to a summary; both endings re-open the plan.
+    for (const ending of [ceWorkShipping, ceWorkReturn]) {
+      expect(ending).toMatch(/re-open the plan and re-check/i)
+      expect(ending).toMatch(/compacted to a summary/i)
+    }
     // plan-sections no longer prescribes a launch-prompt/Goal Launch Block section.
     expect(planSections).not.toMatch(/evaluator-complete/i)
     expect(planSections).not.toContain("Human standalone launch")
   })
 
-  test("implementation-ready requires zero launch-blocking open questions", () => {
-    expect(planSections).toMatch(/no\s+launch-blocking open question remains/i)
-    expect(planSections).toMatch(/stays\s+`requirements-only`/i)
-    expect(planSections).toMatch(/blocker resolution \/\s*planning/i)
+  test("execution requires sufficient contents and no launch-blocking questions", () => {
+    expect(planSections).toMatch(/no launch-blocking question remaining/i)
+    expect(planSections).toContain("A Product Contract without sufficient planning needs enrichment")
+    expect(planSections).toContain("blocking or deferred")
   })
 
   test("a requirements-only path is an enrichment input, not a Phase 0.1 resume target", () => {
@@ -565,17 +559,25 @@ describe("unified plan artifact contract", () => {
     expect(/pipeline mode the resume choice is made automatically|never prompted/i.test(resumeRegion)).toBe(true)
   })
 
-  test("format conversion: a requirements-only artifact with an implementation-ready sibling is superseded", () => {
-    // Codex P2 (PR #972): a format conversion writes a new canonical .md and
-    // leaves the old .html with stale requirements-only metadata. Both discovery
-    // sites glob .md AND .html, so they could rediscover the stale sibling and
-    // re-enrich (ce-plan) or stop (ce-work) even though the sibling is ready.
-    // Both must skip a requirements-only artifact that has an implementation-ready
-    // same-basename sibling.
-    expect(planCorpus).toMatch(/Skip a superseded sibling/i)
-    expect(planCorpus).toMatch(/same-basename.*other format|<basename>\.md.*<basename>\.html/i)
-    expect(ceWorkTriage).toMatch(/Superseded sibling/i)
-    expect(ceWorkTriage).toMatch(/select the implementation-ready sibling and execute it rather than stopping/i)
+  test("format conversion preserves canonicality without readiness metadata", () => {
+    // #972's stale-sibling regression remains protected by an explicit link;
+    // ambiguous old copies require a choice instead of trusting their labels.
+    expect(planFinalReview).toContain("visible supersession notice")
+    expect(planFinalReview).toContain("only after the converted artifact is complete")
+    for (const content of [planIntake, ceWorkTriage]) {
+      expect(content).toContain("supersession notice")
+      expect(content).toContain("same-basename")
+      expect(content).toMatch(/ask which/i)
+    }
+  })
+
+  test("skills never produce or consume the removed readiness field", () => {
+    for (const file of new Bun.Glob("skills/**/*.md").scanSync(process.cwd())) {
+      // The sole mention is the writer's migration instruction, not a value.
+      if (file === "skills/ce-plan/references/plan-sections.md") continue
+      expect(readRepoFile(file), file).not.toContain("artifact_readiness")
+    }
+    expect(planSections.match(/artifact_readiness/g)).toHaveLength(1)
   })
 
   test("large plans get a navigation-only Unit Index, gated to ~10+ units", () => {
@@ -594,32 +596,19 @@ describe("unified plan artifact contract", () => {
     expect(planCorpus).toMatch(/Product Contract unchanged|changed: .*R-IDs/)
   })
 
-  test("execution engines define a Codex lane, progress-visibility, and compaction recovery", () => {
-    // Codex #972-review P1 #3 / P2 #9 / P2 #10
-    expect(ceWorkEngines).toContain("Codex specifically")
-    // Codex exposes a callable goal tool; the skill starts it and does NOT call update_goal.
-    expect(ceWorkEngines).toContain("create_goal")
-    expect(ceWorkEngines).toMatch(/skill does NOT call `update_goal`/i)
-    expect(ceWorkEngines).toMatch(/start goal-mode directly, with no copy-paste/i)
-    // Claude Code has no goal tools → copy-paste only.
-    expect(ceWorkEngines).toMatch(/Claude Code exposes no goal tools/i)
+  test("execution engines keep progress visibility without a goal lane", () => {
     expect(ceWorkEngines).toContain("Progress visibility (independent of tail ownership)")
     expect(ceWorkEngines).toMatch(/must not open any PR/i)
-    expect(ceWorkEngines).toMatch(/draft\*?\*? PR only/i)
-    expect(ceWorkEngines).toMatch(/re-open the plan and re-check/i)
-    expect(ceWorkEngines).toMatch(/compacted to a summary/i)
+    for (const removed of ["create_goal", "goal-mode", "dynamic-workflow", "ultracode"]) {
+      expect(ceWorkEngines).not.toContain(removed)
+    }
   })
 
-  test("post-plan menu offers /goal prompt as a mutually-exclusive executor", () => {
-    expect(planHandoff).toContain("Run it as a `/goal`")
-    expect(planHandoff).toMatch(/`ce-work` does \*{0,2}not\*{0,2} also run/i)
-    expect(planHandoff).toContain("create_goal")
-    // The update_goal rule is a mechanic of starting the goal, and plan-handoff.md
-    // owns the objective and the start. It arrived with the goal lane in #972 with no
-    // recorded incident behind the duplicate body copy, and the body STOP-loads that
-    // reference before the menu renders — so pin the rule in its owner, and pin the
-    // kernel to require the owner immediately before the menu.
-    expect(planHandoff).toMatch(/do not call `update_goal`|the goal session marks its own completion/i)
+  test("post-plan menu hands execution only to ce-work", () => {
+    expect(planHandoff).toContain("**Start `ce-work`** *(recommended)*")
+    expect(planHandoff).not.toContain("Run it as a `/goal`")
+    expect(planHandoff).not.toContain("update_goal")
+    expect(planHandoff).not.toContain("pbcopy")
     expect(planSkill).toMatch(/Read `references\/plan-handoff\.md` immediately before Phase 5\.3\.8 and 5\.4/i)
     // No authoring-file meta-references leak into runtime menu content.
     expect(planHandoff).not.toContain("Per the AGENTS.md")
@@ -629,15 +618,12 @@ describe("unified plan artifact contract", () => {
   test("ce-work defines the execution-engine selection lane", () => {
     expect(ceWork).toContain("Resolve the engine, then strategy")
     expect(ceWork).toContain("references/execution-engines.md")
-    expect(ceWorkEngines).toContain("dynamic-workflow")
-    expect(ceWorkEngines).toMatch(/prompt-emission only|never invoked from inside this skill/i)
-
-    expect(ceWorkEngines).toContain("Probe host capability")
-    expect(ceWorkEngines).toContain("/goal Implement <plan-path>")
-    expect(ceWorkEngines).toContain("ultracode:")
+    expect(ceWorkEngines).toContain("two implementation engines")
+    expect(ceWorkEngines).not.toContain("/goal Implement <plan-path>")
+    expect(ceWorkEngines).not.toContain("ultracode:")
     expect(ceWorkEngines).toMatch(/Resume the correct tail/i)
     expect(ceWorkEngines).toContain("standalone_shipping_skipped: true")
-    // No-PR is now structural (return-to-caller only); standalone defers to repo/user conventions.
+    // No-PR is structural (return-to-caller only); standalone defers to repo/user conventions.
     expect(ceWorkEngines).toMatch(/must not open any PR/i)
   })
 })
@@ -684,7 +670,7 @@ describe("session-settled decision contract", () => {
     // ce-plan; the blocked-token stop and the verbatim retry stay in the body.
     const bodyStep1 = sliceSection(
       lfg,
-      "1. **Read `references/plan-brief.md` first**",
+      "1. **Produce the work source**",
       "2. **Read `references/work-return.md` first**",
     )
     const step1 = lfgPlanBrief
@@ -714,7 +700,7 @@ describe("session-settled decision contract", () => {
     const step6 = sliceSection(
       lfg,
       "6. **Autonomous residual handoff**",
-      "7. Invoke the `ce-test-browser` skill",
+      "7. Invoke the `ce-compound` skill",
     )
     // The step-6 trigger set is back in the body: the skip must not fire on
     // "Actionable findings: none." while a divergent entry is still undurable.
@@ -726,26 +712,27 @@ describe("session-settled decision contract", () => {
 
   test("ce-work envelope reports settled conflicts; shipping tail treats invalidation as a blocker", () => {
     expect(ceWorkReturn).toContain("`settled_decision_conflicts`")
-    expect(ceWorkShipping).toContain("never auto-accepted as a residual")
+    expect(ceWorkShipping).toContain("do not accept it as a leftover risk")
   })
 
-  test("ce-code-review routes settlement conflicts advisory+human, never demotes defects, and keeps stamps report-only in 5c", () => {
+  test("ce-code-review discards settled preferences, retains defects, and protects decisions during apply", () => {
     const stage5 = sliceSection(
-      codeReviewFinish,
+      codeReviewMerge,
       "### Stage 5: Merge findings",
       "### Stage 5b",
     )
-    expect(stage5).toContain("stamp `settled_conflict`")
-    expect(stage5).toContain("route it advisory/human")
+    expect(stage5).toContain("Discard findings that merely prefer an alternative")
+    expect(stage5).toContain("including candidates already stamped `settled_conflict`")
     // Negative boundary: defects inside a settled approach are not demoted.
-    expect(stage5).toContain("Do not demote a real defect")
+    expect(stage5).toContain("Keep evidence of a real defect")
+    expect(stage5).toContain("with normal severity")
     const stage5c = sliceSection(
-      codeReviewFinish,
+      codeReviewReport,
       "### Stage 5c: Act on findings",
       "### Stage 6",
     )
-    expect(stage5c).toContain("`settled_conflict`-stamped")
-    expect(stage5c).toContain("stay report-only")
+    expect(stage5c).toContain("Local apply does not authorize reversing a settled decision")
+    expect(stage5c).toContain("return the consequential choice to the user")
   })
 
   test("PR description Step C carries the session-settled provenance element", () => {
@@ -858,18 +845,8 @@ describe("cross-layer ownership contract", () => {
     // layers. It belongs to whoever composes that text. ce-plan's SKILL.md menu bullet
     // no longer composes an objective — it defers to plan-handoff.md, which the body
     // STOP-loads before the menu renders — so the pin follows the composition, and the
-    // body is pinned to defer (see the /goal menu test above).
+    // body is pinned to defer (see the ce-work menu test above).
     const handoffs = [
-      sliceSection(
-        planHandoff,
-        "- **Run it as a `/goal`**",
-        "- **Decide on the review's open items**",
-      ),
-      sliceSection(
-        ceWorkEngines,
-        "Copyable goal-mode prompt",
-        "Copyable dynamic-workflow prompt",
-      ),
       sliceSection(
         crossModelExecution,
         "3. **Prepare one bounded unit packet.**",
@@ -893,6 +870,15 @@ describe("cross-layer ownership contract", () => {
 })
 
 describe("Product Contract section catalog and routing destinations", () => {
+  test("relevant prototype sources reach both native and external unit packets", () => {
+    const native = readRepoFile("skills/ce-work/references/execution-strategy.md")
+    const packetContract = "Include the active unit's prototype source citations with their qualifications about locality, availability, and the authority of requirements. Instruct the worker to inspect accessible, explicitly cited prototype decisions and selected screens or states before implementing the affected behavior, including when those sources are in another worktree. Keep edits and tests inside the assigned workspace."
+    expect(native).toContain(packetContract)
+    expect(crossModelExecution).toContain(packetContract)
+    expect(readRepoFile("skills/ce-plan/references/output-mode.md")).toContain(
+      "**Repository file references inside the plan are repo-relative**",
+    )
+  })
   // ce-plan's include-when-material catalog specified only implementation-facing
   // sections; its product-shape sections had no firing/skip rule at all. Measured
   // 2026-08-12 across 34 pre-existing unified plans: Success Criteria appeared in
@@ -996,7 +982,7 @@ describe("Product Contract section catalog and routing destinations", () => {
       ],
       [
         "ce-brainstorm routing table",
-        sliceSection(brainstormSynthesisSummary, "| Internal-draft element | Where it goes in the doc |", "The chat-time Trade-offs section"),
+        sliceSection(brainstormSynthesisSummary, "| Internal-draft element | Where it goes in the doc |", "The chat-time call-outs dissolve by kind"),
       ],
     ]
 

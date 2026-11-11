@@ -26,13 +26,15 @@ function parseFrontmatter(content) {
   return fields
 }
 
+// Load every bundled skill once; both the V1 config hook and the V2 setup
+// derive their registrations from this single source of truth.
 function loadSkills() {
-  const commands = {}
+  const skills = []
   let entries
   try {
     entries = fs.readdirSync(skillsDir)
   } catch {
-    return commands
+    return skills
   }
   for (const entry of entries) {
     let content
@@ -41,34 +43,104 @@ function loadSkills() {
     } catch {
       continue
     }
+    const block = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)
     const fields = parseFrontmatter(content)
-    if (!fields || !fields.name) continue
-    if (fields["user-invocable"] === "false") continue
-    const command = {
-      template: `Load and execute the \`${fields.name}\` skill.\n\n$ARGUMENTS`,
-    }
-    if (fields.description) command.description = fields.description
-    commands[fields.name] = command
+    if (!block || !fields || !fields.name) continue
+    const body = content.slice(block[0].length).replace(/^\r?\n/, "")
+    skills.push({
+      id: entry,
+      name: fields.name,
+      description: fields.description,
+      path: path.join(skillsDir, entry, "SKILL.md"),
+      content: body,
+      // V2 honors `slash: false`; V1 honored `user-invocable: false`.
+      commandable: fields["user-invocable"] !== "false" && fields.slash !== "false",
+    })
   }
-  return commands
+  return skills
 }
 
-const skillCommands = loadSkills()
+function commandName(skill) {
+  return skill.name
+}
 
-export const CompoundEngineeringPlugin = async () => ({
-  config: async (config) => {
-    config.skills = config.skills || {}
-    config.skills.paths = config.skills.paths || []
-    if (!config.skills.paths.includes(skillsDir)) {
-      config.skills.paths.push(skillsDir)
-    }
-    config.command = config.command || {}
-    for (const [name, cmd] of Object.entries(skillCommands)) {
-      if (!(name in config.command)) {
-        config.command[name] = cmd
+// ---------------------------------------------------------------------------
+// V2 (OpenCode 2.x): register through the plugin context transforms.
+// ---------------------------------------------------------------------------
+
+async function setup(ctx) {
+  const skills = loadSkills()
+
+  await ctx.skill.transform((editor) => {
+    for (const skill of skills) {
+      const record = {
+        id: skill.id,
+        name: skill.name,
+        path: skill.path,
+        content: skill.content,
       }
+      if (skill.description) record.description = skill.description
+      editor.add(record)
     }
-  },
-})
+  })
+
+  await ctx.command.transform((editor) => {
+    for (const skill of skills) {
+      if (!skill.commandable) continue
+      editor.add({
+        name: commandName(skill),
+        description: skill.description,
+        execute: async ({ sessionID, prompt, delivery }) => {
+          await ctx.session.prompt({
+            ...prompt,
+            sessionID,
+            text: `Load and execute the \`${skill.name}\` skill.\n\n${prompt.text}`,
+            delivery,
+          })
+        },
+      })
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// V1 (OpenCode 1.x): mutate the resolved config before it is applied.
+// ---------------------------------------------------------------------------
+
+async function server() {
+  const skillCommands = {}
+  for (const skill of loadSkills()) {
+    if (!skill.commandable) continue
+    const command = {
+      template: `Load and execute the \`${skill.name}\` skill.\n\n$ARGUMENTS`,
+    }
+    if (skill.description) command.description = skill.description
+    skillCommands[commandName(skill)] = command
+  }
+
+  return {
+    config: async (config) => {
+      config.skills = config.skills || {}
+      config.skills.paths = config.skills.paths || []
+      if (!config.skills.paths.includes(skillsDir)) {
+        config.skills.paths.push(skillsDir)
+      }
+      config.command = config.command || {}
+      for (const [name, cmd] of Object.entries(skillCommands)) {
+        if (!(name in config.command)) {
+          config.command[name] = cmd
+        }
+      }
+    },
+  }
+}
+
+// Dual-shape entrypoint per the OpenCode V1→V2 migration guide: V2 calls
+// `setup()`, V1 (1.18.29+) calls `server()`.
+export const CompoundEngineeringPlugin = {
+  id: "compound-engineering",
+  setup,
+  server,
+}
 
 export default CompoundEngineeringPlugin

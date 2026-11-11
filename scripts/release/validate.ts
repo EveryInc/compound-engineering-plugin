@@ -27,7 +27,7 @@ function readReleasedManifest(): ReleasePleaseManifest {
   }
 }
 
-const releasePleaseConfig = await readJson<{ packages: Record<string, unknown> }>(
+const releasePleaseConfig = await readJson<Parameters<typeof validateReleasePleaseConfig>[0]>(
   path.join(process.cwd(), ".github", "release-please-config.json"),
 )
 const manifest = await readJson<ReleasePleaseManifest>(

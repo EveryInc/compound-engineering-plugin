@@ -2,13 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync, readdirSync, statSync } from "fs"
 import path from "path"
 
-// ce-explain's body was thinned toward Codex's 8000-byte skill prompt budget by
-// moving the ask-tool table, the model tiers, the run-directory block, grounding
-// by input shape, and menu sizing into references/orchestration.md, and the
-// operational-question gate into references/intake.md. The body pins live in
-// ce-explain-routing.test.ts (inline post-menu routing is load-bearing); these
-// are the corpus greps for what moved, so a later edit cannot drop them from
-// both places at once.
+// These corpus checks preserve portable tool use, evidence, and non-blocking exercises.
 const SKILL_DIR = path.join(import.meta.dir, "..", "..", "skills", "ce-explain")
 
 function walk(dir: string): string[] {
@@ -29,8 +23,6 @@ describe("ce-explain relocated invariants stay greppable in the corpus", () => {
     // may still name request_user_input; the closed per-host catalog must not return.
     "already in the current tool list",
     "never call a user-facing question tool",
-    "request_user_input",
-    "Never silently skip the question",
     // Model tiers + degradation
     "Extraction tier",
     "Ceiling tier",
@@ -42,11 +34,6 @@ describe("ce-explain relocated invariants stay greppable in the corpus", () => {
     "Unverified — from model knowledge, not checked against current sources",
     "recap-evidence.md",
     "never generate and rank alternatives",
-    // Menu sizing
-    "Pick a number or describe what you want.",
-    "absence hides an option silently",
-    // Operational-question gate
-    "Want me to actually walk you through how this works?",
   ]) {
     test(`corpus keeps: ${invariant.slice(0, 48)}`, () => {
       expect(corpus).toContain(invariant)
@@ -73,7 +60,7 @@ describe("ce-explain relocated invariants stay greppable in the corpus", () => {
     const body = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
     expect(body).toContain("references/orchestration.md")
     expect(body).toMatch(
-      /before the first blocking question, subagent dispatch, or run-directory creation/i,
+      /before grounding, the first blocking question, or subagent dispatch/i,
     )
     expect(body.indexOf("references/orchestration.md")).toBeLessThan(body.indexOf("### Phase 1"))
   })

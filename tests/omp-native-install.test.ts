@@ -1,11 +1,11 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test"
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
 import path from "node:path"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
 // Smoke test for native oh-my-pi (omp) install of this repository (#1224).
 // omp loads the repo directly from package.json#pi — no converter, no writer.
-// Dry-run only: this file never installs into the user's real HOME.
 setDefaultTimeout(20_000)
 
 const REPO_ROOT = path.join(import.meta.dir, "..")
@@ -22,17 +22,33 @@ const packageJson = JSON.parse(readFileSync(path.join(REPO_ROOT, "package.json")
 }
 
 describe("omp native install", () => {
-  test.skipIf(OMP_BIN === null)("omp dry-run install recognizes the repository", async () => {
-    const proc = Bun.spawn([OMP_BIN!, "install", "--dry-run", "--json", REPO_ROOT], {
-      stdout: "pipe",
-      stderr: "pipe",
-    })
-    const [stdout, stderr, exitCode] = await Promise.all([
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-      proc.exited,
-    ])
-    expect(exitCode, `omp install --dry-run failed:\n${stderr}`).toBe(0)
+  // omp 18.18+ answers `install --dry-run` for a local path without reading
+  // package.json, so only a real link reports the name and manifest it parsed.
+  test.skipIf(OMP_BIN === null)("omp link recognizes the repository", async () => {
+    const home = mkdtempSync(path.join(tmpdir(), "omp-native-install-"))
+    let stdout: string, stderr: string, exitCode: number
+    try {
+      const proc = Bun.spawn([OMP_BIN!, "plugin", "link", REPO_ROOT, "--json"], {
+        stdout: "pipe",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          HOME: home,
+          PI_CODING_AGENT_DIR: path.join(home, "agent"),
+          XDG_DATA_HOME: path.join(home, "data"),
+          XDG_STATE_HOME: path.join(home, "state"),
+          XDG_CACHE_HOME: path.join(home, "cache"),
+        },
+      })
+      ;[stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ])
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+    expect(exitCode, `omp plugin link failed:\n${stderr}`).toBe(0)
 
     const result = JSON.parse(stdout) as {
       name: string
@@ -48,7 +64,7 @@ describe("omp native install", () => {
     expect(result.manifest.version).toBe(expectedVersion)
   })
 
-  // The dry-run JSON above does not enumerate discovered skills, so inventory
+  // The link JSON above does not enumerate discovered skills, so inventory
   // coverage is asserted on disk instead: omp requires a frontmatter
   // description for native-provider skill discovery and silently drops skills
   // without one. This test spawns nothing and stays unguarded so CI hosts

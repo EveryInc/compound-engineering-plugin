@@ -26,9 +26,9 @@ keep it about the ideas and their basis, not implementation.
   `elsewhere-non-software`.
 
 Markdown renders metadata as YAML frontmatter at the top of the file.
-HTML renders it as visible header text (per the html-rendering hard
-invariant: one visible source of truth per value, no hidden
-machine-readable copy).
+HTML renders it as visible text placed as `references/html-rendering.md`
+describes, with one visible copy per value and no hidden machine-readable
+copy.
 
 **No status field — not on the doc, not per idea.** An ideation doc is a
 point-in-time discovery artifact, not a tracked work item: it carries no

@@ -1,0 +1,94 @@
+# Compound Engineering docs site. Built with Jekyll and jekyll-vitepress-theme.
+# Published sources are symlinked in from the repo and adopted by _plugins/ce_sources.rb;
+# nothing under docs/guides, README.md, or docs/install is edited for the site's sake.
+
+title: Compound Engineering
+description: AI skills that make each unit of engineering work easier than the last.
+url: https://every.to
+baseurl: /compound-engineering
+lang: en-US
+logo: /assets/logo.png
+
+theme: jekyll-vitepress-theme
+plugins:
+  - jekyll-vitepress-theme
+
+markdown: kramdown
+kramdown:
+  input: GFM
+  parse_block_html: false
+
+collections:
+  guides:
+    output: true
+    permalink: "/guides/:name/"
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - Rakefile
+  - vendor
+  - test
+  - node_modules
+  - assets/demo/README.md
+
+jekyll_vitepress:
+  branding:
+    site_title: Compound Engineering
+    logo:
+      default: /assets/logo.png
+      alt: Compound Engineering
+      width: 28
+      height: 28
+  typography:
+    google_fonts_url: /compound-engineering/css/fonts.css
+    body_font_family: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    code_font_family: "ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"
+  tokens:
+    light:
+      --vp-c-brand-1: "#111111"
+      --vp-c-brand-2: "#333333"
+      --vp-c-brand-3: "#000000"
+      --vp-c-brand-soft: "rgba(0, 0, 0, 0.08)"
+      --vp-button-brand-text: "#ffffff"
+      --vp-button-brand-hover-text: "#ffffff"
+      --vp-button-brand-active-text: "#ffffff"
+      --vp-home-hero-name-color: "#111111"
+      --vp-home-hero-name-background: transparent
+    dark:
+      --vp-c-brand-1: "#f5f5f5"
+      --vp-c-brand-2: "#d4d4d4"
+      --vp-c-brand-3: "#ffffff"
+      --vp-c-brand-soft: "rgba(255, 255, 255, 0.12)"
+      --vp-button-brand-text: "#111111"
+      --vp-button-brand-hover-text: "#111111"
+      --vp-button-brand-active-text: "#111111"
+      --vp-home-hero-name-color: "#f5f5f5"
+      --vp-home-hero-name-background: transparent
+  syntax:
+    light_theme: github
+    dark_theme: github.dark
+  edit_link:
+    enabled: false
+  last_updated:
+    enabled: true
+  github_star:
+    enabled: true
+    repository: EveryInc/compound-engineering-plugin
+  copy_page:
+    enabled: true
+  llms:
+    enabled: true
+    title: Compound Engineering
+    description: Documentation for the Compound Engineering plugin of AI coding-agent skills.
+  seo:
+    enabled: true
+    image:
+      path: /assets/logo.png
+      alt: Compound Engineering

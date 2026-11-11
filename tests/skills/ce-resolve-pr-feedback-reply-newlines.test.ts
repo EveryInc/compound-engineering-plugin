@@ -8,6 +8,7 @@ import { extractBashBlocks } from "./fenced-blocks"
 const SKILL_DIR = path.join(import.meta.dir, "..", "..", "skills", "ce-resolve-pr-feedback")
 const FULL_MODE = readFileSync(path.join(SKILL_DIR, "references", "full-mode.md"), "utf8")
 const TARGETED_MODE = readFileSync(path.join(SKILL_DIR, "references", "targeted-mode.md"), "utf8")
+const RESUME_MODE = readFileSync(path.join(SKILL_DIR, "references", "resume.md"), "utf8")
 const REPLY_SCRIPT = path.join(SKILL_DIR, "scripts", "reply-to-pr-thread")
 
 const blocks = extractBashBlocks(FULL_MODE).map((b) => b.body)
@@ -97,16 +98,27 @@ describe("ce-resolve-pr-feedback reply bodies keep real newlines", () => {
     expect(TARGETED_MODE).toMatch(/completion check before judgment[\s\S]{0,260}complete the missing resolution without posting again/i)
   })
 
-  test("top-level PR comment replies also use a heredoc body", () => {
+  test("resume reuses the owning remote protocol without a fresh fix loop", () => {
+    expect(RESUME_MODE).toContain("references/full-mode.md")
+    expect(RESUME_MODE).toContain("step 7")
+    expect(RESUME_MODE).not.toContain("scripts/reply-to-pr-thread")
+    expect(RESUME_MODE).not.toContain("scripts/resolve-pr-thread")
+    const resumeVerify = FULL_MODE.slice(FULL_MODE.indexOf("In resume,"), FULL_MODE.indexOf("**For fresh-feedback modes"))
+    expect(resumeVerify).toContain("without entering another fix cycle")
+  })
+
+  test("top-level PR comment replies feed a quoted heredoc file through body-file", () => {
     const commentBlock = blocks.find((b) => b.includes("gh pr comment"))
     expect(commentBlock).toBeDefined()
     expect(commentBlock!).toContain("<<'EOF'")
+    expect(commentBlock!).toContain('--body-file "$REPLY_BODY_FILE"')
+    expect(commentBlock!).not.toContain("$(cat")
     expect(commentBlock!).not.toContain("--body \"REPLY_TEXT\"")
   })
 
   test("reply-to-pr-thread uses the direct REST reply endpoint and preserves newlines", () => {
     const { dir, capture } = fakeGhFixture()
-    const body = "> reviewer said this\n\nFixed in abc1234 — added the null check."
+    const body = "> reviewer said this\n\nFixed in abc1234 — added the null check.\n\n"
     const result = spawnSync("bash", [REPLY_SCRIPT, "42", "1001", "o/r"], {
       input: body,
       encoding: "utf8",
@@ -154,6 +166,9 @@ describe("ce-resolve-pr-feedback reply bodies keep real newlines", () => {
 
     expect(result.status).toBe(2)
     expect(result.stderr).toMatch(/pending review appeared after posting/i)
+    // The POST succeeds before the visibility gate fails; resume must inspect this
+    // remote reply even when local progress was never checkpointed.
+    expect(JSON.parse(result.stdout)).toMatchObject({ id: 2002, pull_request_review_id: 3003 })
     const calls = readCalls(capture)
     expect(calls).toHaveLength(2)
     expect(calls.flat()).not.toContain("graphql")

@@ -1,28 +1,7 @@
-# The Optional Full Write-Up
+# Requested Write-Up
 
-Load this only when the user asks for the full write-up (SKILL.md Phase 4). The default deliverable is the compact chat TL;DR; this is the opt-in expanded artifact — for reading, sharing, or handing to the next skill.
+Expand the judgment for its intended readers and destination. Preserve the active subject's evidence and conditions from `references/method.md`: an adoption grade, a document's overall take, or a position among supplied approaches. Do not turn a document take or approach comparison into an adoption report.
 
-## What it contains
+Use the requested format or the destination's supported format. When none is specified, choose what makes the result usable. Cite project sources and any external sources the judgment depends on. Distinguish inference from evidence and retain the conditions that could change the judgment. Do not paste raw dossiers.
 
-The verdict, expanded — lead with the decision, then the evidence the TL;DR omitted:
-
-- **Verdict** — the grade and the conditions ("yes, if ..."), up top.
-- **Question framed** — subject, intent, the incumbent, and the reversibility tier.
-- **Evidence** — the **project leg** and the **external leg** as cited bullets (`file:line`, issue/PR number, url) drawn from the scout dossiers. This is where the depth lives.
-- **Alternatives considered** — including "keep the incumbent" and "do nothing."
-- **Reversal trigger** (Tier 2/3) — what would flip this verdict.
-- **Provenance** — what was verified vs. any unconfirmed conversation hypothesis (warm only).
-
-## Format and economy
-
-- **HTML by default** — a single self-contained file (a verdict is a thing people share). Use markdown when the user asks, or when the write-up will feed `ce-brainstorm`/`ce-plan`.
-- Write to a temp path, or under `docs/` when the user wants it kept; announce the absolute path. Do **not** introduce a new mandated `docs/` location — that store is deferred.
-- Lead with the verdict, and **cite** evidence rather than pasting dossiers wholesale — the report is a tighter case for a human, not a research dump.
-
-## Sharing
-
-Publish via whatever the user has — best available, never required:
-
-- `ce-proof` (Proof) — markdown-only, so if the report is HTML, render a throwaway markdown copy of it as the Proof source.
-- Otherwise an available HTML publishing tool the user has connected.
-- If neither is reachable, the local file is the deliverable — announce its path.
+Write a standalone file to private scratch and deliver its path. Resolve the CE artifact root before writing to a requested project location. When another workflow is responsible for the surrounding document, return the content for it to incorporate. A request for a write-up does not authorize publishing it. When publication is requested, use the destination’s available tools and follow its authorization requirements. If publication cannot complete, retain the local result and report the limitation.

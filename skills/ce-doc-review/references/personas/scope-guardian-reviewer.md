@@ -9,17 +9,17 @@ Read two slots in your prompt's `<review-context>` block:
 
 Calibrate by combining the two slots:
 
-**`Document type: requirements`:** full review. Scope-goal alignment, indirect scope, complexity smell test, priority dependency, and the completeness principle all apply at the spec level.
+**`Document type: requirements`:** full review. Scope-goal alignment, indirect scope, complexity smell test, priority dependency, and mechanism sizing all apply at the spec level.
 
 **`Document type: plan` AND `Origin:` is a path (not `none`):** scope-goal alignment was largely settled upstream. Focus this review on:
-- **Implementation-time abstractions** — does each new abstraction proposed in the plan have multiple current consumers? Abstraction earning its keep is plan-time work, not requirements-time work.
+- **Implementation-time abstractions** — does each new abstraction proposed in the plan have multiple current consumers? Checking that an abstraction justifies its cost is plan-time work, not requirements-time work.
 - **Implementation complexity bloat** — file count, new utility/helper modules, new framework adoption proposed in the plan when the origin doc didn't ask for them
 - **Priority dependency among implementation units** — U-IDs declaring dependencies that don't make sense in the implementation order
 - **Scope-creep into deferred work** — implementation units that quietly include work the origin doc placed in `Deferred for later` or `Outside this product's identity`
 
-**Tighten the completeness principle when `Origin:` is set:** flag missing test scenarios or error handling only when the origin requirements explicitly demanded the coverage. Don't push complete-over-partial in places the origin already chose partial. The cost-gap argument lives in brainstorm-time, not plan-time scope review.
+**Mechanism sizing applies to every plan, with or without `Origin:`** (section 5). Don't re-argue a coverage choice the origin requirements already made.
 
-Suppress findings on the plan that re-litigate origin-time scope-goal alignment — orphan-requirement and unserved-goal critiques against the origin's own goals belong upstream.
+Suppress findings on the plan that re-argue scope-goal alignment already settled in the origin doc. Orphan-requirement and unserved-goal critiques against the origin's own goals belong upstream.
 
 **`Document type: plan` AND `Origin: none`** (greenfield bootstrap) — full review applies, just like requirements docs.
 
@@ -51,17 +51,28 @@ If priority tiers exist:
 - **Priority inflation**: 80% of items at P0 means prioritization isn't doing useful work.
 - **Independent deliverability**: Can higher-priority items ship without lower-priority ones?
 
-### 5. Completeness principle
+### 5. Mechanism sizing (both directions)
 
-With AI-assisted implementation, the cost gap between shortcuts and complete solutions is 10-100x smaller. If the plan proposes partial solutions (common case only, skip edge cases), estimate whether the complete version is materially more complex. If not, recommend complete. Applies to error handling, validation, edge cases -- not to adding new features (product-lens territory).
+Any design has one more way to fail, so a plan can always grow by one more guard, retry, recovery path, mode, option, or abstraction. A mechanism the request did not ask for earns its place only when an existing contract requires it or one of these holds:
+
+- **Leaving it out causes harm nobody would catch in time.** The failure can actually happen here (trace it), and the way the result is used would not surface it quickly to someone who can fix it cheaply.
+- **Adding it later would be expensive,** because it concerns stored data or its format, a public or shared interface, money, or security.
+
+Apply this in both directions and emit each result as a finding:
+
+- **A committed mechanism that fails it** — recommend moving it to the plan's considered-and-not-built list (usually a non-goal in Scope Boundaries), quoting the mechanism and naming why neither condition holds. Something built around a needed mechanism that covers nothing the first one does not also fails.
+- **A left-out item that passes it** — for everything the plan defers, excludes, or lists as considered and not built, ask what happens when that failure occurs and who finds out. Recommend building it when the answer is harm that lands before anyone catches it, such as money moved twice or an unattended job whose failures reach no one.
+- **A requested behavior the plan narrows** — a safeguard or a narrow reading that delays, gates, caps, or skips part of something the request asked for. Recommend planning the behavior as requested, with any real conflict with a needed safeguard recorded as an open question for the requester.
+
+Do not recommend edge-case handling, validation, or error handling on the grounds that it is cheap to write. Each addition is more to build, review, and maintain, and it faces the same test.
 
 ## Confidence calibration
 
 Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric). Scope-guardian's domain grounds in the document's own stated goals and declared scope. Apply as:
 
 - **`100` — Absolutely certain:** Can quote both the goal statement and the scope item showing the mismatch. Evidence directly confirms the misalignment.
+- A committed mechanism that fails the mechanism-sizing test is `75` when you can quote it and show that neither condition holds. Do not lower it to `50` because removing work feels less urgent than adding it.
 - **`75` — Highly confident:** Misalignment likely to derail the work, but fully confirming it would require context not in the document (strategic priorities, prior decisions). You double-checked and the issue will hit implementers.
-- **`50` — Advisory (routes to FYI):** Organizational preference without a concrete cost (unit ordering, section placement alternatives that read equally well, "this could also be split" observations without real impact). Still requires an evidence quote. Surfaces as observation without forcing a decision.
 - **Suppress entirely:** Anything below anchor `50` — speculative concern or stylistic preference. Do not emit; anchors `0` and `25` exist in the enum only so synthesis can track drops.
 
 ## What you don't flag

@@ -1,0 +1,35 @@
+{
+ "pr": {
+  "number": 12,
+  "title": "Add ledger export endpoint",
+  "body": "",
+  "merged_at": "2026-05-14T20:11:00Z",
+  "merge_commit_sha": "000000000000000000000000000000000000000c",
+  "head": "0000000000000000000000000000000000000200",
+  "user": "sam"
+ },
+ "reviews": [],
+ "inline_comments": [
+  {
+   "id": 1200,
+   "in_reply_to_id": null,
+   "user": "devon",
+   "path": "src/routes/ledger.js",
+   "original_line": 31,
+   "original_commit_id": "0000000000000000000000000000000000000200",
+   "body": "If `db.export` rejects, nothing catches it and the request hangs until the client times out. Wrap the handler in try/catch and send a 500.",
+   "created_at": "2026-05-14T18:00:00Z"
+  },
+  {
+   "id": 1201,
+   "in_reply_to_id": 1200,
+   "user": "sam",
+   "path": "src/routes/ledger.js",
+   "original_line": 31,
+   "original_commit_id": "0000000000000000000000000000000000000200",
+   "body": "Fixed, wrapped in try/catch.",
+   "created_at": "2026-05-14T19:30:00Z"
+  }
+ ],
+ "conversation": []
+}

@@ -4,7 +4,7 @@
 
 `ce-strategy` writes the upstream anchor. `STRATEGY.md` lives at the repo root next to `README.md` and is a shared project document. Other tools and people write their own sections into it, so the skill owns only what its template names and leaves the rest alone. It is not a step in `/ce-ideate` → `/ce-brainstorm` → `/ce-plan` → `/ce-work`. Those skills read `STRATEGY.md` when it exists and weight their suggestions toward the active tracks and the stated approach. `ce-product-pulse` also reads it to seed the metrics it measures.
 
-The doc is short on purpose. The skill grounds itself in what the repo already says the product is, asks a handful of sharp questions, pushes back on slogans and feature lists, and writes what you actually said.
+The doc is short on purpose. The skill grounds itself in what the repo already says the product is, asks a few questions, pushes back on slogans and feature lists, and writes what you actually said.
 
 Skip this when you already know the one thing to build. That is `ce-ideate` (which directions), `ce-brainstorm` (what this needs to be), `ce-plan` (guardrails), or `ce-work` (build it).
 
@@ -99,7 +99,7 @@ On a first run, the filled draft is shown in chat and you get one edit pass befo
 
 ### Stress test before the draft
 
-After the five required sections, the skill poses three to five concrete proposals aimed at the draft's fault lines: a tempting feature just off the approach, a second persona pulling the other way, a track that would starve another. They are chosen so your answer is not predictable from the draft. If the strategy already decides a proposal, that confirms it. If it cannot, the approach or a track gets sharpened. Proposals you resist become Boundaries entries and feed a one-line "Resist a change when ..." test, so that section carries real content a downstream agent can apply.
+After the five required sections, the skill poses three to five concrete proposals aimed at the draft's weak points: a tempting feature just off the approach, a second persona pulling the other way, a track that would starve another. They are chosen so your answer is not predictable from the draft. If the strategy already decides a proposal, that confirms it. If it cannot, the approach or a track gets sharpened. Proposals you resist become Boundaries entries and feed a one-line "Resist a change when ..." test, so that section carries real content a downstream agent can apply.
 
 ### Updates in place
 
@@ -116,7 +116,7 @@ When `STRATEGY.md` is at the repo root:
 
 The skills work without the file. With it, they know what kind of work matters right now.
 
-Readers match sections by meaning, not exact heading. `ce-ideate`, `ce-brainstorm`, and `ce-plan` fall back to a legacy `PRODUCT.md` or `VISION.md` only for meanings `STRATEGY.md` lacks. `ce-dogfood` reads the persona section (`Users`, or `Who it's for` in older files), then a legacy sibling. `ce-strategy` itself reads those files as stated intent when grounding. `ce-product-pulse` reads `STRATEGY.md`, or the first of `VISION.md` and `PRODUCT.md` when it is absent; it takes metrics from `## Key metrics` when `ce-strategy` wrote it, otherwise from whichever section lists the success measures, following a linked legacy doc when `STRATEGY.md` defers them there, and says when none are on file yet.
+Readers match sections by meaning, not exact heading. `ce-ideate`, `ce-brainstorm`, and `ce-plan` fall back to a legacy `PRODUCT.md` or `VISION.md` only for meanings `STRATEGY.md` lacks. `ce-dogfood` reads the persona section (`Users`, or `Who it's for` in older files), then a legacy sibling. `ce-strategy` itself reads those files as stated intent when grounding. `ce-product-pulse` reads `STRATEGY.md`, or the first of `VISION.md` and `PRODUCT.md` when it is absent. It takes metrics from `## Key metrics` when `ce-strategy` wrote it, otherwise from whichever section lists the success measures, following a linked legacy doc when `STRATEGY.md` defers them there, and says when none are on file yet.
 
 The skill does not compute metric values, update the issue tracker, prioritize a backlog, or write requirements or plans.
 

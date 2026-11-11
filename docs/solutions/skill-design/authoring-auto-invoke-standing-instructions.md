@@ -8,7 +8,7 @@ problem_type: convention
 component: development_workflow
 severity: medium
 applies_when:
-  - Adding a "Make It Automatic" / "Make Capture Automatic" section to a skill's docs page
+  - Adding standing-instruction guidance to a skill's guide page (a "Make capture automatic" section, or a short paragraph like the one in ce-simplify-code's guide)
   - Writing a standing instruction that tells an agent to auto-invoke a skill from AGENTS.md/CLAUDE.md
   - Wiring a mutating skill (ce-simplify-code, ce-compound) to run on its own without user prompting
 tags:
@@ -35,16 +35,14 @@ Fire when a unit of work has *settled* ("when you finish a coherent unit of work
 
 ## Offer-first is not the safe one
 
-When a skill is safe by construction (behavior-preserving, refuses to weaken tests or types, verifies before finishing, lands edits on a branch the user reviews before commit), auto-run is not the reckless option and offer-first is not the safe one. Present them as peer variants and frame the choice as *interruption preference, not risk*. Reflexively stamping offer-first "recommended" over-weights a risk the skill design already handles.
+When a skill is safe by construction (behavior-preserving, never weakens tests or types to get green and removes a test only when it names the remaining test that covers it, verifies before finishing, lands edits on a branch the user reviews before commit), auto-run is not the reckless option and offer-first is not the safe one. Present them as peer variants and frame the choice as *interruption preference, not risk*. Reflexively stamping offer-first "recommended" over-weights a risk the skill design already handles.
 
 ## Cross-harness phrasing rules
 
-These sections are read by whatever agent the user runs (Claude Code, Codex, Gemini, Cursor):
+These sections are read by whatever agent the user runs (Claude Code, Codex, Gemini, Cursor). The "invoke the skill, not `/skill`" rule is in `docs/guides/ce-compound.md` "Make capture automatic"; the substantive-code eligibility and the hard-negative exclusions are the `ce-simplify-code` Preflight. Two reasons those do not state:
 
-- **"invoke the `<skill>` skill"**, never "run `/<skill>`": the slash-command form is not reliably agent-callable across harnesses; reference the capability, not the keystroke.
 - **"before review, commit, or handoff"**, not "at the end of the session": an agent cannot reliably detect session end but does know an imminent workflow boundary.
-- Key eligibility on **"substantive human-authored code"**, not a filename allowlist: tests, migrations, and code-bearing config carry real yield, and a mixed code+docs diff still qualifies (the skill scopes to the code).
-- Exclusions are the load-bearing part and must be hard negatives: documentation-/Markdown-only, formatting/lint-only, dependency/lockfile, generated/vendored, other purely mechanical churn.
+- Eligibility keyed on substantive code, not a filename allowlist: tests, migrations, and code-bearing config carry real yield.
 
 ## When to apply
 

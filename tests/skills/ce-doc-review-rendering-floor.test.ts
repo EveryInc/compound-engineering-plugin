@@ -60,7 +60,7 @@ describe("ce-doc-review shared rendering floor", () => {
   })
 
   test("floor pins the anchor budget and the identifier-free-consequence invariant", () => {
-    expect(floor).toContain("at most two opaque anchors")
+    expect(floor).toContain("at most two identifiers or references that need explanation")
     // The load-bearing invariant: the first sentence the reader sees carries no
     // token they'd have to open the doc or code to understand.
     expect(floor).toMatch(/no opaque identifier/i)
@@ -87,7 +87,7 @@ describe("ce-doc-review shared rendering floor", () => {
   })
 })
 
-describe("ce-plan surfaces doc-review findings verbatim, not re-narrated", () => {
+describe("ce-plan preserves legibility for retained doc-review findings", () => {
   // The observed illegible output came through ce-plan re-narrating the non-interactive
   // envelope into denser prose. This pins the instruction that keeps the
   // returned decision-first structure intact.
@@ -95,7 +95,7 @@ describe("ce-plan surfaces doc-review findings verbatim, not re-narrated", () =>
     path.join(process.cwd(), "skills/ce-plan/references/plan-handoff.md"),
     "utf8",
   )
-  test("plan-handoff forbids re-narrating returned findings", () => {
+  test("plan-handoff forbids dense re-narration of retained findings", () => {
     expect(handoff).toMatch(/do not re-narrate/i)
     expect(handoff).toContain("Consequence if unchanged")
   })
@@ -116,7 +116,11 @@ describe("ce-doc-review interaction-order decision context", () => {
     expect(walkthrough).toContain("Same-turn presentation before routing")
     expect(walkthrough).toMatch(/same turn/i)
     expect(walkthrough).toContain("one-line count")
-    expect(walkthrough).toMatch(/prior-turn non-interactive envelope/i)
+    // The condition: a structured non-interactive result from an earlier turn
+    // is listed among the things that do not satisfy same-turn presentation.
+    expect(walkthrough).toMatch(
+      /do \*\*not\*\* satisfy the requirement:\n\n- a structured non-interactive result printed in an earlier turn/i,
+    )
   })
 
   test("interactive template and synthesis restate same-turn presentation-before-routing", () => {

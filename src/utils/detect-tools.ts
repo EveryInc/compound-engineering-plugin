@@ -103,11 +103,3 @@ export async function detectInstalledTools(
   }
   return results
 }
-
-export async function getDetectedTargetNames(
-  home?: string,
-  cwd: string = process.cwd(),
-): Promise<string[]> {
-  const tools = await detectInstalledTools(home, cwd)
-  return tools.filter((t) => t.detected).map((t) => t.name)
-}

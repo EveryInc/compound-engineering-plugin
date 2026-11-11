@@ -1,0 +1,2 @@
+[test]
+pathIgnorePatterns = ["tests/skill-eval-cell/fixtures/**"]

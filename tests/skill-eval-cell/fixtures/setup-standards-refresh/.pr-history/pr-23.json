@@ -1,0 +1,35 @@
+{
+ "pr": {
+  "number": 23,
+  "title": "Add statement download",
+  "body": "",
+  "merged_at": "2026-08-04T19:00:00Z",
+  "merge_commit_sha": "0000000000000000000000000000000000000017",
+  "head": "000000000000000000000000000000000000020b",
+  "user": "sam"
+ },
+ "reviews": [],
+ "inline_comments": [
+  {
+   "id": 2300,
+   "in_reply_to_id": null,
+   "user": "review-bot",
+   "path": "src/routes/statements.js",
+   "original_line": 14,
+   "original_commit_id": "000000000000000000000000000000000000020b",
+   "body": "CODING_STANDARDS rule 2: this async handler has no try/catch and does not respond 500 itself.",
+   "created_at": "2026-08-04T17:10:00Z"
+  },
+  {
+   "id": 2301,
+   "in_reply_to_id": 2300,
+   "user": "sam",
+   "path": "src/routes/statements.js",
+   "original_line": 14,
+   "original_commit_id": "000000000000000000000000000000000000020b",
+   "body": "Not needed since #21; the error middleware handles rejections. Declining.",
+   "created_at": "2026-08-04T18:00:00Z"
+  }
+ ],
+ "conversation": []
+}

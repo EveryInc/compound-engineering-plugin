@@ -1,0 +1,22 @@
+diff --git a/src/emails.js b/src/emails.js
+--- a/src/emails.js
++++ b/src/emails.js
+@@ -21,6 +21,7 @@ export function receiptEmail({ guest, event, amountCents }) {
+       `Hi ${guest.name},`,
+       "",
+       `We received your payment of $${(amountCents / 100).toFixed(2)} for ${event.title}.`,
++      `The event starts ${formatStart(event.startsAt)}.`,
+     ].join("\n"),
+   }
+ }
+diff --git a/test/payments.test.js b/test/payments.test.js
+--- a/test/payments.test.js
++++ b/test/payments.test.js
+@@ -9,6 +9,7 @@ test("a succeeded payment marks the registration paid and sends a receipt", () =
+   assert.deepEqual(handlePaymentWebhook({ registrationId: id, status: "succeeded", amountCents: 2500 }), { ok: true })
+   assert.equal(getRegistration(id).status, "paid")
+   assert.match(outbox.at(-1).subject, /^Receipt:/)
++  assert.ok(outbox.at(-1).body.includes("The event starts Thu, 03 Dec 2026 17:00:00 GMT."))
+ })
+
+ test("a failed payment leaves the registration pending", () => {

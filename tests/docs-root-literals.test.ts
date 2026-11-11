@@ -64,7 +64,10 @@ function inComment(line: string, matchIndex: number, ext: string): boolean {
 describe("docs-root literal-path guard", () => {
   test("no skill composes a hardcoded docs/<subdir> artifact path outside a comment", () => {
     const offenders: string[] = []
-    for (const file of walk(SKILLS_ROOT)) {
+    const skillDirs = readdirSync(SKILLS_ROOT, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => path.join(SKILLS_ROOT, entry.name))
+    for (const file of skillDirs.flatMap(walk)) {
       const ext = path.extname(file)
       const lines = readFileSync(file, "utf8").split("\n")
       lines.forEach((line, i) => {

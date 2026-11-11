@@ -27,10 +27,12 @@ It does not render verdicts. If you ask whether to adopt a named external candid
 |----------|--------|
 | What does it do? | Collaborative dialogue to clarify scope, pressure-test premises, explore approaches, and write a requirements-only unified plan |
 | When to use it | Vague feature ideas, multiple plausible directions, unclear scope, work in unfamiliar territory, non-software decisions |
-| What it produces | Software: a requirements-only unified plan in `docs/plans/` with `artifact_readiness: requirements-only` and R/A/F/AE IDs. Non-software: chat synthesis, optional save, optional Proof publish, optional handoff to `ce-plan`. Lightweight alignment can skip the doc. |
-| What's next | Software: `ce-plan` (recommended), ship autonomously with `lfg`, pressure-test or prototype, or keep asking. Non-software: create a plan, save the summary, publish to Proof, or stop. |
+| What it produces | Software: a requirements-only unified plan in `docs/plans/` with a Product Contract and R/A/F/AE IDs. Non-software: chat synthesis, optional save, an optional published copy, optional handoff to `ce-plan`. Lightweight alignment can skip the doc. |
+| What's next | Software: `ce-plan` (recommended), ship autonomously with `lfg`, pressure-test or prototype, or keep asking. Non-software: create a plan, save the summary, publish a copy, or stop. |
 
 ---
+
+When a kept prototype informs the requirements, Sources retains its absolute run path, decision capsule, and selected screens or states for later planning. This is optional machine-local evidence: a missing prototype does not block progress, and the requirements govern disagreements. Repository file references remain relative.
 
 ## Example invocations
 
@@ -113,6 +115,8 @@ These probes fire as prose, not menus. A 4-option menu would tell you which kind
 
 Phase 2 then surfaces 2-3 concrete approaches, including at least one non-obvious angle (inversion, constraint removal, or cross-domain analogy). Approaches sit at mechanism or product-shape granularity, not architecture. Architecture on thin research belongs in `ce-plan`. You see the alternatives before the recommendation.
 
+Offering ideas you did not ask for is part of the job; recommending them is where scope grows, because whatever the skill recommends is what gets built when you say "your call." So its recommendations add scope, a safeguard, or a process you did not name only when your goal is not met without it, or when leaving it out lets harm land before anyone would catch it. Something that would be hard to add later is put to you as an explicit choice rather than recommended. Other ideas come as non-default options or deferred items, and a recommendation never narrows something you asked for. The requirements commit only what you asked for or chose, what that needs to work, and what passes that test.
+
 ### 4. Visual probes, then prototype when a sketch is not enough
 
 When a decision is spatial, behavioral, or visual, the skill can offer a rough local visual probe. Probes are disposable, display-only sketches; you respond in chat. A decision a rough sketch cannot settle (finish or motion), or one a sketch was built for and failed to settle, routes to `ce-prototype` instead.
@@ -123,11 +127,11 @@ Before writing the doc, the skill emits a scoping synthesis: what is being built
 
 The Product Contract carries R-IDs (Requirements), A-IDs (Actors), F-IDs (Key Flows), and AE-IDs (Acceptance Examples). `ce-plan` traces every implementation unit and test scenario back to them. Scope boundaries flow through unchanged. Requirements describe expected behavior from the user's perspective, not libraries, schemas, endpoints, or file layouts, unless the brainstorm itself is about a technical decision. A decision you examined and chose during the dialogue lands as a labeled Key Decision and is not re-asked; `ce-plan` inherits the label.
 
-On Standard and Deep software runs, a cheap scout gathers a grounding dossier (verbatim quotes with `file:line` pointers) while you answer the first question. Before the plan lands, a verifier that never saw the dialogue checks the Product Contract's repo claims. Refuted claims get corrected; unverifiable ones become explicit assumptions. The dossier path is handed to `ce-plan`.
+On Standard and Deep software runs, a cheap scout gathers a grounding dossier (verbatim quotes with `file:line` pointers) while you answer the first question. If the repo declares [Compound Packs](./packs.md) in its `packs` config, the scout quotes the pack files whose `applies_when` matches the topic, and the Product Contract cites the ones that shaped it. Before the plan lands, a verifier that never saw the dialogue checks the Product Contract's repo claims. Refuted claims get corrected; unverifiable ones become explicit assumptions. The dossier path is handed to `ce-plan`.
 
 ### 6. Blindspot pass and non-software facilitation
 
-When you flag unfamiliarity, or consecutive answers show you cannot weigh the options, the skill offers a blindspot pass before questioning that territory further: a map of 3-7 decisions and hazards, each with why it matters, the realistic options, and a recommended default. You pick which to walk through; the rest take defaults recorded as explicit assumptions. Works on both software and non-software routes.
+When you flag unfamiliarity, or consecutive answers show you cannot weigh the options, the skill offers a blindspot pass before questioning that territory further: a map of 3-7 decisions and hazards, each with why it matters, the realistic options, and a recommended default. You pick which to walk through; the rest take defaults recorded as explicit assumptions. The pass works on both software and non-software routes.
 
 Non-software work uses a domain-agnostic facilitator with the same one-question discipline. It does not write a software unified-plan artifact.
 
@@ -161,7 +165,7 @@ Skip it when:
 - You do not yet know what to work on → `/ce-ideate`
 - Requirements are already specified (a PRD exists, the issue is detailed) → `/ce-plan`
 - The request is whether to adopt a named external candidate → `/ce-pov`
-- You have a known root cause for a bug → `/ce-debug`
+- You have a bug → `/ce-debug`, or just fix it when the cause is known and the fix is obvious
 - The change is already specified down to the files it touches → just do it, or `/ce-work`
 
 ---
@@ -202,6 +206,8 @@ Many teams skip `ce-ideate` because they already know what to explore. Some also
 
 There is no skip-to-`ce-work` from the Phase 4 menu; software next steps go through `ce-plan` or `lfg` (which plans first). If a related requirements-only plan already exists, the skill offers to resume it instead of starting a duplicate.
 
+When `lfg` is the caller (it invokes this skill with `mode:return-to-caller` when a request's product shape has more than one plausible reading and you are present), the dialogue is the same but the Phase 4 menu is not shown: the skill returns the artifact path or the chat brief, plus any unresolved `Resolve Before Planning` items, and `lfg` continues to planning from that.
+
 ---
 
 ## Reference
@@ -214,7 +220,7 @@ There is no skip-to-`ce-work` from the Phase 4 menu; software next steps go thro
 | Existing requirements-only plan path, legacy `*-requirements.md` path, or matching topic | Resume offer |
 | Ideate survivor already in this conversation | Loads with that idea's tagged basis, rationale, and tradeoffs |
 | Verdict-shaped prompt (`should we adopt X`) | Offers `ce-pov`; decline and the brainstorm continues |
-| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive: the artifact is `.md` or `.html`, never both. Set `brainstorm_output: html` in CE config (`config.local.yaml` then `config.yaml`) to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown. See the [configuration reference](./configuration.md). |
+| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive: the artifact is `.md` or `.html`, never both. Set `brainstorm_output: html` in CE config (`config.local.yaml` then `config.yaml`) to make HTML the default. A headless or pipeline run resolves the format the same way; nothing forces markdown. See the [configuration reference](./configuration.md). |
 | `use fable` / `have opus generate these` | Elevate only approach generation to that model. Also settable as `brainstorm_model: <model>` in CE config. A prompt request overrides the config key. |
 
 ---
@@ -256,3 +262,13 @@ This works on any harness. The host serves the chosen model natively where it ca
 - [`ce-strategy`](./ce-strategy.md): anchor brainstorms to a documented product strategy
 - [`lfg`](./lfg.md): autonomous plan-then-ship from a requirements-only artifact
 - [`ce-proof`](./ce-proof.md): publish a non-software summary (or any markdown file you ask to share)
+
+## Understanding existing behavior and rationale
+
+When an unanswered question about behavior or rationale would materially change the work, this skill can use `ce-explain`. It passes the question, its scope, and its intended use, then uses the resulting evidence, constraints, and unknowns. The calling skill remains responsible for the plan or requirements. It reuses sufficient existing research and follows the same source restrictions. Explanation is not a mandatory extra stage.
+
+## Bake-off
+
+Explicitly request a Bake-off when alternatives need concrete development before choosing. See [ce-bakeoff](./ce-bakeoff.md) for the independent candidate contract and limits. General automatic routing is not enabled. The existing model choice is passed to Bake-off as a candidate preference; an explicitly requested candidate mix takes precedence. Bake-off owns dispatch: native model-family diversity when no preference is set, then available authorized CLIs, then fresh same-host agents if those routes fail. It does not use the ordinary elevation adapter for bakers.
+
+Brainstorming uses it in Phase 2 for an unresolved product mechanism after goals are clear. It replaces ordinary generation for that question. Options still precede the recommendation, and user scope confirmation remains authoritative.

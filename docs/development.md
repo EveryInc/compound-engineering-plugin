@@ -13,6 +13,32 @@ bun run release:validate  # plugin/marketplace consistency
 bun run plugin:validate   # Claude marketplace + plugin schema (needs `claude` on PATH)
 ```
 
+## Docs site
+
+The public docs at [every.to/compound-engineering](https://every.to/compound-engineering/) are built from `site/` with Jekyll and the `jekyll-vitepress-theme` gem. The site is a build layer, not a second copy: `site/_guides`, `site/assets`, `site/install.md`, and `site/upgrading.md` are symlinks to `docs/guides/`, `assets/`, `README.md`, and `docs/install/upgrading.md`. Never edit a published source to suit the site. Two site-local plugins do the adapting: `site/_plugins/ce_sources.rb` promotes the frontmatter-less sources into Jekyll pages and documents and derives titles, sidebar groups, the homepage data, and last-updated dates from the guides catalog, the README, and git; `site/_plugins/ce_github_markdown.rb` rewrites GitHub alerts, repo-relative links, and asset paths at render time; `site/_plugins/ce_relative_urls.rb` turns the built HTML's base-path URLs into page-relative ones, so one build serves every.to, the github.io origin, and a local server alike.
+
+Prerequisites: Ruby 3.3 or newer and Bundler. Then:
+
+```bash
+cd site && bundle install && cd ..
+bun run site:build   # builds site/_site with strict front matter
+bun run site:serve   # local server with live reload, at http://localhost:4000/compound-engineering/
+bun run site:test    # the plugins' minitest suite
+bun run site:check   # internal link check over site/_site
+```
+
+`.github/workflows/pages.yml` runs the plugin tests, the build, and an internal link check on every pull request, and deploys on pushes to `main`. A guide with a broken relative link fails that check.
+
+### Go-live runbook (done once, outside this repo)
+
+The site is served at `https://every.to/compound-engineering/` by every.to's edge proxy, which forwards that path prefix to the GitHub Pages build. The Jekyll config sets `url: https://every.to` and `baseurl: /compound-engineering`, so every link, asset, sitemap entry, and `llms.txt` entry already carries the prefix. There is no custom domain and no DNS to configure.
+
+1. **Pages source.** Repository Settings -> Pages -> Build and deployment -> Source: "GitHub Actions". The legacy branch build from `main:/docs` must be switched off; it cannot run the site's plugins and currently serves a 404. Leave the custom-domain field empty. The build then lives at `https://everyinc.github.io/compound-engineering-plugin/`.
+2. **every.to proxy rule.** Route `https://every.to/compound-engineering/*` to the origin `https://everyinc.github.io/compound-engineering-plugin/*`, replacing the `/compound-engineering` prefix with `/compound-engineering-plugin` on the way to the origin and passing the response through unchanged. The HTML already links with the every.to prefix, so no response rewriting is needed. Forward `/compound-engineering` (no trailing slash) as `/compound-engineering/`.
+3. **Branch protection.** Add the `build` job of the "Docs site" workflow to the required status checks on `main`, alongside `test`, so a site-breaking change cannot merge.
+
+Until step 1 is done the `deploy` job fails on `main`; the `build` job still proves every PR. The github.io origin also works on its own: page links and assets are relative, and only the canonical, Open Graph, sitemap, and llms.txt URLs name every.to.
+
 ## From your local checkout
 
 For active development, load this checkout directly in the harness you want to test. The harnesses below are the ones with a verified local-load path.
@@ -44,7 +70,7 @@ Select the current worktree as the active Codex development source:
 bun run codex:dev -- local
 ```
 
-This creates one collection symlink at `$CODEX_HOME/skills/compound-engineering-local` (default `~/.codex/skills/compound-engineering-local`) pointing to this worktree's `skills/` directory. It removes installed Compound Engineering plugin variants through the Codex CLI so a cached marketplace plugin cannot shadow or duplicate the local skills. It does not copy skills, change the checkout, pull Git, or touch unrelated entries under `$CODEX_HOME/skills`.
+This creates one collection symlink at `$CODEX_HOME/skills/compound-engineering-local` (default `~/.codex/skills/compound-engineering-local`) pointing to this worktree's `skills/` directory. It removes installed Compound Engineering plugin variants through the Codex CLI so a cached marketplace plugin cannot shadow or duplicate the local skills. It does not copy skills, change the checkout, pull Git, or touch unrelated entries under `$CODEX_HOME/skills`. If a deleted worktree leaves this managed symlink dangling, `local` (or its `refresh` alias) replaces it and reports the stale and new targets. Real files, directories, and valid symlinks to unrelated locations are still protected.
 
 The link exposes exactly what is in the selected worktree, including modified and untracked skills. Ordinary edits therefore need no reinstall, and current Codex versions detect direct skill changes automatically. Start a new session after switching between local and remote installation modes; if an ordinary skill edit does not appear, restart Codex.
 

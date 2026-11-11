@@ -32,12 +32,12 @@ async function readSkill(relativePath: string): Promise<string> {
 }
 
 describe("GPT-5.6 skill migration", () => {
-  test("keeps runtime prompt assets free of provider-specific GPT-5.6 variants", async () => {
+  test("keeps runtime prompt assets free of provider-specific GPT-5.6 and GPT-6 variants", async () => {
     const promptAssets = (await markdownFiles(skillsRoot)).filter((file) =>
       /\/references\/(?:agents|personas)\//.test(file),
     )
 
-    expect(await filesMatching(/gpt-5\.6-(?:sol|terra|luna)/i, promptAssets)).toEqual([])
+    expect(await filesMatching(/gpt-(?:5\.6|6)-(?:sol|terra|luna|astra)/i, promptAssets)).toEqual([])
   })
 
   test("removes the obsolete Codex mini/mid-tier label", async () => {
@@ -48,7 +48,7 @@ describe("GPT-5.6 skill migration", () => {
     const [codeReviewSkill, codeReviewDispatch, simplifyCode] = await Promise.all([
       readSkill("ce-code-review/SKILL.md"),
       readSkill("ce-code-review/references/dispatch-reviewers.md"),
-      readSkill("ce-simplify-code/SKILL.md"),
+      readSkill("ce-simplify-code/references/reviewer-dispatch.md"),
     ])
     const codeReview = `${codeReviewSkill}\n${codeReviewDispatch}`
 

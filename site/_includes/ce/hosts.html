@@ -1,0 +1,4 @@
+{%- assign hosts = site.data.ce.hosts -%}
+{%- if hosts and hosts.size > 0 -%}
+<p class="ce-muted ce-hosts">Also runs on {{ hosts | join: ", " }}.</p>
+{%- endif -%}

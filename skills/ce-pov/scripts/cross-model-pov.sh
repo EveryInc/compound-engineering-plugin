@@ -19,12 +19,13 @@
 #                   the peer-key of the host's OWN serving family, attested by
 #                   the calling skill (it knows its harness). A peer-key, never
 #                   a provider name: openai->codex, anthropic->claude,
-#                   xai->grok, cursor/composer->composer.
-#                   Used only to verify independence. `unknown` is allowed for an
+#                   xai->grok, cursor/composer->composer, google->gemini.
+#                   Used to verify independence. `unknown` is allowed for an
 #                   explicitly named peer, but its receipt remains unverified;
 #                   automatic discovery must exclude it before calling this worker.
 #   <fixed-route>   one host-resolved and pre-sanctioned route: codex, claude,
-#                   grok-cli, grok-cursor, cursor, or composer. A route failure
+#                   grok-cli, grok-cursor, cursor, composer, opencode,
+#                   antigravity, or pi. A route failure
 #                   returns no artifact; only the host may disclose and retry a
 #                   different recipient.
 #   <subject-payload> framed question plus any conversation-only subject material.
@@ -38,8 +39,9 @@
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-pov.sh --emit-adapter <route>
 #     prints the exact argv the given route would run (route in:
-#     codex | claude | grok-cli | grok-cursor | cursor | composer). Both this mode and the
-#     live run build their argv from adapter_argv(), so the U7 route-safety test
+#     codex | claude | grok-cli | grok-cursor | cursor | composer | opencode |
+#     antigravity | pi). Both this mode and the
+#     live run build their argv from adapter_argv(), so the route-safety test
 #     asserts on the same command string the peer actually runs.
 #
 # Self-locates its sibling reference files via BASH_SOURCE (NOT the CWD, which is
@@ -57,7 +59,7 @@ set -uo pipefail
 
 # Survive SIGHUP when the orchestrator backgrounds this script and the parent
 # shell exits (common on Cursor/Codex Bash tools). Without this, a detached
-# codex process group can still write raw `-o` JSON while this script dies
+# peer process group can keep running while this script dies
 # before normalize — leaving fold-in files without route/model receipts.
 trap '' HUP
 
@@ -70,6 +72,8 @@ PEERLOG=""
 PEERERR=""
 RAW_OUT=""
 RUN_SUCCEEDED=false
+PEER_ROUTE=""
+SESSION_STALLED=false
 
 cleanup_private_scratch() {
   [ -n "${PEER_WORKDIR:-}" ] && rm -rf "$PEER_WORKDIR"
@@ -80,33 +84,21 @@ log()  { printf '[cross-model-pov] %s\n' "$*" >&2; }
 skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no output
 
 # --- model + reasoning per provider ----------------------------------------
-# ONE model at HIGH reasoning per provider. Concrete IDs are the CURRENT instance of the tier principle
+# ONE model per provider at its editorial tier (native Grok is xhigh; Codex and Claude stay high). Concrete IDs are the CURRENT instance of the tier principle
 # and the single maintenance point when model families change.
-M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort="high")
-M_CLAUDE="claude-opus-5"       # claude CLI, Opus 5   (--effort high)
-M_GROK="grok-4.6"              # grok CLI             (--effort high)
-M_GROK_CURSOR="cursor-grok-4.6-high" # cursor-agent grok route (reasoning baked into id)
-M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
-
-# --- model-identity receipt (R7/R8) -----------------------------------------
-# "Which model ran" is a claim that needs a serving-side receipt. Only the
-# claude CLI reports one today: its JSON envelope carries a modelUsage object
-# keyed by the full dated id that actually served the run. Match requested vs
-# actual by expected family prefix, delimited on "-": the served id must equal
-# the prefix or continue it with "-" (alias or undated id -> dated id counts
-# as a match; a longer sibling such as claude-opus-50-* does not; never
-# substring). Every other route records the literal
-# "unverified" — never a fallback to the requested value. Keep this block byte-identical across
-# ce-code-review and ce-doc-review (kernel parity).
-expected_model_prefix() {   # <requested-alias-or-id> -> expected served-id family prefix
-  case "$1" in
-    fable)    printf 'claude-fable' ;;
-    opus)     printf 'claude-opus' ;;
-    sonnet)   printf 'claude-sonnet' ;;
-    haiku)    printf 'claude-haiku' ;;
-    claude-*) printf '%s' "$1" ;;
-  esac
-}
+M_CODEX="gpt-6.1-sol"          # codex     (reasoning_effort=high)
+M_CLAUDE="claude-opus-5-5"     # claude    (effort=high)
+M_GROK="grok-4.7"              # grok CLI  (reasoning_effort=xhigh)
+# Cursor's ACP server offers one preset per model and rejects effort variants,
+# so grok-cursor runs at high/fast and composer at its fast tier.
+M_GROK_CURSOR="grok-4.7[context=256k,reasoning_effort=high,fast=true]"
+M_COMPOSER="composer-2.5[fast=true]"
+# Antigravity offers only the models the account is entitled to. Argon is
+# preferred; an account without it falls back once to Flash before any prompt,
+# and the non-final retry reuses whichever model was selected.
+M_ANTIGRAVITY="gemini-4-argon"            # antigravity (thinking_level=high)
+M_ANTIGRAVITY_FALLBACK="gemini-3.8-flash"
+ANTIGRAVITY_MODEL=""   # set by the fallback; empty requests M_ANTIGRAVITY
 
 route_model() {   # <route> -> the M_* constant that route requests
   local target
@@ -124,15 +116,17 @@ route_model() {   # <route> -> the M_* constant that route requests
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
-    opencode)    printf 'auto' ;;
+    opencode|pi) printf 'auto' ;;
+    antigravity) printf '%s' "${ANTIGRAVITY_MODEL:-$M_ANTIGRAVITY}" ;;
   esac
 }
 
 route_target() {
   case "$1" in
-    codex|claude|cursor|composer) printf '%s' "$1" ;;
+    codex|claude|cursor|composer|antigravity) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
     opencode) printf 'opencode' ;;
+    pi) printf 'pi' ;;
   esac
 }
 
@@ -143,120 +137,357 @@ route_harness() {
     grok-cli) printf 'grok' ;;
     grok-cursor|cursor|composer) printf 'cursor-agent' ;;
     opencode) printf 'opencode' ;;
+    antigravity) printf 'antigravity' ;;
+    pi) printf 'pi' ;;
   esac
 }
 
 target_serving_family() {
   case "$1" in
     codex|claude|grok|composer) printf '%s' "$1" ;;
-    cursor) printf 'unknown' ;;
-    opencode) printf 'unknown' ;;
+    antigravity) printf 'gemini' ;;
+    cursor|opencode|pi) printf 'unknown' ;;
   esac
 }
 
-MODEL_ACTUAL="unverified"
-extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODEL_ACTUAL
-  MODEL_ACTUAL="unverified"
-  [ "$1" = "claude" ] || return 0
-  local requested actual prefix matched envelope
-  requested="$(route_model claude)"
-  prefix="$(expected_model_prefix "$requested")"
-  # stream-json is NDJSON: modelUsage lives on the terminal type=result event
-  # (same pattern as elevation-dispatch). Buffered --output-format json is one
-  # object — whole-file jq still works when no result event exists.
-  envelope="$(grep -a '"type":"result"' "$PEERLOG" 2>/dev/null | tail -1 || true)"
-  # jq `keys` is sorted, so keys[0] is the alphabetically-first model, not
-  # necessarily the one that served the run (a multi-key envelope can also carry
-  # an auxiliary model's usage). Prefer a key matching the requested family's
-  # expected prefix; fall back to the first key only when none matches, and warn
-  # only then. A missing/unparseable envelope stays "unverified" (never the
-  # requested value).
-  matched=""
-  if [ -n "$prefix" ]; then
-    # first modelUsage key equal to, or delimited under, the expected prefix
-    # (jq-native, no external `head`: the route sandbox may not carry coreutils
-    # on PATH).
-    if [ -n "$envelope" ]; then
-      matched="$(printf '%s' "$envelope" | jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(. == $p or startswith($p + "-")))) // empty' 2>/dev/null)"
-    else
-      matched="$(jq -r --arg p "$prefix" 'first((.modelUsage // {} | keys[] | select(. == $p or startswith($p + "-")))) // empty' "$PEERLOG" 2>/dev/null)"
+route_available() {
+  case "$1" in
+    codex) command -v codex >/dev/null 2>&1 ;;
+    claude) command -v claude >/dev/null 2>&1 ;;
+    grok-cli) command -v grok >/dev/null 2>&1 ;;
+    grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
+    opencode) command -v opencode >/dev/null 2>&1 ;;
+    antigravity) command -v agy_acp_server.par >/dev/null 2>&1 ;;
+    pi) command -v pi >/dev/null 2>&1 ;;
+    *) return 1 ;;
+  esac
+}
+
+# --- acpx transport (keep byte-identical across migrated peer workers) -----
+# Every route reaches its agent through acpx, which speaks the Agent Client
+# Protocol and prints the JSON-RPC stream, so one parser covers every CLI.
+# The calling worker supplies route_available, route_model, and log.
+ACPX_VERSION="0.22.0"
+# 0.18.0 fixes approve-reads allowing ambiguous destructive permission requests.
+ACPX_MIN_VERSION="0.18.0"
+ACPX_UNAVAILABLE=""   # pre-egress reason; ACPX_SCOPE says whether every route shares it
+ACPX_SCOPE=""
+ACPX_NPM_REFRESH=false
+
+acpx_package_spec() {
+  printf 'acpx@>=%s <=%s' "$ACPX_MIN_VERSION" "$ACPX_VERSION"
+}
+
+acpx_agent() {   # <route> -> acpx built-in agent name
+  case "$1" in
+    codex) printf 'codex' ;;
+    claude) printf 'claude' ;;
+    grok-cli) printf 'grok-build' ;;
+    grok-cursor|cursor|composer) printf 'cursor' ;;
+    opencode) printf 'opencode' ;;
+    antigravity) printf 'antigravity' ;;
+    pi) printf 'pi' ;;
+    *) return 1 ;;
+  esac
+}
+
+# acpx launches Google's Antigravity ACP runtime by name. It is a separate
+# download from the agy CLI and needs its localharness_external helper from the
+# same release, beside it or named by ANTIGRAVITY_HARNESS_PATH.
+acpx_antigravity_helper() {
+  local runtime
+  if [ -n "${ANTIGRAVITY_HARNESS_PATH:-}" ]; then printf '%s' "$ANTIGRAVITY_HARNESS_PATH"; return 0; fi
+  runtime="$(command -v agy_acp_server.par 2>/dev/null)" || return 1
+  printf '%s/localharness_external' "$(dirname "$runtime")"
+}
+
+# The runtime reads skills and settings from GEMINI_HOME, so every run gets a
+# private one, deleted with the caller's scratch. A file-backed login (no macOS
+# keychain) is read only from there, so it is copied in; refreshes are not
+# written back, so concurrent peers cannot clobber the user's token.
+acpx_antigravity_home() {   # <private-dir> -> GEMINI_HOME path
+  local home="$1/gemini-home"
+  local token="${GEMINI_HOME:-${HOME:-}/.gemini}/antigravity-acp/acp_token.json"
+  (umask 077; mkdir -p "$home/antigravity-acp") || return 1
+  printf '{"auth":{"type":"oauth-personal"}}\n' > "$home/antigravity-acp/settings.json" || return 1
+  if [ -f "$token" ]; then
+    (umask 077; cp "$token" "$home/antigravity-acp/acp_token.json") || return 1
+  fi
+  printf '%s' "$home"
+}
+
+acpx_unavailable() {   # <shared|route> <reason>
+  ACPX_SCOPE="$1"; ACPX_UNAVAILABLE="$2"
+  return 1
+}
+
+# acpx lets ~/.acpx/config.json and <cwd>/.acpxrc.json replace a built-in
+# agent's launch command; a route that would run something else is skipped.
+# opencode launches the installed CLI by path, which no config entry overrides.
+acpx_config_guard() {   # <route> <cwd>
+  local agent file
+  [ "$1" = opencode ] && return 0
+  agent="$(acpx_agent "$1")" || return 1
+  for file in "${HOME:-}/.acpx/config.json" "$2/.acpxrc.json"; do
+    [ -e "$file" ] || continue
+    if ! jq -e --arg a "$agent" '(.agents // {}) | keys | map(ascii_downcase) | index($a) == null' "$file" >/dev/null 2>&1; then
+      acpx_unavailable route "$file overrides or cannot be checked for the '$agent' agent launch"
+      return 1
     fi
+  done
+}
+
+acpx_preflight() {   # <route> <cwd>; nothing is sent to a provider here
+  local v major minor
+  ACPX_UNAVAILABLE=""; ACPX_SCOPE=""
+  command -v node >/dev/null 2>&1 || { acpx_unavailable shared "node not found; acpx needs Node 22.13 or newer"; return 1; }
+  v="$(node -p 'process.versions.node' 2>/dev/null)"
+  major="${v%%.*}"; minor="${v#*.}"; minor="${minor%%.*}"
+  case "$major$minor" in ''|*[!0-9]*) acpx_unavailable shared "cannot read the Node version; acpx needs Node 22.13 or newer"; return 1 ;; esac
+  if [ "$major" -lt 22 ] || { [ "$major" -eq 22 ] && [ "$minor" -lt 13 ]; }; then
+    acpx_unavailable shared "Node $v is too old; acpx needs Node 22.13 or newer"
+    return 1
   fi
-  if [ -n "$matched" ]; then
-    MODEL_ACTUAL="$matched"
-    return 0
+  command -v npx >/dev/null 2>&1 || { acpx_unavailable shared "npx not found; acpx runs through npx"; return 1; }
+  if [ "$1" = antigravity ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "the Antigravity route is not yet supported on native Windows"; return 1 ;;
+    esac
+    route_available "$1" || { acpx_unavailable route "Antigravity's ACP runtime (agy_acp_server.par) is not on PATH; it is a separate download from the agy CLI (run ce-setup for the link)"; return 1; }
+    [ -x "$(acpx_antigravity_helper)" ] || { acpx_unavailable route "Antigravity's localharness_external helper is not beside agy_acp_server.par or at ANTIGRAVITY_HARNESS_PATH; install both from the same release (run ce-setup for the link)"; return 1; }
   fi
-  if [ -n "$envelope" ]; then
-    actual="$(printf '%s' "$envelope" | jq -r '.modelUsage // empty | keys[0] // empty' 2>/dev/null)"
+  route_available "$1" || { acpx_unavailable route "the agent CLI for route '$1' is not installed"; return 1; }
+  if [ "$1" = opencode ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "opencode launches through acpx's raw --agent command, which acpx rejects on native Windows"; return 1 ;;
+    esac
+  fi
+  if [ "$1" = pi ]; then
+    case "$(uname -s 2>/dev/null)" in
+      MINGW*|MSYS*|CYGWIN*) acpx_unavailable route "pi launches through a POSIX sh wrapper, which pi-acp cannot start on native Windows"; return 1 ;;
+    esac
+  fi
+  acpx_config_guard "$1" "$2"
+}
+
+# Claude's ACP adapter always loads project settings, so the launch goes
+# through a wrapper that adds --safe-mode.
+acpx_claude_wrapper() {   # <private-dir> -> wrapper path
+  local real wrapper="$1/claude-safe-mode"
+  real="$(command -v claude)" || return 1
+  printf '#!/bin/sh\nexec %s --safe-mode "$@"\n' "$(printf '%q' "$real")" > "$wrapper" && chmod 700 "$wrapper" || return 1
+  printf '%s' "$wrapper"
+}
+
+# Pi runs its tools without ACP permission requests, so acpx's permission flags
+# do not bound it. pi-acp (0.0.33+) launches PI_ACP_PI_COMMAND instead of the pi
+# on PATH; this wrapper ignores project-local Pi files and adds the worker's
+# tool limits.
+acpx_pi_wrapper() {   # <private-dir> [pi-arg...] -> wrapper path
+  local real wrapper="$1/pi-launch" args="" arg
+  shift
+  real="$(command -v pi)" || return 1
+  for arg in --no-approve "$@"; do args="$args $(printf '%q' "$arg")"; done
+  printf '#!/bin/sh\nexec %s%s "$@"\n' "$(printf '%q' "$real")" "$args" > "$wrapper" && chmod 700 "$wrapper" || return 1
+  printf '%s' "$wrapper"
+}
+
+acpx_npm_failure_reason() {
+  if grep -qE 'No matching version found for .* with a date before ' "$1" 2>/dev/null; then
+    printf '%s' "npm could not resolve $(acpx_package_spec) or a dependency before its date cutoff; check min-release-age/before policy or wait for the cooldown"
   else
-    actual="$(jq -r '.modelUsage // empty | keys[0] // empty' "$PEERLOG" 2>/dev/null)"
+    grep -m1 '^npm error' "$1" 2>/dev/null
   fi
-  if [ -z "$actual" ]; then
-    log "model receipt absent/unparseable on claude route; recording unverified"
-    return 0
+}
+
+# ETARGET is ambiguous: refresh metadata once while preserving npm's date policy.
+# npm ignores prefer_online while prefer_offline is set, so refresh disables it.
+acpx_npm_resolution_retryable() {   # <stderr-log> <stream-log>
+  [ "$ACPX_NPM_REFRESH" = true ] && return 1
+  grep -qE 'ETARGET|notarget|No matching version found' "$1" "$2" 2>/dev/null
+}
+
+# The codex and claude adapters are pointed at the installed CLIs so the pin
+# bounds the transport version, not which models the agent can serve.
+acpx_base_argv() {   # <route> <cwd> <mcp-config> <timeout-secs> <claude-wrapper> <gemini-home> <pi-wrapper>
+  printf '%s\0' env
+  # An ambient Google API key or cloud project would bill it instead of the
+  # Antigravity subscription. env takes -u only before its first assignment.
+  case "$1" in
+    antigravity) printf '%s\0' -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_APPLICATION_CREDENTIALS \
+      -u GOOGLE_CLOUD_PROJECT -u GOOGLE_CLOUD_LOCATION -u GOOGLE_GENAI_USE_VERTEXAI -u AGY_LLM_GATEWAY_URL ;;
+  esac
+  if [ "$ACPX_NPM_REFRESH" = true ]; then
+    printf '%s\0' npm_config_prefer_offline=false npm_config_fetch_retries=0 npm_config_prefer_online=true
+  else
+    printf '%s\0' npm_config_prefer_offline=true npm_config_fetch_retries=0
   fi
-  MODEL_ACTUAL="$actual"
-  log "WARNING: model mismatch - requested $requested, backend served $actual; reconcile must surface this"
+  case "$1" in
+    # codex-acp ignores app-server CLI flags.
+    codex) printf '%s\0' "CODEX_PATH=$(command -v codex)" 'CODEX_CONFIG={"features":{"plugins":false}}' ;;
+    claude) printf '%s\0' "CLAUDE_CODE_EXECUTABLE=$5" ;;
+    antigravity) printf '%s\0' "GEMINI_HOME=$6" "ANTIGRAVITY_HARNESS_PATH=$(acpx_antigravity_helper)" ;;
+    pi) printf '%s\0' "PI_ACP_PI_COMMAND=$7" ;;
+  esac
+  # Explicit --package avoids npx reusing a global binary that violates npm age policy.
+  # npx also exports npm_config_package, which breaks the nested npx acpx uses
+  # to launch the codex adapter when npm is not beside node (exit 127).
+  printf '%s\0' npx -y --package "$(acpx_package_spec)" -- env -u npm_config_package acpx --cwd "$2" --format json --mcp-config "$3" --timeout "$4"
+}
+
+acpx_agent_argv() {   # <route>
+  # The preflight refuses opencode when it is not installed; the bare name keeps
+  # --emit-adapter output readable on a machine without it.
+  if [ "$1" = opencode ]; then printf '%s\0' --agent "$(command -v opencode || printf opencode) acp" exec
+  else printf '%s\0' "$(acpx_agent "$1")" exec; fi
+}
+
+# The run's outcome is the result of its own session/prompt request, matched by
+# id because --model adds a session/set_model request before the prompt.
+acpx_outcome() {   # <stream-log> -> end_turn | <other stopReason> | error | incomplete | not-sent
+  local id outcome
+  id="$(jq -R 'fromjson? | select(.method == "session/prompt") | .id' "$1" 2>/dev/null | tail -1)"
+  [ -n "$id" ] || { printf 'not-sent'; return 0; }
+  outcome="$(jq -rR --argjson id "$id" 'fromjson? | select(.method == null and .id == $id) | if .error then "error" else (.result.stopReason // "error") end' "$1" 2>/dev/null | tail -1)"
+  printf '%s' "${outcome:-incomplete}"
+}
+
+# Antigravity holds session/new open while it waits for a browser sign-in it
+# will never get, so a run without a usable login would otherwise sit out the
+# whole idle cap. Nothing has been sent while the session is pending.
+ACPX_SESSION_START_SECS="${CROSS_MODEL_SESSION_START_SECS:-60}"
+acpx_session_state() {   # <stream-log> -> starting | pending | open
+  local id
+  jq -eR 'fromjson? | select(.result.protocolVersion? != null)' "$1" >/dev/null 2>&1 || { printf 'starting'; return 0; }
+  id="$(jq -R 'fromjson? | select(.method == "session/new") | .id' "$1" 2>/dev/null | tail -1)"
+  if [ -n "$id" ] && jq -eR --argjson id "$id" 'fromjson? | select(.method == null and .id == $id)' "$1" >/dev/null 2>&1; then
+    printf 'open'
+  else
+    printf 'pending'
+  fi
+}
+
+acpx_text() {   # <stream-log> <outfile>: the agent's reply text
+  jq -jR 'fromjson? | select(.method == "session/update" and .params.update.sessionUpdate == "agent_message_chunk") | .params.update.content.text // empty' "$1" > "$2" 2>/dev/null
+}
+
+# Model ids the adapter reports in the prompt result's _meta. acpx documents
+# _meta as adapter-defined, so these are the adapter's assertion, not proof.
+acpx_served_models() {   # <stream-log> -> "<model> <tokens>" lines
+  jq -rR 'fromjson? | select(.result.stopReason?) | .result._meta // {} |
+    ((.quota.model_usage // [])[] | "\(.model) \(.token_count.totalTokens // 0)"),
+    (.modelId // empty | "\(.) 0")' "$1" 2>/dev/null
+}
+
+# Bounded failure evidence from the stream. The stream echoes the outbound
+# prompt, so only error messages and the stop reason are read from it.
+acpx_failure_evidence() {   # <stream-log>
+  local evidence
+  evidence="$(jq -rR 'fromjson? | (.error.message? // empty), (.result.stopReason? // empty | select(. != "end_turn") | "stopReason=" + .)' "$1" 2>/dev/null | tr '\n' ' ')"
+  evidence="${evidence% }"
+  [ "${#evidence}" -gt 300 ] && evidence="${evidence:0:147} ... ${evidence: -147}"
+  printf '%s' "$evidence"
+}
+
+# codex-acp streams a provider rejection (such as a model the account may not
+# use) as reply text and still ends the turn with end_turn, so only the reply
+# carries it. Bounded inside jq so a long reply never enters a bash string.
+acpx_reply_evidence() {   # <stream-log>
+  jq -nrR '[inputs | fromjson? | select(.method == "session/update" and .params.update.sessionUpdate == "agent_message_chunk") | .params.update.content.text // empty]
+    | join("") | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")
+    | if length > 300 then .[0:147] + " ... " + .[-147:] else . end' "$1" 2>/dev/null
+}
+
+acpx_advertised_models() {   # <stream-log>
+  jq -nrR '[inputs | fromjson? | .result.models.availableModels[]?.modelId | sub("\\[.*$"; "")]
+    | reduce .[] as $m ([]; if any(.[]; . == $m) then . else . + [$m] end)
+    | join(", ") | if length > 300 then .[0:296] + " ..." else . end' "$1" 2>/dev/null
+}
+
+# Exit 5 is acpx's permission refusal. Paired with stopReason cancelled, the
+# refusal ended the turn. Exit 5 with end_turn means the turn finished. A
+# cancelled turn with any other exit is an interrupt.
+acpx_permission_cancel_reason() {   # <stream-log> <exit-code>
+  [ "$(acpx_outcome "$1")" = cancelled ] && [ "$2" = 5 ] || return 0
+  printf '%s' "permission request cancelled the turn"
+}
+
+acpx_node_startup_line() {   # <stderr-log>
+  local line=""
+  line="$(grep -m1 -E '^Error ' "$1" 2>/dev/null)"
+  [ -n "$line" ] || line="$(grep -m1 -E '^node:' "$1" 2>/dev/null)"
+  printf '%s' "$line"
+}
+# --- end acpx transport -----------------------------------------------------
+
+# --- model-identity receipt ---------------------------------------------------
+# "Which model ran" comes from the adapter's _meta report, recorded as the
+# served id; it is never filled from the requested value. Prefer the served id
+# in the requested family (Claude also reports an auxiliary Haiku); otherwise
+# record the model that used the most tokens and warn about the mismatch.
+MODEL_ACTUAL="unverified"
+extract_model_receipt() {   # <route>; reads $PEERLOG, sets MODEL_ACTUAL
+  local requested family served m tokens most=-1 heaviest=""
+  MODEL_ACTUAL="unverified"
+  requested="$(route_model "$1")"
+  family="${requested%%\[*}"
+  case "$family" in
+    fable|opus|sonnet|haiku) family="claude-$family" ;;
+  esac
+  served="$(acpx_served_models "$PEERLOG")"
+  [ -n "$served" ] || return 0
+  while read -r m tokens; do
+    [ -n "$m" ] || continue
+    case "$m" in
+      "$family"|"$family"-*|"$family"\[*) MODEL_ACTUAL="$m"; return 0 ;;
+    esac
+    if [ "${tokens:-0}" -gt "$most" ]; then most="${tokens:-0}"; heaviest="$m"; fi
+  done <<EOF
+$served
+EOF
+  MODEL_ACTUAL="$heaviest"
+  # A route that requested no model (Cursor default, OpenCode auto) has nothing to mismatch.
+  [ "$requested" = auto ] && return 0
+  log "WARNING: model mismatch - requested $requested, adapter reported $MODEL_ACTUAL; reconcile must surface this"
 }
 
 # --- adapter argv (single source of truth for route flags) -----------------
-# Emits the CLI + flags one token per line. Read-only, no-prompt, least-privilege
-# (web-only on claude/grok; read-only residual on codex/cursor-agent), and
-# high-reasoning. PEER_WORKDIR / RAW_OUT / PROMPT_FILE / SCHEMA_REF are
-# resolved by the caller (placeholders in --emit-adapter mode); PEER_WORKDIR is the
-# per-peer empty cwd/workspace, kept separate from the shared fold-in dir RUN_DIR.
-# Peer routes write to RAW_OUT only; the final fold-in file (OUT) is published after normalize so an orphaned
-# peer process cannot leave an un-normalized return. NEVER emit: codex without
-# `-s read-only`; grok `--always-approve` / `--permission-mode bypassPermissions`;
-# cursor-agent `-f` / `--force` / `--yolo`.
+# Read-only intent on every route: reads are approved, every other permission
+# request is denied, and each adapter runs in its read-only mode where it has
+# one (codex mode=read-only, claude mode=default, cursor mode=ask, opencode
+# mode=plan with edits denied, antigravity mode=default). Pi asks no
+# permission, so its launcher enables only its read and search tools. Claude's
+# --allowed-tools is an auto-approve list, not a restriction: its other tools
+# still ask and are denied. The codex adapter does not enforce its read-only
+# mode, so write denial is best effort. PEER_WORKDIR / PROMPT_FILE / MCP_CONFIG /
+# CLAUDE_WRAPPER / GEMINI_HOME_DIR / PI_WRAPPER are resolved by the caller
+# (placeholders in --emit-adapter mode).
 adapter_argv() {
-  case "$1" in
-    codex)
-      printf '%s\0' codex --search exec - -C "$READ_ROOT" --skip-git-repo-check -s read-only \
-        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_reasoning_effort="high"' -c 'hide_agent_reasoning=false'
-      ;;
-    claude)
-      # Keep project auto-discovery disabled while allowing only repository reads
-      # and bounded public web checks. Mutating tools, Bash, MCP, and subagents are
-      # absent from the allowlist.
-      # stream-json + --verbose for PEERLOG idle (#1270); schema still composes.
-      printf '%s\0' claude -p --model "$(route_model claude)" --effort high --permission-mode dontAsk \
-        --safe-mode --disable-slash-commands --tools Read,Glob,Grep,WebSearch,WebFetch \
-        --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" \
-        --output-format stream-json --verbose
-      ;;
-    grok-cli)
-      # Schema forces buffered json — hard-only, no PEERLOG idle (#1270).
-      # --verbatim: without it grok offloads a large prompt to a session file and
-      # sends only a preview, spending scarce turns to re-read what it was given.
-      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --verbatim --model "$(route_model grok-cli)" --effort high \
-        --cwd "$READ_ROOT" --permission-mode dontAsk \
-        --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
-        --no-subagents --max-turns 15 \
-        --json-schema "$SCHEMA_REF" --output-format json
-      ;;
-    grok-cursor)
-      printf '%s\0' cursor-agent -p --model "$(route_model grok-cursor)" --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
-      ;;
-    cursor)
-      printf '%s\0' cursor-agent -p --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
-      ;;
-    composer)
-      printf '%s\0' cursor-agent -p --model "$(route_model composer)" --mode ask --trust \
-        --sandbox enabled --workspace "$READ_ROOT" --output-format stream-json
-      ;;
-    opencode)
-      printf '%s\0' env 'OPENCODE_DISABLE_PROJECT_CONFIG=1' \
-        'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","bash":"deny","webfetch":"deny","task":"deny"}}' \
-        opencode run --dir "$READ_ROOT" --format json --file "$PROMPT_FILE"
-      printf '%s\0' "Follow the attached brief. Return only schema-shaped JSON."
-      _oc_model="$(route_model opencode)"
-      [ "$_oc_model" = "auto" ] || [ -z "$_oc_model" ] || printf '%s\0' --model "$_oc_model"
-      ;;
-    *) return 1 ;;
+  local route="$1" model
+  acpx_agent "$route" >/dev/null || return 1
+  model="$(route_model "$route")"
+  case "$route" in
+    # OpenCode's plan mode keeps the peer read-only; denying bash outright makes
+    # its free tier reject the session over ACP.
+    opencode) printf '%s\0' env OPENCODE_DISABLE_PROJECT_CONFIG=1 \
+      'OPENCODE_CONFIG_CONTENT={"permission":{"edit":"deny","webfetch":"deny","task":"deny"}}' ;;
   esac
+  acpx_base_argv "$route" "$READ_ROOT" "$MCP_CONFIG" "$HARD_SECS" "$CLAUDE_WRAPPER" "$GEMINI_HOME_DIR" "$PI_WRAPPER"
+  printf '%s\0' --approve-reads --non-interactive-permissions deny
+  case "$route" in
+    claude) printf '%s\0' --allowed-tools Read,Glob,Grep,WebSearch,WebFetch --max-turns 15 ;;
+  esac
+  [ "$model" = auto ] || printf '%s\0' --model "$model"
+  acpx_agent_argv "$route"
+  case "$route" in
+    codex)    printf '%s\0' --config-option mode=read-only --config-option reasoning_effort=high ;;
+    claude)   printf '%s\0' --config-option mode=default --config-option effort=high ;;
+    grok-cli) printf '%s\0' --config-option reasoning_effort=xhigh ;;
+    grok-cursor|cursor|composer) printf '%s\0' --config-option mode=ask ;;
+    opencode) printf '%s\0' --config-option mode=plan ;;
+    antigravity) printf '%s\0' --config-option mode=default --config-option thinking_level=high ;;
+  esac
+  printf '%s\0' --file "$PROMPT_FILE"
 }
 
 # The host may replace a stale concrete model only within the fixed route's
@@ -273,24 +504,24 @@ apply_model_override() {
     codex:gpt-*|codex:o[0-9]*|codex:*[./]gpt-*|codex:*[./]o[0-9]* ) ;;
     claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-* ) ;;
     grok-cli:grok-* ) ;;
-    grok-cursor:cursor-grok-* ) ;;
+    grok-cursor:grok-*|grok-cursor:cursor-grok-* ) ;;
     composer:composer-* ) ;;
-    opencode:*/* ) ;;
+    opencode:*/*|pi:*/* ) ;;
+    antigravity:gemini-* ) ;;
     *) return 1 ;;
   esac
 }
 
 # --- --emit-adapter <route>: print the argv, no model call, no side effects --
 if [ "${1:-}" = "--emit-adapter" ]; then
-  PEER_WORKDIR="<peer-workdir>"
   READ_ROOT="<read-root>"
-  RAW_OUT="<peer-workdir>/pov-<provider>.raw.json"
-  PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
+  PROMPT_FILE="<prompt-file>"; MCP_CONFIG="<mcp-config>"; CLAUDE_WRAPPER="<claude-safe-mode-wrapper>"; GEMINI_HOME_DIR="<gemini-home>"; PI_WRAPPER="<pi-wrapper>"
+  HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
   route="${2:-}"
   apply_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity|pi)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -336,20 +567,27 @@ INCLUDE_PATHS="${CROSS_MODEL_INCLUDE_PATHS:-}"
 EXCLUDE_PATHS="${CROSS_MODEL_EXCLUDE_PATHS:-}"
 
 case "$HOST_PROVIDER" in
-  codex|claude|grok|composer|unknown) ;;
-  *) skip "host serving family '$HOST_PROVIDER' invalid (want codex|claude|grok|composer|unknown)" ;;
+  codex|claude|grok|composer|gemini|unknown) ;;
+  *) skip "host serving family '$HOST_PROVIDER' invalid (want codex|claude|grok|composer|gemini|unknown)" ;;
 esac
 case "$HOST_HARNESS" in
-  codex|claude|grok|cursor|opencode|unknown) ;;
-  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|unknown)" ;;
+  codex|claude|grok|cursor|opencode|antigravity|omp|pi|unknown) ;;
+  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|opencode|antigravity|omp|pi|unknown)" ;;
 esac
 
 case "$FIXED_ROUTE" in
-  codex|claude|grok-cli|grok-cursor|cursor|composer|opencode) ;;
+  codex|claude|grok-cli|grok-cursor|cursor|composer|opencode|antigravity|pi) ;;
   *) skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress" ;;
 esac
 TARGET="$(route_target "$FIXED_ROUTE")" || skip "unknown fixed route '${FIXED_ROUTE:-<empty>}'; host must resolve one route before egress"
 apply_model_override "$FIXED_ROUTE" || skip "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$FIXED_ROUTE'"
+# An Antigravity or Pi host can serve several families; never send it to itself.
+if [ "$FIXED_ROUTE" = antigravity ] && { [ "$HOST_PROVIDER" = gemini ] || [ "$HOST_HARNESS" = antigravity ]; }; then
+  skip "fixed route 'antigravity' is the host's own Gemini family or Antigravity harness; skipping before egress"
+fi
+if [ "$FIXED_ROUTE" = pi ] && [ "$HOST_HARNESS" = pi ]; then
+  skip "fixed route 'pi' is the host's own Pi harness; skipping before egress"
+fi
 
 # --- self-locate skill root + canonical sibling files ----------------------
 SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || skip "cannot resolve skill root; skipping"
@@ -358,10 +596,9 @@ SCHEMA="$SKILL_ROOT/references/pov-schema.json"
 [ -f "$PERSONA" ] || skip "persona brief not found at $PERSONA; skipping"
 [ -f "$SCHEMA" ]  || skip "POV schema not found at $SCHEMA; skipping"
 SCHEMA_CONTENT="$(cat "$SCHEMA")" || skip "cannot read POV schema; skipping"
-SCHEMA_REF="$SCHEMA_CONTENT"   # adapter_argv references SCHEMA_REF for --json-schema routes
 
 # --- validate the host-resolved fixed route and egress allowlist -------------
-ALLOW="${CROSS_MODEL_PEERS:-}"                 # optional egress allowlist (R19)
+ALLOW="${CROSS_MODEL_PEERS:-}"                 # optional egress allowlist
 
 in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # Require a usable POV, not merely valid JSON. Error envelopes and incomplete
@@ -395,13 +632,13 @@ route_allowlisted() {
     grok-cursor)
       in_csv grok "$ALLOW" && { in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
       ;;
-    opencode) in_csv opencode "$ALLOW" ;;
+    opencode|antigravity|pi) in_csv "$1" "$ALLOW" ;;
     *) return 1 ;;
   esac
 }
 
 # Soft size gate: peer prompt embeds the full subject payload. Over-budget payloads skip
-# cleanly (R11) rather than collapsing silently inside the provider context window.
+# cleanly rather than collapsing silently inside the provider context window.
 MAX_PAYLOAD_CHARS="${CROSS_MODEL_MAX_PAYLOAD_CHARS:-200000}"
 case "$MAX_PAYLOAD_CHARS" in ''|*[!0-9]*) MAX_PAYLOAD_CHARS=200000 ;; esac
 PAYLOAD_CHARS="$(wc -c <"$PAYLOAD_PATH" | tr -d '[:space:]')"
@@ -421,18 +658,8 @@ if ! command -v codex >/dev/null 2>&1; then
   IFS="$OLDIFS"
 fi
 
-route_available() {
-  case "$1" in
-    codex) command -v codex >/dev/null 2>&1 ;;
-    claude) command -v claude >/dev/null 2>&1 ;;
-    grok-cli) command -v grok >/dev/null 2>&1 ;;
-    grok-cursor|cursor|composer) command -v cursor-agent >/dev/null 2>&1 ;;
-    opencode) command -v opencode >/dev/null 2>&1 ;;
-    *) return 1 ;;
-  esac
-}
 route_allowlisted "$FIXED_ROUTE" || skip "fixed route '$FIXED_ROUTE' is not fully sanctioned by CROSS_MODEL_PEERS; skipping before egress"
-route_available "$FIXED_ROUTE" || skip "fixed route '$FIXED_ROUTE' is unavailable; host must disclose and choose any retry"
+acpx_preflight "$FIXED_ROUTE" "$READ_ROOT" || skip "transport unavailable (pre-egress, $ACPX_SCOPE): $ACPX_UNAVAILABLE"
 log "fixed cross-model POV route: target=$TARGET route=$FIXED_ROUTE (host $HOST_PROVIDER excluded)"
 
 # --- compose the peer prompt from the canonical persona (single source) ----
@@ -446,18 +673,30 @@ case "$SCRATCH_PARENT/" in "$REPO_ROOT/"*) skip "private scratch parent must be 
 if ! PEER_WORKDIR="$(mktemp -d "$SCRATCH_PARENT/xmodel-pov-peer-XXXXXX")"; then
   skip "provider $TARGET workspace isolation unavailable; skipping provider"
 fi
+trap 'cleanup_private_scratch' EXIT
 chmod 700 "$PEER_WORKDIR" 2>/dev/null || { cleanup_private_scratch; skip "cannot make peer scratch private"; }
 PROMPT_FILE="$PEER_WORKDIR/prompt.md"
 PEERLOG="$PEER_WORKDIR/stdout.log"
-# Peer stderr goes to its own file, NOT merged into PEERLOG: PEERLOG must stay
-# clean stdout for the POV brace-match and the receipt jq-parse. An
-# auth/quota/rate-limit message often lands on stderr, so capture it separately
-# and surface it in the skip evidence (grok's 402 is on stdout, others on stderr).
+# acpx prints the ACP stream on stdout; npm and adapter diagnostics go to stderr.
 PEERERR="$PEER_WORKDIR/stderr.log"
 RAW_OUT="$PEER_WORKDIR/pov-$TARGET.raw.json"
+TEXT_OUT="$PEER_WORKDIR/reply.txt"
+MCP_CONFIG="$PEER_WORKDIR/mcp.json"
 : > "$PROMPT_FILE"; : > "$PEERLOG"; : > "$PEERERR"
-chmod 600 "$PROMPT_FILE" "$PEERLOG" "$PEERERR" 2>/dev/null || { cleanup_private_scratch; skip "cannot make peer scratch files private"; }
-trap 'cleanup_private_scratch' EXIT
+printf '{"mcpServers":[]}\n' > "$MCP_CONFIG"
+chmod 600 "$PROMPT_FILE" "$PEERLOG" "$PEERERR" "$MCP_CONFIG" 2>/dev/null || { cleanup_private_scratch; skip "cannot make peer scratch files private"; }
+CLAUDE_WRAPPER=""
+if [ "$FIXED_ROUTE" = claude ]; then
+  CLAUDE_WRAPPER="$(acpx_claude_wrapper "$PEER_WORKDIR")" || { cleanup_private_scratch; skip "transport unavailable (pre-egress, route): cannot prepare the Claude --safe-mode launcher"; }
+fi
+GEMINI_HOME_DIR=""
+if [ "$FIXED_ROUTE" = antigravity ]; then
+  GEMINI_HOME_DIR="$(acpx_antigravity_home "$PEER_WORKDIR")" || { cleanup_private_scratch; skip "transport unavailable (pre-egress, route): cannot prepare a private Antigravity home"; }
+fi
+PI_WRAPPER=""
+if [ "$FIXED_ROUTE" = pi ]; then
+  PI_WRAPPER="$(acpx_pi_wrapper "$PEER_WORKDIR" --tools read,grep,find,ls --no-mcp)" || { cleanup_private_scratch; skip "transport unavailable (pre-egress, route): cannot prepare the read-only Pi launcher"; }
+fi
 {
   cat "$PERSONA"
   printf '\n\n---\n\n'
@@ -472,22 +711,23 @@ trap 'cleanup_private_scratch' EXIT
   cat "$PAYLOAD_PATH"
   printf '\n</subject-payload>\n'
 } > "$PROMPT_FILE"
+# codex-acp's only refusal option is cancel, which ends the turn.
+if [ "$FIXED_ROUTE" = codex ]; then
+  printf '\nYour sandbox is read-only and no approval is available: never request escalated or out-of-sandbox permissions (for example to launch a browser, use the network, or write outside the repository). Any permission request ends this review with no result. When a check needs more access than the sandbox gives, reason from the source instead and name the unrun check in reasoning.\n' >> "$PROMPT_FILE"
+fi
 
-# --- run machinery: idle-timeout for streaming peers, hard-only for grok-cli --
-# On idle-guarded routes the idle cap is the liveness guard and HARD_SECS only
-# backstops a peer that stays productive past any useful budget. Claude and
-# cursor-agent stream (`stream-json`) so run_timeout_cmd polls PEERLOG (#1270).
-# grok-cli keeps --json-schema (buffered) and stays hard-only on
-# UNGUARDED_HARD_SECS. This skill's default HARD_SECS stays at 600s because its
-# codex route runs the lower sol/high tier -- ce-code-review and ce-doc-review
-# run luna/xhigh and default higher. `CROSS_MODEL_HARD_SECS` is shared across
-# all three, and the orchestrator's aggregate deadline derives from it (see
-# references/cross-model-panel.md), so a raised knob raises both windows.
+# --- run machinery -----------------------------------------------------------
+# Every route streams the ACP session, so the idle cap is the liveness guard and
+# HARD_SECS backstops a peer that stays productive past any useful budget. acpx
+# gets the same budget as --timeout, but it applies that per phase, so this
+# script's wall clock stays authoritative. This skill's default HARD_SECS stays
+# at 600s because its codex route runs the lower sol/high tier -- ce-code-review
+# and ce-doc-review run luna/xhigh and default higher. `CROSS_MODEL_HARD_SECS`
+# is shared across all three, and the orchestrator's aggregate deadline derives
+# from it (see references/cross-model-panel.md), so a raised knob raises both windows.
 IDLE_SECS="${CROSS_MODEL_IDLE_SECS:-180}"
 HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
-UNGUARDED_HARD_SECS="${CROSS_MODEL_HARD_SECS:-600}"
 RETRY_MIN_SECS="${CROSS_MODEL_RETRY_MIN_SECS:-60}"   # least window worth spending on a non-final retry
-TO_BIN="$(command -v gtimeout || command -v timeout || true)"
 
 # Reap a backgrounded job's whole process group: TERM, then KILL after a grace.
 # True while $1 is a live (non-zombie) process. kill -0 succeeds on zombies
@@ -501,14 +741,19 @@ peer_alive() {
   if ! command -v ps >/dev/null 2>&1; then
     return 0
   fi
-  st="$(ps -o state= -p "$1" 2>/dev/null | tr -d ' \n')"
+  # Git Bash's ps has no -o; fall back to its -p lookup, which has no zombie state.
+  if ! st="$(ps -o state= -p "$1" 2>/dev/null)"; then
+    ps -p "$1" >/dev/null 2>&1
+    return
+  fi
+  st="$(printf '%s' "$st" | tr -d ' \n')"
   [ -n "$st" ] || return 1
   [ "${st#Z}" = "$st" ]
 }
 
 reap() {
   # Signal the process group and grace-poll without wait(). The caller alone
-  # wait()s the leader so RUN_SUCCEEDED reflects the real exit status — a second
+  # wait()s the leader so PEER_EXIT is the real exit status — a second
   # wait here would fail after we already reaped and mark healthy exits as
   # timed-out (#1270 Bugbot). No background KILL timer: orphaned timers can
   # hit recycled PIDs under bun --parallel.
@@ -545,8 +790,7 @@ trap 'on_term' TERM INT
 # Build the CMD array for a route (bash 3.2-safe: no mapfile).
 build_cmd() {
   CMD=()
-  # NUL-delimited so a token containing newlines (the pretty-printed --json-schema
-  # value) stays ONE argv element instead of splitting across lines.
+  # NUL-delimited so a token containing spaces or newlines stays ONE argv element.
   while IFS= read -r -d '' tok; do CMD+=("$tok"); done < <(adapter_argv "$1")
 }
 
@@ -597,32 +841,40 @@ stop_heartbeat() {
   _HEARTBEAT_PID=""
 }
 
-run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG, writes -o RAW_OUT
-  RUN_SUCCEEDED=false
+run_peer_cmd() {   # CMD already built for PEER_ROUTE; streams to PEERLOG, diagnostics to PEERERR
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
+  SESSION_STALLED=false
   set -m
-  "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
+  # Start npx from private scratch: npx resolves packages from its working
+  # directory's node_modules and .npmrc first, and acpx gets the agent's cwd from --cwd.
+  ( cd "$(dirname "$PEERLOG")" && exec "${CMD[@]}" ) < /dev/null > "$PEERLOG" 2>"$PEERERR" &
   local pid=$!
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m
   start_heartbeat
-  local start last=-1 lastchg now size
+  local start last=-1 lastchg now size session=open
+  [ "$PEER_ROUTE" = antigravity ] && session=starting
   start="$(date +%s)"; lastchg="$start"
   while peer_alive "$pid"; do
     now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
     [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
     if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
-      log "codex output idle ${IDLE_SECS}s; reaping peer process group"; reap "$pid"; break
+      log "peer output idle ${IDLE_SECS}s; reaping peer process group"; reap "$pid"; break
     fi
     if [ $(( now - start )) -ge "$HARD_SECS" ]; then
-      log "codex exceeded hard cap ${HARD_SECS}s; reaping peer process group"; reap "$pid"; break
+      log "peer exceeded hard cap ${HARD_SECS}s; reaping peer process group"; reap "$pid"; break
     fi
-    # 1s slices so a finished peer is noticed promptly (was sleep-5-first, which
-    # added up to 5s after every short stub / healthy exit).
+    if [ "$session" != open ] && [ $(( now - start )) -ge "$ACPX_SESSION_START_SECS" ]; then
+      session="$(acpx_session_state "$PEERLOG")"
+      if [ "$session" = pending ]; then
+        SESSION_STALLED=true
+        log "Antigravity opened no session within ${ACPX_SESSION_START_SECS}s; reaping peer process group"; reap "$pid"; break
+      fi
+    fi
     sleep 1
   done
-  if wait "$pid" 2>/dev/null; then RUN_SUCCEEDED=true
-  else log "peer exited non-zero or timed out"; fi
+  wait "$pid" 2>/dev/null
+  PEER_EXIT=$?
   # Sweep any survivor the provider left in its OWN process group. `set -m` puts
   # the provider in a separate pgid, and on a clean worker exit the runner's
   # final sweep only kills the worker's pgid while a group-orphan reparents off
@@ -633,50 +885,7 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
   ACTIVE_PEER_PID=""
 }
 
-run_timeout_cmd() {
-  # $1 = stdin file ("" -> /dev/null). $2 = hard cap secs. $3 = "idle" | "no-idle".
-  RUN_SUCCEEDED=false
-  # Run from the declared read root. Private prompt/output paths are absolute and
-  # remain outside the repository; route adapters separately carry the same root.
-  local stdin_file="${1:-}"; [ -n "$stdin_file" ] || stdin_file=/dev/null
-  local hard_cap="${2:-$HARD_SECS}"
-  local idle_mode="${3:-idle}"
-  local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
-  set -m
-  if [ "$idle_mode" = "idle" ]; then
-    ( cd "$READ_ROOT" && exec "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
-  elif [ -n "$TO_BIN" ]; then
-    ( cd "$READ_ROOT" && exec "$TO_BIN" -k 10 "$hard_cap" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
-  else
-    ( cd "$READ_ROOT" && exec perl -e 'alarm shift; exec @ARGV' "$hard_cap" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
-  fi
-  local pid=$!
-  ACTIVE_PEER_PID="$pid"
-  [ "$prev" = 0 ] && set +m
-  start_heartbeat
-  if [ "$idle_mode" = "idle" ]; then
-    local start last=-1 lastchg now size
-    start="$(date +%s)"; lastchg="$start"
-    while peer_alive "$pid"; do
-      now="$(date +%s)"; size="$(wc -c <"$PEERLOG" 2>/dev/null || echo 0)"
-      [ "$size" != "$last" ] && { last="$size"; lastchg="$now"; }
-      if [ $(( now - lastchg )) -ge "$IDLE_SECS" ]; then
-        log "peer output idle ${IDLE_SECS}s; reaping peer process group"; reap "$pid"; break
-      fi
-      if [ $(( now - start )) -ge "$hard_cap" ]; then
-        log "peer exceeded hard cap ${hard_cap}s; reaping peer process group"; reap "$pid"; break
-      fi
-      sleep 1
-    done
-  fi
-  if wait "$pid" 2>/dev/null; then RUN_SUCCEEDED=true
-  else log "peer exited non-zero or timed out"; fi
-  reap "$pid" 2>/dev/null || true   # sweep survivors in the provider's own group (see run_codex_cmd)
-  stop_heartbeat
-  ACTIVE_PEER_PID=""
-}
-
-# Recover a POV object from raw stdout or from a string nested in a CLI envelope.
+# Recover a POV object from the agent's reply text, which may wrap it in prose or a fence.
 recover_pov_json() {   # <logfile> <outfile>
   # Probe execution, not just PATH presence — Windows Store's python3 stub
   # satisfies `command -v` then exits nonzero (see resolve-python convention).
@@ -740,80 +949,12 @@ PY
   [ -s "$2" ]
 }
 
-# Parse a schema-shaped object out of a headless CLI JSON envelope (claude/grok/cursor).
-# The published candidate is the highest-scoring POV anywhere in the envelope --
-# schema-shaped and final, then shaped, then any position-bearing object -- with
-# ties to the later candidate. A structured field (structured_output /
-# structuredOutput / result) is one candidate among those, not an authority:
-# grok >= 1.0.4 names it structuredOutput and its text can carry a first-turn
-# placeholder beside the settled object, a bare stub beside a shaped answer,
-# or a bare {"final":true} beside the real POV. Take the structured field first
-# only as a shortcut when it already scores top; otherwise the scored scan
-# over the whole envelope decides.
-pov_score() {   # <file> -> 2 shaped+final, 1 shaped, 0 otherwise
-  if pov_shaped "$1"; then
-    if jq -e '.final == true' "$1" >/dev/null 2>&1; then echo 2; else echo 1; fi
-  else echo 0; fi
-}
-parse_structured() {   # <logfile> <outfile>
-  local picked=false
-  # Buffered single-object envelopes (grok-cli json, test stubs).
-  if jq -e '.structured_output // .structuredOutput' "$1" > "$2" 2>/dev/null; then picked=true
-  elif jq -r '.result // empty' "$1" 2>/dev/null | jq -e '.' > "$2" 2>/dev/null; then picked=true
-  else
-    # stream-json NDJSON: last type=result event (elevation-dispatch pattern).
-    local event
-    event="$(grep -a '"type":"result"' "$1" 2>/dev/null | tail -1 || true)"
-    if [ -n "$event" ]; then
-      if printf '%s' "$event" | jq -e '.structured_output // .structuredOutput' > "$2" 2>/dev/null; then picked=true
-      elif printf '%s' "$event" | jq -r '.result // empty' 2>/dev/null | jq -e '.' > "$2" 2>/dev/null; then picked=true
-      fi
-    fi
-  fi
-  if [ "$picked" = true ] && [ "$(pov_score "$2")" = 2 ]; then return 0; fi
-  local scan="$2.scan"
-  if recover_pov_json "$1" "$scan"; then
-    if [ "$picked" != true ] || [ "$(pov_score "$scan")" -ge "$(pov_score "$2")" ]; then
-      mv "$scan" "$2"; return 0
-    fi
-  fi
-  rm -f "$scan"
-  [ "$picked" = true ]
-}
-
-parse_opencode_events() {  # <logfile> <outfile>
-  local text tmp
-  text="$(jq -rs '[.[] | select(.type=="text") | (.part.text // empty)] | join("")' "$1" 2>/dev/null)" || text=""
-  [ -n "$text" ] || return 1
-  printf '%s' "$text" | jq -e '.' > "$2" 2>/dev/null && return 0
-  tmp="$(mktemp "${TMPDIR:-/tmp}/ce-opencode-text-XXXXXX")" || return 1
-  printf '%s' "$text" > "$tmp"
-  recover_pov_json "$tmp" "$2"
-  local st=$?
-  rm -f "$tmp"
-  return "$st"
-}
-
-bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then bounded head+tail
-  local path="$1" human ancillary evidence
-  human="$(jq -r '
-    [
-      (.result? | select(type == "string" and length > 0)),
-      (.message? | select(type == "string" and length > 0)),
-      (.error?.message? | select(type == "string" and length > 0))
-    ] | unique | join(" | ")
-  ' "$path" 2>/dev/null)"
-  ancillary="$(jq -r '
-    [
-      (if .api_error_status? != null then "api_error_status=\(.api_error_status)" else empty end),
-      (.terminal_reason? | select(type == "string" and length > 0) | "terminal_reason=" + .)
-    ] | unique | join(" | ")
-  ' "$path" 2>/dev/null)"
-  # Ancillary fields describe the exit but are not the diagnostic itself. If
-  # no recognized human-readable field exists, retain bounded raw output so a
-  # CLI's newer or provider-specific error field is still visible.
-  [ -n "$human" ] && evidence="$human" || evidence="$(cat "$path")"
-  [ -n "$ancillary" ] && evidence="${evidence:+$evidence | }$ancillary"
+bounded_failure_evidence() {   # <logfile>; bounded head+tail of a plain-text log
+  local path="$1" evidence
+  # bash 3.2 rewrites newlines in a large string superlinearly, so read only the
+  # ends of a long log instead of the whole file.
+  if [ "$(wc -c <"$path")" -le 600 ]; then evidence="$(cat "$path")"
+  else IFS= read -r -d '' -n 300 evidence <"$path"; evidence="$evidence ... $(tail -c 300 "$path")"; fi
   evidence="${evidence//$'\n'/ }"
   if [ "${#evidence}" -gt 300 ]; then
     evidence="${evidence:0:147} ... ${evidence: -147}"
@@ -822,48 +963,62 @@ bounded_failure_evidence() {   # <logfile>; prefer structured diagnostics, then 
 }
 
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
+# Success is the prompt's own end_turn result, not acpx's exit status.
 attempt_route() {   # <provider> <route>
-  local provider="$1" route="$2" note
-  : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
+  local provider="$1" route="$2" outcome reason started remaining node_line cancel_reason
+  : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT" "$TEXT_OUT"
+  RUN_SUCCEEDED=false
   build_cmd "$route"
-  case "$route" in
-    codex)       note="$(route_model codex) (effort high)" ;;
-    claude)      note="$(route_model claude) (effort high)" ;;
-    grok-cli)    note="$(route_model grok-cli) (effort high)" ;;
-    grok-cursor) note="$(route_model grok-cursor)" ;;
-    cursor)      note="auto (serving model unverified)" ;;
-    composer)    note="$(route_model composer)" ;;
-    opencode)    note="auto (serving model unverified)" ;;
-  esac
-  log "peer run: provider=$provider route=$route model=$note POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s; grok-cli hard-only ${UNGUARDED_HARD_SECS}s)"
-  case "$route" in
-    codex)
-      run_codex_cmd
-      if [ "$RUN_SUCCEEDED" = true ] && out_missing_or_invalid; then
-        recover_pov_json "$PEERLOG" "$RAW_OUT" && log "recovered codex JSON from stdout (-o file unavailable)"
+  PEER_ROUTE="$route"
+  log "peer run: provider=$provider route=$route model=$(route_model "$route") transport=$(acpx_package_spec) POV read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s)"
+  started="$(date +%s)"
+  run_peer_cmd
+  if acpx_npm_resolution_retryable "$PEERERR" "$PEERLOG" && [ "$(acpx_outcome "$PEERLOG")" = not-sent ]; then
+    remaining=$(( HARD_SECS - ( $(date +%s) - started ) ))
+    if [ "$remaining" -gt 0 ]; then
+      log "npm could not resolve a package; retrying the same route once with fresh metadata in the ${remaining}s left (nothing was sent; npm policy unchanged)"
+      ACPX_NPM_REFRESH=true
+      HARD_SECS="$remaining"
+      ROUTE_STARTED_AT="$(date +%s)"
+      build_cmd "$route"
+      run_peer_cmd
+    fi
+  fi
+  outcome="$(acpx_outcome "$PEERLOG")"
+  case "$outcome" in
+    end_turn)
+      RUN_SUCCEEDED=true
+      acpx_text "$PEERLOG" "$TEXT_OUT" && recover_pov_json "$TEXT_OUT" "$RAW_OUT"
+      extract_model_receipt "$route"
+      ;;
+    not-sent)
+      # Nothing reached the provider: npm could not fetch acpx (every route
+      # fails alike), or the adapter refused before the prompt (this route only).
+      reason="$(acpx_npm_failure_reason "$PEERERR")"
+      if [ -n "$reason" ]; then
+        PRE_EGRESS="transport unavailable (pre-egress, shared): ${reason:0:200}"
+      elif [ "$SESSION_STALLED" = true ]; then
+        PRE_EGRESS="transport unavailable (pre-egress, route): Antigravity is waiting for a Google sign-in; the agy CLI's sign-in does not carry over, so sign the ACP runtime in once: put {\"auth\":{\"type\":\"oauth-personal\"}} in ${GEMINI_HOME:-~/.gemini}/antigravity-acp/settings.json, run npx -y --package '$(acpx_package_spec)' -- acpx antigravity exec ok in a terminal and finish the browser sign-in, then retry"
+      else
+        node_line="$(acpx_node_startup_line "$PEERERR")"
+        if [ -n "$node_line" ]; then
+          PRE_EGRESS="transport unavailable (pre-egress, route): ${node_line:0:200}"
+        else
+          reason="$(acpx_npm_failure_reason "$PEERLOG")"
+          [ -n "$reason" ] || reason="$(acpx_failure_evidence "$PEERLOG")"
+          PRE_EGRESS="transport unavailable (pre-egress, route): ${reason:-acpx exited $PEER_EXIT before sending the prompt}"
+        fi
       fi
       ;;
-    grok-cli)    run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle
-                 [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
-    claude)      run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
-                 [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
-    grok-cursor|cursor|composer)
-      # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
-      # positional argv token: the composed prompt (persona + schema + template +
-      # full subject payload, up to CROSS_MODEL_MAX_PAYLOAD_CHARS) can exceed ARG_MAX and fail
-      # the exec with E2BIG on low-limit hosts, whereas stdin has no size limit.
-      run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle
-      [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
-    opencode)    run_timeout_cmd "" "$HARD_SECS" idle
-                 [ "$RUN_SUCCEEDED" = true ] && parse_opencode_events "$PEERLOG" "$RAW_OUT" ;;
+    *)
+      cancel_reason="$(acpx_permission_cancel_reason "$PEERLOG" "$PEER_EXIT")"
+      if [ -n "$cancel_reason" ]; then
+        log "peer run ended: $cancel_reason (acpx exit $PEER_EXIT)"
+      else
+        log "peer run ended with $outcome (acpx exit $PEER_EXIT)"
+      fi
+      ;;
   esac
-  if [ "$RUN_SUCCEEDED" != true ]; then
-    rm -f "$RAW_OUT"
-    return 0
-  fi
-  # Extract the served-model receipt from the envelope while $PEERLOG still
-  # holds it — normalization below only sees the schema-extracted RAW_OUT.
-  extract_model_receipt "$route"
 }
 
 # Run the one fixed route. Any failure returns control to the host without
@@ -873,7 +1028,28 @@ run_fixed_route() {
   OUT="$RUN_DIR/pov-$provider.json"
   ACTUAL_ROUTE="$FIXED_ROUTE"
   ROUTE_STARTED_AT="$(date +%s)"
+  PRE_EGRESS=""
   attempt_route "$provider" "$FIXED_ROUTE"
+  # A configured model is exact; only the editorial Argon request falls back.
+  if [ "$FIXED_ROUTE" = antigravity ] && [ "$(route_model antigravity)" = "$M_ANTIGRAVITY" ] &&
+     [ "${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" != antigravity ]; then
+    case "$PRE_EGRESS" in
+      *"did not advertise"*)
+        # The fallback shares the route's window; the non-final retry below
+        # then measures what is left from this restart.
+        remaining=$(( HARD_SECS - ( $(date +%s) - ROUTE_STARTED_AT ) ))
+        if [ "$remaining" -gt 0 ]; then
+          log "Antigravity does not offer $M_ANTIGRAVITY on this account; falling back to $M_ANTIGRAVITY_FALLBACK"
+          ANTIGRAVITY_MODEL="$M_ANTIGRAVITY_FALLBACK"
+          PRE_EGRESS=""
+          HARD_SECS="$remaining"
+          ROUTE_STARTED_AT="$(date +%s)"
+          attempt_route "$provider" "$FIXED_ROUTE"
+        fi
+        ;;
+    esac
+  fi
+  [ -z "$PRE_EGRESS" ] || { cleanup_private_scratch; skip "$PRE_EGRESS"; }
   # One bounded retry on the same route, target, model, and scope; the only
   # change is a final-answer instruction. The retry gets only what is left of
   # this worker's HARD_SECS window so both attempts stay inside the panel's
@@ -891,7 +1067,7 @@ run_fixed_route() {
     else
       log "peer returned a non-final position (\"${position:0:120}\"); retrying once on the same route with a final-answer requirement (${remaining}s left)"
       printf '\n\nYour previous response set final to false. This response is the final one: inspect the subject and shared working tree now, then return the settled position with its evidence and final set to true.\n' >> "$PROMPT_FILE"
-      HARD_SECS="$remaining"; UNGUARDED_HARD_SECS="$remaining"
+      HARD_SECS="$remaining"
       attempt_route "$provider" "$FIXED_ROUTE"
       if [ "$RUN_SUCCEEDED" = true ] && ! out_missing_or_invalid && ! out_final; then
         nonfinal_position="$(jq -r '.position' "$RAW_OUT" 2>/dev/null)"
@@ -957,14 +1133,15 @@ run_fixed_route() {
     # Surface bounded, actionable peer evidence so the orchestrator can
     # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
     # empty review) and, in a repeated-pass session, deprioritize an exhausted
-    # route. Prefer structured CLI error fields before the bounded raw fallback;
-    # a useful `.result` can appear near the start of a long JSON envelope. Surface
-    # BOTH streams -- the error can be on stdout (grok's 402) or stderr
-    # (claude/cursor auth/quota).
-    if [ -s "$PEERLOG" ]; then
-      _pt="$(bounded_failure_evidence "$PEERLOG")"
-      log "  peer skip evidence: $_pt"
-    fi
+    # route. Provider errors arrive as ACP error messages or as reply text on
+    # stdout; npm and adapter diagnostics on stderr.
+    _pt="$(acpx_permission_cancel_reason "$PEERLOG" "$PEER_EXIT")"
+    [ -n "$_pt" ] || _pt="$(acpx_failure_evidence "$PEERLOG")"
+    [ -n "$_pt" ] && log "  peer skip evidence: $_pt"
+    _pr="$(acpx_reply_evidence "$PEERLOG")"
+    [ -n "$_pr" ] && log "  peer skip evidence (reply): $_pr"
+    _pm="$(acpx_advertised_models "$PEERLOG")"
+    [ -n "$_pm" ] && log "  peer skip evidence (advertised models): $_pm"
     if [ -s "$PEERERR" ]; then
       _pe="$(bounded_failure_evidence "$PEERERR")"
       log "  peer skip evidence (stderr): $_pe"

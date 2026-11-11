@@ -1,0 +1,1 @@
+This isn't just a linter, it's a complete quality system. The real question is whether teams will adopt it. Let's dive in: the checker runs on every commit, highlighting issues early and ensuring consistency. Fast, reliable, and seamless.

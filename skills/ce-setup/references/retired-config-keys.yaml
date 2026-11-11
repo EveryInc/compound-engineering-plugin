@@ -1,0 +1,56 @@
+# Settings that left config-template.yaml, and what /ce-setup does with each.
+# Every top-level key here is retired; none may also appear in the template.
+#
+# kind: remove   -- drop the setting; reason names what replaced it, if anything.
+# kind: migrate  -- a true one-to-one rename: write the value to `target`,
+#                   mapped through `values` when the meaning of a value changed.
+#                   A migration never overrides a target that is already set.
+# reason         -- one line shown to the user and recorded with the change.
+
+brainstorm_use_fable:
+  kind: remove
+  reason: "No longer does anything and only ever applied on Claude Code; to send approach generation to another model, set brainstorm_model, which applies on every harness."
+
+fable_nudge:
+  kind: remove
+  reason: "No longer does anything; the one-time model-elevation tip it silenced was removed."
+
+plan_use_fable:
+  kind: remove
+  reason: "No longer does anything and only ever applied on Claude Code; to send plan authoring to another model, set plan_model, which applies on every harness."
+
+pr_branding:
+  kind: remove
+  reason: "No longer does anything; PR branding is off by default and is requested per run with the branding:on token."
+
+work_delegate:
+  kind: remove
+  reason: "No longer does anything; the skill that read it was removed. To route implementation to another harness, set work_engine_mode and work_engine_preferences."
+
+work_delegate_consent:
+  kind: remove
+  reason: "No longer does anything; the skill that read it was removed. Implementation routing is set with work_engine_mode and work_engine_preferences."
+
+work_delegate_decision:
+  kind: remove
+  reason: "No longer does anything; the skill that read it was removed. Implementation routing is set with work_engine_mode and work_engine_preferences."
+
+work_delegate_effort:
+  kind: remove
+  reason: "No longer does anything; the skill that read it was removed. Set an external worker's reasoning effort with work_engine_effort."
+
+work_delegate_model:
+  kind: remove
+  reason: "No longer does anything; the skill that read it was removed. Name a worker's model in a work_engine_preferences entry."
+
+work_delegate_sandbox:
+  kind: remove
+  reason: "No longer does anything; the skill that read it was removed and nothing replaced it."
+
+work_engine_model:
+  kind: remove
+  reason: "Never a supported setting; name the model in a work_engine_preferences entry (harness plus optional model)."
+
+work_engine_target:
+  kind: remove
+  reason: "Never a supported setting; list the harness in a work_engine_preferences entry (harness plus optional model)."

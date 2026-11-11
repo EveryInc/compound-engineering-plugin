@@ -43,7 +43,7 @@ Two moves fix it. **Name the outcome** rather than the syscall that failed. And 
 
 Once a single error path branches into several, each branch must keep the exit code its contract already assigns it. The first cut of the #1607 fix folded an ownership failure and an unresolvable job id into the same code as the routine "settled, nothing there" case. That re-creates the original conflation in the opposite direction, and it is worse: it hides an alarming condition inside the code callers already treat as "nothing to do, move on."
 
-The shipped version keeps each outcome on its own documented code (running, ownership failure, unknown id, settled-with-no-artifact; the mapping is in the `result` handler's docstring in `skills/*/scripts/peer-job-runner.py`). When you split an error path, re-read the tool's documented exit-code contract and check that every new branch lands on the code its callers already switch on, not the nearest convenient one.
+The shipped version keeps each outcome on its own documented code (running, ownership failure, unknown id, settled-with-no-artifact; the mapping is in the `_report_absent_artifact` docstring and the `EXIT_CODES_DOC` epilog in `skills/*/scripts/peer-job-runner.py`). When you split an error path, re-read the tool's documented exit-code contract and check that every new branch lands on the code its callers already switch on, not the nearest convenient one.
 
 ## Rejected alternative: make the absence unreachable
 

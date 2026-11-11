@@ -2,10 +2,40 @@
 
 This content is loaded when Phase 4 begins — after the requirements-only
 unified plan is written, or after a Lightweight run's chat paragraph is
-delivered with no file earned. Options that need an artifact hide themselves
+delivered with no file warranted. Options that need an artifact hide themselves
 below; the handoff itself is presented on both paths.
 
 ---
+
+#### 4.0 Return to the caller instead of presenting options
+
+When the invocation carried `mode:return-to-caller`, a calling skill is
+waiting for the result and owns what happens next, so none of 4.1 through 4.3
+runs: no menu, no closing summary, and never an invocation of `lfg` or
+`ce-plan` from here. The dialogue that produced the result is unchanged; the
+caller is present precisely because a human was there to answer. Emit this
+return as the last thing this skill writes, with these exact field names. The
+return ends this skill, not the turn. The caller runs in this same session,
+and its next step follows the return.
+
+- `status`: `complete`, or `blocked` when `Resolve Before Planning` still
+  holds items the user chose not to resolve.
+- `result_kind`: `artifact` when a requirements-only unified plan was written
+  and passed the Ready for Planning Check; `brief` when Lightweight work ended
+  in chat with no file.
+- `artifact_path`: the absolute path returned by the write step, including
+  any collision suffix, or `null` for a brief.
+- `brief`: the chat paragraph, or `null` for an artifact.
+- `resolve_before_planning`: the remaining items, or an empty list.
+- `key_decisions`: every decision the dialogue settled that meets
+  `references/settled-decisions.md`, each with its provenance class,
+  whether the result is an artifact or a brief.
+
+A `brief` is a feature description for the caller's planner, not a plan and
+not a work source. When the grounding scout produced a dossier that still
+exists, include its path as `grounding_path` so planning can start from it.
+
+The rest of this file is the interactive path.
 
 #### 4.1 Present Next-Step Options
 
@@ -53,18 +83,18 @@ Plan artifact: <absolute path to requirements-only unified plan>  # omit line if
 What would you like to do next? (Pick a number or describe what you want.)
 ```
 
-The override sentence is load-bearing, not padding: the planning options are hidden while `Resolve Before Planning` is non-empty, so without it the user is told planning is blocked and is never told the block is theirs to lift. `Resolve Before Planning` is your own judgment call — an over-cautious read of it must not silently strand the user with no visible way forward. Hiding the option withholds the *recommendation*; it never withholds the *choice*.
+The override sentence is required, not padding: the planning options are hidden while `Resolve Before Planning` is non-empty, so without it the user is told planning is blocked and is never told the block is theirs to lift. `Resolve Before Planning` is your own judgment call — an over-cautious read of it must not silently strand the user with no visible way forward. Hiding the option withholds the *recommendation*; it never withholds the *choice*.
 
 Present only the options that apply. Renumber so visible options stay contiguous starting at 1.
 
 1. **Create the implementation plan** *(recommended)* - Hand off to `ce-plan` and sharpen the requirements into a complete, testable plan. Shown only when `Resolve Before Planning` is empty.
-2. **Ship it autonomously with `lfg`** - Hand the requirements to the full autonomous pipeline: `lfg` plans (`ce-plan`), implements, simplifies, runs independent code review and applies the fixes, opens a PR, and watches CI to green — hands-off, no check-ins. It plans first (unlike a raw `/goal` straight from requirements), so it's the safer autonomous path. Best when you trust the requirements and want it built and shipped without steering. **Opens a PR and pushes a branch.** Shown only for software brainstorms (`execution: code`) with `Resolve Before Planning` empty **and a unified plan artifact was created** — `lfg` hands `ce-plan` that artifact path in pipeline mode and cannot prompt, so with no artifact (e.g. a brief-alignment brainstorm that skipped doc creation per the "Decide whether a doc is warranted" rule) there is nothing to enrich; offer option 1 instead, which can plan interactively from the conversation. For a quicker plan-then-decide flow, or to run a `/goal` yourself, pick option 1 and choose at the `ce-plan` handoff.
+2. **Ship it autonomously with `lfg`** - Hand the requirements to the full autonomous pipeline: `lfg` plans (`ce-plan`), implements, simplifies, runs independent code review and applies the fixes, opens a PR, and watches CI to green — hands-off, no check-ins. It plans before it implements. Best when you trust the requirements and want it built and shipped without steering. **Opens a PR and pushes a branch.** Shown only for software brainstorms (`execution: code`) with `Resolve Before Planning` empty **and a unified plan artifact was created** — `lfg` hands `ce-plan` that artifact path in pipeline mode and cannot prompt, so with no artifact (e.g. a brief-alignment brainstorm that skipped doc creation per the "Decide whether a doc is warranted" rule) there is nothing to enrich; offer option 1 instead, which can plan interactively from the conversation. For a quicker plan-then-decide flow, pick option 1.
 3. **Pressure-test the requirements** - Dispatch reviewer agents with `ce-doc-review` to find gaps, conflicts, weak premises, and scope issues in the requirements; auto-apply safe fixes in the artifact's native format; route the rest interactively. Shown only when a unified plan exists **and no remaining question meets Interaction Rule 7**. When **Prototype a remaining feel-question** is shown, omit this option from the same menu.
 3. **Prototype a remaining feel-question** - Invoke `ce-prototype` on a named remaining question that meets Interaction Rule 7. Shown only when such a question remains. A visual-probe question that already settled fails this predicate. The option description names the proposed slice. When this option is shown, omit **Pressure-test the requirements** from the same menu.
-4. **Open in browser** — open the HTML unified plan locally for review and sharing. Shown only when an HTML unified plan exists. **Render only when `OUTPUT_FORMAT=html`.**
+4. **Open in browser** — open the HTML unified plan locally for review. Shown only when a unified plan exists. **Render only when `OUTPUT_FORMAT=html`**, unless `references/publishing.md` chooses a publisher (one the user named, or the host's artifact tool); then label this option with that destination, e.g. **Publish a copy to <destination>**, render it for any format the destination accepts, and publish a copy there instead of opening the file locally.
 5. **More clarifying questions to sharpen the scope** - Keep refining scope, edge cases, constraints, and preferences through further dialogue. Always shown — so the label names the scope rather than the doc, which stays true on a run that correctly skipped doc creation.
 
-There is no "done" / "pause" option — the blocking question already waits, and the user ends by dismissing it (Esc) or saying they're finished. When a file was earned, the unified plan artifact is already saved; on the chat path there is no file and nothing to save.
+There is no "done" / "pause" option — the blocking question already waits, and the user ends by dismissing it (Esc) or saying they're finished. When a file was written, the unified plan artifact is already saved; on the chat path there is no file and nothing to save.
 
 **Post-review nudge (subsequent rounds only):** If the user has already run `ce-doc-review` this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "Document review flagged 2 P1 findings you may want to address — pick \"Pressure-test the requirements\" to run another pass."). Reference the option by label, not number: the menu renumbers when `Resolve Before Planning` hides `Create the implementation plan` and the lfg option, so a hardcoded option number can point users at the wrong action. Do not add a separate menu option; reuse the existing `Pressure-test the requirements` option. Suppress this nudge whenever that option is not on the rendered menu — when **Prototype a remaining feel-question** displaced it — so the nudge never points users at an action they cannot pick.
 
@@ -87,7 +117,7 @@ re-scanning the repo. Do not print the closing summary first.
 Load the `ce-doc-review` skill, passing the unified plan path as the argument.
 When ce-doc-review returns "Review complete", return to the Phase 4 options
 and re-render the menu (the requirements may have changed, so re-evaluate
-`Resolve Before Planning`, the lfg software gate, and residual findings). If
+`Resolve Before Planning`, the software-only condition on the lfg option, and residual findings). If
 residual P0/P1 findings remain unaddressed, include the post-review nudge
 above the menu. Do not show the closing summary yet.
 
@@ -96,12 +126,12 @@ above the menu. Do not show the closing summary yet.
 Immediately invoke the `lfg` skill in the current session via the platform's
 skill-invocation primitive, passing the unified plan artifact path as its
 argument so `lfg`'s `ce-plan` step enriches *this* requirements-only artifact in
-place rather than bootstrapping a new plan. `lfg` then owns the full pipeline
+place rather than bootstrapping a new plan. `lfg` then runs the full pipeline
 autonomously — plan, implement (`ce-work` in `return-to-caller` mode), simplify,
 independent code review and applied fixes, commit/push/open PR, and CI watch to
-green. Do not also start a `/goal` or load `ce-work` directly — `lfg`
-orchestrates them. Unlike a goal tool, `lfg` is host-agnostic: it works wherever
-skills run (plus `git`/`gh` for the PR/CI tail, which it guards when absent).
+green. Do not also load `ce-work` directly; `lfg` orchestrates it. `lfg` is
+host-agnostic: it works wherever
+skills run (plus `git`/`gh` for the PR and CI steps, which it guards when absent).
 
 Where the host exposes no skill-invocation primitive, print the `lfg <plan-path>`
 invocation for the user to run and note that it will plan, build, review, and
@@ -115,7 +145,7 @@ Do not print the closing summary first.
 
 Invoke the `ce-prototype` skill via the host's normal skill-invocation mechanism, passing the unified plan artifact path when one exists — the exact plan artifact path returned by the write step (including any collision suffix), never one rebuilt from the naming convention. Do not build a prototype in this skill. Do not substitute a generic Task, Agent, or subagent.
 
-**If user selects "Open in browser":** Display the absolute path to the `.html` unified plan so the user can open it locally. Where the platform exposes a browser-opening primitive (e.g., `open` on macOS, `xdg-open` on Linux, `start` on Windows), the agent may invoke it directly; otherwise print the absolute path and let the user open it. After the path is displayed (or the browser is opened), return to the Phase 4 options so the user can pick a follow-up action.
+**If user selects "Open in browser" or "Publish a copy":** Read `references/publishing.md` and follow it for the saved unified plan; that file stays the record. Show the user the resulting URL or absolute path, then return to the Phase 4 options so the user can pick a follow-up action.
 
 **If the user indicates they're finished** (says "done"/"that's all", or dismisses the menu without picking an option): display the closing summary (see 4.3) and end the turn.
 

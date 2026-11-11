@@ -7,7 +7,7 @@
 # make a healthy long run byte-identical to a wedged one. See
 # docs/solutions/skill-design/cli-output-buffering-for-progress-detection.md.
 #
-# Read-only posture (R7): the CLI is allowlisted to Read/Glob/Grep plus
+# Read-only posture: the CLI is allowlisted to Read/Glob/Grep plus
 # WebSearch/WebFetch, so writes, shell, skills, and MCP are unavailable; the
 # model reads the repo and web to verify its brief and returns prose.
 #
@@ -16,7 +16,7 @@
 #   elevation-dispatch.sh --emit-adapter <model>   # print argv, no model call (test hook)
 #
 # NOTE ON THE FUNCTION NAMED run_codex_cmd: it is NOT codex-specific here. It is
-# the $PEERLOG byte-growth idle loop that implements R11's primary supervision
+# the $PEERLOG byte-growth idle loop that implements the primary stall-supervision
 # signal (run_timeout_cmd, hard-cap-only, would leave a stalled run undetected).
 # It keeps that name because the shared heartbeat-parity regex in
 # tests/peer-job-runner-parity.test.ts uses `run_codex_cmd()` as the terminator
@@ -33,7 +33,7 @@ log() { printf '[elevation] %s\n' "$*" >&2; }
 
 EFFORT="high"   # settled: elevation runs at high effort
 
-# Read-only tool posture (R7): the available built-in set, not a denylist. The
+# Read-only tool posture: the available built-in set, not a denylist. The
 # elevated step reads the repo (Read/Glob/Grep) and may check current facts on
 # the web (WebSearch/WebFetch) while authoring; it never needs Write/Bash/Task or
 # any mutating tool. Its output is returned prose, not a file write.
@@ -105,7 +105,7 @@ fi
 
 PEERLOG="$(mktemp "${TMPDIR:-/tmp}/elevation-peer-XXXXXX")"
 
-# Idle window is the primary stall signal; the hard cap is a raised backstop (R11).
+# Idle window is the primary stall signal; the hard cap is a raised backstop.
 # Keep this inner cap >= the runner's CE_PEER_HARD_SECS so it never reaps a
 # healthy run before the outer supervisor's own raised backstop.
 IDLE_SECS="${CE_ELEVATION_IDLE_SECS:-180}"
@@ -156,7 +156,7 @@ model_prefix() {   # <requested> -> prefix | ""
   esac
 }
 
-# Requested family vs served id (R6/R16). matched | mismatch | unverified.
+# Requested family vs served id. matched | mismatch | unverified.
 classify_receipt() {   # <requested> <served>
   local served="$2" prefix
   { [ -z "$served" ] || [ "$served" = "unverified" ]; } && { printf 'unverified'; return; }

@@ -1,0 +1,3 @@
+work_engine_mode: prefer
+work_engine_preferences:
+  - harness: antigravity

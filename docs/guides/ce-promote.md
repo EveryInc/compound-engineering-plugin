@@ -4,9 +4,9 @@
 
 `ce-promote` writes the announcement while the ship context is still in your session. After a merge, it works out what a user can now do, picks channels, and hands you copy-pasteable drafts: an X post or thread, a one-line changelog blurb, a LinkedIn post, an email, a blog intro, a short demo script.
 
-It needs nothing installed. If the [Spiral CLI](https://www.npmjs.com/package/@every-env/spiral-cli) is present and signed in, drafts come back voice-matched to your brand; if you decline the one-time Spiral setup offer, that decline is remembered in checkout-local config (see the [configuration reference](./configuration.md)).
+It needs nothing installed. If the [Spiral CLI](https://www.npmjs.com/package/@every-env/spiral-cli) is present and signed in, drafts come back voice-matched to your brand. If you decline the one-time Spiral setup offer, the skill remembers that decline in checkout-local config (see the [configuration reference](./configuration.md)).
 
-Two hard limits. It only runs when you invoke it (`disable-model-invocation: true`), so shipping a feature does not start it on its own. And it only drafts. It never posts, publishes, schedules, commits, or opens a PR. Posting stays a human action because it is outward-facing and hard to undo.
+It has two hard limits. It only runs when you invoke it (`disable-model-invocation: true`), so shipping a feature does not start it on its own. And it only drafts. It never posts, publishes, schedules, commits, or opens a PR. Posting stays a human action because it is outward-facing and hard to undo.
 
 ---
 
@@ -40,7 +40,7 @@ An empty invoke derives what shipped from the repo and drafts the default set: a
 
 Announcement copy usually waits for a later marketing pass, so it lags the ship. The engineer who knows the user value is rarely the person who writes it. And ad hoc drafts drift toward "We're thrilled to announce...", hashtag spam, and implementation talk instead of what a user can now do.
 
-`ce-promote` drafts at ship time, from ship context. A free-form description in the prompt is the source of truth; without one, it reads the merged or active PR, the diff, the changelog, and recent commits, then writes a short user-facing summary. Outcome, not the serializer or endpoint. If it cannot tell what shipped, it asks one short question rather than guessing.
+`ce-promote` drafts at ship time, from ship context. A free-form description in the prompt is the source of truth; without one, it reads the merged or active PR, the diff, the changelog, and recent commits, then writes a short user-facing summary of the outcome, not the serializer or endpoint. If it cannot tell what shipped, it asks one short question rather than guessing.
 
 It scales to the change: a small fix gets one or two short drafts, a flagship feature can get a cross-channel set. Every draft arrives as a labeled block, followed by an offer to revise. Then it stops.
 
@@ -56,7 +56,7 @@ A Spiral failure never blocks the skill. An error or unusable output falls back 
 
 ### Phrasing picks one channel or many
 
-Spiral treats "3 tweet options" as N variations of one channel. Words like `campaign`, `across`, `multi-channel`, `everywhere`, or `cross-post`, or naming two or more channels, switch it to a cross-channel set, and campaign mode ignores the variation count. So if you asked for three tweets and got one, a cue word or a second channel name is usually why. Want several tweets, avoid those words. Want a launch set, name the channels.
+Spiral treats "3 tweet options" as N variations of one channel. Words like `campaign`, `across`, `multi-channel`, `everywhere`, or `cross-post`, or naming two or more channels, switch it to a cross-channel set, and campaign mode ignores the variation count. So if you asked for three tweets and got one, a cue word or a second channel name is usually why. To get several tweets, avoid those words. To get a launch set, name the channels.
 
 Without Spiral the same split holds: one strong draft per named channel, more only when you ask, capped at about three.
 

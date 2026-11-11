@@ -1,6 +1,6 @@
 # Concepts
 
-Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
+Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as ce-compound captures and refreshes learnings; direct edits are fine. Glossary only, not a spec or catch-all.
 
 ## The plugin and its parts
 
@@ -55,13 +55,19 @@ The chained progression of Skills that carries a piece of work from strategy and
 A disposable, display-only decision sketch used during brainstorming for one shape, layout, or relationship question. The user looks at it and answers in chat. It is not a prototype or a spec: a decision a rough sketch cannot settle — anything turning on real finish or motion — goes to an experience prototype instead.
 
 ### Experience prototype
-A throwaway prototype of the product, built so a human can experience it — by driving it, or by seeing it at real finish — and decide how something should work, feel, or read before that choice is encoded in a plan and code. Modality, fidelity, and medium all follow one rule: do not fake the dimension being tested. Throwaway means unmaintained and unshipped rather than discarded — a scratch prototype is left in place as a best-effort reference for what gets built next, alongside the decisions, though an in-app overlay run is undone and leaves nothing behind. Distinct from a visual probe (rough, one decision) and from polish (a feature that already works).
+A throwaway prototype of the product, built so a human can experience it — by driving it, or by seeing it at real finish — and decide how something should work, feel, or read before that choice is encoded in a plan and code. Modality, fidelity, and medium all follow one rule: do not fake the dimension being tested. Throwaway means unmaintained and unshipped rather than discarded — a scratch prototype is left in place as a best-effort reference for what gets built next, alongside the decisions, though an in-app overlay run is undone and leaves nothing behind. Distinct from a visual probe (rough, one decision) and from polish (a feature that already works). Isolated web runs may add live annotation; visual probes, overlays, and yielded media stay on chat.
+
+### Live annotation
+A browser-to-agent event path on an isolated web experience prototype: the explorer pins a comment on a live element, the skill-running agent receives it through the preview helper, and the current screen is revised in place. Distinct from chat feedback, which remains the fallback and the only path for visual probes, throwaway overlays, and yielded non-web media.
 
 ### Learning
 A documented solution to a past problem — a bug fix, a convention, or a workflow pattern — stored as the unit of compounded knowledge so future work can find and reuse it. Also called a solution doc. Carries structured metadata (category, tags, problem type) for retrieval; its creation date lives in the entry, not the filename.
 
 ### Pattern doc
 Guidance generalized from several Learnings into a broader rule. Higher-leverage than any single incident-level Learning, and higher-risk when stale, because future work treats it as broadly applicable.
+
+### Compound Pack
+A folder of prescriptive domain knowledge files that planning-, execution-, and review-stage Skills consume: planning pulls matching rules into a plan as pack-attributed constraints, execution and debugging match them against the files they change, and review flags work that contradicts them. A repo opts in by declaring each pack in its CE config `packs:` list — a repo-relative path, a home-directory path, or a ref-pinned git URL, installing one, several, or all packs the source publishes. Shaped like Learnings (frontmatter with `applies_when`) but prescriptive rather than retrospective: a pack says what work in its domain must honor, a Learning records what a past problem taught. Not a Skill: a pack is never invoked and its text is quoted as evidence inside other Skills' steps, never executed as instructions. Optional; CE is complete with zero packs.
 
 ### Knowledge track
 One of the two classifications a Learning carries, set by its problem type: the knowledge track holds guidance — conventions, workflow patterns, practices, decisions — while the bug track holds diagnosed defects. The track decides which metadata a Learning must carry and which maintenance checks apply to it; procedure-shaped checks, such as comparing a Learning against the Guidance layer, key on the knowledge track.
@@ -94,7 +100,7 @@ A semantic cost class for a dispatched sub-agent — extraction (cheapest capabl
 When a platform cannot select models per agent, every role runs on the inherited model and cost control falls back to structure: read budgets and output caps.
 
 ### Evidence dossier
-A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap scout agent — written to scratch storage instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
+A bulk evidence artifact — verbatim quotes with source pointers, gathered by a cheap retrieval agent such as a grounding scout or research distiller — written to scratch storage instead of returned inline, so the orchestrator carries only a short gist and downstream agents read the full dossier themselves.
 
 ### Outcome spine
 The part of a Skill that must hold without any reference loaded: the result it produces and who consumes it next, the done condition, the safe failure direction, and the facts the agent cannot derive from the repository in front of it. Everything else in the skill is protocol or judgment attached to that spine, and a block that cannot name its spine is restated before it is edited.
@@ -109,6 +115,11 @@ The inline remnant left in a Skill when load-bearing content moves to a referenc
 
 ### Output contract
 The shape a planning Skill commits to delivering for one run, chosen by its proportionality gate at intake before any research or subagent spend: Direct (a few sentences in chat handed to execution), Chat brief (a chat-only summary with units and test expectations, file-optional), or Durable (the unified plan artifact with its full floor). The gate is a condition on the work's shape with a safe failure direction toward the heavier contract; pipeline and headless runs, and any run without a synchronous user, always take Durable.
+
+### Sizing test
+The condition a plan, and the implementation built from it, apply to every mechanism the request did not ask for, such as a guard, retry, recovery path, mode, or abstraction: it is built only when an existing contract requires it, when leaving it out lets harm land before anyone catches it, or when adding it later would be expensive (stored data, a shared interface, money, security). It is distinct from the Output contract, which sizes the plan's delivery shape rather than what the plan builds.
+
+The test starts from how the result is used, including who finds out when it fails; an instruction asking a person to avoid a failure does not count as catching it. A concern that fails is recorded as considered and not built, with its reason and what would change the call, and uncertainty resolves toward building. The test never trims what the request asked for: a safeguard that would narrow a requested behavior is recorded as an open question for the requester instead. Findings from research, specialist agents, and document review are claims judged by this test, and the reviewer applies it in both directions.
 
 ### Phase-loaded kernel
 A Skill body reduced to what must fire without a read — outcome, done bar, authority, phase order, the stop classes that hold when a reference is never opened, and a required read named immediately before each acting step — with each phase's mechanics owned by one reference loaded at that step. The design assumes the load happens at the acting point; a host that reads every reference at kernel load satisfies the letter of "read before the step" while losing both the context saving and any safety path that depends on a late read, so the kernel must state that an earlier read does not satisfy the acting-point read.
@@ -154,10 +165,10 @@ A checkout whose git-ignored inventory already contains what the project's verif
 Ignored state in a warm checkout is large, symlink-heavy, and owned by tooling the controller never ran, so any host-side guarantee about it can only be detection and disclosure, never byte-exact custody.
 
 ### Model identity receipt
-The serving backend's own report of which model actually handled a delegated run, recorded alongside the requested model so the two can disagree visibly. A run's model identity is verified only by such a receipt — never by the request parameters or the model's own text — and outputs without one are labeled as requested-but-unverified; logic that weights cross-model agreement follows the receipt, not the request.
+The serving side's own report — the backend's, or the adapter's that fronts it — of which model actually handled a delegated run, recorded alongside the requested model so the two can disagree visibly. A run's model identity is verified only by such a receipt — never by the request parameters or the model's own text — and outputs without one are labeled as requested-but-unverified; logic that weights cross-model agreement follows the receipt, not the request.
 
 ### Handoff seam
-The point in a calling Skill where completed work triggers a follow-on Skill in the same run — distinct from a Session handoff, which carries continuity to a fresh session. A seam that states only intent ("auto-invoke X") invites the caller's agent to reproduce the callee's mechanics from memory; a hardened seam pins the invocation mechanism (the platform's skill-invocation primitive, so the callee's instructions actually load) and, when the callee runs a stateful protocol, explicitly forbids starting that protocol's mechanics directly.
+The point in a calling Skill where completed work triggers a follow-on Skill in the same run — distinct from a Session handoff, which carries continuity to a fresh session. A seam that states only intent ("auto-invoke X") invites the caller's agent to reproduce the callee's mechanics from memory; a hardened seam pins the invocation mechanism (the platform's skill-invocation primitive, so the callee's instructions actually load) and, when the callee runs a stateful protocol, explicitly forbids starting that protocol's mechanics directly. The callee itself must stay model-invokable: an opt-out flag such as `disable-model-invocation` blocks a sibling's invocation on every host, so restraint belongs in the callee's description condition. The callee loads into the caller's context rather than behind a subagent boundary, so anything it "returns" is text the caller writes next; a caller-only channel (a change summary, a receipt) must say when it is produced and where it may not land.
 
 ### Engine carrier
 A structured implementation binding — mode, target, model, source — that an orchestrating Skill serializes into the invocation string it hands the implementing Skill, so the route decision travels as data beside the request rather than as prose woven into the plan. The callee validates the carrier before any workspace action and rejects a malformed, duplicated, or out-of-order one instead of interpreting it; the resolved binding then appears in the return envelope so the caller can compare the route it asked for with the route that actually served.
@@ -199,6 +210,11 @@ Because every non-empty body becomes a candidate, treating a candidate-only stat
 ### Reviewer persona
 A single-lens reviewer role that evaluates work from one specific perspective — security, correctness, scope, design, and so on. Review Skills dispatch a panel of personas as subagents and merge their findings.
 
+### Review depth
+The sizing decision a code review makes for itself once scope is resolved and before anything else loads. A named hard-block class, an uncountable file, or executable non-test changes at the full floor run the full multi-agent spine. Below that, consequence decides: a change whose wrong version fails loudly where it is made takes the lite path; one that fails silently elsewhere takes the focused path, or the full spine when the silent boundary is auth, money, or a public contract. A helper-named silent-pass class, such as a CI workflow path, is a floor on the lens rather than on depth: it forbids lite and leaves consequence to decide focused versus full. Callers never classify a review; they may only force the full spine.
+
+The lite path dispatches no Reviewer personas and reviews in the calling context, yet it still checks the change against the repo's own written criteria and still returns the same receipt shape the full spine does. The focused path is lite plus one independent adversarial read (the Cross-model pass, or a single local adversarial reviewer when the peer cannot run), merged in the same context with no finish leaves and no validator. Both check the change in context against the declared Compound Pack rules whose `applies_when` fits it, and their receipts name the rule files matched.
+
 ### Detection condition
 The stated, observable circumstance under which a Reviewer persona check fires — what must be visible in the work under review, not a topic to opine on. When a check carries a canonical framework name from the design or security literature, the name supplies shared vocabulary for the finding while the detection condition alone decides whether the finding exists; a check may also attach an evidence guard, a requirement to quote the occurrences that satisfy the condition before claiming a high Confidence anchor.
 
@@ -218,6 +234,12 @@ The single, surface-agnostic contract for how a review finding is presented for 
 
 ### Headless mode
 An explicit opt-in mode that runs a Skill unattended, with no user prompts — it produces a written report as its deliverable and conservatively defers genuinely ambiguous decisions rather than guessing. A Skill may expose a separate depth selector inside headless mode when automations need an explicit coverage tradeoff; the non-interactive contract and the work depth remain distinct decisions.
+
+### Scoping synthesis
+The chat checkpoint a writer skill (ce-brainstorm, ce-plan) shows the user before writing its document, so the user can confirm in one read that the agent understood the problem and can correct the decisions that would change the output. It is not a preview of the document: it leads with the problem in the agent's own words, carries only what the user needs to judge the requirements or plan, and leaves the rest to the document.
+*Avoid:* synthesis summary, scope confirmation
+
+Session-settled decisions carried in from before the skill started appear in it as statements, never as questions; decisions the user made in the skill's own dialogue are reflected in the stated shape rather than replayed. A revision is not a confirmation: the document is written only after the user confirms the current synthesis.
 
 ### Session-settled decision
 A decision examined and chosen by the user in the invoking conversation — a surfaced tradeoff or alternative followed by the user's choice — carried through the Pipeline as a provenance-labeled constraint (annotation stem `session-settled:`, classes `user-directed` and `user-approved`) that downstream skills augment but never re-ask, and contradict only on evidence. An unexamined assertion is a directive, not a settled decision, and receives exactly one in-pipeline challenge; agents never label their own unexamined proposals.

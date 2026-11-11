@@ -58,6 +58,10 @@ else:
 
 # Conclusions that mean "this check needs attention" (failing states).
 FAILING = {"FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "STALE"}
+TERMINAL_CHECK_CONCLUSIONS = {
+    "ACTION_REQUIRED", "CANCELLED", "FAILURE", "NEUTRAL", "SKIPPED", "STALE",
+    "STARTUP_FAILURE", "SUCCESS", "TIMED_OUT",
+}
 
 DISPOSITION_OPEN = "open"
 DISPOSITION_NEEDS_HUMAN = "needs-human"
@@ -81,12 +85,10 @@ RELATIONSHIP_INDEPENDENT = "independent"
 RELATIONSHIP_PROBE_ERROR = "probe-error"
 BASE_REF_CURRENT = "current"
 BASE_REF_RACE = "race"
-BASE_REF_STALE_COMPUTATION = "stale-computation"
 # GitHub can leave potentialMergeCommit parented on the old base indefinitely after main moves
-# (observed 20+ min on tmchow/pr-stack-test, unrefreshed by polls or a body PATCH). Once the live
-# base is stable this long with the same head, the cached CLEAN/DIRTY verdict is accepted with a
-# disclosure instead of blocking readiness forever.
-STALE_MERGE_COMPUTATION_SECONDS = 600
+# (observed 20+ min on tmchow/pr-stack-test, unrefreshed by polls or a body PATCH). The cached verdict
+# for this head is accepted with a disclosure: waiting adds nothing, and GitHub rechecks at merge.
+BASE_REF_STALE_COMPUTATION = "stale-computation"
 BASE_REF_MERGEABILITY_PENDING = "mergeability-pending"
 BASE_REF_PROBE_ERROR = "probe-error"
 BASE_REF_LEGACY_STALE = "stale"
@@ -357,6 +359,93 @@ def _host_args(host):
     return ["--hostname", host] if host else []
 
 
+def _api_json(path, host=None):
+    """Best-effort JSON API read. An incomplete corroboration must stay pending."""
+    result = _run(["gh", "api", *_host_args(host), path])
+    if result.returncode != 0:
+        return None
+    try:
+        value = json.loads(result.stdout)
+    except (TypeError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _actions_run_and_check_id(details_url, owner, name, host):
+    """Return trusted Actions run/check IDs only for this repository's canonical job URL."""
+    if not isinstance(details_url, str):
+        return None
+    parsed = urlsplit(details_url)
+    expected_host = (host or "github.com").lower()
+    if parsed.scheme != "https" or parsed.netloc.lower() != expected_host:
+        return None
+    match = re.fullmatch(
+        rf"/{re.escape(owner)}/{re.escape(name)}/actions/runs/(\d+)/job/(\d+)/?",
+        parsed.path,
+    )
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def _same_head(value, head):
+    return isinstance(value, str) and isinstance(head, str) and value.lower() == head.lower()
+
+
+def _corroborated_terminal_check_status(check, owner, name, head, host):
+    """Normalize only GitHub's impossible running-but-concluded CheckRun tuple.
+
+    A CheckRun remains pending unless its own REST record, linked check suite, and
+    parent Actions workflow all report the same terminal conclusion on this exact
+    PR head. This intentionally adds no best-effort success inference.
+    """
+    if check.get("__typename") != "CheckRun":
+        return None
+    status = str(check.get("status") or "").upper()
+    conclusion = str(check.get("conclusion") or "").upper()
+    if status != "IN_PROGRESS" or not check.get("completedAt") or conclusion not in TERMINAL_CHECK_CONCLUSIONS:
+        return None
+
+    identifiers = _actions_run_and_check_id(check.get("detailsUrl"), owner, name, host)
+    if identifiers is None:
+        return None
+    workflow_run_id, job_id = identifiers
+    database_id = check.get("databaseId")
+    if database_id is not None and database_id != job_id:
+        return None
+    check_id = database_id or job_id
+    if not isinstance(check_id, int):
+        return None
+
+    check_run = _api_json(f"repos/{owner}/{name}/check-runs/{check_id}", host)
+    if not check_run or not _same_head(check_run.get("head_sha"), head):
+        return None
+    if (str(check_run.get("conclusion") or "").upper() != conclusion
+            or not check_run.get("completed_at")):
+        return None
+    suite_id = (check_run.get("check_suite") or {}).get("id")
+    if not isinstance(suite_id, int):
+        return None
+
+    job = _api_json(f"repos/{owner}/{name}/actions/jobs/{job_id}", host)
+    if (not job
+            or job.get("id") != job_id
+            or not _same_head(job.get("head_sha"), head)
+            or str(job.get("conclusion") or "").upper() != conclusion
+            or not job.get("completed_at")):
+        return None
+
+    suite = _api_json(f"repos/{owner}/{name}/check-suites/{suite_id}", host)
+    workflow = _api_json(f"repos/{owner}/{name}/actions/runs/{workflow_run_id}", host)
+    for parent in (suite, workflow):
+        if (not parent
+                or not _same_head(parent.get("head_sha"), head)
+                or str(parent.get("status") or "").upper() != "COMPLETED"
+                or str(parent.get("conclusion") or "").upper() != conclusion):
+            return None
+    return "COMPLETED"
+
+
 def _valid_oid(value):
     return isinstance(value, str) and bool(
         re.fullmatch(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})", value))
@@ -472,7 +561,7 @@ def fetch_base_ref(owner, name, ref, merge_identity, host=None):
                 or merge_parent_oids[1].lower() != head_oid.lower()):
             base["identity"] = BASE_REF_RACE
             # Only the base parent lags while head and live base agree: a stale test merge,
-            # eligible for the bounded degrade in diff().
+            # accepted with a disclosure in diff().
             base["stale_computation_candidate"] = (
                 merge_parent_oids[1].lower() == head_oid.lower())
             return base
@@ -685,28 +774,34 @@ query($owner:String!,$repo:String!,$pr:Int!){
 
 
 def _manual_relationships(pr, repo, base_ref_name, head_ref_name, owner, name,
-                          host=None, default_branch=None):
-    """Find ordinary parent/children with narrow read-only branch filters."""
+                          host=None, default_branch=None, cross_repository=False):
+    """Find ordinary parent/children with narrow read-only branch filters.
+
+    `--head`/`--base` match branch names, not repositories: a parent's head must be in this
+    repository, and no PR here can be based on a fork PR's head.
+    """
     repo_ref = repo or f"{owner}/{name}"
     if host and repo_ref.count("/") == 1:
         repo_ref = f"{host}/{repo_ref}"
-    fields = "number,url,state,isDraft,baseRefName,headRefName"
+    fields = "number,url,state,isDraft,baseRefName,headRefName,isCrossRepository"
     parent_result = None
     if base_ref_name and base_ref_name != default_branch:
         parent_result = _run(["gh", "pr", "list", "--repo", repo_ref, "--state", "all",
                               "--head", base_ref_name, "--limit", "20", "--json", fields])
-    dependent_result = _run(["gh", "pr", "list", "--repo", repo_ref, "--state", "open",
-                             "--base", head_ref_name or "", "--limit", "100", "--json", fields])
-    if ((parent_result is not None and parent_result.returncode != 0)
-            or dependent_result.returncode != 0):
+    dependent_result = None
+    if not cross_repository:
+        dependent_result = _run(["gh", "pr", "list", "--repo", repo_ref, "--state", "open",
+                                 "--base", head_ref_name or "", "--limit", "100", "--json", fields])
+    if any(r is not None and r.returncode != 0 for r in (parent_result, dependent_result)):
         return RELATIONSHIP_PROBE_ERROR, [], []
     try:
         parent_candidates = json.loads(parent_result.stdout) or [] if parent_result else []
-        dependent_candidates = json.loads(dependent_result.stdout) or []
+        dependent_candidates = json.loads(dependent_result.stdout) or [] if dependent_result else []
     except (TypeError, ValueError, json.JSONDecodeError):
         return RELATIONSHIP_PROBE_ERROR, [], []
     parents = [_pr_summary(p) for p in parent_candidates
-               if p.get("number") != pr and p.get("headRefName") == base_ref_name]
+               if p.get("number") != pr and p.get("headRefName") == base_ref_name
+               and not p.get("isCrossRepository")]
     dependents = [_pr_summary(p) for p in dependent_candidates
                   if p.get("number") != pr and p.get("state") == "OPEN"
                   and p.get("baseRefName") == head_ref_name]
@@ -714,7 +809,8 @@ def _manual_relationships(pr, repo, base_ref_name, head_ref_name, owner, name,
     return status, parents, dependents
 
 
-def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, host=None):
+def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, host=None,
+                   cross_repository=False):
     """Classify manager membership and ordinary dependency relationships without mutation.
 
     The local manager is the fast/rich path, but its output is accepted only when it contains the
@@ -735,7 +831,7 @@ def fetch_pr_chain(pr, repo, url, base_ref_name, head_ref_name, owner, name, hos
         return chain
 
     relationship, parents, dependents = _manual_relationships(
-        pr, repo, base_ref_name, head_ref_name, owner, name, host, default_branch)
+        pr, repo, base_ref_name, head_ref_name, owner, name, host, default_branch, cross_repository)
     result = _default_pr_chain()
     result.update({
         "manager_status": manager_status,
@@ -752,20 +848,22 @@ def fetch(pr, repo, light=False):
     downstack signature never reads (merge identity/base ref, eyes reactions, awaiting-approval)."""
     repo_args = ["--repo", repo] if repo else []
     view = _run_checked(["gh", "pr", "view", str(pr), *repo_args, "--json",
-                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,baseRefOid,baseRefName,headRefName,url,number,isDraft,"
+                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,baseRefName,headRefName,isCrossRepository,url,number,isDraft,"
                          "statusCheckRollup,author,comments,reviews"],
                         "gh pr view")
     v = json.loads(view.stdout)
 
+    owner, name, host = _resolve_repo_ref(repo, v.get("url"))
+    head = v.get("headRefOid")
     checks = []
     for c in v.get("statusCheckRollup") or []:
         # CheckRun entries carry startedAt/completedAt; StatusContext (legacy commit statuses)
         # carry createdAt. Preserve the provider's real creation identity for rerun reconciliation.
         if c.get("__typename") == "StatusContext":
-            name = c.get("context") or "status"
+            check_name = c.get("context") or "status"
             state = (c.get("state") or "").upper()
             checks.append({
-                "key": name, "name": name,
+                "key": check_name, "name": check_name,
                 "status": "COMPLETED" if state in ("SUCCESS", "FAILURE", "ERROR") else "IN_PROGRESS",
                 "conclusion": {"ERROR": "FAILURE"}.get(state, state) or None,
                 "details_url": c.get("targetUrl"),
@@ -775,10 +873,15 @@ def fetch(pr, repo, light=False):
             })
         else:
             wf = c.get("workflowName")
-            name = c.get("name") or "check"
+            check_name = c.get("name") or "check"
+            status = (c.get("status") or "").upper() or "IN_PROGRESS"
+            corroborated_status = None if light else _corroborated_terminal_check_status(
+                c, owner, name, head, host)
+            if corroborated_status:
+                status = corroborated_status
             checks.append({
-                "key": f"{wf}/{name}" if wf else name, "name": name,
-                "status": (c.get("status") or "").upper() or "IN_PROGRESS",
+                "key": f"{wf}/{check_name}" if wf else check_name, "name": check_name,
+                "status": status,
                 "conclusion": (c.get("conclusion") or None) and c["conclusion"].upper(),
                 "details_url": c.get("detailsUrl"),
                 "created_at": None,
@@ -786,12 +889,10 @@ def fetch(pr, repo, light=False):
                 "completed_at": c.get("completedAt"),
             })
 
-    owner, name, host = _resolve_repo_ref(repo, v.get("url"))
     merge_identity = None if light else fetch_pr_merge_identity(v.get("number") or pr, owner, name, host)
     merge_observation = merge_identity or v
     mergeable = merge_observation.get("mergeable")
     merge_state_status = merge_observation.get("mergeStateStatus")
-    head = v.get("headRefOid")
     if light:
         base = {"host": host or "github.com", "repository": f"{owner}/{name}",
                 "ref": v.get("baseRefName"), "oid": None, "identity": BASE_REF_PROBE_ERROR}
@@ -808,8 +909,16 @@ def fetch(pr, repo, light=False):
             # The checks and review payload came from `v`; do not combine them with mergeability
             # observed for a different head or base branch.
             base["identity"] = BASE_REF_RACE
+            base["stale_computation_candidate"] = False
+    # The rollup lists every run on a head, even replaced ones. CLEAN is GitHub's own verdict on them.
+    # It stays valid for this head when only the base moved; mergeability_certain guards that separately.
+    if (merge_state_status == "CLEAN"
+            and _same_head(merge_observation.get("headRefOid"), head)
+            and merge_observation.get("baseRefName") == v.get("baseRefName")):
+        checks = [c for c in checks if c["conclusion"] not in FAILING]
     pr_chain = fetch_pr_chain(v.get("number") or pr, repo, v.get("url"),
-                              v.get("baseRefName"), v.get("headRefName"), owner, name, host)
+                              v.get("baseRefName"), v.get("headRefName"), owner, name, host,
+                              bool(v.get("isCrossRepository")))
     currency_probe = {
         "mergeable": mergeable,
         "merge_state_status": merge_state_status,
@@ -1033,10 +1142,10 @@ def _mergeability_certain(mergeable, merge_state_status, base):
 
 
 def _normal_base_route(cur):
-    """Return the only route U1 may classify: an unmanaged PR rooted on its normal base.
+    """Return the only route branch-currency checks may classify: an unmanaged PR rooted on its normal base.
 
     Ordinary dependents are intentionally harmless. An open or unknown parent means this target is
-    itself in a manual dependency chain and therefore outside this unit's authority.
+    itself in a manual dependency chain and therefore outside what those checks may act on.
     """
     chain = cur.get("pr_chain") or _default_pr_chain()
     base = cur.get("base") or {}
@@ -1115,28 +1224,10 @@ def _prepare_claimed_currency_item(state, item, cur=None, head=None):
     return item
 
 
-def _apply_stale_merge_computation(state, cur, head, now):
-    """Bounded degrade for a `race` whose only mismatch is GitHub's stale test merge. Tracks the
-    first time the same (head, live base) pair was seen in that state; after
-    STALE_MERGE_COMPUTATION_SECONDS the identity becomes `stale-computation` and the base carries
-    `merge_computation_stale: true` so the report can disclose it. Any head/base movement resets."""
+def _apply_stale_merge_computation(cur, head):
     base = cur.get("base") if isinstance(cur.get("base"), dict) else None
-    if not base:
-        state["stale_merge_computation"] = None
-        return
-    live = base.get("oid")
-    candidate = (base.get("identity") == BASE_REF_RACE
-                 and base.get("stale_computation_candidate")
-                 and _valid_oid(live) and _valid_oid(head))
-    if not candidate:
-        state["stale_merge_computation"] = None
-        return
-    key = f"{str(head).lower()}:{str(live).lower()}"
-    tracked = state.get("stale_merge_computation")
-    if not isinstance(tracked, dict) or tracked.get("key") != key:
-        tracked = {"key": key, "first_seen_at": _iso(now)}
-        state["stale_merge_computation"] = tracked
-    if _elapsed(tracked.get("first_seen_at"), now) >= STALE_MERGE_COMPUTATION_SECONDS:
+    if (base and base.get("identity") == BASE_REF_RACE and base.get("stale_computation_candidate")
+            and _valid_oid(base.get("oid")) and _valid_oid(head)):
         base["identity"] = BASE_REF_STALE_COMPUTATION
         base["merge_computation_stale"] = True
 
@@ -1225,7 +1316,7 @@ def _prepare_open_currency_item(state, currency, key, item, now):
     item["reconciliation_only"] = False
 
 
-def _apply_branch_currency(state, cur, head, head_changed, now):
+def _apply_branch_currency(state, cur, head, head_changed, now, defer_behind=False):
     currency = _load_branch_currency_state(state)
     carried_claims = _claimed_currency_items(currency)
     carried_semantic_parks = dict(currency.get("semantic_parks") or {})
@@ -1246,7 +1337,7 @@ def _apply_branch_currency(state, cur, head, head_changed, now):
         return _prepare_claimed_currency_item(state, item, cur, head)
 
     observation = _branch_currency_observation(cur, head)
-    if observation is None:
+    if observation is None or (defer_behind and observation["status"] == "BEHIND"):
         currency["current_key"] = None
         return None
 
@@ -1974,15 +2065,16 @@ def _reconcile_human_decisions(state, threads, feedback, checks, now):
     return public, covered
 
 
-def diff(state, cur, now=None, advance_trajectory=True):
+def diff(state, cur, now=None, advance_trajectory=True, defer_behind=False):
     """Pure: given prior state + current snapshot, compute the actionable set
-    and the persisted observed state. `now` is injectable for tests."""
+    and the persisted observed state. `now` is injectable for tests. `defer_behind` leaves a
+    BEHIND branch for whoever merges to update, so it yields no currency item."""
     now = now or _now()
     # A transient null/empty head (a gh hiccup) falls back to the last known head,
     # so a momentary null does not look like a new head and wipe ci_dispatched.
     head = cur["head_sha"] or state.get("head_sha")
     head_changed = state.get("head_sha") is not None and head != state["head_sha"]
-    _apply_stale_merge_computation(state, cur, head, now)
+    _apply_stale_merge_computation(cur, head)
 
     prior_threads = state.get("threads", {})
     prior_feedback = state.get("feedback", {})
@@ -2039,7 +2131,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
         cur.get("feedback") or [], "id", prior_feedback,
         identity_fn=lambda c: [c.get("edit_id")], reactivate_dispositions=())
     # Reconcile currency before exact decision observations are compared.
-    branch_currency = _apply_branch_currency(state, cur, head, head_changed, now)
+    branch_currency = _apply_branch_currency(state, cur, head, head_changed, now, defer_behind)
     needs_human_residuals, decision_coverage = _reconcile_human_decisions(
         state, new_threads, new_feedback, new_checks, now)
     dispatched = set(state.get("ci_dispatched", {}).get(head, []))
@@ -2087,6 +2179,9 @@ def diff(state, cur, now=None, advance_trajectory=True):
     state["review_decision"] = cur["review_decision"]
     state["mergeable"] = cur["mergeable"]
     state["merge_state_status"] = cur["merge_state_status"]
+    if (cur.get("mergeable") not in (None, "UNKNOWN")
+            and cur.get("merge_state_status") not in (None, "UNKNOWN")):
+        state["settled_merge"] = [cur["mergeable"], cur["merge_state_status"]]
     observed_awaiting_approval = cur.get("awaiting_approval")
     approval_probe_succeeded = observed_awaiting_approval is not None
     awaiting_approval = (
@@ -2116,7 +2211,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
     if unrequested_base_merge_pending and isinstance(cur.get("base"), dict) \
             and _base_ref_blocker(cur["base"]) is None:
         # An unclassified head is a pending merge computation: whatever else the base identity says
-        # (current or a bounded stale-computation degrade), it is not certain, not ready, not landable.
+        # (current or stale-computation), it is not certain, not ready, not landable.
         cur["base"]["identity"] = BASE_REF_MERGEABILITY_PENDING
     state["base"] = cur.get("base")
     if branch_currency and branch_currency.get("disposition") == DISPOSITION_OPEN:
@@ -2196,6 +2291,13 @@ def diff(state, cur, now=None, advance_trajectory=True):
             "disposition": branch_currency.get("disposition"),
             "recovery_state": branch_currency.get("recovery_state"),
         } if branch_currency else None),
+        # GitHub may report BEHIND where it would otherwise say BLOCKED, so a review it still
+        # requires keeps this false.
+        "update_branch_at_merge": bool(
+            defer_behind and branch_currency is None
+            and cur.get("merge_state_status") == "BEHIND"
+            and _branch_currency_observation(cur, head) is not None
+            and cur.get("review_decision") not in ("CHANGES_REQUESTED", "REVIEW_REQUIRED")),
         "url": cur["url"],
         "has_failing_checks": has_failing,
         "checks_terminal": checks_terminal,
@@ -2250,17 +2352,16 @@ def diff(state, cur, now=None, advance_trajectory=True):
 def _settle_base(base):
     """Base fields whose movement should reset the settle clock.
 
-    `stale-computation` is a presentation of a still-stable `race` candidate
-    (same head + live base) plus a report flag. Hashing those presentation
-    fields would reset last_change_at and add a synthetic settle delay.
-    Genuine identity values and freshness stay in the signature.
+    The base tip moves constantly on a busy repo, so its SHAs stay out, and a test merge that lags
+    that tip or is being recomputed counts as current. Otherwise no quiet window would ever finish.
     """
     if not isinstance(base, dict):
         return base
-    payload = {k: v for k, v in base.items() if k != "merge_computation_stale"}
-    if payload.get("identity") == BASE_REF_STALE_COMPUTATION:
-        payload["identity"] = BASE_REF_RACE
-    return payload
+    identity = base.get("identity")
+    if (identity in (BASE_REF_STALE_COMPUTATION, BASE_REF_MERGEABILITY_PENDING)
+            or base.get("stale_computation_candidate")):
+        identity = BASE_REF_CURRENT
+    return {"ref": base.get("ref"), "identity": identity, "freshness": base.get("freshness")}
 
 
 def _change_sig(state):
@@ -2277,8 +2378,7 @@ def _change_sig(state):
     currency = _load_branch_currency_state(state)
     current_currency = currency.get("items", {}).get(currency.get("current_key")) or {}
     return (checks, threads, feedback, human_decisions,
-            state.get("review_decision"), state.get("mergeable"),
-            state.get("merge_state_status"),
+            state.get("review_decision"), state.get("settled_merge"),
             json.dumps(state.get("pr_chain") or _default_pr_chain(), sort_keys=True),
             json.dumps(_settle_base(state.get("base")), sort_keys=True),
             (current_currency.get("host_branch_update_capability")
@@ -2490,7 +2590,8 @@ def _apply_snapshot(box, args, cur, now, advance_trajectory):
     if box["state"].get("pr", {}).get("url") is None and cur.get("url"):
         box["state"]["pr"]["url"] = cur["url"]
     _apply_invocation(box, args, now)
-    return diff(box["state"], cur, now, advance_trajectory=advance_trajectory)
+    return diff(box["state"], cur, now, advance_trajectory=advance_trajectory,
+                defer_behind=bool(getattr(args, "defer_behind_to_merge", False)))
 
 
 def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
@@ -2516,11 +2617,19 @@ def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
     return actionable
 
 
+def _timed_wait(a):
+    """Non-null when only the settle window stands between this PR and a merge-ready wake."""
+    if _wake_reason(a, 0) != "merge-ready" or _wake_reason(a, DEFAULT_SETTLE_SECONDS) == "merge-ready":
+        return None
+    return {"reason": "settle", "seconds_remaining": round(DEFAULT_SETTLE_SECONDS - a.get("quiet_seconds", 0))}
+
+
 def cmd_snapshot(args):
     result = _run_snapshot(args, _now())
     if (getattr(args, "_started_new_invocation", False)
             and _elapsed(result.get("invocation_started_at"), _now()) > 60):
         raise SystemExit("new invocation unexpectedly inherited more than 60 seconds of elapsed time")
+    result["timed_wait"] = _timed_wait(result)
     print(json.dumps(result, separators=(",", ":")))
 
 
@@ -2584,7 +2693,7 @@ def _wake_reason(a, settle_seconds, feedback_coalesce_seconds=FEEDBACK_COALESCE_
         mergeability_certain = _mergeability_certain(
             a.get("mergeable"), a.get("merge_state_status"), a.get("base"))
     if (mergeability_certain and a.get("mergeable") == "MERGEABLE"
-            and a.get("merge_state_status") == "CLEAN"
+            and (a.get("merge_state_status") == "CLEAN" or a.get("update_branch_at_merge"))
             and a.get("checks_terminal") and not a.get("has_failing_checks")
             and a.get("checks_awaiting_approval", 0) == 0
             and a.get("branch_currency_blocker") is None
@@ -3470,6 +3579,8 @@ def main():
     s.add_argument("--continue-dead-time-seconds", type=float, default=None,
                    help="carry the prior layer's accumulated dead time into a managed-stack layer "
                         "(with --continue-invocation), so the shared active-time budget stays correct")
+    s.add_argument("--defer-behind-to-merge", action="store_true",
+                   help="leave a BEHIND branch for whoever merges to update: no currency item, update_branch_at_merge instead")
     s.set_defaults(func=cmd_snapshot)
 
     m = sub.add_parser("mark")
@@ -3532,6 +3643,8 @@ def main():
                    help="fixed anchor emitted by the first snapshot")
     w.add_argument("--invocation-budget-seconds", type=float, required=True,
                    help="fixed budget emitted by the invocation's first snapshot")
+    w.add_argument("--defer-behind-to-merge", action="store_true",
+                   help="leave a BEHIND branch for whoever merges to update: no currency item, update_branch_at_merge instead")
     w.set_defaults(func=cmd_watch)
 
     args = p.parse_args()

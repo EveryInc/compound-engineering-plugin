@@ -1,6 +1,8 @@
 # Arguments, modes, and the deliverable
 
-Read this at Stage 0, before scope resolution. It owns argument parsing, the conflicting-argument stop classes, the quick-review short-circuit, and what each mode returns.
+Read this at Stage 0, before scope is resolved. It defines how to parse the arguments, which argument combinations stop the review, the quick-review short-circuit, and what each mode returns.
+
+Give each file you read its own tool call, so its output comes back on its own, never several files in one command or one script. A read counts only when the whole file came back. Some hosts cut the middle out of a long tool output and leave a truncation marker in its place, so when a read comes back shortened, read the missing lines in smaller ranges before you act on that file. That applies to every file you read during this review, not only to references.
 
 ## Argument Parsing
 
@@ -14,15 +16,16 @@ Parse the arguments you were invoked with for optional tokens. Strip each recogn
 | `apply:local` | `apply:local` | Explicitly authorize Stage 5c to apply verified findings to the reviewed local checkout. This is authority, not an output mode; bare review remains report-only. |
 | `base:<sha-or-ref>` | `base:abc1234` or `base:origin/main` | Diff base on the **current checkout** (explicit; skips auto base detection) |
 | `plan:<path>` | `plan:<root>/plans/2026-03-25-001-feat-foo-plan.md` | Plan file for requirements verification (explicit). Supports markdown and HTML unified plans. |
-| `depth:full` | `depth:full` | **Force the full reviewer roster** — skip the Stage 3c small-diff lite path so every always-on persona runs regardless of diff size. Use when a deep/thorough review is explicitly requested (the one escalation signal Stage 3c cannot infer from the diff). Does not change conditional selection, merge, or scope. |
-| `depth:auto` | `depth:auto` | **Default** — self-right-size via Stage 3c (lite roster for trivial, low-risk, code-only diffs; full roster otherwise). |
+| `plan_group:<label>` | `plan_group:PR2` | With `plan:`, the PR group of a multi-PR plan this diff builds, named by the label that starts its heading (`PR2` in `PR2: Report headline and summary`). Scopes plan completeness to that group (see `references/intent-and-plan.md`). |
+| `depth:full` | `depth:full` | **Force the full spine** — skip the Review depth gate's lite and focused paths. Use when a deep/thorough review is explicitly requested (the one override the gate cannot infer). Does not change conditional selection, merge, or scope on the full path. |
+| `depth:auto` | `depth:auto` | **Default** — this skill self-sizes via the Review depth gate after Stage 1. Callers do not classify. |
 | `grouping:auto` | `grouping:auto` | **Default** — build thematic triage groups when findings span distinct concerns (Stage 5 step 9b) |
 | `grouping:off` | `grouping:off` | Suppress triage groups: no Triage Groups section, empty `triage_groups` in JSON |
 | `grouping:always` | `grouping:always` | Always build triage groups, even for small reviews |
 
 **Grouping is presentation, not a mode.** The `grouping:` tokens change how the finding set is organized for triage — never reviewer selection, merge logic, scope rules, or the Stage 5c apply decision.
 
-**Mode alias:** `mode:headless` normalizes to `mode:agent`. `mode:agent` + `mode:headless` is not a conflict. `mode:non-interactive` is **not** an alias for `mode:agent` — that token means “suppress prompts” in other CE skills; if it appears here, treat it as an unrecognized/conflicting `mode:` token and stop (fail closed).
+**Mode alias:** `mode:headless` normalizes to `mode:agent`. `mode:agent` + `mode:headless` is not a conflict. `mode:non-interactive` is **not** an alias for `mode:agent` — that token means “suppress prompts” in other CE skills; if it appears here, treat it as an unrecognized, conflicting `mode:` token and stop rather than guessing what was meant.
 
 **Conflicting arguments:** Stop without dispatching reviewers when:
 - Multiple incompatible scope selectors appear together (e.g. `base:` **and** a PR number/branch target — `base:` means "review the current checkout against this base")
@@ -41,9 +44,11 @@ Emit a one-line failure reason. In `mode:agent`, return JSON: `{"status":"failed
 |------------|-------------|
 | **Default** | Report-only markdown (pipe-delimited finding tables) + Actionable Findings summary |
 | **Explicit local apply** | The same markdown report plus verified local fixes and an Applied section |
-| **`mode:agent`** | One JSON object (see ### JSON output format below) + the same `/tmp/.../ce-code-review/<run-id>/` artifacts |
+| **`mode:agent`** | One JSON object (see ## JSON output format below) + the same `/tmp/.../ce-code-review/<run-id>/` artifacts |
 
 Default and `mode:agent` are **report-only**. `mode:agent` changes only the serialization from markdown to JSON for programmatic callers; it does not change reviewer selection, merge logic, or scope rules. `apply:local` is separate mutation authority, not an output mode. The default markdown is the human view; keep it ASCII-safe (pipe tables, `->` not middot `·`, no box-drawing) so it degrades gracefully across terminals.
+
+Whatever this skill returns, including a failed, degraded, or skipped result, is the last thing it writes. It ends this skill, not the turn. When a caller invoked this skill, control returns to the caller in this same session, and the caller's own handling of the result decides whether its run continues or stops; otherwise end the turn.
 
 ## Quick Review Short-Circuit
 
@@ -55,8 +60,105 @@ Sequence:
 
 1. **Run the harness's built-in code review.** Forward any review target after stripping tokens. Then stop — do not dispatch the multi-agent pipeline.
 2. **Exemption:** If no built-in review exists, continue into the full multi-agent review.
-3. **`mode:agent` bypasses this short-circuit** — always run the full multi-agent review and return JSON.
+3. **`mode:agent` bypasses this short-circuit only.** It still self-sizes through the Review depth gate and returns JSON from whichever path that gate selects.
 
 **Deprecated:** `mode:autofix` is no longer supported. If passed, ignore it and proceed report-only; it does not grant local apply authority.
 
-The completion contract these modes feed — the actionable summary, the run artifacts, and where the run stops — executes after Stage 6 and is owned by `references/finish-review.md`.
+## Review depth
+
+Decide after Stage 1 (its 1b facts and 1c mapping), before reading any later reference. This skill owns the decision; a caller may pass `depth:full` but never a depth of its own. Three paths exist: **lite** (this context alone), **focused** (this context plus one independent adversarial read), and **full** (the multi-agent spine from Stage 2).
+
+Floors that run the full spine from Stage 2, whatever the diff looks like: `depth:full`; the helper's `hard_block_full` (the helper reports facts. It never awards lite. `hard_block_full` is a floor, and it covers a named hard-block class, any file the helper could not count, and a `size_band` of `large`, which means the executable non-test changed lines reached the full floor; whole-file deletions are not counted there); a Stage 1c criteria search that failed or whose scope is uncertain; and apply authority (`apply:local` or an explicit apply request), which needs Stage 5c's verified-apply mechanics. Line counts below the floor, prose and test volume, `unclassified_lines`, and `signals` are prompts to consider, not floors.
+
+### Adversarial selection
+
+Select the adversarial lens when the user explicitly requests it. Otherwise selection requires evidence from the diff and available context of a credible failure scenario with material consequences: unauthorized access or disclosure, financial loss, persistent data corruption or loss, irreversible external effects, or substantial service disruption. State that scenario and consequence as the selection reason. A verification mechanism inherits the consequence of the behavior it protects; false success alone is insufficient.
+
+Diff size, file paths, domain keywords, routine persistence or API use, and uncertainty alone do not select adversarial. An unresolved risk still warrants the lens when evidence supports a material consequence even though its reachability needs investigation. Otherwise record the specific uncertainty in Coverage rather than adding a reviewer just in case. This condition governs both focused and full reviews.
+
+With no full-spine floor set, select lite when the adversarial condition is absent. When it is present, select focused unless the change needs the full spine's specialist coverage for an auth, money, or externally consumed public-contract boundary; then continue from Stage 2. Those specialist boundaries still require full review even when adversarial is not selected. A user request for adversarial review requires at least focused; `depth:full` alone does not select the lens.
+
+The helper's `silent_pass_classes`, `deleted_band`, and `unclassified_lines` identify work to inspect, not additional depth floors. Assess what a changed guard protects and whether surviving code still reaches deleted files. A CI path or large deletion alone does not require an independent read. Executable code under an unrecognized extension still receives the same consequence assessment.
+
+A full-spine floor cannot be talked down, and a path may only move toward full as new evidence appears. On full, correctness remains mandatory and specialist selection remains conditional; use the adversarial condition above rather than inferring it from depth.
+
+When the gate selects lite or focused, read `references/depth-paths.md` at that point and run the selected path from this context; the full spine continues from Stage 2 and never opens that file. Either way, close the scope stage with the decision: the stage-log call from `references/scope.md` with `--end scope --start review` (lite, focused) or `--end scope --start select` (full), carrying `--fact` entries for `exec_nontest_lines`, `changed_lines`, `size_band`, `deleted_band`, `unclassified_lines`, and `depth`.
+
+## Run artifacts
+
+Every run, lite, focused, or full, leaves its receipt (`review.json` in `mode:agent`, `report.md` in default mode), `stages.jsonl` (the stage log `references/scope.md` opens), and `metadata.json` in the run directory. `metadata.json` minimum fields:
+
+```json
+{
+  "run_id": "<run-id>",
+  "branch": "<git branch --show-current at dispatch time>",
+  "head_sha": "<git rev-parse HEAD at dispatch time>",
+  "verdict": "<Ready to merge | Ready with fixes | Not ready>",
+  "completed_at": "<ISO 8601 UTC timestamp>"
+}
+```
+
+After `metadata.json` is written, the receipt writer runs `run-log.py summarize --run-dir "$RUN_DIR"` (the same `SKILL_DIR` and interpreter recipe as the stage log) as its last action before returning or emitting the receipt; it is the only writer that touches `metadata.json` after the receipt write, and it merges a `cost` object into the existing fields: `status` (`complete` when every started stage ended and the receipt stage is present, else `partial`), `host`, `scope` (the helper facts and chosen depth from the scope stage), `stages` (name, elapsed seconds, reviewers, candidates, tokens when present), `totals` (elapsed, reviewers, candidates produced by the review, peer, and dispatch stages, artifact bytes, tokens when any stage carried them), `peer` (from `adversarial-<provider>-usage.json` when present), and `truncated_events`. A run killed mid-way leaves a parseable partial log, and a maintainer tuning `FULL_EXEC_LINE_MIN` or another threshold reads `cost.status` before trusting a run's numbers.
+
+The full path adds the artifacts listed under "Run artifacts" in `references/finish-input.md`.
+
+## JSON output format (`mode:agent` only)
+
+One definition for every depth path. Emit **one raw JSON object** as the primary response: a single bare JSON value, **no markdown code fence**. A leading ```` ```json ```` fence makes the response start with backticks and breaks naive `JSON.parse` consumers, so never wrap it. Also write `review.json` under the resolved `<run-dir>` with the same payload.
+
+`mode:agent` does not apply fixes (the caller does), so there is no `applied_fixes` field; the handoff is `actionable_findings`. Applied work appears only in explicitly authorized local-apply markdown runs (Stage 5c/6).
+
+Minimum shape:
+
+```json
+{
+  "status": "complete",
+  "verdict": "Ready to merge | Ready with fixes | Not ready",
+  "scope": {
+    "base": "<merge-base sha, pr:NNN marker, or base: ref>",
+    "branch": "<current branch name>",
+    "head_sha": "<git rev-parse HEAD>",
+    "pr_url": "<url or null>",
+    "files_changed": 0
+  },
+  "intent": "<2-3 line summary>",
+  "intent_confidence": "explicit | inferred | uncertain",
+  "reviewers": ["correctness"],
+  "findings": [],
+  "actionable_findings": [],
+  "triage_groups": [],
+  "pre_existing_findings": [],
+  "requirements_completeness": null,
+  "learnings": [],
+  "deployment_notes": [],
+  "residual_risks": [],
+  "testing_gaps": [],
+  "coverage": {"depth": "lite | focused | full"},
+  "artifact_path": "<resolved-run-dir>",
+  "run_id": "<run-id>"
+}
+```
+
+`peer` tells a caller whether a different-provider peer actually reviewed the change. It is not part of the minimum shape: add it only when this run selected the adversarial lens (the full roster selected it, or the focused path ran), and never on lite. Its shape:
+
+```json
+"peer": {"outcome": "folded | in-process-fallback | not-run | no-usable-output | failed", "coverage": "<the Coverage sentence for this outcome>"}
+```
+
+On the full path, copy `outcome` and `coverage` verbatim from the `peer` record in `finish-input.json`; the focused path fills them from its own fold-in, using the same outcome names and Coverage sentences. `folded` is the only outcome in which a peer artifact was folded into this review. Every other outcome means no peer artifact was folded, and `coverage` says why and what covered the lens instead. An outcome other than `folded` never changes `status`.
+
+When Stage 1d staged a review policy, every path adds `coverage.review_policy`: `sources` (the policy file paths read), `removed` and `regraded` (counts), and `not_applied` (policy files the change edited, whose new version this review did not apply).
+
+Lite fills `findings`, `actionable_findings`, `testing_gaps`, `residual_risks`, and `requirements_completeness` (`null` only when no plan was found) from its own review. The arrays owned by reviewers it did not run (`learnings`, `deployment_notes`, `pre_existing_findings`, `triage_groups`) are `[]`, and Coverage names them as not assessed. `reviewers` is `["correctness"]` and `coverage.depth` is `"lite"`. Focused fills the same fields from its merged findings, lists its two reviewers, and sets `coverage.depth` to `"focused"`; the full path's finish leaf fills every field and sets `coverage.depth` to `"full"`.
+
+Each object in `findings` uses the merged finding fields: `#`, `title`, `severity`, `file`, `line`, `confidence`, `autofix_class`, `owner`, `requires_verification`, `pre_existing`, `suggested_fix`, `first_evidence`, `why_it_matters`, `evidence`, `reviewers`, `independent_reviewers`. A finding Stage 5b left unresolved, or confirmed with an unmeasured-incidence reason, also carries `validation_status` and `validation_reason`, and carries `protected_subject` when one applies. Each object in `learnings` is a Known Pattern note: `type` (`known_pattern`), `title`, `citation` (a `<root>/solutions/` path or `(pack: <id>, <path within the pack>)`), and `note` (one line on how it bears on the change); contradicted pack rules are findings, never `learnings` entries. When Compound Packs were resolved, on any path, `coverage.compound_packs` carries `roots` as the list of pack ids (strings — never the resolver's absolute `dir` paths) plus the resolver's `warnings` and `errors` arrays verbatim, so a consumer can tell a declared pack that loaded from one that was skipped. The helper derives `independent_reviewers`; synthesis may preserve or union that list but must not infer it from `reviewers`.
+
+An incoming finding may carry an optional `settled_conflict` field naming a `session-settled:` KTD. The marker supplies context for settlement reconciliation; it does not exempt the finding from admission or authorize a change.
+
+`actionable_findings` lists the `gated_auto` / `manual` + `downstream-resolver` subset with the same fields plus stable `#`. A finding with `validation_status: "unresolved"` never appears here; it stays in `findings` as a clearly labeled verification gate.
+
+Each object in `triage_groups` carries `{ "title", "findings": [<stable #s>], "context", "preferred_resolution", "why" }`: the finalized groups from Stage 5 step 6 after Stage 5b step 5 pruning. Every referenced `#` must exist in `findings` (the full set), **not** necessarily in `actionable_findings`. Groups are a triage **lens over all findings, not an apply queue**: a group (and its `preferred_resolution` ordering) can reference advisory or `human`/`release`-owned findings that the caller must not apply. So a caller batching related fixes by theme must first intersect each group's `findings` with `actionable_findings` and act only on that subset; the apply handoff stays `actionable_findings`, never `triage_groups`. Empty array when `grouping:off` is active or no groups were built.
+
+On failure before review completes, set `"status": "failed"` and `"reason": "<one sentence>"`. When all reviewers fail, use `"status": "degraded"` with a reason. When a PR skip rule applies (closed/merged/trivial), use `"status": "skipped"` with the skip reason. Do not emit markdown tables when `mode:agent` is active.
+
+After Stage 6 on the full path, the review ends with the actionable summary, the run artifacts, and the point where the run stops. `references/finish-report.md` defines that ending for the full spine.

@@ -1,0 +1,13 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 4,
+  "t": 2600,
+  "type": "navigation",
+  "payload": {
+    "t": 2600,
+    "type": "navigation",
+    "from": "/",
+    "to": "/settings"
+  }
+}

@@ -1,0 +1,1 @@
+{"host_harness":"claude","host_provider":"claude","subject":"Should this project adopt the vendor's v2 SDK?","host_position":"Adopt with a retry-semantics guard."}

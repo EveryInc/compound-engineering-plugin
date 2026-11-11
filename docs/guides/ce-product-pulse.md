@@ -66,7 +66,7 @@ Pick the shortest window that answers the question. A launch check and a weekly 
 
 ## The Problem
 
-"How are we doing?" reports fail in familiar ways. Forty metrics across six tools, and nobody reads any of them. Red / yellow / green from guessed thresholds that were never calibrated to this product. The last 15 minutes of analytics under-reported, so "what just happened?" is wrong. Emails and account IDs landing in saved files and Slack threads. A "report" tool that turns out to have write access to production.
+"How are we doing?" reports fail in familiar ways. Forty metrics across six tools, and nobody reads any of them. Red / yellow / green labels come from guessed thresholds that were never calibrated to this product. The last 15 minutes of analytics are under-reported, so "what just happened?" is wrong. Emails and account IDs land in saved files and Slack threads. A "report" tool turns out to have write access to production.
 
 Two quieter failures matter as much: pulses that live only in chat, so last week can't be compared to this week, and pulses that measure whatever happens to be instrumented instead of what the strategy says matters.
 

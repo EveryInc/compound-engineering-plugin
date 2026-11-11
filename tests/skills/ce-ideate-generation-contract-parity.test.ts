@@ -111,7 +111,7 @@ const SHARED_CONTRACT: SharedRule[] = [
     rule: "tactical scope applies, cutting volume rather than lenses",
     why: "Missing on the universal path for three review rounds; a tactical non-software run got the full treatment.",
     softwareFile: "references/divergent-ideation.md",
-    software: /tactical scope[\s\S]{0,400}lowers each frame's target/i,
+    software: /Tactical scope never changes the agent count; it contributes only tactical's dials/i,
     universal: /apply all of tactical's dials/i,
   },
   {
@@ -127,7 +127,7 @@ const SHARED_CONTRACT: SharedRule[] = [
       "The tactical read cut is justified only by the matching volume cut. Raised volume against a " +
       "lowered cap leaves most `direct:` bases unchecked — the invariant used to reject frame-packing.",
     softwareFile: "references/divergent-ideation.md",
-    software: /never raised volume against the lowered cap/i,
+    software: /tactical read budget goes with the tactical volume/i,
     universal: /never raised volume against the lowered cap/i,
   },
   {

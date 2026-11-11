@@ -2,7 +2,7 @@
 
 > Check Compound Engineering health, optional tool availability, and repo-local config safety. It does not bulk-install the plugin's dependencies.
 
-`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, and offers to point your agent-instructions file at the knowledge store and add a standing compounding instruction. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
+`ce-setup` is a diagnosis and config utility. It reports which optional tools are on PATH, refreshes the committed config example, creates the repo `config.yaml` if you approve, offers to gitignore a local override or CE scratch space, offers to point your agent-instructions file at the knowledge store and add standing compounding and `ce-noslop` chat-register instructions, and offers to draft or refresh `CODING_STANDARDS.md` and `REVIEW.md` from your pull request history. It also reports where CE artifacts will land and can repair an invalid `docs_root` or a broken CE Work engine block.
 
 It runs only when you invoke it explicitly (`disable-model-invocation: true`). Talking about setup does not start it. Outside a git repository it reports capabilities and stops without writing files.
 
@@ -14,7 +14,7 @@ See [Compound Engineering configuration](./configuration.md) for every option an
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Runs a health check, reports optional tools, refreshes the example config, and applies only the repo-local fixes you approve |
+| What does it do? | Runs a health check, reports optional tools, refreshes the example config, applies only the repo-local fixes you approve, and scaffolds a Compound Pack on request |
 | When to use it | First install, after an upgrade, when a skill says a tool is missing, or when onboarding a repo |
 | What it produces | A setup report, plus any config or gitignore edits you accepted |
 | What it does not do | Bulk-install optional CE dependencies, update the plugin itself, or create `config.local.yaml` |
@@ -23,13 +23,16 @@ See [Compound Engineering configuration](./configuration.md) for every option an
 
 ## Example invocations
 
-There is no argument. One command covers first install, a re-check after an upgrade, a missing-tool report, and a directory that is not a git repo.
+Bare, one command covers first install, a re-check after an upgrade, a missing-tool report, and a directory that is not a git repo. `pack:<id>` scaffolds a Compound Pack instead (see [Scaffold a Compound Pack](#scaffold-a-compound-pack)), and `standards` goes straight to drafting the review docs (see [Review docs](#review-docs)).
 
 ```text
 /ce-setup
+/ce-setup pack:house-rules
+/ce-setup standards
+/ce-setup standards mode:non-interactive
 ```
 
-On oh-my-pi the invocation is `/skill:ce-setup`. On Codex it is `$ce-setup` when that host uses dollar-prefixed skills.
+On Codex it is `$ce-setup` when that host uses dollar-prefixed skills.
 
 ---
 
@@ -38,7 +41,7 @@ On oh-my-pi the invocation is `/skill:ce-setup`. On Codex it is `$ce-setup` when
 Compound Engineering has two separate setup surfaces:
 
 - **Repo-local state** that should stay consistent and safe: the committed config example, the repo `config.yaml`, and gitignore coverage for `config.local.yaml` and `.context/compound-engineering/` scratch.
-- **Optional external tools** used by specific workflows: `agent-browser`, `gh`, `jq`, `ast-grep`, `ffmpeg`.
+- **Optional external tools** used by specific workflows: `agent-browser`, `gh`, `jq`, `ast-grep`, `ffmpeg`, and Node 22.13 or newer with `npx` for cross-model peers.
 
 A missing optional tool is not a broken plugin. Most workflows never touch `ffmpeg` or `ast-grep`, so installing everything up front is wasted footprint. `ce-setup` reports what is missing, says which workflow each tool serves, and prints the install command. You install only what you use.
 
@@ -48,14 +51,47 @@ The example config refresh happens on its own (it is the committed template copy
 
 - Deletes the obsolete `compound-engineering.local.md` if you say yes.
 - Refreshes `.compound-engineering/config.example.yaml` from the bundled template, always, inside a git repo.
-- Offers to create `.compound-engineering/config.yaml` when missing. Never overwrites an existing `config.yaml` or `config.local.yaml`, and never creates the local override.
+- Offers to create `.compound-engineering/config.yaml` when missing, and never creates the local override.
+- Refreshes a `config.yaml` written from an older template. Its guidance, defaults, and option lists become the current template's, while each active setting, with its value and the comment above it, moves into its slot. Retired settings are removed with the reason and what replaced them. Unrecognized settings and notes it cannot place go into a marked section at the end. The agent decides each change, and you approve the whole file once. A script checks from disk that nothing else changed before it writes. In `config.local.yaml` it removes retired settings and cuts an old full-template copy down to your settings. It never touches a file a newer plugin wrote, or one outside the YAML it can verify. A run with `mode:non-interactive` refreshes `config.yaml` in its pull request and only reports changes to `config.local.yaml`.
 - Offers to add `.compound-engineering/*.local.yaml` to `.gitignore`, but only when `config.local.yaml` already exists and is not ignored.
 - Offers to add `.context/compound-engineering/` to `.gitignore` whether or not that directory exists yet. An uncovered path is a note, not a project issue.
-- Offers to add a line about the `<root>/solutions/` knowledge store to your root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, or equivalent) when the file does not already convey it, placed in the file's own structure. Then offers the standing compounding instruction from the [ce-compound guide](./ce-compound.md#make-capture-automatic), offer-first or automatic, inserted verbatim. Only when the store is tracked in this repo, and never creates the file.
-- Repairs an invalid CE Work implementation-engine block, or leftover retired routing keys, in the config layer that supplied the bad value.
+- Offers to add a line about the `<root>/solutions/` knowledge store to your root agent-instructions file (`AGENTS.md`, `CLAUDE.md`, or equivalent) when the file does not already convey it, placed in the file's own structure. Then offers the standing compounding instruction from the [ce-compound guide](./ce-compound.md#make-capture-automatic), offer-first or automatic, inserted verbatim. Only when the store is tracked in this repo, and never creates the file. Then offers the `ce-noslop` chat-register instruction, inserted verbatim, so agent reports and summaries to you lead with the outcome and carry no acknowledgements, offers of more help, or process narration. Skipped only when the file already covers the report boundary, that register, and the exclusions (code, config, verbatim quotes, text you asked to post as written); a partial or unrelated writing rule still gets the offer.
+- Offers, in one question, to draft or update `CODING_STANDARDS.md` and `REVIEW.md` from your recent pull requests, plus a line in your agent-instructions file pointing agents to each. See [Review docs](#review-docs).
+- Repairs an invalid CE Work implementation-engine block in the config layer that supplied the bad value.
+- Offers to warm the npm cache for cross-model peers when Node 22.13 or newer and `npx` are present. On approval it downloads an eligible acpx version from the supported range and the codex and claude adapters associated with its upper bound without starting them (npm still runs any install scripts they declare, as a first peer run would), reducing first-run downloads in `ce-pov`, `ce-doc-review`, `ce-code-review`, and `ce-work`; an older policy-selected acpx release may fetch different adapter packages. Declining fetches nothing; the first peer run downloads them instead.
 - Repairs an invalid `docs_root`. This one is a real project issue: CE artifacts will not be written until it is fixed. See [Artifact root](./configuration.md#artifact-root).
 
 Each question uses the host's blocking question tool when one exists. It never silently auto-configures.
+
+## Review docs
+
+Most teams want a coding-standards file and never get past the blank page. Setup drafts a starting point from evidence the repository already has: review findings authors fixed, findings the team declined, fix commits, solution records, and rules already sitting in the agent-instructions file. Before writing anything, it gives a short account of each file: whether it is new or changed, what it does, and each rule it adds, changes, or removes, with the pull requests behind that rule. Ask to see a full draft or diff and it shows it.
+
+| File | Holds | Read by |
+|------|-------|---------|
+| `CODING_STANDARDS.md` | Rules code here follows: defect classes visible in a diff that no lint, type, or CI check covers | Agents writing code, and every code review, including [`ce-code-review`](./ce-code-review.md#repo-owned-review-criteria) |
+| `REVIEW.md` | How review behaves here: severity meanings, what not to flag, evidence a finding needs. Starts with `@CODING_STANDARDS.md` | [`ce-code-review`](./ce-code-review.md#repo-owned-review-policy), from the base branch, and Claude Code Review |
+| Agent-instructions file | Working instructions, plus one line per review doc saying what it is and when to read and update it | Every agent session |
+| `.cursor/BUGBOT.md` | A pointer to `CODING_STANDARDS.md` and `REVIEW.md`, never its own copy of the rules. Created only when the repo uses Cursor Bugbot | Cursor Bugbot |
+
+A rule needs evidence: a fixed review finding, a fix commit, or a solution record, with no check already enforcing it. A "what not to flag" category needs findings declined across several pull requests. `REVIEW.md` is always drafted alongside the standards file, because its `@CODING_STANDARDS.md` line is what lets Claude Code Review read the standards. When the history supports none of its sections, that line and a one-sentence purpose are the whole file. Each AI code reviewer the repo uses gets pointed at the same files rather than a copy of the rules; a reviewer counts as used when its comments show up in your pull requests or its file is already in the repo. Rules already sitting in an existing `.cursor/BUGBOT.md` or agent-instructions file count as evidence for the draft, and moving them out is a separate change you can decline. A repository with no history to draft from gets no offer. Asking for any one of these (`/ce-setup standards`, or "set up our coding standards") skips the health check and the offer and drafts the whole set, still previewed before writing. `STRATEGY.md` comes from an interview rather than history, so setup suggests [`ce-strategy`](./ce-strategy.md) when it is missing instead of drafting one.
+
+### Keeping them current
+
+Two things keep the review docs current:
+
+- **Each change.** The pointer line in your agent-instructions file tells agents to update a review doc when a change establishes or retires a rule, so most upkeep happens in the pull request that caused it.
+- **A periodic refresh.** Teams change how they work, and some of that only shows up across many pull requests: findings under a rule that reviewers keep declining, a rule a new lint check now enforces, a fix pattern that keeps recurring. Run `/ce-setup standards` (or ask to refresh your coding standards) after a stretch of heavy review activity, or on a regular cadence such as quarterly. Setup reads the pull requests and review feedback each file has not yet accounted for, usually everything since its rules last changed, checks every existing rule against them, and proposes additions, changes, and retirements, one line each with the evidence behind it. Ask for the diff to see the exact text. It writes nothing until you approve.
+
+To run the refresh on a schedule, such as a weekly job, use `/ce-setup standards mode:non-interactive`, or ask for an unattended run in words. An unattended run asks nothing, and the pull request it opens takes the place of the preview: its description lists each rule added, changed, or retired with the evidence behind it. Because a scheduled run sees a short window, a new rule needs its defect class to show up more than once in the evidence. A rule a reviewer removed from an earlier refresh pull request, or that sat in one closed without merging, is not proposed again unless newer evidence supports it. An open refresh pull request is updated rather than joined by a second one, and a week with nothing to change opens no pull request. Changes only a person can decide, such as creating `config.yaml`, the standing directives, or moving rules out of your agent-instructions file, are listed in the pull request instead of made. The final line reads `Setup complete: <pull request URL>` or `Setup skipped: <reason>`, so a job can tell what happened.
+
+A bare unattended run (`/ce-setup mode:non-interactive`) refreshes the generated example config and adds the `.gitignore` entries, reports everything else, and leaves review docs alone.
+
+Asking `ce-compound` to create or update your coding standards hands the work to `ce-setup`. The refresh mirrors a [`ce-compound` refresh](./ce-compound.md#refresh), the periodic pass for the knowledge store.
+
+## Scaffold a Compound Pack
+
+`/ce-setup pack:<id>` (or asking it in words to add or create a pack) starts a [Compound Pack](./packs.md) in the one layout discovery reads. It resolves `compound-packs/<id>/` at the repo root, refuses a directory that already has content, and previews everything before one approval: a `README.md` with a single line saying what the pack governs, a first rule file from a bundled template (`title`, two example `applies_when` situations, `tags`, and a prescriptive body with a placeholder to replace), and `- source: compound-packs/<id>` appended under `packs:` in `.compound-engineering/config.yaml`, created from the template when the file is missing. It then runs the health check and reports the `pack <id>` line, and tells you the layout rule: a rule is discovered only when it is a top-level `.md` with `title` and `applies_when`; `README.md` is the description, and subfolders are storage ([Pack layout](./packs.md#pack-layout)). In a non-interactive run it prints the preview and writes nothing.
 
 ## Where artifacts land
 
@@ -72,6 +108,8 @@ The health report includes the resolved artifact root (`docs/` by default, or a 
 | `jq` | JSON inspection in shell-based workflows |
 | `ast-grep` | Syntax-aware structural code search |
 | `ffmpeg` | Media chunking and screenshot extraction for Riffrec analysis |
+| `node` | Cross-model peers: Node 22.13 or newer with `npx`, which resolves acpx within its tested compatibility range |
+| `antigravity` | Gemini cross-model peer. Shown only when `cross_model_peer` or a `work_engine_preferences` entry names `antigravity`, or when `agy_acp_server.par` is on `PATH`. It checks that the Antigravity ACP runtime is on `PATH` and that its `localharness_external` helper is executable at `ANTIGRAVITY_HARNESS_PATH` or beside the runtime. When either is missing, it links the [official ACP registry download](https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json). The runtime is not an npm package, so the cache warm does not fetch it. |
 
 ---
 
@@ -107,6 +145,8 @@ Use `ce-setup` when:
 - You want to verify a repo's CE config, artifact root, and gitignore state
 - A workflow reported an optional tool missing and you want the install command
 - You are onboarding a repo to `.compound-engineering/config.yaml`
+- You want to start a Compound Pack with `pack:<id>` in the layout discovery reads
+- You want starting `CODING_STANDARDS.md` and `REVIEW.md` drafts from your PR history, or to refresh existing ones (`standards`)
 - Health marked `docs_root` or the CE Work engine block invalid
 
 Skip it when:
@@ -115,7 +155,7 @@ Skip it when:
 - You want to update the plugin itself (use the host plugin manager)
 - You want every possible CE binary installed in one shot. It will not do that.
 
-`ce-setup` is not a pipeline stage. Run it whenever you need a diagnosis or a safe config write; the summary prints the invocation so you can re-run it later.
+`ce-setup` is not a pipeline stage. Run it whenever you need a diagnosis or a safe config write; the summary prints the invocation so you can re-run it later. When setup leaves changes uncommitted, it ends by asking whether to commit them and open a pull request (through [`ce-commit-push-pr`](./ce-commit-push-pr.md)), commit only, or leave them for you to review.
 
 ---
 
@@ -124,8 +164,8 @@ Skip it when:
 | Phase | Step |
 |-------|------|
 | Diagnose | Plugin version when the host exposes it, optional capabilities, project config, artifact root, work-engine block |
-| Fix | Obsolete local-md, example refresh, create repo config if wanted, gitignore safety, scratch-space gitignore, repair invalid `docs_root` or work-engine prefs, knowledge-store mention and compounding directive in the agent-instructions file |
-| Summary | Fixes applied, skipped actions, missing optional tools |
+| Fix | Obsolete local-md, example refresh, create repo config if wanted, gitignore safety, scratch-space gitignore, repair invalid `docs_root` or work-engine prefs, knowledge-store mention, compounding directive, and `ce-noslop` chat-register directive in the agent-instructions file |
+| Summary | Fixes applied, skipped actions, missing optional tools, then a commit or pull request offer when changes are uncommitted |
 
 ---
 

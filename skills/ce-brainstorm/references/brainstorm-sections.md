@@ -13,12 +13,12 @@ A great brainstorm produces the first version of the same plan artifact that
 - **The planning agent** (`ce-plan` or a human) produces an implementation
   plan without inventing user behavior, scope boundaries, or success
   criteria — the brainstorm answered those.
-- **The reviewer** sees the framing choices, distinguishes pinned from open,
-  and catches scope gaps before planning.
+- **The reviewer** sees the framing choices, distinguishes settled decisions
+  from open ones, and catches scope gaps before planning.
 - **The future reader** traces why the proposed thing matters, who it's for,
   and what success looks like.
 
-Sections earn their place by serving one of these audiences. Omit padding.
+A section is included only when it serves one of these audiences. Omit padding.
 
 ## Unified plan skeleton contract
 
@@ -27,7 +27,6 @@ artifact contract:
 
 - **Path:** `<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>` (local wall-clock write time; no daily sequence number). Reserve the path atomically; on collision, retry with the smallest available numeric suffix before the extension rather than overwriting.
 - **`artifact_contract: ce-unified-plan/v1`**.
-- **`artifact_readiness: requirements-only`**.
 - **`product_contract_source: ce-brainstorm`**.
 - **`execution`** only when the brainstorm has enough signal to classify the
   eventual execution domain. For software features, use `execution: code`.
@@ -39,19 +38,20 @@ includes:
 
 - `## Goal Capsule` with objective, product authority, and open blockers. The
   objective is the goal a reader who has not read the rest of the plan can
-  hold. Remaining-true constraints live on their owning R-IDs, not as extra
-  objective clauses — user-checkable is not a license to pack them onto the
+  hold. Constraints that must remain true live on their owning R-IDs (the
+  R-IDs that state them), not as extra objective clauses — user-checkable is not a license to pack them onto the
   objective. The objective is always the outcome — what is true for users or operators
   afterwards, phrased so it would still read as the goal under a different
   implementation. It sits outside the component being changed: if a reader
   who does not know that component's internals could not tell whether the
-  objective was met, it is stated at the component's altitude and the real
+  objective was met, it is stated at the component's level and the real
   objective is whatever depended on it. When the seed supplies an approach ("move X to Y"), that is
   the **Means** (its own line) and the objective is the outcome it serves,
-  surfaced from the dialogue or the project's stated problem rather than
-  assumed. When the coherent-work gate split a broader request, the objective
-  names the current area and product authority says the surrounding areas are
-  not active scope.
+  taken from the dialogue or the project's stated problem rather than
+  assumed. When the coherent-work gate (Phase 0.3's check that the request
+  holds one plannable outcome) split a broader request, the objective names
+  the current area and product authority says the surrounding areas are not
+  active scope.
 - `## Product Contract` containing the brainstorm sections below.
 
 Do **not** emit a `## Goal Launch Block` or `## Reader Index`: the launch prompt
@@ -69,11 +69,11 @@ inputs. Do not migrate or rewrite them when creating new artifacts.
 ## Decide whether a doc is warranted at all
 
 A brainstorm ends in chat unless a file is earned. A file is earned when the
-dialogue surfaced structural decisions, scope boundaries, or acceptance
-criteria that downstream consumers (planner, reviewer, future reader) need in
-IDed form, or when the user asks for one. Decisions that flow naturally to
+dialogue produced structural decisions, scope boundaries, or acceptance
+criteria that downstream consumers (planner, reviewer, future reader) need
+recorded under stable IDs, or when the user asks for one. Decisions that flow naturally to
 downstream artifacts (`ce-plan`'s prompt, the commit message,
-`<root>/solutions/`) do not earn a file; `phase-0.md` 0.3 states the
+`<root>/solutions/`) do not warrant a file; `phase-0.md` 0.3 (Assess Scope) states the
 Lightweight case.
 
 **Stress test:** a brainstorm about a tiny bug fix where the user asks "fix
@@ -100,7 +100,9 @@ Match-depth-to-content sizes *which* sections appear and how deep each goes.
 This sizes *how the kept prose reads*. A section can be material and still be
 written loosely — the failure mode is a material section padded into a wall of
 text where contradictions hide and a downstream agent loses the thread. Length
-that earns its place is fine; wordiness around that length is not.
+that carries content is fine; wordiness around that length is not.
+
+Write every kept section through the `ce-noslop` skill.
 
 Hold every kept section to these:
 
@@ -109,17 +111,13 @@ Hold every kept section to these:
   bury the chosen scope, an open blocker, or a Key Decision beneath its
   rationale. This does not override section roles — Summary stays proposal-only,
   Problem Frame stays motivation-only and never restates the remedy.
-- **One idea per sentence.** A Summary is a handful of sentences, not one
-  sentence with five semicolons and four parentheticals. If a sentence needs a
-  second parenthetical to stay true, split it.
+- **A Summary is a handful of sentences**, not one sentence with five
+  semicolons and four parentheticals. If a sentence needs a second
+  parenthetical to stay true, split it.
 - **A requirement is one sentence of intent plus at most one qualifier.** When
   a requirement would specify two outcomes ("either A or B, planning decides"),
   state the intent and send the fork to Outstanding Questions — don't write both
   arms in full inside the requirement.
-- **Cut hedges and intensifiers.** "Critically", "deliberately", "explicitly",
-  "genuinely", "actually", "simply" carry nothing a downstream agent acts on.
-- **Prefer the verb to the nominalization.** "Demote the grid", not "the
-  demotion of the grid is the deliberate change in this brief".
 
 Precision is not padding: keep IDs, dates, actor names, domain terms,
 conditionals, and exact thresholds verbatim; when a concrete anchor is knowable
@@ -130,23 +128,23 @@ targets the connective tissue around precision, never the precision itself.
 question or supersedes earlier text, rewrite or remove the original entry —
 don't append a separate "resolutions" layer that leaves the superseded text
 standing, and don't keep superseded prose as strikethrough. Version control
-holds the history. Stacked question/resolution strata double the reading surface
-and hide which text is live.
+holds the history. Stacked question/resolution layers double what a reader must
+read and hide which text is live.
 
-**One owner per rule; cite, don't restate.** A normative rule — a gate, cap,
-threshold, or output contract — is stated in full at exactly one owning
+**One owner per rule; cite, don't restate.** A normative rule — a check, cap,
+threshold, or output contract — is stated in full at exactly one
 entry: the R-ID that carries it. Every other section that needs the rule
-cites the owning ID (`Covers R4`, `Governs R5, R7`, "per R6") and adds only
-what is local to that section. Linked projections are sanctioned — an AE
-restating behavior under a `Covers R…` marker, a Flow citing the Rs it
-sequences. **Unlinked sibling restatement** — the same rule written out again
+cites that ID (`Covers R4`, `Governs R5, R7`, "per R6") and adds only
+what is local to that section. A restatement that links back to the ID is
+allowed — an AE restating behavior under a `Covers R…` marker, a Flow citing
+the Rs it sequences. **Unlinked sibling restatement** — the same rule written out again
 in a Key Decision, Flow, or Scope bullet with no ID link — is the defect:
 each copy drifts independently and the doc has no rule for which one wins.
 
 **Bind external authorities; don't summarize them.** When a requirement or
 decision adopts an external document (a field guide, spec, standard), state
 the commitment, cite the path, and record only this work's deltas. A
-multi-sentence summary of the cited document is restatement of an owner that
+multi-sentence summary of the cited document restates a source that
 lives outside the doc.
 
 ## Ready for Planning Check
@@ -167,8 +165,8 @@ the Phase 4 handoff:
    Objective alone? A sentence with more than one parenthetical or a requirement
    that specifies two outcomes, or a rule stated in full in more than one section,
    fails this check — split it, defer the fork, or replace the duplicate with
-   its owning ID.
-3. **Focused** — the Product Contract owns one coherent work unit. Surrounding
+   a citation of the ID that carries the rule.
+3. **Focused** — the Product Contract covers one coherent work unit. Surrounding
    work appears only as context, deferred work, or an explicit non-goal; it does
    not leak into active Requirements, Flows, or Acceptance Examples.
 4. **Usable by planning** — `ce-plan` can decide how to build the current work
@@ -202,6 +200,12 @@ When a requirements-only unified plan is warranted, these are present inside
   a long flat list is a smell that subgroups were missed. R-IDs stay
   continuous across groups (R1, R2 in the first group; R3, R4 in the
   second; never restart at R1 per group).
+  A requirement, key decision, or success criterion commits only what
+  the user asked for or chose, what those need in order to work, or what
+  passes Interaction Rule 9's test. Something you would add beyond that,
+  such as an audit trail, an operator switch, an alert, or another
+  safeguard nobody raised, goes in Scope Boundaries as deferred or in
+  Outstanding Questions, not into a committed section.
 
 ## Include when material
 
@@ -228,7 +232,7 @@ worse than omitting it.
   carry the inline annotation
   `(session-settled: <class> — chosen over <alternative>: <reason>)`, with
   exactly two classes — `user-directed` (the user chose against or between
-  surfaced options) and `user-approved` (the agent proposed with the
+  presented options) and `user-approved` (the agent proposed with the
   tradeoff surfaced; the user assented). An agent never labels its own
   unexamined proposal. Preserve the label on the Product Contract Key
   Decision and its exact `Governs R…` links. `ce-plan` may inherit the label
@@ -244,7 +248,7 @@ worse than omitting it.
   `<!-- ce-section: work-relationships -->` immediately before the heading; in
   HTML, put `data-ce-section="work-relationships"` on the wrapping `<section>`.
   The role identifies meaning, not wording, and is the downstream discovery
-  contract. Lead with the one area this plan owns and state that the broader
+  contract. Lead with the one area this plan covers and state that the broader
   breakdown is the current understanding, not a committed roadmap. Then use a
   shallow indented bullet list for later areas, with explicit relationship
   phrases such as `Depends on`, `Enables`, `Shares`, `Can proceed independently
@@ -270,7 +274,7 @@ worse than omitting it.
   together prevent downstream invention of paths. When omitting from a
   behavioral brainstorm, note the reason in the doc.
 
-- **Visualizations** — a brainstorm earns a visual when a concept has a
+- **Visualizations** — a brainstorm gets a visual when a concept has a
   **structure worth showing**, and that decision turns on whether the
   structure exists, *not* on whether your own prose reads clearly. Calling
   your prose "clear enough" is the trap that quietly under-produces the
@@ -282,16 +286,16 @@ worse than omitting it.
   comparison — and, for any requirement that changes a UI, screen layout,
   component placement, or screen flow, a **wireframe**. This applies to
   backend and conceptual work, not only visual products: a data model, sync
-  protocol, or agent workflow earns a conceptual diagram exactly as a UI
-  requirement earns a wireframe. Match the visual to the shape — a UI/layout
+  protocol, or agent workflow gets a conceptual diagram exactly as a UI
+  requirement gets a wireframe. Match the visual to the shape — a UI/layout
   shape takes a wireframe in HTML (a mermaid layout diagram or prose in
   markdown; there is no inline-SVG wireframe in markdown), any other structure
   takes a conceptual diagram. A visual is cross-cutting, not a section of its
   own — it sits next to the Key Decision, Requirements group, or Flow it
   illustrates. **A point with nothing structural to show gets no visual** — a
   single-field add, a rename, or a one-line change has no structure, and a
-  before/after of one changed line is decoration. One visual per load-bearing
-  concept, never decoration or ceremony.
+  before/after of one changed line is decoration. One visual per concept the plan
+  depends on, never decoration or ceremony.
 
   **Diagrams complement prose; they never replace it.** A diagram is an
   on-ramp to the prose it illustrates, not a substitute. The IDed prose
@@ -323,18 +327,28 @@ worse than omitting it.
   single list is fine.
 
 - **Dependencies / Assumptions** — include when material upstream
-  dependencies exist or when load-bearing assumptions need to be surfaced.
+  dependencies exist or when assumptions the plan depends on need to be stated.
 
 - **Outstanding Questions** — include when there are unresolved items.
   Distinguish "Resolve Before Planning" (blocks planning) from "Deferred to
   Planning" (answered during planning or codebase exploration).
 
-- **Sources / Research** — surface research that orients the planner or
+- **Sources / Research** — include research that orients the planner or
   justifies framing choices. The test: *"if I were the planner reading this
-  cold, would this breadcrumb help me make better choices?"* Yes → surface
+  cold, would this breadcrumb help me make better choices?"* Yes → include
   (code locations, external docs, RFCs, constraints, prior plans — the
   category is inclusive, not enumerated). Process exhaust (reading the
   user's prompt, glancing at obvious files) → omit.
+  A constraint adopted from a Compound Pack file is cited inline as
+  `(pack: <id>, <path within the pack>)` after the requirement or decision it
+  shaped. The path is relative to the pack's own directory, so it is stable
+  for path- and git-sourced packs alike. Cite the pack text; do not restate
+  it. That marker is reserved for pack files; `<root>/solutions/` learnings
+  keep the ordinary path citation.
+
+## Prototype sources
+
+When a kept prototype informed this artifact, record its absolute run-directory path in Sources and identify `decisions.md` and the selected screens or states relevant to the requirements. Label the citation machine-local and best effort while the original checkout or temporary directory exists. State in the citation that a missing prototype is not a blocker and the artifact's requirements govern any disagreement. Do not copy the prototype or capsule into the repository. An undone overlay has no surviving prototype to cite.
 
 ## Agent agency
 
@@ -358,8 +372,8 @@ about the same thing, with continuous R-IDs across groups.)
 Every requirements-only unified plan carries a small set of stable metadata fields that
 downstream tooling depends on. The contract is format-independent: in
 markdown these fields appear as YAML frontmatter at the top of the file; in
-HTML they appear as visible header text (typically a `<dl>` of `<dt>`/`<dd>`
-pairs or a stats strip). Field names and semantics are the same across both
+HTML they appear as visible text placed as `references/html-rendering.md`
+describes. Field names and semantics are the same across both
 formats so consumers can locate them without knowing which format produced the
 artifact.
 
@@ -381,16 +395,12 @@ artifact.
   as the resume-detection key when `ce-brainstorm` scans for an existing
   artifact to continue.
 - **`artifact_contract`** — always `ce-unified-plan/v1` for new outputs.
-- **`artifact_readiness`** — always `requirements-only` for new
-  `ce-brainstorm` outputs. Do not use `active`, `in_progress`, `completed`,
-  or `done`.
 - **`product_contract_source`** — always `ce-brainstorm`.
 
 ### No status field
 
 Unified plan artifacts have no `status` field and no `active → completed`
-lifecycle. `artifact_readiness` is document completeness, not execution
-progress. No CE artifact carries mutable progress state; whether work shipped
+lifecycle or readiness flag. Readers assess the contents and unresolved questions. No CE artifact carries mutable progress state; whether work shipped
 is derived from git, not stored in the doc. Do not introduce one.
 
 ### Field-name stability
@@ -404,14 +414,14 @@ or `date` to `created` breaks filename construction and resume detection.
 
 Same shape as plan rules.
 
-- **Stable IDs.** R-IDs (Requirements), A-IDs (if Actors fire), F-IDs (if
-  Flows fire), AE-IDs (if Acceptance Examples fire). No other ID namespaces.
+- **Stable IDs.** R-IDs (Requirements), A-IDs (if Actors is included), F-IDs (if
+  Key Flows is included), AE-IDs (if Acceptance Examples is included). No other ID namespaces.
 - **Plain prefix.** `R1.`, `A1.`, `F1.`, `AE1.` as bullet prefixes. Do not
   bold; the prefix is visually distinctive on its own.
 - **Bold leader labels** inside Flows and Acceptance Examples
   (`**Trigger:**`, `**Covers R4, R8.**`) provide structure without deeper
   heading levels.
-- **Repo-relative paths.** Always. Never absolute paths.
+- **Repository file references are repo-relative.** Kept local prototype citations follow the Prototype sources contract above.
 - **No process exhaust.** No "captured at Phase X" notes, no `## Next Steps`
   pointing to ce-plan, no italic provenance lines. Engineering process
   metadata belongs in commit messages and tool output, not the artifact.

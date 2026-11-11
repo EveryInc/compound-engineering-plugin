@@ -10,13 +10,13 @@ const modelVisibleRendererCases = [
   {
     // The pre-DONE handoff lines that print these invocations moved into lfg's
     // close-out reference.
-    file: "skills/lfg/references/shipping-tail.md",
+    file: "skills/lfg/references/shipping.md",
     defaults: ["/ce-explain <name>", "/ce-babysit-pr <pr-url>"],
     codex: ["$ce-explain <name>", "$ce-babysit-pr <pr-url>"],
     unnecessaryOmp: ["/skill:ce-explain <name>", "/skill:ce-babysit-pr <pr-url>"],
   },
   {
-    file: "skills/ce-babysit-pr/SKILL.md",
+    file: "skills/ce-babysit-pr/references/setup.md",
     defaults: ["/ce-babysit-pr <url>"],
     codex: ["$ce-babysit-pr <url>"],
     unnecessaryOmp: ["/skill:ce-babysit-pr <url>"],
@@ -51,17 +51,17 @@ const modelVisibleRendererCases = [
     // them: the refresh recommendation into the refresh reference, the retry
     // line into lightweight's completion block. The rule follows its seam.
     file: "skills/ce-compound/references/refresh-and-discoverability.md",
-    defaults: ["/ce-compound-refresh <scope>"],
-    codex: ["$ce-compound-refresh <scope>"],
-    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>"],
+    defaults: ["/ce-compound refresh <scope>"],
+    codex: ["$ce-compound refresh <scope>"],
+    unnecessaryOmp: ["/skill:ce-compound refresh <scope>"],
   },
   {
     // report.md is loaded on its own and independently prints the refresh
     // invocation in both terminal templates, so it carries its own rule.
     file: "skills/ce-compound/references/report.md",
-    defaults: ["/ce-compound-refresh <scope>"],
-    codex: ["$ce-compound-refresh <scope>"],
-    unnecessaryOmp: ["/skill:ce-compound-refresh <scope>"],
+    defaults: ["/ce-compound refresh <scope>"],
+    codex: ["$ce-compound refresh <scope>"],
+    unnecessaryOmp: ["/skill:ce-compound refresh <scope>"],
   },
   {
     file: "skills/ce-compound/references/lightweight.md",
@@ -85,27 +85,19 @@ const modelVisibleRendererCases = [
 
 const explicitOnlyRendererCases = [
   {
-    // The rendering rule travels with the seam that prints the invocation: the
-    // ce-polish handoff now lives in the Phase 6 required-read reference.
-    file: "skills/ce-explain/references/destinations.md",
-    defaults: ["/ce-polish"],
-    codex: ["$ce-polish"],
-    omp: ["/skill:ce-polish"],
-    targets: ["ce-polish"],
-  },
-  {
+    // ce-setup is model-visible (ce-compound invokes it), so only ce-help takes /skill: here.
     file: "skills/ce-setup/SKILL.md",
-    defaults: ["/ce-setup"],
-    codex: ["$ce-setup"],
-    omp: ["/skill:ce-setup"],
-    targets: ["ce-setup"],
+    defaults: ["/ce-setup", "/ce-help"],
+    codex: ["$ce-setup", "$ce-help"],
+    omp: ["/skill:ce-help"],
+    targets: ["ce-help"],
   },
   {
     file: "skills/ce-dogfood/SKILL.md",
     defaults: ["/ce-setup", "/ce-dogfood <original arguments>"],
     codex: ["$ce-setup", "$ce-dogfood <original arguments>"],
-    omp: ["/skill:ce-setup", "/skill:ce-dogfood <original arguments>"],
-    targets: ["ce-setup", "ce-dogfood"],
+    omp: ["/skill:ce-dogfood <original arguments>"],
+    targets: ["ce-dogfood"],
   },
   {
     file: "skills/ce-sweep/references/interview.md",
@@ -117,7 +109,7 @@ const explicitOnlyRendererCases = [
 ] as const
 
 describe("user-facing skill invocation rendering", () => {
-  test.each(modelVisibleRendererCases)(
+  test.each([...modelVisibleRendererCases])(
     "$file keeps model-visible handoffs host-neutral",
     ({ file, defaults, codex, unnecessaryOmp }) => {
       const body = readRepoFile(file)
@@ -132,7 +124,7 @@ describe("user-facing skill invocation rendering", () => {
     },
   )
 
-  test.each(explicitOnlyRendererCases)(
+  test.each([...explicitOnlyRendererCases])(
     "$file uses deterministic OMP syntax for explicit-only skill targets",
     ({ file, defaults, codex, omp, targets }) => {
       const body = readRepoFile(file)
@@ -198,9 +190,8 @@ describe("user-facing skill invocation rendering", () => {
     expect(usageGuide).not.toContain("Use /ce-optimize")
   })
 
-  test("Codex goal remains a built-in exception, not a converted skill invocation", () => {
+  test("the built-in /goal command is never rendered as a converted skill invocation", () => {
     const planHandoff = readRepoFile("skills/ce-plan/references/plan-handoff.md")
-    expect(planHandoff).toContain("Run it as a `/goal`")
     expect(planHandoff).not.toContain("$goal")
   })
 })

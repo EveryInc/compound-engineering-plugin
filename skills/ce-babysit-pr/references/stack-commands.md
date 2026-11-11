@@ -13,6 +13,14 @@ gh stack push --remote <tracking-remote>
 
 Starting at the first dependent excludes the active target from the cascading rebase. Quote the branch name — git branch names may contain shell metacharacters. On conflict: `gh stack rebase --abort`, then surface a needs-human / stack-sync residual.
 
+## Check out a layer on a fresh checkout
+
+```bash
+gh stack checkout <PR_NUMBER>
+```
+
+Use the PR number, which pulls the stack from GitHub. A branch name only resolves stacks already known locally, and `gh pr checkout` leaves the manager unaware of the branch.
+
 ## Discover order / next open layer
 
 ```bash
@@ -27,6 +35,8 @@ Merge the **bottom-most open settled** PR — `gh stack merge <PR>` merges the f
 gh stack merge <BOTTOM_MOST_OPEN_SETTLED_PR> --yes --squash
 gh stack sync --remote <tracking-remote>
 ```
+
+Run the sync only after the merge succeeded. A sync after a failed merge rebases and pushes every layer, which restarts their CI and review. If the merge says another process is editing the stack, retry it shortly: that lock is temporary, and all worktrees of one clone share it.
 
 Re-probe the landed PR before advancing: on merge-queue bases the CLI may succeed after enqueue while the PR stays OPEN — keep watching or return a queued residual until `pr_state` is `MERGED`. Only then treat the just-merged PR as a **layer transition** (stop watcher, re-probe, continue next open non-draft needing work with posture restated) — not a run-level Terminal stop for this babysit invocation.
 

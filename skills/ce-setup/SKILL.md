@@ -1,20 +1,30 @@
 ---
 name: ce-setup
-description: "Check Compound Engineering health and repo-local config."
-disable-model-invocation: true
+description: "Check Compound Engineering's tools and repo config and fix what it finds, scaffold a Compound Pack with `pack:<id>`, or draft and refresh coding standards and review docs from pull request history. Use when setting up or diagnosing Compound Engineering, or when creating or updating CODING_STANDARDS.md or REVIEW.md, including on a schedule."
+argument-hint: "[pack:<id> | standards] [mode:non-interactive]"
 ---
 
 # Compound Engineering Setup
 
+## Non-interactive runs
+
+Run non-interactively when the arguments contain `mode:non-interactive`, or when the request makes unattended intent unmistakable, such as a scheduled or CI job, or a caller asking for a run "headless", "unattended", or "without questions". "Automatically" alone is not that signal: it says when setup runs, not whether anyone can answer. When the signal is absent or unclear, run interactively. Strip the token before reading the rest of the arguments. A non-interactive run asks nothing and follows `references/non-interactive.md`, which replaces every offer, question, and approval in this file and its references.
+
 ## Interaction Method
 
-Ask each question below using the host's blocking question tool already in the current tool list (match by capability, not by a host-specific name). Presence in the current tool list is proof the tool exists; never call a user-facing question tool to discover whether it exists. If a matching tool is listed but unloaded, use the host's tool-discovery primitive to load that capability — do not search for another host's tool name. Fall back to a numbered list on the host's user-visible chat surface only when no such tool is in the list or a real question call errors. Never silently skip or auto-configure.
+In an interactive run, ask each question below with the host's blocking question tool, and never silently skip or auto-configure. Read `references/communication.md` from this skill's directory before your first offer. It says how to reach that tool and what each offer, question, and preview must tell the user.
 
-`ce-setup` is a lightweight health check and repo-local config helper. It does **not** bulk-install every optional dependency. Missing tools are reported as optional capabilities so the user can install only the workflows they use.
+## Pack Scaffold
+
+When the invocation names a Compound Pack to add, create, or scaffold (the `pack:<id>` argument, or the same request in words), read `references/pack-scaffold.md` from this skill's directory and follow it in place of Phases 1-2: it writes the pack and its config entry only after the user approves, runs the health check itself, and reports into Phase 3 (Summary).
+
+## Review Docs
+
+When the invocation asks to draft, refresh, or update coding standards or review docs (the `standards` argument, or the same request in words), read `references/project-docs.md` and follow it in place of Phases 1-2, drafting the whole set of files even when the request names one. Report into Phase 3.
 
 ## Artifact Root Resolution
 
-Every Compound Engineering skill that writes or reads an artifact directory (`solutions`, `plans`, `ideation`, and the other CE-owned trees) resolves its root through the rule below. `ce-setup` carries the canonical statement and reports the resolved root so an operator can confirm where artifacts land before running other skills.
+Every Compound Engineering skill that reads or writes a CE-owned artifact tree (`solutions`, `plans`, and others) resolves its root by this rule. Step 2 reports the resolved root.
 
 <!-- ce-docs-root:start -->
 **Resolve the CE artifact root `<root>` before composing any artifact path.**
@@ -51,11 +61,11 @@ Use the same command without `--version VERSION` if Step 1 could not determine a
 
 If the script is unavailable, run the inline equivalent listed in `references/repo-fixes.md`.
 
-Display the diagnostic output to the user. Missing optional tools are not setup failures. The health report includes the resolved artifact root and which config layer supplied it (per Artifact Root Resolution above); surface that line so the operator can confirm where CE artifacts will be written. Missing `config.yaml` is a reported absence, not a project issue.
+Display the diagnostic output to the user. The health report includes the resolved artifact root and which config layer supplied it (per Artifact Root Resolution above); show that line so the operator can confirm where CE artifacts will be written. Missing `config.yaml` is a reported absence, not a project issue.
 
 ### Step 3: Decide Whether Fixes Are Needed
 
-Report-gated repo-local remediations apply only to the checkout the health report diagnosed; if Phase 2 will write a different writable checkout, diagnose that checkout first, while session-level findings such as plugin version and optional tools remain from this session's Phase 1.
+Repo-local fixes the health report names apply only to the checkout that report diagnosed. If Phase 2 will write to a different writable checkout, diagnose that checkout first. Session-level findings such as plugin version and optional tools still come from this session's Phase 1.
 
 After the health report, decide Phase 2 from writable-checkout availability:
 
@@ -63,36 +73,23 @@ After the health report, decide Phase 2 from writable-checkout availability:
 - If this session has no writable checkout, but the user named a repository and the harness exposes a remote repo-work surface with a writable checkout, run Phase 2 on that surface instead and report the remote repo-local fixes in Phase 3.
 - Otherwise skip Phase 2 and go to Phase 3, saying repo-local writes were skipped because no writable checkout is available.
 
-If the report names a legacy Compound Codex tool map, offer to remove it following `references/legacy-codex-tool-map.md` from this skill's directory. That block lives in the user's Codex home, not the checkout, so the offer stands whether or not Phase 2 runs.
+Two offers concern this machine rather than the checkout, so they stand whether or not Phase 2 runs. If the report names a legacy Compound Codex tool map, offer to remove it following `references/legacy-codex-tool-map.md` from this skill's directory. If the bundled health script reported the `node` row available, offer to warm the npm cache for cross-model peers following `references/acpx-cache-warm.md`.
 
-Also remediate these project issues when the report names them:
-
-- obsolete `compound-engineering.local.md`
-- `.compound-engineering/config.local.yaml` exists but is not safely gitignored
-- `.compound-engineering/config.example.yaml` is missing or outdated
-- the health report marks the `ce-work` skill implementation engine unavailable or invalid, detects retired scalar routing keys, or reports malformed dormant `work_engine_preferences`
-- the health report marks `docs_root` invalid (`Invalid docs_root ...`) — CE artifacts will not be written until it is fixed
-
-If optional tools are missing, do not offer a bulk install. The diagnostic already printed the relevant install command or project URL. Say: "Install optional tools only for the workflows you use."
+Phase 2 remediates every project issue the report names, each in its own step of `references/repo-fixes.md`. That includes an out-of-date `config.yaml`, retired config keys, a `ce-work` implementation engine the report marks unavailable or invalid, and malformed dormant `work_engine_preferences` or `work_engine_effort`.
 
 ## Phase 2: Fix Repo-Local Issues
 
-Read `references/repo-fixes.md` from this skill's directory before making any repo-local change. It carries Steps 4-9: removing the obsolete `compound-engineering.local.md`, refreshing the example config, offering to create `config.yaml`, repairing invalid `work_engine_preferences` and `docs_root`, the two `.gitignore` offers, and the agent-instructions offers (a knowledge-store mention and the compounding directive).
+Read `references/repo-fixes.md` from this skill's directory before making any repo-local change. It remediates every project issue the report names and carries Steps 4-10: removing the obsolete `compound-engineering.local.md`, refreshing the example config, refreshing out-of-date config files with their settings kept, offering to create `config.yaml`, repairing invalid `work_engine_preferences` and `docs_root`, the two `.gitignore` offers, and the agent-instructions offers (a knowledge-store mention, the compounding directive, and the chat-register directive for `ce-noslop`), and the offer to draft the project's review docs.
 
-All paths there resolve from the repository root (`git rev-parse --show-toplevel`), not the current working directory. Maintaining the generated example files is the work Phase 2 does on its own — refreshing `config.example.yaml` and removing the superseded `config.local.example.yaml`. Every change to a user-owned file is offered and applied only if the user approves.
+Every change to a user-owned file is offered and applied only if the user approves.
 
 ## Phase 3: Summary
 
-**User-runnable invocation rendering.** In setup summaries, default to `/ce-setup`; use `$ce-setup` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), use `/skill:ce-setup`. Render only the invocation as inline code and output one form only.
+**User-runnable invocation rendering.** In setup summaries, default to `/ce-setup` and `/ce-help`; use `$ce-setup` and `$ce-help` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. On oh-my-pi (`omp`), keep `/ce-setup` and use `/skill:ce-help`. Render only the invocation as inline code and output one form only.
 
-Display a brief summary:
+Write the summary that `references/summary.md` describes. End it with these two lines, with the rendered invocations filled in:
 
 ```text
-✅ Compound Engineering setup complete
-
-Fixed:     <fixes applied, or none>
-Skipped:   <fixes declined, or none>
-Optional:  <missing optional tools, or all available>
-
 Run `<rendered invocation>` anytime to re-check.
+Run `<rendered ce-help invocation>` to ask which skill fits or what comes next.
 ```

@@ -1,7 +1,7 @@
 ---
 title: "Cross-platform model field normalization for target converters"
 date: 2026-03-29
-category: integration-issues
+category: integrations
 module: src/converters
 problem_type: integration_issue
 component: tooling
@@ -29,10 +29,14 @@ Claude Code uses bare model aliases (`model: sonnet`) in agent and command front
 
 | Target | Behavior | Why |
 |--------|----------|-----|
-| OpenCode | Resolve alias + add provider prefix (`anthropic/claude-sonnet-5`) | Multi-provider; routes on the `provider/model-id` prefix. Same rule for any future multi-provider target with that format (the removed Qwen and OpenClaw converters used it). |
+| OpenCode | Resolve alias + add provider prefix (`anthropic/claude-sonnet-5-5`) | Multi-provider; routes on the `provider/model-id` prefix. Same rule for any future multi-provider target with that format (the removed Qwen and OpenClaw converters used it). |
 | Droid (Factory) | Pass through as-is (`sonnet`) | Factory resolves Claude's bare aliases natively and also accepts dated IDs and `custom:<model>`; normalizing to a form it also accepts adds nothing. |
 | Copilot | Drop | Copilot's `model` field takes Copilot display names ("Claude Opus 4.5"), not Claude model IDs or aliases, and has no documented resolution for them. Spec: "If unset, inherits the default model." |
 | Codex | Drop | Skill frontmatter supports only `name` and `description` (Rust `SkillFrontmatter` struct). Model selection is global via `config.toml` or `/model`. |
+| Pi | Drop (by omission) | `src/converters/claude-to-pi.ts` emits no `model` field. |
+| Antigravity | Drop (by omission) | `src/converters/claude-to-antigravity.ts` emits no `model` field. |
+
+A second trap sits next to the alias map: newer Claude models reject non-default sampling params, so a written `model` paired with an inferred temperature fails at runtime. `SAMPLING_PARAM_REJECTING_MODELS` in `src/utils/model.ts` tracks them (OpenCode checks it via `rejectsSamplingParams`).
 
 Copilot and Droid converters remain as cleanup remnants, not install targets; the installable Bun targets are `opencode`, `codex`, `pi`, and `antigravity`.
 

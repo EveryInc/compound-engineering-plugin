@@ -1,0 +1,20 @@
+[
+  {
+    "reviewer": "correctness",
+    "findings": [
+      {
+        "title": "Stale state returned",
+        "severity": "P1",
+        "file": "src/state.ts",
+        "line": 8,
+        "confidence": 75,
+        "autofix_class": "manual",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  }
+]

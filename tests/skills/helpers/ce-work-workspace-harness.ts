@@ -1,5 +1,5 @@
 import { afterAll, afterEach } from "bun:test"
-import { spawnSync } from "node:child_process"
+import { type SpawnSyncOptionsWithStringEncoding, spawnSync } from "node:child_process"
 import {
   chmodSync,
   cpSync,
@@ -20,6 +20,9 @@ import {
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { createHash } from "node:crypto"
+import { isLostChildExit, throwLostChildExit } from "../../helpers/lost-child-exit"
+
+export { isLostChildExit, throwLostChildExit }
 
 
 export const SCRIPT = path.join(__dirname, "../../../skills/ce-work/scripts/unit-workspace.py")
@@ -27,6 +30,39 @@ export const ADAPTER = path.join(__dirname, "../../../skills/ce-work/scripts/cro
 const roots: string[] = []
 const templateRoots: string[] = []
 const seedTemplates = new Map<string, { repo: string; digest: string; base: string }>()
+const CTL_TIMEOUT_MS = 20_000
+// Host global git often enables Linux fsmonitor (git 2.55+) and commit signing.
+// Hundreds of throwaway repos then spawn daemons or block on pinentry; Bun
+// reports "killed 1 dangling process" and the rest of the file times out.
+// Point GIT_CONFIG_GLOBAL at a real file, not /dev/null: git may try to take
+// /dev/null.lock and hang. spawnSync must SIGKILL — git ignores SIGTERM while
+// waiting on a lock, so the default timeout never reaps and the test hits 60s.
+const isolatedGitConfigRoot = mkdtempSync(path.join(tmpdir(), "ce-work-isolated-gitconfig-"))
+const isolatedGitConfig = path.join(isolatedGitConfigRoot, "config")
+writeFileSync(isolatedGitConfig, "[core]\n\tfsmonitor = false\n\tuntrackedCache = false\n")
+const isolatedGitEnv = {
+  GIT_CONFIG_GLOBAL: isolatedGitConfig,
+  GIT_CONFIG_SYSTEM: isolatedGitConfig,
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_OPTIONAL_LOCKS: "0",
+}
+
+const RUN_IN_GROUP = path.join(__dirname, "run-in-group.py")
+const GROUP_TIMEOUT_STATUS = 124 // must match TIMEOUT_STATUS in run-in-group.py
+
+// A spawnSync timeout kills only the direct child; what the Python controller
+// started (git) survives and can hold the output pipes open (#1784). Plain git
+// calls start no lasting children, so they skip the extra interpreter startup.
+function spawnInGroup(argv: string[], options: SpawnSyncOptionsWithStringEncoding, label = argv) {
+  const r = spawnSync("python3", [RUN_IN_GROUP, String(CTL_TIMEOUT_MS / 1000), ...argv], {
+    ...options,
+    timeout: CTL_TIMEOUT_MS + 10_000,
+    killSignal: "SIGKILL",
+  })
+  if (r.status === GROUP_TIMEOUT_STATUS || isLostChildExit(r)) throwLostChildExit(label)
+  return r
+}
 
 afterAll(() => {
   for (const root of templateRoots.splice(0)) rmSync(root, { recursive: true, force: true })
@@ -39,8 +75,18 @@ export function tmp(prefix: string): string {
 }
 
 export function sh(cwd: string, argv: string[], check = true) {
-  const r = spawnSync(argv[0], argv.slice(1), { cwd, encoding: "utf8" })
-  if (check && r.status !== 0) throw new Error(`${argv.join(" ")}\n${r.stderr}`)
+  const r = spawnSync(argv[0], argv.slice(1), {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, ...isolatedGitEnv },
+    timeout: CTL_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+  })
+  if (isLostChildExit(r)) throwLostChildExit(argv)
+  if (check && r.status !== 0) {
+    const detail = r.signal ? `killed by ${r.signal}` : r.stderr
+    throw new Error(`${argv.join(" ")}\n${detail}`)
+  }
   return r
 }
 
@@ -48,14 +94,14 @@ export function git(cwd: string, ...args: string[]): string {
   return sh(cwd, ["git", ...args]).stdout.trim()
 }
 
-function seedTemplate(objectFormat: "sha1" | "sha256"): { repo: string; digest: string; base: string } {
-  const cached = seedTemplates.get(objectFormat)
-  if (cached) return cached
+function seedTemplateOnce(objectFormat: "sha1" | "sha256"): { repo: string; digest: string; base: string } {
   const root = mkdtempSync(path.join(tmpdir(), "ce-work-repo-template-"))
   templateRoots.push(root)
   const repo = path.join(root, "repo")
   mkdirSync(repo)
   git(repo, "init", `--object-format=${objectFormat}`, "-b", "main")
+  git(repo, "config", "core.fsmonitor", "false")
+  git(repo, "config", "core.untrackedCache", "false")
   git(repo, "config", "user.name", "CE Work Test")
   git(repo, "config", "user.email", "ce-work@example.test")
   mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
@@ -67,13 +113,34 @@ function seedTemplate(objectFormat: "sha1" | "sha256"): { repo: string; digest: 
   writeFileSync(plan, "# Plan\n")
   git(repo, "add", ".")
   git(repo, "commit", "-m", "seed")
-  const template = {
+  return {
     repo,
     digest: createHash("sha256").update(readFileSync(plan)).digest("hex"),
     base: git(repo, "rev-parse", "HEAD"),
   }
-  seedTemplates.set(objectFormat, template)
-  return template
+}
+
+function seedTemplate(objectFormat: "sha1" | "sha256"): { repo: string; digest: string; base: string } {
+  const cached = seedTemplates.get(objectFormat)
+  // CI has lost this directory mid-file after a timed-out test. Reseed rather than
+  // throw ENOENT from every later makeRepo: a non-TimeoutError failure blocks the
+  // suite's TimeoutError-only re-run (scripts/run-tests.ts).
+  if (cached && existsSync(cached.repo)) return cached
+  let lastError: unknown
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const template = seedTemplateOnce(objectFormat)
+      seedTemplates.set(objectFormat, template)
+      return template
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
+}
+
+export function seededTemplateRepo(objectFormat: "sha1" | "sha256" = "sha1"): string | undefined {
+  return seedTemplates.get(objectFormat)?.repo
 }
 
 export function makeRepo(objectFormat: "sha1" | "sha256" = "sha1"): { repo: string; plan: string; digest: string; base: string } {
@@ -112,10 +179,11 @@ export function ctlWithScript(script: string, runsRoot: string, ...args: string[
 }
 
 export function ctlWithScriptAndEnv(script: string, runsRoot: string, extraEnv: Record<string, string>, ...args: string[]) {
-  const r = spawnSync("python3", [script, ...args], {
+  const r = spawnInGroup(["python3", script, ...args], {
     encoding: "utf8",
     env: {
       ...process.env,
+      ...isolatedGitEnv,
       CE_WORK_RUNS_ROOT: runsRoot,
       CE_PEER_JOBS_ROOT: path.dirname(runsRoot),
       ...extraEnv,
@@ -136,14 +204,16 @@ export function ownerRootProbe(ownerRoot: string, runsRoot: string, foreignLike 
     foreignLike ? "state._EFFECTIVE_UID = os.geteuid() + 1" : "",
     "print(state.ensure_root())",
   ].filter(Boolean).join("; ")
-  return spawnSync("python3", ["-c", source, ownerRoot], {
+  const r = spawnInGroup(["python3", "-c", source, ownerRoot], {
     encoding: "utf8",
     env: {
       ...process.env,
+      ...isolatedGitEnv,
       CE_WORK_RUNS_ROOT: runsRoot,
       CE_PEER_JOBS_ROOT: "",
     },
-  })
+  }, ["python3", "-c", "ownerRootProbe", ownerRoot])
+  return r
 }
 
 export function init(runsRoot: string, runId: string, fixture: ReturnType<typeof makeRepo>) {
@@ -211,7 +281,7 @@ export function authorizeDispatch(
     adapter: ADAPTER,
     ...overrides,
   }
-  const jobId = values.jobId ?? `job-auth-${Math.random().toString(16).slice(2)}`
+  const jobId = overrides.jobId ?? `job-auth-${Math.random().toString(16).slice(2)}`
   const jobDir = path.join(runsRoot, runId, "jobs", jobId)
   mkdirSync(jobDir, { recursive: true, mode: 0o700 })
   chmodSync(jobDir, 0o700)
@@ -331,7 +401,7 @@ export function fakeDoneJob(
     model_actual: "unverified",
     model_receipt_status: "unverified",
     activity_posture: "incremental",
-    restriction_posture: "adapter-enforced",
+    restriction_posture: "cooperative",
     failure_reason: null,
     raw_log: logPath,
     packet_digest: digest,

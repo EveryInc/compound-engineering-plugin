@@ -11,3 +11,9 @@ __pycache__/
 *.pyc
 
 .compound-engineering/*.local.yaml
+
+# Docs site build output (site/ is the Jekyll source)
+site/_site/
+site/.jekyll-cache/
+site/.jekyll-metadata
+site/vendor/

@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "https://pages.example.com/$(basename "$1")"

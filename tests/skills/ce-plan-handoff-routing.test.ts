@@ -71,7 +71,6 @@ describe("ce-plan post-generation menu routing", () => {
     // phrasing tweaks without the assertion becoming brittle.
     const optionFragments: { name: string; fragment: string }[] = [
       { name: "Start `ce-work`", fragment: "Start `ce-work`" },
-      { name: "Run it as a /goal", fragment: "Run it as a `/goal`" },
       { name: "Create Issue", fragment: "Create Issue" },
       { name: "Prototype a remaining feel-question", fragment: "Prototype a remaining feel-question" },
       { name: "Open in browser", fragment: "Open in browser" },
@@ -238,9 +237,11 @@ describe("ce-plan post-generation menu routing", () => {
     const pipelineStart = HANDOFF_BODY.indexOf("**Pipeline mode:**")
     const pipelineEnd = HANDOFF_BODY.indexOf("## 5.3.9 Final Checks and Cleanup")
     const reviewPipeline = HANDOFF_BODY.slice(pipelineStart, pipelineEnd)
+    // Pins the condition (ce-plan is the party that recorded the stand-in
+    // result), not the noun the prose uses for that result.
     expect(
-      /ce-plan recorded the `skill_unreachable` envelope/i.test(reviewPipeline),
-      "ce-plan must own the synthetic pre-entry envelope instead of attributing it to an invocation that never began.",
+      /ce-plan recorded the `skill_unreachable`/i.test(reviewPipeline),
+      "ce-plan must own the synthetic pre-entry result instead of attributing it to an invocation that never began.",
     ).toBe(true)
     expect(
       reviewPipeline.includes("invocation instead produced `skill_unreachable`"),
@@ -259,7 +260,7 @@ describe("ce-plan post-generation menu routing", () => {
       menuPipeline!.includes("ce-doc-review has already run"),
       "the pipeline handoff must not claim the review ran after a skill_unreachable pre-entry state.",
     ).toBe(false)
-    expect(/`?ce-plan`? (?:has )?recorded the (?:documented )?`skill_unreachable` envelope/.test(HANDOFF_BODY)).toBe(true)
+    expect(/`?ce-plan`? (?:has )?recorded the (?:documented )?`skill_unreachable`/.test(HANDOFF_BODY)).toBe(true)
     expect(
       /ce-doc-review` has run in (?:headless|non-interactive) mode or returned the documented `skill_unreachable` envelope/.test(
         SKILL_BODY,
@@ -268,29 +269,19 @@ describe("ce-plan post-generation menu routing", () => {
     ).toBe(false)
   })
 
-  test("Codex goal handoff is capability-based and menu-cap aware", () => {
+  test("handoff menu is menu-cap aware and offers no goal executor", () => {
     for (const [label, body] of [["plan-handoff.md", HANDOFF_BODY]] as const) {
-      expect(
-        body.includes("top-level `/goal` command"),
-        `${label} must not gate Codex goal handoff on a literal top-level /goal command; Codex exposes goal mode through create_goal.`,
-      ).toBe(false)
-      expect(
-        body.includes("hosts with a `/goal` command"),
-        `${label} must not describe goal availability as slash-command-only; use goal capability and Codex create_goal instead.`,
-      ).toBe(false)
       expect(
         /(?:Codex [`"]?request_user_input[`"]?[\s\S]{0,120}no option cap|no option cap[\s\S]{0,120}Codex [`"]?request_user_input[`"]?)/i.test(body),
         `${label} must not claim Codex request_user_input has no option cap; current Codex question tools only allow 2-3 explicit options.`,
       ).toBe(false)
-
-      expect(
-        body.includes("create_goal") && /goal capability/i.test(body),
-        `${label} must explicitly treat Codex create_goal as goal capability so the /goal option renders in Codex app runs.`,
-      ).toBe(true)
       expect(
         /request_user_input[\s\S]{0,120}2-3 explicit options/i.test(body),
         `${label} must document the Codex request_user_input 2-3 option cap so larger handoff menus use numbered chat instead of trimming choices.`,
       ).toBe(true)
+      // Execution goes through ce-work; a /goal option bypassed its review and WIP gates.
+      expect(body.includes("create_goal"), `${label} must not offer a create_goal executor.`).toBe(false)
+      expect(body.includes("Run it as a `/goal`"), `${label} must not offer a /goal executor.`).toBe(false)
     }
   })
 
@@ -311,10 +302,11 @@ describe("ce-plan post-generation menu routing", () => {
     ).toBeLessThan(interactionStart)
 
     const topContract = SKILL_BODY.slice(contractStart, interactionStart)
-    expect(/Every normal interactive branch[\s\S]{0,160}incomplete until its owning handoff question is presented/i.test(topContract)).toBe(true)
+    // Wording restated in plain language (2026-09); the pin guards the condition, not the old phrasing.
+    expect(/Every normal interactive branch[\s\S]{0,160}incomplete until the user has been asked what to do next/i.test(topContract)).toBe(true)
     expect(/software implementation-plan run[\s\S]{0,160}Phase 5\.4 menu[\s\S]{0,100}selected action has actually fired/i.test(topContract)).toBe(true)
-    expect(/Non-software and approach-altitude routes use their reference workflow's terminal handoff/i.test(topContract)).toBe(true)
-    expect(/Answer-seeking may end after the answer unless its owner requires save\/share/i.test(topContract)).toBe(true)
+    expect(/Non-software plans and approach-level plans end with the handoff their reference workflow defines/i.test(topContract)).toBe(true)
+    expect(/only answers a question may end after the answer unless its reference requires a save or share step/i.test(topContract)).toBe(true)
     expect(/intermediate milestones/i.test(topContract)).toBe(true)
     expect(SKILL_BODY).toMatch(/Read `references\/plan-handoff\.md` immediately before Phase 5\.3\.8 and 5\.4/i)
     expect(SKILL_BODY).toMatch(/reload `references\/plan-handoff\.md` before acting/i)
@@ -486,13 +478,13 @@ describe("ce-plan output-contract gate", () => {
   })
 
   test("intake resolves the gate before the scoping synthesis and does not restate it", () => {
-    expect(INTAKE_BODY).toMatch(/First resolve the kernel's Output Contract gate/)
+    expect(INTAKE_BODY).toMatch(/First resolve the Output Contract gate that SKILL\.md states/)
     expect(INTAKE_BODY).toMatch(/Output Contract gate selected Durable/)
     expect(INTAKE_BODY).not.toMatch(/\*\*Direct\*\* —/)
   })
 
   test("a saved Chat brief never claims the unified-plan contract", () => {
-    expect(OUTPUT_CONTRACTS_BODY).toMatch(/Do not set `artifact_contract` or `artifact_readiness`/)
+    expect(OUTPUT_CONTRACTS_BODY).toMatch(/Do not set `artifact_contract`/)
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/never implements/)
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/a planning invocation is not execution authority/)
     expect(OUTPUT_CONTRACTS_BODY).toMatch(/Reserve the path with exclusive creation/)
@@ -509,5 +501,22 @@ describe("ce-plan output-contract gate", () => {
   test("Lightweight Durable grounds inline instead of dispatching research agents", () => {
     expect(RESEARCH_BODY).toMatch(/\*\*Lightweight\*\* Durable plan does not dispatch the research agents/)
     expect(RESEARCH_BODY).not.toContain("Local Research (Always Runs)")
+  })
+})
+
+describe("ce-plan pre-write scoping checkpoint", () => {
+  // Claude skipped the brainstorm-sourced synthesis on Lightweight runs after answering its own
+  // planning questions, writing the plan with no confirmation or announcement. Judged evals
+  // (2026-10-01) needed both lines: the body gate alone left 2 of 3 runs silent, the write-step
+  // check alone 2 of 4, and both together 0 of 4.
+  const FINAL_REVIEW_BODY = readFileSync(path.join(process.cwd(), "skills/ce-plan/references/final-review.md"), "utf8")
+
+  test("the always-loaded body states the pre-write checkpoint", () => {
+    expect(SKILL_BODY).toMatch(/the user sees the Phase 5\.1\.5 scoping synthesis in chat before the write/)
+  })
+
+  test("the write step checks the chat for the checkpoint before writing", () => {
+    const writeStep = FINAL_REVIEW_BODY.slice(FINAL_REVIEW_BODY.indexOf("#### 5.2 Write Plan File"))
+    expect(writeStep.slice(0, 600)).toMatch(/Answers to your own planning questions are not that checkpoint/)
   })
 })

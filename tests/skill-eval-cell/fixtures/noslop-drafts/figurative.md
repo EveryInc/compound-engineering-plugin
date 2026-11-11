@@ -1,0 +1,1 @@
+The loader reads the manifest first and rejects a file with no schema version. The retry policy rides along with every request, and the config knows about the queue. Rate limits sit on top of the auth layer at 5 percent of capacity. The scheduler wants an empty queue before it wakes the workers every 30 seconds. The parser is the substrate for all 3 exporters.

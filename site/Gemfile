@@ -1,0 +1,13 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gem "jekyll", "~> 4.4"
+gem "jekyll-vitepress-theme", "~> 1.9"
+gem "webrick"
+
+group :test do
+  gem "html-proofer", "~> 5.0"
+  gem "minitest", "~> 5.25"
+  gem "rake"
+end

@@ -1,0 +1,1 @@
+Use ce-resolve-pr-feedback mode:pipeline https://github.com/example/counter/pull/12#discussion_r102. Handle this feedback under the caller's inherited project authority and return the pipeline result.

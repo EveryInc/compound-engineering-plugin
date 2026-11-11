@@ -8,15 +8,17 @@
 
 [![Build Status](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
-[![Skills](https://img.shields.io/badge/skills-33-black.svg)](docs/guides/README.md)
+[![Skills](https://img.shields.io/badge/skills-37-black.svg)](docs/guides/README.md)
 
 </div>
 
-Compound Engineering is a plugin of 33 skills for AI coding agents. It structures the work around a loop — brainstorm, plan, build, review, then **capture what you learned** — so the knowledge from each change is written down where the next change can read it.
+Compound Engineering is a plugin of 37 skills for AI coding agents. It structures the work around a loop — brainstorm, plan, build, review, then **capture what you learned** — so the knowledge from each change is written down where the next change can read it.
 
 It runs on 14 agent hosts, including Claude Code, Cursor, and Codex.
 
 Maintained by [Kieran Klaassen](https://github.com/kieranklaassen) and [Trevin Chow](https://github.com/tmchow), with contributions from the open-source community.
+
+For understanding before a change, ask `ce-explain` how the relevant behavior works and why it exists. For a recommendation, use `ce-pov`; “oracle this” adds independent model opinions. Both can contribute to another workflow without a separate human interaction.
 
 ## Install
 
@@ -114,12 +116,12 @@ Traditional development accumulates technical debt. Every feature adds complexit
 
 Compound engineering inverts this. 80% is in planning and review, 20% is in execution:
 
-- Plan thoroughly before writing code with `/ce-brainstorm` and `/ce-plan` using one readiness-based plan artifact
+- Plan thoroughly before writing code with `/ce-brainstorm` and `/ce-plan` using one plan artifact that grows from requirements into implementation planning
 - Review to catch issues and calibrate judgment with `/ce-code-review` and `/ce-doc-review`
 - Codify knowledge so it is reusable with `/ce-compound`
 - Keep quality high so future changes are easy
 
-The point is not ceremony. The point is leverage. A good brainstorm makes the plan sharper. A good plan makes execution smaller. A good review catches the pattern, not just the bug. A good compound note means the next agent does not have to learn the same lesson from scratch.
+The point is leverage, not ceremony. A good brainstorm makes the plan sharper. A good plan makes execution smaller. A good review catches the pattern, not just the bug. A good compound note means the next agent does not have to learn the same lesson from scratch.
 
 ## The loop
 
@@ -130,11 +132,11 @@ The core loop is six steps: **brainstorm** the requirements, **plan** the implem
 | [`/ce-brainstorm`](docs/guides/ce-brainstorm.md) | Interactive Q&A to think through a feature or problem and write a requirements-only unified plan before planning |
 | [`/ce-plan`](docs/guides/ce-plan.md) | Enrich feature ideas or requirements-only plans into implementation-ready plans |
 | [`/ce-work`](docs/guides/ce-work.md) | Execute implementation-ready plans natively or through a qualified cross-model author while retaining host verification, commits, and shipping |
-| [`/ce-simplify-code`](docs/guides/ce-simplify-code.md) | Refine the freshly written code for clarity and reuse before review |
+| [`/ce-simplify-code`](docs/guides/ce-simplify-code.md) | Refine the freshly written code and prune useless tests and comments before review |
 | [`/ce-code-review`](docs/guides/ce-code-review.md) | Report-only multi-agent review against the plan before merging; local apply is explicit |
 | [`/ce-compound`](docs/guides/ce-compound.md) | Capture the learning into `docs/solutions/` so the next loop starts smarter |
 
-Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainstorm` and `/ce-plan` read as grounding -- brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented. That return arrow is the whole point.
+Each cycle compounds. `/ce-compound` writes learnings that the next `/ce-brainstorm` and `/ce-plan` read as grounding. Brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented. That return arrow is the whole point.
 
 <img src="assets/demo/compound-loop.gif" alt="A ce-compound run writes a learning about an env-var trap; 18 days later, on unrelated work, a ce-plan run finds that learning and carries its constraints into the new plan" width="100%">
 
@@ -143,10 +145,12 @@ Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainst
 <sub>Replayed from a real pair of sessions 18 days apart, with names and paths anonymized and the six-minute run compressed to about 30 seconds. Nothing shown is behavior the skills don't have — see <a href="assets/demo/README.md">assets/demo</a> for the source and the substitutions.</sub>
 
 > Artifact folders like `docs/solutions/` and `docs/plans/` are the **defaults**. A project whose `docs/` is tracked content can relocate every CE artifact folder under one repo-relative root via the `docs_root` setting -- see [configuration](docs/guides/configuration.md#artifact-root).
+>
+> Want the same knowledge compounding across every repo in your org -- team conventions, security policies, a stack's hard-won rules -- instead of being relearned in each one? Declare it as **Compound Packs**: folders of prescriptive rules (local, or ref-pinned git repos) that planning grounds in and review enforces, every use cited back to the rule file (experimental) -- see [Compound Packs](docs/guides/packs.md).
 
 ## Try it
 
-After installing, run `/ce-setup` in any project. It reports optional tool capabilities, creates repo `.compound-engineering/config.yaml` when missing, refreshes the committed example, and gitignores an existing local override.
+After installing, run `/ce-setup` in any project. It reports optional tool capabilities, creates repo `.compound-engineering/config.yaml` when missing, refreshes the committed example, and gitignores an existing local override. Not sure which skill to run, or what comes next? Ask `/ce-help`.
 
 **The standard loop** -- turn a rough idea into shipped, reviewed code:
 
@@ -166,24 +170,24 @@ After installing, run `/ce-setup` in any project. It reports optional tool capab
 /lfg
 ```
 
-`/lfg` runs the loop hands-off: it plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, then commits. When a git remote exists it pushes, opens a PR, and watches CI with a bounded repair loop (it does not merge, and it can finish with leftovers if the repair budget is hit). With no remote it stops at local commits. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt.
+`/lfg` runs the loop hands-off: it picks the route to a verified work source (a plan, or a `ce-debug` fix for a bug report), works through it, simplifies, runs code review and applies the fixes, captures any durable learning, runs browser tests, then commits. When a git remote exists it pushes, opens a PR, and watches CI with a bounded repair loop (it does not merge unless you grant that, and it can finish with leftovers if the repair budget is hit). With no remote it stops at local commits. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt.
 
 Starting from a bug instead of a feature? Use [`/ce-debug`](docs/guides/ce-debug.md). Not sure what to build yet? Start with [`/ce-ideate`](docs/guides/ce-ideate.md).
 
 ## Skills at a glance
 
-33 skills, grouped by what they are for. The full catalog, with a page per skill and how each one chains into the others, is in **[docs/guides](docs/guides/README.md)**.
+37 skills, grouped by what they are for. The full catalog, with a page per skill and how each one chains into the others, is in **[docs/guides](docs/guides/README.md)**.
 
 | Group | Skills | What it covers |
 |-------|--------|----------------|
 | [Core loop](docs/guides/README.md#the-core-loop) | `ce-brainstorm` `ce-plan` `ce-work` `ce-simplify-code` `ce-code-review` `ce-compound` | The six steps of every iteration |
 | [Around the loop](docs/guides/README.md#around-the-loop) | `ce-strategy` `ce-product-pulse` `ce-sweep` `ce-compound-refresh` | Anchors and feeds that keep the loop grounded |
-| [On demand](docs/guides/README.md#on-demand) | `ce-ideate` `ce-pov` `ce-debug` `ce-explain` `ce-doc-review` `ce-optimize` `ce-prototype` | Reached for when a specific need arises |
+| [On demand](docs/guides/README.md#on-demand) | `ce-ideate` `ce-bakeoff` `ce-pov` `ce-debug` `ce-explain` `ce-doc-review` `ce-optimize` `ce-prototype` | Reached for when a specific need arises |
 | [Git workflow](docs/guides/README.md#git-workflow) | `ce-commit` `ce-commit-push-pr` `ce-babysit-pr` `ce-resolve-pr-feedback` `ce-worktree` | Committing, shipping, and shepherding PRs |
 | [Autonomous](docs/guides/README.md#autonomous-pipeline) | `lfg` | The whole pipeline, hands-off |
 | [Testing & design](docs/guides/README.md#frontend-design) | `ce-test-browser` `ce-test-xcode` `ce-polish` `ce-dogfood` | Verifying and polishing what you built |
 | [Collaboration](docs/guides/README.md#collaboration) | `ce-proof` `ce-handoff` `ce-promote` | Sharing work and handing it off |
-| [Utilities](docs/guides/README.md#workflow-utilities) | `ce-setup` `ce-retune` `ce-riffrec-feedback-analysis` | Setup and maintenance |
+| [Utilities](docs/guides/README.md#workflow-utilities) | `ce-help` `ce-setup` `ce-noslop` `wtf` `ce-retune` `ce-riffrec-feedback-analysis` | Help, setup, writing, and maintenance |
 
 **Learn more**
 
@@ -232,7 +236,7 @@ Start a new Cline task after installing or updating skills. See [`.cline/INSTALL
 
 ### Grok Build CLI (`grok`)
 
-xAI's [Grok Build CLI](https://x.ai/cli) (`grok`) installs Compound Engineering directly from this repository — the repo root is a valid Grok plugin (`grok` reads the existing Claude-compatible manifests, and the repo also ships a native `.grok-plugin/plugin.json`):
+xAI's [Grok Build CLI](https://x.ai/cli) (`grok`) installs Compound Engineering directly from this repository. The repo root is a valid Grok plugin: `grok` reads the existing Claude-compatible manifests, and the repo also ships a native `.grok-plugin/plugin.json`.
 
 ```bash
 grok plugin install EveryInc/compound-engineering-plugin
@@ -315,15 +319,15 @@ Qwen Code installs Claude Code-compatible plugins directly from GitHub and conve
 
 ### OpenCode
 
-Add Compound Engineering to the `plugin` array in your global or project `opencode.json`:
+Add Compound Engineering to the `plugins` array in your global or project `opencode.json`:
 
 ```json
 {
-  "plugin": ["compound-engineering@git+https://github.com/EveryInc/compound-engineering-plugin.git"]
+  "plugins": ["compound-engineering@git+https://github.com/EveryInc/compound-engineering-plugin.git"]
 }
 ```
 
-Restart OpenCode after changing the config. The OpenCode plugin registers the Compound Engineering skills directory directly; no Bun installer or generated skill copy is required. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for pinning examples.
+On OpenCode 1.x, the config key is `plugin` (singular). Restart OpenCode after changing the config. The plugin registers the Compound Engineering skills and `/commands` directly; no Bun installer or generated skill copy is required. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for pinning examples.
 
 ### Pi
 
@@ -436,6 +440,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, and [`docs/development.md`](
 |---|---|
 | [Skill catalog](docs/guides/README.md) | A page per skill, and how they chain together |
 | [Configuration](docs/guides/configuration.md) | `.compound-engineering/config.yaml` options |
+| [Compound Packs](docs/guides/packs.md) | Declaring, authoring, and publishing prescriptive rule packs |
 | [Installing](#install) · [Upgrading](docs/install/upgrading.md) | Per-host install and refresh |
 | [Contributing](CONTRIBUTING.md) · [Development](docs/development.md) | Working on the plugin itself |
 | [Security](SECURITY.md) · [Privacy](PRIVACY.md) | Reporting and data handling |

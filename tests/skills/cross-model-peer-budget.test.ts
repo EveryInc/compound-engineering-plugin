@@ -1,5 +1,7 @@
-import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
+import { afterAll, describe, expect, test } from "bun:test"
+import { spawnSync } from "node:child_process"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import path from "node:path"
 
 // The cross-model peer wall-clock budget is expressed in three nested windows:
@@ -30,6 +32,7 @@ const DISPATCH_REFS = {
   "ce-doc-review": "skills/ce-doc-review/references/cross-model-review.md",
 } as const
 
+
 const POV_REF = "skills/ce-pov/references/cross-model-panel.md"
 const RUNNER = "skills/ce-doc-review/scripts/peer-job-runner.py"
 
@@ -45,14 +48,6 @@ function caps(rel: string): { idle: number; hard: number } {
   return { idle: Number(idle[1]), hard: Number(hard[1]) }
 }
 
-// Only routes that cannot stream (today: grok-cli with --json-schema) stay on
-// UNGUARDED_HARD_SECS. Claude/cursor-family stream and share HARD_SECS + IDLE_SECS
-// via run_timeout_cmd's idle poll (#1270).
-function unguardedHard(rel: string): number | null {
-  const m = read(rel).match(/UNGUARDED_HARD_SECS="\$\{CROSS_MODEL_HARD_SECS:-(\d+)\}"/)
-  return m ? Number(m[1]) : null
-}
-
 describe("cross-model peer budget", () => {
   test("the idle cap is the liveness guard, so it fires before the hard backstop", () => {
     for (const [skill, rel] of Object.entries(SCRIPTS)) {
@@ -65,63 +60,18 @@ describe("cross-model peer budget", () => {
     expect(caps(SCRIPTS["ce-code-review"])).toEqual(caps(SCRIPTS["ce-doc-review"]))
   })
 
-  test("grok-cli stays hard-only below the raised backstop", () => {
-    for (const [skill, rel] of Object.entries(SCRIPTS)) {
-      const { hard } = caps(rel)
-      const unguarded = unguardedHard(rel)
-      const src = read(rel)
-      if (!/run_timeout_cmd\(\)/.test(src)) continue
-      // Streaming routes share HARD_SECS; only grok-cli keeps the unguarded bound.
-      // Retry-aware workers pass a remaining attempt budget derived from the same
-      // route-specific source instead of reopening the full cap.
-      if (src.includes("ATTEMPT_HARD_SECS")) {
-        expect(src, `${skill} must derive grok-cli from UNGUARDED`).toContain(
-          'if [ "$1" = "grok-cli" ]; then printf \'%s\\n\' "$UNGUARDED_HARD_SECS"',
-        )
-        expect(src, `${skill} must hard-only grok-cli`).toContain(
-          'run_timeout_cmd "" "$attempt_hard" no-idle',
-        )
-        expect(src, `${skill} must idle-guard claude`).toContain(
-          'run_timeout_cmd "$PROMPT_FILE" "$attempt_hard" idle',
-        )
-      } else {
-        expect(src, `${skill} must hard-only grok-cli`).toContain(
-          'run_timeout_cmd "" "$UNGUARDED_HARD_SECS" no-idle',
-        )
-        expect(src, `${skill} must idle-guard claude`).toContain(
-          'run_timeout_cmd "$PROMPT_FILE" "$HARD_SECS" idle',
-        )
-      }
-      if (hard > 600) {
-        expect(unguarded, `${skill} must keep UNGUARDED for grok-cli`).not.toBeNull()
-        expect(unguarded!, `${skill} unguarded cap`).toBeLessThanOrEqual(600)
-      }
-      if (unguarded !== null) expect(unguarded, `${skill} unguarded cap`).toBeLessThanOrEqual(hard)
-    }
-  })
-
-  test("run_timeout_cmd idle mode polls PEERLOG like run_codex_cmd", () => {
+  test("every worker idle-guards every route on PEERLOG growth under one hard cap", () => {
     for (const [skill, rel] of Object.entries(SCRIPTS)) {
       const src = read(rel)
-      const body = src.slice(src.indexOf("run_timeout_cmd() {"))
+      const body = src.slice(src.indexOf("run_peer_cmd() {"))
       const fn = body.slice(0, body.indexOf("\n}\n") + 1)
-      expect(fn, `${skill} idle mode must poll PEERLOG`).toContain('wc -c <"$PEERLOG"')
-      expect(fn, `${skill} idle mode must reap on IDLE_SECS`).toContain('"$IDLE_SECS"')
-      expect(fn, `${skill} must accept no-idle for grok-cli`).toContain('idle_mode="${3:-idle}"')
-    }
-  })
-
-  test("streaming adapters use stream-json; grok-cli stays on buffered json", () => {
-    for (const [skill, rel] of Object.entries(SCRIPTS)) {
-      const src = read(rel)
-      expect(src, `${skill} claude streams`).toMatch(
-        /claude[\s\S]*?--output-format stream-json --verbose/,
-      )
-      expect(src, `${skill} cursor-family streams`).toContain("--output-format stream-json")
-      // grok-cli schema path remains buffered json (schema vs stream mutual exclusion).
-      expect(src, `${skill} grok-cli stays json`).toMatch(
-        /grok-cli\)[\s\S]*?--json-schema "\$SCHEMA_REF" --output-format json/,
-      )
+      expect(fn, `${skill} must poll PEERLOG`).toContain('wc -c <"$PEERLOG"')
+      expect(fn, `${skill} must reap on IDLE_SECS`).toContain('"$IDLE_SECS"')
+      expect(fn, `${skill} must reap on HARD_SECS`).toContain('"$HARD_SECS"')
+      expect(src, `${skill} has no hard-only route left`).not.toContain("UNGUARDED_HARD_SECS")
+      // acpx applies --timeout per phase, so it gets the same budget but the
+      // worker's own wall clock stays authoritative.
+      expect(src, `${skill} passes its hard budget to acpx`).toContain('"$HARD_SECS" "$CLAUDE_WRAPPER"')
     }
   })
 
@@ -206,6 +156,7 @@ describe("cross-model peer budget", () => {
   test("ce-pov states its aggregate-deadline default", () => {
     const { hard } = caps(SCRIPTS["ce-pov"])
     expect(read(POV_REF)).toContain(`${hard + DEADLINE_GRACE}s by default`)
+    expect(read(POV_REF)).toContain(`--deadline-secs "\${CROSS_MODEL_HARD_SECS:-${hard}}" --deadline-grace-secs ${DEADLINE_GRACE}`)
   })
 
   test("ce-pov does not ask the orchestrator to raise CE_PEER_HARD_SECS", () => {
@@ -241,7 +192,7 @@ describe("cross-model peer budget", () => {
       ...Object.values(DISPATCH_REFS),
       POV_REF,
       "skills/ce-code-review/SKILL.md",
-      "skills/ce-doc-review/references/cross-model-eval.md",
+      "tests/skill-eval-cell/packs/ce-doc-review-cross-model.md",
       "skills/ce-pov/references/cross-model-panel.md",
     ]
     // A bare "<n>s deadline" / "<n> seconds have elapsed" / "backstop <n>s" is the
@@ -254,4 +205,48 @@ describe("cross-model peer budget", () => {
       }
     }
   })
+})
+
+// A failed peer's skip evidence must not spend the budget. NDJSON logs carry no
+// top-level diagnostic field, so the evidence helper falls back to the raw log;
+// macOS /bin/bash 3.2 rewrites newlines in a large string superlinearly (a 60KB
+// log took ~50s), stalling the worker before scratch cleanup. Linux bash 5 is
+// fast either way, so only macOS runs can observe a regression here.
+const evidenceRoots: string[] = []
+afterAll(() => evidenceRoots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+
+function evidenceFunction(rel: string): string {
+  const src = read(rel)
+  const start = src.indexOf("bounded_failure_evidence() {")
+  const end = src.indexOf("\n}\n", start)
+  if (start < 0 || end < 0) throw new Error(`bounded_failure_evidence not found in ${rel}`)
+  return src.slice(start, end + 3)
+}
+
+describe("cross-model failure evidence", () => {
+  test.skipIf(!existsSync("/bin/bash"))(
+    "a large NDJSON peer log yields bounded skip evidence without stalling the worker",
+    () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "xmodel-evidence-"))
+      evidenceRoots.push(dir)
+      const log = path.join(dir, "stdout.log")
+      const lines: string[] = []
+      for (let i = 0; lines.join("\n").length < 120_000; i++) {
+        lines.push(JSON.stringify({ jsonrpc: "2.0", method: "session/update", params: { update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: `thinking ${i}` } } } }))
+      }
+      writeFileSync(log, `${lines.join("\n")}\n`)
+
+      for (const [skill, rel] of Object.entries(SCRIPTS)) {
+        const result = spawnSync("/bin/bash", ["-c", `${evidenceFunction(rel)}\nbounded_failure_evidence "$1"`, "_", log], {
+          encoding: "utf8",
+          timeout: 10_000,
+        })
+        expect(result.signal, `${skill} evidence helper stalled on a large log`).toBeNull()
+        expect(result.status, `${skill} evidence helper exit`).toBe(0)
+        expect(result.stdout.length, `${skill} evidence stays bounded`).toBeLessThanOrEqual(300)
+        expect(result.stdout, `${skill} evidence keeps the log head`).toStartWith('{"jsonrpc":"2.0"')
+      }
+    },
+    60_000,
+  )
 })

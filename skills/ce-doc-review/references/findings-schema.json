@@ -46,12 +46,12 @@
           "autofix_class": {
             "type": "string",
             "enum": ["safe_auto", "gated_auto", "manual"],
-            "description": "How this issue should be handled. safe_auto = one clear correct fix, mechanical enough that stating it and doing it are the same act (typo, wrong count, stale cross-reference, mechanically-implied addition, terminology drift). gated_auto = concrete fix that touches document meaning or scope, with no genuine alternative to it (substantive additions from codebase-pattern-resolved fixes, framework-native-API substitutions, missing standard controls). manual = requires user judgment; multiple valid approaches. Low-confidence manual findings surface in an FYI subsection at the presentation layer."
+            "description": "How to handle the finding. safe_auto = a mechanical correction with one right answer that follows directly from authoritative content. gated_auto = a concrete correction to document meaning for the agreed outcome. Synthesis applies it only with sufficient edit authority; otherwise it needs approval with the other proposed edits. Several workable technical approaches do not by themselves require a user decision. manual = an unresolved user choice or essential information investigation cannot obtain. Confidence and reviewer independence impose separate limits on what can apply."
           },
           "finding_type": {
             "type": "string",
             "enum": ["error", "omission"],
-            "description": "Whether the finding is a mistake in what the document says (error) or something the document forgot to say (omission). Errors are design tensions, contradictions, or incorrect statements. Omissions are missing mechanical steps, forgotten list entries, or absent details."
+            "description": "Whether the admitted defect is incorrect or incompatible instructions (error), or a necessary decision or constraint not supplied by the document, its references, or existing conventions (omission). Missing repetition or optional detail is not an omission."
           },
           "suggested_fix": {
             "type": ["string", "null"],
@@ -60,7 +60,7 @@
           "confidence": {
             "type": "integer",
             "enum": [0, 25, 50, 75, 100],
-            "description": "Anchored confidence score. Use exactly one of 0, 25, 50, 75, 100. Each anchor has a behavioral criterion the reviewer must honestly self-apply. 0: Not confident at all. This is a false positive that does not stand up to light scrutiny, or a pre-existing issue the document did not introduce. 25: Somewhat confident. Might be a real issue but could also be a false positive; the reviewer was not able to verify. 50: Moderately confident. The reviewer verified this is a real issue but it may be a nitpick or not meaningfully affect plan correctness. Relative to the rest of the document, it is not very important. Advisory observations (the honest answer to 'what breaks if we do not fix this?' is 'nothing breaks, but...') land here. 75: Highly confident. The reviewer double-checked and verified the issue will be hit in practice by implementers or readers of this document. The existing approach is insufficient. The issue is important and will directly impact plan correctness, implementer understanding, or downstream execution. 100: Absolutely certain. The reviewer double-checked and confirmed the issue. The evidence directly confirms it will happen frequently in practice. The document text, codebase, or cross-references leave no room for interpretation."
+            "description": "Anchored confidence score. Use exactly one of 0, 25, 50, 75, 100. Each anchor has a behavioral criterion the reviewer must honestly self-apply. 0: Not confident at all. This is a false positive that does not stand up to light scrutiny, or a pre-existing issue the document's work does not reach. 25: Somewhat confident. Might be a real issue but could also be a false positive; the reviewer was not able to verify. 50: Moderately confident. The reviewer verified a useful advisory concern below the actionable bar and can state its concrete benefit. Preferences and nits without that benefit are suppressed, not routed to FYI. 75: Highly confident. The reviewer double-checked and verified the issue will be hit in practice by implementers or readers of this document. The existing approach is insufficient. The issue is important and will directly impact plan correctness, implementer understanding, or downstream execution. 100: Absolutely certain. The reviewer double-checked and confirmed the issue. The evidence directly confirms it will happen frequently in practice. The document text, codebase, or cross-references leave no room for interpretation."
           },
           "evidence": {
             "type": "array",
@@ -73,12 +73,12 @@
     },
     "residual_risks": {
       "type": "array",
-      "description": "Risks the reviewer noticed but could not confirm as findings (below confidence threshold)",
+      "description": "Distinct uncertainty with evidence of a material consequence for the agreed outcome. Apply the same admission standard as findings; omit rejected claims, preferences, and successful verifications.",
       "items": { "type": "string" }
     },
     "deferred_questions": {
       "type": "array",
-      "description": "Questions that should be resolved in a later workflow stage (planning, implementation)",
+      "description": "Essential information or decisions a later stage must resolve to deliver the agreed outcome. Omit questions already answered by the contract or discoverable project evidence.",
       "items": { "type": "string" }
     }
   }

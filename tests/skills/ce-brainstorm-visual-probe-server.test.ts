@@ -102,6 +102,9 @@ describe("ce-brainstorm light-webserver.js", () => {
     expect(html).not.toContain("WebSocket")
     expect(html).not.toContain("data-choice")
     expect(html).not.toContain("events")
+    expect(html).not.toContain("EventSource")
+    expect(html).not.toContain("annotate.js")
+    expect(html).not.toContain("ce-annotate-host")
 
     response = await fetch(`${String(info.url)}/version`)
     let version = await response.json()
@@ -228,26 +231,43 @@ describe("ce-brainstorm light-webserver.js", () => {
   test("/version polling does not keep an otherwise idle server alive", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-visual-probe-idle-"))
     const info = await startServer(root, [], {
-      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "250",
+      // listen() starts idle before startServer() returns; 250ms lost the
+      // page GET to ConnectionRefused under parallel CI (never reached /version).
+      CE_LIGHT_WEB_IDLE_TIMEOUT_MS: "2000",
       CE_LIGHT_WEB_LIFECYCLE_CHECK_MS: "50",
     })
 
     await fs.writeFile(path.join(String(info.screen_dir), "001-first.html"), "<h1>First sketch</h1>")
     await fetch(String(info.url))
 
-    const deadline = Date.now() + 700
+    const deadline = Date.now() + 4500
+    let refused = false
+    let lastPollStart = Date.now()
     while (Date.now() < deadline) {
+      lastPollStart = Date.now()
       try {
         await fetch(`${String(info.url)}/version`)
       } catch {
+        refused = true
         break
       }
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
+    expect(refused).toBe(true)
 
-    const result = await runServerCommand(["status", "--root", root])
-    expect(result.exitCode, result.stderr).toBe(0)
-    const status = JSON.parse(result.stdout.trim())
+    // shutdown() closes the listener before the process exits, so the first
+    // refused poll can land while status still sees a live pid. The wait is
+    // anchored to the last poll and ends well inside the 2s idle timeout, so a
+    // server that polling kept alive cannot idle out here and pass.
+    const exitDeadline = lastPollStart + 1000
+    let status: Record<string, unknown> = {}
+    while (Date.now() < exitDeadline) {
+      const result = await runServerCommand(["status", "--root", root])
+      expect(result.exitCode, result.stderr).toBe(0)
+      status = JSON.parse(result.stdout.trim())
+      if (status.status === "stopped") break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
     expect(status.status).toBe("stopped")
   })
 

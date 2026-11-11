@@ -6,5 +6,6 @@
 
 # Bundled scripts with no extension (shebang bash/python) need the same pin.
 skills/ce-babysit-pr/scripts/pr-snapshot text eol=lf
+skills/ce-babysit-pr/scripts/intake-overlap text eol=lf
 skills/ce-resolve-pr-feedback/scripts/* text eol=lf
 skills/ce-setup/scripts/check-health text eol=lf

@@ -10,8 +10,8 @@ import {
 describe("resolveClaudeFamilyAlias", () => {
   test("resolves bare aliases to full Claude model names", () => {
     expect(resolveClaudeFamilyAlias("haiku")).toBe("claude-haiku-4-5")
-    expect(resolveClaudeFamilyAlias("sonnet")).toBe("claude-sonnet-5")
-    expect(resolveClaudeFamilyAlias("opus")).toBe("claude-opus-4-8")
+    expect(resolveClaudeFamilyAlias("sonnet")).toBe("claude-sonnet-5-5")
+    expect(resolveClaudeFamilyAlias("opus")).toBe("claude-opus-5-5")
   })
 
   test("passes through non-alias model names unchanged", () => {
@@ -23,16 +23,16 @@ describe("resolveClaudeFamilyAlias", () => {
 
 describe("addProviderPrefix", () => {
   test("prefixes Claude models with anthropic/", () => {
-    expect(addProviderPrefix("claude-sonnet-5")).toBe("anthropic/claude-sonnet-5")
+    expect(addProviderPrefix("claude-sonnet-5-5")).toBe("anthropic/claude-sonnet-5-5")
     expect(addProviderPrefix("claude-haiku-4-5")).toBe("anthropic/claude-haiku-4-5")
   })
 
   test("prefixes OpenAI models with openai/", () => {
     expect(addProviderPrefix("gpt-5.4")).toBe("openai/gpt-5.4")
     expect(addProviderPrefix("gpt-5.6")).toBe("openai/gpt-5.6")
-    expect(addProviderPrefix("gpt-5.6-sol")).toBe("openai/gpt-5.6-sol")
+    expect(addProviderPrefix("gpt-6.1-sol")).toBe("openai/gpt-6.1-sol")
     expect(addProviderPrefix("gpt-5.6-terra")).toBe("openai/gpt-5.6-terra")
-    expect(addProviderPrefix("gpt-5.6-luna")).toBe("openai/gpt-5.6-luna")
+    expect(addProviderPrefix("gpt-6-luna")).toBe("openai/gpt-6-luna")
     expect(addProviderPrefix("o3-mini")).toBe("openai/o3-mini")
   })
 
@@ -65,9 +65,9 @@ describe("addProviderPrefix", () => {
 
 describe("normalizeModelWithProvider", () => {
   test("resolves bare aliases and adds provider prefix", () => {
-    expect(normalizeModelWithProvider("sonnet")).toBe("anthropic/claude-sonnet-5")
+    expect(normalizeModelWithProvider("sonnet")).toBe("anthropic/claude-sonnet-5-5")
     expect(normalizeModelWithProvider("haiku")).toBe("anthropic/claude-haiku-4-5")
-    expect(normalizeModelWithProvider("opus")).toBe("anthropic/claude-opus-4-8")
+    expect(normalizeModelWithProvider("opus")).toBe("anthropic/claude-opus-5-5")
   })
 
   test("adds provider prefix to full Claude model names", () => {
@@ -85,9 +85,12 @@ describe("rejectsSamplingParams", () => {
     expect(rejectsSamplingParams("sonnet")).toBe(true)
     expect(rejectsSamplingParams("opus")).toBe(true)
     expect(rejectsSamplingParams("claude-sonnet-5")).toBe(true)
+    expect(rejectsSamplingParams("claude-sonnet-5-5")).toBe(true)
+    expect(rejectsSamplingParams("claude-opus-5-5")).toBe(true)
     expect(rejectsSamplingParams("claude-opus-4-8")).toBe(true)
+    expect(rejectsSamplingParams("claude-opus-5")).toBe(true)
     expect(rejectsSamplingParams("claude-opus-4-7")).toBe(true)
-    expect(rejectsSamplingParams("anthropic/claude-sonnet-5")).toBe(true)
+    expect(rejectsSamplingParams("anthropic/claude-sonnet-5-5")).toBe(true)
   })
 
   test("passes models that still accept sampling params", () => {

@@ -1,0 +1,23 @@
+[
+  {
+    "reviewer": "security-lens",
+    "findings": [
+      {
+        "id": "B1",
+        "title": "Expire shared access after seven days",
+        "section": "Product Contract",
+        "why_it_matters": "An old grant can remain active until the owner revokes it, increasing the window for unintended disclosure.",
+        "finding_type": "omission",
+        "autofix_class": "gated_auto",
+        "suggested_fix": "Make all recipient grants expire seven days after creation and reject reads after expiry.",
+        "confidence": 100,
+        "severity": "P1",
+        "evidence": [
+          "A later policy review will decide whether access should also expire automatically; the current release has no expiry commitment."
+        ]
+      }
+    ],
+    "residual_risks": [],
+    "deferred_questions": []
+  }
+]

@@ -29,11 +29,6 @@ const HANDOFF_BODY = readFileSync(
   "utf8",
 )
 
-const HTML_RENDERING_PATH = path.join(
-  process.cwd(),
-  "skills/ce-plan/references/html-rendering.md",
-)
-
 const PLAN_SECTIONS_PATH = path.join(
   process.cwd(),
   "skills/ce-plan/references/plan-sections.md",
@@ -44,7 +39,7 @@ const PLAN_SECTIONS_PATH = path.join(
 // HTML — never both. The skill body must carry the load-bearing surface:
 // the argument-hint advertises the flag, the kernel requires the output owner
 // before phase interpretation, and that owner preserves the precedence and
-// pipeline override that automated downstream consumers rely on.
+// four-step precedence; there is no pipeline override (decision 2026-09-10).
 describe("ce-plan output:html mode", () => {
   test("argument-hint advertises output:html", () => {
     // argument-hint is in the frontmatter. Extract and parse to confirm
@@ -81,10 +76,8 @@ describe("ce-plan output:html mode", () => {
       /plan_output/.test(phaseRegion),
       "Phase 0.0 must name the `plan_output` config key.",
     ).toBe(true)
-    expect(
-      /pipeline|disable-model-invocation/i.test(phaseRegion),
-      "Phase 0.0 must describe the pipeline-mode override that forces markdown.",
-    ).toBe(true)
+    // Decision 2026-09-10: no pipeline override. Format comes only from the prompt, a user preference, config, or the default; a headless run resolves it the same way. Pin the absence.
+    expect(/\*\*Pipeline override\.\*\*|forces? `?(OUTPUT_FORMAT=)?md`? regardless/i.test(phaseRegion)).toBe(false)
     expect(
       /literal[\s-]prefix|literal prefix/i.test(phaseRegion),
       "Phase 0.0 must state the literal-prefix token-parsing convention so `feat:`/`fix:`/`chore:` in feature descriptions pass through verbatim.",
@@ -158,7 +151,9 @@ describe("ce-plan output:html mode", () => {
 
   test("the kernel is the sole model-elevation dispatcher", () => {
     expect(SKILL_BODY).toContain("Immediately before authoring, read `references/reasoning-elevation.md`")
-    expect(FINAL_REVIEW_BODY).toContain("Return to the kernel for its model-elevation boundary")
+    // Condition: final-review hands the elevation decision back to SKILL.md's
+    // Model elevation step rather than making it here.
+    expect(FINAL_REVIEW_BODY).toMatch(/Return to SKILL\.md for its Model elevation step/)
     expect(FINAL_REVIEW_BODY).toContain("does not dispatch the authoring route itself")
     expect(FINAL_REVIEW_BODY).not.toContain("load `references/reasoning-elevation.md`")
   })
@@ -323,18 +318,5 @@ describe("ce-plan output:html mode", () => {
       /conventional-commit prefix/i.test(body),
       "plan-sections.md must prohibit a conventional-commit prefix in `title` — the `type` field carries that classification.",
     ).toBe(true)
-  })
-
-  test("html-rendering.md reference exists and is loadable", () => {
-    const body = readFileSync(HTML_RENDERING_PATH, "utf8")
-    expect(body.length).toBeGreaterThan(0)
-    // Spot-check that the major sections we promise the agent are present.
-    expect(/Hard invariants/i.test(body)).toBe(true)
-    expect(/Precedence stack/i.test(body)).toBe(true)
-    expect(/Active-recall/i.test(body)).toBe(true)
-    expect(/Format principles/i.test(body)).toBe(true)
-    expect(/Affordance idioms/i.test(body)).toBe(true)
-    expect(/Agent-consumability rules/i.test(body)).toBe(true)
-    expect(/Post-compose audit/i.test(body)).toBe(true)
   })
 })

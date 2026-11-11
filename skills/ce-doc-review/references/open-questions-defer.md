@@ -1,8 +1,9 @@
 # Open Questions Deferral
 
-This reference defines the Defer action's in-doc append mechanic. When the user chooses Defer on a finding (from the walk-through or from the bulk-preview Append-to-Open-Questions path), append it to a visible `Deferred / Open Questions` section in the document's native format.
+This reference defines how a finding left open is recorded in the document, in a visible `Deferred / Open Questions` section in the document's native format, and when that record is removed. The record exists so that a later session reading only the document still sees what the review left for the author.
 
-Interactive mode only. Invoked by `references/walkthrough.md` (per-finding Defer option) and `references/bulk-preview.md` (routing option C Proceed).
+- **Interactive mode:** a finding is recorded when the user chooses Defer: from the walk-through, the walk-through's auto-resolve preview, or routing option A or C, through `references/walkthrough.md` (per-finding Defer, and routing options A and C) and `references/bulk-preview.md` (Defer entries in the walk-through's auto-resolve plan).
+- **Non-interactive mode:** after synthesis and before returning, record every proposed fix that was not applied and every decision left for the user, unless the request restricts edits to the document (read-only, report-only, or a narrower edit scope that excludes this section). Under such a restriction, record nothing and list the items as not recorded, with that reason, in the structured result. FYI observations are not recorded. The rest of this file applies, with the non-interactive differences stated where they occur.
 
 ---
 
@@ -12,8 +13,8 @@ Interactive mode only. Invoked by `references/walkthrough.md` (per-finding Defer
 
 Scan the document for an existing `Deferred / Open Questions` section, matching its visible heading text exactly. Preserve the document's native format and existing structure; never insert markdown syntax into HTML.
 
-- **Section present:** append inside it at its existing location. Do not create a duplicate at the end — the user positioned the section deliberately.
-- **Section absent:** create it near the end of the document, before any trailing footer. Use `## Deferred / Open Questions` in markdown and the document's existing section-and-heading pattern in HTML.
+- **Section present:** append inside it at its existing location. Do not create a duplicate at the end; the user positioned the section deliberately.
+- **Section absent:** create it near the end of the document, before any trailing footer. Use `## Deferred / Open Questions` in markdown and the document's existing section-and-heading pattern in HTML. Open it with one line saying its entries are review items left for the author and do not block implementation, so an executor does not mistake them for the plan's blocking Open Questions.
 
 ### Step 2: Locate or create the timestamped subsection
 
@@ -41,13 +42,13 @@ Fields come from the finding's schema:
 - `{title}` — the finding's title field
 - `{section}` — the finding's section field, unmodified (human-readable)
 - `{severity}` — P0 / P1 / P2 / P3
-- `{reviewer}` — the persona that produced the finding (after dedup, the persona with the highest confidence anchor; surface all co-flagging personas if multiple)
+- `{reviewer}` — the persona that produced the finding (after dedup, the persona with the highest confidence anchor; list every persona that flagged it if there were several)
 - `{confidence}` — the integer anchor (`50`, `75`, or `100`), emitted without a decimal point or percent sign
 - `{why_it_matters}` — the full why_it_matters text, preserving the framing guidance from the subagent template
 
-Do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section — the entry is a concern summary for the reader returning later, not a full decision packet.
+A proposed fix recorded in non-interactive mode adds one line after `{why_it_matters}`: `Change: <suggested_fix as intent language>`, because the change is what the next session would act on and no approval for it exists yet. Otherwise, do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section. The entry is a concern summary for the reader returning later, not a full decision record.
 
-**Render `{title}` and `{why_it_matters}` under the shared rendering floor** (`references/rendering-floor.md`). This entry is persisted for a later reader who no longer has the review's context, so apply the floor's opaque-token policy to all three classes — gloss navigation IDs at first mention, translate mechanism symbols (functions, files, line refs) to their role, drop non-decision provenance — and lead `{why_it_matters}` with the consequence. The floor's full decision-first field order does not apply: a deferred entry is a persisted concern, not an actionable finding, so it carries no Recommendation/Change/Basis. A deferred entry whose only description of a referenced item is a bare identifier of any class is not acceptable.
+**Render `{title}` and `{why_it_matters}` under the shared rendering floor** (`references/rendering-floor.md`). This entry is persisted for a later reader who no longer has the review's context, so apply the floor's opaque-token policy to all three classes (gloss navigation IDs at first mention, translate mechanism symbols such as functions, files, and line refs to their role, drop provenance that does not affect the decision) and lead `{why_it_matters}` with the consequence. The floor's full decision-first field order does not apply: a deferred entry is a persisted concern, not an actionable finding, so it carries no Recommendation/Change/Basis. A deferred entry whose only description of a referenced item is a bare identifier of any class is not acceptable.
 
 ### Step 4: Idempotence on compound-key collisions
 
@@ -56,30 +57,30 @@ If an entry with the same compound key already exists under the same visible `Fr
 - The same review session re-routes the same finding to Defer a second time (rare but possible via best-judgment-the-rest after a walk-through Defer)
 - The orchestrator retries after a partial failure
 
-**Compound key for dedup:** `normalize(section) + normalize(title) + why_fingerprint`, computed on both sides from the **rendered entry text that will actually be written** (after Step 3's floor rendering) — not the raw schema fields. Keying on the rendered text is what keeps new-entry keys aligned with parsed existing-entry keys now that the floor rewrites `{title}` and leads `{why_it_matters}` with a paraphrased consequence: an existing persisted entry retains only its rendered bullet, so a new entry must be keyed from the same rendered form it is about to write. Within a session the same finding renders identically against the same document, so a retry or a second Defer recomputes the same key and collides. All three parts reconstruct from the visible entry, so no hidden metadata is needed:
+**Compound key for dedup:** `normalize(section) + normalize(title) + why_fingerprint`, computed on both sides from the **rendered entry text that will actually be written** (after Step 3's floor rendering), not the raw schema fields. Keying on the rendered text keeps new-entry keys aligned with parsed existing-entry keys, because the floor rewrites `{title}` and leads `{why_it_matters}` with a paraphrased consequence. An existing persisted entry retains only its rendered bullet, so a new entry must be keyed from the same rendered form it is about to write. Within a session the same finding renders identically against the same document, so a retry or a second Defer recomputes the same key and collides. All three parts reconstruct from the visible entry, so no hidden metadata is needed:
 
 - `normalize(section)` and `normalize(title)` use the same normalization as synthesis step 3.3 dedup (lowercase, strip punctuation, collapse whitespace). For a new finding, render the entry per Step 3 first, then normalize the rendered `{title}` (the bold leader) and `{section}`; for an existing entry, parse the same fields out of the rendered bullet. (`{section}` renders unmodified, so it matches either way; `{title}` may be glossed, which is exactly why the new-finding side must normalize the rendered title, not the schema title.)
-- `why_fingerprint` is the first ~120 characters of the entry's **rendered** `{why_it_matters}` prose — the consequence-first text actually written — word-boundary-preserving, with any run of whitespace collapsed to a single space. Because both sides use the rendered prose, the same fingerprint recomputes from the visible bullet on any retry or reread. When why_it_matters is empty, fall back to `normalize(section) + normalize(title)` alone.
+- `why_fingerprint` is the first ~120 characters of the entry's **rendered** `{why_it_matters}` prose (the consequence-first text actually written), cut on a word boundary, with any run of whitespace collapsed to a single space. Because both sides use the rendered prose, the same fingerprint recomputes from the visible bullet on any retry or reread. When why_it_matters is empty, fall back to `normalize(section) + normalize(title)` alone.
 
-Title-only dedup is not sufficient: two different findings in the same document (even on the same review date) can legitimately share a short title if their sections or rationale differ. Using only `{title}` would silently drop one — losing user-visible backlog context. Matching on section and the why-fingerprint keeps distinct findings distinct, and stays close to the R29/R30 matching predicate (`section + title + evidence-substring overlap`) so cross-round and intra-round dedup behave consistently.
+Title-only dedup is not sufficient: two different findings in the same document (even on the same review date) can legitimately share a short title if their sections or rationale differ. Using only `{title}` would silently drop one and lose user-visible backlog context. Matching on section and the why-fingerprint keeps distinct findings distinct, and stays close to the R29/R30 matching test (`section + title + evidence-substring overlap`) so cross-round and intra-round dedup behave consistently.
 
-**Pre-existing entries with a `dedup-key` HTML comment:** entries written by the prior format carry a trailing `<!-- dedup-key: ... -->` comment. Ignore it for matching — the visible-text key above is authoritative — and strip the comment if the entry is otherwise edited. Do not write new ones.
+**Pre-existing entries with a `dedup-key` HTML comment:** entries written by the prior format carry a trailing `<!-- dedup-key: ... -->` comment. Ignore it for matching (the visible-text key above is authoritative) and strip the comment if the entry is otherwise edited. Do not write new ones.
 
-On collision, record the no-op in the completion report's Coverage section so the user sees the duplicate was suppressed. Cross-subsection collisions (same compound key, different dates) are not deduplicated — each review is allowed to re-raise the same concern.
+On collision, record the no-op in the completion report so the user sees the duplicate was suppressed. Cross-subsection collisions (same compound key, different dates) are not deduplicated — each review is allowed to re-raise the same concern.
 
 ---
 
 ## Concurrent edit safety
 
-Document edits happen via the platform's edit tool (Edit in Claude Code, or equivalent). Before every append, re-read the document from disk to reduce the window for user-in-editor concurrent-write collisions. If the document's mtime or content has changed unexpectedly between a prior read and the append attempt, abort the append and surface the situation via the failure path below. The user may be editing in their editor during the review session and simultaneous writes would corrupt the document.
+Document edits happen via the platform's edit tool (Edit in Claude Code, or equivalent). Before every append, re-read the document from disk to reduce the window for user-in-editor concurrent-write collisions. If the document's mtime or content has changed unexpectedly between a prior read and the append attempt, abort the append and report the situation via the failure path below. The user may be editing in their editor during the review session and simultaneous writes would corrupt the document.
 
-The orchestrator only holds the most recent read in memory, not a persistent lock — interactive review doesn't need lock coordination; it needs observation-before-write.
+The orchestrator only holds the most recent read in memory, not a persistent lock. Interactive review does not need lock coordination; it needs a fresh read before each write.
 
 ---
 
 ## Failure path
 
-When the append cannot complete — document is read-only on disk, path is invalid, the platform's edit tool returns an error, concurrent-edit collision detected, or any other write failure — surface the failure inline to the user via the platform's blocking question tool with the following sub-question:
+In non-interactive mode, an append that cannot complete records nothing more and asks nothing; the structured result says which items were not recorded in the document and why. In interactive mode, when the append cannot complete (the document is read-only on disk, the path is invalid, the platform's edit tool returns an error, a concurrent-edit collision is detected, or any other write failure), report the failure to the user right away via the platform's blocking question tool with the following sub-question:
 
 **Stem:** `Couldn't append the finding to Open Questions. What should the agent do?`
 
@@ -101,11 +102,17 @@ Silent failure is not acceptable. If the user does not respond to the sub-questi
 
 ---
 
+## Removing resolved entries
+
+This is the removal rule. A recorded entry stays only while its item is open. When anyone applies or dismisses a recorded item, they remove its entry. That can be a later review pass, the skill that called this review, or a session that settles the item in code. Find the entry by its Step 4 compound key. If its `From YYYY-MM-DD review` subsection is then empty, remove it, and if the section is then empty, remove that too. An entry left behind for a settled item tells every later reader the item is still open.
+
+---
+
 ## Upstream availability signal
 
 The walk-through and bulk-preview check append-availability before offering Defer as an option. When the document is known-unwritable (e.g., initial read shows it's on a read-only filesystem), the orchestrator caches an `append_available: false` signal at Phase 4 start and Defer is suppressed in the walk-through menu and in the routing question's option C. See `references/walkthrough.md` under "Adaptations" for the menu behavior and `references/bulk-preview.md` under "Edge cases" for the preview behavior.
 
-When append-availability is true at Phase 4 start but an individual append fails mid-flow, the failure path above handles the specific finding — this does not flip the session-level cached signal (other findings may still append successfully if the failure was transient).
+When append-availability is true at Phase 4 start but an individual append fails mid-flow, the failure path above handles that specific finding. This does not flip the session-level cached signal; other findings may still append successfully if the failure was transient.
 
 ---
 

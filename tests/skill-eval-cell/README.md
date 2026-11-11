@@ -15,23 +15,63 @@ bun run test:skill-eval-cell -- \
   --task "mode:pipeline the seat cap test is failing. Run node tests/seat-cap.check.js."
 ```
 
+`--fixture` copies the directory into the cell workspace. Test files under `fixtures/` belong to those workspaces, so the repo-root `bunfig.toml` excludes them from the repository suite.
+
 `--git-remote` (catalog: `git_remote: true`) adds a fake `origin` whose `main` is the seed commit, so a shipping tail takes the push/PR path — where `--shim-git-push` then fails — instead of the local-commit path it takes when no remote exists.
+
+`--handoff-probe <name,…>` (catalog: `handoff_probe`) replaces each named companion skill with a stand-in whose only instruction is to run `ce-eval-handoff <name> "<arguments>"`. That recorder appends `handoff <name> …` to the shim log, so `shim_log_must` / `shim_log_must_not` grade whether the handoff actually ran rather than whether the run said it would. The recorder needs a shell, so it cannot combine with `--read-only`.
 
 `--read-only` enforces the fake boundary, it does not merely suggest it: Codex drops `--dangerously-bypass-approvals-and-sandbox` and runs `--sandbox read-only` (the two contradict each other), and Claude pairs `--allowedTools Read,Glob,Grep` with a `--disallowedTools` list that also names `Task,Skill,WebFetch,WebSearch,NotebookEdit` — under `--dangerously-skip-permissions` those stay callable, so allow-listing alone leaves the boundary open.
 
-Prints a `summary.json` path. Each host gets its own workspace copy plus stdout/stderr, git status/log, and a file list. PATH shims live beside that workspace, never inside it, so the skill under test never sees harness files as its own dirty tree. Grade those; Grok narrates before the answer (grep `FILES_READ:`). Codex transcript is stderr, final message is stdout. `claude -p` is one-tick only.
+Prints a `summary.json` path. Each host gets its own workspace copy plus stdout/stderr, git status/log, and a file list. PATH shims live beside that workspace, never inside it, so the skill under test never sees harness files as its own dirty tree. Grade those; Grok narrates before the answer (grep `FILES_READ:`). Codex transcript is stderr, final message is stdout. A conversation cell (`--persona`) differs: Codex runs with `--json`, `stdout.txt` is the conversation with every agent message of each turn, and the event stream, tool calls included, lands in `stderr.txt`. `claude -p` is one-tick only.
+
+Each invocation requires a new or empty `--out` directory and records input and
+evidence fingerprints. Packs freeze their scenario criteria and grader hashes.
+Regrading applies current criteria by default; `--mode original` reproduces the
+recorded assessment. Both write separate reports and preserve original grades.
+See [reproducible evaluation evidence](reproducibility.md) for regrading commands,
+partial collection outcomes, legacy-pack compatibility, and snapshot limits.
 
 Gotchas baked in (see `docs/solutions/skill-design/size-driven-skill-restructure.md`): Codex stdin `/dev/null`, `CLAUDECODE` unset, `NO_COLOR=1`.
+
+Claude and Codex cells do not load the operator's own instructions or skills, so a result does not depend on who ran it. The cell's workspace instructions still load.
+
+- Claude runs with `--setting-sources project,local`, which skips `~/.claude/CLAUDE.md`, rules, skills, agents, commands, and `settings.json` (with its plugins and hooks). It also sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.
+- Codex runs on a private `CODEX_HOME` at `<out>/user-config/codex/codex-home`. It has no `AGENTS.md` and no operator `config.toml`, so the operator's plugins, MCP servers, and custom provider do not load, and Codex uses its default model and provider. `auth.json` and `auth.lock` are symlinks to the operator's own files: a token refresh writes through the link, and nothing secret is copied into the run. Codex also reads `~/.agents/skills` from the real `HOME`, so the private `config.toml` disables each `SKILL.md` there by path. HOME itself is not overridden, because git identity and `gh` login depend on it.
+- Grok and OpenCode cells still load user-level configuration.
+
+Results recorded before this isolation was added ran with the operator's instructions loaded. Pack collectors read Codex rollouts from the private home, and fall back to `~/.codex/sessions` for older runs.
+
+## Judged conversation evals
+
+`bun run test:skill-eval-judge` evaluates behavior only a model can grade, such as whether an interview skill surfaces what the user needs without building what nobody asked for. For each scenario it runs the skill at the scenario's base ref and at the working tree, on Claude and Codex, as a conversation (`run.ts --persona`: each turn resumes the host session and a separate tool-less simulated user answers from a persona). It then grades every transcript blind under an anonymous id, with cell paths redacted, using the scenario's rubric, and writes `report.md` and `report.json` with totals per host and arm.
+
+```bash
+bun run test:skill-eval-judge -- --scenario my-change.json --out /tmp/judge    # scenarios written for the change
+bun run test:skill-eval-judge -- --id ce-brainstorm/ --out /tmp/judge          # the starting library
+bun run test:skill-eval-judge -- --grade-only --out /tmp/judge                 # regrade existing cells
+```
+
+Scenarios are best written for the change under test; `judged/scenarios.ts` documents the fields and holds a starting library, with personas and rubrics under `judged/` and fixtures under `fixtures/judged-*`. A rubric must ask for one JSON object with a `metrics` map. Results are PR evidence, not a regrade-stable pack: grades come from a model, so deterministic checks stay in `catalog.ts`. Not part of `bun test` or CI; it bills the host CLIs.
+
+## History replays
+
+`replay/` freezes a real repository at a past commit and grades a skill against what happened next: the bugs reviewers actually caught for `ce-code-review`, or the standards file the team actually wrote for `ce-setup`'s review-docs drafts. See [replay/README.md](replay/README.md).
+
+## Hand-run eval packs
+
+`packs/` holds the evaluator-owned behavioral eval specs for the cross-model paths of `ce-work`, `ce-code-review`, and `ce-doc-review`. They live here, not under `skills/`, so they are absent from everything that copies a skill directory as a unit: the converter's output for other harnesses, and the skill this driver extracts for a cell. A Claude marketplace install is different: its plugin root is the whole repository, so `tests/` is present there. Run a pack's scenarios against an extracted skill (this driver), never against a repo-root plugin load, and never inject a pack into the agent under test.
 
 ## Sweep A/B pack
 
 Cases live in `catalog.ts`, authored from the skill bodies **before** the 8KB merges (`PRE_SWEEP_REF` = parent of #1433). The same prompt runs against that ref, then against the **working tree** (`POST_SWEEP_REF` = the `WORKTREE` sentinel, the default `--ref`). `git archive` only ever sees committed content, so the post arm copies `skills/<name>` off disk — that is what lets you grade a skill edit before committing it. Pass a real git ref to `--ref` for a committed arm. See `scenarios.md` for the inventory.
 
 ```bash
+bun run test:skill-eval-pack -- --help
 bun run test:skill-eval-pack -- --list
 bun run test:skill-eval-pack -- --wave1 --arm ab
 bun run test:skill-eval-pack -- --id ce-babysit-pr/refuse-unasked-update --arm ab
 bun run test:skill-eval-pack -- --id lfg/plan-first --arm ab
 ```
 
-`--arm ab` is pre+post for every catalog skill (the 8KB sweep is fully merged). `--wave1` is the cheap read-only decision set, not every scenario. Live mutation and oracle dispatch are separate ids. The pack exits non-zero when any arm failed, after writing `pack.json`, so it can be used as a check. `ok` is the only verdict: a listed `files_read_post` miss fails the cell; unlisted references are not graded. Not in default `bun test`.
+A run needs a selector (`--id`, `--skill`, `--cohort`, `--wave1`); the whole catalog needs `--all`, and an unknown flag is refused, because every cell is a billed host CLI run. `--arm ab` is pre+post for every catalog skill (the 8KB sweep is fully merged). `--wave1` is the cheap read-only decision set, not every scenario. Live mutation and oracle dispatch are separate ids. The pack exits non-zero when any arm failed, after writing `pack.json`, so it can be used as a check. `ok` is the only verdict: a listed `files_read_post` miss fails the cell; unlisted references are not graded. Not in default `bun test`.

@@ -25,7 +25,7 @@ const installScript = path.join(
   "install-skills.sh",
 )
 
-const manualSkill = "ce-setup"
+const manualSkill = "ce-dogfood"
 const invocableSkill = "ce-plan"
 
 type RunResult = {

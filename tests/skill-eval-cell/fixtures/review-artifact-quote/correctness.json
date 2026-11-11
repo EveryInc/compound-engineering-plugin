@@ -1,0 +1,22 @@
+{
+  "reviewer": "correctness",
+  "findings": [
+    {
+      "title": "Stale state returned",
+      "severity": "P1",
+      "file": "src/state.ts",
+      "line": 8,
+      "confidence": 75,
+      "autofix_class": "manual",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "why_it_matters": "The caller receives the prior state instead of the computed update.",
+      "evidence": [
+        "src/state.ts:8 -- return priorState"
+      ]
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}

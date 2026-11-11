@@ -11,7 +11,7 @@ Three rules are each written into three separate personas in near-identical pros
 |---|---|
 | Stand-in guard fidelity | `correctness:10`, `reliability:12`, `adversarial:64` |
 | Sentinel reuse | `correctness:9`, `api-contract:11`, `testing:9` |
-| React effect lifecycle | `correctness:13`, `julik-frontend-races:8`, `testing:7` |
+| React effect lifecycle | `correctness:13`, `frontend-races:8` (was `julik-frontend-races`), `testing:7` |
 
 The corroborating tell: `adversarial-reviewer.md:80-91` is eight bullets naming other personas to disclaim territory, then defines its own scope as "the space between these reviewers."
 
@@ -66,11 +66,27 @@ Splitting standards into two dispatches under one report section preserves the d
 | deployment-verification | Stage 6 checklist template, fired by `migration_check: applicable` |
 | previous-comments | fold -> `spec`; thread fetch moves to §5 |
 | adversarial | cross-model mechanism only; in-process persona deleted |
-| julik-frontend-races | delete -> standards example |
-| swift-ios | delete -> standards example (honest residue: a narrow Core Data / concurrency pack, not zero) |
-| agent-native | delete -> standards example |
+| julik-frontend-races | **kept**, renamed `frontend-races`, selected for async UI in any framework (see §3.2) |
+| swift-ios | **deleted** (§3.3): `correctness` alone caught every planted Swift defect |
+| agent-native | **kept**, selection narrowed to agent tool surfaces (§3.2); prompt restated as a goal on the structured findings contract (§3.3) |
 | learnings-researcher | recategorize -> §5 evidence, not a findings producer |
 | *(none today)* | **new: `spec`** |
+
+### 3.2 Usage review of julik-frontend-races and agent-native (2026-11-08)
+
+Real review runs replaced the deletions above for these two. Claude transcripts covered 2026-10-05 to 2026-11-07 (56 full review rounds); Codex covered June to November.
+
+- **julik-frontend-races** ran in 6 of 56 rounds, never on Stimulus/Turbo code: every run was React, Next.js, or a plain DOM script. In 3 of the 6 it found a real UI race that no other reviewer raised (a bypassed confirmation, a select that snapped back, out-of-order poll responses), and each was fixed. `correctness` carried the same `useEffect` checklist in those runs and missed all three. The persona was never a Rails procedure; its defect was the name and a Stimulus-first trigger. Ablation 2 still decides any fold into `correctness`.
+- **agent-native** ran 25 times. 12 returns were empty or observations only, one item became a ranked finding (shared with `api-contract`), and every Codex run in the window returned PASS. Its gaps paid off where the product has an MCP/API parity program (last30days PR #462 added agent-facing fields from them). On skill-prose diffs in this repo, where the path signal selected it, it had nothing to map.
+
+### 3.3 Fold ablation (2026-11-08)
+
+Each case ran three arms on Claude and Codex, two trials each, graded blind by a separate model: `correctness` alone, the specialist alone, and `correctness` with the specialist's hunting list appended. On Claude, `correctness` ran on the session model and specialists on the mid-tier model, as in real dispatch; on Codex every arm ran the same model.
+
+- **frontend-races stays a separate dispatch.** Three real races from the §3.2 runs, rebuilt from the diffs the original reviewers saw (the fixtures stay local because their source repos are private), plus a clean control. Detection: `correctness` 8/12, specialist 11/12, fold 7/12; control false positives 0 / 0 / 1. Appending the checklist to `correctness` added nothing; the gain comes from a reviewer dedicated to the lens. The gap was on Claude, where `correctness` twice saw a race but filed it as a residual risk. Ablation 2 is answered for frontend races: no fold.
+- **swift-ios is deleted.** No real iOS review exists on this machine, so six synthetic cases were used: two textbook bugs, three iOS-specific ones (a non-optional Core Data attribute with no migration, a Release-only `.pbxproj` switch that disables strict concurrency, actor reentrancy), and a clean control. Every arm caught every planted defect (4/4 each); `correctness` named the build-setting change itself 3/4 times, the specialist 2/4. The cases fit in one file, which is this result's main limit.
+- **agent-native's prompt over-specified.** It scripted a six-step audit, a capability-map table, and a PASS/NEEDS WORK score, and returned prose outside the findings schema, so its gaps skipped validation and only 1 of 25 dispatches produced a ranked finding. It now states the goal and returns the standard findings JSON.
+- **agent-native stays a separate dispatch.** Synthetic MCP-product cases, same three arms. With the parity goal stated in the README (a UI action with no tool, a new field the prompt never mentions), all arms caught both gaps 4/4, so those cases could not discriminate. With no stated parity goal (a delete that became recoverable while the tool still says "permanent", a tool that reports success on a refused rename, workspace scoping applied to the UI but not to the tools or prompt) plus a clean control: detection `correctness` 9/12, specialist 12/12, fold 12/12; false positives 8 / 0 / 9. Appending the checklist recovers detection but keeps `correctness`'s noise; the dedicated reviewer was the only arm that was both complete and quiet, and the only one that named both halves of the trash gap every time.
 
 ## 4. Output obligations
 
@@ -171,7 +187,7 @@ Mechanical contracts via `bun run test`. Behavior via `bun run test:skill-eval-p
 **Ablation is the proof standard.** Reversed real defects plus clean controls, measuring marginal detection, false-positive noise, latency, and cost — never whether 6 dispatches reproduce 16 personas' raw finding count.
 
 1. **Obligation vs persona.** Reversed migration and contract defects, obligations vs today's gated personas. On diffs where the concern *is* applicable, measure the `not_applicable` rate, **applicable-with-empty-findings**, and **justification accuracy**, rejecting tautological justifications mechanically. Field presence proves a schema was satisfied, not that work happened — this is the plan's single biggest risk.
-2. **Correctness absorption.** Reversed reliability, performance, and frontend-race defects, merged vs separate.
+2. **Correctness absorption.** Reversed reliability, performance, and frontend-race defects, merged vs separate. Frontend races answered in §3.3 (keep separate); reliability and performance still open.
 3. **Standards split.** Two dispatches vs one, on a diff carrying both a rule violation and an uncodified structural regression — the starvation case.
 4. **Format agnosticism.** Three differently-shaped `CODING_STANDARDS.md` files (prose, bullets, table) carrying the same rules; citation quality must not vary by shape.
 
@@ -182,7 +198,7 @@ A fold that misses a decision-relevant defect the 16-persona roster caught is fa
 1. `CODING_STANDARDS.md` discovery + precedence + format-agnostic reading (§6.1, §6.2); update `AGENTS.md:158`.
 2. Amend `subagent-template.md:136`; remove `:169` (§6.6).
 3. `standards-cited` + `standards-structural`; un-gate the floor; add the 2 missing smells and the 2 testing rules. Behind ablation 3.
-4. Delete julik / swift / agent-native; ship as standards examples.
+4. ~~Delete swift~~ done (§3.3). julik and agent-native were re-scoped instead (§3.2, §3.3).
 5. Criteria-change disclosure (§6.3).
 6. `spec` axis; §5 evidence layer; fold `previous-comments`.
 7. `correctness` absorption and the §4 obligations **last**, behind ablations 1 and 2 — the only step that can lose a finding.

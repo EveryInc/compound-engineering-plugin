@@ -40,17 +40,17 @@ describe("ce-brainstorm ask-only-decisions", () => {
     expect(SKILL_BODY).toContain("references/interaction-rules.md")
     expect(SKILL_BODY).toContain("ask only decisions the environment cannot settle")
 
-    expect(rules).toContain("Ask only decisions")
+    expect(rules).toContain("Ask only for user decisions")
     expect(
-      /is not put to the user/i.test(rules),
+      /Look up answers available in the repository/i.test(rules),
       "Rule 8 must forbid putting an environment-answerable question to the user.",
     ).toBe(true)
     expect(
-      /Look it up/i.test(rules),
+      /Look up answers/i.test(rules),
       "Rule 8 must send environment-answerable questions to lookup, not to the user.",
     ).toBe(true)
     expect(
-      /does not stall questions that do not depend/i.test(rules),
+      /does not delay unrelated questions/i.test(rules),
       "A running lookup must not stall independent questions.",
     ).toBe(true)
     expect(PHASE_0).toContain("asking only decisions the environment cannot settle")

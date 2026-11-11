@@ -12,7 +12,13 @@ It is not a verdict on a document (`ce-pov`), not findings on a planning doc (`c
 
 `ce-work` invokes it as the portable review path before shipping. `ce-optimize` and `ce-debug` also call it on the diffs they produce. You can invoke it directly any time.
 
+The agent leading the review checks each finding against the code. It keeps findings that identify a real problem or make maintenance easier enough to justify the change. Agreement between reviewers does not make a minor issue important. Rejected suggestions do not reappear as risks or requests for more tests. Advisory observations need a demonstrated benefit too; uncertainty by itself does not justify passing a concern to the user.
+
+Collected review agents and validators are released before the next batch or handoff when the harness provides caller-owned cleanup. When it does not, the review reports retained-capacity limitations without claiming that completion freed a slot.
+
 ---
+
+If the repo declares [Compound Packs](./packs.md) in its `packs` config, the institutional-learnings pass also searches the resolved pack roots, and a diff that violates a matching pack rule is flagged with a `(pack: <id>, <path within the pack>)` citation. That pass runs on the full spine. A diff the depth gate sends down the lite or focused path is checked in context against the pack rules whose `applies_when` fits it, and its receipt names the rule files matched.
 
 ## TL;DR
 
@@ -21,7 +27,7 @@ It is not a verdict on a document (`ce-pov`), not findings on a planning doc (`c
 | What does it do? | Selects reviewer personas from the diff, dispatches them, merges findings into one report with confidence gating |
 | When to use it | Before opening a PR, after a large or sensitive change, or when the harness has no built-in `/review` |
 | What it produces | A structured findings report. With explicit local-apply authority it can also apply verified fixes and add an Applied section. It never pushes |
-| How to customize it | Write rules in `CODING_STANDARDS.md`. The review discovers the file and enforces what it says |
+| How to customize it | Write rules in `CODING_STANDARDS.md`, and review behavior (severity, skips, caps) in `REVIEW.md`. The review discovers both |
 | Modes | Markdown report (default) and `mode:agent` JSON handoff. Both are report-only unless local apply is separately authorized |
 
 ---
@@ -53,7 +59,7 @@ It is not a verdict on a document (`ce-pov`), not findings on a planning doc (`c
 /ce-code-review apply:local
 /ce-code-review review this branch and fix eligible findings locally
 
-# Force the full reviewer roster (skip the small-diff lite path)
+# Force the full reviewer roster (skip the lite and focused paths)
 /ce-code-review depth:full
 
 # Flat report, no thematic groups
@@ -81,20 +87,22 @@ A small low-risk change runs correctness (and project-standards if applicable fi
 
 - **Always-on:** `correctness-reviewer`
 - **Standards:** `project-standards-reviewer` only when at least one criteria file governs a changed file (see [Repo-owned review criteria](#repo-owned-review-criteria))
-- **Generic conditional:** testing for changed tests/harnesses or meaningful runtime behavior with no corresponding test work; maintainability for large or structural work; agent-native for agent-facing files; learnings only when an existing `docs/solutions/` corpus has plausible matches
+- **Generic conditional:** testing for changed tests/harnesses or meaningful runtime behavior with no corresponding test work; maintainability for large or structural work; agent-native for agent tool surfaces such as MCP tools, or user-facing capabilities in a product that has one (skill prose edits alone do not select it); learnings when an existing `docs/solutions/` corpus has plausible matches or the repo declares Compound Packs (local scope)
 - **Cross-cutting conditional:** security, performance, API contract, data migrations, reliability, adversarial, previous-comments. Each selected only when the diff touches its concern
-- **Stack-specific:** Julik frontend races, Swift/iOS. Only when the matching runtime domain is touched
+- **Stack-specific:** frontend races (any browser UI framework). Only when the matching runtime domain is touched
 - **CE conditional:** `deployment-verification-agent` for risky migration diffs. Schema drift and migration safety live on the `data-migration` persona
 
-Selection is agent judgment, not keyword matching. Instruction-prose files (Markdown skills, JSON schemas) are product code but skip runtime-focused reviewers. The exception is a silent-pass verification mechanism (a CI/CD gate, build/deploy step, coverage/lint gate, or test harness/mock that could mask production): even as a small config diff it gets the adversarial lens, because its risk is going green while the real thing is red, not blast radius.
+Selection is agent judgment, not keyword matching. Adversarial review runs when explicitly requested or when changed behavior creates an evidenced risk of unauthorized access or disclosure, financial loss, persistent data corruption or loss, irreversible external effects, or substantial service disruption. A verification mechanism qualifies when false success could conceal such a failure. Diff size, CI paths, routine API or persistence use, and uncertainty alone do not select it. The rule applies to executable code and to instructions or configuration that govern that behavior.
 
 When you pass a PR number or URL, trivial automated PRs (lockfile bumps, chore version increments) are skipped. Draft PRs are reviewed normally.
 
-`depth:auto` (the default) collapses a 1-39-line, low-risk, code-only diff to a lite roster. `depth:full` disables that path so the full always-on roster runs regardless of size. Neither token invents irrelevant domains.
+Every run also leaves a stage log and a `cost` block in its run directory's `metadata.json`: elapsed time per stage, reviewer and candidate counts, artifact bytes, the helper's line facts and chosen depth, and token counts where the harness exposed them, with a `status` that says whether the run completed. That is the data the size floors are tuned from; a partial run is labeled as one.
+
+`depth:auto` (the default) lets the skill self-size by consequence. When no full-review floor applies, changes that do not warrant adversarial review take the lite path in the review context. Those that warrant it take focused: the same review plus one independent adversarial read, normally a cross-model peer or a local fallback, merged without the multi-agent finish. Auth, money, and externally consumed public-contract boundaries need the full spine's specialist coverage. The full spine also runs for migrations, files the helper cannot count, executable non-test changes of 200 lines or more, and explicit apply authority. Full depth does not automatically select adversarial. CI paths and large deletions are inspection cues, not depth floors. Lite and focused still check repo-owned criteria and declared Compound Packs in context. `depth:full` disables the cheaper paths without selecting irrelevant reviewers. An explicit request for adversarial review requires at least focused.
 
 ## Repo-owned review criteria
 
-Everything else the skill checks is what we ship. This is the part you own.
+Everything else the skill checks ships with the plugin. This is the part you own.
 
 Put a `CODING_STANDARDS.md` in your repository, write the rules your team actually cares about, and the review enforces them. A finding from that file cites the rule it broke, so it arrives as "this violates the rule you wrote" rather than someone's taste.
 
@@ -110,19 +118,49 @@ Four things worth knowing:
 - **Placement scopes it.** A file at the repo root governs the whole checkout. One at `skills/CODING_STANDARDS.md` governs only what is under `skills/`. Several can apply to the same file at once.
 - **Any format works.** Prose, bullets, tables, nested headings, with or without frontmatter. The content is the contract. A paragraph of plain English is a valid rules file.
 - **It replaces the instruction file as criteria, per changed file.** `CLAUDE.md` and `AGENTS.md` remain the criteria for any changed file that no `CODING_STANDARDS.md` governs, so a repo that has never written one keeps the review it already had. No file is ever graded against both kinds, and the report names the fallback in Coverage when it supplies the criteria.
-- **It can grow.** An instruction file is loaded into every agent's context on every turn, so it stays short and rules get cut for space. A criteria file is read once, by one reviewer, at review time. That is the reason to keep enforceable rules here rather than in `AGENTS.md`: this file has room, and adding to it costs nothing until review runs.
+- **It can grow.** An instruction file is loaded into every agent's context on every turn, so it stays short and rules get cut for space. A criteria file is read once, by one reviewer, at review time. That is the reason to keep enforceable rules here rather than in `AGENTS.md`. This file has room, and adding to it costs nothing until review runs.
 
 That last point is what makes review strictness compound. Notice a mistake worth preventing, write the rule down, and every review after that catches it.
 
+## Repo-owned review policy
+
+`CODING_STANDARDS.md` says what correct code looks like. A `REVIEW.md` says how review behaves in your repository: what each severity means, which paths or kinds of finding to skip, a cap on minor findings, the evidence a kind of finding needs, and checks to run on every change. It is the same file [Claude Code Review](https://code.claude.com/docs/en/code-review-customize) reads, so one file tunes both.
+
+```markdown
+# Review instructions
+
+- Style and naming findings are Nit at most.
+- Do not report anything under `src/gen/`; it is generated.
+- Behavior claims need a `file:line` citation, not an inference from a name.
+```
+
+How it applies:
+
+- **Every reviewer gets it.** The policy goes to each reviewer persona, the cross-model peer, and the merge step, because a rule like "skip generated files" bears on every lens. It adds to the criteria files and never replaces them.
+- **It is read from the base, not from the change.** A pull request that adds "don't flag X" to `REVIEW.md` is still reviewed under the old policy, and Coverage says the new version was not applied. Merge policy changes first.
+- **Removals are counted.** Coverage gives how many findings the policy removed or regraded, by rule, so a quiet review never looks cleaner than it was.
+- **Placement and includes.** A subdirectory `REVIEW.md` adds to the root file for its own paths. In the root file, a line holding only `@<file>` includes that file. An `@CODING_STANDARDS.md` line lets Claude Code Review see your standards, and this review does not read the file twice.
+- **Severity names translate.** A policy written for Claude Code Review uses Important and Nit. This review reads Important as P0 or P1, and Nit as P3.
+
+## Which model the reviewers run on
+
+In Codex, every subagent the review spawns runs on `gpt-6.1-terra` at high reasoning effort. That covers the reviewers, the trivial-PR check, the merge and report leaves, and the validator. On other hosts each reviewer keeps its own tier: in Claude Code, `correctness`, `security`, and `adversarial` run on the session model and the rest on the Sonnet class. The orchestrator always stays on the session model. `review_subagents` in CE config sets the model and effort per harness, and a model you name in conversation or project instructions wins over both. If the host refuses the model, that subagent runs once more on the session model and Coverage names the refused model. See the [configuration reference](./configuration.md).
+
 ## Cross-model adversarial pass
 
-When adversarial is selected and the working tree is the reviewed head (current branch, or a PR whose local tree already matches the PR head), the adversarial lens runs through one model provider different from the host, in a separate read-only process. A started peer replaces the in-process `adversarial` persona; they never both receive the same brief. The in-process persona runs if the peer cannot start, or if the started peer returns only session-quota or auth-context failure. In that case the next announced different-family peer is tried when one is eligible, otherwise the local persona covers the lens. An exact provider-overload 529 gets one same-route retry; repeated overload, another stubborn transient rate limit, or max-turn exhaustion falls back locally without an unbounded retry loop. Remote PR or branch diffs stay on the in-process persona, because that reviewer can inspect the fetched refs.
+When adversarial is selected and the working tree is the reviewed head (current branch, or a PR whose local tree already matches the PR head), the adversarial lens runs through one model provider different from the host, in a separate read-only process. A started peer replaces the in-process `adversarial` persona; they never both receive the same brief. The in-process persona runs if the peer cannot start, or if the started peer never reviewed the diff, for example because of a session quota, an auth-context failure, or a CLI that rejects an option its installed version lacks. In that case the next announced different-family peer is tried when one is eligible, otherwise the local persona covers the lens. When the provider refuses the peer's default model for your account (for example, a Codex model a ChatGPT login cannot use), the review retries once on the same route with the closest model of the same family, picked from the models the adapter offered, and Coverage names the rejected model so you can pin a working one with `cross_model_model`. A model you configured or named is never swapped. A provider overload (HTTP 529) that the peer's adapter reports gets one same-route retry (today only the Claude adapter reports one); repeated overload, another stubborn transient rate limit, or max-turn exhaustion falls back locally without an unbounded retry loop. Remote PR or branch diffs stay on the in-process persona, because that reviewer can inspect the fetched refs.
 
 Agreement between the peer and another in-process reviewer is a strong promotion signal in synthesis.
 
-`cross_model_review_mode: off` in CE config keeps this pass from running at all. No peer is resolved and nothing leaves the host; the in-process reviewers cover the lens and Coverage says the pass was disabled by checkout config. A direct request in conversation for a peer overrides it for one run. The peer target is auto-chosen and overridable, in priority order: conversation, `cross_model_peer:` in CE config, active project instructions, then `codex → claude → grok → composer`. `Cursor` means `cursor-agent` using its configured default/Auto model. `Composer` means a Composer model through Cursor. `Grok` binds the native grok CLI when it is installed; Grok through Cursor is a different route, used when asked or when the grok CLI is missing and Cursor is allowed. Cursor Auto does not count as independent agreement unless its serving family is verified different from the host. `cross_model_model:` and `cross_model_effort:` in CE config pin that target's model (e.g. `fable` for claude or `gpt-5.6-sol` for codex, or a namespace-qualified codex id such as `openai.gpt-5.6-sol` when that CLI routes through a non-default `model_provider`) and reasoning effort; a value the peer cannot honor skips the pass with a stated reason rather than substituting. See the [configuration reference](./configuration.md).
+`cross_model_review_mode: off` in CE config keeps this pass from running at all. No peer is resolved and nothing leaves the host; the in-process reviewers cover the lens and Coverage says the pass was disabled by checkout config. A direct request in conversation for a peer overrides it for one run. The peer target is auto-chosen and overridable, in priority order: conversation, `cross_model_peer:` in CE config, active project instructions, then `codex → claude → grok → antigravity`. `Cursor` means `cursor-agent` using its configured default/Auto model. `Composer` means a Composer model through Cursor. Neither is picked automatically; each runs only when you name it in conversation, config, or project instructions. `Antigravity` means a Gemini model through Google's Antigravity, and asking for a Gemini peer selects it. `Grok` binds the native grok CLI when it is installed; Grok through Cursor is a different route, used when asked or when the grok CLI is missing and Cursor is allowed. Cursor Auto does not count as independent agreement unless its serving family is verified different from the host. `Pi` runs the Pi coding agent on its configured model, or a `provider/model` you pin, and runs only when you name it; Pi can serve any provider, so its review never counts as independent agreement. On a Pi host, the pass takes the host's serving family from the model Pi recorded for its latest reply and skips when that is not a first-party Anthropic, OpenAI, xAI, or Google model. `cross_model_model:` and `cross_model_effort:` in CE config pin that target's model (e.g. `fable` for claude or `gpt-6.1-sol` for codex, or a namespace-qualified codex id such as `openai.gpt-6.1-sol` when that CLI routes through a non-default `model_provider`) and reasoning effort; a value the peer cannot honor skips the pass with a stated reason rather than substituting. See the [configuration reference](./configuration.md).
 
-The prerequisite is a peer agent CLI. The pass drives a read-only agent CLI (`codex`, `claude`, `grok`, `cursor-agent`, or `opencode`) so the peer can inspect the tree itself; a bare `OPENAI_API_KEY`, Anthropic key, or Gemini key does not enable it. Peers are discovered on `PATH`, plus the CLI bundled inside the Codex desktop app (`ChatGPT.app/Contents/Resources/codex` since the July 2026 app merger, or `Codex.app/…` on older installs; the app does not link it onto `PATH`). Gemini has no standalone peer target; it participates only through Cursor when `cursor-agent` attests a Gemini serving family. With no peer CLI installed the skill runs the in-process adversarial reviewer and reports "cross-model pass: not run"; the skip reason names what to install.
+The prerequisite is a peer agent CLI. The pass drives a read-only agent CLI (`codex`, `claude`, `grok`, `cursor-agent`, `opencode`, `pi`, or Antigravity's ACP runtime) so the peer can inspect the tree itself; a bare `OPENAI_API_KEY`, Anthropic key, or Gemini key does not enable it. Peers are discovered on `PATH`, plus the CLI bundled inside the Codex desktop app (`ChatGPT.app/Contents/Resources/codex` since the July 2026 app merger, or `Codex.app/…` on older installs; the app does not link it onto `PATH`). The Antigravity route needs Google's Antigravity ACP runtime (`agy_acp_server.par`) and its `localharness_external` helper, a separate download from the `agy` CLI; `ce-setup` links to it. The runtime has its own Google sign-in, separate from the `agy` CLI's: put `{"auth":{"type":"oauth-personal"}}` in `~/.gemini/antigravity-acp/settings.json`, then run `acpx antigravity exec ok` once in a terminal and finish the browser sign-in (the skip message gives the supported version-range command). It never uses a Gemini API key or Google Cloud project. Each run gets a private settings directory, and a file-backed sign-in is copied into it and not written back; on macOS the sign-in usually lives in the keychain instead. It asks for Gemini 4 Argon and falls back to Gemini Flash before sending anything when your account does not offer Argon; a `cross_model_model` you pin for it must be a `gemini-*` id and runs exactly. `cross_model_effort` takes `low`, `medium`, or `high` for this route. It is not yet supported on native Windows. With no peer CLI installed the skill runs the in-process adversarial reviewer and reports "cross-model pass: not run"; the skip reason names what to install.
+
+### Requirements and trust boundary
+
+Peers run through [acpx](https://github.com/openclaw/acpx), which talks to each agent CLI over the Agent Client Protocol. It needs Node 22.13 or newer with `npx`, `jq`, and the peer's own CLI. On native Windows, OpenCode and Pi are reported unavailable, because they cannot be launched there yet. npm selects the newest acpx release from the tested compatibility range that satisfies its `min-release-age`/`before` policy. The range starts at 0.18.0, which fixes unsafe read-approval handling in older releases, and stops at the newest validated release. If none qualifies, the peer is unavailable; npm policy is never relaxed. Downloads are reused from the npm cache. Resolution failures receive one metadata refresh without changing npm policy. If npm still reports a date cutoff, the worker names the `min-release-age`/`before` settings to check. When a prerequisite is missing, that peer is reported as not run and nothing is sent.
+
+Each peer runs from the repository root so it can read surrounding code. Its read requests are approved, every other permission request is denied, and each agent runs in its read-only mode where it has one. This is best effort rather than a sandbox. Codex, Claude, and the Cursor routes can read any file your account can read. Codex can also run shell commands and write files, because its adapter does not enforce read-only mode. The native Grok CLI can write files on a large diff, when it reads the diff with its own tools. The native Grok CLI can still search and fetch from the web. Claude peers start in safe mode and OpenCode peers ignore the repository's OpenCode config, so the repository's project settings and hooks do not apply to them. Pi asks no permission before using a tool, so Pi peers run with only its read, search, and list tools, no MCP servers, and none of the repository's Pi settings or extensions. On a diff too large to inline, every peer gets the path of the full staged diff instead of the diff itself. Served models are recorded from what each adapter reports. Codex, Claude, and the native Grok CLI report one; Cursor, OpenCode, and Pi routes stay unverified.
 
 This shares the provider/route kernel with `ce-doc-review` but keeps a narrower scope: adversarial-only, diff/work-tree delivery, not doc-review's judgment trio or whole-doc sweep.
 
@@ -154,15 +192,17 @@ When you ask for a "quick", "fast", or "light" review, the skill defers to the h
 
 After reviewers return, synthesis validates each finding, anchors it to the actual diff, deduplicates across personas, promotes confidence on agreement, resolves contradictions, and routes by autofix class. The output is one report with calibrated severity, evidence quotes, and explicit ownership.
 
+Before confidence filtering, synthesis supplies evidence from matching reviewer artifacts so a missing or blank `first_evidence` field does not discard an otherwise quoted finding at confidence 75 or 100. Coverage reports how many input findings recovered their quote this way, alongside quote-gate demotions. Findings with no usable quote still face the same gate.
+
 When findings span distinct concerns, related ones are grouped under a short theme (`grouping:auto`, the default). Groups are a triage lens, not a restructure: findings keep their stable `#`s, and groups reference them (`#2, #3`). Pass `grouping:off` for a flat report or `grouping:always` to group even small reviews.
 
-When the diff has an associated plan (`docs/plans/*.md` or `.html`), the skill discovers it (`plan:` argument, PR body link, or auto-discovery from branch name) and verifies the diff against Product Contract Requirements and Implementation Units on an implementation-ready artifact.
+When the diff has an associated plan (`docs/plans/*.md` or `.html`), the skill discovers it (`plan:` argument, PR body link, or auto-discovery from branch name) and verifies the diff against Product Contract Requirements and Implementation Units on an implementation-ready artifact. It also checks the reverse direction: a behavior rule the diff introduces that nothing in the plan asks for, such as silently dropping repeated requests, is reported as a P3 advisory finding for you to keep or remove. That finding never changes the verdict.
 
 Pipeline artifacts under `plans/`, `solutions/`, and legacy `brainstorms/` are protected. Findings to delete or gitignore them are discarded.
 
-When a discovered plan carries `session-settled:` decisions, a finding that merely prefers a different approach is routed report-only with a `settled_conflict` stamp. A real defect inside a settled approach keeps its full severity. Reviewers stay blind to the annotations. The orchestrator triages after the fact.
+When a discovered plan carries `session-settled:` decisions, a finding that merely prefers a different approach is discarded. A real defect inside a settled approach keeps its full severity. Applying its fix still requires authority to change that decision when the fix cannot preserve it. Reviewers stay blind to the annotations. The orchestrator triages after the fact.
 
-Callers such as `/ce-work` read the Actionable Findings summary (or the JSON `actionable_findings` field) and own residual handling: apply now, file tickets, accept with a durable sink, or stop. This skill does not run that gate.
+Callers such as `/ce-work` read the Actionable Findings summary (or the JSON `actionable_findings` field) and own follow-up. They resolve justified fixes within scope, stop when completing the requested work requires missing evidence, authority, or a user decision, and record other worthwhile concerns. This skill does not run that gate.
 
 ---
 
@@ -193,7 +233,7 @@ Use `ce-code-review` when:
 Skip it when:
 
 - You want a light review. Ask for "quick review" and the short-circuit defers to the harness-native `/review`
-- The change is a typo, formatting, or a small dependency bump. The lite roster is enough
+- The change is a typo, formatting, or a small dependency bump. The skill's lite path is enough, and it is chosen automatically
 - You want findings on a planning document → `/ce-doc-review`
 - You want a holistic take on a plan, not a diff review → `/ce-pov`
 - You want to investigate broken behavior → `/ce-debug`
@@ -204,7 +244,7 @@ Skip it when:
 
 `ce-code-review` is the portable review path other skills call:
 
-- **`/ce-work`** invokes `mode:agent` before shipping. It self-right-sizes (lite roster for small low-risk code-only diffs, full roster otherwise). Pass `depth:full` when the plan, the task, or the user asked for a thorough review. `ce-work` then applies findings and runs its Residual Work Gate
+- **`/ce-work`** invokes `mode:agent` before shipping. `ce-code-review` self-sizes. Pass `depth:full` when the plan, the task, or the user asked for a thorough review. `ce-work` then applies findings and runs its Residual Work Gate
 - **`/ce-optimize`** runs it against the cumulative optimization-branch diff before merging
 - **`/ce-debug`** runs it on a non-trivial fix, scoped so it does not wander into unrelated branch work
 
@@ -230,9 +270,10 @@ Bare and `mode:agent` reviews are report-only and safe alongside browser tests o
 | `<branch name>` | Reviews that branch without checking it out |
 | `base:<sha-or-ref>` | Skips scope detection. Reviews the current checkout against that ref |
 | `plan:<path>` | Loads the plan for requirements verification |
+| `plan_group:<label>` | With `plan:`, checks completeness against one PR group of a multi-PR plan (for example `plan_group:PR2`) instead of the whole plan |
 | `mode:agent` | JSON machine handoff. Report-only. `mode:headless` is a deprecated alias. `mode:non-interactive` is not valid here. `mode:report-only` is ignored |
 | `apply:local` | Authorize verified local fixes. Conflicts with `mode:agent` |
-| `depth:full` / `depth:auto` | `full` forces the full roster (skips the small-diff lite path). `auto` (default) self-right-sizes |
+| `depth:full` / `depth:auto` | `full` forces the full spine. `auto` (default) self-sizes to lite, focused, or full; callers do not classify |
 | `grouping:auto` / `grouping:off` / `grouping:always` | Thematic triage grouping (default `auto`). Presentation only. Never changes reviewer selection, merge, or apply |
 
 Conflicting mode flags (or conflicting grouping flags) stop with an error. Combining `base:` with a PR or branch target also errors. Pass one or the other.
@@ -245,7 +286,7 @@ Conflicting mode flags (or conflicting grouping flags) stop with an error. Combi
 Use it when it is the right tool. The quick-review short-circuit defers to it explicitly. `ce-code-review` is for cases where you want diff-aware persona selection, structured findings with calibrated severity, autofix routing, and a residual handoff the caller can act on.
 
 **How does it decide which personas to dispatch?**
-Agent judgment over the actual diff, not keyword matching. Correctness runs for every multi-agent review. Project-standards runs when a criteria file governs at least one changed file. Generic, cross-cutting, and stack-specific personas are added only when their concern is present. Production-file presence alone and non-behavioral edits do not select testing. A silent-pass verification mechanism gets adversarial (and the cross-model pass, when the tree is local) regardless of size.
+Agent judgment over the actual diff, not keyword matching. Correctness runs for every multi-agent review. Project-standards runs when a criteria file governs at least one changed file. Generic, cross-cutting, and stack-specific personas are added only when their concern is present. Production-file presence alone and non-behavioral edits do not select testing. A verification mechanism gets adversarial when its false success could conceal a material failure; the selection reason names that consequence.
 
 **What's the difference between default, `mode:agent`, and `apply:local`?**
 Default is a human-facing markdown report and is report-only. `mode:agent` is the same pipeline serialized as one JSON object for a caller, always report-only. `apply:local` is separate authority for the markdown run to apply verified findings locally. `mode:headless` is a deprecated alias for `mode:agent`. `mode:non-interactive` means "suppress prompts" in other CE skills and is not valid here.

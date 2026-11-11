@@ -17,14 +17,22 @@ deps=(
   "ffmpeg|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q ffmpeg|https://ffmpeg.org/download.html|media chunking and screenshot extraction for Riffrec analysis"
 )
 
+# Bounds match the peer workers; adapter ranges track the ceiling release.
+# The canary advances the ceiling and adapter specs, leaving the minimum stable.
+ACPX_VERSION="0.22.0"
+ACPX_MIN_VERSION="0.18.0"
+ACPX_ADAPTER_SPECS="@agentclientprotocol/codex-acp@^1.1.5 @agentclientprotocol/claude-agent-acp@^0.95.0"
+
 # =====================================================
 #  Args
 # =====================================================
 
 plugin_version=""
+warm_acpx="no"
 while [ $# -gt 0 ]; do
   case "$1" in
     --version) [ -n "$2" ] && plugin_version="$2" && shift 2 || shift ;;
+    --warm-acpx) warm_acpx="yes"; shift ;;
     *) shift ;;
   esac
 done
@@ -153,9 +161,6 @@ resolve_docs_root() {
   docs_root_status="configured"
 }
 
-# Report whether a retired top-level key is still present without interpreting
-# its value. Detection is intentionally separate from routing so legacy scalar
-# settings can receive a migration diagnostic without remaining supported.
 has_flat_config_key() {
   local config_file="$1"
   local config_key="$2"
@@ -163,6 +168,10 @@ has_flat_config_key() {
     $0 ~ "^" key "[[:space:]]*:" { found = 1 }
     END { exit(found ? 0 : 1) }
   ' "$config_file"
+}
+
+template_version() {
+  sed -n 's/^# ce-config-template-version:[[:space:]]*\([0-9][0-9]*\)[[:space:]]*$/\1/p' "$1" 2>/dev/null | head -n 1
 }
 
 # First non-empty ordinary scalar across local then tracked. Empty/commented
@@ -286,6 +295,118 @@ read_work_engine_preferences() {
   ' "$config_file"
 }
 
+# Emits KEY<TAB>harness<TAB>effort per map entry, or ERROR when the value is not
+# a map. An entry is exactly `harness: token`, optionally quoted, because an
+# effort must be a plain token; this is the data contract, not a YAML parser.
+# Only Antigravity's levels are checked here: its three thinking levels are
+# fixed, while other harnesses' levels belong to the ce-work adapter.
+read_work_engine_effort_keys() {
+  local config_file="$1"
+  awk '
+    function emit_entry(entry) {
+      sub(/[[:space:]]+#.*$/, "", entry)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", entry)
+      # A key or value is a bare token or one wrapped in a matching quote pair.
+      token = "[A-Za-z0-9][A-Za-z0-9_-]*"
+      quoted = "(" token "|\"" token "\"|\047" token "\047)"
+      if (entry !~ ("^" quoted "[[:space:]]*:[[:space:]]*" quoted "$")) not_a_map()
+      gsub(/["\047]/, "", entry)
+      key = entry
+      sub(/[[:space:]]*:.*$/, "", key)
+      sub(/^[^:]*:[[:space:]]*/, "", entry)
+      print "KEY\t" key "\t" entry
+      entries++
+    }
+    function not_a_map() {
+      print "ERROR"
+      reported = 1
+      exit
+    }
+    # A block that ends with no entries is a null value, not the explicit empty map {}.
+    function close_block() {
+      if (active && !entries) not_a_map()
+      active = 0
+    }
+    /^[^[:space:]#-][^:]*[[:space:]]*:/ { close_block() }
+    /^work_engine_effort[[:space:]]*:/ {
+      active = 1
+      entries = 0
+      line = $0
+      sub(/^work_engine_effort[[:space:]]*:/, "", line)
+      sub(/[[:space:]]+#.*$/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line == "") next
+      if (line !~ /^\{.*\}$/) not_a_map()
+      line = substr(line, 2, length(line) - 2)
+      count = split(line, pairs, ",")
+      for (i = 1; i <= count; i++) {
+        if (pairs[i] ~ /^[[:space:]]*$/) {
+          if (i < count) not_a_map()
+          continue
+        }
+        emit_entry(pairs[i])
+      }
+      active = 0
+      next
+    }
+    active {
+      line = $0
+      if (line ~ /^[[:space:]]*($|#)/) next
+      if (line !~ /^[[:space:]]/) not_a_map()
+      emit_entry(line)
+    }
+    END { if (!reported) close_block() }
+  ' "$config_file"
+}
+
+# Same prerequisite the peer workers check before launching acpx. Sets
+# node_version and, when unmet, node_problem.
+check_node_prerequisite() {
+  local major minor
+  node_version=""; node_problem=""
+  if ! command -v node >/dev/null 2>&1; then
+    node_problem="node not found; cross-model peers need Node 22.13 or newer"; return 1
+  fi
+  node_version="$(node -p 'process.versions.node' 2>/dev/null | tr -d '\r')"
+  node_version="${node_version#v}"
+  major="${node_version%%.*}"; minor="${node_version#*.}"; minor="${minor%%.*}"
+  case "$major$minor" in
+    ''|*[!0-9]*) node_problem="cannot read the Node version; cross-model peers need Node 22.13 or newer"; return 1 ;;
+  esac
+  if [ "$major" -lt 22 ] || { [ "$major" -eq 22 ] && [ "$minor" -lt 13 ]; }; then
+    node_problem="Node $node_version is too old; cross-model peers need Node 22.13 or newer"; return 1
+  fi
+  if ! command -v npx >/dev/null 2>&1; then
+    node_problem="npx not found; cross-model peers run acpx through npx"; return 1
+  fi
+}
+
+# Cache packages without starting their CLIs. npm still runs install lifecycle
+# scripts; node --version only prevents launching the agent afterward.
+if [ "$warm_acpx" = "yes" ]; then
+  echo ""
+  if ! check_node_prerequisite; then
+    warn "Cannot warm the npm cache: $node_problem"
+    echo ""
+    exit 1
+  fi
+  warm_failed=0
+  # Run from an empty directory, as the peer workers do: npx resolves packages
+  # from its working directory's node_modules and .npmrc first.
+  warm_dir="$(mktemp -d "${TMPDIR:-/tmp}/ce-acpx-warm-XXXXXX")" || { warn "Cannot warm the npm cache: no temporary directory"; echo ""; exit 1; }
+  for spec in "acpx@>=$ACPX_MIN_VERSION <=$ACPX_VERSION" $ACPX_ADAPTER_SPECS; do
+    if (cd "$warm_dir" && npx --yes --package="$spec" -- node --version >/dev/null); then
+      ok "cached $spec"
+    else
+      warn "could not fetch $spec"
+      warm_failed=1
+    fi
+  done
+  rmdir "$warm_dir" 2>/dev/null
+  echo ""
+  exit "$warm_failed"
+fi
+
 has_brew=$(command -v brew >/dev/null 2>&1 && echo "yes" || echo "no")
 in_repo=$(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "yes" || echo "no")
 
@@ -327,6 +448,15 @@ for entry in "${deps[@]}"; do
   fi
 done
 
+capability_total=$((capability_total + 1))
+if check_node_prerequisite; then
+  capability_ok=$((capability_ok + 1))
+  node_row="ok"
+else
+  capability_missing=$((capability_missing + 1))
+  node_row="missing"
+fi
+
 # =====================================================
 #  Project checks (repo only)
 # =====================================================
@@ -341,7 +471,6 @@ work_engine_cfg="skip"
 work_engine_detail=""
 work_engine_preferences_note=""
 work_engine_preferences_note_level="detail"
-work_engine_migration_note=""
 docs_root_status="skip"
 docs_root_value=""
 docs_root_source=""
@@ -349,6 +478,7 @@ docs_root_error=""
 docs_root_local_ignored=""
 tracked_cfg="skip"
 project_issues=0
+antigravity_configured="no"
 
 if [ "$in_repo" = "yes" ]; then
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -379,6 +509,9 @@ if [ "$in_repo" = "yes" ]; then
   tracked_cfg="missing"
   [ -f "$tracked_config_path" ] && tracked_cfg="present"
 
+  resolve_ordinary_scalar "$local_config_path" "$tracked_config_path" "cross_model_peer"
+  [ "$ordinary_value" = "antigravity" ] && antigravity_configured="yes"
+
   resolve_ordinary_scalar "$local_config_path" "$tracked_config_path" "work_engine_mode"
   work_engine_mode="$ordinary_value"
   case "$work_engine_mode" in
@@ -398,28 +531,14 @@ if [ "$in_repo" = "yes" ]; then
   work_engine_preferences_count=0
   work_engine_preferences_detail=""
   work_engine_preferences_error=""
-  retired_work_engine_keys=""
-  for retired_key in work_engine_target work_engine_model; do
-    if { [ -f "$local_config_path" ] && has_flat_config_key "$local_config_path" "$retired_key"; } || \
-       { [ -f "$tracked_config_path" ] && has_flat_config_key "$tracked_config_path" "$retired_key"; }; then
-      if [ -n "$retired_work_engine_keys" ]; then
-        retired_work_engine_keys="${retired_work_engine_keys}, ${retired_key}"
-      else
-        retired_work_engine_keys="$retired_key"
-      fi
-    fi
-  done
-  if [ -n "$retired_work_engine_keys" ]; then
-    work_engine_migration_note="retired config key(s) ${retired_work_engine_keys} detected; migrate routing to work_engine_preferences entries with harness and optional model fields, then remove the retired keys"
-    project_issues=$((project_issues + 1))
-  fi
   if [ -n "$structured_file" ]; then
     while IFS=$'\t' read -r preference_kind preference_harness preference_model; do
       case "$preference_kind" in
         ITEM)
           work_engine_preferences_count=$((work_engine_preferences_count + 1))
           case "$preference_harness" in
-            codex|claude|grok|cursor|opencode) ;;
+            codex|claude|grok|cursor|opencode|pi) ;;
+            antigravity) antigravity_configured="yes" ;;
             *)
               [ -z "$work_engine_preferences_error" ] && work_engine_preferences_error="invalid harness '$preference_harness' in work_engine_preferences"
               ;;
@@ -452,6 +571,25 @@ if [ "$in_repo" = "yes" ]; then
     done < <(read_work_engine_preferences "$structured_file")
   fi
 
+  work_engine_effort_notes=()
+  resolve_structured_layer "$local_config_path" "$tracked_config_path" "work_engine_effort"
+  if [ -n "$structured_file" ]; then
+    while IFS=$'\t' read -r effort_kind effort_harness effort_value; do
+      case "$effort_kind:$effort_harness" in
+        ERROR:*) effort_problem="is not a map of harness to effort; ce-work ignores the value and keeps each harness default" ;;
+        KEY:cursor) effort_problem="names 'cursor', which takes no effort; ce-work treats Cursor entries as unavailable while it is set" ;;
+        KEY:pi) effort_problem="names 'pi', which takes no effort; ce-work treats Pi entries as unavailable while it is set" ;;
+        KEY:codex|KEY:claude|KEY:grok|KEY:opencode) continue ;;
+        KEY:antigravity)
+          case "$effort_value" in low|medium|high) continue ;; esac
+          effort_problem="sets antigravity to '${effort_value}'; Antigravity takes low, medium, or high, so ce-work treats Antigravity entries as unavailable while it is set" ;;
+        KEY:*) effort_problem="names unknown harness '${effort_harness}'; ce-work ignores that entry" ;;
+        *) continue ;;
+      esac
+      work_engine_effort_notes+=("work_engine_effort in $(basename "$structured_file") ${effort_problem}")
+    done < <(read_work_engine_effort_keys "$structured_file")
+  fi
+
   case "$work_engine_mode" in
     ""|off)
       work_engine_cfg="native"
@@ -473,9 +611,6 @@ if [ "$in_repo" = "yes" ]; then
         work_engine_cfg="unavailable"
         work_engine_detail="$work_engine_preferences_error"
         project_issues=$((project_issues + 1))
-      elif [ "$work_engine_preferences_count" -eq 0 ] && [ -n "$retired_work_engine_keys" ]; then
-        work_engine_cfg="unavailable"
-        work_engine_detail="$work_engine_mode cannot use retired scalar routing; migrate ${retired_work_engine_keys} to work_engine_preferences"
       elif [ "$work_engine_preferences_count" -eq 0 ]; then
         work_engine_cfg="unavailable"
         work_engine_detail="$work_engine_mode requires work_engine_preferences"
@@ -499,24 +634,84 @@ if [ "$in_repo" = "yes" ]; then
     example_cfg="missing"
   elif [ -f "$template" ] && ! diff -q "$template" "$example" >/dev/null 2>&1; then
     example_cfg="outdated"
+    bundled_template_version="$(template_version "$template")"
+    example_template_version="$(template_version "$example")"
+    if [ -n "$example_template_version" ] && [ "${example_template_version}" -gt "${bundled_template_version:-0}" ] 2>/dev/null; then
+      example_cfg="newer"
+    fi
   else
     example_cfg="ok"
   fi
 
-  # Retired keys set as ACTIVE (non-commented) in either layer. A
-  # commented `# plan_use_fable:` line does not match `^[[:space:]]*<key>:`.
+  have_repo_config="no"
+  { [ -f "$tracked_config_path" ] || [ -f "$local_config_path" ]; } && have_repo_config="yes"
+
+  registry="$script_dir/../references/retired-config-keys.yaml"
   for cfg_file in "$local_config_path" "$tracked_config_path"; do
-    [ -f "$cfg_file" ] || continue
-    for key in plan_use_fable brainstorm_use_fable fable_nudge; do
-      if grep -Eq "^[[:space:]]*${key}[[:space:]]*:" "$cfg_file" 2>/dev/null; then
-        already=""
-        for seen in "${retired_keys[@]}"; do
-          [ "$seen" = "$key" ] && already=1
-        done
-        [ -z "$already" ] && retired_keys+=("$key")
-      fi
-    done
+    [ -f "$registry" ] && [ -f "$cfg_file" ] || continue
+    while IFS=$'\t' read -r retired_key retired_reason; do
+      [ -n "$retired_key" ] && retired_keys+=("${retired_key}"$'\t'"$(basename "$cfg_file")"$'\t'"${retired_reason}")
+    done < <(LC_ALL=C awk '
+      FNR == 1 { file++ }
+      file == 1 && /^[A-Za-z_][A-Za-z0-9_]*:[[:space:]]*$/ { key = $0; sub(/:.*/, "", key); order[++count] = key; next }
+      file == 1 && key != "" && /^  reason:/ {
+        reason[key] = $0
+        sub(/^  reason:[[:space:]]*/, "", reason[key])
+        gsub(/^"|"$/, "", reason[key])
+        key = ""
+        next
+      }
+      file == 2 && FNR == 1 { sub(/^\357\273\277/, "") }
+      file == 2 && match($0, /^[A-Za-z_][A-Za-z0-9_.-]*[[:space:]]*:/) {
+        name = substr($0, 1, RLENGTH)
+        sub(/[[:space:]]*:$/, "", name)
+        present[name] = 1
+      }
+      END { for (i = 1; i <= count; i++) if (order[i] in present) print order[i] "\t" reason[order[i]] }
+    ' "$registry" "$cfg_file")
   done
+
+  cfg_python="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"
+  config_refresh="$script_dir/config-refresh.py"
+  config_status_report=""
+  if [ -n "$cfg_python" ] && [ -f "$config_refresh" ] && [ "$have_repo_config" = "yes" ]; then
+    config_status_report="$(cd "$repo_root" && "$cfg_python" "$config_refresh" status --repo "$repo_root" 2>/dev/null | "$cfg_python" -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+except ValueError:
+    print("FAIL\t")
+    sys.exit(0)
+for layer in ("tracked", "local"):
+    row = data.get(layer) or {}
+    print("STATE\t" + layer + "\t" + row.get("state", "missing") + "\t" + row.get("reason", ""))
+    for key in (row.get("keys") or {}).get("unrecognized", []):
+        hint = (key.get("candidates") or [""])[0]
+        print("UNKNOWN\t" + row.get("file", "") + "\t" + key["key"] + "\t" + hint)
+')"
+  fi
+fi
+
+# Same runtime and helper the peer workers resolve before launching the
+# antigravity route. Reported only when the user configured it or installed it.
+antigravity_row="skip"
+antigravity_problem=""
+antigravity_runtime="$(command -v agy_acp_server.par 2>/dev/null)"
+if [ "$antigravity_configured" = "yes" ] || [ -n "$antigravity_runtime" ]; then
+  capability_total=$((capability_total + 1))
+  antigravity_helper="${ANTIGRAVITY_HARNESS_PATH:-$(dirname "${antigravity_runtime:-.}")/localharness_external}"
+  if [ -z "$antigravity_runtime" ]; then
+    antigravity_problem="agy_acp_server.par not found on PATH; install Antigravity's ACP runtime"
+  elif [ ! -x "$antigravity_helper" ]; then
+    antigravity_problem="localharness_external not found at ${antigravity_helper}; install it from the same release as the runtime"
+  fi
+  if [ -z "$antigravity_problem" ]; then
+    capability_ok=$((capability_ok + 1))
+    antigravity_row="ok"
+  else
+    capability_missing=$((capability_missing + 1))
+    antigravity_row="missing"
+  fi
 fi
 
 # =====================================================
@@ -544,6 +739,22 @@ for result in "${results[@]}"; do
     fi
   fi
 done
+
+if [ "$node_row" = "ok" ]; then
+  ok "node -- cross-model peers (Node $node_version, npx)"
+else
+  warn "node -- unavailable: cross-model peers"
+  detail "$node_problem"
+  detail "https://nodejs.org/en/download"
+fi
+
+if [ "$antigravity_row" = "ok" ]; then
+  ok "antigravity -- Gemini cross-model peer (runtime and helper found)"
+elif [ "$antigravity_row" = "missing" ]; then
+  warn "antigravity -- unavailable: Gemini cross-model peer"
+  detail "$antigravity_problem"
+  detail "https://github.com/agentclientprotocol/registry/blob/main/antigravity-acp/agent.json"
+fi
 
 if [ "$legacy_codex_map" = "yes" ]; then
   section "Codex instructions"
@@ -615,7 +826,10 @@ if [ "$in_repo" = "yes" ]; then
   elif [ "$work_engine_cfg" = "invalid" ]; then
     warn "CE Work implementation engine: ${work_engine_detail}"
   fi
-  [ -n "$work_engine_migration_note" ] && warn "$work_engine_migration_note"
+  for effort_note in ${work_engine_effort_notes[@]+"${work_engine_effort_notes[@]}"}; do
+    warn "$effort_note"
+    project_issues=$((project_issues + 1))
+  done
 
   if [ "$example_cfg" = "ok" ]; then
     ok "Example config is current"
@@ -625,16 +839,121 @@ if [ "$in_repo" = "yes" ]; then
   elif [ "$example_cfg" = "outdated" ]; then
     warn "Example config outdated (new settings available)"
     project_issues=$((project_issues + 1))
+  elif [ "$example_cfg" = "newer" ]; then
+    skip "Example config was written by a newer plugin; not refreshed"
   fi
 
-  for key in "${retired_keys[@]}"; do
-    case "$key" in
-      plan_use_fable)       warn "Retired config key '$key' — removed; use 'plan_model' instead" ;;
-      brainstorm_use_fable) warn "Retired config key '$key' — removed; use 'brainstorm_model' instead" ;;
-      fable_nudge)          warn "Retired config key '$key' — removed; model elevation is always available" ;;
+  if [ -z "$cfg_python" ] && [ "$have_repo_config" = "yes" ]; then
+    skip "No Python interpreter found; config template status not checked"
+  elif [ ! -f "$config_refresh" ] && [ "$have_repo_config" = "yes" ]; then
+    skip "config-refresh.py not found beside check-health; config template status not checked"
+  fi
+  while IFS=$'\t' read -r status_kind status_a status_b status_c; do
+    case "$status_kind:$status_a:$status_b" in
+      FAIL:*) warn "config-refresh.py failed to run"; project_issues=$((project_issues + 1)) ;;
+      STATE:tracked:current|STATE:tracked:retired-keys) ok "Repo config matches the current template" ;;
+      STATE:tracked:outdated)
+        warn "Repo config was written from an older template (${status_c})"
+        detail "/ce-setup can rebuild it on the current template with every setting kept."
+        project_issues=$((project_issues + 1)) ;;
+      STATE:tracked:newer) skip "Repo config was ${status_c}; not refreshed" ;;
+      STATE:tracked:malformed-version|STATE:tracked:unrefreshable)
+        warn "Repo config cannot be refreshed automatically: ${status_c}"
+        project_issues=$((project_issues + 1)) ;;
+      STATE:local:legacy)
+        warn "Local config is a full copy of the old local template"
+        detail "/ce-setup can cut it down to the settings and notes you added."
+        project_issues=$((project_issues + 1)) ;;
+      STATE:local:newer) skip "Local config was ${status_c}; not changed" ;;
+      STATE:local:malformed-version|STATE:local:unrefreshable)
+        skip "Local config cannot be changed automatically: ${status_c}" ;;
+      UNKNOWN:*)
+        if [ -n "$status_c" ]; then
+          skip "Unrecognized config key '${status_b}' in ${status_a} (close match: ${status_c})"
+        else
+          skip "Unrecognized config key '${status_b}' in ${status_a}"
+        fi ;;
     esac
+  done < <(printf '%s\n' "$config_status_report")
+
+  for retired in ${retired_keys[@]+"${retired_keys[@]}"}; do
+    IFS=$'\t' read -r retired_key retired_file retired_reason < <(printf '%s\n' "$retired")
+    warn "Retired config key '${retired_key}' in ${retired_file} — ${retired_reason}"
     project_issues=$((project_issues + 1))
   done
+  # --- Compound Packs (packs: config key) -------------------------------------
+  section "Compound Packs"
+  packs_resolver="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/packs-resolve.py"
+  if [ -z "$cfg_python" ]; then
+    skip "No Python interpreter found; pack health not checked"
+  elif [ ! -f "$packs_resolver" ]; then
+    skip "packs-resolve.py not found beside check-health; pack health not checked"
+  else
+    packs_json="$("$cfg_python" "$packs_resolver" 2>/dev/null)"
+    if [ -z "$packs_json" ]; then
+      warn "packs-resolve.py failed to run"
+      project_issues=$((project_issues + 1))
+    else
+      packs_report="$(printf '%s' "$packs_json" | "$cfg_python" -c '
+import json, os, re, subprocess, sys
+data = json.load(sys.stdin)
+roots, errors, warns = data.get("roots", []), data.get("errors", []), data.get("warnings", [])
+if not roots and not errors and not warns:
+    print("SKIP\tNo packs configured")
+for r in roots:
+    line = "OK\tpack " + r["id"]
+    url, ref = r.get("url"), r.get("ref")
+    if url and ref:
+        line += " (" + ref + ")"
+        # Only a full commit id is immutable. A branch tip advances and a tag can
+        # be force-moved upstream, so for either compare the cached HEAD with the
+        # remote target of that name -- the peeled commit for an annotated tag,
+        # which is why the ls-remote asks for `<tag>^{}` too.
+        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", ref):
+            try:
+                genv = dict(os.environ)
+                genv["GIT_TERMINAL_PROMPT"] = "0"
+                genv.setdefault("GIT_ASKPASS", "true")
+                _ssh = genv.get("GIT_SSH_COMMAND") or "ssh"
+                if "BatchMode" not in _ssh:
+                    genv["GIT_SSH_COMMAND"] = _ssh + " -o BatchMode=yes"
+                names = ["refs/tags/" + ref + "^{}", "refs/tags/" + ref, "refs/heads/" + ref]
+                remote = subprocess.run(["git", "ls-remote", "--end-of-options", url, *names],
+                                        capture_output=True, text=True, timeout=10, env=genv)
+                targets = {}
+                for row in remote.stdout.splitlines() if remote.returncode == 0 else []:
+                    sha, _, name = row.partition("\t")
+                    if name:
+                        targets[name] = sha
+                rsha = next((targets[n] for n in names if n in targets), "")
+                local = subprocess.run(["git", "-C", r["dir"], "rev-parse", "HEAD"], capture_output=True, text=True, timeout=10)
+                lsha = local.stdout.strip() if local.returncode == 0 else ""
+                if rsha and lsha and rsha != lsha:
+                    line += " -- cached resolution is behind upstream"
+            except Exception:
+                pass  # offline or slow remote: silently skip the drift note
+    # Subdirectories are storage, so rule-shaped files there are a note on the
+    # OK line, never a warning: the author may keep drafts and evidence with frontmatter.
+    nested = r.get("nested_rule_shaped", 0)
+    if nested:
+        line += " -- " + str(nested) + " rule-shaped file(s) in subfolders kept as storage"
+    print(line)
+for w in warns:
+    print("WARN\t" + w)
+for e in errors:
+    print("ERROR\t" + e)
+')"
+      while IFS=$'\t' read -r kind msg; do
+        [ -z "$kind" ] && continue
+        case "$kind" in
+          OK)    ok "$msg" ;;
+          SKIP)  skip "$msg" ;;
+          WARN)  warn "$msg" ;;
+          ERROR) warn "Pack config error: $msg"; project_issues=$((project_issues + 1)) ;;
+        esac
+      done < <(printf '%s\n' "$packs_report")
+    fi
+  fi
 else
   section "Project config"
   skip "Not inside a git repository"

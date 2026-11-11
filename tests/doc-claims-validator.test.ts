@@ -6,7 +6,6 @@ import path from "node:path"
 
 const SKILL_DIRS = [
   path.join(__dirname, "../skills/ce-compound"),
-  path.join(__dirname, "../skills/ce-compound-refresh"),
 ] as const
 
 function scriptPath(skillDir: string): string {
@@ -140,14 +139,18 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).not.toContain("FLAG")
       })
 
-      test("flags a cited path that exists nowhere", () => {
+      test("flags a cited path that exists nowhere, naming the search base as repo-scoped", () => {
         const docPath = writeRepoDoc(
           "The handler is `src/does-not-exist.ts` in the tree.\n",
         )
         const result = runValidator(skillDir, docPath)
         expect(result.code).toBe(1)
         expect(result.stdout).toContain("FLAG path `src/does-not-exist.ts`")
-        expect(result.stdout).toContain("not found")
+        expect(result.stdout).toContain("not found under ")
+        expect(result.stdout).toContain(path.basename(repo))
+        expect(result.stdout).toContain(
+          "Only that location was searched",
+        )
       })
 
       test("checks an absolute citation that points inside the repo", () => {
@@ -685,11 +688,4 @@ raise SystemExit(0 if got == "src/real-file.ts" else 1)
       })
     })
   }
-
-  test("script content is identical across skill copies (per AGENTS.md duplication rule)", () => {
-    const [a, b] = SKILL_DIRS
-    const aContent = readFileSync(scriptPath(a), "utf8")
-    const bContent = readFileSync(scriptPath(b), "utf8")
-    expect(aContent).toBe(bContent)
-  })
 })

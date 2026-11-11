@@ -1,0 +1,35 @@
+{
+ "pr": {
+  "number": 66,
+  "title": "Add refundOrder",
+  "body": "",
+  "merged_at": "2026-10-21T18:00:00Z",
+  "merge_commit_sha": "0000000000000000000000000000000000000042",
+  "head": "00000000000000000000000000000000000001ce",
+  "user": "priya"
+ },
+ "reviews": [],
+ "inline_comments": [
+  {
+   "id": 6600,
+   "in_reply_to_id": null,
+   "user": "claude[bot]",
+   "path": "src/orders.js",
+   "original_line": 12,
+   "original_commit_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "body": "Exported function `refundOrder` has no JSDoc comment. Consider documenting its parameters and return value.",
+   "created_at": "2026-10-21T15:00:00Z"
+  },
+  {
+   "id": 6601,
+   "in_reply_to_id": 6600,
+   "user": "priya",
+   "path": "src/orders.js",
+   "original_line": 12,
+   "original_commit_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "body": "Declining, we skip JSDoc for non-exported-package code.",
+   "created_at": "2026-10-21T16:00:00Z"
+  }
+ ],
+ "conversation": []
+}

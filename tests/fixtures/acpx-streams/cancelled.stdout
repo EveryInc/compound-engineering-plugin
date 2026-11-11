@@ -1,0 +1,7 @@
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{"fs":{"readTextFile":true,"writeTextFile":true},"terminal":true},"clientInfo":{"name":"acpx","version":"0.19.4"}}}
+{"jsonrpc":"2.0","id":0,"result":{"protocolVersion":1,"agentCapabilities":{"loadSession":false},"authMethods":[]}}
+{"jsonrpc":"2.0","id":1,"method":"session/new","params":{"cwd":"/tmp/acpx-contract/cwd","mcpServers":[]}}
+{"jsonrpc":"2.0","id":1,"result":{"sessionId":"stub-session-1"}}
+{"jsonrpc":"2.0","id":2,"method":"session/prompt","params":{"sessionId":"stub-session-1","prompt":[{"type":"text","text":"Review the subject and reply."}]}}
+{"jsonrpc":"2.0","method":"session/cancel","params":{"sessionId":"stub-session-1"}}
+{"jsonrpc":"2.0","id":2,"result":{"stopReason":"cancelled"}}

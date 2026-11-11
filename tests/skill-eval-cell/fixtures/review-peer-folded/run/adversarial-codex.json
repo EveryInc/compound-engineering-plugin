@@ -1,0 +1,32 @@
+{
+ "reviewer": "adversarial-codex",
+ "cross_model_route": "codex",
+ "cross_model_target": "codex",
+ "model_requested": "gpt-5.6-luna",
+ "model_actual": "unverified",
+ "effort_requested": "xhigh",
+ "effort_actual": "unverified",
+ "receipt_supported": false,
+ "independence_verified": true,
+ "findings": [
+  {
+   "title": "Missing input defaults to push",
+   "severity": "P2",
+   "file": "src/landing.ts",
+   "line": 30,
+   "confidence": 75,
+   "autofix_class": "manual",
+   "owner": "downstream-resolver",
+   "requires_verification": true,
+   "pre_existing": false,
+   "suggested_fix": "Treat a missing deployment object as unknown.",
+   "first_evidence": "src/landing.ts:30 -- if (reasons.length > 0) return { path: \"open-pr\", reasons }",
+   "why_it_matters": "A missing input routes to push-main with no error.",
+   "evidence": [
+    "src/landing.ts:30"
+   ]
+  }
+ ],
+ "residual_risks": [],
+ "testing_gaps": []
+}

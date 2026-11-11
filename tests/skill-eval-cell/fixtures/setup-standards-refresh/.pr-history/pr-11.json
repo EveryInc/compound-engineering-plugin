@@ -1,0 +1,21 @@
+{
+ "pr": {
+  "number": 11,
+  "title": "Fix balance drift on large ledgers",
+  "body": "Balances were off by a cent after many entries. Switch to integer cents.",
+  "merged_at": "2026-05-06T17:02:00Z",
+  "merge_commit_sha": "000000000000000000000000000000000000000b",
+  "head": "00000000000000000000000000000000000001ff",
+  "user": "maya"
+ },
+ "reviews": [
+  {
+   "user": "devon",
+   "body": "Good catch. Approving.",
+   "commit_id": "00000000000000000000000000000000000001ff",
+   "submitted_at": "2026-05-06T16:40:00Z"
+  }
+ ],
+ "inline_comments": [],
+ "conversation": []
+}

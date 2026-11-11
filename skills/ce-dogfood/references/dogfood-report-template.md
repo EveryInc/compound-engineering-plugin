@@ -11,9 +11,9 @@
 
 ## Personas
 
-<The primary personas the flows were judged against, and what each cares about. Note the source: STRATEGY.md or PRODUCT.md "Users" ("Who it's for" in older strategy files), VISION.md, a persona doc, or "inferred" if none existed.>
+<The primary personas the flows were judged against, and what each cares about. Note the source: a Compound Pack rule cited as `(pack: <id>, <path within the pack>)`, STRATEGY.md or PRODUCT.md "Users" ("Who it's for" in older strategy files), VISION.md, a persona doc, or "inferred" if none existed. Resolver warnings or errors from pack discovery, and "packs unresolved" when the resolver could not run, are noted here once.>
 
-- **<Persona name>** — <job-to-be-done / what they care about>
+- **<Persona name>** — <job-to-be-done / what they care about> — <source>
 
 ## Flows Tested
 
@@ -34,9 +34,15 @@ flowchart TD
 |---|------|--------------------|--------|-------|-----|--------|
 | 1 |      |                    | Pass   | -     | -   | -      |
 | 2 |      |                    | Fixed  |       |     | abc123 |
-| 3 |      |                    | Blocked (needs human verify) | | | |
+| 3 |      |                    | Blocked (needs human verify) | | | -      |
 
-Status values: `Pending`, `Pass`, `Fixed`, `Skipped`, `Blocked (needs human verify)`, `Blocked (human decision)`. Start every scenario at `Pending` so this table doubles as the resume checkpoint.
+Status values: `Pending`, `Pass`, `Fixed`, `Skipped`, `Blocked (needs human verify)`, `Blocked (human decision)`. Start every scenario at `Pending` so this table doubles as the resume checkpoint. `Commit` is the fix commit on a `Fixed` row and `-` otherwise.
+
+## Pack Compliance
+
+<One line per pack criterion that matched a flow in Phase 1, with its verdict: `honored`, `contradicted` (fixed `<commit>`, or escalated as a stale-rule decision below), or `not exercised` (no scenario reached it). "None" when the repo declares no packs or none matched.>
+
+- `(pack: <id>, <path within the pack>)` — <rule title> — <honored / contradicted (fixed `<commit>` or escalated) / not exercised> — <scenario #s>
 
 ## What Was Fixed
 
@@ -60,7 +66,7 @@ For each issue found and fixed:
 
 ## Human Verifications
 
-<External-interaction legs (OAuth, real email delivery, payments, SMS): confirmed, pending, or not applicable.>
+<Outside-service legs (OAuth, email delivery, payments, SMS, third-party APIs) the branch changed: covered by a local stand-in, pending a person's check (say what to check), or not applicable because the branch did not touch them.>
 
 ## Decisions for a Human
 
@@ -72,10 +78,20 @@ For each issue found and fixed:
 - **Options:** <option A (trade-offs) / option B (trade-offs)>
 - **Recommendation:** <the agent's suggested direction, for the human to confirm>
 
+### Stale rule: <rule title> `(pack: <id>, <path within the pack>)`
+- **What the rule says:** <quoted rule text>
+- **What the branch does instead, and why:** <the intended behavior and the evidence it is intentional — plan, PR description, commit history>
+- **Options:** refine the rule (writable pack: through `ce-compound`; git-sourced pack: upstream change and a `ref` bump) / retire it
+- **Recommendation:** <refine or retire, and the wording if refine>
+
 ## Learnings
 
 <Reusable lessons worth carrying forward — patterns, gotchas, product/UX insights. Feed substantial ones to `ce-compound`.>
 
+### Pack candidates
+
+<Judgments from this run that generalize beyond the branch and are prescriptive-shaped — a paper cut any screen would give a persona, a check every scenario of this kind should pass — that were not yet routed through `ce-compound` (non-interactive run, or the author deferred). One line each, with the pack it would refine when there is one. "None" when every candidate was routed or none arose.>
+
 ## Final Status
 
-<Overall readiness verdict for the branch. Ready to ship? Caveats? Outstanding blocked items? Record the result of the Phase 5 automated test suite run — a green matrix with a red suite is not "ready.">
+<Overall readiness verdict for the branch. Ready to ship? Caveats? Outstanding blocked items? Record the result of the Phase 5 automated test suite run — a green matrix with a red suite is not "ready." Name the browsers the environment offered, the one the run used, and why. State once what the local environment replaced (seeded auth, fixture providers, simulated payments) and which claims that leaves unproven.>

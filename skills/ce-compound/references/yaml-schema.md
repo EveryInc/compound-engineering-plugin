@@ -52,6 +52,7 @@ No additional required fields beyond the shared ones. All fields below are optio
 
 - **related_components**: Other components involved
 - **tags**: Search keywords, lowercase and hyphen-separated
+- **retire_when**: The change outside the repo that would retire this learning, and how a refresh can check for it without changing the repo. Set it only when the guidance holds just while something outside the repo holds: an open upstream bug, a tool or platform version, a dependency's behavior. Omit it otherwise. A verification that needs a repo change, such as removing a workaround and rerunning CI, belongs in the body as the step before removal. It is one string; quote the whole value when it contains ` #` or `: `.
 
 ## Optional Fields (bug track only)
 
@@ -99,6 +100,7 @@ Default layout for a repo with no existing learnings. When `<root>/solutions/` a
 8. Array fields must respect min/max item counts.
 9. `date` must match `YYYY-MM-DD`.
 10. `framework_version`, if present, only applies to bug-track docs.
+11. `retire_when` is optional on both tracks. When present it is one string, and a doc without it stays valid.
 
 ## YAML Safety Rules
 

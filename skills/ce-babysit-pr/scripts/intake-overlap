@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""One-shot overlap check for ce-babysit-pr's stale-PR intake.
+
+Answers "did the base move under this PR's paths since it branched off" from
+freshly fetched refs:
+
+  intake-overlap --repo-dir DIR --remote NAME --base BRANCH --pr N
+
+Fetches the base branch and refs/pull/<N>/head into refs/ce-babysit/intake/<N>/,
+takes their merge-base, and compares the PR's changed paths with the base's
+changes since then. Overlap kinds:
+
+  same-path       a base change (either rename name) is a PR path (either name)
+  directory-gone  a PR path's ancestor directory existed at the merge-base and
+                  is absent at the base tip (nearest such ancestor reported)
+  sibling         a base change sits in the same non-root directory as a PR path
+
+Prints one JSON object. "overlap" is true, false, or "unknown" when the question
+cannot be answered (fetch failure, no merge-base); unknown sets "error" and still
+exits 0. Only usage errors exit non-zero.
+"""
+import argparse
+import json
+import os
+import posixpath
+import re
+import subprocess
+import sys
+
+FETCH_TIMEOUT_SECONDS = 300
+GIT_TIMEOUT_SECONDS = 120
+
+STATUS_NAMES = {
+    "A": "added",
+    "C": "copied",
+    "D": "deleted",
+    "M": "modified",
+    "R": "renamed",
+    "T": "type-changed",
+}
+
+_BAD_BRANCH = re.compile(r"[\x00-\x20\x7f~^:?*\[\\]|\.\.|@\{|//|/\.|\.lock$|^/|/$|\.$")
+
+
+class GitError(Exception):
+    pass
+
+
+def git(repo_dir, *args, timeout=GIT_TIMEOUT_SECONDS, check=True):
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    try:
+        r = subprocess.run(
+            ["git", "-C", repo_dir, *args],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        raise GitError(f"git {args[0]} timed out after {timeout}s")
+    except OSError as e:
+        raise GitError(f"could not run git: {e}")
+    out = r.stdout.decode("utf-8", errors="replace")
+    if check and r.returncode != 0:
+        err = r.stderr.decode("utf-8", errors="replace").strip()
+        raise GitError(f"git {args[0]} failed ({r.returncode}): {err}")
+    return r.returncode, out
+
+
+def refs_for(pr):
+    prefix = f"refs/ce-babysit/intake/{pr}"
+    return f"{prefix}/base", f"{prefix}/head"
+
+
+def fetch(repo_dir, remote, base, pr, extra=()):
+    base_ref, head_ref = refs_for(pr)
+    git(
+        repo_dir, "fetch", "--no-tags", "--quiet", *extra, remote,
+        f"+refs/heads/{base}:{base_ref}",
+        f"+refs/pull/{pr}/head:{head_ref}",
+        timeout=FETCH_TIMEOUT_SECONDS,
+    )
+    return git(repo_dir, "rev-parse", "--verify", base_ref)[1].strip(), \
+        git(repo_dir, "rev-parse", "--verify", head_ref)[1].strip()
+
+
+def merge_base(repo_dir, a, b):
+    code, out = git(repo_dir, "merge-base", a, b, check=False)
+    return out.strip() if code == 0 and out.strip() else None
+
+
+def changes(repo_dir, a, b):
+    """[(status, old, new)] for `git diff -M a b`; old == new unless renamed/copied."""
+    out = git(repo_dir, "-c", "diff.renameLimit=0", "diff", "--no-ext-diff",
+              "--name-status", "-M", "-z", a, b)[1]
+    tokens = out.split("\0")
+    result = []
+    i = 0
+    while i < len(tokens) and tokens[i]:
+        letter = tokens[i][0]
+        if letter in ("R", "C"):
+            old, new = tokens[i + 1], tokens[i + 2]
+            i += 3
+        else:
+            old = new = tokens[i + 1]
+            i += 2
+        result.append((STATUS_NAMES.get(letter, letter), old, new))
+    return result
+
+
+def directories(repo_dir, commit):
+    out = git(repo_dir, "ls-tree", "-r", "-d", "--name-only", "-z", commit)[1]
+    return {d for d in out.split("\0") if d}
+
+
+def ancestors(path):
+    parent = posixpath.dirname(path)
+    while parent:
+        yield parent
+        parent = posixpath.dirname(parent)
+
+
+def overlap_reasons(pr_changes, base_changes, dirs_at_mb, dirs_at_base):
+    pr_paths = sorted({p for _, old, new in pr_changes for p in (old, new)})
+
+    by_path = {}
+    by_parent = {}
+    for change in base_changes:
+        _, old, new = change
+        for name in {old, new}:
+            by_path.setdefault(name, []).append(change)
+            parent = posixpath.dirname(name)
+            if parent:
+                by_parent.setdefault(parent, []).append(change)
+
+    renamed_from = [old for status, old, _ in base_changes if status == "renamed"]
+
+    reasons = set()
+    for p in pr_paths:
+        same = by_path.get(p, [])
+        for status, _, new in same:
+            reasons.add(("same-path", p, new, status))
+        parent = posixpath.dirname(p)
+        for change in by_parent.get(parent, []) if parent else []:
+            if change not in same:
+                status, _, new = change
+                reasons.add(("sibling", p, new, status))
+        for d in ancestors(p):
+            if d in dirs_at_mb and d not in dirs_at_base:
+                moved = any(old.startswith(d + "/") for old in renamed_from)
+                reasons.add(("directory-gone", p, d, "renamed" if moved else "deleted"))
+                break
+
+    return [
+        {"kind": k, "pr_path": p, "base_path": b, "base_status": s}
+        for k, p, b, s in sorted(reasons)
+    ]
+
+
+def assess(repo_dir, remote, base, pr):
+    result = {
+        "base_oid": None,
+        "head_oid": None,
+        "merge_base": None,
+        "overlap": "unknown",
+        "reasons": [],
+        "error": None,
+    }
+    try:
+        base_oid, head_oid = fetch(repo_dir, remote, base, pr)
+        result.update(base_oid=base_oid, head_oid=head_oid)
+
+        mb = merge_base(repo_dir, base_oid, head_oid)
+        if mb is None:
+            shallow = git(repo_dir, "rev-parse", "--is-shallow-repository")[1].strip() == "true"
+            if not shallow:
+                result["error"] = "no merge-base between base and PR head (unrelated histories)"
+                return result
+            base_oid, head_oid = fetch(repo_dir, remote, base, pr, extra=("--unshallow",))
+            result.update(base_oid=base_oid, head_oid=head_oid)
+            mb = merge_base(repo_dir, base_oid, head_oid)
+            if mb is None:
+                result["error"] = "no merge-base between base and PR head after unshallowing"
+                return result
+        result["merge_base"] = mb
+
+        if mb == base_oid:
+            result["overlap"] = False
+            return result
+
+        reasons = overlap_reasons(
+            changes(repo_dir, mb, head_oid),
+            changes(repo_dir, mb, base_oid),
+            directories(repo_dir, mb),
+            directories(repo_dir, base_oid),
+        )
+        result["reasons"] = reasons
+        result["overlap"] = bool(reasons)
+        return result
+    except GitError as e:
+        result["error"] = str(e)
+        return result
+
+
+def main():
+    p = argparse.ArgumentParser(prog="intake-overlap")
+    p.add_argument("--repo-dir", required=True)
+    p.add_argument("--remote", required=True)
+    p.add_argument("--base", required=True)
+    p.add_argument("--pr", type=int, required=True)
+    args = p.parse_args()
+
+    if args.pr <= 0:
+        p.error("--pr must be a positive integer")
+    if not args.remote or args.remote.startswith("-"):
+        p.error("--remote must be a remote name or URL")
+    if not args.base or args.base.startswith("-") or _BAD_BRANCH.search(args.base):
+        p.error("--base must be a valid branch name")
+    if not os.path.isdir(args.repo_dir):
+        p.error("--repo-dir must be an existing directory")
+
+    print(json.dumps(assess(args.repo_dir, args.remote, args.base, args.pr)))
+
+
+if __name__ == "__main__":
+    main()

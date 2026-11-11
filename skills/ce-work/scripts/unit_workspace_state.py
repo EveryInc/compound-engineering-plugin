@@ -623,36 +623,50 @@ def parse_json_arg(raw: str, label: str) -> dict:
 
 
 ROUTE_CONTRACTS = {
-    "codex": {"target": "codex", "harness": "codex", "intermediaries": [], "default_model": "auto", "restriction_posture": "adapter-enforced"},
+    "codex": {"target": "codex", "harness": "codex", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
     "claude": {"target": "claude", "harness": "claude", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
     "grok-cli": {"target": "grok", "harness": "grok", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
-    "cursor": {"target": "cursor", "harness": "cursor-agent", "intermediaries": [], "default_model": "auto", "restriction_posture": "adapter-enforced"},
-    "composer": {"target": "composer", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "composer-2.5-fast", "restriction_posture": "adapter-enforced"},
-    "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "cursor-grok-4.6-high", "restriction_posture": "adapter-enforced"},
+    "cursor": {"target": "cursor", "harness": "cursor-agent", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
+    "composer": {"target": "composer", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "composer-2.5[fast=true]", "restriction_posture": "cooperative"},
+    "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "grok-4.7[context=256k,reasoning_effort=high,fast=true]", "restriction_posture": "cooperative"},
     "opencode": {"target": "opencode", "harness": "opencode", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
+    "antigravity": {"target": "antigravity", "harness": "antigravity", "intermediaries": [], "default_model": "gemini-4-argon", "restriction_posture": "cooperative"},
+    "pi": {"target": "pi", "harness": "pi", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
 }
+# Cursor's ACP model ids may carry a bracketed preset; route families apply to
+# the id before the bracket.
+CURSOR_MODEL = re.compile(r"([A-Za-z0-9][A-Za-z0-9._:/-]*)(?:\[[A-Za-z0-9._=,:-]*\])?")
 
 
 def route_model_allowed(route: str, model: str) -> bool:
+    if route in {"cursor", "composer", "grok-cursor"}:
+        match = CURSOR_MODEL.fullmatch(model)
+        if not match:
+            return False
+        base = match.group(1)
+        if route == "composer":
+            return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", base))
+        if route == "grok-cursor":
+            return bool(re.fullmatch(r"(?:cursor-)?grok-[A-Za-z0-9._-]+", base))
+        lowered = base.lower()
+        return not (lowered in {"composer", "grok"} or lowered.startswith(("composer-", "grok-", "cursor-grok-")))
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", model):
         return False
-    lowered = model.lower()
     if route == "codex":
         return model == "auto" or bool(re.fullmatch(r"(?:gpt-[A-Za-z0-9._-]+|o[0-9][A-Za-z0-9._-]*)", model))
     if route == "claude":
         return model in {"auto", "fable", "opus", "sonnet", "haiku"} or bool(re.fullmatch(r"claude-[A-Za-z0-9._-]+", model))
     if route == "grok-cli":
         return model == "auto" or bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
-    if route == "cursor":
-        reserved = lowered in {"composer", "grok"} or lowered.startswith(("composer-", "grok-", "cursor-grok-"))
-        return not reserved
-    if route == "composer":
-        return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", model))
-    if route == "grok-cursor":
-        return bool(re.fullmatch(r"cursor-grok-[A-Za-z0-9._-]+", model))
-    if route == "opencode":
+    if route in ("opencode", "pi"):
         return model == "auto" or bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+", model))
+    if route == "antigravity":
+        # Antigravity also serves Claude and gpt-oss models; this route exists for Gemini.
+        return bool(re.fullmatch(r"gemini-[A-Za-z0-9._-]+", model))
     return False
+
+
+EFFORT_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}")
 
 
 def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> dict:
@@ -685,6 +699,9 @@ def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> 
     restrictions = egress.get("restrictions", [])
     if not isinstance(restrictions, list) or not all(isinstance(item, str) for item in restrictions):
         raise Operational(word, "egress restrictions must be a string list")
+    effort = egress.get("effort")
+    if effort is not None and (not isinstance(effort, str) or not EFFORT_TOKEN.fullmatch(effort)):
+        raise Operational(word, "egress effort must be a short plain token")
     return contract
 
 
@@ -702,7 +719,7 @@ def attempt_authorization(
     intermediaries = egress.get("intermediaries")
     model = binding.get("model")
     restrictions = egress.get("restrictions", [])
-    return {
+    authorization = {
         "schema_version": 1,
         "run_id": doc["run_id"],
         "unit_id": unit_id,
@@ -717,6 +734,10 @@ def attempt_authorization(
         "activity_posture": activity_posture,
         "packet_digest": packet_digest,
     }
+    # Present only when requested, so an unset run keeps the original key set.
+    if egress.get("effort") is not None:
+        authorization["effort_requested"] = egress["effort"]
+    return authorization
 
 
 def read_external_packet(path: str, label: str = "unit packet") -> bytes:

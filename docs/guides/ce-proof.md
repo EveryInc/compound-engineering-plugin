@@ -74,9 +74,7 @@ If typed `proof_*` MCP tools are already available, the skill prefers those. Oth
 
 ### One-way publish is the default
 
-The chain use is "give me a link." The local file remains the record. Two entries land here: a direct request ("share this to proof", "get me a proof link for this doc") and an upstream handoff from `ce-ideate` (markdown output) or a non-software `ce-brainstorm` or `ce-plan`.
-
-Software brainstorm and software plan menus do not offer Proof. Invoke `/ce-proof` yourself on the markdown file. HTML artifacts are never uploaded.
+The chain use is "give me a link." The local file remains the record. Two entries land here: a direct request ("share this to proof", "get me a proof link for this doc") and a handoff from `ce-ideate`, `ce-brainstorm`, `ce-plan`, or `ce-explain`. Those skills offer Proof only when you name it, in the request or in your own instructions or preferences; being installed is not enough. HTML artifacts are never uploaded.
 
 When the source is a unified plan and its readiness metadata is known, the Proof title carries it: `Plan: <title> (requirements-only)` or `Plan: <title> (implementation-ready)`.
 
@@ -109,7 +107,7 @@ Later, `/ce-proof pull this Proof document to docs/reviews/notification-mute.md`
 Use `ce-proof` when:
 
 - You want a shareable URL for a markdown brainstorm, plan, learning, or draft
-- A wrap-up menu offered "Publish to Proof" (`ce-ideate` markdown, non-software brainstorm, non-software plan)
+- You named Proof as your publisher and a wrap-up menu offered to publish a copy there
 - You have a Proof URL and want the agent to read, comment, or edit
 - You want the current Proof state on disk as a deliberate pull
 
@@ -125,11 +123,9 @@ Skip it when:
 
 ## Use as Part of the Workflow
 
-Wrap-up menus that offer Proof: non-software `/ce-brainstorm`, non-software `/ce-plan`, and `/ce-ideate` Phase 5 on markdown output.
+`/ce-ideate`, `/ce-brainstorm`, `/ce-plan`, and `/ce-explain` offer to publish a copy to Proof only when you named Proof, in the request or in your own instructions or preferences. Otherwise invoke `/ce-proof` yourself on the markdown file.
 
 The handoff is one-way. `ce-proof` publishes, prints the URL, and returns control. The originating skill's local file stays canonical, so that menu can re-render as it was.
-
-Software brainstorm and software plan menus do not include Proof. Publish those markdown files with a direct `/ce-proof` invoke.
 
 ---
 
@@ -190,8 +186,6 @@ The skill retries once. After that you get an error and can stay in the originat
 
 ## See Also
 
-- [`/ce-brainstorm`](./ce-brainstorm.md): non-software wrap-up offers Proof
-- [`/ce-plan`](./ce-plan.md): non-software wrap-up offers Proof
-- [`/ce-ideate`](./ce-ideate.md): Phase 5 "Publish to Proof" on markdown output
+- [`/ce-brainstorm`](./ce-brainstorm.md), [`/ce-plan`](./ce-plan.md), [`/ce-ideate`](./ce-ideate.md): offer a Proof copy when you named Proof
 - [Proof](https://www.proofeditor.ai): the editor
 - [Proof agent docs](https://www.proofeditor.ai/agent-docs): hosted agent contract

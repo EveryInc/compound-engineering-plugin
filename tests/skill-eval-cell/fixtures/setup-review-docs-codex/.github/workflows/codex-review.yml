@@ -1,0 +1,25 @@
+name: codex-review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Review the pull request with Codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: |
+            Review this pull request's diff against the base branch.
+            Follow the rules in AGENTS.md and CODING_STANDARDS.md.
+            Post each finding as an inline review comment on the line it concerns.

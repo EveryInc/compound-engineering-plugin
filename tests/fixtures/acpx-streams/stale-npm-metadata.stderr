@@ -1,0 +1,5 @@
+npm error code ETARGET
+npm error notarget No matching version found for @openai/codex@^0.156.1.
+npm error notarget In most cases you or one of your dependencies are requesting
+npm error notarget a package version that doesn't exist.
+npm error A complete log of this run can be found in: /tmp/acpx-contract/npm-cache/_logs/debug-0.log

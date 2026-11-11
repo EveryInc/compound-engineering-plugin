@@ -33,7 +33,8 @@ export type ArmGrade = {
  * — including the prompt — to stderr, so without this the echo outranks the answer.
  */
 function isPlaceholder(value: string): boolean {
-  return /<[^>]*>/.test(value)
+  const outsideCodeSpans = value.replace(/`[^`]*`/g, "")
+  return /<[^>]*>/.test(outsideCodeSpans)
 }
 
 function lastTrailer(text: string, name: string): string {
@@ -48,7 +49,119 @@ function lastTrailer(text: string, name: string): string {
   return ""
 }
 
+/**
+ * Read a labeled block: the text after the last line that is the label itself
+ * (`ROUTING`, `ROUTING:`, `## ROUTING`, `**ROUTING:**`), up to the next Markdown
+ * heading, the next `LABEL:` field line, or the trailers, whichever comes first. A
+ * `LABEL: value` line keeps single-line semantics. Hosts render a requested field as a
+ * heading or a bold label as often as `LABEL:`, and a field whose content is a list
+ * never fits on the label line; ending at the next section keeps a decision stated in
+ * a later section from satisfying a needle scoped to this one.
+ */
+function isFieldBoundary(line: string): boolean {
+  const trimmed = line.trim()
+  // A boundary is a syntactic label signal, the same shapes the opener accepts: a
+  // Markdown heading; a line that opens with a bold segment (`**DETAILS**`,
+  // `**Details and Rationale**`, `**DETAILS:** explanation`); or a `Label:` line whose
+  // label is one to five capitalized words, connectors allowed (`DETAILS:`, `Details:`,
+  // `Details and Rationale:`). A bare unmarked word on its own line is content
+  // (`## OUTCOME` then `unresolved` is a one-word value), and prose that starts with an
+  // acronym or a lowercase-word phrase before a colon ("PR creation ...",
+  // "API behavior: ...") is content too, so none of those close a field.
+  if (/^#{1,6}\s+\S/.test(trimmed)) return true
+  // A marked label (bold, or a line that is only `words:`) is one to five words with no
+  // sentence punctuation, in any case: `**Next steps**`, `Next steps:`, `**DETAILS:**`,
+  // `Details and Rationale:`. `**Candidate A: discard.** It merely...` has a colon and a
+  // period inside the bold, so it is a finding that opens in bold and stays content.
+  const marked = /^[A-Za-z][A-Za-z0-9_-]*(\s+[A-Za-z0-9_-]+){0,4}:?$/
+  // Bold is structural by syntax alone, whatever the words inside: the bold segment is
+  // the whole line (`**Next steps**`, `**Risks & Trade-offs**`), or a colon follows it,
+  // inside or outside the markup (`**DETAILS:** explanation`, `**Details**: explanation`).
+  // `**PR creation** preserves the stamp` and `**Candidate A: discard.** It merely...`
+  // are emphasized lead-ins on prose lines and stay content.
+  const bold = trimmed.match(/^\*\*([^*]+)\*\*(.*)$/)
+  if (bold) {
+    const inner = bold[1].trim()
+    const rest = bold[2].trim()
+    return rest === "" || rest.startsWith(":") || inner.endsWith(":")
+  }
+  if (marked.test(trimmed) && trimmed.endsWith(":")) return true
+  // `Label: value` with content after the colon needs capitalized label words, so
+  // "API behavior: revocation compares..." stays content while `DETAILS: ...` closes.
+  return /^[A-Z][A-Za-z0-9_-]*(\s+(?:and|or|of|the|to|for|[A-Z][A-Za-z0-9_-]*)){0,4}:\s/.test(trimmed)
+}
+
+function lastFieldBlock(text: string, name: string): string {
+  const lines = text.split("\n")
+  const upper = name.toUpperCase()
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const plain = lines[i].trim().replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim()
+    const head = plain.toUpperCase()
+    if (head !== upper && head !== `${upper}:` && !head.startsWith(`${upper}:`)) continue
+    const onLabelLine = plain.slice(upper.length).replace(/^:/, "").trim()
+    if (onLabelLine) {
+      // `LABEL: value` keeps single-line semantics, placeholder check included.
+      if (isPlaceholder(onLabelLine)) continue
+      return onLabelLine
+    }
+    const rest = lines.slice(i + 1)
+    // The block ends at the next label line, as isFieldBoundary decides, and nowhere
+    // else. A field whose value must survive intervening labels is graded with
+    // `declared` (one line per value), not with a block.
+    const end = rest.findIndex(isFieldBoundary)
+    const following = (end === -1 ? rest : rest.slice(0, end))
+      .filter((line) => !/^(FILES_READ|ACTIONS|DELEGATES_DISPATCHED|TEAM):/i.test(line.trim()))
+      .join("\n")
+      .trim()
+    const firstLine = following.split("\n").find((line) => line.trim()) ?? ""
+    if (!following || isPlaceholder(firstLine)) continue
+    return following
+  }
+  return ""
+}
+
 /** Read a standalone labeled field while ignoring Markdown heading/bold decoration. */
+// A marker opens the block only at the end of a line and closes it only at the start
+// of one: the summary after the block may mention RESULT-START and RESULT-END by name
+// mid-sentence, and a substring search would select that mention instead of the
+// result. Grok narrates on the same line as the opening marker, so the line need not
+// be the marker alone. The first complete pair wins.
+function resultBlock(text: string): string | null {
+  const lines = text.split("\n")
+  const opens = (line: string) => line.trim().endsWith("RESULT-START")
+  const closes = (line: string) => line.trim().startsWith("RESULT-END")
+  for (let i = 0; i < lines.length; i++) {
+    if (!opens(lines[i])) continue
+    const end = lines.findIndex((line, j) => j > i && closes(line))
+    if (end < 0) return null
+    return lines.slice(i + 1, end).join("\n")
+  }
+  return null
+}
+
+/**
+ * Every line of the answer that is `LABEL: value`, decoration ignored, wherever it sits.
+ * Position is not the signal: Grok narrates to stdout before the answer, so line one
+ * is often not the answer at all. The task asks for exactly one such line, so the
+ * caller fails on zero or several and grades the value of the single one.
+ */
+function declaredLines(text: string, name: string): string[] {
+  const prefix = `${name.toUpperCase()}:`
+  // Grok can print its answer on the same line as the narration before it
+  // ("...together.T1: more-code"), so a label right after sentence-ending
+  // punctuation also starts a declaration.
+  const glued = new RegExp(`[.!?]\\s*${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:`, "i")
+  return text
+    .split("\n")
+    .map((line) => line.trim().replace(/^#{1,6}\s+/, "").replaceAll("**", "").trim())
+    .flatMap((plain) => {
+      if (plain.toUpperCase().startsWith(prefix)) return [plain]
+      const m = glued.exec(plain)
+      return m ? [plain.slice(m.index + m[0].length - prefix.length)] : []
+    })
+    .map((plain) => plain.slice(prefix.length).trim())
+}
+
 function lastField(text: string, name: string): string {
   const prefix = `${name}:`
   for (const line of text.split("\n").reverse()) {
@@ -82,6 +195,49 @@ export function parseTrailers(...parts: string[]): Trailer | null {
   return null
 }
 
+/**
+ * The JSON object the answer opens with, parsed up to its closing brace so the eval
+ * trailers after it are ignored. An answer that starts with anything else has none:
+ * a mode:agent caller cannot parse a receipt that prose precedes.
+ */
+export function leadingJsonObject(text: string): unknown {
+  const body = text.trimStart()
+  if (!body.startsWith("{")) return undefined
+  let depth = 0
+  let inString = false
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i]
+    if (inString) {
+      if (ch === "\\") i++
+      else if (ch === '"') inString = false
+    } else if (ch === '"') inString = true
+    else if (ch === "{") depth++
+    else if (ch === "}" && --depth === 0) {
+      try {
+        return JSON.parse(body.slice(0, i + 1))
+      } catch {
+        return undefined
+      }
+    }
+  }
+  return undefined
+}
+
+function parseJsonFile(file: string): unknown {
+  try {
+    return JSON.parse(readText(file))
+  } catch {
+    return undefined
+  }
+}
+
+function walkFiles(dir: string): string[] {
+  if (!fs.existsSync(dir)) return []
+  return fs.readdirSync(dir, { recursive: true, encoding: "utf8" })
+    .map((entry) => path.join(dir, entry))
+    .filter((file) => fs.statSync(file).isFile())
+}
+
 function readText(file: string): string {
   try {
     return fs.readFileSync(file, "utf8")
@@ -103,8 +259,10 @@ function isNone(value: string): boolean {
   return v === "none" || v === "n/a"
 }
 
-function normalizeTrailerPath(p: string): string {
-  return p.trim().replaceAll("\\", "/").replace(/^\.\//, "")
+// A run may annotate an entry ("references/x.md (Plan section)"); the annotation
+// is not part of the path and must not hide a read the run actually named.
+export function normalizeTrailerPath(p: string): string {
+  return p.trim().replace(/\s*\([^)]*\)\s*$/, "").replaceAll("\\", "/").replace(/^\.\//, "")
 }
 
 function trailerNames(filesRead: string[], required: string): boolean {
@@ -182,15 +340,46 @@ export function gradeHost(opts: {
   // satisfied by a read path or a branch name instead of the text under test. A run
   // that emitted no such field fails rather than passing on the trailers.
   const scopeField = opts.grade.must_include_field
-  const scopedText = scopeField ? lastField(stdout, scopeField).toLowerCase() : ""
+  const scopedText = scopeField ? lastFieldBlock(stdout, scopeField).toLowerCase() : ""
   if (scopeField && !scopedText) reasons.push(`missing ${scopeField} field`)
   const textScope = scopeField ? scopedText : team || decision
   for (const needle of scopeField && !scopedText ? [] : opts.grade.must_include ?? []) {
     if (!textScope.includes(needle.toLowerCase())) reasons.push(`missing required text: ${needle}`)
   }
+  for (const options of scopeField && !scopedText ? [] : opts.grade.must_include_any ?? []) {
+    if (!options.some((needle) => textScope.includes(needle.toLowerCase()))) {
+      reasons.push(`missing required text (any of): ${options.join(" | ")}`)
+    }
+  }
+  if (opts.grade.field_must_not_include?.length && !scopeField) {
+    reasons.push("field_must_not_include needs must_include_field")
+  }
+  for (const needle of scopedText ? opts.grade.field_must_not_include ?? [] : []) {
+    if (scopedText.includes(needle.toLowerCase())) reasons.push(`forbidden text in ${scopeField} field: ${needle}`)
+  }
+  if (opts.grade.result_must_not_include?.length || opts.grade.result_must_include?.length) {
+    const block = resultBlock(stdout)?.toLowerCase() ?? null
+    if (block === null) reasons.push("missing RESULT-START/RESULT-END block")
+    else {
+      for (const needle of opts.grade.result_must_not_include ?? []) {
+        if (block.includes(needle.toLowerCase())) reasons.push(`source phrase survived in RESULT block: ${needle}`)
+      }
+      for (const needle of opts.grade.result_must_include ?? []) {
+        if (!block.includes(needle.toLowerCase())) reasons.push(`missing from RESULT block: ${needle}`)
+      }
+    }
+  }
   if (opts.grade.must_not_include?.length && !team) reasons.push("missing TEAM trailer")
   for (const needle of team ? opts.grade.must_not_include ?? [] : []) {
     if (team.includes(needle.toLowerCase())) reasons.push(`forbidden text in TEAM trailer: ${needle}`)
+  }
+  for (const [label, want] of Object.entries(opts.grade.declared ?? {})) {
+    const values = declaredLines(stdout, label)
+    if (values.length === 0) reasons.push(`expected one ${label} line: ${want}, got none`)
+    else if (values.length > 1) reasons.push(`expected one ${label} line, got ${values.length}`)
+    else if (values[0].toLowerCase() !== want.toLowerCase()) {
+      reasons.push(`expected ${label}: ${want}, got ${values[0]}`)
+    }
   }
   if (opts.grade.classification) {
     const actual = lastField(stdout, "CLASSIFICATION")
@@ -211,6 +400,15 @@ export function gradeHost(opts: {
   if (opts.grade.delegates === "some" && hasDelegates) {
     if (isNone(trailers?.delegates ?? "")) {
       reasons.push(`expected ${TRAILER_NAMES.delegates} to name a peer`)
+    }
+  }
+  if (opts.grade.delegates_must_not_include?.length) {
+    if (!hasDelegates) reasons.push(`missing ${TRAILER_NAMES.delegates} trailer`)
+    const declared = (trailers?.delegates ?? "").toLowerCase()
+    for (const needle of hasDelegates ? opts.grade.delegates_must_not_include : []) {
+      if (declared.includes(needle.toLowerCase())) {
+        reasons.push(`forbidden delegate in ${TRAILER_NAMES.delegates}: ${needle}`)
+      }
     }
   }
   if (opts.grade.delegates === "none" && hasDelegates) {
@@ -238,11 +436,68 @@ export function gradeHost(opts: {
       reasons.push(`${check.path} does not contain ${JSON.stringify(check.needle)}`)
     }
   }
+  for (const check of opts.grade.workspace_lacks ?? []) {
+    const file = path.join(workspace, check.path)
+    if (check.needle === undefined) {
+      if (fs.existsSync(file)) reasons.push(`${check.path} exists`)
+    } else if (!fs.existsSync(file)) {
+      reasons.push(`${check.path} is missing`)
+    } else if (readText(file).includes(check.needle)) {
+      reasons.push(`${check.path} still contains ${JSON.stringify(check.needle)}`)
+    }
+  }
+  for (const check of opts.grade.workspace_tree ?? []) {
+    const files = walkFiles(path.join(workspace, check.dir)).map(readText)
+    if (check.contains !== undefined && !files.some((text) => text.includes(check.contains!))) {
+      reasons.push(`no file under ${check.dir} contains ${JSON.stringify(check.contains)}`)
+    }
+    if (check.lacks !== undefined && files.some((text) => text.includes(check.lacks!))) {
+      reasons.push(`a file under ${check.dir} contains ${JSON.stringify(check.lacks)}`)
+    }
+  }
+  for (const check of opts.grade.json_field ?? []) {
+    const source = check.path ?? "answer"
+    const parsed = check.path ? parseJsonFile(path.join(workspace, check.path)) : leadingJsonObject(stdout)
+    if (parsed === undefined) {
+      reasons.push(check.path ? `${source} is not valid JSON` : "answer does not begin with a JSON object")
+      continue
+    }
+    const value = check.field.split(".").reduce<unknown>(
+      (node, key) => (node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined),
+      parsed,
+    )
+    if (typeof value !== "string" || !check.any_of.includes(value)) {
+      reasons.push(`${source} ${check.field} is ${JSON.stringify(value)}, expected one of ${JSON.stringify(check.any_of)}`)
+    }
+  }
+  const shimLog = readText(path.join(opts.hostDir, ".bin", SHIM_LOG))
+  for (const needle of opts.grade.shim_log_must ?? []) {
+    if (!shimLog.includes(needle)) reasons.push(`expected text never reached shim log: ${needle}`)
+  }
   for (const needle of opts.grade.shim_log_must_not ?? []) {
     // The attempt, not the model's account of it: a shimmed command fails, so a
     // skill can truthfully report ACTIONS: none and still have made the call.
-    const log = readText(path.join(opts.hostDir, ".bin", SHIM_LOG))
-    if (log.includes(needle)) reasons.push(`forbidden text reached shim log: ${needle}`)
+    if (shimLog.includes(needle)) reasons.push(`forbidden text reached shim log: ${needle}`)
+  }
+  if (opts.grade.workspace_unchanged) {
+    const read = (name: string) => {
+      const file = path.join(opts.hostDir, name)
+      if (!fs.existsSync(file)) return null
+      const entries = (JSON.parse(fs.readFileSync(file, "utf8")) as { entries: Array<{ path: string; sha256?: string }> }).entries
+      return new Map(entries.map((e) => [e.path, e.sha256 ?? "dir"]))
+    }
+    const seed = read("workspace-seed.json")
+    const final = read("workspace-final.json")
+    if (!seed || !final) reasons.push("no workspace fingerprint before and after the run")
+    else {
+      const changed = [...new Set([...seed.keys(), ...final.keys()])].filter((p) => seed.get(p) !== final.get(p)).sort()
+      if (changed.length) reasons.push(`workspace changed: ${changed.slice(0, 5).join(", ")}`)
+    }
+  }
+  if (opts.grade.no_new_commits) {
+    const file = path.join(opts.hostDir, "git-new-commits.txt")
+    if (!fs.existsSync(file)) reasons.push("no record of commits since the seed (needs git_init)")
+    else if (readText(file).trim()) reasons.push(`run committed after the seed: ${readText(file).trim().split("\n")[0]}`)
   }
   if (opts.grade.committed_must) {
     const head = readText(path.join(opts.hostDir, "git-head-files.txt"))

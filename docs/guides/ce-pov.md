@@ -1,188 +1,55 @@
 # `ce-pov`
 
-> Get a decisive, project-grounded point of view: an adoption verdict, a take on a document, or a position on approaches already on the table.
+> Judge a supplied subject against this project's evidence and constraints, with an oracle panel when requested.
 
-`ce-pov` is the on-demand judgment skill. Give it an adoption question, a plan or spec to react to as a whole, or a set of approaches, and it answers in that subject's shape: **Adopt / Trial / Hold / Reject / Not-our-problem** for adoption, a bottom line with strengths and risks for a document, a preferred approach (or an honest toss-up) for supplied options.
+`ce-pov` answers what should happen and why. It returns a supported judgment on an external-adoption question, a document's direction, or supplied approaches. [`ce-explain`](./ce-explain.md) answers how something works and why it has its current shape. Investigating a past decision does not establish that it remains the right decision today.
 
-It is not research. Research explains a topic; this skill decides what the topic means for your project, and it refuses to decide without a verified project fact behind the answer. Adoption verdicts also need a verified external source. It is not a findings review either: `ce-doc-review` finds issues in a document, `ce-code-review` finds issues in a diff, `ce-debug` handles things that are actually broken.
-
-After a position lands, it proposes one next step (edit, plan, scope, or spike). Invoked bare mid-session, it infers the question from the conversation, returns the POV, and hands control back.
-
----
-
-## TL;DR
-
-| Question | Answer |
-|----------|--------|
-| What does it do? | Grounds a question, document, or approach set against this project and returns a decisive POV in the same shape |
-| When to use it | "Should we adopt X?", "what do you think of this plan?", "A or B here?", or a mid-session second opinion |
-| What it produces | A compact chat POV. A shareable write-up, a captured decision, or a cross-model panel note are all opt-in |
-| What's next | One handoff reasoned from the POV: edits, `/ce-plan`, `/ce-brainstorm`, or a spike with `/ce-work`. Warm invokes skip the offer |
-
----
-
-## Example invocations
+## Examples
 
 ```text
-# Decide whether an external tool fits this project
 /ce-pov should we adopt Drizzle ORM here?
-
-# Holistic take on a document. Use ce-doc-review for issue-by-issue findings.
 /ce-pov what do you think of docs/plans/new-checkout.md?
-
-# Choose among approaches already on the table
-/ce-pov for this service, should we use polling or webhooks?
-
-# Bare link: fetches enough to name the thing, then proposes possible questions
-/ce-pov https://example.com/tool
-
-# Exposure: is this CVE or deprecation ours?
+/ce-pov should we keep polling or rely only on notifications?
 /ce-pov does this CVE affect us?
-
-# Revisit a past decision
-/ce-pov we passed on Redis last year. still right?
-
-# Named peers: forms its own POV, then consults every named model
-/ce-pov compare your take on docs/plans/new-checkout.md with Grok and Composer
-
-# oracle: up to two reachable different-model peers, then bounded reconciliation
-/ce-pov oracle that proposal
-
-# Warm: infers the question from this conversation, returns a POV, hands control back
-/ce-pov
+/ce-pov oracle this proposal
+/ce-pov compare your take with Grok and Claude
 ```
 
-Use `ce-ideate` when the options still need inventing. Use `ce-doc-review` when you want findings, not a take.
+“Oracle this” in an ongoing discussion requests the same panel as an explicit invocation. Other requests for independent model opinions also work; merely mentioning or declining a panel does not trigger one.
 
----
+Use `ce-bakeoff` when a defined brief needs concrete competing solutions developed before selection. Use `ce-ideate` to discover an open field of opportunities. Use `ce-doc-review` when you want findings, not a take.
 
-## The problem
+## Grounding and judgment
 
-Ask a bare agent "what's your POV on X?" and it fails in predictable ways. It answers in the abstract without checking your dependencies, conventions, or call-sites. It agrees with your framing and ratifies whatever you already wanted. It stops at the first source, or cites things it never verified. The answer scrolls away and the next person re-asks. Or it guesses the question: a bare link becomes "should we migrate" when you only wanted a comparison.
+Every judgment must rest on concrete verified project evidence. External adoption also requires a verified external source. For document takes and supplied approaches, external evidence is required when an external claim carries the conclusion. Conversation claims are hypotheses until corroborated.
 
-`ce-pov` puts gates in front of each failure. It settles the intent before grounding and never guesses. Every POV needs a concrete project fact; external evidence is required wherever an external claim carries the conclusion. It hunts for disconfirming evidence, and "no" and "not our problem" are real answers, not fallbacks. Effort scales with reversibility, so a one-way door gets the full workup and a reversible `npm i` gets one screen. The next step is computed from the POV, not assumed.
+A failed evidence floor returns a Hold or explicit blocker with the missing evidence. The skill does not manufacture a confident recommendation. A valid conclusion may also be to wait, reject a candidate, or leave a choice open because either approach is viable.
 
----
+The question determines the content:
 
-## How it works
+| Subject | Result |
+|---|---|
+| External adoption or exposure | Adopt, Trial, Hold, Reject, or Not-our-problem, with evidence and conditions |
+| Document | Overall direction, decisive strengths and risks, and recommended next action when justified |
+| Supplied approaches | A supported position or honest toss-up, with the material tradeoffs |
 
-### Grounding floors
+These are content contracts, not mandatory visible headings. Presentation follows the consumer's needs. Research effort scales with reversibility and consequences, rather than imposing a screen count on the answer.
 
-Every POV must clear a project floor: a verified fact about this project relevant to the decision. Adoption questions also require a verified external source. Document and approach subjects need one only when an external claim carries the bottom line.
+The skill investigates directly. When a judgment requires an explanation of unresolved behavior or rationale, it can call `ce-explain` with the question and the decision it informs. It reuses adequate evidence and retains ownership of the judgment. If `ce-explain` is unavailable, `ce-pov` must still gather the required evidence.
 
-A failed adoption floor returns a `Hold` subtype (`Hold: insufficient project grounding` or `Hold: external evidence unavailable`). A failed document or approach floor returns an explicit `Blocked` result. Neither turns into a confident guess.
+## Interaction and return
 
-### Propose the frame, never guess it
+Clear questions proceed without confirmation. The skill looks up facts it can verify. If essential context is still missing, it returns **Blocked — missing context**, explaining what is missing and why it matters. This applies to direct and workflow invocations; the caller decides whether to ask for clarification.
 
-Before grounding, the skill orients on what you gave it (fetching a bare link to learn what it is) and settles the intent: adopt, migrate, compare, is-this-our-problem, document-take, approach-set, or plain explainer. Clear input gets a one-line inferred frame. Ambiguous input gets proposed framings to confirm. A pure explainer is answered as research, never forced into a verdict.
+A calling workflow receives the judgment and control back, without a menu or capture offer. An explicit oracle request still runs the panel. A recommendation alone does not authorize implementing it. Requested downstream work must remain within scope, authorized, non-destructive, and supported by a result that resolves the decision needed for that action.
 
-A selection question ("what should we use for auth?") belongs here only when the field is bounded, roughly five or fewer real candidates with knowable criteria. Otherwise it Holds and routes to `ce-ideate` or `ce-brainstorm`.
+A requested write-up expands the judgment in the needed format. Ordinary answers need no file. Publication and durable capture are separate requested actions.
 
-### Grounding a generic tool can't do
+## Oracle panels
 
-The skill reads this project: dependency manifests and lockfiles, license compatibility, the incumbent and its call-sites, conventions, git history, the issue tracker, and PR descriptions and comments (never diffs). It also checks prior decisions (`docs/solutions/`, ADRs, closed issues, abandoned PRs) so a verdict does not re-litigate something the team already settled. A non-code project folder works too; only the no-local-context case is out of scope.
+The skill forms its own position before consulting peers. Bare oracle selects up to two reachable different-model peers, using your stated or configured preference first and then the order Codex, Claude, Grok, Antigravity. Cursor and Composer run only when you name or configure them. Named peers are honored exactly without the two-peer cap. Peer opinions inform the decision rather than voting on it. Material disagreement receives bounded reconciliation, and the result reports alignment or dissent honestly.
 
-Grounding runs in scout sub-agents that return a compact dossier, and the orchestrator reasons over the verdict on a clean context. A reversible Tier-1 call runs a single combined pass; the full fleet is reserved for one-way decisions. When the load-bearing facts are already located and verified, bounded inline reads can replace the scouts. The prior-decision scan runs either way.
-
-### Cold and warm invocation
-
-Run it cold (you state the question) or warm (drop `/ce-pov` into a live session). In warm mode the conversation supplies the question and the claims to verify, never the grounding itself. Provenance buckets keep "things the chat assumed" out of the verified-facts column. Warm mode behaves like a guest: a POV block, then control handed back. No peers unless you ask, no next-step menu.
-
-### Reversibility tiers
-
-The skill classifies the decision and sizes the work to match:
-
-- **Tier 1** (two-way door): a dependency, lint rule, or config. One-screen verdict, no reversal trigger
-- **Tier 2** (one-way but bounded): a data store, internal contract, or in-repo migration. Full scout fleet plus alternatives
-- **Tier 3** (one-way and high-stakes): security, legal, privacy, a public contract, an irreversible data migration. Deep external research, a precedent search, and a durable-record offer
-
-The classification is stated in the output, so a shallow verdict is defensible.
-
-### Output in the subject's shape
-
-Adoption verdicts use the five grades and a fixed schema: incumbent, verified facts, conditions, handoff, and a reversal trigger on Tier 2/3. Document takes lead with a bottom line, then strengths, risks, and a recommendation. Approach-set positions pick one supplied option, or say "either is viable" with the material tradeoffs rather than forcing a scoreboard winner.
-
-### Cross-model panels
-
-A peer never replaces the skill's own judgment. Name one or more providers to cross-check, ask for independent opinions in ordinary language, use `oracle` as shorthand for up to two reachable different-model peers, or accept a proactive offer on a decision with meaningful correction cost. Named peers are honored exactly and not capped. Warm invocations never offer a panel.
-
-Peers inspect the shared working tree directly. The first round carries the framed question, subject, read scope, and evidence, but withholds this skill's own conclusion so peers stay independent. When the subject is itself an already-formed position, that position ships as the subject and peers give their own verdict on the underlying question.
-
-A default panel is one blind round plus at most two reconciliations. Before each exchange, disputed project claims get verified and every voice sees the same evidence. Convergence is reasoned confidence, not a vote. At the cap, automatic dispatch stops and further rounds need your approval unless you supplied a larger limit up front. A failed peer never blocks the solo POV. Any POV that follows a panel request states which peers ran, or that none did and why.
-
-### Follow-up
-
-The chat verdict is the deliverable; implementation is outside this read-only contract.
-
-- **Adopt** with clear scope proposes `/ce-plan`; fuzzy scope proposes `/ce-brainstorm`
-- **Trial** proposes a timeboxed spike with `/ce-work`
-- **Hold / Reject / Not-our-problem** ends
-- A document take with actionable revisions offers to apply them through the workflow that owns the document
-- A chosen, defined approach proceeds through planning or execution. A toss-up or a Blocked result does not
-
-Handoff happens without another question only when the original request named that downstream action. Otherwise it offers one continuation and waits. A shareable write-up (HTML by default) and a `ce-compound` capture into `docs/solutions/` are both opt-in. Warm invocations skip all of this unless you ask.
-
----
-
-## Quick example
-
-You paste a link to a new auth service. The intent is ambiguous, so the skill fetches the link, learns it is a passkeys provider, and proposes: adopt passkeys, migrate auth to them, or compare them to current sign-in? You pick "adopt."
-
-It classifies the decision as Tier 3 (auth is hard to reverse) and runs the full scout fleet. A project-grounding scout finds password + email today, with the auth code centralized in one module. A precedent scout finds no prior decision. An external researcher verifies passkey maturity and migration pitfalls.
-
-Both floors pass. The skill returns `Trial` ("yes, if we pilot it on the internal admin app first") with conditions, a reversal trigger ("re-evaluate if enterprise SSO becomes a requirement"), and a proposed spike with `/ce-work`. It offers to take the decision into `/ce-plan` or write up the full case. You take it to `/ce-plan`, seeded with the verdict.
-
----
-
-## When to reach for it
-
-Use `ce-pov` when:
-
-- You read about a framework, library, or pattern and want to know if it fits this project
-- You are weighing a migration off something you already use
-- You need to pick from a bounded field of real options
-- A CVE or deprecation lands and you need to know if it is your problem
-- You want to revisit a past decision
-- You want a holistic take on a plan, spec, or brainstorm rather than an issue list
-- You supplied competing approaches and want a project-grounded choice or honest tradeoff
-- You want the take cross-checked by named different-model peers or `oracle`
-- You are mid-session and want a grounded second opinion on the current direction
-
-Skip `ce-pov` when:
-
-- You just want to understand a topic with no project angle → general research
-- You want options generated from a blank slate → `/ce-ideate`
-- You want an issue-by-issue review of a document → `/ce-doc-review`
-- You want findings on a code diff → `/ce-code-review`
-- You have already decided and want to scope or build it → `/ce-brainstorm` or `/ce-plan`
-- You are diagnosing broken behavior → `/ce-debug`
-
----
-
-## Use as part of the workflow
-
-`ce-pov` is an on-demand insert, not a required pipeline stage.
-
-- **Offered from `/ce-brainstorm`** when a request is really a whether-to-adopt verdict on a specific external candidate. The offer is explicit, never a silent switch
-- **Routes into `/ce-plan`** when an accepted Adopt has clear scope
-- **Routes into `/ce-brainstorm`** when adopt is not pinned down, or a selection field is too open to bound
-- **Routes into `/ce-work`** for a Trial spike
-- **Captures into `/ce-compound`** on request, as a `tooling_decision` or `architecture_pattern` record so the next run's precedent check can find it
-- **Mid-session second opinion** in any skill's session. Returns a POV and hands control back
-
----
-
-## Reference
-
-| Argument | Effect |
-|----------|--------|
-| _(empty, mid-session)_ | Warm second opinion. Infers the question from the conversation and confirms it if needed |
-| `<a question>` | Cold evaluation, e.g. "should we adopt X?", "does this CVE affect us?" |
-| `<a bare link>` | Orients on the link, then proposes candidate framings before grounding |
-| `<a selection question>` | Picks from a bounded field. Routes to `/ce-ideate` if the field cannot be bounded |
-| `<a document or supplied approach set>` | Returns a holistic take or a project-grounded position in that subject's shape |
-| `compare/cross-check with <peers>` | Forms its own POV, then consults every named peer |
-| `oracle` | Blind initial cross-check with up to two reachable different-model peers, then bounded reconciliation when needed |
+A failed peer does not block the solo judgment, but the result discloses who ran and who could not. Serving-model attribution comes from receipts, not requested model names. Ongoing workflows do not get unsolicited panel offers; explicit requests still take the panel path.
 
 ### Peer target names
 
@@ -193,42 +60,23 @@ Target names distinguish models from harnesses and are not aliases for each othe
 | `Cursor` | `cursor-agent` using its configured default/Auto model |
 | `Composer` | A Composer model through Cursor |
 | `Grok` | Native grok CLI when installed; Grok through Cursor only when asked, or when the grok CLI is missing and Cursor is allowed |
+| `Antigravity` (or `Gemini`) | A Gemini model through Google Antigravity: `gemini-4-argon` when your account offers it, otherwise `gemini-3.8-flash`. Never chosen when the session itself runs on Gemini or inside Antigravity. An egress allowlist (`CROSS_MODEL_PEERS`) must name it as `antigravity` |
+| `Pi` | The Pi coding agent on its configured model, or a `provider/model` you pin. Pi can serve any provider, so its POV is never counted as independent. Never chosen when the session itself runs inside Pi |
 
 Cursor Auto is labeled unverified unless a serving-model receipt exists. Without that proof it does not count as independent cross-model corroboration.
 
----
+### Requirements and trust boundary
 
-## FAQ
+Peers run through [acpx](https://github.com/openclaw/acpx), which talks to each agent CLI over the Agent Client Protocol. It needs Node 22.13 or newer with `npx`, `jq`, and the peer's own CLI. On native Windows, OpenCode, Antigravity, and Pi are reported unavailable, because they cannot be launched there yet. npm selects the newest acpx release from the tested compatibility range that satisfies its `min-release-age`/`before` policy. The range starts at 0.18.0, which fixes unsafe read-approval handling in older releases, and stops at the newest validated release. If none qualifies, the peer is unavailable; npm policy is never relaxed. Downloads are reused from the npm cache. Resolution failures receive one metadata refresh without changing npm policy. If npm still reports a date cutoff, the worker names the `min-release-age`/`before` settings to check. When a prerequisite is missing, that peer is reported as not run and nothing is sent.
 
-**How is this different from a general "deep research" tool?**
-A research tool explains a topic in the abstract. `ce-pov` refuses to issue a verdict unless it cites a concrete fact about this project. It ends in a decision, not a report.
+Antigravity needs Google's Antigravity ACP runtime (`agy_acp_server.par`) on `PATH` and its `localharness_external` helper from the same release beside it, or at `ANTIGRAVITY_HARNESS_PATH`. The runtime is a separate download from the `agy` CLI; `ce-setup` links to it. The runtime has its own Google sign-in, separate from the `agy` CLI's: put `{"auth":{"type":"oauth-personal"}}` in `~/.gemini/antigravity-acp/settings.json`, then run `acpx antigravity exec ok` once in a terminal and finish the browser sign-in (the skip message gives the supported version-range command). If the runtime is not signed in, the peer is skipped before anything is sent. Each run gets a private Gemini home that is deleted afterward, and Google API key and cloud project variables are removed from its environment, so it bills your Antigravity subscription.
 
-**Why are the floors subject-aware?**
-An adoption verdict built only on web evidence is abstract, so adoption always needs both floors. A document take does not need ceremonial web research unless an external claim actually carries its conclusion. The project floor always applies.
-
-**How is this different from `ce-doc-review`?**
-Use `ce-pov` for "what do you think of this doc?": a bottom line with strengths and risks. Use `ce-doc-review` for "review this doc" or "find the issues": structured findings and remediation.
-
-**Why only two reconciliation rounds?**
-Two is the cap on automatic spend, not on the debate. A default run is up to three exchanges (one blind round plus two reconciliations), and most runs stop earlier because the skill ends on reasoned confidence rather than a round count. When a decision needs more, it proposes a bounded extension with the specific unresolved question, or you supply a larger limit up front.
-
-**Does it always write a document?**
-No. The default is a compact chat POV. A full write-up and a durable `ce-compound` capture are both opt-in.
-
-**Will it nag me with clarifying questions?**
-Only when the intent is genuinely ambiguous, like a bare link with no stated intent. A clear question gets a one-line inferred frame and proceeds.
-
-**Does it work without a code repo?**
-Yes, for any project folder with real material (docs, decks, data) to ground against. Only the no-local-context case is out of scope; there it asks for context rather than dispensing generic advice.
+Peers read the repository you are already working in. Each route denies the peer's write requests and uses the agent's read-only mode where it has one, but this is best effort rather than a sandbox: the Codex adapter can still write. Claude peers start in safe mode, so the repository's project settings and hooks do not apply to them. Pi asks no permission before using a tool, so Pi peers run with only its read, search, and list tools, no MCP servers, and none of the repository's Pi settings or extensions. Served models are recorded from what each adapter reports. Codex, Claude, and the native Grok CLI report one; Cursor, OpenCode, and Pi routes stay unverified. Antigravity reports no served model either, so its receipt records the model as unverified. It still counts as an independent Gemini voice, because the route requests an explicit Gemini model that the runtime must offer before anything is sent.
 
 ---
 
-## See also
+## In a workflow
 
-- [`ce-ideate`](./ce-ideate.md): generate options from a blank slate. `ce-pov` judges a given external thing
-- [`ce-brainstorm`](./ce-brainstorm.md): scope a decision once it is a yes. `ce-pov` decides whether
-- [`ce-plan`](./ce-plan.md): the build-side handoff when a verdict is accepted
-- [`ce-doc-review`](./ce-doc-review.md): issue-shaped findings for a document. `ce-pov` gives the holistic take
-- [`ce-code-review`](./ce-code-review.md): findings on a diff, not a verdict
-- [`ce-debug`](./ce-debug.md): investigate observed broken behavior. `ce-pov` assesses exposure (is this CVE ours?)
-- [`ce-compound`](./ce-compound.md): capture a weighty verdict into `docs/solutions/` for future precedent
+Use `ce-pov` when an existing subject needs a judgment. Use `ce-explain` when understanding is the result needed. Neither is a mandatory stage before planning. Open-ended option generation belongs to `ce-ideate` or `ce-brainstorm`; findings review belongs to `ce-doc-review`.
+
+A bounded selection question can be assessed when the realistic options and criteria are knowable. An open field or missing criteria returns that unresolved scope to its owner rather than disguising requirements discovery as a verdict.

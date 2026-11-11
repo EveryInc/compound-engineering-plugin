@@ -1,0 +1,17 @@
+{
+  "status": "completed",
+  "pushed": true,
+  "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "items": [
+    {
+      "source": {
+        "id": "IC_kwDOrename",
+        "kind": "comment"
+      },
+      "verdict": "fixed",
+      "summary": "Renamed greet() to greetUser() as requested; replied on the PR."
+    }
+  ],
+  "residuals": [],
+  "notes": "1 other top-level comment was not actionable (deploy preview status) and was not replied to."
+}

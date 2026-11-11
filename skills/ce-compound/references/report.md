@@ -2,25 +2,27 @@
 
 ## Success Output
 
-**User-runnable refresh rendering.** The reports below print a `ce-compound-refresh` invocation for the user to copy. Default to `/ce-compound-refresh <scope>`; use `$ce-compound-refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
+**User-runnable refresh rendering.** The reports below print a refresh invocation for the user to copy. Default to `/ce-compound refresh <scope>`; use `$ce-compound refresh <scope>` only when the active host is Codex or explicitly documents dollar-prefixed skill invocation. Render only the invocation as inline code and output one form only.
 
 ### Non-interactive mode
 
-Emit a structured terminal report and end the turn. No "What's next?" question, no blocking prompt. End with `Documentation complete` as the terminal signal so callers can detect completion.
+Emit a structured terminal report as the last thing this skill writes. No "What's next?" question, no blocking prompt. The report ends this skill, not the turn. When a caller invoked this skill, its next step follows the report in the same session; otherwise end the turn. End with `Documentation complete` as the terminal signal so callers can detect completion.
 
 For `depth:lightweight`, use this lower-overhead report after the Lightweight Mode workflow:
 
 ```
 ✓ Documentation complete (non-interactive lightweight mode)
 
-File: <root>/solutions/<category>/<filename>.md  (created | updated)
+File: <root>/solutions/<category>/<filename>.md  (created | updated) | none
+Also written: <test, lint rule, or standard path, and how it was proven> | none
+Recommended form: none | <form>: <where, the defect shape, the failure message or rule text>
 Track: <bug | knowledge>
 Category: <category>
 Grounding: <mechanical check clean | N flags adjudicated>
 Discoverability: <no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>
 CONCEPTS.md: <not present | scanned, no qualifying terms | updated — N added, N refined, N folded, N scrubbed>
 CONCEPTS.md discoverability: <not checked — CONCEPTS.md unchanged | no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>
-Refresh recommendation: <none | scope hint for /ce-compound-refresh>
+Refresh recommendation: <none | /ce-compound refresh <scope>>
 
 Documentation complete
 ```
@@ -30,19 +32,23 @@ For `depth:full` or backward-compatible non-interactive calls with no depth toke
 ```
 ✓ Documentation complete (non-interactive mode)
 
-File: <root>/solutions/<category>/<filename>.md  (created | updated)
+File: <root>/solutions/<category>/<filename>.md  (created | updated) | none
+Also written: <test, lint rule, or standard path, and how it was proven> | none
+Recommended form: none | <form>: <where, the defect shape, the failure message or rule text>
 Track: <bug | knowledge>
 Category: <category>
 Overlap: <none | low | moderate — see <path> | high — existing doc updated>
 Grounding: <clean | N flags adjudicated (X fixed, Y annotated, Z confirmed) | N claims softened or corrected | degraded — merge-state claims unverified offline>
 Instruction-file edit: <none needed | gap noted, not applied>
 CONCEPTS.md: <scanned, no qualifying terms | created with N entries (M seeded from the learning's area) | updated — N added, N refined, N folded, N scrubbed>
-Refresh recommendation: <none | scope hint for /ce-compound-refresh>
+Refresh recommendation: <none | /ce-compound refresh <scope>>
 
 Documentation complete
 ```
 
-When no doc was written (e.g., non-interactive invoked on a session where the problem is not yet solved), emit a structured failure instead and end with `Documentation skipped` so callers can distinguish success from no-op:
+`Documentation complete` means the run wrote something, including when the only file written is a test or a standard. Track, Category, Overlap, and Grounding then read `n/a`.
+
+When the run wrote nothing (e.g., non-interactive invoked on a session where the problem is not yet solved), emit a structured failure instead and end with `Documentation skipped` so callers can distinguish success from no-op:
 
 ```
 ✗ Documentation skipped (non-interactive mode)
@@ -61,9 +67,9 @@ Documentation skipped
 Ran Full mode.
 Auto memory: 2 relevant entries used as supplementary evidence
 
-Subagent Results:
-  ✓ Context Analyzer: Identified performance_issue in background_job (component from corpus), category: performance-issues/
-  ✓ Solution Extractor: 3 code fixes, prevention strategies
+Research Results:
+  ✓ Classified: performance_issue in background_job (component from corpus), category: performance-issues/
+  ✓ Drafted: 3 code fixes, prevention strategies
   ✓ Related Docs Finder: 2 related issues
   ✓ Session History: 3 prior sessions on same branch, 2 failed approaches surfaced
 
@@ -85,7 +91,11 @@ issues occur in the Email Processing or Brief System modules.
 Refresh recommendation: none
 ```
 
-**End the turn after the summary — `ce-compound` does not present a "What's next?" menu.** The doc is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is deferred to `ce-compound-refresh` via the `Refresh recommendation` line above — the skill designed for it — not auto-applied here, which would edit tracked docs beyond the one deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
+`Files written:` lists everything the run wrote: any test, lint rule, or standard with how it was proven, and the destination the assembly step settled on. That destination is a pack rule's path (`<pack dir>/<file>.md`) when the user routed the capture into a writable pack, and the `<root>/solutions/` path otherwise. Add a `Recommended form:` line when a check or owner consolidation was reported rather than written.
+
+When the lesson met the standard form but the repo has no `CODING_STANDARDS.md`, add this one line and ask nothing: `This could be a coding standard if you adopt them.` Only an attended report carries it. Non-interactive reports read `Recommended form: none` for this case, so it never reaches a pull request.
+
+**The summary is the last thing this skill writes. When a caller invoked this skill, its next step follows the summary in the same session; otherwise end the turn. `ce-compound` does not present a "What's next?" menu.** The lesson is written and any cross-references the workflow found are already in it. Cross-doc maintenance (fixing references in *other* docs, consolidation) is left to a refresh, through the `Refresh recommendation` line above. It is not applied here, because that would edit tracked docs beyond this run's deliverable. If the user wants to view the file or take a follow-up action, they will ask. (Interactive mode only.)
 
 **Alternate interactive output (when updating an existing doc due to high overlap):** in non-interactive mode, this case is communicated via the `Overlap: high — existing doc updated` line of the non-interactive terminal report above, not as a separate output block.
 
@@ -104,7 +114,7 @@ File updated:
 
 | ❌ Wrong | ✅ Correct |
 |----------|-----------|
-| Subagents write product files into `docs/` or edit tracked paths | Subagents write only scratch artifacts under `<run-dir>/` and return the path; orchestrator writes the one final doc |
+| Subagents write product files into `docs/` or edit tracked paths | Subagents write only scratch artifacts under `<run-dir>/` and return the path; orchestrator writes the final form |
 | Subagent returns a long prose body only as its inline response | Subagent writes full output to its run artifact; orchestrator Reads it back (inline return is fallback only) |
 | Research and assembly run in parallel | Research completes → then assembly runs |
 | Non-interactive Discoverability Check edits AGENTS.md/CLAUDE.md | non-interactive Full reports `Instruction-file edit: gap noted, not applied`; non-interactive Lightweight emits a discoverability tip; only interactive Full applies the edit after consent |

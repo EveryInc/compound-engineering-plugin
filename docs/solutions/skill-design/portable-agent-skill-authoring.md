@@ -18,7 +18,7 @@ tags:
   - protocol
   - judgment
   - skill-eval
-last_updated: 2026-09-02
+last_updated: 2026-11-09
 ---
 
 # Portable Agent Skill Authoring
@@ -65,9 +65,15 @@ This reflects current vendor guidance, not a preference for terseness. [OpenAI's
 
 For Compound Engineering's multi-model skills, portable means Sol-first and Fable-acceptable. When Fable guidance to strip procedure or add a brevity block conflicts with Sol guidance to preserve a known-good command, required report content, or no blanket brevity slogan, keep the Sol form. Fable's strong instruction following tolerates a slightly thicker skill; Sol undershoots when Sol-critical determinism is omitted.
 
-For portable Sol/Fable skills, control output length by naming what shortened output must preserve. Do not paste a Fable-only brevity block or ship a blanket "be concise" / "keep it short" slogan into a cross-model skill; GPT-5.6 Sol can undershoot when broad brevity instructions stack on top of its default concision.
+For portable Sol/Fable skills, control output length by naming what shortened output must preserve. Do not paste a Fable-only brevity block or ship a blanket "be concise" / "keep it short" slogan into a cross-model skill; GPT-5.6 Sol can undershoot when broad brevity instructions stack on top of its default concision. Numeric word or bullet caps are not a length control either: when user-facing output runs long, tighten the rule that decides what goes in, such as what the reader needs to judge the result, effects rather than mechanisms, and no replay of what the user said (`confirmations-filter-by-salience-not-length-caps.md`).
+
+Write instructions in the language the agent should use with the reader. Name who acts, what they do, and why it matters when that information is needed. Replace invented labels and internal workflow jargon with the action or consequence they mean. Keep necessary technical terms and exact identifiers, explaining unfamiliar terms where the reader needs them. Clarity must preserve evidence, qualifications, and required detail; shorter text is not the goal.
+
+Gloss-and-keep is not compliance. Defining a plugin-internal noun once and then repeating it in later sentences still leaves the later sentences unreadable without the glossary. After that one definition, later sentences name the actor, the action, and the stop condition in ordinary words. Repeating the old word so the reader learns it is the failure the definition was meant to end. A leftover occurrence is a pinned token, status, invocation, field name, filename, test-pinned sentence, or true domain English.
 
 This is not a ban on targeted steering. A phrase that counters a documented runtime behavior can stay as a model-behavior adapter: name the condition it addresses and verify the effect rather than promoting it to a universal quality slogan.
+
+Verification instructions should elicit an observable check of the final artifact at its requested fidelity, including changes made after review. Test whether the agent chooses and performs that check from the ordinary workflow request; success when a separate prompt names the check establishes capability, not reliable workflow behavior.
 
 This is an admission principle, not a mandate to delete unfamiliar detail. A line that feels redundant may be targeted insurance for a more literal model or a different harness. Test that possibility before removing it.
 
@@ -147,18 +153,20 @@ The protocol kernel begins with outcome and completion behavior. Add other field
 - Coverage floors, when missing a category silently makes the result incomplete.
 - Failure branches, when a missing capability could otherwise cause a silent skip.
 
+**A skill another skill invokes runs in the caller's context on every host; there is no subagent boundary.** Anything it "returns" beyond its primary output is text the caller writes next, and that next write is often the user's message or an artifact such as a PR body. When the contract carries a caller-only channel (a change summary, a status note, a receipt), state at the callee when it is produced and where it may land: outside the primary output, out of any artifact, and only with a requester who asked. Fix this at the callee once; consumers cannot be taught to strip a channel they did not design. Worked case: `inline-callee-side-channel-must-name-where-it-may-not-land.md`. The same fact governs the turn boundary. Nothing resumes a caller when its callee returns, so a callee's return contract states that the return ends the skill and the caller's next step follows in the same session. A callee may claim the turn only under the condition that nothing invoked it. An orchestrator's completion rule states that a child's return resumes its next step in the same turn. Observed 2026-09-14: `lfg` ended the turn after `ce-debug` returned, because the callee called its return the final output and the caller said nothing about continuing.
+
 If many invariants share one outcome, authority domain, mutable state, and definition of done, keep one skill with an invariant index and conditional expansions. Split when outcomes, triggers, authority domains, audiences, or lifecycles are independently meaningful. Do not reduce visible line count by creating a hidden cross-skill state machine.
 
 ## Make activation portable
 
 The name and description are an activation contract. A correct body is useless if it never runs. For a model-invoked skill, the description is also a context pointer: it sits in the window every turn, so it is pruned harder than the body.
 
-- State what the skill is, front-loading the leading word that should fire it in prompts.
-- List one trigger per genuinely distinct branch in "Use when..." or "Use for..." form.
-- Keep adjacent negatives only when they block a real false-trigger neighbor; pair each hard guardrail with the positive trigger it protects.
+- Sentence 1 names the distinctive mechanism (what a sibling would not produce), front-loading the leading word that should fire it in prompts.
+- List one trigger per genuinely distinct branch in "Use when..." or "Use for..." form, written as an observable work-state.
+- Prefer "Use <sibling> for <that job>"; keep "Not for" only when the same words fire both skills. If the skill is harmful on the wrong job, put "Use only when" / "Skip when" in the description.
 - Preserve deliberate invocation as a fallback when automatic routing is unavailable.
 - Use capability language instead of relying on one harness's command syntax.
-- Do not open with identity boilerplate, catalog synonyms or examples of one branch, dump workflow, flags, or procedure, or spend description words on content the body already carries.
+- Do not open with identity boilerplate, catalog synonyms or examples of one branch, stuff quoted utterances or slash names into a model-invoked description, dump workflow, flags, or phase lists, or spend description words on content the body already carries. Distinctive how may stay. Quoted phrases and `/name` aliases belong only on a user-invoked or `disable-model-invocation` skill, after the mechanism.
 
 For an automatically routed follow-up that writes a durable artifact, a completion signal identifies the checkpoint, not eligibility. Pair it with a value condition that distinguishes knowledge missing from the primary artifacts from facts a reader can readily recover there. Put the cheap full gate in the caller and repeat the no-yield boundary in the skill, so routine completion does not launch an expensive workflow and direct routing still self-skips when it has nothing durable to add. A useful counterfactual is whether removing the secondary artifact would make a future maintainer likely to repeat the mistake or redo substantial investigation.
 
@@ -217,6 +225,8 @@ More literal models often lose a distant qualifier. Keep scope beside the action
 
 Prefer a local quantifier or threshold over a general reminder elsewhere in the skill.
 
+When a skill judges external text (review findings, issue bodies, user requests), do not key an exclusion on a word that text uses about itself, such as "silent" or "breaking". A literal model matches the word instead of testing the condition, so state the property that decides (`key-exclusions-on-the-deciding-property-not-an-echoed-word.md`).
+
 ## Define completion, not effort
 
 Avoid open-ended instructions such as "continue until good" or "be thorough." Define observable completion instead:
@@ -236,7 +246,7 @@ Every skill needs one skill-level done bar. Add local done checks only where ski
 In long agent loops, current models drift in three ways the skill's prose must counter: implied-parallel tool calls get issued one per turn, user-facing narration goes quiet for minutes at a time, and turns end with work described rather than performed. A skill that owns a long-running or orchestrating workflow states all three disciplines; a skill that runs a few calls and returns needs none of them.
 
 - **Batching.** Instruct the agent to first privately list what it needs next, then issue every call that does not depend on another's result in one response. For work dispatched to subagents, the same rule schedules a wave: dispatch every independent unit together, and serialize only where the dependency graph actually demands it — uncertainty is resolved by inspecting the contested files and contracts, not by defaulting to serial.
-- **Narration.** Say what user-facing text the workflow produces and when: a line before a step starts naming what it should produce, brief updates at meaningful boundaries naming what actually happened, and a closing recap that stands on its own. Name the fields each of these carries; "keep the user informed" is an effort instruction, not a contract.
+- **Narration.** Define updates by what the user needs to understand or decide: the intended outcome at kickoff, meaningful findings and blockers during work, and a closing recap with results and limitations. During longer work, give occasional updates on what was learned and what remains. Routine internal transitions need no separate announcement. Describe the work in terms of the user's goal; expose workflow terminology only when it helps explain a decision or limitation. State what each report preserves and what belongs in artifacts; "keep the user informed" is an effort instruction, not a contract.
 - **Finishing.** Gate completion claims on performed work: a step is done only after it actually ran, describing what a step would do is not doing it, and the turn does not end while in-scope work remains undone or merely described. Pair this with the skill-level done bar rather than adding per-step ceremony.
 
 ## Describe capabilities before tools
@@ -256,6 +266,8 @@ Preserve the semantic floor. If every iteration requires agent reasoning, sub-sk
 
 Do not infer that a capability is unavailable from one missing binary, environment variable, or MCP server. Check the harness's available interfaces and degrade explicitly.
 
+Let the host's rules decide how to wait. A skill owns its outcome: what each iteration judges, what state it keeps, and when it stops. When host instructions say how control returns between iterations, they outrank the skill, so a skill that bans a host's tool or requires its own watcher sets up a conflict it cannot win. The agent then spends its reasoning on reconciling the two, or runs both. State the skill's mechanism as the default, say when the host's replaces it, and name what the replacement may not cover. A ban on a host tool stays valid only where the tool would replace the skill's work rather than its wake-up.
+
 ### Bundled files
 
 Distinguish three path cases:
@@ -267,6 +279,10 @@ Distinguish three path cases:
 | Executed shell command | Use the repository's portable skill-directory anchor pattern |
 
 Diagnose before rewriting a path. Trace the skill-to-launcher, shell-to-launcher, and engine-to-resource boundaries. An engine may already locate sibling resources through its own source path. A pattern that looks suspicious is not a defect until the failure is reproduced or a necessary failing path is identified.
+
+### Temp directories
+
+Choose by whether anything must rediscover the directory without being handed its path. A later invocation that resumes state, attaches to a live session, or polls a job it did not start needs a known root, so create that directory under the scratch-root preamble copied from a shipped skill. A directory whose absolute path is passed to everything that uses it, including a worker the run starts and later polls, may be a unique `mktemp -d "${TMPDIR:-/tmp}/<name>-XXXXXX"`: it is created private (0700) and atomically, so the scratch root adds no privacy. Never use a fixed name or a name from an optional tool such as `openssl`; two runs then share a path, or a missing tool collapses every run onto one.
 
 ## Make authority proportional to risk
 
@@ -301,15 +317,26 @@ Always-loaded skill prose remains in context throughout the workflow. Extract su
 - Move large schemas, specialist prompts, examples, and route-specific instructions to references.
 - Keep the instruction to load the reference inline at the point of use, and state once in the body that a read made before that point does not satisfy it; a host that reads every reference at skill load meets the letter of "read before the step" while losing both the context saving and any safety path that depends on a late read (`size-driven-skill-restructure.md`, "When a host front-loads the references").
 - Do not inline a summary complete enough to suppress loading the authoritative reference.
+- Tell the agent to read each skill file whole in its own tool call, before the first reference read. Codex returns about 40 KB of one tool output and drops the middle, whatever output cap the agent asks for. Agents also batch a SKILL.md with other output into one command, or set a low cap themselves. Five audited `ce-debug` sessions lost text this way, once all of Phase 4 routing (#2030, 2026-11-08 audit). Reuse the exact sentence `tests/review-skill-contract.test.ts` pins as `READ_EACH_FILE_RULE`. The 36 KB per-file guard in `tests/codex-skill-prompt-budget.test.ts` is the size half of the same rule.
 - Pass large context to subagents by file path plus a short gist rather than duplicating it into prompts.
 
-When delegation is used, each task needs a distinct scope, output contract, and synthesis owner. Use parallel work for genuinely independent questions, not as a reflex. A single capable model may be better when the work depends on one evolving context or requires tight synthesis.
+Dispatch a subagent only for a reason that survives better compaction. There are four: the work must read far more than it returns and the parent will not need the raw material again; independent judgment is the product (review, verification, ideation, judging), so the parent's context would anchor it; substantial units can run in parallel without shared files or state; or the harness can actually select a different model for it. Do the work in the parent when its input lives only in the parent (the conversation, decisions settled this session), when the parent will read the full output back anyway, or when it is a small change to code the parent already read. A fresh subagent sees only what its prompt carries, so a subagent told to "extract the conversation" without being handed it is a broken dispatch, not a cheap one: `ce-compound` once drafted every learning that way. Inlining is not free either. Tokens added to a long-lived parent, such as an `lfg` or `ce-babysit-pr` chain, are re-read on every later turn, and in one measured `ce-code-review` run the orchestrator's cache reads were twice those of its six subagents combined (`review-cost-is-in-entering-the-spine-not-the-findings.md`). Each delegated task still needs a distinct scope, output contract, and synthesis owner.
+
+The brief is everything the child knows about the run. Telling the child that it does not inherit the conversation does not give it what the conversation held. A brief carries three things the child cannot recover on its own:
+
+- **The user's stated constraints that bound the child's work**, in the user's words: limits on scope, mutation, or output, and what to leave alone. This does not include decisions the child exists to judge independently, such as a settled design choice a reviewer should stay free to re-derive. Observed after #1974: a Codex `ce-code-review` brief told the reviewer it did not inherit the conversation, then dropped a constraint the user had stated.
+- **A stop condition scoped to the child's work.** It says what to hold (the refused action, the failed check, and whatever depends on it) and what may continue (independent parts of the same task). It also says that finished work stays in place. A bare "stop and report" makes one refused step throw away finished or partly verified work.
+- **A report of what did not go as briefed**: any action the harness or a permission check refused, any work beyond the assigned scope, and anything skipped, worked around, or left unverified. A summary of what the child did hides these, so the parent integrates the result as if it were complete.
+
+The dispatching skill states these as conditions its briefs must meet, not as fixed brief text. When the child's existing contract already covers one, such as a budget rule that says what to keep or a schema field for uncovered risk, the skill does not repeat it.
 
 Stable cross-skill fields, enums, and return statuses are protocols. Version or parity-test them when independently evolving skills depend on exact agreement.
 
 ## Diagnose before prescribing
 
 A review agent is biased toward producing changes. Counter that bias directly.
+
+The agent using a review must check each finding against the requested outcome. Confidence and reviewer agreement can strengthen evidence; they do not prove that a change is worthwhile or grant permission to edit. Apply the same standard to every output field so rejected suggestions do not return as risks or open questions. Reviewer personas and schema descriptions must use that same standard; a local rubric must not require concerns that synthesis is expected to discard. The agent should choose technical fixes from project evidence within the agreed outcome and constraints; permission governs whether it may apply them. Several workable approaches or newly specified details do not by themselves require a user decision. A calling workflow still owns its deliverable after review: preserve readable findings without treating the reviewer's wording, classifications, or counts as binding. When an assessment skill lacks essential context, it returns what is missing and why it matters to the calling agent instead of starting its own interview.
 
 ### Suspected defects
 
@@ -362,7 +389,7 @@ Prioritize:
 
 Do not imply a full model-by-harness suite for every edit. Choose fixtures tied to the biggest gotchas in the change.
 
-Use fresh context for behavioral prose evaluation. Some harnesses cache skill content at session start, so invoking the edited skill in the authoring session may test stale content.
+Use fresh context for behavioral prose evaluation. Verify that every callable copy of each workflow skill matches the frozen source in the actual host workspace, including sibling skills reached through native invocation. Record the resolved paths and content hashes. A fresh session can still load an older project-local copy after reading an updated bundle; some harnesses also cache skills at session start. Keep historical source being reviewed separate from the workflow skills executing the review.
 
 For side-effecting skills, evaluate in layers:
 
@@ -374,6 +401,8 @@ For side-effecting skills, evaluate in layers:
 Verify load-bearing harness claims live on the runtimes that depend on them. Leave unverified claims as explicit verification tasks rather than universal assertions.
 
 Read a tie honestly. If old and new prose both succeed on a strong model, the test shows no regression but not improvement. Test the claimed determinism or weaker-model insurance at the layer where it matters.
+
+After any change that writes or rewrites skill prose, have a fresh reader, a subagent that did not author the change, quote every sentence it had to read twice and any rewritten sentence whose meaning drifted. The author can't see these, and evals and review bots pass them too. Size the read to the change: a restructure gets the whole always-loaded body; a new or rewritten sentence gets read once in place, even when it's copied into several files. `ce-skill-work`'s `references/evaluate.md` carries the procedure.
 
 Measure the outcome the skill exists to improve, not proxy volume:
 
@@ -397,6 +426,8 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Vendor guidance conflicts resolve Sol-first for this org's multi-model skills; Fable-only deletions do not strip Sol-critical determinism.
 - [ ] Generic quality exhortations and motivational rationale are absent.
 - [ ] Long-running or orchestrating workflows state batching, narration, and finish-fully discipline; skills that run a few calls and return omit them.
+- [ ] A caller-only channel in an inline-invoked skill's contract (summary, status note, receipt) says when it is produced and where it may land, at the callee.
+- [ ] A callee's return or terminal report never claims the turn unconditionally; an orchestrator's completion rule says a child's return resumes its next step in the same turn.
 
 ### Protocol and judgment
 
@@ -423,6 +454,8 @@ Measure the outcome the skill exists to improve, not proxy volume:
 - [ ] Higher-priority prohibitions remain intact.
 - [ ] Inherited authority is explicit and can only narrow.
 - [ ] Delegated tasks have distinct scopes, output contracts, and a synthesis owner.
+- [ ] Each subagent dispatch names its reason (flood protection, independent judgment, parallel units, or a selectable model) and receives every input it needs; work whose input lives only in the parent stays in the parent.
+- [ ] Each brief carries the user's stated constraints on the child's work (not decisions the child should judge independently), says what to hold and what may continue when a step is blocked, and asks for a report of refused actions, scope overruns, and skipped, worked-around, or unverified steps.
 
 ### Evidence and evaluation
 

@@ -6,11 +6,14 @@ Read the guide's "Author in this order", "Build the skill around an outcome spin
 
 1. **Confirm the gate.** Apply the new-skill contribution gate exactly as the working agreement in the project's active instructions states it (who is exempt, and what approval must exist before work starts) — do not paraphrase it here. Confirm the skill does not already exist under another name — grep `skills/*/SKILL.md` descriptions for the same trigger.
 2. **Write the outcome spine as prose, first, alone:** the result or decision this skill produces, who consumes it next, the done condition, and the non-obvious intent only if it changes the approach. If you cannot write these four in a paragraph, the skill is not ready to author.
-3. **Write the activation contract:** name and description as a context pointer — the model-invoked description sits in the window every turn and is pruned harder than the body. First state what the skill is, front-loading the leading word that should fire it in prompts; then list one positive trigger per genuinely distinct branch in "Use when..." or "Use for..." form; then add only adjacent negatives that block a real false-trigger neighbor. Agents under-trigger, so state the condition broadly enough that it covers the situations a user reaches without naming the skill — as a condition ("any change to a skill file"), not as a list of phrasings. Do not open with identity boilerplate, catalog sites/synonyms/capabilities for one branch, dump workflow, flags, or procedure, or spend words on content the body already carries. Name: hyphen-case, verb-led where it reads naturally, under 64 characters; public plugin skills carry the `ce-` prefix.
+3. **Write the activation contract:** name and description as a context pointer — the model-invoked description sits in the window every turn and is pruned harder than the body. Sentence 1 names the distinctive mechanism (what a sibling would not produce), front-loading the leading word that should fire it in prompts. Then list one positive trigger per genuinely distinct branch in "Use when..." or "Use for..." form, written as an observable work-state. Prefer "Use <sibling> for <that job>"; keep "Not for" only when the same words fire both skills. If the skill is harmful on the wrong job, put "Use only when" / "Skip when" in the description. Agents under-trigger, so state the condition broadly enough that it covers the situations a user reaches without naming the skill — as a condition ("any change to a skill file"), not as a list of phrasings. Do not open with identity boilerplate, catalog sites/synonyms/capabilities for one branch, stuff quoted utterances or slash names into a model-invoked description, dump workflow, flags, or phase lists, or spend words on content the body already carries. Distinctive how may stay. Quoted phrases and `/name` aliases belong only on a user-invoked or `disable-model-invocation` skill, after the mechanism. Name: hyphen-case, verb-led where it reads naturally, under 64 characters; public plugin skills carry the `ce-` prefix.
 
-Contrast pair (the only description example):
+Contrast pairs:
 - Good (shape): "Applies this repository's skill-authoring standard as a procedure. Use for any change to, or judgment about, a file under skills/** — a SKILL.md, a reference, a persona prompt, a bundled script's instructions: creating a skill, editing one, reviewing a skill change, or acting on review feedback (human or bot) about one. Not for src/, tests/, or scripts/ code."
 - Bad (failure: identity boilerplate + one branch written as a site/capability catalog): "This skill should be used when a user wants media from a yt-dlp-supported URL such as YouTube, Twitter/X, TikTok, and similar sites downloaded, audio extracted, playlists archived, or 403/bot-check failures fixed."
+- Good (mechanism): "Poll CI and review threads on a named PR until they settle or block. Use when merge depends on checks or feedback still in flight."
+- Bad (failure: category without the distinctive mechanism): "Run metric-driven optimization loops. Use when improving a measurable outcome through experiments."
+- Bad for a model-invoked skill (quoted-utterance catalog; fine after the mechanism on a user-invoked or `disable-model-invocation` skill): "Use for /ce-commit-push-pr, 'open the PR', 'land this', 'push it up'."
 
 ## Authoring
 
@@ -29,7 +32,7 @@ Contrast pair (the only description example):
 
 ## Repo inventory (all in the same change)
 
-A user-facing skill needs: `docs/guides/<name>.md` (purpose, novel mechanics, when to use, chain position), a catalog row in `docs/guides/README.md`, a root `README.md` inventory row, and the skill-count bump in `tests/release-metadata.test.ts`. Run `bun run release:validate` and `bun run test`.
+A user-facing skill needs: `docs/guides/<name>.md` (purpose, novel mechanics, when to use, chain position), a catalog row in `docs/guides/README.md`, a root `README.md` inventory row, a situation row in `skills/ce-help/references/skill-map.md`, and the skill-count bump in `tests/release-metadata.test.ts`. Run `bun run release:validate` and `bun run test`.
 
 ## Validate
 

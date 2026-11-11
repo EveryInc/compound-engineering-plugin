@@ -1,0 +1,7 @@
+- title: Install
+  url: /install/
+- title: Guides
+  url: /guides/
+  collections: [guides]
+- title: GitHub
+  url: https://github.com/EveryInc/compound-engineering-plugin

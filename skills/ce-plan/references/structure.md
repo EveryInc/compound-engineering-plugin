@@ -15,7 +15,7 @@ For each question, decide whether it should be:
 
 Ask the user only when the answer materially affects architecture, scope, sequencing, or risk and cannot be responsibly inferred. Use the platform's blocking question tool when available (see Interaction Method).
 
-**Never re-ask a session-settled decision.** A decision carrying the `session-settled:` label, or classified settled per `references/settled-decisions.md`, is answered input, not a planning question. An unexamined directive receives exactly one challenge here, backed by research evidence, and the outcome lands in the plan as a labeled or unlabeled Key Technical Decision — the plan is the challenge ledger; later pipeline stages do not re-challenge. An unanswered pipeline-surfaced challenge resurfaces only through the calling pipeline's residual channel.
+**Never re-ask a session-settled decision.** A decision carrying the `session-settled:` label, or classified settled per `references/settled-decisions.md`, is answered input, not a planning question. An unexamined directive receives exactly one challenge here, backed by research evidence, and the outcome lands in the plan as a labeled or unlabeled Key Technical Decision — the plan is the record of that challenge; later pipeline stages do not re-challenge. A challenge raised in pipeline mode that the user never answered comes back only through the calling pipeline's residual channel.
 
 **Scaffold questions on unfamiliar territory.** When the user has signaled they lack working knowledge of the area a question lives in — an explicit "I don't know X", or earlier answers showing they *cannot evaluate* options rather than merely haven't decided — do not ask the question naked. Present it as a taught decision: the realistic options, one clause each on the trade-off that matters for this plan, and a recommended default. If the user still cannot evaluate, record the default as an explicit assumption in the plan instead of extracting a guess. In pipeline mode (LFG, any `disable-model-invocation` context) this scaffolding never presents anything — resolve to the recommended default and record it as an explicit assumption in the plan.
 
@@ -41,10 +41,12 @@ For **Standard** or **Deep** plans, briefly consider who is affected by this cha
 
 #### 3.3 Break Work into Implementation Units
 
+Start from how the result will be used or run: who calls it, runs it, or depends on it, what they see when it works, and who finds out when it fails. When nobody would, making the failure visible is part of that usage, not an extra. Units exist to deliver that usage and to keep existing contracts working. A mechanism the request did not ask for enters a unit only by passing 3.8.
+
 Break the work into logical implementation units. Each unit should represent one meaningful change that an implementer could typically land as an atomic commit.
 
 Good units are:
-- Focused on one component, behavior, or integration seam
+- Focused on one component, behavior, or integration boundary
 - Usually touching a small cluster of related files
 - Ordered by dependency
 - Concrete enough for execution without pre-writing code
@@ -56,13 +58,30 @@ Avoid:
 
 Each unit carries a stable plan-local **U-ID** assigned in Phase 3.5 (`U1`, `U2`, …). U-IDs survive reordering, splitting, and deletion: new units take the next unused number, gaps are fine, and existing IDs are never renumbered. This lets `ce-work` reference units unambiguously across plan edits.
 
+**Delivery shape.** Decide whether the work ships as one pull request or several, and state it in the Goal Capsule's execution profile. One PR is the default. Each extra PR costs another round of CI and review, another rebase, and often a wait while the earlier PR merges. Split only where the boundary buys something worth that cost:
+
+- the project's instructions or configuration require a part to ship as its own PR or to be approved by an approver the rest does not need, such as a code-owner approver for one directory or a rule that migrations land alone. A practice the project does not state does not count;
+- the project's instructions or configuration require a person to review each PR, and one PR would be too large for that person to review well. The requirement must be stated, but a size limit need not be: judge the size by what one careful reviewer can read well in one sitting. Agent review reads the same total diff however it is split, so when no person must review, size does not justify a boundary;
+- a part must reach production before the rest is ready, such as an urgent fix inside larger work;
+- a later part cannot merge until an earlier part is deployed, has migrated production data, or has run in production for a set time.
+
+Parts that carry different risk, that are separate units, or that must merge in a certain order are not reasons to split on their own. Neither is being able to roll a part back separately: an agent can fix forward or revert and re-land a combined PR at little cost, and splitting for rollback alone multiplies PRs. A part that waits on a person's decision, sign-off, or authorization is not a reason either: record that wait in Open Questions as a gate on merging, and keep the work in one PR. A part blocked by something that will not clear during this work, such as a vendor or a credential nobody has yet, is not ready to build; list it under `### Deferred to Follow-Up Work` instead of giving it its own PR. Work that only checks or measures the change, such as a test harness or a benchmark, ships in the PR whose change it checks, unless it is a deliverable in its own right. A check that can run only after that change is in production cannot finish inside that PR; it ships with the work that waits on its result. If later units depend on a result from earlier units, such as a measurement, put the earlier units first in the same PR. Do not give them their own PR for that reason.
+
+When it ships as several, each PR is a group of whole units: group the units in Implementation Units under one heading per PR, and follow each heading with a `Waits on:` line. Under each heading except the first, add one sentence naming which reason above keeps that group a separate PR. If no reason applies, merge the group into a group it waits on, or into the first group if it waits on nothing. Do not make work wait on a gate it does not need: a group held for an approver or a production step that the other groups do not need goes after them, unless another group needs what it produces. A wait that is merge order only is allowed in a valid split; it just cannot be the split's reason. The `Waits on:` line names each PR the group waits on and the kind of wait: merge order only, or needed before this group can start because its build or verification uses what that PR's merge or deployment produces. Executors build groups ahead of merges, so a wait marked merge order lets the waiting group be built before the earlier PR merges. Units keep their `U<N>.` headings inside the group. Do not add a second grouping, such as a PR table, that divides the units differently. The grouping must meet three conditions:
+
+- **One creator per shared artifact.** A type, table, migration, route, or config key that several units use is created by exactly one unit. Every unit that uses it is in the creator's PR or in a PR that waits on the creator's PR.
+- **Safe after every merge.** Merging the PRs in dependency order leaves the default branch shippable and safe after each merge. No capability is reachable on the default branch, by users or agents, before the guard that limits it, such as a permission check, a spending limit, or an audit record. This holds when the guard ships in a later PR and when it is deferred out of scope: until the guard exists, restrict the capability to the callers that guard would not limit. Infrastructure that only deferred work uses waits for that work instead of shipping inside the Definition of Done. The same holds after each deploy: when a PR is unsafe to merge until an earlier PR is deployed, such as a separately deployed service that calls a change the earlier PR makes live, its `Waits on:` line names that deployment. A deploy dependency gates the merge, not the start, unless the group's build or verification needs the deployed state.
+- **Parallel PRs do not conflict.** PRs that do not wait on each other can merge in either order without a merge conflict.
+
+How the project branches, stacks PRs, numbers migrations, or gates merges comes from its own instructions. Cite those instead of restating them in the plan.
+
 #### 3.4 High-Level Technical Design
 
 When the plan's technical approach has shape that prose alone doesn't carry well — architecture across components, sequencing across processes, state machines, branching gates, lifecycles, quantitative comparisons — include a High-Level Technical Design section that conveys the shape. The exact form (component diagram, sequence, swim lane, flowchart, state machine, decision matrix, pseudo-code grammar, bar chart for sizing concerns) is the agent's call per artifact — pick what makes the content land fastest for the reader.
 
-See `references/plan-sections.md` for the section catalog including HTD's "include when material" criterion. See the format-rendering reference loaded at Phase 0.0 for how visualizations render in the target format (mermaid in markdown, inline SVG in HTML — with the layout-legibility principles around halo, contrast, and label placement when in HTML).
+See `references/plan-sections.md` for the section catalog including HTD's "include when material" criterion. See the format-rendering reference loaded at Phase 0.0 (Resolve Output Mode) for how visualizations render in the target format (mermaid in markdown, inline SVG in HTML — with the layout-legibility principles around halo, contrast, and label placement when in HTML).
 
-When the plan's approach is a one-paragraph pattern application that prose conveys directly, skip the section. The presence of HTD should earn its keep with content that genuinely benefits from visualization.
+When the plan's approach is a one-paragraph pattern application that prose conveys directly, skip the section. Include HTD only when its content genuinely benefits from visualization.
 
 Plan diagrams render authoritative content alongside the prose — they are not "directional sketches." Do not add hedging captions like *"directional guidance for review, not implementation specification"* to plan diagrams; the prose-is-authoritative rule already governs disagreement, and the hedging weakens the diagram unnecessarily.
 
@@ -84,7 +103,7 @@ The tree is a scope declaration showing the expected output shape. It is not a c
 
 Each unit is a level-3 heading carrying a stable U-ID prefix matching the format used for R/A/F/AE in requirements docs: `### U1. [Name]`. Number sequentially within the plan starting at U1. Do not render units as bulleted list items or prefix them with `- [ ]` / `- [x]` checkbox markers. List-based unit titles fragment in every standard renderer because the per-unit fields (`**Goal:**`, `**Files:**`, `**Approach:**`, etc.) are written flush-left, which terminates CommonMark list continuation and detaches the fields from the unit they describe. Headings render correctly everywhere, are the right semantic match for sections containing multi-block content, and give each unit an anchor link. The plan is a decision artifact; execution progress is derived from git by `ce-work` rather than stored in the plan body.
 
-**Stability rule.** Once assigned, a U-ID is never renumbered. Reordering units leaves their IDs in place (e.g., U1, U3, U5 in their new order is correct; renumbering to U1, U2, U3 is not). Splitting a unit keeps the original U-ID on the original concept and assigns the next unused number to the new unit. Deletion leaves a gap; gaps are fine. This rule matters most during deepening (Phase 5.3), which is the most likely accidental-renumber vector.
+**Stability rule.** Once assigned, a U-ID is never renumbered. Reordering units leaves their IDs in place (e.g., U1, U3, U5 in their new order is correct; renumbering to U1, U2, U3 is not). Splitting a unit keeps the original U-ID on the original concept and assigns the next unused number to the new unit. Deletion leaves a gap; gaps are fine. This rule matters most during deepening (Phase 5.3), where accidental renumbering is most likely.
 
 For each unit, include:
 - **Goal** - what this unit accomplishes
@@ -95,14 +114,14 @@ For each unit, include:
 - **Execution note** - optional natural-language direction, only when the unit benefits from non-default sequencing or proof. Do not treat this as an enum; phrase the evidence the implementer should seek.
 - **Technical design** - optional pseudo-code or diagram when the unit's approach is non-obvious and prose alone would leave it ambiguous. Frame explicitly as directional guidance, not implementation specification
 - **Patterns to follow** - existing code or conventions to mirror
-- **Test scenarios** - enumerate the specific test cases the implementer should write, one scenario per list item (never a semicolon-chained paragraph), right-sized to the unit's complexity and risk. Consider each category below and include scenarios from every category that applies to this unit. A simple config change may need one scenario; a payment flow may need a dozen. The quality signal is specificity — each scenario should name the input, action, and expected outcome so the implementer doesn't have to invent coverage. For units with no behavioral change (pure config, scaffolding, styling), use `Test expectation: none -- [reason]` instead of leaving the field blank. **AE-link convention:** when a test scenario directly enforces an origin Acceptance Example, prefix it with `Covers AE<N>.` (or `Covers F<N> / AE<N>.`). This is sparse-by-design — most test scenarios are finer-grained than AEs and do not link. Do not force AE links onto tests that only cover lower-level implementation details.
+- **Test scenarios** - enumerate the specific test cases the implementer should write, one scenario per list item (never a semicolon-chained paragraph), right-sized to the unit's complexity and risk. Scenarios test the behavior the unit builds; a category is not a list of failures to add handling for. Include scenarios from each category below that applies to what this unit builds. A simple config change may need one scenario; a payment flow may need a dozen. The quality signal is specificity — each scenario should name the input, action, and expected outcome so the implementer doesn't have to invent coverage. For units with no behavioral change (pure config, scaffolding, styling), use `Test expectation: none -- [reason]` instead of leaving the field blank. **AE-link convention:** when a test scenario directly enforces an origin Acceptance Example, prefix it with `Covers AE<N>.` (or `Covers F<N> / AE<N>.`). This is sparse-by-design — most test scenarios are finer-grained than AEs and do not link. Do not force AE links onto tests that only cover lower-level implementation details.
   - **Happy path behaviors** - core functionality with expected inputs and outputs
-  - **Edge cases** (when the unit has meaningful boundaries) - boundary values, empty inputs, nil/null states, concurrent access
-  - **Error and failure paths** (when the unit has failure modes) - invalid input, downstream service failures, timeout behavior, permission denials
+  - **Edge cases** (inputs the unit really receives) - boundary values, empty inputs, nil/null states
+  - **Error and failure paths** (failure handling the unit builds) - how the unit behaves when that handling triggers
   - **Integration scenarios** (when the unit crosses layers) - behaviors that mocks alone will not prove, e.g., "creating X triggers callback Y which persists Z". Include these for any unit touching callbacks, middleware, or multi-layer interactions
 - **Verification** - how an implementer should know the unit is complete, expressed as outcomes rather than shell command scripts
 
-Every feature-bearing unit should include the test file path in `**Files:**`.
+Every feature-bearing unit should include the test file path in `**Files:**`. When the plan names where a test should live, say in one line what that seam catches and what it misses.
 
 Use `Execution note` sparingly. Good uses include:
 - `Execution note: Start with a failing integration test for the request/response contract.`
@@ -124,9 +143,22 @@ Examples:
 
 #### 3.7 Anti-Expansion: Tangential Cleanup and Scope Creep Go to Deferred
 
-Distinct from 3.6 (which is about *unknowns* at plan time): 3.7 is about *known but tangential* work that the agent notices while planning but that falls outside the user's confirmed scope. When research surfaces an adjacent refactor, a "while we're here" cleanup, or a scope-adjacent nice-to-have ("we could also add rate limiting"), route it to the existing `### Deferred to Follow-Up Work` subsection in Scope Boundaries (Phase 4.2 Core Plan Template), not into active Implementation Units.
+Distinct from 3.6 (which is about *unknowns* at plan time): 3.7 is about *known but tangential* work that the agent notices while planning but that falls outside the user's confirmed scope. When research surfaces an adjacent refactor, a "while we're here" cleanup, or a scope-adjacent feature nobody asked for ("we could also add a CSV export"), put it in the existing `### Deferred to Follow-Up Work` subsection in Scope Boundaries (Phase 4.2 Core Plan Template), not into active Implementation Units. An unrequested mechanism around the requested work, such as a guard, retry, limit, or recovery path, is not tangential work: 3.8 decides whether it is built or recorded as a non-goal.
 
-This reinforces the synthesis discipline established at Phase 0.7 / Phase 5.1.5 — the user's confirmed scope is what the active plan executes; everything else is deferred. Does NOT impose architectural bias on extend-vs-invent decisions within confirmed scope — that judgment stays with the agent (and is surfaced via the Phase 5.1.5 synthesis when material). The user's explicit ask overrides this default — if the user explicitly requested a refactor, it's in-scope, not deferred.
+This reinforces the synthesis discipline established at Phase 0.7 / Phase 5.1.5 — the user's confirmed scope is what the active plan executes; everything else is deferred. Does NOT impose architectural bias on extend-vs-invent decisions within confirmed scope — that judgment stays with the agent (and is shown to the user in the Phase 5.1.5 synthesis when material). The user's explicit ask overrides this default — if the user explicitly requested a refactor, it's in-scope, not deferred.
+
+#### 3.8 Judge Each Concern; Record What You Chose Not to Build
+
+Risk has no natural limit: any design has one more way to fail. A concern raised by you, by research, by a specialist agent, or by a reviewer is a claim to judge, not an item to build. Build a mechanism the request did not ask for, such as a guard, retry, recovery path, mode, option, abstraction, or extra operational procedure, only when an existing contract requires it or one of these holds:
+
+- **Leaving it out causes harm nobody would catch in time.** The failure can actually happen here (trace it, do not assume it), and the way the result is used would not surface it quickly to someone who can fix it cheaply. Something that notices the failure counts; an instruction asking a person to avoid it, or to clean up by hand afterward, does not.
+- **Adding it later would be expensive,** because it concerns stored data or its format, a public or shared interface, money, or security.
+
+A mechanism that passes gets the smallest form that closes its gap. Anything built around it, such as a second guard, a recovery mode, or a finer classification of outcomes, is its own addition and faces the same test.
+
+This test sizes what the request did not ask for; it never trims what it did. A safeguard may not narrow a requested behavior by delaying, gating, capping, or skipping any part of it, and where the request's words cover a case, the plan covers it. When a needed safeguard and a requested behavior truly conflict, plan the behavior as requested and record the conflict under Open Questions for the requester.
+
+A concern that fails the test is not dropped silently. List it among the non-goals in Scope Boundaries as considered and not built, with one line on why and on what evidence would change the call. It is not planned work, so it never goes under `Deferred to Follow-Up Work`. When you cannot tell whether leaving a mechanism out lets harm land before anyone catches it, or whether it keeps an existing contract or stored data working, build it.
 
 ### Phase 4: Write the Plan
 
@@ -149,7 +181,7 @@ Use one planning philosophy across all depths. Change the amount of detail, not 
 **Deep**
 - Use the full core template plus optional analysis sections where warranted
 - Usually 4-8 implementation units
-- Group units into phases when that improves clarity
+- Group units into phases when that improves clarity. When the work ships as several PRs, the groups are the PRs (3.3)
 - Include alternatives considered, documentation impacts, and deeper risk treatment when warranted
 
 #### 4.1b Optional Deep Plan Extensions
@@ -159,21 +191,21 @@ For sufficiently large, risky, or cross-cutting work, add the sections that genu
 - **Success Metrics** — operational instrumentation for the deep-plan tier: dashboards, error budgets, alert thresholds, and rollout telemetry. A threshold that *is* the product outcome (p95 latency, delivery rate, adoption) belongs to the Product Contract's `### Success Criteria` and never appears here as well; Success Metrics covers only what Success Criteria does not already state. When only one applies, it is almost always Success Criteria.
 - **Dependencies / Prerequisites**
 - **Risk Analysis & Mitigation**
-- **Phased Delivery**
+- **Phased Delivery** — rollout after merge, such as feature flags or staged enablement. The PR split lives in Implementation Units (3.3)
 - **Documentation Plan**
 - **Operational / Rollout Notes**
 - **Future Considerations** only when they materially affect current design
 
 Do not add these as boilerplate. Include them only when they improve execution quality or stakeholder alignment.
 
-**Alternatives Considered — what to vary.** When this section is included, alternatives must differ on *how* the work is built: architecture, sequencing, boundaries, integration pattern, rollout strategy. Tiny implementation variants (which hash function, which serialization format) belong in Key Technical Decisions, not Alternatives. Product-shape alternatives (different actors, different core outcome, different positioning) belong in `ce-brainstorm`, not here — surface them back upstream rather than re-litigating product questions during planning.
+**Alternatives Considered — what to vary.** When this section is included, alternatives must differ on *how* the work is built: architecture, sequencing, boundaries, integration pattern, rollout strategy. Tiny implementation variants (which hash function, which serialization format) belong in Key Technical Decisions, not Alternatives. Product-shape alternatives (different actors, different core outcome, different positioning) belong in `ce-brainstorm`, not here — raise them upstream rather than re-litigating product questions during planning.
 
 #### 4.2 Section Contract and Rendering
 
 Compose the plan using two paired references:
 
-- `references/plan-sections.md` — the section contract. Describes what the plan contains: the outcome the plan must enable for downstream consumers, the hard floor (Summary, Problem Frame, Requirements, KTDs, Implementation Units), the include-when-material catalog (covering the Product Contract's product-framing sections and the implementation-facing ones; the reference enumerates them), the agency-driven escape hatch (introduce new sections when content warrants), and the ID/content rules.
-- The format-rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`) — how to present the sections in the resolved output format.
+- `references/plan-sections.md` — the section contract. Describes what the plan contains: the outcome the plan must enable for downstream consumers, the hard floor (Summary, Problem Frame, Requirements, KTDs, Implementation Units), the include-when-material catalog (covering the Product Contract's product-framing sections and the implementation-facing ones; the reference enumerates them), the freedom to introduce new sections when content warrants, and the ID/content rules.
+- The format-rendering reference loaded at Phase 0.0 (Resolve Output Mode) — `markdown-rendering.md` OR `html-rendering.md` — — how to present the sections in the resolved output format.
 
 The section catalog is the same regardless of format. Format-specific principles (table-vs-prose by content shape, ID prefix format, diagram rendering, etc.) live in the rendering reference.
 
@@ -182,7 +214,7 @@ Omit "include when material" sections that don't carry information for this spec
 #### 4.3 Planning Rules
 
 - **Horizontal rules (`---`) between top-level sections** in Standard and Deep plans, mirroring the `ce-brainstorm` requirements doc convention. Improves scannability of dense plans where many H2 sections sit close together. Omit for Lightweight plans where the whole doc fits on a single screen.
-- **All file paths must be repo-relative** — never use absolute paths like `/Users/name/Code/project/src/file.ts`. Use `src/file.ts` instead. Absolute paths make plans non-portable across machines, worktrees, and teammates. When a plan targets a different repo than the document's home, state the target repo once at the top of the plan (e.g., `**Target repo:** my-other-project`) and use repo-relative paths throughout
+- **File paths follow `references/output-mode.md`.** When a plan targets a different repo than the document's home, state the target repo once at the top (e.g., `**Target repo:** my-other-project`) and make repository file references relative to that target.
 - Prefer path plus class/component/pattern references over brittle line numbers
 - Do not include implementation code — no imports, exact method signatures, or framework-specific syntax
 - Pseudo-code sketches and DSL grammars are allowed in the High-Level Technical Design section and per-unit technical design fields when they communicate design direction. Frame them explicitly as directional guidance, not implementation specification

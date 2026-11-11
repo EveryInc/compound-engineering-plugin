@@ -57,15 +57,14 @@ describe("ce-pov subject-shape contract", () => {
     expect(phaseZero).toContain("Approach-set")
   })
 
-  test("keeps user-facing copy decision-oriented without exposing project internals", async () => {
+  test("consumer adaptation preserves decision substance and oracle activation", async () => {
     const skill = await skillFile("SKILL.md")
-    const userCopy = between(skill, "## User-facing communication", "## Interaction Method")
-
-    expect(userCopy).toContain("person deciding")
-    expect(userCopy).toContain("decision, question, or recommendation")
-    expect(userCopy).toContain("internal workflow vocabulary")
-    expect(userCopy).toContain('"this project" or "the repository"')
-    expect(userCopy).toMatch(/never promote.*directory.*worktree.*checkout.*branch/i)
+    const consumer = between(skill, "## Consumer and interaction", "## Artifact Root")
+    expect(consumer).toContain("Lead with the decision")
+    expect(consumer).toContain("evidence, material tradeoffs, uncertainty, and conditions")
+    expect(consumer).toContain("return the result and leave continuation to its owner")
+    expect(consumer).toContain("explicit oracle or named-peer request still runs the panel")
+    expect(skill.split("---", 3)[1]).toContain("oracle panel")
   })
 
   test("intake and boundaries distinguish takes, findings reviews, and supplied approaches", async () => {
@@ -79,7 +78,9 @@ describe("ce-pov subject-shape contract", () => {
     expect(boundaries).toContain('"review this doc"')
     expect(boundaries).toContain('"what do you think of this doc?"')
     expect(boundaries).toContain("`ce-doc-review`")
-    expect(boundaries).toContain("Options supplied")
+    expect(boundaries).toContain("Options developed")
+    expect(boundaries).toContain("rough options needing development")
+    expect(boundaries).toContain("`ce-bakeoff`")
     expect(boundaries).toContain("`ce-ideate`")
   })
 
@@ -103,7 +104,7 @@ describe("ce-pov cross-model panel contract", () => {
   // approval, the shared tree — live in the reference the pointer mandates.
   test("loads the panel protocol before deciding whether to offer", async () => {
     const skill = await skillFile("SKILL.md")
-    const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Follow-up")
+    const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Deliver and return")
 
     expect(phaseThree).toContain("may qualify for a proactive offer")
     expect(phaseThree).toContain("before resolving participation or deciding whether to offer")
@@ -121,11 +122,11 @@ describe("ce-pov cross-model panel contract", () => {
 
   test("forms an independent solo POV before the panel and emits only after it finishes", async () => {
     const skill = await skillFile("SKILL.md")
-    const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Follow-up")
+    const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Deliver and return")
 
     const formSolo = phaseThree.indexOf("form ce-pov's own independent POV")
     const runPanel = phaseThree.search(/[Ff]inish the panel branch/)
-    const emitFinal = phaseThree.indexOf("Only then emit")
+    const emitFinal = phaseThree.indexOf("Only then deliver")
 
     expect(formSolo).toBeGreaterThan(-1)
     expect(runPanel).toBeGreaterThan(formSolo)
@@ -138,7 +139,7 @@ describe("ce-pov cross-model panel contract", () => {
   test("discloses panel status after any summons even when no panel runs", async () => {
     const skill = await skillFile("SKILL.md")
     const panel = await skillFile("references/cross-model-panel.md")
-    const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Follow-up")
+    const phaseThree = between(skill, "### Phase 3: Point of View", "### Phase 4: Deliver and return")
 
     // Body pin: the disclosure itself must fire when the result is composed.
     // Corpus pins: how a summons is recognized across channels, and the
@@ -149,28 +150,31 @@ describe("ce-pov cross-model panel contract", () => {
     expect(panel).toMatch(/summons was present but the panel branch never entered/)
   })
 
-  // Split by load-time: Phase 4 always reads followup.md, so the body pins the
-  // shapes the offer is reasoned from and the reference owns the tier gates.
-  test("follow-up covers every subject shape while retaining adoption tier gates", async () => {
+  test("continuation preserves authority without obligatory menus", async () => {
     const skill = await skillFile("SKILL.md")
-    const phaseFour = skill.slice(skill.indexOf("### Phase 4: Follow-up"))
     const followup = await skillFile("references/followup.md")
-
-    expect(phaseFour).toContain("references/followup.md")
-    expect(phaseFour).toContain("active subject shape")
-    expect(phaseFour).toContain("Document take")
-    expect(phaseFour).toContain("Approach-set position")
-    expect(followup).toContain("For adoption subjects")
-    expect(followup).toContain("Tier 1")
-    expect(followup).toContain("Tier 2/3")
+    expect(skill).toContain("For a requested write-up or continuation, read `references/followup.md`")
+    expect(followup).toContain("original request authorized the downstream action")
+    expect(followup).toContain("result must resolve the decision needed for that action")
+    expect(followup).toContain("inherited scope")
+    expect(followup).toContain("non-destructive and otherwise authorized")
+    expect(followup).toContain("Do not add a menu or capture offer")
   })
 
-  test("warm invocations return a POV block without proactive follow-up", async () => {
+  test("returns missing context without interviewing the user", async () => {
     const skill = await skillFile("SKILL.md")
-    const phaseFour = skill.slice(skill.indexOf("### Phase 4: Follow-up"))
+    expect(skill).toContain("Blocked — missing context")
+    expect(skill).toContain("Do not interview the user")
+    expect(skill).toContain("The calling agent decides whether to ask for clarification")
+  })
 
-    expect(phaseFour).toContain("output the POV block")
-    expect(phaseFour).not.toContain("output the verdict block")
+  test("delegates only an unresolved understanding question and retains the judgment", async () => {
+    const skill = await skillFile("SKILL.md")
+    expect(skill).toContain("judgment requires an explanation of unresolved behavior or design rationale")
+    expect(skill).toContain("invoke `ce-explain`")
+    expect(skill).toContain("Use adequate current evidence instead of repeating an investigation")
+    expect(skill).toContain("Keep ownership of the judgment here")
+    expect(skill).not.toContain("mode:return-to-caller")
   })
 
   test("uses the JSON Schema draft supported by the Claude CLI", async () => {
@@ -320,8 +324,13 @@ describe("ce-pov cross-model panel contract", () => {
     const panel = await skillFile("references/cross-model-panel.md")
     const prose = compact(panel)
 
-    expect(panel).toContain("wait --max-secs 30 --json <job-ids...>")
-    expect(panel).toContain("wait --max-secs 10 --json <job-ids...>")
+    // The runner owns the deadline and names the next step, so agents never hand-roll the poll loop.
+    expect(panel).toContain(
+      'wait --max-secs 30 --deadline-secs "${CROSS_MODEL_HARD_SECS:-600}" --deadline-grace-secs 10 <job-ids...>',
+    )
+    for (const line of ["`all settled`", "`waiting: ...`", "`deadline passed: reap <job-ids>, then wait once more; ...`"]) {
+      expect(panel).toContain(line)
+    }
     expect(prose).toMatch(/`--skill`, `--run-id`, and `--label` are start-only/)
     expect(prose).toMatch(/Do not add a separate shell sleep.*`wait` itself provides the bounded polling delay/)
   })

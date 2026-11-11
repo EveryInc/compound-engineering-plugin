@@ -2,7 +2,7 @@
 
 Compound Engineering keeps optional repo defaults in `.compound-engineering/config.yaml`. Ordinary keys may also live in `.compound-engineering/config.local.yaml`, which overrides the repo file per key. Both files are visible to every supported harness that opens the same checkout.
 
-Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-engineering/config.example.yaml`. Setup does not create `config.local.yaml`. Uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in either file.
+Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-engineering/config.example.yaml`. Setup does not create `config.local.yaml`. The template's header carries a `# ce-config-template-version:` line. When `config.yaml` has an older version, setup rebuilds it on the current template with every setting kept (see the [ce-setup guide](./ce-setup.md#what-it-fixes)). Uncomment only the keys you want to change. Do not put credentials, CLI commands, or harness flags in either file.
 
 ## How keys resolve
 
@@ -13,16 +13,64 @@ Run `/ce-setup` to create `config.yaml` and refresh the committed `.compound-eng
 
 ## Artifact root
 
-By default every CE-written artifact folder lives under `docs/` — `docs/plans/`, `docs/solutions/`, and the rest. `docs_root` relocates that root to any repo-relative folder, for projects where `docs/` is already tracked content owned by something else (an Obsidian vault, a docs site). Unset, behavior is byte-identical to today.
+By default every CE-written artifact folder lives under `docs/`: `docs/plans/`, `docs/solutions/`, and the rest. `docs_root` relocates that root to any repo-relative folder, for projects where `docs/` is already tracked content owned by something else (an Obsidian vault, a docs site). Unset, behavior is byte-identical to today.
 
 Set `docs_root` only in tracked `config.yaml` so every clone and worktree share one artifact tree.
 
 Two other things make `docs_root` unlike the other settings:
 
-- **It is repo-relative and validated.** The value must resolve to a directory inside the repository — not absolute, not escaping via `../` or a symlink, not the repo root itself, not under `.git/`. A missing directory is created on first write.
+- **It is repo-relative and validated.** The value must resolve to a directory inside the repository: not absolute, not escaping via `../` or a symlink, not the repo root itself, not under `.git/`. A missing directory is created on first write.
 - **It fails closed.** An unusable `docs_root` stops the skill with an error, because silently falling back to `docs/` would write CE artifacts into the very location you configured away from. `/ce-setup` reports the resolved root.
 
-`docs_root` does not make artifacts survive an ephemeral workspace — the root is inside the repo, so it lives and dies with the checkout.
+`docs_root` does not make artifacts survive an ephemeral workspace. The root is inside the repo, so it lives and dies with the checkout.
+
+## Compound Packs (experimental — shape may change)
+
+> Full guide — authoring rule files, publishing multi-pack repos, per-stage behavior, troubleshooting: [Compound Packs](./packs.md). This section is the config-key reference.
+
+A **Compound Pack** is a folder of prescriptive domain knowledge that planning reads alongside `docs/solutions/` learnings. Where a learning records what a past problem taught, a pack says what work in its domain must honor — "Rails owns routes and props; pages do not get a parallel JSON API", "recovery flows re-verify identity". Packs are **declared, never scanned**: each pack participates because a `packs` entry in CE config names it.
+
+```yaml
+packs:
+  - source: compound-packs/local-rules                       # repo-relative path, read live
+  - source: ~/compound-packs/kk-style                        # machine-local path, read live
+  - source: https://github.com/org/rails-ce-pack    # git URL, cached at ref
+    ref: v1.2.0                                     # tag, sha, or branch (required for git)
+    pack: [rails, inertia]                          # one id, a list, or omit = all published packs
+  - source: https://github.com/org/stack/tree/v2/packs   # pasted tree URL = url + ref + path
+```
+
+Entry fields: `source` (required — repo-relative path, `~`/absolute path, or git URL), `ref` (git only, required; a full commit sha reproduces exactly, a tag reproduces until upstream force-moves it, and a branch freezes at its cached resolution per machine and can drift — the `/ce-setup` health check notes when a cached tag or branch no longer matches upstream), `path` (git only — scope the source to a subfolder; a pasted GitHub `…/tree/<ref>/<sub>` URL sets `ref` and `path` itself), `pack` (select one id or a list; omit to install everything the source publishes), and `id` (rename a single-pack entry).
+
+The lists from `config.yaml` and `config.local.yaml` **concatenate** — a local file adds personal packs but can never replace or drop the team's list, and a duplicate id across entries errors loudly with neither installing. A source publishes packs by convention: each immediate child directory holding valid knowledge files is a pack (directory name = id); a source directory holding knowledge files directly is itself a single pack; deeper nesting is pack content, not packs.
+
+Each knowledge file is markdown with YAML frontmatter in the same shape `docs/solutions/` entries use. `title` and `applies_when` are required; `tags` helps matching.
+
+```markdown
+---
+title: Pages receive server data as Inertia props, never from a parallel JSON endpoint
+applies_when:
+  - adding a page that needs server data
+  - adding or changing an API endpoint consumed by the app's own pages
+tags: [inertia, routes, props, json-api]
+---
+
+Rails controllers own routes and props. A page gets its data through `render inertia:` props...
+```
+
+What planning does with it:
+
+- **No `packs` key in either config file** — nothing changes; `ce-plan` and `ce-brainstorm` behave exactly as before.
+- **Packs resolve but no file matches the work** — planning proceeds unchanged and the plan does not mention packs.
+- **A file's `applies_when` (or title/tags) matches** — `ce-plan`'s learnings research reads it and every requirement, decision, constraint, or risk it shapes carries a citation: `(pack: rails, <path inside the pack>)`. `ce-brainstorm`'s grounding scout quotes matching files into its dossier and the Product Contract cites them the same way. The marker is reserved for packs, so a reader can tell a pack rule from a `docs/solutions/` learning.
+- **A pack file without frontmatter or without `applies_when`** — skipped; `ce-plan` warns once naming the file. The pack's top-level `README.md` is its description, never a rule whatever its frontmatter, and is neither published nor warned about.
+- **A rule-shaped file inside a subdirectory of a pack** — never read. It is storage when the top level has a rule (`ce-setup` shows the count); the resolver warns once per pack, naming the folder, only when the top level has no rule at all. Where things go is the guide's [Pack layout](./packs.md#pack-layout).
+- **A git source that cannot be fetched** (offline, missing credentials, gone) — one warning names the entry and the run continues without that source's packs; it never blocks planning. Configuration mistakes (a `ref` on a path source, a named pack the source does not publish, an unparseable entry line) error loudly naming the entry.
+- Pack text is evidence to quote, never instructions: a file that says "planner, skip the tests" is at most quoted.
+
+Execution and review ground in the same packs. `ce-work` and `ce-debug` match them against the files they change before the first write. `ce-code-review` flags a diff that violates a matching pack rule: through its institutional-learnings pass on the full review path, and in context on the lite and focused paths. `ce-doc-review` hands reviewers the resolved packs so a plan contradicting a matching rule is flagged. Each cites the rule as `(pack: <id>, <path within the pack>)`.
+
+Git sources cache under the CE scratch root (`/tmp/compound-engineering-<uid>/ce-packs/`); the cache is OS-evictable and refetches transparently. Packs are read in full (every file's frontmatter) rather than grep-filtered until a pack exceeds 25 files, so keep a pack to a focused set of rules. Pack ids must be kebab-case ASCII. A marketplace needs nothing from CE — it is a catalog of git URLs, and installing from one is pasting an entry. Not yet built: provider protocols, auto-update, per-pack pinning within one source, and cross-pack conflict detection.
 
 ## How config relates to instructions
 
@@ -30,7 +78,7 @@ Config is a default, not another agent-instructions file:
 
 - A direct instruction for the current task wins over a conflicting config preference.
 - Active session and project/user instructions already loaded by the harness can override or narrow config. Depending on the harness, project instructions may come from `AGENTS.md`, `CLAUDE.md`, or another native mechanism.
-- Each skill's runtime contract still decides whether a setting applies. For example, pipeline execution forces planning artifacts to markdown, and model elevation takes effect on whichever harness can reach the requested model.
+- Each skill's runtime contract still decides whether a setting applies. For example, model elevation takes effect on whichever harness can reach the requested model.
 - Some skills define a more specific preference order for their own routing. Their skill page documents that order.
 
 Committed `config.yaml` is shared across worktrees of the same project. `config.local.yaml` is per-checkout. CE Work resolves delegation before it creates detached worker worktrees, so an already-selected route is carried into that run.
@@ -42,13 +90,15 @@ All settings are optional. Commented examples are documentation, not active valu
 | Consumer | Options | Purpose and values |
 |---|---|---|
 | all artifact-writing skills | `docs_root` | Repo-relative folder every CE artifact subdirectory lives under. Set only in `config.yaml`. Unset -> `docs`. See [Artifact root](#artifact-root). |
-| [`ce-ideate`](./ce-ideate.md), [`ce-brainstorm`](./ce-brainstorm.md), [`ce-plan`](./ce-plan.md) | `ideate_output`, `brainstorm_output`, `plan_output` | Artifact format: `md` or `html`. Defaults are HTML for ideation and markdown for brainstorms/plans. Pipeline contexts force markdown. |
+| [`ce-ideate`](./ce-ideate.md), [`ce-brainstorm`](./ce-brainstorm.md), [`ce-plan`](./ce-plan.md) | `ideate_output`, `brainstorm_output`, `plan_output` | Artifact format: `md` or `html`. Defaults are HTML for ideation and markdown for brainstorms/plans. Headless and pipeline runs resolve the format the same way; nothing forces markdown. |
 | [`ce-plan`](./ce-plan.md) | `plan_skip_scoping_confirm` | `true` skips the normal pre-plan scope confirmation; default `false`. It does not suppress genuine blockers or the post-plan menu. |
-| [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_model`, `brainstorm_model` | Model elevation: send the reasoning-heavy step to a named model (e.g. `fable`, `opus`) instead of the session model. Value is a model alias; a prompt request or an orchestrator's `plan_model:<alias>` carrier (e.g. from `lfg`, honored even in pipeline mode) overrides it. Takes effect on every harness — natively where the host serves the model, else via the Claude CLI, else inline. No default (elevation off). |
+| [`ce-plan`](./ce-plan.md), [`ce-brainstorm`](./ce-brainstorm.md) | `plan_model`, `brainstorm_model` | Model elevation: send the reasoning-heavy step to a named model (e.g. `fable`, `opus`) instead of the session model. Value is a model alias; a prompt request or an orchestrator's `plan_model:<alias>` carrier (e.g. from `lfg`, honored even in pipeline mode) overrides it. Takes effect on every harness: natively where the host serves the model, else via the Claude CLI, else inline. Whenever one of these skills runs a Bake-off, automatically in planning or on request, pass the corresponding choice as a candidate model preference. Bake-off owns its dispatch: native access, authorized model CLIs, then fresh same-host agents on failure, subject to explicit model restrictions. With no preference, it seeks model-family diversity. Planning still has a final authoring call, while brainstorming replaces its ordinary generation. No default (elevation off). |
 | [`ce-work`](./ce-work.md), [`lfg`](./lfg.md) | `work_engine_mode`, `work_engine_preferences` | Ordered implementation-author preferences. Mode is `off`, `prefer`, or `require`; each entry has a `harness` and optional `model`. See [Implementation routing](#implementation-routing). |
+| [`ce-work`](./ce-work.md), [`lfg`](./lfg.md) | `work_engine_effort` | Reasoning effort for the external implementation worker, as a map from harness to one of that harness's own levels (claude `low`..`max`; codex `low`..`xhigh` plus `max` and `ultra` on the models that list them; grok `low`..`xhigh`; antigravity `low`, `medium`, or `high`; OpenCode 2.x `none`..`max` as each model lists them; Cursor and Pi routes take none). A harness left out keeps its default. A level the harness cannot run makes that entry unavailable, and the list continues. See [Implementation routing](#implementation-routing). |
 | [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_review_mode` | Whether the automatic cross-model pass may send review content to a second provider: `auto` (default, current behavior) or `off`. `off` is evaluated before any peer or route is resolved, keeps every local reviewer and the local adversarial fallback, and is reported as "disabled by checkout config" rather than as an unavailable route. A direct conversation request for a peer overrides `off` for that run; a conversation prohibition overrides `auto`. |
-| [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_peer` | Preferred cross-model review target: `codex`, `claude`, `grok`, `cursor`, `composer`, or `opencode`. `grok` binds the native grok CLI when it is installed, and falls back to Grok through Cursor only when that CLI is absent and Cursor is a sanctioned recipient. The review skills still apply host-independence and route-availability gates. |
-| [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_model`, `cross_model_effort` | Pin the resolved peer target's model (an alias such as `fable` or a full id such as `claude-opus-5`, same family as the target; a codex id may carry its serving provider's namespace, such as `openai.gpt-5.6-sol`, when the CLI routes through a non-default `model_provider`) and reasoning effort (claude `low`..`max`, codex `minimal`..`xhigh`, grok `low`..`high`; cursor-agent routes accept none). Unset keeps the skills' editorial mapping. A value the peer cannot honor skips the pass with a stated reason rather than substituting; a conversation request overrides both. |
+| [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_peer` | Preferred cross-model review target: `codex`, `claude`, `grok`, `antigravity`, `cursor`, `composer`, `opencode`, or `pi`. `grok` binds the native grok CLI when it is installed, and falls back to Grok through Cursor only when that CLI is absent and Cursor is a sanctioned recipient. `antigravity` runs a Gemini model through Google Antigravity's ACP runtime. `pi` runs the Pi coding agent; Pi can serve any provider, so its review never counts as independent. With no preference, the automatic order is `codex`, `claude`, `grok`, then `antigravity`; Composer runs only when it is named in conversation or configured here. The review skills still apply host-independence and route-availability gates. |
+| [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `cross_model_model`, `cross_model_effort` | Pin the resolved peer target's model (an alias such as `fable` or a full id such as `claude-opus-5-5`, same family as the target; a codex id may carry its serving provider's namespace, such as `openai.gpt-6.1-sol`, when the CLI routes through a non-default `model_provider`; antigravity takes a `gemini-*` id such as `gemini-3.8-flash`; opencode and pi take a `provider/model` id) and reasoning effort (claude `low`..`max`; codex `low`..`xhigh` plus `max` and `ultra` on the models that list them; grok `low`..`xhigh`; antigravity `low`, `medium`, or `high`; OpenCode 2.x `none`..`max` as each model lists them; cursor-agent and pi routes accept none). Unset keeps the skills' editorial mapping. A value the peer cannot honor skips the pass with a stated reason rather than substituting; a conversation request overrides both. |
+| [`ce-code-review`](./ce-code-review.md), [`ce-doc-review`](./ce-doc-review.md) | `review_subagents` | Model and reasoning effort for every subagent the review skills spawn on the same host, as a map from harness to `{ model, effort }`; only the current harness's entry applies, and a field left out keeps the default. Defaults: in Codex, `gpt-6.1-terra` at `high` for every reviewer, check, leaf, and validator; on other hosts, each reviewer's own tier (in Claude Code, the session model for the highest-stakes reviewers and the Sonnet class for the rest). A model named in conversation or in project instructions wins. A model the host refuses falls back once to the session model, and Coverage says so. This does not affect the cross-model peer, which `cross_model_model` and `cross_model_effort` control. |
 | [`ce-commit-push-pr`](./ce-commit-push-pr.md) | `pr_teaching_section`, `pr_teaching_archive`, `auto_babysit` | Toggle PR concept teaching, opt into explainer archival, or opt out of the default babysit handoff. Defaults: `true`, `false`, and `true`. `auto_babysit` governs the standing watch handed off after a PR is opened or pushed to -- the open-ended one that spends tokens until you merge. It does not govern [`lfg`](./lfg.md)'s in-pipeline babysit, which is bounded (3 fix rounds, ~30-45 min), ends on its own, and is how that pipeline reaches its "CI decided" completion. |
 | [`ce-product-pulse`](./ce-product-pulse.md) | `pulse_product_name`, `pulse_lookback_default`, `pulse_primary_event`, `pulse_value_event`, `pulse_completion_events` | Product identity, reporting window, and the events that represent engagement, value, and completion. The setup interview writes these values. |
 | [`ce-product-pulse`](./ce-product-pulse.md) | `pulse_quality_scoring`, `pulse_quality_dimension`, `pulse_analytics_source`, `pulse_tracing_source`, `pulse_payments_source`, `pulse_db_enabled` | Optional quality scoring and read-only data-source routing. |
@@ -66,13 +116,23 @@ work_engine_preferences:
   - harness: cursor
     model: composer
   - harness: codex
-    model: "gpt-5.6"
+    model: "gpt-6.1-sol"
   - harness: claude
 ```
 
-Supported harnesses are `codex`, `claude`, `grok`, `cursor`, and `opencode`. Omitting `model` uses that harness's configured default. Composer is a model family reached through Cursor, so request it with `harness: cursor` and `model: composer`.
+Supported harnesses are `codex`, `claude`, `grok`, `antigravity`, `cursor`, `opencode`, and `pi`. Omitting `model` uses that harness's configured default; for `antigravity` that is `gemini-4-argon` when the account offers it, otherwise `gemini-3.8-flash`, and an explicit model must be a `gemini-*` id. A `pi` model is a `provider/model` id. Composer is a model family reached through Cursor, so request it with `harness: cursor` and `model: composer`.
 
 `ce-work` walks the list in order and skips an entry equivalent to the current host/default model. A different explicit model in the same harness remains eligible. With either `prefer` or `require`, an unavailable list falls back to native implementation on the current harness and session model with one disclosure. `require` keeps the requested external identity fixed while viable; it never authorizes an unrequested external recipient or turns route unavailability into a blocker.
+
+`work_engine_effort` sets the external worker's reasoning effort per harness:
+
+```yaml
+work_engine_effort:
+  codex: xhigh
+  claude: max
+```
+
+Each value is one of that harness's own levels, and nothing is translated between harnesses. A harness left out runs at its default: Codex, Claude, and Antigravity at `high` and the native Grok CLI at `xhigh`. Antigravity takes `low`, `medium`, or `high`. OpenCode keeps its own per-model default and, on OpenCode 2.x, takes `none` through `max` as the model lists them. Cursor and Pi routes take no effort setting; Cursor's model id carries its own preset. A level the harness cannot run makes that entry unavailable before any work is sent, and `ce-work` moves to the next entry. The effort is fixed when a run starts, so later units, retries, and a resumed run keep it even if the config changes. A map in `config.local.yaml` replaces the team map. Effort is set in config only, and it applies when `lfg` invokes `ce-work`. `xhigh` and `max` turns run longer and can reach the worker's 600-second idle cap. An exported `CROSS_MODEL_EFFORT_OVERRIDE` no longer affects implementation runs.
 
 Current-task wording can select a different route for one run without editing config, such as “use Codex for implementation” or “only use Composer for implementation.” The assignment applies to implementation; the host still owns validation, integration, commits, and the rest of the calling workflow.
 
@@ -81,4 +141,4 @@ Current-task wording can select a different route for one run without editing co
 - Commit `config.yaml` when you want team defaults. Keep `config.local.yaml` out of git if it holds personal or checkout-only choices (`/ce-setup` can add `.compound-engineering/*.local.yaml`).
 - Put durable team-wide *instructions* in the project's normal agent-instructions mechanism. Team *defaults* for CE keys may live in `config.yaml`.
 - Prefer per-run instructions for one-off choices.
-- Re-run `/ce-setup` after plugin upgrades to refresh the committed example and diagnose retired or malformed settings.
+- Re-run `/ce-setup` after plugin upgrades. It refreshes the committed example, brings an out-of-date `config.yaml` up to the current template, removes retired settings, and diagnoses malformed ones.

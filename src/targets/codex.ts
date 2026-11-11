@@ -53,11 +53,19 @@ export async function writeCodexBundle(
   // record nothing as owned.
   const promptsDir = path.join(codexRoot, "prompts")
   const promptsEscaped = await storeRootEscapesManagedRoot(codexRoot, promptsDir)
+  const preservedPromptNames = new Set<string>()
   if (!promptsEscaped) {
     if (bundle.prompts.length > 0) {
       await cleanupRemovedPrompts(promptsDir, manifest, currentPrompts)
+      const ownedPrompts = pluginName ? (manifest?.prompts ?? []) : null
       for (const prompt of bundle.prompts) {
-        await writeText(path.join(promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
+        const promptFile = `${sanitizePathName(prompt.name)}.md`
+        const targetPath = path.join(promptsDir, promptFile)
+        if (await cleanupCurrentManagedFile(targetPath, ownedPrompts, promptFile)) {
+          preservedPromptNames.add(promptFile)
+          continue
+        }
+        await writeText(targetPath, prompt.content + "\n")
       }
     } else if (pluginName) {
       await cleanupRemovedPrompts(promptsDir, manifest, [])
@@ -139,7 +147,7 @@ export async function writeCodexBundle(
         continue
       }
       const targetPath = path.join(agentsRoot, agentFile)
-      const preserved = await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFile)
+      const preserved = await cleanupCurrentManagedFile(targetPath, manifest?.agents ?? [], agentFile)
       if (preserved) {
         preservedAgentNames.add(agentFile)
         continue
@@ -174,7 +182,7 @@ export async function writeCodexBundle(
       version: 1,
       pluginName,
       skills: currentSkills.filter((name) => !preservedSkillNames.has(name)),
-      prompts: promptsEscaped ? [] : currentPrompts,
+      prompts: promptsEscaped ? [] : currentPrompts.filter((name) => !preservedPromptNames.has(name)),
       agents: currentAgents.filter((name) => !preservedAgentNames.has(name)),
     })
     await cleanupKnownLegacyCodexArtifacts(codexRoot, bundle)
@@ -333,7 +341,9 @@ async function cleanupRemovedPrompts(
   for (const promptFile of manifest.prompts) {
     if (current.has(promptFile)) continue
     if (!isSafeManagedPath(promptsDir, promptFile)) continue
-    await fs.rm(path.join(promptsDir, promptFile), { force: true })
+    const targetPath = path.join(promptsDir, promptFile)
+    if (await isPreservedSymlink(targetPath)) continue
+    await fs.rm(targetPath, { force: true })
   }
 }
 
@@ -383,10 +393,10 @@ async function cleanupCurrentManagedSkillDir(
 // Returns true when the existing path was preserved (skip cleanup AND the
 // subsequent write -- writing through a preserved symlink would clobber the
 // user's fork, which is worse than not overwriting at all).
-async function cleanupCurrentManagedAgentFile(
+async function cleanupCurrentManagedFile(
   targetPath: string,
-  manifest: CodexInstallManifest | null,
-  agentFileName: string,
+  owned: readonly string[] | null,
+  fileName: string,
 ): Promise<boolean> {
   const stat = await lstatOrNull(targetPath)
   if (!stat) return false
@@ -394,7 +404,8 @@ async function cleanupCurrentManagedAgentFile(
     console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
     return true
   }
-  if (!manifest?.agents.includes(agentFileName)) {
+  if (owned === null) return false
+  if (!owned.includes(fileName)) {
     console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
     return true
   }

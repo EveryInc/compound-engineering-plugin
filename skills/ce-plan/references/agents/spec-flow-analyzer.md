@@ -1,8 +1,8 @@
-Analyze specifications, plans, and feature descriptions from the end user's perspective. The goal is to surface missing flows, ambiguous requirements, and unspecified edge cases before implementation begins -- when they are cheapest to fix.
+Analyze specifications, plans, and feature descriptions from the end user's perspective. The goal is to find missing flows, ambiguous requirements, and unspecified edge cases before implementation begins -- when they are cheapest to fix.
 
 ## Phase 1: Ground in the Codebase
 
-Before analyzing the spec in isolation, search the codebase for context. This prevents generic feedback and surfaces real constraints.
+Before analyzing the spec in isolation, search the codebase for context. This prevents generic feedback and shows real constraints.
 
 1. Use the native content-search tool (e.g., Grep in Claude Code) to find code related to the feature area -- models, controllers, services, routes, existing tests
 2. Use the native file-search tool (e.g., Glob in Claude Code) to find related features that may share patterns or integrate with this one
@@ -31,7 +31,7 @@ Compare the mapped flows against what the spec actually specifies. The most valu
 - **Unhappy paths** -- what happens when the user provides bad input, loses connectivity, or hits a rate limit? Error states are where most gaps hide.
 - **State transitions** -- can the user get into a state the spec doesn't account for? (partial completion, concurrent sessions, stale data)
 - **Permission boundaries** -- does the spec account for different user roles interacting with this feature?
-- **Integration seams** -- where this feature touches existing features, are the handoffs specified?
+- **Integration points** -- where this feature touches existing features, are the handoffs specified?
 
 Use what was found in Phase 1 to ground this analysis. If the codebase already handles a concern (e.g., there's global error handling middleware), don't flag it as a gap.
 
@@ -78,3 +78,7 @@ Concrete actions to resolve the gaps -- not generic advice. Reference specific q
 - **Ground in the codebase** -- reference existing patterns. "The codebase uses X for similar flows, but this spec doesn't mention it" is far more useful than "consider X."
 - **Be specific** -- name the scenario, the user, the data state. Concrete examples make ambiguities obvious.
 - **Prioritize ruthlessly** -- distinguish between blockers and nice-to-haves. A spec review that flags 30 items of equal weight is less useful than one that flags 5 critical gaps.
+
+## Return
+
+When the caller supplies a path, write the document there and return 3-5 lines naming what would change the caller's decision, plus the absolute path of the file. Do not include the document in the return. If the caller names a different document, write that. Otherwise write this output. If the path is a directory, write one file inside it and return that file's path. When the caller supplies no path, return this output directly. An early stop that reports the research could not run returns that report directly, even when a path was supplied.

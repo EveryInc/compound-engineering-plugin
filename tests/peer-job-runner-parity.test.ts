@@ -47,7 +47,7 @@ describe("peer-job-runner shared-asset parity", () => {
         expect(body).toContain('wait "$_HEARTBEAT_PID" 2>/dev/null || true')
         // Tolerate CRLF checkouts (\r?\n) — Windows runners often set
         // core.autocrlf=true; the heartbeat body itself must still match.
-        const match = body.match(/start_heartbeat\(\) \{[\s\S]*?\r?\n\}\r?\n(?=\r?\nrun_codex_cmd\(\))/)
+        const match = body.match(/start_heartbeat\(\) \{[\s\S]*?\r?\n\}\r?\n(?=\r?\nrun_(?:codex|peer)_cmd\(\))/)
         expect(match).not.toBeNull()
         return match![0]
       }),

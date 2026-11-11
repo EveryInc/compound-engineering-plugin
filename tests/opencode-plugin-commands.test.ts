@@ -13,9 +13,11 @@ type OpenCodeConfig = {
   command?: Record<string, OpenCodeCommand>
 }
 
+// V1 (OpenCode 1.x) surface: `server()` returns the config hook. The V2 surface
+// (`setup`) is covered by tests/opencode-plugin.test.ts.
 async function applyPlugin(config: OpenCodeConfig = {}): Promise<OpenCodeConfig> {
-  const plugin = await CompoundEngineeringPlugin()
-  await plugin.config(config)
+  const hooks = await CompoundEngineeringPlugin.server()
+  await hooks.config(config)
   return config
 }
 

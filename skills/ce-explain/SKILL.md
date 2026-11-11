@@ -1,19 +1,22 @@
 ---
 name: ce-explain
-description: "Create a durable visual teaching artifact for something worth learning. Use when the user wants to be taught, wants a deep explainer, wants to understand a substantial change, or wants a work recap built for retention. Not for ordinary Q&A, operational diagnosis, or a concise trade-off that belongs in chat. For learning, not repo docs or verdicts."
-argument-hint: "[a concept, a diff ref, an idea, or 'what happened this week?'] — or invoke bare to be asked"
+description: "Explain how and why something has its current shape, or what happened over a window of work, grounded in evidence. Use when the user asks for an explanation. Use ce-pov for a judgment or recommendation."
+argument-hint: "[question, concept, change, or work window] [intended use or reader]"
 ---
 
-# Explain It To Me
+# Explain How and Why
 
-Teach the user one thing well: a concept, a change, an idea, or a window of their own recent work. Agent-driven development removed the learning that writing code by hand used to provide; this skill is the replacement. What to explain is the input this skill was invoked with, present in the current prompt or conversation — whether the user asked directly or a calling skill passed it.
+Produce an explanation that answers the scoped question and gives its consumer enough understanding for the intended use. The subject and purpose come from the request and available context, whether a person or another workflow supplied them. Ground project behavior in source evidence; distinguish documented rationale, inference, and unknowns.
 
-**Done:** a durable artifact exists at `$RUN_DIR`, the user has seen it, and the destination they chose has been honored (or declined). A run that correctly ends without an artifact — the operational-question gate answered it in chat, an empty window, a bare invocation the user did not answer — is equally done.
+**Done:** deliver the explanation with supporting evidence and material unanswered questions, or return the specific blocker. When an artifact is requested, deliver the artifact and its location. Publication is a separate action, not a condition of having explained the subject.
 
-**Note: The current year is 2026.** Use this when weighting external sources and dating artifacts.
+## Consumer and interaction
 
-**Read `references/orchestration.md` before the first blocking question, subagent dispatch, or run-directory creation** — it owns the per-harness ask tool, the model tiers and their degradation rule, grounding by input shape, and menu sizing.
+Adapt depth and presentation to the intended readers and use. A person may need a working answer; a calling agent may need a teaching artifact for someone else. Do not infer the output from the caller's identity alone. When contributing to an ongoing workflow, deliver the requested result and leave continuation to its owner, the calling workflow. Do not add destination menus or follow-up offers to that return.
 
+Resolve discoverable facts before asking. Ask only when missing information materially changes the answer and cannot be resolved from the request or evidence. If interaction is unavailable, return the unresolved question and its consequence rather than waiting or inventing an answer. A result may explain verified behavior while reporting that its historical rationale is unknown.
+
+**Read `references/orchestration.md` before grounding, the first blocking question, or subagent dispatch.** It defines evidence gathering, tool use, model tiers, and their fallbacks.
 
 ## Artifact Root
 
@@ -29,15 +32,15 @@ An explainer lands under `<root>/explainers/` only when archived to the repo, an
 
 ## Execution Flow
 
-### Phase 1: Classify the input
+### Phase 1: Establish the question and use
 
-Read `references/intake.md` now and classify the request into one of the four input shapes — concept, diff, idea, or work-recap window — plus its audience. It owns the token table, the reads-as-a-flag guard, window and audience resolution, the concept-vs-diff tiebreak, conflict handling, and the operational-question gate that answers a diagnostic question in chat instead of teaching it. Most requests arrive as plain language with no token; classify those by meaning rather than improvising.
-
-**Bare invocation** (no input at all): ask one blocking question — "What should I explain?" — offering a shortcut option for a recap of recent work in this repo alongside free-text. Do not produce a default artifact unprompted.
+Read `references/intake.md` now. It defines how the subject and time window are resolved, the input tokens, and how the delivery form is chosen. Explain only the requested subject. A bare invocation with no recoverable subject needs clarification under the interaction rule above, not an invented topic or default artifact.
 
 ### Phase 2: Ground
 
-Create the run directory first — every run gets one, before any artifact exists. It holds the explainer and the recap evidence, so run this block as written rather than improvising a `mkdir`: the checks it makes refuse a scratch root you do not own or one reached through a symlink.
+Follow `references/orchestration.md` for the scoped evidence pass. Use existing evidence when it is adequate and current; check claims whose support is missing, disputed, or affected by source changes.
+
+Create a run directory only when an artifact or an evidence dossier needs one. Use this block before writing either; it rejects a symlink or a scratch root owned by another user:
 
 ```bash
 SCRATCH_ROOT="/tmp/compound-engineering-$(id -u)";
@@ -51,26 +54,28 @@ RUN_DIR="$SCRATCH_ROOT/ce-explain/$(date +%Y%m%d)-$(openssl rand -hex 3)";
 echo "$RUN_DIR";
 ```
 
-Then match grounding to the input shape per `references/orchestration.md`'s grounding section, which also owns the empty-window and unreachable-web paths. Two rules govern what reaches the user while you gather, so they hold here:
+A behavior trace that splits across ownership boundaries writes scout dossiers. Create this run directory before dispatching those scouts.
 
-- **Diff mode.** The one rule here is the **Empty range** case (the ref resolves to no commits — e.g. `main..HEAD` where the work is still uncommitted): do not silently explain something else. Say what the ref resolved to, name the nearest real candidate (the working tree, the last commit), and use it only after the user agrees — or, when they can't be asked, use it and state the substitution in the artifact's `Subject`. Apply the same rule when the named subject doesn't exist in this repo at all ("the retry logic" where there is none): report that before explaining an adjacent thing.
-- **Recap mode.** Do not pre-scan, count, or characterize the window in the main conversation: an early `git --all` summary seeds the run with a false branch or activity model. Instead dispatch a generic subagent directly at the extraction tier, seeded with `references/agents/work-recap-scout.md` and passed the resolved window, the repo root, and `$RUN_DIR`. **Empty window** (no git activity, no doc changes): say so, offer to widen it, write no artifact, and end the run after the user responds. **When the harness exposes no subagent primitive**, the degradation rule applies: run the scout inline against its own prompt's sources and budgets, and still write `recap-evidence.md`; the no-pre-scan rule then means what it protects rather than where it runs — do the scout's evidence pass first and form no view of the window until it is done.
+- **Diff mode.** **Empty range** or missing subject: do not silently explain something else. Report that before explaining an adjacent thing. Use a substitute only when the request permits it or the user agrees; name the substitution in the result and artifact `Subject` when present. Otherwise return the unresolved scope to the caller.
+- **Recap mode.** Do not pre-scan, count, or characterize the window in the main conversation. Instead dispatch a generic subagent directly at the extraction tier, seeded with `references/agents/work-recap-scout.md` and passed the resolved window, repo root, and `$RUN_DIR`. **Empty window:** report the absence of activity and finish without an explainer artifact. **When the harness exposes no subagent primitive**, run the scout inline with its prompt's sources and budgets, still write `recap-evidence.md`, and form no view of the window until it is done. If dispatch fails, follow the fallback rule in `references/orchestration.md`.
 
-### Phase 3: Compose the explainer
+### Phase 3: Compose the explanation
 
-Read the rendering reference for the resolved format **now**, not earlier: `references/explainer-html.md` (default) or `references/explainer-markdown.md` (when intake resolved `output:md`). Each owns the artifact's invariants and the voice for the audience intake resolved — personal by default, adapted for another reader on request, at unchanged depth. Read `references/check-in.md` with it: it owns whether the artifact ends with a `Check yourself` section and that section's shape. The run never blocks on the check-in — no offer, no prediction turn, no exercise posed in chat; the section is static text the reader works through alone. Compose per those contracts and write the artifact to `$RUN_DIR/explainer.html` (or `explainer.md`) before anything else happens with it, then display it (inline summary plus the file path). The artifact exists at that stable path from this moment — a declined destination ask never loses it.
+Answer the question using the evidence, preserving material constraints and uncertainty. Before delivery, check every factual claim against its source. A function call does not establish guarantees about its uninspected implementation. Remove unsupported claims or state their uncertainty where they appear, including in diagrams and exercise answers. Choose prose, code, tables, or visuals when they improve understanding; no particular arrangement is required. Keep attribution accurate when explaining work by multiple people. When selecting from more evidence than the requested scope or depth can hold, disclose the selection; never silently present a partial account as exhaustive.
 
-### Phase 4: Destination ask and close
+For an answer or material another workflow will incorporate, return that content directly. Each passage must carry the qualifications needed to use it accurately without separate notes. When another workflow will use the answer, that return includes the evidence, the constraints that still apply, and the unanswered questions. Do not create a standalone artifact unless the intended use needs one.
 
-**Required read before you render anything in this phase: `references/destinations.md`.** It owns the destination menu, the per-option routing, each destination's sub-flow, the audience re-render offer and its ordering against a publisher's consent gate, and the improvement observations the run closes on. Read it now; do not render the menu and do not act on the user's selection without it.
+For a standalone artifact, read `references/explainer-html.md` or `references/explainer-markdown.md` at compose time for the selected format's compatibility and metadata requirements. For teaching artifacts, also read `references/check-in.md`. The run never blocks on the check-in; any exercises are static content in the artifact. Write `$RUN_DIR/explainer.html` or `explainer.md`, then deliver an inline summary plus the file path.
 
-Ask for the destination once with the blocking question tool — that governs the menu itself, not the consent a chosen destination then requires. Publishing is never headless and never inferred: ht-ml.app puts the page in public, so it may only publish once the user has seen the full warning and confirmed after it, and a destination they named up front is a choice of destination rather than that confirmation. Reaching that point takes more than one ask, in an order the reference sets — do not run the sequence from this paragraph. If it cannot be completed, do not publish; preserve the canonical HTML and report its local `$RUN_DIR/explainer.html` path. The handoffs the phase closes on are offered before anything fires; once the user accepts one, invoke it through the skill primitive rather than describing it, except `ce-polish`, which is user-run only.
+### Phase 4: Deliver
 
-**Non-interactive degradation:** when no interaction is possible at this ask (no blocking tool and no reply), do not hang and do not discard — the artifact is already at `$RUN_DIR`; report that path and end, skipping the reference's offers.
+A delivered answer or local artifact completes the explanation. Do not require a destination choice or manufacture follow-on work. If a destination was requested, read `references/destinations.md` before acting; it defines each destination and the consent publishing needs. When a calling workflow owns the surrounding document, return the content to it rather than placing or publishing it yourself.
+
+Public publishing is never headless and never inferred. Naming a public host picks the destination; it is not confirmation after the public-publishing warning. If confirmation cannot be obtained, do not publish; preserve the canonical file and report its local `$RUN_DIR` path.
 
 ## Boundaries
 
-- **Not a verdict.** "Should we adopt X?" is `ce-pov`. ce-explain teaches what X is and how it works.
-- **Not repo memory.** Documenting a solved problem for future work is `ce-compound`. ce-explain teaches the human, not the repo.
-- **Not ideation or scoping.** An idea input is explained as given — implications and trade-offs — never expanded into options or a requirements dialogue.
-- **The check-in never blocks the run.** It is a section of the artifact the reader works through alone; the run asks no question about it.
+- Use `ce-pov` to judge whether an approach should be adopted or changed. Explaining a historical choice is not endorsing it today.
+- Use `ce-compound` to capture durable project learning. Producing an explanation does not authorize maintaining repo memory.
+- Explain an idea as supplied; generating alternatives and scoping implementation belong to `ce-ideate`, `ce-brainstorm`, and `ce-plan`.
+- A reported failure to diagnose or fix belongs to `ce-debug`; a factual explanation of current behavior remains here.

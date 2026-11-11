@@ -1,7 +1,7 @@
 ---
 title: A predictable-path cache in shared /tmp is a prompt-injection vector — ownership-check reads
 date: 2026-06-29
-category: docs/solutions/best-practices/
+category: best-practices
 module: scratch-space
 problem_type: best_practice
 component: tooling
@@ -37,10 +37,10 @@ with open(path) as f:
     doc = json.load(f)
 ```
 
-Current practice layers **both** defenses: the per-effective-uid root from AGENTS.md "Scratch Space" (`/tmp/compound-engineering-<effective-uid>/…`, mode `0700`, reject symlink or foreign ownership) **and** fstat-on-fd before content enters agent context. An earlier write-up rejected uid namespacing to keep a single shared `/tmp/compound-engineering/` root; that was reversed. Do not revive the un-namespaced shared root.
+Current practice layers **both** defenses: the per-effective-uid root from `docs/solutions/developer-experience/always-on-agents-md.md` (`/tmp/compound-engineering-<effective-uid>/…`, mode `0700`, reject symlink or foreign ownership) **and** fstat-on-fd before content enters agent context. An earlier write-up rejected uid namespacing to keep a single shared `/tmp/compound-engineering/` root; that was reversed. Do not revive the un-namespaced shared root.
 
 Not needed for per-run `mktemp -d` scratch with an unguessable path consumed only within the same process, or for files never surfaced to the model.
 
 ## Related
 
-- AGENTS.md "Scratch Space" (per-effective-uid `/tmp/compound-engineering-<effective-uid>/` plus the `$TMPDIR` fallback)
+- `docs/solutions/developer-experience/always-on-agents-md.md` (per-effective-uid `/tmp/compound-engineering-<effective-uid>/` plus the `$TMPDIR` fallback); `AGENTS.md` "Scratch Space" keeps the always-on pointer

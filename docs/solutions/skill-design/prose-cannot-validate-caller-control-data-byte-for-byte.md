@@ -104,7 +104,7 @@ actual_route: "native Codex host"
 
 ## Related
 
-- `docs/solutions/skill-design/portable-agent-skill-authoring.md` — The authoring standard; checklist item 5's 'prescribe a mechanism only where this skill owns it' clause (~line 442) and line ~200 ('A bundled script is right when the glue is deterministic ... agents would rebuild it wrong') are the rules this learning sharpens: ownership must include receiving the raw bytes, not just being the skill whose job it is.
+- `docs/solutions/skill-design/portable-agent-skill-authoring.md` — The authoring standard; "Authoring checklist" item 5's 'prescribe a mechanism only where this skill owns it' clause and "Match degrees of freedom to fragility" ('A bundled script is right when the glue is deterministic ... agents would rebuild it wrong') are the rules this learning sharpens: ownership must include receiving the raw bytes, not just being the skill whose job it is.
 - `docs/solutions/skill-design/skill-gates-state-conditions-not-prescribed-git-commands.md` — Sibling owning-layer doc: 'The boundary is ownership, not medium.' New doc shows the converse edge — even a skill that owns the mechanism cannot get byte-exact validation via prose because the model is the transport.
 - `docs/solutions/skill-design/bundled-script-path-resolution-across-harnesses.md` — If a bundled validator is the chosen owning layer, this doc gives the SKILL_DIR anchor to invoke it deterministically across hosts.
 - `docs/solutions/skill-design/paired-old-vs-new-injection-skill-evals.md` — Cross-host eval method that surfaced the Codex-only acceptance; the Codex-literal-compliance-on-retyped-input finding is a new failure class for its guessed-the-flag finding.

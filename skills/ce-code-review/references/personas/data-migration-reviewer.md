@@ -86,7 +86,7 @@ Use the anchored confidence rubric in the subagent template.
 
 **Anchor 75** — migration DDL or drift visible in the diff; concrete orphaned reference you can name.
 
-**Anchor 50** — inferred data impact from app code without visible migration handling. Surfaces only as P0 escape per synthesis rules.
+**Anchor 50** — inferred data impact from app code without visible migration handling. Synthesis keeps a finding at this anchor only when its severity is P0.
 
 **Anchor 25 or below — suppress.**
 

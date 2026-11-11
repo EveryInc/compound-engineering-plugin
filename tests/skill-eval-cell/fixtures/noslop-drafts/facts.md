@@ -1,0 +1,1 @@
+The cache layer serves as a vital component of the platform, boasting a 92 percent hit rate across 14 regions. It is important to note that the eviction window was reduced from 45 minutes to 12 minutes in release 3.8, highlighting the team's commitment to latency. Additionally, the median lookup now takes 4 milliseconds.

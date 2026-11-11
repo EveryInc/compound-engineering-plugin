@@ -1,0 +1,15 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 5,
+  "t": 12500,
+  "type": "transcript",
+  "payload": {
+    "id": "tr_0001",
+    "role": "riffer",
+    "text": "The sidebar toggle should sit on the right, next to the avatar.",
+    "t_start": 11800,
+    "t_end": 14200,
+    "final": true
+  }
+}

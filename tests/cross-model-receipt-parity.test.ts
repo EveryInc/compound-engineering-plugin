@@ -4,18 +4,17 @@ import { describe, expect, test } from "bun:test"
 
 const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 
-// The model-identity receipt kernel (expected_model_prefix / route_model /
-// extract_model_receipt) is byte-duplicated between the two cross-model peer
-// scripts (the plugin has no cross-skill import mechanism — see AGENTS.md
-// "File References in Skills") and each carries a "keep byte-identical"
-// comment. This test makes that comment enforceable.
+// The model-identity receipt kernel (extract_model_receipt, which reads the
+// served model from the acpx adapter's _meta) is byte-duplicated across the
+// cross-model review workers (the plugin has no cross-skill import mechanism —
+// see AGENTS.md "File References in Skills"), so the copies must stay identical.
 const SCRIPTS = [
-  "ce-code-review/scripts/cross-model-adversarial-review.sh",
-  "ce-doc-review/scripts/cross-model-doc-review.sh",
   "ce-pov/scripts/cross-model-pov.sh",
+  "ce-doc-review/scripts/cross-model-doc-review.sh",
+  "ce-code-review/scripts/cross-model-adversarial-review.sh",
 ]
 
-const BEGIN_MARKER = "# --- model-identity receipt (R7/R8)"
+const BEGIN_MARKER = "# --- model-identity receipt"
 const END_MARKER = "# --- adapter argv"
 
 /** Lines from the receipt marker through the line immediately before the
@@ -31,7 +30,7 @@ function receiptKernel(content: string, file: string): string {
 }
 
 describe("cross-model receipt-kernel parity", () => {
-  test("the model-identity receipt block is byte-identical in all scripts", async () => {
+  test("the model-identity receipt block is byte-identical in every worker", async () => {
     const kernels = await Promise.all(
       SCRIPTS.map(async (rel) => {
         const p = path.join(PLUGIN_ROOT, rel)

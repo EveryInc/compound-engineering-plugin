@@ -75,9 +75,13 @@ def fingerprint(finding: dict[str, Any]) -> tuple[str, str, str]:
 def independent_reviewer(name: str, source: dict[str, Any]) -> bool:
     if name == "fast-pass":
         return False
-    if name.startswith("adversarial-"):
+    if cross_model_peer(name):
         return source.get("independence_verified") is True
     return True
+
+
+def cross_model_peer(name: str) -> bool:
+    return name.startswith("adversarial-")
 
 
 def promote(confidence: int) -> int:
@@ -121,7 +125,9 @@ def merge_group(group: list[tuple[dict[str, Any], str, tuple[str, ...]]]) -> dic
     has_first_evidence = nonempty_string(merged.get("first_evidence"))
     if confidence >= 75 and not has_first_evidence:
         confidence = 50
-    if len(independent) >= 2 and has_first_evidence:
+    # In-process reviewers share one serving model, so their agreement is one
+    # reading repeated; only a verified cross-model peer corroborates.
+    if len(independent) >= 2 and has_first_evidence and any(cross_model_peer(n) for n in independent):
         confidence = promote(confidence)
     merged["confidence"] = confidence
     merged["reviewers"] = reviewer_names
@@ -144,6 +150,7 @@ def main() -> int:
 
     malformed_returns = 0
     malformed_findings = 0
+    first_evidence_backfilled = 0
     grouped: dict[
         tuple[str, str, str], list[tuple[dict[str, Any], str, tuple[str, ...]]]
     ] = {}
@@ -158,10 +165,24 @@ def main() -> int:
         residual_risks.extend(source["residual_risks"])
         testing_gaps.extend(source["testing_gaps"])
         for finding in source["findings"]:
+            backfilled = False
+            if isinstance(finding, dict):
+                finding = dict(finding)
+                evidence = finding.get("evidence")
+                if (
+                    finding.get("confidence") in (75, 100)
+                    and ("first_evidence" not in finding or isinstance(finding["first_evidence"], str))
+                    and not nonempty_string(finding.get("first_evidence"))
+                    and isinstance(evidence, list)
+                    and evidence
+                    and nonempty_string(evidence[0])
+                ):
+                    finding["first_evidence"] = evidence[0]
+                    backfilled = True
             if not valid_finding(finding):
                 malformed_findings += 1
                 continue
-            finding = dict(finding)
+            first_evidence_backfilled += int(backfilled)
             if reviewer == "fast-pass":
                 finding["confidence"] = min(finding["confidence"], 50)
             independent_names: tuple[str, ...]
@@ -241,6 +262,7 @@ def main() -> int:
                 "suppressed_by_confidence": dict(sorted(suppressed.items())),
                 "malformed_returns": malformed_returns,
                 "malformed_findings": malformed_findings,
+                "first_evidence_backfilled": first_evidence_backfilled,
             },
             sort_keys=True,
         )

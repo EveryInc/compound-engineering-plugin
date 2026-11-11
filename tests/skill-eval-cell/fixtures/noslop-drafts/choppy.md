@@ -1,0 +1,1 @@
+The importer reads each CSV file in one pass — no temp files, no second scan. Rows that fail validation go to a quarantine table — the run keeps going. Fast. Predictable. Safe to rerun. On the staging cluster the nightly job finishes in about 6 minutes for 2 million rows — and nobody has to babysit it.

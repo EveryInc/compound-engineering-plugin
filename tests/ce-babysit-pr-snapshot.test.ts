@@ -3,6 +3,7 @@ import { spawn, spawnSync } from "node:child_process"
 import { chmodSync, existsSync, mkdtempSync, writeFileSync, readFileSync, renameSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { isLostChildExit, throwLostChildExit } from "./helpers/lost-child-exit"
 
 setDefaultTimeout(30_000)
 
@@ -16,10 +17,10 @@ const EXPIRING_TEST_INVOCATION = ["--start-invocation", "--invocation-budget-sec
 
 function fetchFile(dir: string, name: string, obj: unknown): string {
   const p = path.join(dir, name)
-  const fixture = obj && typeof obj === "object" && !Array.isArray(obj)
+  const fixture: unknown = obj && typeof obj === "object" && !Array.isArray(obj)
     ? { ...(obj as Record<string, unknown>) }
     : obj
-  if (fixture && typeof fixture === "object" && Array.isArray(fixture.threads)) {
+  if (fixture && typeof fixture === "object" && "threads" in fixture && Array.isArray(fixture.threads)) {
     fixture.threads = fixture.threads.map((thread: any) => ({
       ...thread,
       url: thread.url ?? `https://example.test/thread/${thread.thread_id}`,
@@ -169,6 +170,7 @@ function watch(stateDir: string, fetch: string, extra: string[] = []): any {
       "--interval", "0.1", ...invocationArgs, ...extra],
     { encoding: "utf8", timeout: 5000 },
   )
+  if (isLostChildExit(r)) throwLostChildExit(["python3", SCRIPT, "watch"])
   expect(r.status, r.stderr).toBe(0)
   return JSON.parse(r.stdout.trim().split("\n").pop()!) // the wake sentinel is the final line
 }
@@ -346,6 +348,7 @@ function probeChain(options: {
   graphql: { status: number; stdout?: unknown; stderr?: string }
   defaultBranch?: { status: number; stdout?: unknown; stderr?: string }
   openPrs?: unknown[]
+  crossRepository?: boolean
 }): { chain: any; calls: string[] } {
   const payload = {
     pr: options.pr ?? 42,
@@ -356,6 +359,7 @@ function probeChain(options: {
     graphql: options.graphql,
     default_branch: options.defaultBranch ?? { status: 0, stdout: "main\n" },
     open_prs: options.openPrs ?? [],
+    cross_repository: options.crossRepository ?? false,
   }
   const python = `
 import json
@@ -386,7 +390,8 @@ def fake(cmd):
     return result
 
 m._run = fake
-chain = m.fetch_pr_chain(p["pr"], "o/r", p["url"], p["base_ref"], p["head_ref"], "o", "r", None)
+chain = m.fetch_pr_chain(p["pr"], "o/r", p["url"], p["base_ref"], p["head_ref"], "o", "r", None,
+                         p["cross_repository"])
 print(json.dumps({"chain": chain, "calls": calls}))
 `
   const r = spawnSync(
@@ -1690,7 +1695,7 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
     expect(r.status, r.stderr).toBe(0)
     const result = JSON.parse(r.stdout)
-    expect(result.calls[0].join(" ")).toContain("baseRefOid")
+    expect(result.calls[0].join(" ")).not.toContain("baseRefOid")
     const refCalls = result.calls.filter((call: string[]) => call.includes("repos/o/r/git/ref/heads/main"))
     expect(refCalls).toHaveLength(5)
     for (const call of refCalls) {
@@ -1702,6 +1707,7 @@ print(json.dumps({"current": current, "same_head_mixed_case": same_head_mixed_ca
     for (const call of identityCalls) {
       expect(call).toContain("--hostname")
       expect(call).toContain("ghe.acme.test")
+      expect(call.join(" ")).toContain("baseRefOid")
     }
     expect(result.current.base).toEqual({
       host: "ghe.acme.test",
@@ -1779,7 +1785,7 @@ def checked(cmd, label):
     result.returncode = 0
     result.stderr = ""
     result.stdout = json.dumps({
-        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "UNSTABLE",
         "reviewDecision": None, "headRefOid": "a" * 40, "baseRefOid": "b" * 40,
         "baseRefName": "main", "headRefName": "feature", "number": 7,
         "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
@@ -1810,6 +1816,153 @@ print(json.dumps(m.fetch(7, "o/r")["checks"][0]))
       started_at: null,
       completed_at: null,
     })
+  })
+
+  test("live fetch ignores failed runs in the rollup only when GitHub says CLEAN for this head", () => {
+    const python = `
+import json
+from importlib.machinery import SourceFileLoader
+m = SourceFileLoader("pr_snapshot", ${JSON.stringify(SCRIPT)}).load_module()
+class Result: pass
+def run(conclusion, status):
+    return {"__typename": "CheckRun", "workflowName": "CI", "name": "test", "conclusion": conclusion,
+            "status": status, "startedAt": None, "completedAt": None, "detailsUrl": "https://x.test/run"}
+def view(merge_state):
+    def checked(cmd, label):
+        result = Result()
+        result.returncode = 0
+        result.stderr = ""
+        result.stdout = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": merge_state,
+            "reviewDecision": None, "headRefOid": "a" * 40, "baseRefOid": "b" * 40,
+            "baseRefName": "main", "headRefName": "feature", "number": 7,
+            "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
+            "comments": [], "reviews": [],
+            "statusCheckRollup": [run("FAILURE", "COMPLETED"), run("SUCCESS", "COMPLETED")]})
+        return result
+    return checked
+def conclusions(merge_state, identity_head=None, base_identity="current"):
+    m._run_checked = view(merge_state)
+    m.fetch_base_ref = lambda *args: {"identity": base_identity, "oid": "b" * 40}
+    m.fetch_pr_merge_identity = lambda *args: identity_head and {
+        "headRefOid": identity_head, "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": merge_state}
+    return [c["conclusion"] for c in m.fetch(7, "o/r")["checks"]]
+def other_head_race():
+    m._run_checked = view("CLEAN")
+    m.fetch_pr_merge_identity = lambda *args: {
+        "headRefOid": "c" * 40, "baseRefName": "main", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"}
+    m.fetch_base_ref = lambda *args: {"identity": "race", "oid": "b" * 40, "stale_computation_candidate": True}
+    current = m.fetch(7, "o/r")
+    m._apply_stale_merge_computation(current, current["head_sha"])
+    return current["base"]["identity"]
+m._corroborated_terminal_check_status = lambda *args: None
+m.fetch_eyes_reactors = lambda *args: []
+m.fetch_threads = lambda *args: []
+m.fetch_awaiting_approval = lambda *args: 0
+m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
+                                  "default_branch": "main", "parent_prs": [], "dependent_prs": []}
+print(json.dumps({"clean": conclusions("CLEAN"), "unstable": conclusions("UNSTABLE"),
+                  "other_head": conclusions("CLEAN", "c" * 40),
+                  "base_moved": conclusions("CLEAN", "a" * 40, "race"),
+                  "other_head_race": other_head_race()}))
+`
+    const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
+    expect(r.status, r.stderr).toBe(0)
+    expect(JSON.parse(r.stdout)).toEqual({
+      clean: ["SUCCESS"],
+      unstable: ["FAILURE", "SUCCESS"],
+      other_head: ["FAILURE", "SUCCESS"],
+      base_moved: ["SUCCESS"],
+      other_head_race: "race",
+    })
+  })
+
+  test("live fetch normalizes an impossible CheckRun status only with same-head parent corroboration", () => {
+    const python = `
+import json
+from importlib.machinery import SourceFileLoader
+
+m = SourceFileLoader("prs_terminal_check", ${JSON.stringify(SCRIPT)}).load_module()
+head = "a" * 40
+cases = {
+  "corroborated": {},
+  "workflow-head-mismatch": {"workflow_head": "b" * 40},
+  "suite-conclusion-mismatch": {"suite_conclusion": "failure"},
+  "check-head-mismatch": {"check_head": "c" * 40},
+  "job-id-mismatch": {"database_id": 124},
+  "job-record-mismatch": {"job_id": 124},
+  "queued-with-terminal-fields": {"graphql_status": "QUEUED"},
+}
+
+class Result:
+    pass
+
+def run_case(overrides):
+    calls = []
+    def checked(cmd, label):
+        result = Result()
+        result.returncode = 0
+        result.stderr = ""
+        result.stdout = json.dumps({
+            "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+            "reviewDecision": None, "headRefOid": head, "baseRefOid": "b" * 40,
+            "baseRefName": "main", "headRefName": "feature", "number": 7,
+            "url": "https://github.com/o/r/pull/7", "author": {"login": "author"},
+            "comments": [], "reviews": [],
+            "statusCheckRollup": [{"__typename": "CheckRun", "databaseId": overrides.get("database_id", 123),
+                "workflowName": "CI", "name": "unit", "status": overrides.get("graphql_status", "IN_PROGRESS"),
+                "conclusion": "SUCCESS", "completedAt": "2026-09-18T20:30:31Z",
+                "startedAt": "2026-09-18T20:00:00Z",
+                "detailsUrl": "https://github.com/o/r/actions/runs/456/job/123"}],
+        })
+        return result
+    def run(cmd):
+        calls.append(cmd)
+        result = Result()
+        result.returncode = 0
+        result.stderr = ""
+        route = cmd[-1]
+        if route.endswith("check-runs/123"):
+            payload = {"head_sha": overrides.get("check_head", head), "conclusion": "success",
+                       "completed_at": "2026-09-18T20:30:31Z", "check_suite": {"id": 789}}
+        elif route.endswith("actions/jobs/123"):
+            payload = {"id": overrides.get("job_id", 123), "head_sha": head,
+                       "conclusion": "success", "completed_at": "2026-09-18T20:30:31Z"}
+        elif route.endswith("check-suites/789"):
+            payload = {"head_sha": head, "status": "completed",
+                       "conclusion": overrides.get("suite_conclusion", "success")}
+        elif route.endswith("actions/runs/456"):
+            payload = {"head_sha": overrides.get("workflow_head", head), "status": "completed",
+                       "conclusion": overrides.get("workflow_conclusion", "success")}
+        else:
+            raise AssertionError("unexpected command: " + repr(cmd))
+        result.stdout = json.dumps(payload)
+        return result
+    m._run_checked = checked
+    m._run = run
+    m.fetch_pr_merge_identity = lambda *args: None
+    m.fetch_base_ref = lambda *args: {"identity": "current", "oid": "b" * 40}
+    m.fetch_eyes_reactors = lambda *args: []
+    m.fetch_threads = lambda *args: []
+    m.fetch_awaiting_approval = lambda *args: 0
+    m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
+                                      "default_branch": "main", "parent_prs": [], "dependent_prs": []}
+    return {"check": m.fetch(7, "o/r")["checks"][0], "calls": calls}
+
+print(json.dumps({name: run_case(overrides) for name, overrides in cases.items()}))
+`
+    const result = spawnSync("python3", ["-c", python], { encoding: "utf8" })
+    expect(result.status, result.stderr).toBe(0)
+    const cases = JSON.parse(result.stdout)
+    expect(cases.corroborated.check.status).toBe("COMPLETED")
+    expect(cases.corroborated.check.conclusion).toBe("SUCCESS")
+    expect(cases.corroborated.calls.map((call: string[]) => call.at(-1))).toEqual([
+      "repos/o/r/check-runs/123", "repos/o/r/actions/jobs/123", "repos/o/r/check-suites/789", "repos/o/r/actions/runs/456",
+    ])
+    for (const name of ["workflow-head-mismatch", "suite-conclusion-mismatch", "check-head-mismatch", "job-id-mismatch", "job-record-mismatch"]) {
+      expect(cases[name].check.status, name).toBe("IN_PROGRESS")
+    }
+    expect(cases["queued-with-terminal-fields"].check.status).toBe("QUEUED")
   })
 
   test("base-ref freshness blocks readiness, resets quiet on current-to-stale, and fails closed on probe error", () => {
@@ -2142,6 +2295,65 @@ print(json.dumps({
     expect(behind.mergeability_certain).toBe(true)
     expect(behind.branch_currency).toMatchObject({ status: "BEHIND", base_oid: liveBase, head_sha: head })
     expect(wakeReason(behind, 0)).toBe("branch-currency")
+  })
+
+  // #1989: under strict up-to-date protection every base move reports BEHIND. Under the non-merging
+  // postures an update-branch before the human merges only restarts CI, so BEHIND is left for the
+  // merger and is no readiness gap; postures that keep the branch current omit the flag.
+  describe("BEHIND left for the merger (--defer-behind-to-merge)", () => {
+    const DEFER = ["--defer-behind-to-merge"]
+
+    test("target/stack-ready: green BEHIND emits no currency item and reads merge-ready", () => {
+      const fetch = fetchFile(dir, "behind-deferred.json", quietCurrencyFixture())
+      const deferred = snapshot(state, fetch, DEFER)
+      expect(deferred.mergeability_certain).toBe(true)
+      expect(deferred.branch_currency).toBeNull()
+      expect(deferred.branch_currency_blocker).toBeNull()
+      expect(deferred.update_branch_at_merge).toBe(true)
+      expect(wakeReason(deferred, 0)).toBe("merge-ready")
+      expect(watch(state, fetch, [...DEFER, "--settle-seconds", "0"]).reason).toBe("merge-ready")
+
+      const moved = snapshot(state, fetchFile(dir, "behind-deferred-moved.json", quietCurrencyFixture({
+        base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+      })), DEFER)
+      expect(moved.branch_currency).toBeNull()
+      expect(moved.update_branch_at_merge).toBe(true)
+    })
+
+    test("a review GitHub still requires is not hidden behind BEHIND", () => {
+      for (const decision of ["REVIEW_REQUIRED", "CHANGES_REQUESTED"]) {
+        const value = snapshot(path.join(dir, `review-${decision}`), fetchFile(dir, `behind-${decision}.json`,
+          quietCurrencyFixture({ review_decision: decision })), DEFER)
+        expect(value.branch_currency).toBeNull()
+        expect(value.update_branch_at_merge).toBe(false)
+        expect(wakeReason(value, 0)).toBeNull()
+      }
+    })
+
+    test("stack-land / always-current (flag omitted): BEHIND still emits the claimable item", () => {
+      const value = snapshot(state, fetchFile(dir, "behind-kept-current.json", quietCurrencyFixture()))
+      expect(value.branch_currency).toMatchObject({ status: "BEHIND", attention: "claim" })
+      expect(value.branch_currency_blocker).not.toBeNull()
+      expect(value.update_branch_at_merge).toBe(false)
+      expect(wakeReason(value, 0)).toBe("branch-currency")
+    })
+
+    test("DIRTY still emits its currency item when BEHIND is deferred", () => {
+      const value = snapshot(state, fetchFile(dir, "dirty-deferred.json",
+        quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })), DEFER)
+      expect(value.branch_currency).toMatchObject({ status: "DIRTY", attention: "claim" })
+      expect(value.update_branch_at_merge).toBe(false)
+      expect(wakeReason(value, 0)).toBe("branch-currency")
+    })
+
+    test("an earlier claimed BEHIND item still owns the lane until reconciled", () => {
+      const fetch = fetchFile(dir, "behind-claimed.json", quietCurrencyFixture())
+      const open = snapshot(state, fetch)
+      markCurrency(state, open.branch_currency.key, "claimed")
+      const deferred = snapshot(state, fetch, DEFER)
+      expect(deferred.branch_currency).toMatchObject({ key: open.branch_currency.key, disposition: "claimed" })
+      expect(deferred.update_branch_at_merge).toBe(false)
+    })
   })
 
   test("watch does not turn ordinary historical base movement into a standing base-ref residual", () => {
@@ -2872,6 +3084,44 @@ print(json.dumps({
     expect(chain.relationship_status).toBe("dependent")
     expect(chain.parent_prs.map((pr: any) => pr.number)).toEqual([41])
     expect(chain.dependent_prs.map((pr: any) => pr.number)).toEqual([43])
+  })
+
+  test("a fork PR whose head shares our base branch name is not a parent", () => {
+    const { chain, calls } = probeChain({
+      baseRef: "dev",
+      headRef: "feature",
+      stackView: { status: 1, stderr: "no current stack" },
+      graphql: { status: 0, stdout: { data: { repository: {
+        defaultBranchRef: { name: "main" },
+        pullRequest: { stackEntry: null, stack: null },
+      } } } },
+      openPrs: [
+        { number: 77, url: "https://github.com/o/r/pull/77", state: "OPEN", baseRefName: "main", headRefName: "dev", isCrossRepository: true },
+        { number: 41, url: "https://github.com/o/r/pull/41", state: "OPEN", baseRefName: "main", headRefName: "dev", isCrossRepository: false },
+      ],
+    })
+    expect(calls.some((call) => call.includes("--head dev") && call.includes("isCrossRepository"))).toBe(true)
+    expect(chain.relationship_status).toBe("dependent")
+    expect(chain.parent_prs.map((pr: any) => pr.number)).toEqual([41])
+  })
+
+  test("a fork PR has no dependents, even when an upstream branch shares its head name", () => {
+    const { chain, calls } = probeChain({
+      baseRef: "main",
+      headRef: "fix-typo",
+      crossRepository: true,
+      stackView: { status: 1, stderr: "no current stack" },
+      graphql: { status: 0, stdout: { data: { repository: {
+        defaultBranchRef: { name: "main" },
+        pullRequest: { stackEntry: null, stack: null },
+      } } } },
+      openPrs: [
+        { number: 90, url: "https://github.com/o/r/pull/90", state: "OPEN", baseRefName: "fix-typo", headRefName: "other", isCrossRepository: false },
+      ],
+    })
+    expect(calls.some((call) => call.includes("--base fix-typo"))).toBe(false)
+    expect(chain.relationship_status).toBe("independent")
+    expect(chain.dependent_prs).toEqual([])
   })
 
   test("a PR based on the default branch ignores unrelated PRs whose head has the default-branch name", () => {
@@ -4051,6 +4301,7 @@ m.cmd_snapshot(args)
         "--invocation-budget-seconds", String(incumbent.invocation_budget_seconds)],
       { encoding: "utf8", timeout: 5000 },
     )
+    if (isLostChildExit(r)) throwLostChildExit(["python3", SCRIPT, "watch", "stopped-before-arm"])
 
     expect(r.status, r.stderr).toBe(0)
     expect(JSON.parse(r.stdout.trim())).toMatchObject({
@@ -4284,7 +4535,7 @@ assert json.load(open(state_path))["head_sha"] == "base-head", "preflight mutate
 
 original_diff = m.diff
 child = None
-def diff_with_incumbent_race(state, current, now=None, advance_trajectory=True):
+def diff_with_incumbent_race(state, current, now=None, advance_trajectory=True, **kwargs):
     global child
     child_code = '''
 import json
@@ -4310,7 +4561,7 @@ else:
                              stderr=subprocess.PIPE, text=True)
     time.sleep(0.2)
     assert child.poll() is None, "incumbent was not blocked by atomic activation"
-    return original_diff(state, current, now, advance_trajectory=advance_trajectory)
+    return original_diff(state, current, now, advance_trajectory=advance_trajectory, **kwargs)
 
 m.diff = diff_with_incumbent_race
 previous, actionable = m._activate_watch(args, generation, m._now(), cur)
@@ -4341,21 +4592,36 @@ print(json.dumps(signals))
     expect(JSON.parse(r.stdout)).toEqual([[125, 15]])
   })
 
+  // subprocess.run kills and reaps its child only for an exception raised inside
+  // communicate(). A takeover keyed on "the child exists" can land after fork but
+  // before run() reaches that call -- observed on a loaded CI runner -- and the
+  // _WatchSuperseded it raises there orphans the child, which then holds this
+  // test's stdout pipe open for the full spawnSync timeout. Fire the takeover
+  // from inside communicate() instead, so it can only land in the reaping region.
+  // The fetch keeps a timeout so Popen.wait polls: an untimed wait is one blocking
+  // waitpid, and a signal landing just before it enters the syscall stalls for the
+  // whole sleep.
   test("watch: takeover interrupts and reaps an active fetch subprocess", () => {
-    const childPid = path.join(dir, "watch-fetch-child.pid")
     const python = `
-import os, signal, subprocess, threading, time
+import os, signal, subprocess, sys, threading, time
 from importlib.machinery import SourceFileLoader
 from types import SimpleNamespace
 m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
-pid_file = ${JSON.stringify(childPid)}
+child = {}
+fetch_waiting = threading.Event()
+real_communicate = subprocess.Popen.communicate
+def communicate_and_announce(self, *args, **kwargs):
+    child["pid"] = self.pid
+    fetch_waiting.set()
+    return real_communicate(self, *args, **kwargs)
+subprocess.Popen.communicate = communicate_and_announce
 def fake_snapshot(args, now, advance_trajectory=True, watch_generation=None):
-    subprocess.run(["sh", "-c", "echo $$ > " + pid_file + "; exec sleep 30"], check=True)
+    subprocess.run(["sleep", "30"], check=True, timeout=60)
     return {"counts": {}, "pr_state": "OPEN", "session_seconds": 0}
-def stop_when_child_starts():
-    deadline = time.time() + 5
-    while time.time() < deadline and not os.path.exists(pid_file):
-        time.sleep(0.01)
+def stop_when_fetch_waits():
+    if not fetch_waiting.wait(5):
+        sys.stderr.write("fetch never reached communicate()\\n")
+        os._exit(3)
     os.kill(os.getpid(), signal.SIGTERM)
 m._run_snapshot = fake_snapshot
 m._fetch_snapshot = lambda args: {}
@@ -4366,20 +4632,20 @@ m._activate_watch = lambda args, generation, now, cur: (
 m._terminate_replaced_watch = lambda previous: None
 m._watch_is_current = lambda args, generation: True
 m._wake_reason = lambda actionable, settle_seconds, *_: None
-threading.Thread(target=stop_when_child_starts, daemon=True).start()
+threading.Thread(target=stop_when_fetch_waits, daemon=True).start()
 args = SimpleNamespace(reset_session=False, stop_file=None, settle_seconds=300, max_runtime=0,
                        interval=0.01, state_dir=${JSON.stringify(dir)}, pr=1, repo="o/r")
 started = time.time()
 m.cmd_watch(args)
-pid = int(open(pid_file).read())
 alive = True
 try:
-    os.kill(pid, 0)
+    os.kill(child["pid"], 0)  # succeeds for a running child and for an unreaped zombie
 except ProcessLookupError:
     alive = False
 print(f"{alive} {time.time() - started:.3f}")
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8", timeout: 5000 })
+    if (isLostChildExit(r)) throwLostChildExit(["python3", "-c", "cmd_watch takeover reap"])
     expect(r.status, r.stderr).toBe(0)
     const [alive, elapsed] = r.stdout.trim().split(" ")
     expect(alive).toBe("False")
@@ -4437,6 +4703,7 @@ m.cmd_watch(args)
 print(json.dumps({"ordinary_restored": signal.getsignal(signal.SIGTERM) is caller_handler}))
 `
     const r = spawnSync("python3", ["-c", python], { encoding: "utf8", timeout: 5000 })
+    if (isLostChildExit(r)) throwLostChildExit(["python3", "-c", "cmd_watch stale teardown"])
     expect(r.status, r.stderr).toBe(0)
     expect(JSON.parse(r.stdout)).toEqual({ ordinary_restored: true })
   })
@@ -4782,9 +5049,8 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
 
   // Observed live (tmchow/pr-stack-test, 2026-08-17): after a squash-merge to main GitHub kept
   // MERGEABLE/CLEAN but left potentialMergeCommit on the old base for 20+ minutes, so `race`
-  // never cleared and every harness idled to budget. The degrade accepts the cached verdict once
-  // head and live base have been stable that long, and discloses it.
-  test("stale merge computation: a head-matching race degrades to stale-computation after the bounded window", () => {
+  // never cleared and every harness idled to budget. The cached verdict is accepted and disclosed.
+  test("stale merge computation: a head-matching race counts as stale-computation right away", () => {
     const race = {
       ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED",
       checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
@@ -4797,15 +5063,12 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     }
     const file = fetchFile(dir, "stale-race.json", race)
     const first = snapshot(state, file)
-    expect(first.base_ref_blocker).toBe("race")
-    expect(first.mergeability_certain).toBe(false)
-    expect(wakeReason(first)).toBe("base-ref-blocked")
+    expect(first.base.identity).toBe("stale-computation")
+    expect(first.base_ref_blocker).toBeNull()
+    expect(first.mergeability_certain).toBe(true)
 
     const statePath = path.join(state, "state.json")
     const persisted = JSON.parse(readFileSync(statePath, "utf8"))
-    expect(persisted.stale_merge_computation?.key).toBe(
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:2222222222222222222222222222222222222222")
-    persisted.stale_merge_computation.first_seen_at = "2026-07-17T12:00:00+00:00"
     persisted.last_change_at = "2026-07-17T12:00:00+00:00"
     writeFileSync(statePath, JSON.stringify(persisted))
 
@@ -4819,14 +5082,28 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     expect(JSON.parse(readFileSync(statePath, "utf8")).last_change_at).toBe("2026-07-17T12:00:00+00:00")
     expect(wakeReason(later, 300)).toBe("merge-ready")
 
+    // A busy base branch moving again does not reset the quiet clock.
+    const movedTip = snapshot(state, fetchFile(dir, "stale-race-tip.json", { ...race,
+      base: { ...race.base, oid: "3".repeat(40), graphql_oid: "3".repeat(40) } }))
+    expect(movedTip.base.identity).toBe("stale-computation")
+    expect(wakeReason(movedTip, 300)).toBe("merge-ready")
+    expect(JSON.parse(readFileSync(statePath, "utf8")).last_change_at).toBe("2026-07-17T12:00:00+00:00")
+
+    // GitHub recomputing after the tip moved blocks that one read and does not reset the quiet clock.
+    const recomputing = snapshot(state, fetchFile(dir, "stale-race-recompute.json", { ...race,
+      mergeable: "UNKNOWN", merge_state_status: "UNKNOWN",
+      base: { ...race.base, identity: "mergeability-pending", stale_computation_candidate: undefined } }))
+    expect(recomputing.mergeability_certain).toBe(false)
+    const recomputed = snapshot(state, file)
+    expect(recomputed.base.identity).toBe("stale-computation")
+    expect(wakeReason(recomputed, 300)).toBe("merge-ready")
+    expect(JSON.parse(readFileSync(statePath, "utf8")).last_change_at).toBe("2026-07-17T12:00:00+00:00")
+
     // A pending (unclassified) head forces uncertainty even through the stale-computation degrade.
     const pendingStale = snapshot(state, fetchFile(dir, "stale-race-pending.json", { ...race,
       head_sha: "cccccccccccccccccccccccccccccccccccccccc", head_parents: null,
       base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "cccccccccccccccccccccccccccccccccccccccc"] } }))
     expect(pendingStale.unrequested_base_merge_pending).toBe(true)
-    const sp = JSON.parse(readFileSync(statePath, "utf8"))
-    sp.stale_merge_computation.first_seen_at = "2026-07-17T12:00:00+00:00"
-    writeFileSync(statePath, JSON.stringify(sp))
     const pendingStale2 = snapshot(state, fetchFile(dir, "stale-race-pending.json", { ...race,
       head_sha: "cccccccccccccccccccccccccccccccccccccccc", head_parents: null,
       base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "cccccccccccccccccccccccccccccccccccccccc"] } }))
@@ -4837,11 +5114,37 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     const genuine = snapshot(path.join(dir, "genuine-race"), fetchFile(dir, "genuine-race.json", {
       ...race, base: { ...race.base, stale_computation_candidate: false } }))
     expect(genuine.base_ref_blocker).toBe("race")
-    // A moved head resets the window.
+    // A moved head is judged the same way.
     const moved = snapshot(state, fetchFile(dir, "stale-race-moved.json", { ...race,
       head_sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       base: { ...race.base, merge_parent_oids: ["1111111111111111111111111111111111111111", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"] } }))
-    expect(moved.base_ref_blocker).toBe("race")
+    expect(moved.base.identity).toBe("stale-computation")
+  })
+
+  test("timed_wait names the settle window only when nothing else is left", () => {
+    const clean = {
+      ...FAILING, merge_state_status: "CLEAN", review_decision: "APPROVED",
+      checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+      threads: [], head_sha: "a".repeat(40),
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "2".repeat(40), graphql_oid: "2".repeat(40),
+        historical_oid: "1".repeat(40), merge_parent_oids: ["2".repeat(40), "a".repeat(40)], identity: "current" },
+    }
+    const quiet = snapshot(state, fetchFile(dir, "timed-wait.json", clean))
+    expect(quiet.timed_wait.reason).toBe("settle")
+    expect(quiet.timed_wait.seconds_remaining).toBeGreaterThan(290)
+
+    const statePath = path.join(state, "state.json")
+    const persisted = JSON.parse(readFileSync(statePath, "utf8"))
+    persisted.last_change_at = "2026-07-17T12:00:00+00:00"
+    writeFileSync(statePath, JSON.stringify(persisted))
+    expect(snapshot(state, fetchFile(dir, "timed-wait.json", clean)).timed_wait).toBeNull()
+
+    const running = snapshot(path.join(dir, "timed-wait-running"), fetchFile(dir, "timed-wait-running.json", {
+      ...clean, checks: [{ ...clean.checks[0], status: "IN_PROGRESS", conclusion: null }] }))
+    expect(running.timed_wait).toBeNull()
+    const failing = snapshot(path.join(dir, "timed-wait-failing"), fetchFile(dir, "timed-wait-failing.json", {
+      ...clean, merge_state_status: "UNSTABLE", checks: [{ ...clean.checks[0], conclusion: "FAILURE" }] }))
+    expect(failing.timed_wait).toBeNull()
   })
 
   test("genuine base identity transitions still change the settle signature", () => {
@@ -4862,7 +5165,7 @@ print(json.dumps({"ids": [t["thread_id"] for t in threads], "calls": calls}))
     const file = fetchFile(dir, "identity-steps.json", green)
     snapshot(state, file)
     const statePath = path.join(state, "state.json")
-    const identities = ["race", "mergeability-pending", "current"]
+    const identities = ["race", "current"]
     for (const identity of identities) {
       const persisted = JSON.parse(readFileSync(statePath, "utf8"))
       persisted.last_change_at = frozen

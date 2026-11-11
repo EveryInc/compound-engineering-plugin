@@ -12,6 +12,7 @@ wrapping when bash is on PATH.
 
 from __future__ import annotations
 
+import faulthandler
 import importlib.util
 import json
 import os
@@ -870,6 +871,11 @@ class RunRetryGateUnit(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    deadline = os.environ.get("PEER_SMOKE_DEADLINE_SECS")
+    if deadline:
+        # A C-level watchdog: it dumps every thread's stack and exits even when
+        # the main thread is stuck inside a blocking call holding the GIL.
+        faulthandler.dump_traceback_later(float(deadline), exit=True)
     if not IS_WINDOWS:
         suite = unittest.TestLoader().loadTestsFromTestCase(RunRetryGateUnit)
         result = unittest.TextTestRunner(verbosity=2).run(suite)

@@ -1,0 +1,15 @@
+{
+  "number": 13,
+  "url": "https://github.com/example/tiny-lib/pull/13",
+  "isDraft": false,
+  "statusCheckRollup": [
+    {
+      "name": "test",
+      "status": "COMPLETED",
+      "conclusion": "FAILURE"
+    }
+  ],
+  "reviewThreads": {
+    "unresolved": 1
+  }
+}

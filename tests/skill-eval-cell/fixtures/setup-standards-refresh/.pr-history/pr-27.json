@@ -1,0 +1,35 @@
+{
+ "pr": {
+  "number": 27,
+  "title": "Add refund endpoint",
+  "body": "",
+  "merged_at": "2026-09-15T20:40:00Z",
+  "merge_commit_sha": "000000000000000000000000000000000000001b",
+  "head": "000000000000000000000000000000000000020f",
+  "user": "devon"
+ },
+ "reviews": [],
+ "inline_comments": [
+  {
+   "id": 2700,
+   "in_reply_to_id": null,
+   "user": "review-bot",
+   "path": "src/routes/refunds.js",
+   "original_line": 22,
+   "original_commit_id": "000000000000000000000000000000000000020f",
+   "body": "Rule 2: async handler without try/catch.",
+   "created_at": "2026-09-15T18:00:00Z"
+  },
+  {
+   "id": 2701,
+   "in_reply_to_id": 2700,
+   "user": "devon",
+   "path": "src/routes/refunds.js",
+   "original_line": 22,
+   "original_commit_id": "000000000000000000000000000000000000020f",
+   "body": "Declining, see #21.",
+   "created_at": "2026-09-15T19:00:00Z"
+  }
+ ],
+ "conversation": []
+}

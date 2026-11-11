@@ -181,13 +181,24 @@ describe("loadClaudePlugin", () => {
     expect(plugin.mcpServers?.remote?.url).toBe("https://example.com/stream")
   })
 
-  test("merges default and custom component paths", async () => {
-    const plugin = await loadClaudePlugin(customPathsRoot)
+  test.each(["distinct", "overlapping"])("merges %s default and custom component paths", async (layout) => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "claude-parser-components-"))
+    tempRoots.push(root)
+    await fs.cp(customPathsRoot, root, { recursive: true })
+    if (layout === "overlapping") {
+      const manifestPath = path.join(root, ".claude-plugin", "plugin.json")
+      const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"))
+      manifest.agents = ["./custom-agents", "./agents"]
+      manifest.commands = ["./custom-commands", "./commands"]
+      manifest.skills = ["./custom-skills", "./skills", "./skills/default-skill"]
+      await fs.writeFile(manifestPath, JSON.stringify(manifest))
+    }
+    const plugin = await loadClaudePlugin(root)
     expect(plugin.agents.map((agent) => agent.name).sort()).toEqual(["custom-agent", "default-agent"])
     expect(plugin.commands.map((command) => command.name).sort()).toEqual(["custom-command", "default-command"])
     expect(plugin.skills.map((skill) => skill.name).sort()).toEqual(["custom-skill", "default-skill"])
-    expect(plugin.hooks?.hooks.PreToolUse?.[0]?.hooks[0]?.command).toBe("echo default")
-    expect(plugin.hooks?.hooks.PostToolUse?.[0]?.hooks[0]?.command).toBe("echo custom")
+    expect(plugin.hooks?.hooks.PreToolUse?.[0]?.hooks[0]).toMatchObject({ command: "echo default" })
+    expect(plugin.hooks?.hooks.PostToolUse?.[0]?.hooks[0]).toMatchObject({ command: "echo custom" })
   })
 
   test("rejects custom component paths that escape the plugin root", async () => {

@@ -1,0 +1,35 @@
+{
+ "pr": {
+  "number": 26,
+  "title": "Add payments webhook",
+  "body": "",
+  "merged_at": "2026-09-02T17:45:00Z",
+  "merge_commit_sha": "000000000000000000000000000000000000001a",
+  "head": "000000000000000000000000000000000000020e",
+  "user": "sam"
+ },
+ "reviews": [],
+ "inline_comments": [
+  {
+   "id": 2600,
+   "in_reply_to_id": null,
+   "user": "devon",
+   "path": "src/routes/webhooks.js",
+   "original_line": 9,
+   "original_commit_id": "000000000000000000000000000000000000020e",
+   "body": "Comparing the HMAC with `===` leaks timing. Use `crypto.timingSafeEqual` on equal-length buffers.",
+   "created_at": "2026-09-02T15:00:00Z"
+  },
+  {
+   "id": 2601,
+   "in_reply_to_id": 2600,
+   "user": "sam",
+   "path": "src/routes/webhooks.js",
+   "original_line": 9,
+   "original_commit_id": "000000000000000000000000000000000000020e",
+   "body": "Good catch, switched to timingSafeEqual with a length check.",
+   "created_at": "2026-09-02T16:30:00Z"
+  }
+ ],
+ "conversation": []
+}

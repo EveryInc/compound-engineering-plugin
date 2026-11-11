@@ -29,7 +29,7 @@ While evaluating `skills/ce-code-review`'s reviewer personas, we asked whether n
 
 When authoring or revising a reviewer persona, attach canonical framework names to detection checks under these rules:
 
-1. **Name + condition, never name alone.** Each check carries the canonical name in the finding-title vocabulary, but a stated, diff-detectable condition decides whether it fires. The policy line pattern (`skills/ce-code-review/references/personas/maintainability-reviewer.md`): "the name calibrates the finding against a shared vocabulary, but the stated detection condition, not the name, decides whether it fires." Security uses the same shape with "the traced attack path, not the identifier" (`security-reviewer.md`); reliability with "the missing protection you can point to, not the name" (`reliability-reviewer.md`).
+1. **Name + condition, never name alone.** Each check carries the canonical name in the finding-title vocabulary, but a stated, diff-detectable condition decides whether it fires. The policy line pattern (`skills/ce-code-review/references/personas/maintainability-reviewer.md`): "the name calibrates the finding against a shared vocabulary, but the stated detection condition, not the name, decides whether to flag it." Security uses the same shape with "the traced attack path, not the identifier" (`security-reviewer.md`); reliability with "the missing protection you can point to, not the name" (`reliability-reviewer.md`).
 2. **Adopt only smells the model class detects well.** The Data locality section in `maintainability-reviewer.md` is limited to four well-detected Fowler smells — Feature Envy, Data Clumps, Primitive Obsession, Repeated Switches — each with a concrete diff-shaped condition and fix. Refused Bequest and Shotgun Surgery are deliberately excluded per the F1 evidence: they require cross-file semantic reasoning LLMs measurably fail at.
 3. **Add an evidence guard against false positives.** A data-locality finding anchors at confidence 75 only when the reviewer "can quote every occurrence of the repeated or misplaced shape" (`maintainability-reviewer.md`, anchor guidance).
 4. **Frameworks, not people.** Cite Ousterhout's red flags, Fowler's smells, OWASP A0x + CWE identifiers, Beck's test desiderata (`testing-reviewer.md`), Nygard's Release It! vocabulary (`reliability-reviewer.md`), Hyrum's Law and SemVer (`api-contract-reviewer.md`), expand/contract (`data-migration-reviewer.md`), Google's code-review bar (`action-class-rubric.md`). Never instruct the model to role-play the author.
@@ -67,10 +67,10 @@ After (`maintainability-reviewer.md`):
 A new check built to the full convention (`maintainability-reviewer.md`, Data locality):
 
 ```
-- **Repeated Switches** — this diff adds another branch-set over the same discriminator (enum, type tag, status string) that is already switched on elsewhere, so the next variant requires edits in every copy. Fix: one shared mapping or polymorphic dispatch at the discriminator's owning layer.
+- **Repeated Switches** — this diff adds another branch-set over the same discriminator (enum, type tag, status string) that is already switched on elsewhere, so the next variant requires edits in every copy. Fix: one shared mapping or polymorphic dispatch in the module that defines the discriminator.
 ```
 
-Name (Fowler's Repeated Switches), diff-scoped condition ("this diff adds another branch-set... already switched on elsewhere"), and a fix at the owning layer — with the confidence anchor requiring every occurrence be quotable.
+Name (Fowler's Repeated Switches), diff-scoped condition ("this diff adds another branch-set... already switched on elsewhere"), and a fix in the discriminator's defining module — with the confidence anchor requiring every occurrence be quotable.
 
 Validation of the change itself: fresh-agent probes of the edited personas on both Claude and Codex with planted positives and negatives found all planted defects with canonical names and quoted evidence, and produced zero false positives on the negative cases.
 

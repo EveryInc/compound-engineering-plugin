@@ -7,6 +7,18 @@ async function readRepoFile(relativePath: string): Promise<string> {
 }
 
 describe("ce-commit-push-pr contract", () => {
+  test("protects ignored user data when switching to a fresh base", async () => {
+    const branchCreation = await readRepoFile(
+      "skills/ce-commit-push-pr/references/branch-creation.md",
+    )
+
+    expect(branchCreation).toContain(
+      'git checkout --no-overwrite-ignore -b <branch-name> "$BASE_REF"',
+    )
+    expect(branchCreation).not.toMatch(/^git stash push -u/m)
+    expect(branchCreation).toMatch(/ignored files.+stop and ask the user/is)
+  })
+
   test("gates every commit publication on project-defined requirements", async () => {
     const publishSurfaceSpecs = [
       ["skills/ce-commit-push-pr/references/commit-and-push.md", "git push -u origin HEAD"],
@@ -198,33 +210,24 @@ describe("ce-commit-push-pr contract", () => {
     expect(assemblySection).toMatch(/past two sentences it is carrying a second idea/i)
   })
 
-  test("scopes STE-inspired prose to non-load-bearing wording", async () => {
+  test("delegates prose rules to ce-noslop and keeps the value-first lead", async () => {
     const content = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
     )
 
-    expect(content).toContain("ASD-STE100 Simplified Technical English")
+    // The generic STE paragraph moved to ce-noslop; the file invokes it at the
+    // composition point instead of restating it.
+    expect(content).toContain("`ce-noslop`")
+    // Domain rule that stays: the opening leads with what changed for the user,
+    // not the mechanism that produced it.
     expect(content).toMatch(
-      /Prefer plain wording wherever domain terms are not load-bearing/i,
+      /State the umbrella as what is now different for someone using this, never as the mechanism that produced it/,
     )
-    expect(content).toMatch(
-      /Keep necessary technical jargon.+where they \*are\* the claim/is,
-    )
-    expect(content).toMatch(
-      /do not dilute mechanism language into vague plain English/i,
-    )
-    // Contrast pins both failure directions: decorative jargon vs load-bearing terms
-    expect(content).toContain("jargon without need")
-    expect(content).toContain("jargon is the claim")
-    expect(content).toContain("`TokenStore.invalidate` is now atomic under concurrent refresh.")
 
     const auditSection = content.match(
       /## Step E: Pre-apply coverage audit([\s\S]+)\s*$/,
     )?.[1]
     expect(auditSection).toBeDefined()
-    expect(auditSection).toMatch(
-      /domain jargon that is not load-bearing/i,
-    )
   })
 
   test("repository PR-body contracts set structure without replacing editorial guidance", async () => {
@@ -470,7 +473,7 @@ describe("PR concept teaching contract", () => {
     // Completion gate: PR URL alone is not done; ce-babysit-pr must own follow-on.
     expect(handoff).toMatch(/not done.+until `ce-babysit-pr` owns/is)
     expect(handoff).toMatch(/Reporting the PR URL alone is not success/)
-    expect(handoff).toMatch(/\*\*Success\*\*.+`ce-babysit-pr` has started/is)
+    expect(handoff).toMatch(/\*\*Success\*\*.+`ce-babysit-pr` owns the monitoring lifecycle/is)
     // Harness-agnostic load: use the host's normal skill mechanism without a platform matrix.
     expect(handoff).toMatch(/host's normal skill-invocation mechanism/)
     expect(handoff).not.toContain("Claude Code `Skill` tool")
@@ -562,9 +565,10 @@ describe("PR concept teaching contract", () => {
     // The pipeline exception is part of the do-not-fire list in the apply reference.
     expect(applyRef).toMatch(/mode:pipeline` \*\*except\*\* when this run completed a stack-mode submit/i)
     expect(applyRef).toMatch(/outer orchestrator[\s\S]{0,80}second bare babysit/i)
-    expect(applyRef).toMatch(/mode:pipeline[\s\S]{0,160}started-only is not enough/i)
+    expect(applyRef).toMatch(/mode:pipeline[\s\S]{0,160}wait for its pipeline stop/i)
     expect(submit).toMatch(/authoritative parent tip/i)
-    expect(submit).toContain('git checkout -b -- "<branch-name>" "<parent-tip>"')
+    expect(submit).toContain('git checkout --no-overwrite-ignore -b "<branch-name>" "<parent-tip>"')
+    expect(submit).toMatch(/If checkout fails because uncommitted or ignored files would be overwritten/)
     expect(submit).toMatch(/Do not hard-code `origin\/<parent>`/i)
     expect(submit).toMatch(/starts on the resolved default branch.+follow `references\/branch-creation\.md`/is)
     expect(submit).toMatch(/starts on an existing feature branch.+do not follow `references\/branch-creation\.md`/is)

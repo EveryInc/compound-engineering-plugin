@@ -1,0 +1,12 @@
+Branch history for PR #41 (git is unavailable in this workspace; this is `git log --stat` plus the lines each commit added in scripts/grant-credits.ts).
+
+commit a1f3c20  feat(ops): add one-off grant-credits backfill script
+    scripts/grant-credits.ts | new file; all lines except those listed under 7be91d4 below
+    src/billing-api.ts, src/slack.ts, docs/runbooks/grant-credits.md | new files
+
+commit 7be91d4  Address PR review feedback (#41)
+    Added in scripts/grant-credits.ts:
+      - `const MAX_ROWS = 10_000` and the `if (rows.length > MAX_ROWS) { throw ... }` guard in main()
+        (review-bot thread: "a very large CSV could time out or exhaust memory")
+      - `parseOnly()` and the `const only = ...` / `const planned = ...` lines in main()
+        (review-bot thread: "add a way to re-run for a subset of users")

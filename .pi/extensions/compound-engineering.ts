@@ -6,7 +6,7 @@ const packageRoot = resolve(extensionDir, "../..")
 const skillsDir = resolve(packageRoot, "skills")
 
 export default function compoundEngineeringPiExtension(pi: any) {
-  pi.on("resources_discover", async () => ({
-    skillPaths: [skillsDir],
-  }))
+  // The cross-model host attestation snippet keys on this marker to recognize a Pi host.
+  process.env.CROSS_MODEL_HOST_HARNESS ??= "pi"
+  pi.on("resources_discover", async () => ({ skillPaths: [skillsDir] }))
 }

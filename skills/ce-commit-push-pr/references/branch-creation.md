@@ -31,18 +31,10 @@ git log origin/<base>..HEAD --oneline
 ### 3. Create the feature branch
 
 ```bash
-git checkout -b <branch-name> "$BASE_REF"
+git checkout --no-overwrite-ignore -b <branch-name> "$BASE_REF"
 ```
 
-If checkout fails because uncommitted changes would be overwritten, stash and retry:
-
-```bash
-git stash push -u -m "ce-commit-push-pr: pre-branch <branch-name>"
-git checkout -b <branch-name> "$BASE_REF"
-git stash pop
-```
-
-If `git stash pop` reports conflicts, surface the conflict output and the stash ref to the user — do not auto-resolve.
+If checkout fails because uncommitted or ignored files would be overwritten, stop and ask the user to handle the colliding paths. In `mode:pipeline`, report the blocker without asking. Do not stash or remove the colliding paths.
 
 ## Fetch failure fallback
 

@@ -97,7 +97,7 @@ Nothing to check, nowhere to look, and wrong on three counts: not from that spec
 
 **After** — the comment names the constants that now exist, cites the file that defines them, states which code path each applies to, and stamps the verification date.
 
-**The operational consequence that outranks the byte count.** Both known truncations keep the **start** of the file. Neither reports an error. So body ordering is load-bearing: what must survive belongs above what may be cut, and a stop class or boundary rule must never sit below a long routing block. A skill can pass every mechanical gate, sit comfortably under the line, and still lose its stop conditions on a host that truncates or compacts. No test catches that — only the ordering discipline does. `docs/solutions/skill-design/size-driven-skill-restructure.md` carries this alongside the restructuring procedure.
+**The operational consequence that outranks the byte count** — both truncations keep the start of the file, so body ordering is load-bearing — is owned by `docs/specs/agent-plugins.md` and `docs/solutions/skill-design/size-driven-skill-restructure.md`.
 
 ## Related
 

@@ -36,7 +36,7 @@ related_components:
 
 Two live failures at the `ce-commit-push-pr` -> `ce-babysit-pr` seam (Nugget #1933, #1983): an agent at the end of a long turn satisfied "auto-invoke `ce-babysit-pr`" by calling that skill's helper CLI from memory (`pr-snapshot watch --pr N --interval 60` — no bootstrap, no correlated tokens, an interval value the skill never documents), and on Cursor, where skill load failed, by soft-degrading to a CI-only watcher and reporting the PR URL as done. A helper invoked with parameter values that match none of the owning skill's documented defaults is strong evidence the skill's instructions were never in context.
 
-The caller-side gate that closes this — ownership transfer to a loaded callee, named non-substitutes, hard-fail when load or start fails — lives in `skills/ce-commit-push-pr/SKILL.md` ("The completion gate is here") and is pinned by `tests/commit-push-pr-contract.test.ts`. This doc records the callee-side design and the alternatives that were rejected.
+The caller-side gate that closes this — ownership transfer to a loaded callee, named non-substitutes, hard-fail when load or start fails — lives in `skills/ce-commit-push-pr/SKILL.md` ("Completion is decided here") and is pinned by `tests/commit-push-pr-contract.test.ts`. This doc records the callee-side design and the alternatives that were rejected.
 
 ## The callee refuses and self-explains, but teaches no recipe
 
@@ -58,5 +58,4 @@ The hint deliberately carries **no copyable bootstrap command**. Teaching the ra
 ## Related
 
 - `docs/solutions/skill-design/cross-harness-cross-model-tool-invocation.md` — same principle (pin portable outcomes, never let an agent invent a substitute), applied to tool selection across harnesses.
-- `docs/solutions/agent-friendly-cli-principles.md` — Principle 4 (fail fast with actionable errors) is the general rubric the `pr-snapshot` refusal hint instantiates.
 - `docs/solutions/skill-design/dispatch-script-failure-degrade-outcome-not-boundary.md` — the same "never weaken the enforced boundary on failure" shape in a different subsystem.

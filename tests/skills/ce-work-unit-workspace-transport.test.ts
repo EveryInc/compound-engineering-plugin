@@ -57,7 +57,7 @@ describe("ce-work unit workspace controller: transport, ignored evidence, and fo
     const linkedReal = realpathSync(linked)
     const workspaceReal = realpathSync(workspace)
     expect(workspaceReal.startsWith(`${linkedReal}${path.sep}`)).toBe(false)
-    expect(worktreePaths(linked).map(realpathSync)).toContain(workspaceReal)
+    expect(worktreePaths(linked).map((p) => realpathSync(p))).toContain(workspaceReal)
     expect(git(workspace, "rev-parse", "--git-common-dir")).toBe(git(linked, "rev-parse", "--git-common-dir"))
     expect(sh(workspace, ["git", "symbolic-ref", "-q", "HEAD"], false).status).not.toBe(0)
 

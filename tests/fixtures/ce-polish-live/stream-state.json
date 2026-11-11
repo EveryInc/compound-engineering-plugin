@@ -1,0 +1,10 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 15,
+  "t": 60000,
+  "type": "stream_state",
+  "payload": {
+    "state": "buffering"
+  }
+}

@@ -11,16 +11,8 @@ The reader does not change the decision. An artifact rendered for another reader
 ## Shape
 
 - One section headed `Check yourself`, placed last: after the explanation and before the HTML footer.
-- Two to four numbered questions, listed first. Then the answers under an `Answers` label, numbered to match, so a reader can attempt every question before any answer is in view.
+- Questions first, then their answers under an `Answers` label, so a reader can attempt every question before any answer is in view. Choose the number according to what is worth practicing.
 - Each answer states what a correct response contains and names the gap a plausible wrong answer exposes. One correction per question — do not lecture past the gap.
 - Static only: no forms, scripts, click handlers, or collapsing widgets. The label and spacing set the answers apart; nothing hides them.
 
-## Question kinds
-
-Design questions to expose understanding, not recall of the artifact's phrasing. Use the kinds the material supports:
-
-- **Apply:** a small scenario the concept decides ("given X, what happens / what would you choose?").
-- **Explain-back:** restate the core mechanism in your own words; the answer names the pieces a complete restatement carries.
-- **Boundary:** a case where the concept does not apply, or where the naive reading fails.
-- **Change (diff mode):** what the change does and why it was made; the answer names the intent behind the hunks, not the hunks.
-- **Recap recall (recap mode):** why a notable change in the window was made, or what its consequence was.
+Questions should test applying the mechanism or recognizing its limits rather than recalling the explanation's wording.

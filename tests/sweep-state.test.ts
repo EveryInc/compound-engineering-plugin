@@ -376,6 +376,20 @@ describe("sweep-state engine — validate (closed-item evidence rule)", () => {
     expect(payload(v.stdout).downgraded).toEqual([])
     expect(read(dir, s).items["src1:i1"].status).toBe("closed")
   })
+
+  test("validate leaves a source_closed item alone, since it claims no fix", () => {
+    const dir = tmp()
+    const s = statePath(dir)
+    acquire(dir, s)
+    upsert(dir, s, "i1", "src1", {
+      status: "source_closed",
+      source_closed_at: NOW,
+      source_close_reason: "NOT_PLANNED",
+    })
+    const v = run(dir, "validate", "--state", s)
+    expect(payload(v.stdout).downgraded).toEqual([])
+    expect(read(dir, s).items["src1:i1"].status).toBe("source_closed")
+  })
 })
 
 describe("sweep-state engine — run-record", () => {

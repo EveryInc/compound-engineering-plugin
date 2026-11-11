@@ -1,0 +1,4 @@
+{
+  "name": "compound-engineering",
+  "install": "if [ ! -x \"$HOME/.bun/bin/bun\" ] && ! command -v bun >/dev/null 2>&1; then curl -fsSL https://bun.sh/install | bash; fi && export PATH=\"$HOME/.bun/bin:$PATH\" && bun install"
+}

@@ -1,10 +1,10 @@
 {
   "name": "compound-engineering",
-  "version": "3.24.0",
+  "version": "3.37.1",
   "description": "Official Compound Engineering skills plugin for coding agents",
   "type": "module",
   "private": true,
-  "main": ".opencode/plugins/compound-engineering.js",
+  "main": "index.js",
   "pi": {
     "extensions": [
       "./.pi/extensions/compound-engineering.ts"
@@ -22,13 +22,22 @@
     "cleanup": "bun run src/index.ts cleanup",
     "list": "bun run src/index.ts list",
     "cli:install": "bun run src/index.ts install",
-    "test": "bun test --parallel",
+    "test": "bun run scripts/run-tests.ts",
+    "typecheck": "tsc --noEmit",
+    "test:acpx-contract": "bun scripts/test-acpx-contract.ts",
+    "acpx:bump": "bun run scripts/bump-acpx-pin.ts",
+    "test:skill-guards": "bun run scripts/run-tests.ts skill-conventions codex-skill-prompt-budget repo-local-ce-skill-work contract",
     "test:skill-eval-cell": "bun tests/skill-eval-cell/run.ts",
     "test:skill-eval-pack": "bun tests/skill-eval-cell/pack.ts",
+    "test:skill-eval-judge": "bun tests/skill-eval-cell/judge.ts",
     "plugin:validate": "claude plugin validate --strict .claude-plugin/marketplace.json && claude plugin validate --strict .claude-plugin/plugin.json",
     "release:preview": "bun run scripts/release/preview.ts",
     "release:sync-metadata": "bun run scripts/release/sync-metadata.ts --write",
-    "release:validate": "bun run scripts/release/validate.ts"
+    "release:validate": "bun run scripts/release/validate.ts",
+    "site:build": "cd site && bundle exec jekyll build --strict_front_matter",
+    "site:serve": "cd site && bundle exec jekyll serve --livereload",
+    "site:test": "cd site && bundle exec rake test",
+    "site:check": "cd site && LC_ALL=C.UTF-8 bundle exec htmlproofer _site --disable-external --allow-missing-href --no-enforce-https --swap-urls '^/compound-engineering/:/'"
   },
   "dependencies": {
     "citty": "^0.1.6",
@@ -39,6 +48,7 @@
     "@semantic-release/git": "^10.0.1",
     "@types/js-yaml": "^4.0.9",
     "bun-types": "^1.0.0",
-    "semantic-release": "^25.0.3"
+    "semantic-release": "^25.0.3",
+    "typescript": "^5.9"
   }
 }

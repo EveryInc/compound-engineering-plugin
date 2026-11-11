@@ -4,11 +4,11 @@
 
 The `ce-optimize` skill is for hard engineering problems where:
 
-1. You can try multiple code or config variants.
-2. You can run the same evaluation against each variant.
-3. You want the skill to keep the good variants and reject the bad ones.
+1. You can measure the same target twice.
+2. You can either attribute a named-workload cost or try multiple scored variants.
+3. You want the skill to keep confirmed improvements and reject the rest.
 
-It is best for "search the space and score the results" work, not one-shot implementation work.
+On a cost target, the first useful action is often a locating measurement, not a batch of implementation experiments. On a scored variant space, the skill searches and keeps. It is not one-shot implementation of a change you already know.
 
 ## When To Use It
 
@@ -39,7 +39,8 @@ Choose `type: judge` when a numeric metric can be gamed or when human usefulness
 
 `ce-optimize` is usually the wrong tool when:
 
-- The fix is obvious and does not need experimentation
+- The change is already known. Make it, or use `ce-work`
+- The job is diagnosing failing or slow behavior. That is `ce-debug`
 - There is no repeatable measurement harness
 - The search space is fake and only has one plausible answer
 - The cost of evaluating variants is too high to justify multiple runs
@@ -50,9 +51,8 @@ The pattern is:
 
 1. Define the target.
 2. Build or validate the measurement harness first.
-3. Generate multiple plausible variants.
-4. Run the same evaluation loop against each variant.
-5. Keep the variants that improve the target without violating guard rails.
+3. Take the cheapest next action that would change what gets implemented: a locating measurement on a cost target, or a scored variant on a search target.
+4. Keep confirmed improvements and reject the rest.
 
 The core rule is simple:
 

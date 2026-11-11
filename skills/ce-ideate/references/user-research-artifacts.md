@@ -1,6 +1,6 @@
 # User-Supplied Research Artifacts (Phase 1, conditional)
 
-Read this when the Phase 1 routing test in `references/grounding.md` has classified a named file as *evidence* rather than *directive*. `references/grounding.md` owns the routing test and the await; this file owns the handling and the distiller dispatch.
+Read this when the Phase 1 routing test in `references/grounding.md` has classified a named file as *evidence* rather than *directive*. `references/grounding.md` defines the routing test and the await. This file defines the handling and the distiller dispatch.
 
 ## Enrichment, not substitution
 
@@ -21,7 +21,7 @@ When a research artifact is a root-level `*.md` that the focus hint names, list 
 
 ## After the distiller returns
 
-Append the returned **gist** (with dossier path) — not the dossier contents — to the consolidated grounding summary under `User-supplied research`. As with axis dossiers, do not read the dossier into the main session; ideation agents and the basis verifier read it from the path.
+Append the returned **gist** (with dossier path) — not the dossier contents — to the consolidated grounding summary under `User-supplied research`. Do not read the dossier into the main session; ideation agents and the basis verifier read it from the path.
 
 ## Elsewhere modes
 

@@ -1,7 +1,9 @@
-import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
+import { afterAll, describe, expect, setDefaultTimeout, spyOn, test } from "bun:test"
+import { runCommand } from "citty"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
+import installCommand from "../src/commands/install"
 import { materializeClaudePluginFixture } from "./helpers/claude-plugin-fixture"
 
 setDefaultTimeout(20_000)
@@ -104,6 +106,31 @@ function envWithoutOpenCodeConfig(overrides: NodeJS.ProcessEnv = {}): NodeJS.Pro
 }
 
 describe("CLI", () => {
+  test.each([
+    "C:\\Users\\alice\\ce-plugin",
+    "C:/Users/alice/ce-plugin",
+    "\\\\server\\share\\ce-plugin",
+  ])("install treats missing Windows absolute path %s as local", async (input) => {
+    // Exercise Windows classification on every host without reaching a remote source.
+    const windowsIsAbsolute = path.win32.isAbsolute
+    const isAbsolute = spyOn(path, "isAbsolute").mockImplementation(windowsIsAbsolute)
+    const access = spyOn(fs, "access").mockRejectedValue(new Error("Missing plugin fixture"))
+    const spawn = spyOn(Bun, "spawn").mockImplementation(() => {
+      throw new Error("Local plugin paths must not clone a repository")
+    })
+
+    try {
+      await expect(runCommand(installCommand, {
+        rawArgs: [input, "--to", "opencode"],
+      })).rejects.toThrow(`Local plugin path not found: ${path.resolve(input)}`)
+      expect(spawn).not.toHaveBeenCalled()
+    } finally {
+      spawn.mockRestore()
+      access.mockRestore()
+      isAbsolute.mockRestore()
+    }
+  })
+
   test("install converts fixture plugin to OpenCode output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-opencode-"))
 

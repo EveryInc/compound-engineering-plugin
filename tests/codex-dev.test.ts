@@ -279,7 +279,7 @@ describe("Codex local skill collection", () => {
     expect(await fs.readFile(collectionPath, "utf8")).toBe("raced-in user content\n")
   })
 
-  test("preserves a valid-link replacement created after the original link was inspected", async () => {
+  test.each(["valid", "broken"] as const)("preserves a replacement after a %s link was inspected", async (kind) => {
     const root = await makeTempRoot("codex-dev-valid-race-")
     const collectionPath = path.join(root, "skills", "compound-engineering-local")
     const originalTarget = path.join(root, "original", "skills")
@@ -287,7 +287,7 @@ describe("Codex local skill collection", () => {
     const racedTarget = path.join(root, "raced", "skills")
     await fs.mkdir(path.dirname(collectionPath), { recursive: true })
     await Promise.all([
-      fs.mkdir(originalTarget, { recursive: true }),
+      ...(kind === "valid" ? [fs.mkdir(originalTarget, { recursive: true })] : []),
       fs.mkdir(desiredTarget, { recursive: true }),
       fs.mkdir(racedTarget, { recursive: true }),
     ])
@@ -298,7 +298,7 @@ describe("Codex local skill collection", () => {
 
     await expect(
       replaceManagedCollectionLink(collectionPath, desiredTarget, {
-        kind: "valid",
+        kind,
         target: inspectedTarget,
       }),
     ).rejects.toThrow("changed since it was inspected")
@@ -442,6 +442,77 @@ describe("Codex development installation transitions", () => {
     await createCeRepo(repo)
     return resolveCodexDevContext(repo, testEnv(home, codexHome), new BunCommandRunner())
   }
+
+  test.each(["local", "refresh"])("%s recovers a deleted worktree in the selected Codex home", async (command) => {
+    const context = await makeContext()
+    const linked = path.join(path.dirname(context.repoRoot), "deleted worktree")
+    await runGit(context.repoRoot, ["worktree", "add", "-b", "temporary", linked])
+    const linkedContext = await resolveCodexDevContext(linked, context.env)
+    await activateLocalCollection(linkedContext)
+    const staleTarget = await fs.readlink(context.collectionPath)
+    await runGit(context.repoRoot, ["worktree", "remove", linked])
+    expect(await inspectLocalCollection(context)).toEqual({ kind: "broken", target: staleTarget })
+
+    const otherLink = path.join(context.codexHome, "skills", "unmanaged")
+    await fs.symlink(staleTarget, otherLink)
+    const defaultCollection = path.join(context.env.HOME!, ".codex", "skills", "compound-engineering-local")
+    await fs.mkdir(path.dirname(defaultCollection), { recursive: true })
+    await fs.writeFile(defaultCollection, "other profile")
+    const output: string[] = []
+    const runner = new StatefulCodexRunner([plugin("compound-engineering@personal")])
+
+    expect(await runCodexDevCommand(command, context.repoRoot, context.env, runner, (line) => output.push(line))).toBe(0)
+    expect(await fs.realpath(context.collectionPath)).toBe(await fs.realpath(context.skillsRoot))
+    expect(output).toContain(`Recovered stale local skills link: ${staleTarget} -> ${await fs.realpath(context.skillsRoot)}`)
+    expect(runner.plugins).toHaveLength(0)
+    expect(await fs.readlink(otherLink)).toBe(staleTarget)
+    expect(await fs.readFile(defaultCollection, "utf8")).toBe("other profile")
+  })
+
+  test.each(["file", "directory", "unrelated link"])("local mode protects a %s at the managed path", async (kind) => {
+    const context = await makeContext()
+    await fs.mkdir(path.dirname(context.collectionPath), { recursive: true })
+    if (kind === "file") await fs.writeFile(context.collectionPath, "user content")
+    else if (kind === "directory") await fs.mkdir(context.collectionPath)
+    else await fs.symlink(context.codexHome, context.collectionPath)
+    const before = await fs.lstat(context.collectionPath)
+    const runner = new StatefulCodexRunner([plugin("compound-engineering@personal")])
+
+    await expect(switchToLocal(context, runner)).rejects.toThrow("refusing to overwrite")
+    expect((await fs.lstat(context.collectionPath)).ino).toBe(before.ino)
+    expect(runner.calls).toEqual([])
+  })
+
+  test.each([false, true])("failed recovery preserves the prior dangling link or concurrent replacement (race: %s)", async (race) => {
+    const context = await makeContext()
+    await fs.mkdir(path.dirname(context.collectionPath), { recursive: true })
+    const staleTarget = "../../deleted worktree/skills"
+    await fs.symlink(staleTarget, context.collectionPath)
+    const runner = new StatefulCodexRunner([plugin("compound-engineering@personal")])
+    runner.failRemove = "compound-engineering@personal"
+    runner.beforeFailedRemove = async () => {
+      expect(await fs.realpath(context.collectionPath)).toBe(await fs.realpath(context.skillsRoot))
+      if (race) {
+        await fs.unlink(context.collectionPath)
+        await fs.writeFile(context.collectionPath, "concurrent content")
+      }
+    }
+
+    await expect(switchToLocal(context, runner)).rejects.toThrow(race ? "changed since it was inspected" : "remove failed")
+    if (race) expect(await fs.readFile(context.collectionPath, "utf8")).toBe("concurrent content")
+    else expect(await inspectLocalCollection(context)).toEqual({ kind: "broken", target: staleTarget })
+  })
+
+  test("remote and remove continue refusing dangling links", async () => {
+    const context = await makeContext()
+    await fs.mkdir(path.dirname(context.collectionPath), { recursive: true })
+    const target = "../../deleted/skills"
+    await fs.symlink(target, context.collectionPath)
+
+    await expect(switchToRemote(context, new StatefulCodexRunner())).rejects.toThrow("broken")
+    await expect(removeCodexDevInstallation(context, new StatefulCodexRunner())).rejects.toThrow("broken")
+    expect(await fs.readlink(context.collectionPath)).toBe(target)
+  })
 
   test("local mode removes every installed CE plugin variant and verifies the live worktree link", async () => {
     const context = await makeContext()

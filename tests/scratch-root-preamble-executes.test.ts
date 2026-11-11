@@ -81,6 +81,24 @@ function preambles(): { file: string; script: string }[] {
 }
 
 describe("scratch-root preamble executes on this host", () => {
+  test("Bake-off allocates distinct run directories and stops when allocation fails", () => {
+    const content = readFileSync(path.join(SKILLS_ROOT, "ce-bakeoff/references/candidates.md"), "utf8")
+    const start = content.indexOf(ROOT_ASSIGNMENT)
+    const script = content.slice(start, content.indexOf("\n```", start))
+    const parent = mkdtempSync(path.join(tmpdir(), "ce-bakeoff-allocation-"))
+    const run = (prefix = "") => spawnSync(SHELL, ["-c", `CE_ROOT="$1"\n${prefix}\n${redirect(script, "allocation")}`, "sh", parent], { encoding: "utf8" })
+    const first = run()
+    const second = run()
+    expect(first.status).toBe(0)
+    expect(second.status).toBe(0)
+    expect(first.stdout.trim()).not.toBe(second.stdout.trim())
+    expect(existsSync(first.stdout.trim())).toBe(true)
+    expect(existsSync(second.stdout.trim())).toBe(true)
+    const failed = run("mktemp() { return 1; }")
+    expect(failed.status).not.toBe(0)
+    expect(failed.stdout).toBe("")
+  })
+
   test("every shipped preamble creates its root and exits 0", () => {
     const blocks = preambles()
     // Guard the guard: an extractor that quietly matches nothing is the failure mode here, and

@@ -1,0 +1,61 @@
+{
+  "pr": 57,
+  "title": "fix(export): customer names with commas break the CSV export",
+  "body": "Support reported that exporting customers whose name contains a comma (\"Acme, Inc.\") shifts every later column in that row. csvField now quotes a field that contains a comma.",
+  "threads": [
+    {
+      "id": "T1",
+      "path": "src/export/json.ts",
+      "line": 2,
+      "author": "review-bot[bot]",
+      "body": "toJson writes one object per line, but the export endpoint serves it as `customers.json`. Tools that expect a JSON document (jq without --slurp, Excel's JSON import) fail to parse it. Wrap the rows in an array.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T2",
+      "path": "src/export/csv.ts",
+      "line": 3,
+      "author": "review-bot[bot]",
+      "body": "csvField wraps the value in quotes but does not escape quotes already inside it. A name like `Bob \"Builder\", Jr` produces `\"Bob \"Builder\", Jr\"`, which CSV readers still split into the wrong columns. Double any embedded quotes (RFC 4180).",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T3",
+      "path": "src/export/csv.ts",
+      "line": 8,
+      "author": "review-bot[bot]",
+      "body": "European Excel locales expect `;` as the CSV delimiter. Add a delimiter option to csvRow/toCsv so those users can open the export directly.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T4",
+      "path": "src/export/xlsx.ts",
+      "line": 2,
+      "author": "review-bot[bot]",
+      "body": "xlsxDate has no tests. Add unit tests covering timezone edge cases around midnight UTC.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T5",
+      "path": "src/export/tsv.ts",
+      "line": 2,
+      "author": "maintainer-dana",
+      "body": "The TSV exporter has the same bug with tabs inside a name, and support will file it next week. Please fix it in this PR too so we ship one release note.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T6",
+      "path": "src/export/csv.ts",
+      "line": 1,
+      "author": "review-bot[bot]",
+      "body": "Nit: rename the parameter `s` to `field` for readability.",
+      "isOutdated": false,
+      "isResolved": false
+    }
+  ]
+}

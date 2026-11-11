@@ -72,6 +72,33 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     expect(existsSync(ambientIndex)).toBe(false)
   })
 
+  test("workspace harness reaps stuck git with SIGKILL and a real isolated config", () => {
+    const source = readFileSync(path.join(__dirname, "helpers/ce-work-workspace-harness.ts"), "utf8")
+    expect(source).toContain('killSignal: "SIGKILL"')
+    expect(source).toContain('GIT_OPTIONAL_LOCKS: "0"')
+    expect(source).not.toMatch(/GIT_CONFIG_GLOBAL:\s*"\/dev\/null"/)
+  })
+
+  test("fixture git ignores a host global config that would block commit", () => {
+    const broken = path.join(tmp("ce-work-gitconfig-"), "config")
+    writeFileSync(
+      broken,
+      "[commit]\n\tgpgsign = true\n[core]\n\tfsmonitor = true\n[user]\n\tsigningkey = missing-key\n",
+    )
+    const previous = process.env.GIT_CONFIG_GLOBAL
+    process.env.GIT_CONFIG_GLOBAL = broken
+    try {
+      const f = makeRepo()
+      writeFileSync(path.join(f.repo, "extra.txt"), "x\n")
+      git(f.repo, "add", "extra.txt")
+      git(f.repo, "commit", "-m", "extra")
+      expect(git(f.repo, "rev-parse", "HEAD")).toMatch(/^[0-9a-f]{40,64}$/)
+    } finally {
+      if (previous === undefined) delete process.env.GIT_CONFIG_GLOBAL
+      else process.env.GIT_CONFIG_GLOBAL = previous
+    }
+  })
+
   test("unit and plan-wide verification ignore inherited Git local environment", () => {
     const f = makeRepo()
     const decoy = makeRepo()
@@ -356,7 +383,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     )
     expect(invalid.word).toBe("REFUSED")
     expect(invalid.stderr).toContain("unsupported egress route 'codex-local'")
-    expect(invalid.stderr).toContain("codex, claude, grok-cli, cursor, composer, grok-cursor")
+    expect(invalid.stderr).toContain("codex, claude, grok-cli, cursor, composer, grok-cursor, opencode, antigravity, pi")
     expect(existsSync(path.join(runs, "invalid-route"))).toBe(false)
 
     for (const [runId, malformed, message] of [
@@ -375,7 +402,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       expect(existsSync(path.join(runs, runId))).toBe(false)
     }
 
-    for (const [index, model] of ["composer-2.5-fast", "grok-4.6", "cursor-grok-4.6-high", "model@beta"].entries()) {
+    for (const [index, model] of ["composer-2.5-fast", "grok-4.6", "cursor-grok-4.6-high", "grok-4.7-xhigh", "model@beta"].entries()) {
       const runId = `invalid-cursor-model-${index}`
       const invalidModel = ctl(
         runs, "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
@@ -402,6 +429,73 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
     expect(JSON.parse(readFileSync(path.join(runs, "fixed-sanction", "manifest.json"), "utf8")).egress.restrictions).toEqual([])
   })
 
+  test("records a requested effort at init, carries it into every authorization, and compares it on receipts", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const binding = JSON.stringify({ mode: "require", target: "codex", model: null, source: "test" })
+    const initEffort = (runId: string, extra: Record<string, unknown>) => ctl(
+      runs, "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
+      "--plan-digest", f.digest, "--binding-json", binding,
+      "--egress-json", JSON.stringify({ route: "codex", intermediaries: [], restrictions: [], ...extra }),
+    )
+
+    for (const [index, effort] of ["", "x high", "xhigh\n", "a".repeat(33), "-rf", "--model", 5, ["xhigh"]].entries()) {
+      const refused = initEffort(`bad-effort-${index}`, { effort })
+      expect(refused.word).toBe("REFUSED")
+      expect(refused.stderr).toContain("egress effort must be a short plain token")
+      expect(existsSync(path.join(runs, `bad-effort-${index}`))).toBe(false)
+    }
+    // Ladder validation belongs to the adapter; the controller only bounds the token.
+    expect(initEffort("off-ladder", { effort: "ultra" }).word).toBe("READY")
+
+    expect(initEffort("run-effort", { effort: "xhigh" }).word).toBe("READY")
+    expect(initEffort("run-effort", { effort: "xhigh" })).toMatchObject({ word: "READY", body: { resumed: true } })
+    for (const changed of [{ effort: "low" }, {}]) {
+      const conflicting = initEffort("run-effort", changed)
+      expect(conflicting.word).toBe("BLOCKED")
+      expect(conflicting.stderr).toContain("binding or egress sanction differs")
+    }
+    expect(JSON.parse(readFileSync(path.join(runs, "run-effort", "manifest.json"), "utf8")).egress.effort).toBe("xhigh")
+
+    const authorizations = ["U", "U2"].map((unitId) => {
+      const prepared = ctl(
+        runs, "prepare", "--run-id", "run-effort", "--unit-id", unitId, "--base", f.base,
+        "--packet", packetFile(`packet ${unitId}`),
+      )
+      expect(prepared.word).toBe("PREPARED")
+      return JSON.parse(readFileSync(prepared.body.authorization_path, "utf8"))
+    })
+    for (const authorization of authorizations) {
+      expect(authorization.effort_requested).toBe("xhigh")
+      expect(Object.keys(authorization)).toHaveLength(14)
+    }
+
+    const resultPath = (unitId: string) => path.join(runs, "run-effort", "units", unitId, "result", "implementation-result.json")
+    const rewriteReceipt = (unitId: string, effort: string) => {
+      const receipt = JSON.parse(readFileSync(resultPath(unitId), "utf8"))
+      writeFileSync(resultPath(unitId), `${JSON.stringify({ ...receipt, effort_requested: effort })}\n`, { mode: 0o600 })
+      chmodSync(resultPath(unitId), 0o600)
+    }
+    const mismatchedJob = fakeDoneJob(runs, "run-effort", "U", "packet U", "job-effort-mismatch")
+    rewriteReceipt("U", "high")
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-effort", "--unit-id", "U", "--attempt-id", "attempt-1", "--job-id", mismatchedJob,
+    ).word).toBe("AUTHORING")
+    const blocked = ctl(runs, "terminalize", "--run-id", "run-effort", "--unit-id", "U")
+    expect(blocked.word).toBe("BLOCKED")
+    expect(blocked.body.mismatches).toEqual({ effort_requested: { expected: "xhigh", actual: "high" } })
+
+    const matchingJob = fakeDoneJob(runs, "run-effort", "U2", "packet U2", "job-effort-match")
+    rewriteReceipt("U2", "xhigh")
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-effort", "--unit-id", "U2", "--attempt-id", "attempt-1", "--job-id", matchingJob,
+    ).word).toBe("AUTHORING")
+    expect(ctl(runs, "terminalize", "--run-id", "run-effort", "--unit-id", "U2").word).not.toBe("BLOCKED")
+    const accepted = ctl(runs, "status", "--run-id", "run-effort", "--unit-id", "U2").body.unit.attempts[0]
+    expect(accepted.terminal_receipt).toMatchObject({ effort_requested: "xhigh", model_requested: "auto" })
+    expect(accepted.terminal_receipt).not.toHaveProperty("effort_actual")
+  })
+
   test("owns packet bytes and rejects route or receipt substitution", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -425,7 +519,7 @@ describe("ce-work unit workspace controller: init, identity, and dispatch author
       harness: "codex",
       intermediaries: [],
       model_requested: "auto",
-      restriction_posture: "adapter-enforced",
+      restriction_posture: "cooperative",
       restrictions: [],
       activity_posture: "hard-only",
       packet_digest: packetDigest("authorized packet"),

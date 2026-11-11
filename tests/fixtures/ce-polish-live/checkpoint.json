@@ -1,0 +1,12 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 10,
+  "t": 17100,
+  "type": "checkpoint",
+  "payload": {
+    "id": "cp_0001",
+    "trigger": "silence",
+    "mode": "smart"
+  }
+}

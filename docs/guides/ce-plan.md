@@ -27,10 +27,12 @@ A prior brainstorm helps but is never required. You can invoke `ce-plan` directl
 |----------|--------|
 | What does it do? | Researches context, captures decisions and scope, breaks work into atomic units with stable IDs, enumerates test scenarios per unit, then auto-strengthens weak sections via a confidence check |
 | When to use it | Requirements are ready and execution guardrails are needed; solo planning when the task is already clear; non-software multi-step tasks; investigative questions that need a structured answer |
-| What it produces | Software: a unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed). Brainstorm-sourced plans move from `artifact_readiness: requirements-only` to `implementation-ready` in place. Non-software plan-seeking writes a domain plan (or publishes to Proof). Answer-seeking delivers the answer in chat with no plan file. |
-| What's next | Software: start `ce-work` (recommended), run it as a `/goal` when the host supports that, decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open an HTML plan in the browser. Non-software: save, publish to Proof, or both. Answer-seeking: the answer is the end. |
+| What it produces | Software: a unified plan in `docs/plans/YYYY-MM-DD-HHMM-<type>-<name>-plan.md` (local wall-clock write time, atomically reserved with a numeric collision suffix when needed). Brainstorm-sourced plans gain implementation planning in place. Non-software plan-seeking writes a domain plan (and can publish a copy). Answer-seeking delivers the answer in chat with no plan file. |
+| What's next | Software: start `ce-work` (recommended), decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open an HTML plan in the browser. Non-software: save, or save and publish a copy. Answer-seeking: the answer is the end. |
 
 ---
+
+Plans informed by a kept prototype retain its absolute run path and relevant capsule and screens in Sources, including when planning from a prototype session or enriching an existing plan. That optional citation is machine-local and best effort; missing artifacts do not block execution, and the plan's requirements govern conflicts. Repository implementation paths remain relative.
 
 ## Example invocations
 
@@ -53,7 +55,7 @@ An empty invoke uses the current conversation if one is already underway (includ
 # Revisit and deepen an existing implementation-ready plan (interactive accept/reject)
 /ce-plan deepen docs/plans/auth-rewrite.md
 
-# Plan a non-software multi-step project (save and/or publish to Proof)
+# Plan a non-software multi-step project (save, optionally publish a copy)
 /ce-plan organize a two-day customer advisory workshop
 
 # Answer-seeking: state a plan-of-attack in chat, then deliver the answer (no plan file)
@@ -109,23 +111,31 @@ Each unit heading is `### U1. Name`, `### U2. Name`, and so on. Existing IDs are
 
 This matters because `ce-work` references units by U-ID across plan edits. Renumbering during a deepening pass would silently break every blocker reference, every PR that cites a unit, and every downstream conversation.
 
+When the work ships as several PRs, units are grouped under one `### PR<N>: <title>` heading per PR. Each group heading is followed by a `Waits on:` line naming the PRs it waits on, whether each wait only orders the merges or must be met before the group can start, and any deployment that must be live before it merges. `ce-work` builds groups ahead of merges, so the line is what keeps merges and deploys in order.
+
 ### Origin tracing and per-unit tests
 
 When the plan is sourced from a `ce-brainstorm` requirements-only unified plan, identifiers flow through in the same file. Requirements (R-IDs) stay in the Product Contract. Actors (A-IDs) carry forward when they affect behavior or permissions. Key Flows (F-IDs) cite into the units that realize them. Acceptance Examples (AE-IDs) cite into test scenarios (`Covers AE3. <scenario>`). Every Product Contract section is checked against the Planning Contract before finalization.
 
-Every feature-bearing unit enumerates test scenarios from each applicable category: happy path, edge cases (boundaries, empty/nil, concurrency), error/failure paths, and integration. Each scenario names the input, action, and expected outcome.
+Every feature-bearing unit enumerates test scenarios for the behavior it builds: happy path, plus edge cases, error handling, and integration where the unit has them. A category is not a list of failures to add handling for. Each scenario names the input, action, and expected outcome.
+
+### Sizing what gets built
+
+A plan starts from how the result will be used: who runs or depends on it, what they see when it works, and who finds out when it fails. A mechanism the request did not ask for, such as a guard, retry, recovery path, mode, or abstraction, is built only when an existing contract requires it, when leaving it out causes harm nobody would catch in time, or when adding it later would be expensive (stored data, a public interface, money, security). A concern that fails that test, whether it came from research, a specialist agent, or review, is listed as considered and not built, with the reason and what would change the call. When the call is unclear, the mechanism is built.
+
+The test sizes only what the request did not ask for. A safeguard may not delay, gate, cap, or skip part of a requested behavior; a real conflict between the two goes to Open Questions for the requester. `ce-doc-review`'s scope-guardian applies the same test to every plan in both directions: it flags committed mechanisms that fail it, left-out items that pass it, and requested behavior the plan narrowed.
 
 ### Confidence check, then research that matches intent
 
-After writing a Durable plan, `ce-plan` scores sections, picks the weakest ones, dispatches targeted sub-agents (correctness for units, data integrity for migrations, architecture for key technical decisions), and folds findings back into the plan. During generation this runs in auto mode. When you ask to deepen an existing plan, findings are presented one by one for accept/reject.
+After writing a Durable plan, `ce-plan` scores sections, picks the weakest ones, dispatches targeted sub-agents (correctness for units, data integrity for migrations, architecture for key technical decisions), and judges each finding by the same sizing test before folding it into the plan. During generation this runs in auto mode. When you ask to deepen an existing plan, findings are presented one by one for accept/reject.
 
-Research earlier in the run is decided by intent, not a single on/off switch. Local research (repo patterns, `docs/solutions/` learnings) always runs in parallel, plus spec-flow analysis for Standard and Deep plans. An explicit request ("research competitors", "which library") always triggers external research. Implicit signals can too, when local patterns are thin or the recommendations hinge on an unsettled external option set. Implementation-guidance questions route to framework docs; landscape questions route to a web scan; mixed requests run the scan first, then docs on the shortlist.
+Research earlier in the run is decided by intent, not a single on/off switch. Local research (repo patterns, `docs/solutions/` learnings, and any [Compound Pack](./packs.md) declared in the repo's `packs` config, whose matching rules land in the plan with a `(pack: <id>, <path>)` citation) always runs in parallel, plus spec-flow analysis for Standard and Deep plans. An explicit request ("research competitors", "which library") always triggers external research. Implicit signals can too, when local patterns are thin or the recommendations hinge on an unsettled external option set. Implementation-guidance questions route to framework docs; landscape questions route to a web scan; mixed requests run the scan first, then docs on the shortlist.
 
 ### Universal planning and approach altitude
 
 Non-software work skips the software confidence check but keeps U-IDs, dependency ordering, scope boundaries, verification scenarios, and the right-sized template. Two dispositions:
 
-- Plan-seeking (a trip, a study curriculum, an event): the saved plan is the deliverable. The wrap-up offers save to disk, publish to Proof, or both.
+- Plan-seeking (a trip, a study curriculum, an event): the saved plan is the deliverable. The wrap-up offers save to disk, or save and publish a copy when you named a publisher or the host has an artifact tool.
 - Answer-seeking ("how often does X happen, is it a big deal?"): the answer is the deliverable. The skill states a brief plan-of-attack in chat, executes it (research and synthesis, never code), and writes no plan file. Only a genuine single-fact lookup skips the plan-of-attack and gets answered outright.
 
 For a hard problem you can ask one level up: produce a grounded approach-plan (a plan for how the deliverable will be made) and hold at a checkpoint. Enter it explicitly (`plan for a plan`, `don't write it yet, plan how you'd approach it`). Rarely, the skill offers this itself when the method is genuinely unsettled and getting it wrong is costly. Code still flows to `ce-work`; a non-code deliverable is marked `execution: knowledge-work` and runs through `ce-work`'s lightweight carve-out. `ce-plan` itself never executes.
@@ -138,13 +148,13 @@ When a decision was examined and chosen in the invoking conversation, or arrives
 
 ## Quick Example
 
-You invoke `ce-plan` with a requirements-only unified plan from `ce-brainstorm`. The skill detects `artifact_readiness: requirements-only`, uses the Product Contract as primary input, and verifies no resolve-before-planning blockers remain.
+You invoke `ce-plan` with a requirements-only unified plan from `ce-brainstorm`. The skill reads the contents, uses the Product Contract as primary input, and verifies no resolve-before-planning blockers remain.
 
 It dispatches research in parallel (repo analyst, learnings researcher). Local patterns are strong and no external comparison was requested, so it skips external research. A spec-flow analyzer runs to surface edge cases. The scoping synthesis surfaces a tier-shaped summary plus any call-outs, the plan-time forks where another reasonable agent might choose differently. You confirm or redirect. Auto-proceed only fires for Lightweight plans with no forks worth flagging; Standard and Deep always get the explicit checkpoint.
 
 The plan is written. The confidence check finds `Risks & Dependencies` thin on a mute-leak risk and one unit's tests missing permission edge cases, dispatches reviewers, and folds the findings back. The plan gets stamped with a `deepened:` date.
 
-Document review then runs non-interactively. Safe auto-fixes apply silently; remaining findings surface as one line above the menu (`Doc review applied 2 fixes. 3 decisions, 1 FYI remain.`). The menu offers: start `ce-work` (recommended), run it as a `/goal` when the host supports that, decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open the file if it is HTML. There is no Proof option on the software menu and no pause option. The file is already saved.
+Document review then runs non-interactively. When planning includes permission to revise the draft, the planner passes that permission to the reviewer for corrections needed to satisfy the established Product Contract. The reviewer applies eligible corrections and preserves product choices and constraints. The planner checks the returned concerns against the full planning context before handing off. It resolves what it can within the request, discards weak or already-satisfied claims, and builds the menu from what still needs approval or user judgment. Reviewer output remains available as evidence; it is not forwarded unchanged. The menu offers: start `ce-work` (recommended), decide on remaining review items or prototype a remaining feel-question, create a tracked issue, or open the file if it is HTML. There is no Proof option on the software menu and no pause option. The file is already saved.
 
 ---
 
@@ -164,7 +174,8 @@ Skip `ce-plan` when:
 
 - The change is already specified down to the files it touches and touches no risk surface (just do it, or `ce-work`); if it reaches `ce-plan` anyway, the Direct contract answers in a few sentences
 - The product or outcome is not yet decided → `ce-brainstorm` first
-- The bug has a known root cause and an obvious fix → `ce-debug` or just fix it
+- The cause of the bug is not known yet → `ce-debug`
+- The bug has a known root cause and an obvious fix → just fix it, or `ce-work`
 
 ---
 
@@ -245,9 +256,9 @@ Plenty of work never goes through a brainstorm. Direct invocations that work wel
 | `<investigative question>` | Answer-seeking: plan-of-attack in chat, then the answer; no plan file |
 | `<bug description>` | Routes to a `ce-debug` suggestion menu (skipped in pipeline mode) |
 | `<task in another repo>` | Cross-repo announcement; plan lands in the target |
-| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive: the plan is `.md` or `.html`, never both. Default is markdown. Set `plan_output: html` in CE config (`config.local.yaml` then `config.yaml`) to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown. See the [configuration reference](./configuration.md). |
+| `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive: the plan is `.md` or `.html`, never both. Default is markdown. Set `plan_output: html` in CE config (`config.local.yaml` then `config.yaml`) to make HTML the default. A headless or pipeline run resolves the format the same way; nothing forces markdown. See the [configuration reference](./configuration.md). |
 | `confirm:auto` | Skip the pre-plan scoping-confirmation pause for this run. The skill writes the scope summary for itself, records inferred scope under `Assumptions`, announces it is proceeding, and keeps going. Genuine blockers and the post-plan menu still appear. Use `confirm:ask` to force the gate on for one run. Set `plan_skip_scoping_confirm: true` in CE config to make skipping the default. |
-| `use fable` / `have opus plan this` | Elevate only the interpret-findings-then-author step to that model. Also settable as `plan_model: <model>` in CE config. A prompt request overrides the config key. |
+| `use fable` / `have opus plan this` | Elevate the interpret-findings-then-author step to that model and pass it as the candidate preference for any Bake-off planning runs. Also settable as `plan_model: <model>` in CE config. A prompt request overrides the config key. |
 
 ---
 
@@ -268,14 +279,14 @@ Use the deepen fast path: `/ce-plan deepen <plan>`. It runs interactively, prese
 **What about implementation code in the plan?**
 Disallowed by default. Pseudo-code and DSL grammars are permitted in High-Level Technical Design when they communicate the shape of the solution as directional guidance. Exact method signatures, imports, framework-specific syntax, and step-by-step shell sequences do not belong in plans.
 
-**Can I publish a software plan to Proof from the post-plan menu?**
-No. Proof is on the non-software wrap-up menu (save, publish, or both). Software next steps are `ce-work`, `/goal` when supported, review or prototype, create an issue, or open an HTML file. Publish a markdown plan later with `/ce-proof` if you want a shareable link.
+**Can I publish a plan to Proof from the post-plan menu?**
+Only when you named Proof, in the request or in your own instructions or preferences. The menu's open slot then offers a Proof copy of a markdown plan; the local plan file stays the record. Otherwise publish later with `/ce-proof`.
 
 ---
 
 ## Model elevation
 
-When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on that model instead of your session model. Only the interpret-findings-then-author step is dispatched, with read access so it can verify its brief. Dialogue and research stay on your session model. Name a model in the prompt (`use fable`, `have opus plan this`) or set `plan_model: <model>` in CE config; a prompt request overrides the config key.
+When you want a specific model for the heavy reasoning step, `ce-plan` can author the plan on that model instead of your session model. The interpret-findings-then-author step is dispatched with read access so it can verify its brief. A Bake-off, automatic or requested, receives the model preference and owns its candidate dispatch. Dialogue and research stay on your session model. Name a model in the prompt (`use fable`, `have opus plan this`) or set `plan_model: <model>` in CE config; a prompt request overrides the config key.
 
 This works on any harness. The host serves the chosen model natively where it can, otherwise it invokes the Claude CLI (which must be installed and authenticated), otherwise it runs the step on your session model and says which precondition was unmet.
 
@@ -289,3 +300,13 @@ This works on any harness. The host serves the chosen model natively where it ca
 - [`ce-debug`](./ce-debug.md): bug-shaped prompts route here
 - [`ce-strategy`](./ce-strategy.md): anchor plans to documented product strategy
 - [`ce-proof`](./ce-proof.md): publish a non-software plan, or any markdown plan you ask to share
+
+## Understanding existing behavior and rationale
+
+On a Standard or Deep plan, a choice that depends on existing behavior, or on a rationale the research did not establish, is traced with `ce-explain` before that choice is fixed. The skill passes the question, its scope, and its intended use as planning input, then uses the resulting evidence, constraints, and unknowns. It stays responsible for the plan. It reuses research it already has and follows the same source restrictions. A Lightweight plan uses its reads of the named files and their tests instead, unless research reclassifies the plan to Standard. Patterns and past learnings do not substitute for the trace.
+
+## Bake-off
+
+Planning runs a Bake-off on its own when a Standard or Deep Durable plan leaves a consequential technical choice open after research, its alternatives need development before they can be compared, and reversing the choice later would be costly. You can also request one on any Durable plan. A settled choice, alternatives already concrete enough to judge, a budget the competition cannot fit, or an instruction to just pick one keeps planning on the ordinary path, and the plan says why. See [ce-bakeoff](./ce-bakeoff.md) for the independent candidate contract and limits. The existing model choice is passed to Bake-off as a candidate preference; an explicitly requested candidate mix takes precedence. Bake-off owns dispatch: native model-family diversity when no preference is set, then available authorized CLIs, then fresh same-host agents if those routes fail. It does not use the ordinary elevation adapter for bakers.
+
+It runs after research and before decisions and dependent units are fixed. The normal final authoring call receives its complete result, and review and handoff still run. Because `lfg` plans through `ce-plan`, an autonomous run gets the same behavior without naming it.

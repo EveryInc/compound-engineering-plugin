@@ -1,0 +1,8 @@
+{
+  "name": "review-ownership-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

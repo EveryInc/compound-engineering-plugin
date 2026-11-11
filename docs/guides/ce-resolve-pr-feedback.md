@@ -2,7 +2,7 @@
 
 > Evaluate, fix, and reply to PR review feedback in one pass. Fix what is real. Do not churn on what is not.
 
-`ce-resolve-pr-feedback` is the fix-the-comments-now skill. It is a git-workflow tool, not a core-loop step. After reviewers comment, it fetches unresolved threads, judges every finding in one place, and dispatches fixers only for items it has already approved. Then it commits, pushes, replies, and resolves threads.
+`ce-resolve-pr-feedback` is the fix-the-comments-now skill. It is a git-workflow tool, not a core-loop step. After reviewers comment, it fetches unresolved threads, judges every finding in one place, and dispatches fixers only for items it has already approved. Ordinary and pipeline runs commit, push, reply, and resolve threads. When a caller owns publication, the resolver can prepare a local fix and save its conversation actions, then complete them in a later session after publication is verified.
 
 That is a single pass, at most two fix-verify cycles. It is not a watch loop. `/ce-babysit-pr` is the skill that sits on an open PR over time and calls this one whenever new comments arrive. Use this skill when you want the comments handled now. Use babysit when you want that repeated until the PR looks ready.
 
@@ -18,8 +18,9 @@ GitHub only, including GitHub Enterprise that `gh` is configured for.
 |----------|--------|
 | What does it do? | Fetches unresolved review feedback, judges it centrally, fixes the approved items, commits, replies, and resolves |
 | When to use it | A PR has review comments you want addressed now |
-| What it produces | Commits with fixes, a reply on each item, resolved threads (except `needs-human`), and a per-verdict summary |
-| Modes | Full (all unresolved feedback) or Targeted (one `#discussion_r` thread) |
+| What it produces | Published fixes and completed conversations, or a validated saved batch for caller publication and later completion |
+| Feedback scope | Full (all unresolved feedback) or Targeted (one `#discussion_r` thread) |
+| Execution modes | Ordinary, `mode:pipeline`, `mode:return-to-caller`, or `mode:resume` |
 
 ---
 
@@ -46,6 +47,30 @@ Empty, a PR number, or a bare `/pull/N` URL is Full mode. Only a `#discussion_r`
 
 To keep handling later rounds as they arrive, use `/ce-babysit-pr` instead.
 
+### When the caller publishes
+
+Use `mode:return-to-caller` when an orchestrator or post-session publisher owns the push. It runs unattended under the caller's inherited authority, validates the local fix, commits only its own changes, and returns a saved batch without pushing. If the batch creates a fix commit, **every** conversation action waits: fix replies, explanation-only replies, human acknowledgments, thread resolutions, and checklist ticks.
+
+```text
+/ce-resolve-pr-feedback mode:return-to-caller https://github.com/acme/widgets/pull/1234
+
+# Optional: an unused destination whose parent directory already exists
+/ce-resolve-pr-feedback mode:return-to-caller 1234 handoff:/private/tmp/widgets-feedback.json
+
+# In a later session, after the caller publishes the recorded commit
+/ce-resolve-pr-feedback mode:resume handoff:/private/tmp/widgets-feedback.json
+```
+
+The preparation result contains `status`, the absolute `handoff` path, `fix_commit`, `changed_files`, actual `verification`, typed human `residuals`, and `blockers`. `pending` means the JSON is usable and conversation work remains. `completed` means a batch requiring no code change finished its conversations immediately. `incomplete-handoff` means the record is unusable or its latest progress could not be saved; retain the reported commit and observed remote successes for recovery.
+
+The versioned JSON holds the saved PR and actual head repository/ref, full fix SHA (or null), verification, source identities and fingerprints, verdicts, exact multiline replies, intended resolutions and checklist ticks, and human decision context. The caller must retain or copy the file for as long as completion is pending. The default is private OS scratch, preserved at return; a caller-supplied destination is created exclusively and never overwritten. A push alone does not complete the conversations.
+
+Resume needs only that file, without the producer's transcript. It fetches the saved PR's fresh head and positively verifies that the saved fix SHA is its ancestor in the actual head repository. Unknown publication, a rewritten SHA, or changed PR/head identity leaves the batch pending without remote writes. Resume does no new judgment, edits, validation, commits, or pushes. It uses the resolver's existing submitted-reply and thread-resolution protocol, reconciles remote state before retrying, and checkpoints observed progress so an already visible exact reply is adopted rather than duplicated.
+
+Human threads remain open with their typed decisions. Changed source or related conversation that invalidates a saved response leaves that action pending with evidence for the caller; unrelated new feedback is reported for a separate pass. The resume result adds `publication`, `pending_actions`, and `new_feedback`, and always has `changed_files: []`.
+
+Select at most one execution mode. `handoff:<path>` is optional for return-to-caller and required for resume; it is invalid with ordinary or pipeline execution. Resume accepts no PR number, URL, or extra feedback scope: the record already owns its scope. Conflicting, repeated, or unknown control arguments stop before work.
+
 ---
 
 ## How it works
@@ -59,7 +84,7 @@ The skill runs a fixed pipeline instead:
 3. Judge every new item in the orchestrator's own context (the legitimacy gate)
 4. Dispatch fixers only for approved fixes. Overlapping files serialize
 5. One full validation run on the combined diff
-6. Commit and push
+6. Commit and publish in ordinary/pipeline mode; save and return a fix batch in return-to-caller mode
 7. Reply with a quote of the original ask, then resolve review threads via GraphQL
 8. Re-fetch. If new threads remain, one more cycle. After two cycles, escalate the recurring pattern as `needs-human`
 
@@ -71,14 +96,18 @@ Most feedback, nitpicks included, is correct. Validation is not a separate analy
 
 - The finding does not hold -> `not-addressing` with evidence
 - The fix would make the code worse -> `declined`, citing the harm
+- The finding is real but asks for work outside what the PR set out to change (a sibling module, a new option, tests for untouched code) -> `declined`, naming the PR's purpose and leaving it for a separate change. Defects in the changed code, breaks the change causes, and wider work a human reviewer explicitly asks for in this PR are still fixed. A security, data-loss, or irreversible-effect finding on code the PR does not change goes to `needs-human` instead
 - The change buys nothing real (the bar is "no benefit," not "minor") -> `replied`
+- The finding is true, but something the agent can name already surfaces the failure before it costs anything (a dry run the operator reads, a loud error, a result someone checks) -> `replied`, or `fixed-differently` when a usage line or clearer message makes that signal better. It never applies when the cost lands before anyone would see it (data lost, money or access granted wrongly), or to security, auth, billing, data retention, migrations, or irreversible effects
 - Risk cannot be bounded -> de-risk with a test if possible, else `needs-human`
 - It is a question -> `replied`, or `needs-human` for a product call
-- The fix would reverse a *deliberate* design choice (positive evidence of intent, plus a real disagreement) -> `needs-human`. "The code currently does X" is not evidence of intent
+- The fix would reverse a *deliberate* design choice (positive evidence of intent, plus a real disagreement) -> adjudicated, then `needs-human` only if that cannot decide it. "The code currently does X" is not evidence of intent
+
+A divert that only needs judgment, not authority the run lacks, is adjudicated before it escalates: the agent hands the composed decision (the ask, the intent evidence, the options) to `ce-pov`, asking for its cross-model panel, and applies a positioned verdict as an ordinary fix, decline, or reply with the reasoning and the concurring peers on the thread. Security, billing, data, product calls, and anything outside the inherited envelope skip adjudication and go straight to `needs-human`, as does a blocked or unavailable `ce-pov`.
 
 "I'm uneasy" is not a tripwire. Source does not matter. A bot can be right; a human can be wrong.
 
-The one place the default inverts is agent instruction prose (a `SKILL.md`, a skill reference, a persona or rule file). A natural-language condition can always be made more specific, so a case the stated condition already decides is answered with the condition (`not-addressing`), not patched. Only a wrong or missing condition, or a mechanism at the wrong owning layer, is a fix. A second round of findings against text the first round added is a signal to restate the block, not qualify it, and the loop cap counts rounds per PR (from the branch's review-fix commits) so it survives re-invocation by `ce-babysit-pr`.
+The one place the default inverts is agent instruction prose (a `SKILL.md`, a skill reference, a persona or rule file). A natural-language condition can always be made more specific, so a case the stated condition already decides is answered with the condition (`not-addressing`), not patched. Only a wrong or missing condition, or a mechanism at the wrong owning layer, is a fix. A second round of findings against text the first round added is a signal to restate the block, not qualify it. The loop cap counts rounds per PR (from the branch's review-fix commits) so it survives re-invocation by `ce-babysit-pr`.
 
 ### Judge once, then fan out only the fixes
 
@@ -96,10 +125,10 @@ When the same invariant applies to other sites this PR introduced, those sites b
 | `fixed-differently` | Change made, better approach than suggested | Commit + reply explaining the divergence + resolve |
 | `replied` | No code change: question answered, or change not warranted | Reply + resolve |
 | `not-addressing` | Finding is factually wrong about the code | Reply with evidence + resolve |
-| `declined` | Suggested fix would make the code worse | Reply citing harm + resolve |
+| `declined` | Suggested fix would make the code worse, or the finding is outside the PR's purpose | Reply citing the harm or the scope reason + resolve |
 | `needs-human` | Cannot determine the right action | Reply with `decision_context`, leave open |
 
-`needs-human` is rare. It includes what the reviewer said, what was investigated, why a decision is needed, and options with tradeoffs. Escalations never block the rest of the run. That is what lets `/ce-babysit-pr` call this skill unattended.
+`needs-human` is rare, and rarer now that judgment-only diverts are adjudicated first. It includes what the reviewer said, what was investigated, why a decision is needed, and options with tradeoffs. Escalations never block the rest of the run. That is what lets `/ce-babysit-pr` call this skill unattended.
 
 ---
 
@@ -117,7 +146,7 @@ The orchestrator judges all six, reading `app/services/dispatcher.rb` once for t
 - One "is this intentional?" is answerable from the code -> `replied`
 - The review body is a design question -> `replied`
 
-Only three items need a fixer. The two `dispatcher.rb` edits serialize; the third runs in parallel. Combined validation passes. Commit and push. Five threads resolve; the review body gets a top-level reply. Verify is empty. The summary lists what was done per verdict.
+Only three items need a fixer. The two `dispatcher.rb` edits serialize; the third runs in parallel. Combined validation passes. Commit and push. Five threads resolve; the review body gets a top-level reply. The verify re-fetch finds nothing new. The summary lists what was done per verdict.
 
 ---
 
@@ -163,15 +192,17 @@ One-shot closer after a PR has comments. Not a watch.
 | `<#discussion_r URL>` | Targeted mode: only that review thread |
 | `<#issuecomment- URL>` | Full mode (no thread to target) |
 | `mode:pipeline` | Non-interactive. Used by `/ce-babysit-pr`. Parks `needs-human` on the thread and returns residuals. |
+| `mode:return-to-caller [PR reference] [handoff:<path>]` | Validate and commit owned fixes locally; save the entire completion tail for caller publication. No-change batches may complete immediately. |
+| `mode:resume handoff:<path>` | Verify fresh publication and complete only saved actions, reconciling remote progress before retrying. |
 
-Scripts (from this skill's directory): `get-pr-comments`, `get-thread-for-comment`, `reply-to-pr-thread`, `resolve-pr-thread`.
+Scripts (from this skill's directory): `get-pr-comments`, `get-thread-for-comment`, `reply-to-pr-thread`, `resolve-pr-thread`, and `pending-feedback.py` (preflight, exclusive creation, validation, checkpointing, and read-only publication inspection).
 
 ---
 
 ## FAQ
 
 **Does it still fix nitpicks?**
-Yes, by default. A correct nit that improves the code gets fixed. A purely cosmetic one with no benefit gets a brief reply. The skip bar is "no benefit," not "minor."
+Yes, by default. A correct nit that improves the code gets fixed. A purely cosmetic one with no benefit gets a brief reply. The skip bar is "no benefit," not "minor." A true edge case that something already surfaces, such as a dry run the operator reads first, gets a reply or a small non-code fix instead of more code. When a finding lands on code an earlier review fix added, the agent first asks whether that earlier fix was the right layer.
 
 **Does it treat bot feedback differently from human feedback?**
 No. Reading the code is the same work either way. An "it's a bot, so ignore it" rule would drop real bugs. Form only changes the reply mechanic: inline threads resolve via GraphQL; review bodies and top-level comments get a top-level reply.
@@ -180,7 +211,7 @@ No. Reading the code is the same work either way. An "it's a bot, so ignore it" 
 Overlapping files serialize before dispatch. If a fix expands to callers in another file, combined validation and the verify pass catch the breakage, and those agents re-run sequentially.
 
 **What does `needs-human` mean?**
-The agent investigated and still cannot choose. The thread stays open. The summary includes `decision_context`: quoted feedback, findings, options, and a lean if any.
+The agent investigated, adjudicated through `ce-pov` where the call only needed judgment, and still cannot choose, or the call needs authority the run lacks. The thread stays open. The summary includes `decision_context`: quoted feedback, findings, options, and a lean if any.
 
 **What if the loop never converges?**
 After two fix-verify cycles, it stops and escalates the recurring pattern as `needs-human`. It does not retry forever.

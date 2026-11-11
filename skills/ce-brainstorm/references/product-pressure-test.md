@@ -1,6 +1,6 @@
 # Product Pressure Test — rigor-gap lenses
 
-Read this at Phase 1.2, before generating approaches. This is agent-internal analysis, not a user-facing checklist. Read the opening, note which gaps actually exist, and raise only those as questions during Phase 1.3 — folded into the normal flow of dialogue, not fired as a pre-flight gauntlet. A fuzzy opening may earn three or four probes; a concrete, well-framed one may earn zero because no scope-appropriate gaps were found.
+Read this at Phase 1.2, before generating approaches. This is agent-internal analysis, not a user-facing checklist. Read the opening, note which gaps actually exist, and raise only those as questions during Phase 1.3 (Collaborative Dialogue) — folded into the normal flow of dialogue, not asked as a pre-flight gauntlet. A fuzzy opening may earn three or four probes; a concrete, well-framed one may earn zero because no scope-appropriate gaps were found.
 
 Match depth to the Phase 0.3 scope.
 
@@ -39,4 +39,4 @@ Favor moves that compound value, reduce future carrying cost, or make the produc
 
 These questions force an explicit product thesis and feed the Scope Boundaries subsections ("Deferred for later" and "Outside this product's identity") and Dependencies / Assumptions in the Product Contract.
 
-Phase 1.3 owns how these gaps fire as probes: each scope-appropriate gap found here becomes a separate open-ended probe (the "when present, ask..." line is the probe), surfaced progressively but all probed before Phase 2.
+Phase 1.3 decides how these gaps are asked as probes: each scope-appropriate gap found here becomes a separate open-ended probe (the "when present, ask..." line is the probe), asked progressively but all probed before Phase 2 (Explore Approaches).

@@ -3,8 +3,7 @@
 This file is loaded when ce-brainstorm detects a non-software task (Phase 0). It replaces the software-specific brainstorming phases (Phases 0.2 through 4) with facilitation principles for any domain. The Core Principles and **Interaction Rules** in `ce-brainstorm/references/interaction-rules.md` still apply unchanged — including one-question-per-turn, asking only decisions the environment cannot settle, and the default to the platform's blocking question tool. This file extends those rules with universal-domain facilitation guidance; it does not relax them.
 
 This route is intentionally outside the software unified-plan artifact contract.
-Do not write `artifact_contract: ce-unified-plan/v1`,
-`artifact_readiness: requirements-only`, or a requirements-only plan under
+Do not write `artifact_contract: ce-unified-plan/v1` or a requirements-only plan under
 `<root>/plans/` from this route. If the user wants a durable next artifact, hand
 the synthesis to `ce-plan`, which can create an appropriate universal or
 knowledge-work plan without pretending it is an implementation-ready code
@@ -69,5 +68,5 @@ When the conversation has enough material to narrow — reflect back what you've
 
 - **Create a plan** → hand off to `ce-plan` with the decided goal and constraints; let `ce-plan` choose the universal/knowledge-work artifact shape, not the software unified-plan contract
 - **Save summary to disk** → write the summary as a markdown file in the current working directory
-- **Publish to Proof — shareable link** → load the `ce-proof` skill to publish the doc to Every's Proof editor and get a shareable link to read, comment on, or share with others (one-way; the local summary stays canonical)
+- **Save and publish a copy** → shown only when `references/publishing.md` chooses a publisher (one the user named, or the host's artifact tool); label it with that destination. Save the summary as above first, then follow `references/publishing.md`; the local summary stays canonical
 - **Done** → the conversation was the value, no artifact needed

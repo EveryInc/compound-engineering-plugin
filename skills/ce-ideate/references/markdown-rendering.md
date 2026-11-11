@@ -18,8 +18,7 @@ These hold regardless of which skill produced the artifact.
 - **ASCII identifiers in anchors.** Markdown headings auto-generate anchors
   from the heading text. Keep headings ASCII so anchors are predictable
   (`#implementation-units`, not `#implementación-units`).
-- **Repo-relative paths for file references.** Always. Never absolute paths
-  — they break portability across machines, worktrees, teammates.
+- **File references are repo-relative** unless the producing skill's section contract explicitly defines a qualified local artifact citation.
 - **No HTML mixed in.** Keep the markdown pure. No `<div>`, no `<details>`,
   no inline `<style>`. The only exception is a contract-defined invisible
   semantic marker such as `<!-- ce-section: work-relationships -->`; it carries
@@ -116,7 +115,7 @@ How section types commonly render in markdown. These are patterns, not
 contracts — the agent picks the shape that fits the content.
 
 - **Goal Capsule** — bullets or a small table for objective, means (only
-  when an approach is fixed), authority, execution profile, stop conditions, and tail ownership.
+  when an approach is fixed), authority, execution profile, stop conditions, and who finishes the remaining work.
 - **Product Contract** — H2 section containing Summary, Problem Frame,
   Requirements, and product-scope subsections. Put Requirements under
   `### Requirements` so review tools can distinguish Product Requirements
@@ -133,7 +132,10 @@ contracts — the agent picks the shape that fits the content.
 - **Implementation Units** — H3 heading per unit with `U<N>.` prefix.
   Fields (Goal, Files, Patterns, Test Scenarios, Verification) render as
   bullets with bold leader labels, or as sub-headings if the field has
-  multi-paragraph content.
+  multi-paragraph content. When the work ships as several PRs, each PR group
+  is an H3 heading (`### PR<N>: <title>`; executors name the group by its
+  `PR<N>` label) followed by its `Waits on:` line,
+  and the group's units follow as their own H3 `U<N>.` headings.
 - **Verification Contract / Definition of Done** — use tables when commands,
   applicability, unit IDs, and done signals share a uniform shape. Name
   concrete repo commands such as `bun test` rather than generic "run tests"
@@ -234,7 +236,7 @@ slips:
 
 - All stable IDs are plain-prefix format, not bolded.
 - No HTML elements mixed in.
-- All file paths are repo-relative.
+- File paths are repo-relative except for qualified local artifact citations defined by the producing skill's section contract.
 - Horizontal rule separators between H2s (for Standard / Deep artifacts).
 - No process exhaust (Phase X notes, Next Steps pointers, provenance
   lines).

@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+import os
+import pathlib
+import runpy
+import sys
+
+fixture = runpy.run_path(str(pathlib.Path(__file__).resolve().parents[1] / 'fixture.py'))
+try:
+    fixture['log']('git', sys.argv[1:])
+except ValueError:
+    pass
+if 'push' in sys.argv[1:]:
+    print('fixture: publication is unavailable in this process', file=sys.stderr)
+    sys.exit(1)
+os.execv(os.environ['RESOLVER_REAL_GIT'], [os.environ['RESOLVER_REAL_GIT'], *sys.argv[1:]])

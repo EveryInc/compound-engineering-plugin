@@ -1,0 +1,78 @@
+name: Docs site
+
+# Builds the every.to/compound-engineering docs site from site/ on every PR and push to
+# main, and deploys it to GitHub Pages on main pushes only. The site adopts
+# README.md, skills/guides/, and docs/install/ in place through site-local
+# plugins (see docs/development.md "Docs site"), so the legacy Pages branch
+# builder cannot be used: it runs in safe mode with no custom plugins. The
+# repository's Pages source must be set to "GitHub Actions" for the deploy
+# job to succeed; until then it fails on main while the build job stays green.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+
+    steps:
+      - uses: actions/checkout@v6
+        # Full history so the plugin can date each page from git, not from the
+        # checkout time.
+        with:
+          fetch-depth: 0
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: site
+
+      - name: Plugin unit tests
+        run: bundle exec rake test
+
+      - name: Build site
+        run: bundle exec jekyll build --strict_front_matter
+        env:
+          JEKYLL_ENV: production
+
+      # Internal links only: every in-site link is expected to resolve. External
+      # link rot is not this job's concern and would make the build flaky.
+      - name: Check internal links
+        run: bundle exec htmlproofer _site --disable-external --allow-missing-href --no-enforce-https --swap-urls '^/compound-engineering/:/'
+        env:
+          # Nokogiri reads the built HTML as US-ASCII without a UTF-8 locale and
+          # then checks zero links; pin the locale so the check is real.
+          LC_ALL: C.UTF-8
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/_site
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

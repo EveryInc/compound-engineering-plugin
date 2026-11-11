@@ -1,7 +1,7 @@
 ---
 title: "Prove a skill prose change moved behavior with paired old-vs-new blind injection"
 date: 2026-07-01
-last_updated: 2026-09-02
+last_updated: 2026-10-28
 category: skill-design
 module: compound-engineering-plugin skill evaluation
 problem_type: design_pattern
@@ -9,7 +9,7 @@ component: testing_framework
 severity: medium
 applies_when:
   - Validating a prose/behavior edit to a SKILL.md, agent persona, or prompt
-  - Needing to tell "demonstrated improvement" apart from "no regression"
+  - Needing to tell "demonstrated improvement" apart from "no regression", including when a task menu names the target behavior
   - One skill's output is consumed or gated by another skill or a test
   - Adding or renaming a field in a cross-skill output contract
   - Changing the judgment of a skill that calls an external CLI (gh, git, a peer model CLI)
@@ -28,10 +28,6 @@ tags:
   - frontier-model
   - named-fields
   - fake-cli
-  - fixture-design
-  - variance
-  - cross-host
-  - eval-methodology
 ---
 
 # Prove a skill prose change moved behavior with paired old-vs-new blind injection
@@ -48,7 +44,7 @@ Tooling: inject the current on-disk prose into a fresh agent at dispatch time (`
 
 ### 1. Paired old-vs-new blind injection
 
-Extract the **actual** pre-change excerpt from `git HEAD~1` and the post-change excerpt from the working tree — real bytes, not a paraphrase. Dispatch two subagents, one seeded with each, **both blind** to which version they hold and to the expected answer, given an **identical** realistic scenario, each returning a **concrete decision plus an artifact** (ordered steps, the structured return object, the next pipeline action) — not an opinion. Then compare.
+Run both arms from real bytes, not a paraphrase: `bun run test:skill-eval-pack -- --id <scenario> --arm ab` runs the pre arm at the scenario's `baseline_ref` and the post arm from the working tree, and `bun run test:skill-eval-cell -- --ref <ref>` runs a single arm at any ref. The arms are blind to which version they hold; keep them blind to the expected answer too, give both an **identical** realistic scenario, and have each return a **concrete decision plus an artifact** (ordered steps, the structured return object, the next pipeline action) — not an opinion. Then compare.
 
 - Both produce the same correct decision -> **no-regression only**. Real, but not improvement.
 - Old fails / new succeeds -> **improvement**. Design for this discriminating case explicitly; if you cannot find one, the honest conclusion is that the change is not an improvement at this tier.
@@ -57,7 +53,7 @@ Complement with **new-only restraint negatives**: a plain case with no triggerin
 
 ### 2. Read a non-discriminating result honestly
 
-At a capable tier, many prose rules buy determinism, weaker-model insurance, and variance reduction — not a behavior flip. When old and new both do the right thing (and the old-prose agent even justifies it on its own reasoning), record it as "already emergent at this tier; the rule locks in determinism and protects weaker models." Both kinds are worth shipping; only the discriminating kind is a behavior change you can demonstrate.
+The rule is "Read a tie honestly" in `portable-agent-skill-authoring.md` ("Evaluate proportionally"): a tie on a strong model is no regression, not improvement. Both kinds of change are worth shipping; only the discriminating kind is a behavior change you can demonstrate.
 
 ### 3. Standardize the field NAME, not just the information
 
@@ -65,32 +61,21 @@ When one skill's output is gated by another skill or a test, the value of the ed
 
 ### 4. Prove the parity test fails on one-sided drift
 
-Prose-presence tests guard each skill in isolation and stay green when the producer renames a field the consumer still gates on. A structural parity test **scopes** its assertions to the owning section of each file via string-slice anchors (an unscoped match passes on an incidental mention elsewhere) and **cross-checks a shared facts map** so both ends name the same facts. Then do the step almost always skipped: rename the field on the producer side only, run the parity test, confirm it goes red, restore. A parity test you have never seen fail on injected drift may be asserting a tautology.
-
-```ts
-const EVIDENCE_FACTS = {
-  existing_tests_inspected: "existing tests inspected",   // producer token -> consumer prose
-  tests_added_or_changed:   "tests added/changed",
-};
-const producerBlock = slice(ceWorkSrc, "## Return-to-Caller Mode", "Engine selection (");
-const consumerGate  = slice(lfgSrc, "2. Invoke the `ce-work`", "3. Invoke the `ce-simplify-code`");
-for (const [token, prose] of Object.entries(EVIDENCE_FACTS)) {
-  expect(producerBlock).toContain(token);
-  expect(consumerGate).toContain(prose);
-}
-```
+Prose-presence tests guard each skill in isolation and stay green when the producer renames a field the consumer still gates on. A structural parity test **scopes** its assertions to the owning section of each file via string-slice anchors (an unscoped match passes on an incidental mention elsewhere) and **cross-checks a shared facts map** so both ends name the same facts. Then do the step almost always skipped: rename the field on the producer side only, run the parity test, confirm it goes red, restore. A parity test you have never seen fail on injected drift may be asserting a tautology. The worked example is `EVIDENCE_FACTS` in `tests/pipeline-review-contract.test.ts`, which pairs each `ce-work` return token with the prose `lfg`'s gate uses for it.
 
 ### 5. Seal the injection — the excerpt must be the only source
 
-Three leaks produce a **falsely green** result because the agent found the answer somewhere other than the prose under test.
+Four leaks produce a **falsely green** result because the agent found the answer somewhere other than the prose under test.
 
-**Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access; in one run, agents given an excerpt read the *installed* plugin's `SKILL.md` instead. Run with a read-only sandbox *and* state the constraint in the prompt, then **verify compliance** by grepping each transcript for paths outside the eval directory before grading. This bites harder in a plugin repo because the installed skill is usually a different checkout: measured once, installed `ce-doc-review` was 3,746 words against the worktree's 2,886. Inject the file; never invoke the installed skill.
+**Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access; in one run, agents given an excerpt read the *installed* plugin's `SKILL.md` instead. The eval cell now states the constraint in every prompt (`wrapPrompt` in `tests/skill-eval-cell/hosts.ts`) and `--read-only` enforces the sandbox; still **verify compliance** by grepping each transcript (and its `FILES_READ:` trailer) for paths outside the eval directory before grading. This bites harder in a plugin repo because the installed skill is usually a different checkout: measured once, installed `ce-doc-review` was 3,746 words against the worktree's 2,886. Inject the file; never invoke the installed skill.
 
 **Leak B — the fixture carries the answer key.** Stripping HTML comments is not enough: `ce-doc-review` fixtures also carried inline `(Seeded gated_auto: …)` markers in body prose. Grep the *stripped* fixture for the vocabulary you grade on. (Closed for this repo's fixtures 2026-08-13: answer keys live in sibling `tests/fixtures/ce-doc-review/<name>.expectations.md`; keep the grep for new fixtures, since nothing enforces the separation.)
 
-A leak identical across arms still permits an old-vs-new comparison — it is a constant, not a confound — but invalidates any *absolute* measurement. Say which you are claiming.
+A leak identical across arms still permits an old-vs-new comparison — it is a constant, not a confound — but invalidates any *absolute* measurement, unless the leak alone is enough to produce the right answer: then both arms hit the ceiling and the comparison is erased too (Leak D). Say which you are claiming.
 
 **Leak C — the harness froze the layer you changed.** Evaluating `ce-doc-review`'s synthesis layer meant fighting reviewer variance, so reviewer output was captured once and replayed into every trial. It worked for synthesis. Two later reviewer-facing changes (identifier glossing — `U1 (the load gate)` rather than bare `U1`; the report-versus-question grammar) were then measured on the same harness and appeared to do nothing, because the frozen set was captured from reviewers that never saw them. Freezing removes reviewer *variance* by removing reviewer *execution*; those are the same act, and the harness is structurally blind to everything upstream of the freeze point. The trap is that it reports normally: no error, trials complete, no effect — indistinguishable from a change that does not work. So: locate your change relative to the freeze point *before* running; record which shipped changes a run does not cover where the results are written (silence becomes a false "we tested it"); re-capture the frozen set when the emitting layer changes — it is an artifact with a provenance, not a fixture; and measure emission-layer changes against real output (grep captured runs for the shape you are eliminating — bare identifiers, questions with one option). General form: a harness that controls a variable (frozen output, pinned model, fixed seed, stubbed service) cannot measure a change to the thing it controls.
+
+**Leak D — the answer menu names the behavior under test.** Evaluating a `ce-debug` change that prefers removing a recurring bug pattern over adding runtime checks (`skills/ce-debug/references/defense-in-depth.md`), the first cell asked for `PREVENTION: <structural | runtime-checks | follow-up | none>` with definitions. The old skill answered `structural` 4/4 on Claude and Codex, the same as the new one, which read as "already covered" (a cross-model oracle had predicted as much). Re-asked neutrally, to list every source file under `src/` the fix would change, the old skill changed only the one buggy report in 3/4 runs while the new skill changed all four reports plus a shared helper 4/4 (`ce-debug/recurring-pattern-prefers-structure`, with `ce-debug/one-off-bug-adds-nothing` as the control). A strong model picks the obviously best named option whatever the skill says, so the pre arm measured the menu, not the prose. Grade an observable the behavior produces (files it would change, sites it touches, commands it would run), and label declared fields by outcome rather than by the behavior under test (`OTHER_REPORTS: changed|unchanged`, not `PREVENTION: structural`). A menu is fine when every option is plausible and none names the change.
 
 **And the fixtures may be too easy.** Sealing guarantees the agent answered from your prose; it says nothing about whether the prose was tested against anything hard. See [[authored-eval-corpora-contain-the-happy-path]].
 
@@ -135,4 +120,5 @@ Full methodology when the edit changes prose/behavior intended to flip a decisio
 - [authored-eval-corpora-contain-the-happy-path](authored-eval-corpora-contain-the-happy-path.md) — sealing the injection does not make the corpus hard.
 - [strong-models-mask-defensive-skill-fixes](strong-models-mask-defensive-skill-fixes.md) — a green run must engage the protected failure mode.
 - [confidence-anchored-scoring](confidence-anchored-scoring.md) — the A/B-against-baseline pattern technique 8 generalizes.
+- [grading-live-delegation-evals-from-host-session-logs](grading-live-delegation-evals-from-host-session-logs.md) — when the skill under test dispatches subagents, grade what was dispatched from the Claude and Codex session logs, and blind the arm before grading.
 - Source: PR [#1054](https://github.com/EveryInc/compound-engineering-plugin/pull/1054) plus the parity test in `tests/pipeline-review-contract.test.ts`; PR #1216 (technique 9); issue #686 (technique 8); issue #1601 (technique 10).

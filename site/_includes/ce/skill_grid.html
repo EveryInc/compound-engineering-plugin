@@ -1,0 +1,12 @@
+{%- assign groups = site.data.ce.groups -%}
+{%- if groups and groups.size > 0 -%}
+<section class="ce-section ce-skills">
+  <h2 id="skills">The skills</h2>
+  <p>Each one is a workflow the agent runs end to end. The <a href="{{ '/guides/' | relative_url }}">catalog</a> has a guide for every one.</p>
+  <ul class="ce-skill-index">
+    {%- for group in groups %}
+    <li><a class="ce-group" href="{{ group.url | relative_url }}">{{ group.title }}</a><span class="ce-names">{% for skill in group.guides %}<a href="{{ skill.url | relative_url }}"><code>/{{ skill.name }}</code></a>{% endfor %}</span></li>
+    {%- endfor %}
+  </ul>
+</section>
+{%- endif -%}

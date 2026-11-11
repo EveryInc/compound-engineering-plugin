@@ -32,37 +32,37 @@ The relevant history: the anti-poll discipline (`docs/solutions/skill-design/det
 
 ## Guidance
 
-Two rules, both grounded in `skills/ce-code-review/references/dispatch-reviewers.md` (the "Bounded foreground dispatch" paragraph) and the execution spine at `skills/ce-code-review/SKILL.md:27` (step 4).
+Two rules, both grounded in the collection paragraphs of `skills/ce-code-review/references/dispatch-reviewers.md` and the Stage 4 step of the execution spine in `skills/ce-code-review/SKILL.md`.
 
 ### 1. Scope the anti-poll ban to detached delegates, not harness-managed subagents
 
 The "no background / no polling / no wakeups" discipline governs *detached* delegates — a background bash/CLI invocation (e.g. `codex exec` for the cross-model peer) that the orchestrator must poll with foreground `sleep`/status-file loops or scheduled "still waiting" turns. It does **not** govern harness-managed subagents (Claude Code `Agent`, Codex `spawn_agent`), which return on their own tool call with no poll loop.
 
-Conflating the two is what made #1159 serialize local reviewer dispatch one-at-a-time, costing 45-70 minutes of wall-clock on large diffs for zero determinism or token benefit — reviewers are independent by construction (none is fed another's output), so batch composition and completion order cannot change any finding. `dispatch-reviewers.md` now draws the line explicitly: the detached cross-model peer "is the only detached work and overlaps with this batch; it does not require serializing harness-managed subagents, which return on their own tool call with no poll loop."
+Conflating the two is what made #1159 serialize local reviewer dispatch one-at-a-time, costing 45-70 minutes of wall-clock on large diffs for zero determinism or token benefit — reviewers are independent by construction (none is fed another's output), so batch composition and completion order cannot change any finding. The skill now draws the line explicitly. `SKILL.md` Stage 4: "Detaching local review into a polled background job is forbidden. The cross-model peer is the only detached work, and it may overlap this batch." `dispatch-reviewers.md`: "These harness-managed blocking collection waits gather the batch; they are not the forbidden detached-delegate poll loop."
 
 ### 2. Collect by observed return shape
 
 A portable rule classifies what dispatch actually returned:
 
 - **Terminal outcome:** the launch is collected. Consume a valid compact result; classify a terminal tool error or malformed output under the workflow's failed/degraded rules.
-- **Launch identifier or asynchronous receipt:** a launch receipt means the reviewer is uncollected. Use the host's blocking collection capability until the launch reaches a terminal outcome.
-- **No reliable blocking collector:** stop the launched work and take the workflow's failure or degraded path. Fail closed only after discharging lifecycle obligations for detached work already started. Never wait for a notification, emit progress-only output, or synthesize a partial roster.
+- **Launch identifier or asynchronous receipt:** a launch receipt means the reviewer is uncollected. Use the host's blocking collection capability until the launch reaches a terminal outcome. That outcome may arrive as the call's own return, as a blocking wait's return, or as a host-delivered terminal message that names the launch and carries its final payload; a status or progress update is none of these.
+- **No reliable blocking collector:** the host offers no in-turn way to reach a terminal outcome for the launch. Stop the launched work and take the workflow's failure or degraded path. Fail closed only after discharging lifecycle obligations for detached work already started. Never end the turn to wait, emit progress-only output, or synthesize a partial roster.
 
-The same classification governs both reviewer batches and later validator batches. A foreground request is an intent, not evidence that a result arrived. A host-specific collector is acceptable only when its live contract shows that it accepts the launch identifier, blocks until terminal, and returns the terminal outcome; a plausible tool name is not enough.
+The same classification governs both reviewer batches and later validator batches, and both waits have an end (#1679, #1689): each subagent writes its result to a file in the run directory, the orchestrator repeats the host's blocking wait back to back until that file or a terminal outcome lands or an aggregate wall-clock limit passes, and a file missing at the limit is a failed reviewer or validator infrastructure failure rather than "still running". A blocking call that cannot be bounded is not a collector for that batch, and a host whose single wait is short reaches the limit by repeating it. A foreground request is an intent, not evidence that a result arrived. Judge a collector by its live contract, not its name: a wait counts only when it blocks until terminal, and a message counts only when it identifies the launch and carries the payload. Issue #1654 showed why the rule must be the condition rather than a tool shape: Codex delivers a subagent's final answer as a host message tagged with the launch's task name while `wait_agent` reports status, so a rule demanding one ID-addressed collector that returns the outcome failed closed on a host that could collect.
 
 For an asynchronous primitive, the rule still needs three explicit clauses:
 
-- **Collect the complete roster.** Blocking collection waits continue until every successful launch reaches a terminal outcome. These harness-managed waits are not the forbidden detached-delegate poll loop.
+- **Collect the complete roster.** Native collection continues until every successful launch reaches a terminal outcome. These harness-managed waits are not the forbidden detached-delegate poll loop.
 - **Release collected agents when the primitive retains slots.** A completed agent can keep occupying its concurrency slot until explicitly closed; release it before refilling and before the validator stage.
 - **Guard the transition.** Synthesis cannot begin on launch receipts or a partial roster. If complete collection is unavailable, return the mode-appropriate failure instead.
 
-On a harness that does not run same-message calls concurrently, this identical dispatch degrades to serial automatically — the correct floor, not a failure.
+On a harness that does not run same-message calls concurrently, this identical dispatch degrades to serial automatically — the correct floor, not a failure. `skills/ce-code-review/references/dispatch-reviewers.md` owns the live rule (its collection paragraphs and the **Agent lifecycle** rule).
 
 ## Why This Matters
 
 Codex review of PR #1214 caught a partial-roster gap and a slot-cleanup gap in its asynchronous primitive. The resulting host-name split still assumed Claude Code supplied an all-return barrier. Issue #1523 falsified that assumption: Claude `-p` recorded local reviewers as background work despite foreground requests, then hit its print-mode background ceiling without returning final review JSON.
 
-The deeper lesson is that a harness label describes neither every version nor every execution mode. When a rule encodes concurrency or pool/refill semantics, the observable result is the contract: a terminal outcome means collected and ready for validation; a receipt means collection remains; no blocking collector means fail closed.
+The deeper lesson is that a harness label describes neither every version nor every execution mode. When a rule encodes concurrency or pool/refill semantics, the observable result is the contract: a terminal outcome means collected and ready for validation; a receipt means collection remains; no reliable collection path means fail closed.
 
 ## When to Apply
 

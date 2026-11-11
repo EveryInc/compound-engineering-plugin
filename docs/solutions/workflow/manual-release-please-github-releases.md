@@ -24,17 +24,11 @@ The repo uses release-please manifest mode with one standing release PR: release
 
 ## Why GitHub Releases is canonical: the `..` changelog-path constraint
 
-Release-please does not allow a package `changelog-path` that traverses upward with `..`. A multi-component repo therefore cannot force subpackage release entries back into one shared root changelog with `../../CHANGELOG.md` or `../CHANGELOG.md`. Rather than maintain three committed changelogs, GitHub Releases became the canonical surface and root `CHANGELOG.md` is only a pointer to it. `src/release/config.ts` (`validateReleasePleaseConfig`, run by `bun run release:validate`) rejects an upward-relative path so the mistake fails in CI before the workflow reaches GitHub Actions. Do not try to route multi-component release notes back into one committed file.
+Release-please does not allow a package `changelog-path` that traverses upward with `..`. A multi-component repo therefore cannot force subpackage release entries back into one shared root changelog with `../../CHANGELOG.md` or `../CHANGELOG.md`. Rather than maintain three committed changelogs, GitHub Releases became the canonical surface: the root package now sets `"skip-changelog": true` in `.github/release-please-config.json`, and root `CHANGELOG.md` holds frozen history through 3.13.1 plus a pointer to GitHub Releases. `src/release/config.ts` (`validateReleasePleaseConfig`, run by `bun run release:validate`) rejects an upward-relative path so the mistake fails in CI before the workflow reaches GitHub Actions. Do not try to route multi-component release notes back into one committed file.
 
 ## Component ownership
 
-File paths, not PR-title scopes, decide which component a change bumps (`FILE_COMPONENT_MAP` in `src/release/components.ts`):
-
-| Component | Paths |
-|---|---|
-| `compound-engineering` (root package = the plugin: CLI, root and native harness manifests, `skills/`) | `skills/`, `src/`, `tests/`, `package.json`, `plugin.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/`, `.kimi-plugin/plugin.json`, `.grok-plugin/`, `.devin-plugin/plugin.json`, `.opencode/`, `.cline/`, `.pi/`, `.agy/`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `README.md`. Extra-files such as `.omp-plugin/marketplace.json` ride a root bump; they do not themselves schedule one. |
-| `marketplace` | `.claude-plugin/marketplace.json` |
-| `cursor-marketplace` | `.cursor-plugin/marketplace.json` |
+File paths, not PR-title scopes, decide which component a change bumps; the path-to-component mapping is `FILE_COMPONENT_MAP` in `src/release/components.ts`. Extra-files such as `.omp-plugin/marketplace.json` ride a root bump; they do not themselves schedule one.
 
 Consequences worth knowing:
 

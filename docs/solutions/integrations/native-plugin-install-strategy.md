@@ -4,14 +4,13 @@ date: 2026-06-19
 last_updated: 2026-09-02
 category: integrations
 module: installer
-problem_type: integration_decision
+problem_type: tooling_decision
 component: installer
 symptoms:
   - "Formal standalone agent definitions are unevenly supported across coding-agent harnesses"
   - "Custom Bun installs create extra update and cleanup behavior for users"
   - "A proposed converter target duplicates a platform-native plugin or marketplace flow"
 root_cause: evolving_platform_install_surfaces
-resolution_type: install_strategy
 severity: medium
 tags:
   - install-strategy

@@ -1,0 +1,1 @@
+Le service de facturation ne se contente pas d'envoyer des factures, il orchestre l'ensemble du cycle de paiement. De plus, il est important de noter que chaque relance est envoyée après 7 jours, puis après 14 jours, et le compte est suspendu après 30 jours.

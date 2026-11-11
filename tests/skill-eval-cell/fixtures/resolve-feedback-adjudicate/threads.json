@@ -1,0 +1,33 @@
+{
+  "pr": 12,
+  "title": "Add retry helper and export permission",
+  "threads": [
+    {
+      "id": "T1",
+      "path": "src/retry.ts",
+      "line": 3,
+      "author": "reviewer-a",
+      "body": "MAX_RETRIES = 3 is too low for our flaky partner API; we see transient 503s that clear on the 4th or 5th try. Please raise this to 5 and make the backoff jittered.",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T2",
+      "path": "src/auth.ts",
+      "line": 5,
+      "author": "reviewer-b",
+      "body": "canExport should also allow the `analyst` role, they need CSV exports for the quarterly report. Can you add it here?",
+      "isOutdated": false,
+      "isResolved": false
+    },
+    {
+      "id": "T3",
+      "path": "src/retry.ts",
+      "line": 11,
+      "author": "reviewer-a",
+      "body": "nit: `2 ** attempt` reads oddly next to the multiplication; `Math.pow(2, attempt)` or a named `exponent` would be clearer.",
+      "isOutdated": false,
+      "isResolved": false
+    }
+  ]
+}

@@ -65,7 +65,7 @@ describe("convertClaudeToCodex", () => {
 
     // Custom agents (TOML) still land with instructions populated.
     expect(bundle.agents).toHaveLength(1)
-    const agent = bundle.agents[0]!
+    const agent = bundle.agents![0]!
     expect(agent.name).toBe("security-reviewer")
     expect(agent.description).toBe("Security-focused agent")
     expect(agent.instructions).toContain("Focus on vulnerabilities.")
@@ -122,7 +122,7 @@ describe("convertClaudeToCodex", () => {
     expect(parsedCommandSkill.data.description).toBe("Planning command")
     expect(parsedCommandSkill.body).toContain("Allowed tools")
 
-    const agent = bundle.agents.find((item) => item.name === "security-reviewer")
+    const agent = bundle.agents?.find((item) => item.name === "security-reviewer")
     expect(agent).toBeDefined()
     expect(agent!.description).toBe("Security-focused agent")
     expect(agent!.instructions).toContain("Capabilities")
@@ -152,7 +152,7 @@ describe("convertClaudeToCodex", () => {
       codexIncludeSkills: true,
     })
 
-    const agent = bundle.agents.find((s) => s.name === "fast-agent")
+    const agent = bundle.agents?.find((s) => s.name === "fast-agent")
     expect(agent).toBeDefined()
     expect("model" in agent!).toBe(false)
   })
@@ -512,7 +512,7 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
       codexIncludeSkills: true,
     })
 
-    const agent = bundle.agents.find((s) => s.name === "research-session-historian")
+    const agent = bundle.agents?.find((s) => s.name === "research-session-historian")
     expect(agent).toBeDefined()
     expect(agent!.sidecarDirs).toEqual([
       { sourceDir: scriptDir, targetName: "session-history-scripts" },
@@ -673,7 +673,7 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
       codexIncludeSkills: true,
     })
 
-    const agent = bundle.agents.find((s) => s.name === "config-reader")
+    const agent = bundle.agents?.find((s) => s.name === "config-reader")
     expect(agent).toBeDefined()
     expect(agent!.instructions).toContain("compound-engineering.local.md")
   })
@@ -701,7 +701,8 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
       codexIncludeSkills: true,
     })
 
-    const description = bundle.agents[0].description
+    expect(bundle.agents).toHaveLength(1)
+    const description = bundle.agents![0].description
     expect(description.length).toBeLessThanOrEqual(1024)
     expect(description).not.toContain("\n")
     expect(description.endsWith("...")).toBe(true)

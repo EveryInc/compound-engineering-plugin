@@ -1,0 +1,263 @@
+// Runs the real acpx (fetched through npx) against the stub ACP agent, so it is
+// opt-in: `bun run test:acpx-contract` sets ACPX_CONTRACT=1. ACPX_VERSION overrides the pin.
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test"
+import { type ChildProcess, spawn, spawnSync } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { homedir, tmpdir } from "node:os"
+import path from "node:path"
+import { ACPX_PIN } from "./helpers/acpx-pin"
+
+setDefaultTimeout(60_000)
+
+const VERSION = process.env.ACPX_VERSION || ACPX_PIN
+const STUB = path.join(__dirname, "fixtures/acp-stub-agent.mjs")
+
+const roots: string[] = []
+afterAll(() => roots.forEach((dir) => rmSync(dir, { recursive: true, force: true })))
+
+type Line = {
+  id?: number | null
+  method?: string
+  params?: any
+  result?: any
+  error?: { code: number; message: string; data?: { acpxCode?: string } }
+}
+type Run = { code: number | null; stdout: string; stderr: string; ms: number }
+type JsonRun = Run & { lines: Line[] }
+
+function workspace() {
+  const root = mkdtempSync(path.join(tmpdir(), "acpx-contract-"))
+  roots.push(root)
+  const home = path.join(root, "home")
+  const cwd = path.join(root, "cwd")
+  mkdirSync(home)
+  mkdirSync(cwd)
+  const prompt = path.join(root, "prompt.md")
+  writeFileSync(prompt, "Review the subject and reply.\n")
+  return { home, cwd, prompt }
+}
+
+function acpx(
+  args: string[],
+  options: { cwd: string; home: string; env?: Record<string, string>; onStdout?: (stdout: string, child: ChildProcess) => void },
+): Promise<Run> {
+  const started = Date.now()
+  // As the workers launch it: npx's npm_config_package would make acpx's own npx-launched adapters resolve inside acpx.
+  const child = spawn("npx", ["-y", "--package", `acpx@${VERSION}`, "--", "env", "-u", "npm_config_package", "acpx", ...args], {
+    cwd: options.cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      // A private HOME keeps ~/.acpx/config.json out; the runner gives each parallel run its own npm cache.
+      HOME: options.home,
+      npm_config_cache: process.env.npm_config_cache || path.join(homedir(), ".npm"),
+      npm_config_prefer_offline: "true",
+      npm_config_fetch_retries: "0",
+      ...options.env,
+    },
+  })
+  let stdout = ""
+  let stderr = ""
+  child.stdout!.on("data", (chunk) => {
+    stdout += chunk
+    options.onStdout?.(stdout, child)
+  })
+  child.stderr!.on("data", (chunk) => (stderr += chunk))
+  return new Promise((resolve) => {
+    child.on("close", (code) => {
+      resolve({ code, stdout, stderr, ms: Date.now() - started })
+    })
+  })
+}
+
+function withLines(run: Run): JsonRun {
+  return { ...run, lines: run.stdout.split("\n").filter((line) => line.trim()).map((line) => JSON.parse(line) as Line) }
+}
+
+// npx runs acpx through `sh -c`, and only bash execs it, so on Ubuntu (dash) a
+// signal sent to npx stops at the shell. The workers signal acpx's whole process
+// group; this finds acpx itself so the contract pins acpx's own cancel behavior.
+function acpxDescendant(rootPid: number): number | undefined {
+  const rows = spawnSync("ps", ["-A", "-o", "pid=,ppid=,command="], { encoding: "utf8" }).stdout
+    .split("\n")
+    .map((line) => line.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/))
+    .filter((m): m is RegExpMatchArray => m !== null)
+    .map((m) => ({ pid: Number(m[1]), ppid: Number(m[2]), command: m[3] }))
+  const tree = new Set([rootPid])
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const row of rows) if (tree.has(row.ppid) && !tree.has(row.pid)) { tree.add(row.pid); grew = true }
+  }
+  return rows.find((row) => tree.has(row.pid) && row.pid !== rootPid && /\/\.bin\/acpx\b|\/acpx\/dist\/cli/.test(row.command) && !/^\S*sh\s+-c\b/.test(row.command))?.pid
+}
+
+async function exec(mode: string, flags: string[] = [], onStdout?: (stdout: string, child: ChildProcess) => void) {
+  const ws = workspace()
+  const args = ["--format", "json", "--cwd", ws.cwd, ...flags, "--agent", `node ${STUB} ${mode}`, "exec", "--file", ws.prompt]
+  return withLines(await acpx(args, { ...ws, onStdout }))
+}
+
+function promptRequest(run: JsonRun) {
+  return run.lines.find((line) => line.method === "session/prompt")
+}
+function promptResponse(run: JsonRun) {
+  const id = promptRequest(run)?.id
+  return run.lines.find((line) => line.method === undefined && line.id === id)
+}
+function messageChunks(run: JsonRun) {
+  return run.lines.filter((line) => line.method === "session/update" && line.params.update.sessionUpdate === "agent_message_chunk")
+}
+
+describe.skipIf(process.env.ACPX_CONTRACT !== "1" || process.platform === "win32")(`acpx@${VERSION} contract`, () => {
+  test("--version reports the pinned version", async () => {
+    const ws = workspace()
+    const run = await acpx(["--version"], ws)
+    expect(run.code).toBe(0)
+    expect(run.stdout.trim()).toBe(VERSION)
+  })
+
+  test("the built-in worker routes exist throughout the supported range", async () => {
+    const run = await acpx(["--help"], workspace())
+    expect(run.code).toBe(0)
+    const routes = ["codex", "claude", "cursor", "grok-build", "antigravity", "pi"]
+    for (const route of routes) expect(run.stdout).toMatch(new RegExp(`^\\s{2}${route}\\s`, "m"))
+  })
+
+  // The workers' Pi tool limits live only in the PI_ACP_PI_COMMAND wrapper; a pi-acp that
+  // ignored it would start the pi on PATH with every tool and the checkout's Pi files.
+  test("the built-in pi route starts Pi through PI_ACP_PI_COMMAND, never the pi on PATH", async () => {
+    const ws = workspace()
+    const bin = path.join(ws.home, "bin")
+    mkdirSync(bin)
+    const log = path.join(ws.home, "launches.log")
+    writeFileSync(path.join(bin, "pi"), `#!/bin/sh\necho "path-pi $*" >> '${log}'\nexit 1\n`, { mode: 0o755 })
+    const wrapper = path.join(ws.home, "pi-launch")
+    writeFileSync(wrapper, `#!/bin/sh\necho "wrapper $*" >> '${log}'\nexit 1\n`, { mode: 0o755 })
+    const run = await acpx(["--cwd", ws.cwd, "--format", "json", "--timeout", "30", "pi", "exec", "--file", ws.prompt], {
+      ...ws,
+      env: { PATH: `${bin}:${process.env.PATH}`, PI_ACP_PI_COMMAND: wrapper },
+    })
+    const launches = existsSync(log) ? readFileSync(log, "utf8") : ""
+    // An adapter that never started leaves the log empty; acpx's output says why.
+    if (!launches) console.error(`acpx exited ${run.code}:\n${run.stdout.slice(-2000)}\n${run.stderr.slice(-2000)}`)
+    expect(launches).toContain("wrapper --mode rpc")
+    expect(launches).not.toContain("path-pi --mode rpc")
+  })
+
+  test.each(["--approve-reads", "--approve-all"])("worker flags support MCP config, turn limits, and config options with %s", async (permission) => {
+    const ws = workspace()
+    const mcp = path.join(ws.cwd, "mcp.json")
+    writeFileSync(mcp, '{"mcpServers":[]}\n')
+    const run = withLines(await acpx([
+      "--cwd", ws.cwd, "--format", "json", "--mcp-config", mcp, "--timeout", "5",
+      permission, "--non-interactive-permissions", "deny", "--max-turns", "25", "--model", "stub-model-a",
+      "--agent", `node ${STUB} models`, "exec", "--config-option", "mode=read-only",
+      "--config-option", "reasoning_effort=high", "--file", ws.prompt,
+    ], ws))
+    expect(run.code).toBe(0)
+    expect(promptResponse(run)?.result?.stopReason).toBe("end_turn")
+    expect(run.lines.find((line) => line.method === "session/new")?.params.mcpServers).toEqual([])
+    expect(run.lines.filter((line) => line.method === "session/set_config_option").map((line) => line.params)).toEqual([
+      { sessionId: "stub-session-1", configId: "mode", value: "read-only" },
+      { sessionId: "stub-session-1", configId: "reasoning_effort", value: "high" },
+    ])
+  })
+
+  test("a reply that ends the turn exits 0 with one message chunk and an end_turn result", async () => {
+    const run = await exec("end_turn")
+    expect(run.code).toBe(0)
+    expect(messageChunks(run).map((line) => line.params.update.content.text)).toEqual(["stub reply"])
+    expect(promptResponse(run)?.result?.stopReason).toBe("end_turn")
+  })
+
+  test("a denied permission request followed by end_turn exits 5 with the end_turn result", async () => {
+    const run = await exec("permission", ["--non-interactive-permissions", "deny"])
+    const ask = run.lines.find((line) => line.method === "session/request_permission")
+    const answer = run.lines.find((line) => line.method === undefined && line.id === ask?.id)
+    expect(answer?.result?.outcome).toEqual({ outcome: "selected", optionId: "reject" })
+    expect(run.code).toBe(5)
+    expect(promptResponse(run)?.result?.stopReason).toBe("end_turn")
+  })
+
+  test.each(["Truncate: build.log", "Delete README.md", "Run cat > output.txt"])("approve-reads denies an ambiguous destructive request: %s", async (title) => {
+    const ws = workspace()
+    const run = withLines(await acpx([
+      "--format", "json", "--cwd", ws.cwd, "--approve-reads", "--non-interactive-permissions", "deny",
+      "--agent", `node ${STUB} permission-no-kind`, "exec", "--file", ws.prompt,
+    ], { ...ws, env: { ACP_STUB_PERMISSION_TITLE: title } }))
+    const ask = run.lines.find((line) => line.method === "session/request_permission")
+    expect(ask).toBeDefined()
+    const answer = run.lines.find((line) => line.method === undefined && line.id === ask?.id)
+    expect(answer?.result?.outcome).toEqual({ outcome: "selected", optionId: "reject" })
+    expect(run.code).toBe(5)
+  })
+
+  test("a JSON-RPC error from the agent exits 1 and answers the prompt id with that error", async () => {
+    const run = await exec("error")
+    expect(run.code).toBe(1)
+    const response = promptResponse(run)
+    expect(response?.result).toBeUndefined()
+    expect(response?.error?.message).toBe("stub agent failure")
+  })
+
+  test("a hang past --timeout 2 exits 3 with a TIMEOUT envelope well inside 12 s", async () => {
+    const run = await exec("hang", ["--timeout", "2"])
+    expect(run.code).toBe(3)
+    expect(run.ms).toBeLessThan(12_000)
+    expect(promptResponse(run)).toBeUndefined()
+    expect(run.lines.at(-1)?.error?.data?.acpxCode).toBe("TIMEOUT")
+  })
+
+  test("SIGTERM to acpx reaches a cancel-aware agent as session/cancel and the turn ends cancelled", async () => {
+    let signalled = false
+    let polling = false
+    const run = await exec("cancel", [], (stdout, child) => {
+      if (polling || !stdout.includes('"method":"session/prompt"')) return
+      polling = true
+      const timer = setInterval(() => {
+        const target = acpxDescendant(child.pid!)
+        if (target === undefined) return
+        clearInterval(timer)
+        signalled = true
+        process.kill(target, "SIGTERM")
+      }, 50)
+      child.once("close", () => clearInterval(timer))
+    })
+    expect(signalled).toBe(true)
+    expect(run.lines.some((line) => line.method === "session/cancel")).toBe(true)
+    expect(promptResponse(run)?.result?.stopReason).toBe("cancelled")
+    expect(run.code).toBe(0)
+  })
+
+  test("an unknown --model exits 1 before any session/prompt and names the available models", async () => {
+    const run = await exec("models", ["--model", "stub-model-z"])
+    expect(run.code).toBe(1)
+    expect(promptRequest(run)).toBeUndefined()
+    expect(run.stdout).toContain("Available models: stub-model-a, stub-model-b")
+    expect(run.lines.at(-1)?.error?.data?.acpxCode).toBe("RUNTIME")
+  })
+
+  test("--model shifts the session/prompt id, so the result is found by id, not position", async () => {
+    const plain = await exec("models")
+    const switched = await exec("models", ["--model", "stub-model-b"])
+    expect(switched.code).toBe(0)
+    expect(switched.lines.some((line) => line.method === "session/set_model")).toBe(true)
+    expect(promptRequest(switched)?.id).not.toBe(promptRequest(plain)?.id)
+    const atUnshiftedId = switched.lines.find((line) => line.method === undefined && line.id === promptRequest(plain)?.id)
+    expect(atUnshiftedId?.result?.stopReason).toBeUndefined()
+    expect(promptResponse(switched)?.result?.stopReason).toBe("end_turn")
+  })
+
+  test("a .acpxrc.json in --cwd replaces a built-in agent's argv", async () => {
+    const ws = workspace()
+    writeFileSync(path.join(ws.cwd, ".acpxrc.json"), JSON.stringify({ agents: { codex: { argv: ["node", STUB, "end_turn"] } } }))
+    const run = withLines(
+      await acpx(["--format", "json", "--cwd", ws.cwd, "codex", "exec", "--file", ws.prompt], {
+        ...ws,
+        env: { ACP_STUB_TEXT: "replaced by .acpxrc.json" },
+      }),
+    )
+    expect(run.code).toBe(0)
+    expect(messageChunks(run).map((line) => line.params.update.content.text)).toEqual(["replaced by .acpxrc.json"])
+  })
+})

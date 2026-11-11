@@ -1,219 +1,59 @@
 # `ce-explain`
 
-> Build a dense visual document about a concept, a diff, an idea, or a window of your own recent work. Keep it. Check yourself on it from the document.
+> Understand how something works and why it has its current shape, for learning or the next piece of work.
 
-`ce-explain` is the on-demand **teaching** skill. Point it at something worth understanding and it writes a self-contained explainer, grounded in repo evidence when the material lives here, saved to disk before you are asked where to put it.
+`ce-explain` produces an evidence-backed explanation. It follows behavior through source and tests, investigates documented design rationale, and separates what is known from inference and unanswered questions. It explains; [`ce-pov`](./ce-pov.md) judges what to do.
 
-It is not a status memo. A recap from this skill is a document you can study or speak from; if you ask for the terse update itself, it declines that form. Ordinary Q&A stays in chat. Operational questions ("why is X doing Y") get a direct answer first, and an explainer is offered only when a real concept sits behind the question.
+## When to use it
 
-It also is not `ce-compound` (that teaches the repo) and not `ce-pov` (that returns a verdict). The check-in is a `Check yourself` section at the end of the document, included when you ask for it or the material warrants it; the run never stops to quiz you in chat.
+Use it to understand a subsystem before changing it, investigate the reasons behind an existing design, learn a concept introduced in a PR, explain a supplied idea, or reconstruct a window of work. A request to diagnose or fix a failure belongs to `ce-debug`; explaining the existing mechanism remains here.
 
----
+The result follows its intended use. A planning input can be an answer with citations and constraints. Explanatory material for a PR can be returned for its authoring workflow to incorporate. A deeper teaching request can produce a standalone document to study and keep. The caller's identity does not choose the format: an agent can request a teaching document for a person, and a person can request a working answer.
 
-## TL;DR
-
-| Question | Answer |
-|----------|--------|
-| What does it do? | Classifies the request as concept, diff, idea, or recap, grounds it, writes one visual explainer, then asks where to put it |
-| When to use it | You want a document to keep about a change, a topic, an idea, or what you actually did in a window |
-| What it produces | One self-contained HTML file (markdown if you ask), written to a temp run dir first, then copied or published if you pick a destination |
-| What's next | Keep the file, work through its `Check yourself` section when it has one, then optional offers into `/ce-ideate`, `/ce-simplify-code`, `/ce-polish`, or `/ce-compound-refresh` |
-
----
-
-## Example invocations
-
-Plain language is the ordinary path. Tokens force a mode when inference could go either way.
+## Examples
 
 ```text
-# Asks what to explain. Offers a recent-work recap as a shortcut
-/ce-explain
-
-# A window in prose is a recap, not a topic named "since last Monday"
-/ce-explain since last Monday
-
-# Force recap when the prompt could be a window or a topic
-/ce-explain since:7d
-
-# Catch yourself up before you speak. Still a teaching doc, not a status memo
-/ce-explain catch me up on what I did this week
-
-# Force diff mode on a range
+/ce-explain how does cancellation propagate, and why do we retain polling? This informs the readiness plan.
+/ce-explain explain this queue's lease for reviewers, in two paragraphs for the PR body
+/ce-explain teach me the concept introduced in this PR; make an explainer I can keep
 /ce-explain diff:main..HEAD
-
-# A PR, same force
-/ce-explain diff:PR#42
-
-# An idea, taken as given. Not scoped, not ranked
+/ce-explain since last Monday
 /ce-explain my idea of caching explainers per repository
-
-# External concept. No repo grounding
-/ce-explain Ruby garbage compaction
-
-# Markdown instead of the default HTML
-/ce-explain the parser split output:md
-
-# Someone else will read it. Same depth, not a status memo
-/ce-explain write this up for the team audience:team
+/ce-explain the parser split output:md audience:team
 ```
 
-`since last Monday` and `since:monday` resolve to the same window. A colon in a sentence is not a flag: "walk me through the diff: why did we split the parser" is prose, not `diff:why`.
+Plain language is the ordinary path. `diff:` and `since:` select the subject, `audience:` names the reader, and `output:md` or `output:html` requests that artifact format. Colons in ordinary prose are not flags. A bare invocation resolves its subject from context or asks what to explain when a person is available.
 
----
+## How it works
 
-## The Problem
+The skill establishes the question and intended use before researching or creating files. It reuses adequate current evidence and investigates missing or disputed claims.
 
-Agent-driven work detaches you from what shipped in two ways.
+For **how**, it follows the relevant trigger, state changes, ownership boundaries, and effect. One pass is enough when that trace can name the boundaries. When one pass cannot, the question is split across read-only scouts, one slice each, and the caller reconciles their dossiers against the source. For **why**, it follows decision records, comments, history, PRs, and linked issues within the allowed sources. It does not search every available service by default, and it preserves a calling workflow's opt-in restrictions on team chat.
 
-You cannot account for it. A week of agent commits later, git has the record and you cannot read it in three minutes.
+Code demonstrates behavior, not necessarily the author's motivation. A missing historical reason stays unknown. Historical constraints are checked before being treated as current requirements. When the explanation informs a change, it identifies the relevant constraints and risks without choosing the implementation.
 
-You cannot explain it. Writing the code forced comprehension; reviewing agent output does not, and the debt accumulates on your own projects.
+A recap uses an evidence scout before forming a narrative about the window. It cites the sources and says which activity it included or left out. Missing subjects and empty windows are reported rather than replaced with an unrelated explanation.
 
-The first wants a report. The second wants a report and, sometimes, a way to make it stick. `/ce-compound` stores knowledge for the repo and `/ce-pov` returns a verdict; neither covers this.
+## Delivery and teaching
 
-## The Solution
+Answers and content for another document return directly. Standalone teaching artifacts use HTML by default, or markdown when requested. Layout, visuals, terminology, and depth follow the reader's needs; there is no fixed visual quota or required prose arrangement.
 
-One artifact contract, four input shapes:
+Standalone HTML remains self-contained and readable offline. Existing metadata records the subject, date, input shape, and named audience. Source links remain available, and unsupported external knowledge is visibly labeled unverified.
 
-| Input | What you get |
-|------|--------------|
-| Work recap ("what did I do this week?") | A date-ordered timeline of real commits, PRs, and the plan or solution docs behind them |
-| Diff (a sha, range, PR, or "the last change") | What the change actually does, with annotated hunks and the why per hunk |
-| Concept (a topic, subsystem, or external subject) | An explainer grounded in this repo when the topic touches it, fully external when it does not |
-| Idea (a proposal of yours) | Implications, mechanics, and trade-offs, taken as a fixed given |
+Teaching exercises are included when requested or when they would help the reader remember and apply the material. They live in a static `Check yourself` section with answers afterward. The run never waits for the reader to answer a quiz.
 
-Recap mode dispatches a scout that walks git activity, PRs (only when a PR interface is reachable), and project docs for the window, then writes an evidence file with shas and `file:line` pointers before any prose is composed. The main conversation does not pre-scan the window. An empty window says so and writes nothing.
+A local artifact is delivered with a summary and its path. There is no mandatory destination menu. A requested publisher gets a copy; the local file stays the record. The publisher is the one you named, or the host's own artifact tool when there is one. Anything sent to a public host requires confirmation after a public-publishing warning. If publishing cannot complete, the local file remains available.
 
-Idea mode never scopes (`ce-brainstorm`) and never ranks alternatives (`ce-ideate`).
+## In a workflow
 
----
+`ce-brainstorm` and `ce-pov` can use `ce-explain` when an unresolved behavior or rationale question materially affects their work. `ce-plan` uses it before a Standard or Deep choice that depends on existing behavior or on a rationale the research did not establish. The skill reuses existing research when it is sufficient. The caller gets evidence, constraints, and unanswered questions, then continues under its own authority. No return flag is required.
 
-## What Makes It Novel
+`ce-commit-push-pr` continues composing its own `New concepts` section and offering `ce-explain` for deeper learning. This skill can also supply an explanation for a surrounding document without taking over placement or publication.
 
-### Evidence first, including an honest empty
+## Related skills
 
-The scout gathers before anything is characterized, because an early `git --all` glance would seed a false model of what happened. Unreachable PRs become one honest line, not a guess from branch names. An empty `diff:` range names what it resolved to and asks before substituting. An external topic with no web access is labeled in the header: *Unverified, from model knowledge, not checked against current sources*.
-
-### Offline, one file, written before the ask
-
-Default output is one self-contained HTML file (markdown via `output:md`). CSS and SVG are inline, images are data URIs, fonts are system fonts. No scripts, forms, or interactive quiz. A reader who skips every visual still gets the full explanation in prose. The form follows the material: diagram for architecture, annotated snippets for code, numbered flow for a lifecycle, timeline for a recap, two-column contrast for a trade-off.
-
-The header is visible text with fixed field names (`Date`, `Input shape`, `Subject`) so a later library can index them.
-
-The file lands in `/tmp/compound-engineering-<effective-uid>/ce-explain/<run-id>/` before the destination ask, so declining every destination loses nothing. That path is temporary; pick a destination if you want to keep the file.
-
-### The destination menu comes from this session
-
-The menu offers only what this session actually has. Local file and Leave it are always there. HTML prefers a Claude Artifact in Claude Code when that tool is present, otherwise a public ht-ml.app URL. ht-ml.app is never chosen headlessly, and the option itself warns that the page may be indexed, crawled, copied, or archived. Proof is offered on markdown runs. Thinkroom appears only when that capability is detected.
-
-### Written for you, or re-rendered for a reader
-
-Default voice is second person and assumes the context you already have. `audience:team` (or "write this up for the team") drops second person, names the subject in third person when the evidence supplies a name, and adds the minimum orientation an outside reader needs. Depth, real code, and honesty labels do not change. Wanting to *speak* from the material (standup prep, meeting prep) stays personal; you are still the reader.
-
-If you compose the personal default and then pick a destination that puts it in front of other people, it offers once to re-render before sending.
-
-### The check-in lives in the document
-
-The skill never stops to ask whether you want a quiz, and never poses questions in chat. When you ask for a check-in, or the material warrants active recall (a gnarly diff, a hard concept, a dense recap window) and you did not decline one, the document ends with a `Check yourself` section: two to four questions listed first, then their answers under an `Answers` label, so you can attempt every question before any answer is in view. Each answer says what a correct response contains and names the gap a plausible wrong answer exposes. Routine material gets no section.
-
-Saying "no quiz" omits the section; asking for one includes it whatever the material.
-
----
-
-## Quick Example
-
-You type `/ce-explain since last Monday`. That is a recap. A scout walks the window and writes evidence with shas. The week has real commits, so a document is composed: a timeline, each entry naming what changed and why it mattered.
-
-The material is routine, so the document carries no `Check yourself` section. The HTML lands in the run dir, you are asked where to put it, and you pick a local file and open it.
-
-The evidence includes a plan that shipped work has since contradicted. After the destination is settled, the skill offers `/ce-compound-refresh` on that doc. Take it or leave it.
-
----
-
-## When to Reach For It
-
-Use `ce-explain` when:
-
-- You need a written breakdown of a change you did not type, to keep
-- You want to learn a concept or subsystem, in this repo or outside it
-- You have an early idea and want its implications laid out before committing to it
-- You cannot account for a window of your own work and want a document you can study or speak from
-
-Skip it when:
-
-- You want a standup blurb or status memo. This skill will not write one, though recap mode can catch you up so you can
-- Ordinary Q&A, a quick "why?", or a trade-off that belongs in chat
-- Operational diagnosis ("why is X doing Y") unless you then accept the explainer offer
-- You need a verdict on whether to adopt something → `/ce-pov`
-- The knowledge belongs to the repo's future work → `/ce-compound`
-
----
-
-## Use as Part of the Workflow
-
-`ce-explain` sits outside the core loop. Invoke it when your account of the work, or your understanding of it, lags behind what shipped.
-
-Closing offers, only after the destination is settled:
-
-- New-capability ideas → `/ce-ideate`
-- Code-clarity findings → `/ce-simplify-code`
-- UI/UX polish → you invoke `/ce-polish` yourself (`ce-polish` is user-invoked only)
-- A plan or solution doc the evidence has overtaken → `/ce-compound-refresh`
-
-Those are offers, never auto-fired. An unattended run reports the temp path and skips them.
-
----
-
-## Use Standalone
-
-No plan and no brainstorm required. It works in any repo, and with no repo at all for an external topic.
-
-A bare `/ce-explain` asks what to explain. It does not invent a default artifact.
-
----
-
-## Reference
-
-| Argument | Effect |
-|----------|--------|
-| _(empty)_ | Asks "What should I explain?" and offers a recap shortcut |
-| free text | Classified as concept, idea, diff, or recap by shape |
-| `diff:<ref-or-range>` | Force diff mode (`diff:abc1234`, `diff:main..HEAD`, `diff:PR#42`) |
-| `since:<window\|date\|ref>` | Force recap mode (`since:monday`, `since:7d`, `since:v2.1.0`). Last 7 days only when no window was named |
-| `output:md` | Markdown artifact instead of HTML (`output:html` forces HTML) |
-| `audience:<who>` | Render for that reader instead of you personally |
-
-A token in flag position beats inference; a colon inside a sentence does not. `diff:` and `since:` together conflict, and the skill asks which you meant. An unrecognized `word:value` (including `feat:` inside a topic) stays as request text.
-
----
-
-## FAQ
-
-**Do I have to do the quiz?**
-No. The `Check yourself` section sits at the end of the document for whenever you want it, and the run never waits on you for it. Say "no quiz" and the section is omitted; routine material gets none anyway.
-
-**Can I use this for standup?**
-Recap mode can catch you up so you can speak; the skill will not write the status update itself. If the document is going to a team, say so (or pass `audience:`) and it renders for them at full depth.
-
-**Can I share the report?**
-Yes. Ask for that audience up front, or take the re-render offer when you pick a shared destination.
-
-**Where does the artifact go?**
-`$RUN_DIR` under `/tmp/compound-engineering-<effective-uid>/ce-explain/` first. A destination copies or publishes it; leave it and the path is temporary.
-
-**Is this `ce-compound` for humans?**
-Roughly. A Learning teaches the repo's future work; an explainer documents something for you. They are complements.
-
-**Can it track what I have learned?**
-Not in v1. No library, no spaced repetition, no progress state. The `Check yourself` section is yours to revisit; the stable run-dir layout and fixed header fields are what a later library could build on.
-
----
-
-## See Also
-
-- [`ce-pov`](./ce-pov.md): a verdict on something external, not a document about it
-- [`ce-compound`](./ce-compound.md): knowledge that belongs to the repo
-- [`ce-ideate`](./ce-ideate.md): where new-capability observations can go next
-- [`ce-simplify-code`](./ce-simplify-code.md): where code-clarity findings can go next
-- [`ce-polish`](./ce-polish.md): late polish you invoke yourself
-- [`ce-compound-refresh`](./ce-compound-refresh.md): a plan or solution doc the recap just contradicted
+- [`ce-pov`](./ce-pov.md): judge what should happen given the evidence.
+- [`ce-plan`](./ce-plan.md): turn requirements and constraints into a technical plan.
+- [`ce-brainstorm`](./ce-brainstorm.md): explore and scope the product direction.
+- [`ce-compound`](./ce-compound.md): capture durable project learning.
+- [`ce-debug`](./ce-debug.md): diagnose observed failure.

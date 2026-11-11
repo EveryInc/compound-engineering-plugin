@@ -3,48 +3,37 @@
 Answer key for this fixture. Never referenced from the fixture body; the fixture
 must read as an ordinary plan to any reviewer.
 
-## Purpose — discriminate round-up from over-suppression
+## Purpose — distinguish useful review from unnecessary work
 
-Reviewers currently produce almost nothing at the advisory confidence level. Two
-different mechanisms produce that same symptom and they call for opposite fixes:
+This fixture originally tested whether reviewers moved harmless preferences into
+FYI instead of promoting them to decisions. That is historical evidence, not the
+current success criterion: an unnecessary FYI still costs the reader attention.
+The calibration policy now requires a demonstrated consequence or worthwhile
+benefit before any finding is retained.
 
-- **Round-up** — reviewers do recognize advisory observations but emit them above
-  the advisory level, into the actionable tier.
-- **Over-suppression** — reviewers discard advisory observations entirely under
-  the false-positive catalog, which the sub-agent template gives explicit
-  precedence over the advisory rule.
+The plan is unchanged. Its two real defects remain the control against a review
+that reduces noise by overlooking required work. Judge the substance of each
+finding rather than its confidence label or the number of questions alone.
 
-This document is built so an observer can tell those apart from a single run. It
-carries three groups whose correct handling is different, and the groups are kept
-separable below so a result cannot be reinterpreted after the fact.
-
-`product_contract_source: ce-brainstorm` suppresses premise-level adversarial
-technique activation, so the reading is not confounded by premise findings.
+`product_contract_source: ce-brainstorm` marks the premise as validated upstream.
 
 ## Reading the result
 
-Judge only on group 1's placement, with group 3 as the floor:
-
 | Observed | Verdict |
 |---|---|
-| Group 1 emitted at the advisory level, group 2 absent | Calibration is working |
-| Group 1 emitted **above** the advisory level (actionable tier) | **Round-up** |
-| Group 1 absent entirely | **Over-suppression** |
-| Group 1 split across both readings | Report the split verbatim; do not average it into a verdict |
-| Group 3 also absent | The run produced nothing at all — no verdict; the reviewer did not engage the document |
+| Groups 1 and 2 absent; both group 3 defects retained | Pass |
+| Group 1 or 2 retained as a proposal, decision, FYI, or residual | Unnecessary work still reaches the reader |
+| A group 3 defect is missed | Missed defect; fewer findings is not a pass |
+| Claimed edits did not land, or an unresolved product choice was applied | Incorrect completion or authority failure |
 
-Group 3 exists solely so "correctly suppressed groups 1 and 2" is distinguishable
-from "emitted nothing." If group 3 is missing, discard the run rather than
-reading it as over-suppression.
+A new finding outside these groups needs its own evidence-based assessment. This
+answer key is not a quota or an instruction to discard other real defects.
 
-Group 2 emitting at any level is a separate defect — the false-positive catalog
-is not firing — and is reported independently of the group 1 verdict.
+## Group 1 — harmless preferences (4 items)
 
-## Group 1 — genuinely advisory (4 items)
-
-Real, quotable observations where the honest answer to "what breaks if we do not
-fix this?" is "nothing breaks, but…". None matches a false-positive-catalog
-shape. **Correct handling: emitted at the advisory level (FYI).**
+These observations offer no demonstrated benefit over the existing plan.
+**Correct handling: not emitted at any level.** Their previous FYI expectation
+is intentionally replaced, rather than relabeled as a successful prior result.
 
 | # | Section | Planted observation | Locate by |
 |---|---|---|---|
@@ -76,16 +65,10 @@ floor. **Correct handling: emitted in the actionable tier.**
 
 ## Boundary notes
 
-Two group-1 items sit closest to the line and should be watched when reading a
-result:
+A1 is not terminology drift: the option and configuration key follow the
+established convention of their respective surfaces. A3 and A4 offer another
+organization, with no defect in the existing one. None becomes useful merely
+because it can be quoted accurately.
 
-- **A1** is adjacent to terminology drift, which is an actionable `safe_auto`
-  shape. It stays advisory because the two names live on different surfaces (a
-  command-line option and a config key) and each matches its own surface's
-  existing convention — the document names those conventions explicitly. If a run
-  emits A1 as terminology drift, that is round-up on a genuinely thin case, and
-  should be reported as such rather than counted as a clean round-up signal.
-- **B3** is adjacent to A1 in the other direction: help-string punctuation is a
-  style nitpick and therefore catalog-suppressed, not advisory. It is planted in
-  the Command Surface table rather than stated in prose so the temptation is
-  structural and a reviewer has to notice it unaided.
+Useful advisory concerns may still qualify at confidence 50 under the shared
+rubric. This fixture does not contain one and does not establish that behavior.

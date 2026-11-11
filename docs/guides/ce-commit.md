@@ -127,7 +127,7 @@ Skip it when:
 
 No mode flags. No push. No PR.
 
-Wanting the PR after all is not a restart: run `/ce-commit-push-pr` and it continues from the commits already made.
+If you want the PR after all, run `/ce-commit-push-pr`. It continues from the commits already made rather than restarting.
 
 ---
 

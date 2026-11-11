@@ -77,16 +77,10 @@ tool "Skill" "compound-engineering:ce-compound"
 res  "Launching skill: compound-engineering:ce-compound"
 p ""
 pause 0.4
-agent "ce-compound Context Analyzer"
-p ""
-pause 0.3
-agent "ce-compound Solution Extractor"
-p ""
-pause 0.3
 agent "ce-compound Related Docs Finder"
 p ""
 spin "Compounding" 2200
-say  "All three research agents reported. Assembling the learning:"
+say  "Related docs found and the draft is ready. Assembling the learning:"
 p ""
 pause 0.5
 tool "Write" "docs/solutions/runtime-errors/tenant-gate-worktree-env-gate.md"

@@ -1,0 +1,2 @@
+# The diagnostic reads each stage's own reviewers; a cross-model pass would add a reviewer the pipeline under study did not have and egress every trial.
+cross_model_review_mode: off

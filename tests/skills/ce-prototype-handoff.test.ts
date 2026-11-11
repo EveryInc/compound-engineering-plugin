@@ -10,14 +10,6 @@ const PLAN_HANDOFF = readFileSync(
   path.join(process.cwd(), "skills/ce-plan/references/plan-handoff.md"),
   "utf8",
 )
-const UNIVERSAL_BRAINSTORM = readFileSync(
-  path.join(process.cwd(), "skills/ce-brainstorm/references/universal-brainstorming.md"),
-  "utf8",
-)
-const UNIVERSAL_PLAN = readFileSync(
-  path.join(process.cwd(), "skills/ce-plan/references/universal-planning.md"),
-  "utf8",
-)
 
 describe("ce-prototype handoff offers", () => {
   test("software brainstorm menu offers prototype, omits Proof, and XOR pressure-test", () => {
@@ -41,8 +33,4 @@ describe("ce-prototype handoff offers", () => {
     expect(phaseRegion).toMatch(/Do not build a prototype in this skill/)
   })
 
-  test("non-software wrap-up menus still offer Proof", () => {
-    expect(UNIVERSAL_BRAINSTORM).toContain("Publish to Proof")
-    expect(UNIVERSAL_PLAN).toContain("Publish to Proof")
-  })
 })

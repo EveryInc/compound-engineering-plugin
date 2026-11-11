@@ -7,7 +7,7 @@ import path from "node:path"
  * and both break this plugin when they do:
  *
  * - Codex >= 0.147 (openai/codex#37027, #1412) injects only the first MAX_SKILL_PROMPT_BYTES
- *   (8000) of each Agent Plugin SKILL.md; 26 skills exceed that.
+ *   (8000) of each Agent Plugin SKILL.md; the skills in OVER_BUDGET below exceed that.
  * - oh-my-pi >= 17.3 (#1411) rejects any SKILL.md whose frontmatter has a key outside the
  *   Agent Skills closed set; the Claude Code keys `argument-hint` / `disable-model-invocation`
  *   are load-bearing, so 30 skills vanish. omp has no per-host override.
@@ -99,5 +99,58 @@ describe("Codex skill prompt budget (#1412)", () => {
     ) as Record<string, unknown>
     const schema = typeof manifest.$schema === "string" ? manifest.$schema : ""
     expect(schema.startsWith(AGENT_PLUGINS_SCHEMA_PREFIX)).toBe(false)
+  })
+})
+
+/**
+ * Codex (verified on codex-cli 0.166.0, 2026-11-07) returns at most ~10k tokens of one tool
+ * output and drops the middle, whatever max_output_tokens the agent requests. A probe put the
+ * line between 39,500 and 40,500 bytes, which is 10k tokens at Codex's 4-bytes-per-token
+ * estimate. A skill file over that cannot be read whole in one call, so its middle is silently
+ * lost (#2030: finish-review.md lost its protected-subject rejection rules). The guard sits
+ * below the cap to leave room for `nl -ba` line prefixes and the command header.
+ */
+const CODEX_TOOL_OUTPUT_BYTES = 40_000
+const SKILL_READ_CAP_BYTES = 36_000
+
+/** Existing files over the read cap. Remove an entry once its file is split; never add one. */
+const OVER_READ_CAP = new Set([
+  "ce-doc-review/references/cross-model-review.md",
+  "ce-doc-review/references/synthesis-and-presentation.md",
+  "ce-optimize/references/loop.md",
+  "ce-pov/references/cross-model-panel.md",
+  "ce-work/references/cross-model-execution.md",
+])
+
+function readableSkillFiles(): Map<string, number> {
+  const sizes = new Map<string, number>()
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name)
+      if (statSync(full).isDirectory()) {
+        if (name !== "scripts") walk(full)
+      } else if (/\.(md|json|ya?ml|txt)$/.test(name)) {
+        sizes.set(path.relative(skillsDir, full).split(path.sep).join("/"), crlfByteSize(readFileSync(full, "utf8")))
+      }
+    }
+  }
+  walk(skillsDir)
+  return sizes
+}
+
+describe("skill files fit in one Codex tool output (#2030)", () => {
+  const sizes = readableSkillFiles()
+
+  test("no skill file newly exceeds the read cap (CRLF-adjusted)", () => {
+    expect(SKILL_READ_CAP_BYTES).toBeLessThan(CODEX_TOOL_OUTPUT_BYTES)
+    const violations = [...sizes]
+      .filter(([rel, size]) => size > SKILL_READ_CAP_BYTES && !OVER_READ_CAP.has(rel))
+      .map(([rel, size]) => `${rel}: ${size} bytes > ${SKILL_READ_CAP_BYTES}`)
+    expect(violations).toEqual([])
+  })
+
+  test("OVER_READ_CAP only lists files that still exceed the cap (ratchet down)", () => {
+    const stale = [...OVER_READ_CAP].filter((rel) => (sizes.get(rel) ?? 0) <= SKILL_READ_CAP_BYTES)
+    expect(stale).toEqual([])
   })
 })

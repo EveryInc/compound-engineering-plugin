@@ -1,0 +1,11 @@
+{
+  "schema_version": "live/1",
+  "session_id": "sess_01J9X6R4C2",
+  "seq": 11,
+  "t": 40200,
+  "type": "answer",
+  "payload": {
+    "unit_id": "unit_0001",
+    "text": "Yes, the same shortcut, Cmd+B."
+  }
+}

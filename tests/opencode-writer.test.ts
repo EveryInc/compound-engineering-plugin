@@ -1,9 +1,8 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
 import { writeOpenCodeBundle } from "../src/targets/opencode"
-import { mergeJsonConfigAtKey } from "../src/utils/json-config"
 import type { OpenCodeBundle } from "../src/types/opencode"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { convertClaudeToOpenCode } from "../src/converters/claude-to-opencode"
@@ -146,7 +145,7 @@ describe("writeOpenCodeBundle", () => {
     const bundle: OpenCodeBundle = {
       config: { 
         $schema: "https://opencode.ai/config.json", 
-        mcp: { "plugin-server": { type: "local", command: "uvx", args: ["plugin-srv"] } } 
+        mcp: { "plugin-server": { type: "local", command: ["uvx", "plugin-srv"] } } 
       },
       agents: [],
       plugins: [],
@@ -171,6 +170,103 @@ describe("writeOpenCodeBundle", () => {
     expect(backupContent.custom).toBe("value")
   })
 
+  test("updates skill ownership when the manifest explicitly includes the default skill path", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-overlapping-skills-"))
+    try {
+      const sourceRoot = path.join(tempRoot, "source")
+      const outputRoot = path.join(tempRoot, ".opencode")
+      const skillPath = path.join(sourceRoot, "skills", "sample", "SKILL.md")
+      await fs.mkdir(path.dirname(skillPath), { recursive: true })
+      await fs.mkdir(path.join(sourceRoot, ".claude-plugin"))
+      await fs.writeFile(path.join(sourceRoot, ".claude-plugin", "plugin.json"), JSON.stringify({
+        name: "ownership-plugin",
+        version: "1.0.0",
+        skills: ["./skills"],
+      }))
+      const firstVersion = "---\nname: sample\ndescription: Fixture\n---\nVersion one\n"
+      await fs.writeFile(skillPath, firstVersion)
+      const options = { agentMode: "subagent", inferTemperature: true, permissions: "none" } as const
+      await writeOpenCodeBundle(outputRoot, convertClaudeToOpenCode(await loadClaudePlugin(sourceRoot), options))
+
+      const manifestPath = path.join(outputRoot, "ownership-plugin", "install-manifest.json")
+      expect(JSON.parse(await fs.readFile(manifestPath, "utf8")).groups.skills).toEqual(["sample"])
+
+      await fs.writeFile(skillPath, firstVersion.replace("Version one", "Version two"))
+      await writeOpenCodeBundle(outputRoot, convertClaudeToOpenCode(await loadClaudePlugin(sourceRoot), options))
+      const installed = await fs.readFile(path.join(outputRoot, "skills", "sample", "SKILL.md"), "utf8")
+      expect(installed).toContain("Version two")
+      expect(installed).not.toContain("Version one")
+      expect(JSON.parse(await fs.readFile(manifestPath, "utf8")).groups.skills).toEqual(["sample"])
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test.skipIf(process.platform === "win32" || process.getuid?.() === 0).each([
+    '{"userSetting":true}',
+    '{"userSetting":',
+  ])("preserves the install when config backup is unwritable: %s", async (originalConfig) => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-backup-failure-"))
+    const outputRoot = path.join(tempRoot, ".opencode")
+    try {
+      const bundle: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: {},
+        agents: [],
+        plugins: [],
+        commandFiles: [{ name: "kept-command", content: "Installed command" }],
+        skillDirs: [],
+      }
+      await writeOpenCodeBundle(outputRoot, bundle)
+      const configPath = path.join(outputRoot, "opencode.json")
+      const manifestPath = path.join(outputRoot, "compound-engineering", "install-manifest.json")
+      const originalManifest = await fs.readFile(manifestPath, "utf8")
+      await fs.writeFile(configPath, originalConfig)
+      await fs.chmod(configPath, 0o600)
+      // The existing file stays writable; only creation of its backup is denied.
+      await fs.chmod(outputRoot, 0o500)
+
+      await expect(writeOpenCodeBundle(outputRoot, { ...bundle, commandFiles: [] }))
+        .rejects.toThrow(`Could not back up existing config at ${configPath}`)
+
+      expect(await fs.readFile(configPath, "utf8")).toBe(originalConfig)
+      expect(await fs.readFile(manifestPath, "utf8")).toBe(originalManifest)
+      expect(await fs.readFile(path.join(outputRoot, "commands", "kept-command.md"), "utf8"))
+        .toBe("Installed command\n")
+      expect((await fs.readdir(outputRoot)).filter((name) => name.startsWith("opencode.json.bak."))).toEqual([])
+    } finally {
+      await fs.chmod(outputRoot, 0o700)
+      await fs.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test("backs up malformed config without claiming its user settings were merged", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-malformed-config-"))
+    const log = spyOn(console, "log").mockImplementation(() => {})
+    try {
+      const configPath = path.join(tempRoot, "opencode.json")
+      const original = '{"userSetting":'
+      await fs.writeFile(configPath, original)
+      await writeOpenCodeBundle(tempRoot, {
+        config: { $schema: "https://opencode.ai/config.json" },
+        agents: [],
+        plugins: [],
+        commandFiles: [],
+        skillDirs: [],
+      })
+
+      const backups = (await fs.readdir(tempRoot)).filter((name) => name.startsWith("opencode.json.bak."))
+      expect(backups).toHaveLength(1)
+      expect(await fs.readFile(path.join(tempRoot, backups[0]), "utf8")).toBe(original)
+      expect(JSON.parse(await fs.readFile(configPath, "utf8")))
+        .toEqual({ $schema: "https://opencode.ai/config.json" })
+      expect(log.mock.calls.flat().join("\n")).not.toContain("user settings preserved")
+    } finally {
+      log.mockRestore()
+      await fs.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   test("merges mcp servers without overwriting user entry", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-merge-mcp-"))
     const outputRoot = path.join(tempRoot, ".opencode")
@@ -179,7 +275,7 @@ describe("writeOpenCodeBundle", () => {
     // Create existing config with user's mcp server
     await fs.mkdir(outputRoot, { recursive: true })
     const existingConfig = { 
-      mcp: { "user-server": { type: "local", command: "uvx", args: ["user-srv"] } } 
+      mcp: { "user-server": { type: "local", command: ["uvx", "user-srv"] } } 
     }
     await fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
 
@@ -188,8 +284,8 @@ describe("writeOpenCodeBundle", () => {
       config: { 
         $schema: "https://opencode.ai/config.json",
         mcp: { 
-          "plugin-server": { type: "local", command: "uvx", args: ["plugin-srv"] },
-          "user-server": { type: "local", command: "uvx", args: ["plugin-override"] }  // conflict
+          "plugin-server": { type: "local", command: ["uvx", "plugin-srv"] },
+          "user-server": { type: "local", command: ["uvx", "plugin-override"] }  // conflict
         } 
       },
       agents: [],
@@ -205,8 +301,8 @@ describe("writeOpenCodeBundle", () => {
     expect(mergedConfig.mcp).toBeDefined()
     expect(mergedConfig.mcp["plugin-server"]).toBeDefined()
     expect(mergedConfig.mcp["user-server"]).toBeDefined()
-    expect(mergedConfig.mcp["user-server"].args[0]).toBe("user-srv")  // user wins on conflict
-    expect(mergedConfig.mcp["plugin-server"].args[0]).toBe("plugin-srv")  // plugin entry present
+    expect(mergedConfig.mcp["user-server"].command[1]).toBe("user-srv")  // user wins on conflict
+    expect(mergedConfig.mcp["plugin-server"].command[1]).toBe("plugin-srv")  // plugin entry present
   })
 
   test("preserves unrelated user keys when merging opencode.json", async () => {
@@ -227,7 +323,7 @@ describe("writeOpenCodeBundle", () => {
     const bundle: OpenCodeBundle = {
       config: { 
         $schema: "https://opencode.ai/config.json",
-        mcp: { "plugin-server": { type: "local", command: "uvx", args: ["plugin-srv"] } },
+        mcp: { "plugin-server": { type: "local", command: ["uvx", "plugin-srv"] } },
         permission: { "bash": "allow" }
       },
       agents: [],
@@ -246,24 +342,31 @@ describe("writeOpenCodeBundle", () => {
     expect(mergedConfig.permission["bash"]).toBe("allow")
   })
 
-  test("writes command files as .md in commands/ directory", async () => {
+  test.each(["my-cmd", "..review"])("writes and updates command %s in commands/ directory", async (name) => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-cmd-"))
     const outputRoot = path.join(tempRoot, ".config", "opencode")
     const bundle: OpenCodeBundle = {
+      pluginName: "test-plugin",
       config: { $schema: "https://opencode.ai/config.json" },
       agents: [],
       plugins: [],
-      commandFiles: [{ name: "my-cmd", content: "---\ndescription: Test\n---\n\nDo something." }],
+      commandFiles: [{ name, content: "---\ndescription: Test\n---\n\nDo something." }],
       skillDirs: [],
     }
 
     await writeOpenCodeBundle(outputRoot, bundle)
 
-    const cmdPath = path.join(outputRoot, "commands", "my-cmd.md")
+    const cmdPath = path.join(outputRoot, "commands", `${name}.md`)
     expect(await exists(cmdPath)).toBe(true)
 
     const content = await fs.readFile(cmdPath, "utf8")
     expect(content).toBe("---\ndescription: Test\n---\n\nDo something.\n")
+
+    await writeOpenCodeBundle(outputRoot, {
+      ...bundle,
+      commandFiles: [{ name, content: "Updated command" }],
+    })
+    expect(await fs.readFile(cmdPath, "utf8")).toBe("Updated command\n")
   })
 
   test("rewrites FQ agent names in copied skill markdown (#477)", async () => {
@@ -373,6 +476,25 @@ describe("writeOpenCodeBundle", () => {
 
     const backupContent = await fs.readFile(path.join(commandsDir, backupFileName!), "utf8")
     expect(backupContent).toBe("old content\n")
+  })
+
+  test("an identical reinstall writes no config or command backups", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-idempotent-reinstall-"))
+    const outputRoot = path.join(tempRoot, ".opencode")
+    const bundle: OpenCodeBundle = {
+      pluginName: "compound-engineering",
+      config: { $schema: "https://opencode.ai/config.json" },
+      agents: [],
+      plugins: [],
+      commandFiles: [{ name: "my-cmd", content: "Command body" }],
+      skillDirs: [],
+    }
+
+    await writeOpenCodeBundle(outputRoot, bundle)
+    await writeOpenCodeBundle(outputRoot, bundle)
+
+    const entries = await fs.readdir(outputRoot, { recursive: true })
+    expect(entries.filter((entry) => entry.includes(".bak."))).toEqual([])
   })
 
   test("removes previously managed OpenCode artifacts that disappear on reinstall", async () => {
@@ -967,46 +1089,84 @@ describe("writeOpenCodeBundle preserves user-managed skill and command paths", (
   )
 })
 
-describe("mergeJsonConfigAtKey", () => {
-  test("incoming plugin entries overwrite same-named servers", async () => {
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "json-merge-"))
-    const configPath = path.join(tempDir, "opencode.json")
-
-    // User has an existing MCP server config
-    const existingConfig = {
-      model: "my-model",
-      mcp: {
-        "user-server": { type: "local", command: ["uvx", "user-srv"] },
-      },
-    }
-    await fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
-
-    // Plugin syncs its servers, overwriting same-named entries
-    await mergeJsonConfigAtKey({
-      configPath,
-      key: "mcp",
-      incoming: {
-        "plugin-server": { type: "local", command: ["uvx", "plugin-srv"] },
-        "user-server": { type: "local", command: ["uvx", "plugin-override"] },
-      },
-    })
-
-    const merged = JSON.parse(await fs.readFile(configPath, "utf8"))
-
-    // User's top-level keys preserved
-    expect(merged.model).toBe("my-model")
-    // Plugin server added
-    expect(merged.mcp["plugin-server"]).toBeDefined()
-    // Plugin server overwrites same-named existing entry
-    expect(merged.mcp["user-server"].command[1]).toBe("plugin-override")
-  })
-})
-
 describe("writeOpenCodeBundle guards against ancestor-symlink traversal", () => {
   async function readInstallManifest(outputRoot: string): Promise<{ groups: Record<string, string[]> }> {
     const raw = await fs.readFile(path.join(outputRoot, "compound-engineering", "install-manifest.json"), "utf8")
     return JSON.parse(raw) as { groups: Record<string, string[]> }
   }
+
+  test.skipIf(!canDirSymlink).each(["update", "create", "remove"])(
+    "preserves a nested command namespace pointing outside the store during %s",
+    async (operation) => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-nested-command-"))
+      try {
+        const outputRoot = path.join(tempRoot, ".opencode")
+        const bundle: OpenCodeBundle = {
+          pluginName: "compound-engineering",
+          config: {},
+          agents: [],
+          plugins: [],
+          commandFiles: [{ name: "workflows:review", content: "Plugin command" }],
+          skillDirs: [],
+        }
+        await writeOpenCodeBundle(outputRoot, bundle)
+
+        const namespace = path.join(outputRoot, "commands", "workflows")
+        const forkDir = path.join(tempRoot, "user-commands")
+        await fs.mkdir(forkDir)
+        await fs.writeFile(path.join(forkDir, "notes.md"), "User notes")
+        if (operation !== "create") {
+          await fs.writeFile(path.join(forkDir, "review.md"), "User command")
+        }
+        const originalFiles = (await fs.readdir(forkDir)).sort()
+        await fs.rm(namespace, { recursive: true })
+        await fs.symlink(forkDir, namespace, "junction")
+
+        await writeOpenCodeBundle(outputRoot, {
+          ...bundle,
+          commandFiles: operation === "remove" ? [] : bundle.commandFiles,
+        })
+
+        expect((await fs.lstat(namespace)).isSymbolicLink()).toBe(true)
+        expect((await fs.readdir(forkDir)).sort()).toEqual(originalFiles)
+        expect(await fs.readFile(path.join(forkDir, "notes.md"), "utf8")).toBe("User notes")
+        if (operation !== "create") {
+          expect(await fs.readFile(path.join(forkDir, "review.md"), "utf8")).toBe("User command")
+        }
+        expect((await readInstallManifest(outputRoot)).groups.commands).toEqual([])
+      } finally {
+        await fs.rm(tempRoot, { recursive: true, force: true })
+      }
+    },
+  )
+
+  test.skipIf(!canDirSymlink)("updates commands when the entire config root is relocated", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-relocated-root-"))
+    try {
+      const outputRoot = path.join(tempRoot, ".opencode")
+      const relocatedRoot = path.join(tempRoot, "relocated-config")
+      await fs.mkdir(relocatedRoot)
+      await fs.symlink(relocatedRoot, outputRoot, "junction")
+      const bundle: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: {},
+        agents: [],
+        plugins: [],
+        commandFiles: [{ name: "workflows:review", content: "Version one" }],
+        skillDirs: [],
+      }
+      await writeOpenCodeBundle(outputRoot, bundle)
+      await writeOpenCodeBundle(outputRoot, {
+        ...bundle,
+        commandFiles: [{ name: "workflows:review", content: "Version two" }],
+      })
+      expect(await fs.readFile(path.join(relocatedRoot, "commands", "workflows", "review.md"), "utf8"))
+        .toBe("Version two\n")
+      expect((await readInstallManifest(outputRoot)).groups.commands).toEqual(["workflows/review.md"])
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
 
   test.skipIf(!canDirSymlink)(
     "does not write through a store dir that is itself a symlink into a user fork",

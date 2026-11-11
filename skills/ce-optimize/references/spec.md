@@ -2,6 +2,8 @@
 
 Read this at the start of Phase 0. It carries how to tell a spec path from a goal description, and how to load, build, or validate the spec before CP-0. The schemas it validates against are `references/optimize-spec-schema.yaml` and `references/experiment-log-schema.yaml`.
 
+**Horizon:** continue while another measurement or experiment is worthwhile within the stopping rules. Start serial until measurement is trusted. Stop as soon as a stopping criterion holds.
+
 ### 0.1 Determine Input Type
 
 Check whether the input is:
@@ -12,12 +14,12 @@ Check whether the input is:
 
 **If spec file provided:**
 1. Read the YAML spec file. The orchestrating agent parses YAML natively -- no shell script parsing.
-2. Validate the spec against **every** rule in the `validation_rules` section of `references/optimize-spec-schema.yaml` (that section is the single source of truth for what a valid spec requires — do not rely on a remembered subset; conditional rules such as the singleton-rubric and exclusive-resources requirements live only there).
+2. Validate the spec against **every** rule in the `validation_rules` section of `references/optimize-spec-schema.yaml`. That section is the single source of truth for what a valid spec requires. Do not rely on a remembered subset; conditional rules such as the singleton-rubric and exclusive-resources requirements live only there.
 3. If any rule fails, report the specific failures and ask the user to fix them before proceeding
 
 **If description provided:**
-1. Analyze the project to understand what can be measured
-2. **Detect whether the optimization target is qualitative or quantitative** — this determines `type: hard` vs `type: judge` and is the single most important spec decision:
+1. Analyze the project to understand what can be measured. `references/usage-guide.md` has longer kickoff prompt shapes if the interview needs them.
+2. **Detect whether the optimization target is qualitative or quantitative.** This determines `type: hard` vs `type: judge` and is the single most important spec decision:
 
    **Use `type: hard`** when:
    - The metric is a scalar number with a clear "better" direction
@@ -35,11 +37,13 @@ Check whether the input is:
    - Examples: clustering quality, search relevance, summarization quality, code readability, UX copy, recommendation relevance
 
    **IMPORTANT**: If the target is qualitative, **strongly recommend `type: judge`**. Explain that hard metrics alone will optimize proxy numbers without checking actual quality. Show the user the three-tier approach:
-   - **Degenerate gates** (hard, cheap, fast): catch obviously broken solutions — e.g., "all items in 1 cluster" or "0% coverage". Run first. If gates fail, skip the expensive judge step.
+   - **Degenerate gates** (hard, cheap, fast checks that reject a candidate outright): catch obviously broken solutions such as "all items in 1 cluster" or "0% coverage". Run first. If any gate fails, skip the expensive judge step.
    - **LLM-as-judge** (the actual optimization target): sample outputs, score them against a rubric, aggregate. This is what the loop optimizes.
-   - **Diagnostics** (logged, not gated): distribution stats, counts, timing — useful for understanding WHY a judge score changed.
+   - **Diagnostics** (logged, never used to reject): distribution stats, counts, timing. These help explain WHY a judge score changed.
 
    If the user insists on `type: hard` for a qualitative target, proceed but warn that the results may optimize a misleading proxy.
+
+   **Exemplars for the validity gate.** A person's input is needed only where the score is itself a judgment. When the primary is measured objectively (a duration, a size, a count, a pass rate over fixed cases), ask the user for nothing here: the measurement is its own ground truth, and Phase 1 builds the shortcut probe itself. When the primary is a judgment (`type: judge`, or a hard metric standing in for a quality the user would otherwise rate), use the known-good and known-bad outputs the project already has (recorded failures, fixtures, the cases of a text target) and ask the user only for what is missing: a few outputs they would score at the top and a few at the bottom. A user who has none to give is not blocked; Phase 1 runs the probes it can and states the rest as a limitation at approval. When the target is instruction text (a skill, an agent-instructions file, a persona, a tool description), read `references/text-targets.md` before going further: the eval set and the hypothesis moves differ from a code target.
 
 3. **Design the sampling strategy** (for `type: judge`):
 
@@ -54,18 +58,18 @@ Check whether the input is:
    Example stratified sampling for clustering:
    ```yaml
    stratification:
-     - bucket: "top_by_size"     # largest clusters — check for degenerate mega-clusters
+     - bucket: "top_by_size"     # largest clusters: check for degenerate mega-clusters
        count: 10
-     - bucket: "mid_range"       # middle of non-solo cluster size range — representative quality
+     - bucket: "mid_range"       # middle of non-solo cluster size range: representative quality
        count: 10
-     - bucket: "small_clusters"  # clusters with 2-3 items — check if connections are real
+     - bucket: "small_clusters"  # clusters with 2-3 items: check if connections are real
        count: 10
-   singleton_sample: 15          # singletons — check for false negatives (items that should cluster)
+   singleton_sample: 15          # singletons: check for false negatives (items that should cluster)
    ```
 
    The sampling strategy is domain-specific. For search relevance, strata might be "top-3 results", "results 4-10", "tail results". For summarization, strata might be "short documents", "long documents", "multi-topic documents".
 
-   **Singleton evaluation is critical when the goal involves coverage** — sampling singletons with the singleton rubric checks whether the system is missing obvious groupings.
+   **Singleton evaluation is critical when the goal involves coverage.** Sampling singletons with the singleton rubric checks whether the system is missing obvious groupings.
 
 4. **Design the rubric** (for `type: judge`):
 
@@ -73,7 +77,8 @@ Check whether the input is:
    - Has a 1-5 scale (or similar) with concrete descriptions for each level
    - Includes supplementary fields that help diagnose issues (e.g., `distinct_topics`, `outlier_count`)
    - Is specific enough that two judges would give similar scores
-   - Does NOT assume bigger/more is better — "3 items per cluster average" is not inherently good or bad
+   - Does NOT assume bigger/more is better. "3 items per cluster average" is not inherently good or bad
+   - Asks for a per-item `feedback` string (what is wrong, what would fix it); the judge template requires it and Phase 3 generates hypotheses from it
 
    Example for clustering:
    ```yaml
@@ -82,18 +87,21 @@ Check whether the input is:
      - 5: All items clearly about the same issue/feature
      - 4: Strong theme, minor outliers
      - 3: Related but covers 2-3 sub-topics that could reasonably be split
-     - 2: Weak connection — items share superficial similarity only
+     - 2: Weak connection: items share superficial similarity only
      - 1: Unrelated items grouped together
      Also report: distinct_topics (integer), outlier_count (integer)
    ```
 
 5. Guide the user through the remaining spec fields:
-   - What degenerate cases should be rejected? (gates — e.g., "solo_pct <= 0.95" catches all-singletons, "max_cluster_size <= 500" catches mega-clusters)
+   - What degenerate cases should be rejected? (degenerate gates, for example "solo_pct <= 0.95" catches all-singletons and "max_cluster_size <= 500" catches mega-clusters)
    - What command runs the measurement?
    - What files can be modified? What is immutable?
    - Any constraints or dependencies?
    - If this is the first run: recommend `execution.mode: serial`, `execution.max_concurrent: 1`, `stopping.max_iterations: 4`, and `stopping.max_hours: 1`
    - If the user named multiple required hard targets or an expensive harness: recommend `metric.objectives` plus `stability.mode: ladder` as above, and show `references/example-expensive-benchmark-spec.yaml`
    - If `type: judge`: recommend `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5` until the rubric and harness are trusted
-6. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
-7. Present the spec to the user for approval before proceeding
+   - Holdout: a held-out set the loop confirms against but never selects from. `measurement.holdout.command` (same JSON shape as the measurement command), or for a judge primary `metric.judge.confirmation_seed` distinct from `sample_seed`, whose sample shares no item with the selection sample. Required for `type: judge` and when the run waits between ticks through a wake after turn end (`references/persistence.md`, The Wait Record and Ticks); otherwise recommended, and its absence is stated at the approval gate
+   - If `type: judge`: do not ask for hand-scored examples here. When the user already has a labeled sample, name it in `metric.judge.calibration.labels`; otherwise leave it unset, and Phase 1 offers a short guided check once the baseline has been judged (`references/measurement.md` 1.3)
+   - Per-case results: when the harness can emit a `cases` map (case id to pass/fail), set `measurement.per_case: true` so keeps and the wrap-up report which cases the baseline passed and the candidate fails
+6. Write the spec to `<state-root>/spec.yaml`, with `<state-root>` resolved by `references/persistence.md` (The State Root)
+7. Present the proposed scope, behavior constraints, measurement approach, and limits for approval before proceeding, with a link to the saved spec. Apply the SKILL.md body's user-facing reporting rule. Put whatever the user is being asked to judge in front of them: for a judge primary that is the rubric's scale, level by level, because it is their definition of better and they cannot approve it from a link to a file. Send all of that as an ordinary message, laid out so it is easy to read (the scale as a list, scope and limits on their own lines), and only then ask. The question itself is one short sentence and its options: a question picker shows long text as a single cramped block.

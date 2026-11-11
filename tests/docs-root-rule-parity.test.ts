@@ -21,6 +21,7 @@ const FIXTURE = path.join(REPO_ROOT, "tests", "fixtures", "docs-root-rule.md")
 // the exception and the step that guarantees the read; the parity requirement is
 // unchanged, only the file it is asserted against.
 const CONSUMER_FILES: Record<string, string> = {
+  "ce-bakeoff": "references/output.md",
   // ce-plan reads its output owner before phase interpretation and resolves the
   // root lazily when a later route first composes a rooted path.
   "ce-plan": "references/output-mode.md",
@@ -31,11 +32,15 @@ const CONSUMER_FILES: Record<string, string> = {
   // reading this reference. Codex injects only the first 8000 bytes of a SKILL.md,
   // so a body copy is the less reliable of the two homes.
   lfg: "references/plan-brief.md",
+  // ce-commit-push-pr composes <root>/ paths only in explainer archival, which this
+  // reference owns and states the rule immediately before.
+  "ce-commit-push-pr": "references/apply-and-handoff.md",
 }
 const CONSUMER_SKILLS = [
+  "ce-help",
+  "ce-bakeoff",
   "ce-setup",
   "ce-compound",
-  "ce-compound-refresh",
   "ce-plan",
   "ce-brainstorm",
   "ce-ideate",

@@ -6,7 +6,7 @@ The floor exists because a variant judged through a broken render is a false neg
 
 ## Apply only what the question puts in play
 
-Take the items the question's dimensions reach and leave the rest. A placement question does not acquire a motion moment or an empty state because they are listed here; a typographic direction does not need a loading state to be judged. Adding items the question does not turn on inflates the build past the dimension under test, which the fidelity rule already forbids.
+Take the items the question's dimensions reach and leave the rest. A placement question does not acquire a motion moment or an empty state because they are listed here; a typographic direction does not need a loading state to be judged. Adding items the question does not turn on inflates the build past the dimension under test, which the rule against faking or overbuilding the dimension being tested already forbids.
 
 ## The floor
 

@@ -6,6 +6,10 @@ Required read before you write any prototype code, alongside `references/preview
 
 Fidelity is a different axis from size (`references/scoping.md` owns sizing, which the go-ahead depends on). Throwaway means unmaintained and unshipped, not thin — do not test, abstract, or harden past runnable, but take finish as far as the dimension under test needs. A flow or state model gets rich enough to drive; a visual direction gets finished enough to judge; a placement question stays thin. Fidelity may differ per avenue within one wide run. Do not stay low-fidelity on principle, and persist state only when persistence is the question.
 
+## Yields from the web default
+
+It yields in exactly two cases: the user names a technology, or the dimension cannot be rendered in a browser without faking it. In that second case, build in the medium the dimension requires, and name that choice before you build. If a named technology also cannot render the dimension, say so rather than yielding silently. The rest of this file defines what the artifact may be on either path.
+
 ## The artifact on the web path
 
 On the web path the artifact is whatever a browser can display and you can author — HTML, SVG, CSS renderings, images — shown inside the page the preview helper already serves. Where the host offers image generation, use it. Where it does not, author the candidates as markup when markup can carry the dimension honestly, and say so; when it cannot — a photographic or painterly direction — report the missing capability instead, because substituting markup there fakes the very thing being judged. Do not introduce a second display mechanism alongside that page; a yielded run displays however its own medium does.
@@ -22,9 +26,11 @@ Scale into the existing app only as a throwaway overlay when the user asks or th
 
 ## Showing it
 
-When the question is which option wins, put the options on one surface so they can be judged together — unless that surface would distort what is being judged: a scroll or transition gets a full-size run of its own rather than being nested in a small framed panel, and the comparison surface stays static.
+When the question is which option wins, put the options on one surface so they can be judged together — unless that surface would distort what is being judged: a scroll or transition gets a full-size run of its own rather than being nested in a small framed panel, and the comparison surface stays static. When a control swaps the options in place, such as tabs, give each option's container `data-ce-variant="<name>"` with a name no other option on the screen uses, so an annotation pin shows only on the option it was placed on.
 
 After each user-facing action or variant change, show the relevant state so they can see what changed.
+
+While an annotation loop is running, revise the screen the record names, in place. Do not mint a new numbered `00N-*.html` per pin.
 
 Give each question in a multi-question run its own child directory under the run directory. Never delete a kept prototype — the directory is theirs to prune. Calling the prototype throwaway is not a request to delete it; throwaway describes the code.
 

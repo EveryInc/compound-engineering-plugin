@@ -1,0 +1,3 @@
+node_modules/
+.compound-engineering/*.local.yaml
+.context/compound-engineering/

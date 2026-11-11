@@ -1,0 +1,111 @@
+[
+  {
+    "reviewer": "coherence",
+    "findings": [
+      {
+        "id": "F1",
+        "title": "Normalize export vocabulary",
+        "section": "Verification",
+        "why_it_matters": "Both terms denote the same URL; uniform wording would be neater.",
+        "finding_type": "error",
+        "autofix_class": "safe_auto",
+        "suggested_fix": "Replace export URL with download link.",
+        "confidence": 50,
+        "severity": "P2",
+        "evidence": [
+          "The terms \"download link\" and \"export URL\" both refer to the same signed URL."
+        ]
+      }
+    ],
+    "residual_risks": [
+      "The terminology might concern a future reader who prefers a single synonym, despite the explicit equivalence."
+    ],
+    "deferred_questions": [
+      "Should this plan include a provider class hierarchy for hypothetical future signing providers?"
+    ]
+  },
+  {
+    "reviewer": "feasibility",
+    "findings": [
+      {
+        "id": "F2",
+        "title": "Use one link term",
+        "section": "Verification",
+        "why_it_matters": "The wording varies but the reader is told it means the same thing.",
+        "finding_type": "error",
+        "autofix_class": "safe_auto",
+        "suggested_fix": "Replace export URL with download link.",
+        "confidence": 50,
+        "severity": "P2",
+        "evidence": [
+          "The terms \"download link\" and \"export URL\" both refer to the same signed URL."
+        ]
+      }
+    ],
+    "residual_risks": [],
+    "deferred_questions": []
+  },
+  {
+    "reviewer": "security-lens",
+    "findings": [
+      {
+        "id": "F3",
+        "title": "U2 omits ownership",
+        "section": "Implementation",
+        "why_it_matters": "U2 can sign another account\u2019s export if implemented as stated.",
+        "finding_type": "omission",
+        "autofix_class": "gated_auto",
+        "suggested_fix": "Specify assertOwner before signing in U2.",
+        "confidence": 100,
+        "severity": "P2",
+        "evidence": [
+          "U2 adds the download endpoint. It loads an export by its identifier and signs a link."
+        ]
+      }
+    ],
+    "residual_risks": [],
+    "deferred_questions": []
+  },
+  {
+    "reviewer": "feasibility",
+    "findings": [
+      {
+        "id": "F4",
+        "title": "Keep U2 as written",
+        "section": "Implementation",
+        "why_it_matters": "The URL signature already supplies ownership protection, so an ownership helper would be redundant.",
+        "finding_type": "error",
+        "autofix_class": "manual",
+        "suggested_fix": "Keep U2 without an ownership check.",
+        "confidence": 75,
+        "severity": "P2",
+        "evidence": [
+          "A signed link does not replace the ownership check."
+        ]
+      }
+    ],
+    "residual_risks": [],
+    "deferred_questions": []
+  },
+  {
+    "reviewer": "scope-guardian",
+    "findings": [
+      {
+        "id": "F5",
+        "title": "Set retention",
+        "section": "Decisions",
+        "why_it_matters": "The deletion behavior differs between the two viable periods.",
+        "finding_type": "omission",
+        "autofix_class": "manual",
+        "suggested_fix": "Choose 7-day retention.",
+        "confidence": 75,
+        "severity": "P2",
+        "evidence": [
+          "Neither period is approved."
+        ]
+      }
+    ],
+    "residual_risks": [],
+    "deferred_questions": []
+  }
+]

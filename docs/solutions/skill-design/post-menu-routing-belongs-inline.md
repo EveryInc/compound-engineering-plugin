@@ -33,7 +33,7 @@ Whichever placement, the routing line must be platform-explicit: name the skill-
 
 **Two things belong in the body regardless of how well the pointer is written:**
 
-- **The stop class that must hold when the file is never opened.** `ce-explain` keeps "ht-ml.app is public, so it must never be selected headlessly" and its non-interactive degradation path in the body, because those decide what happens on the path where the read did not occur.
+- **The stop class that must hold when the file is never opened.** `ce-explain` keeps "Publishing to ht-ml.app is never headless and never inferred" and its non-interactive degradation path in the body, because those decide what happens on the path where the read did not occur.
 - **Anything whose step acts before the read.** `ce-explain`'s ownership-checked `$RUN_DIR` fence was moved behind a required read once and moved back (#1451): that PR's own eval caught a harness creating `$RUN_DIR` without loading the file, and an improvised `mkdir` accepts a planted symlink or foreign-owned directory. A required read is reliable for a step whose first action *is* reading it, not for a step with something to do first.
 
 **Move a contract test with the contract and you delete the guard.** If routing must be inline, the test asserts it is inline; if it must be in a named required read, the test asserts the pointer and the file. Pin where the rule says the text must be, not wherever the string currently lives — `ce-debug`'s `branding:on` test had been repointed at the reference along with the routing, so nothing was left watching the body.
@@ -56,6 +56,8 @@ Two Claude runs emitted only `READ: references/post-fix-handoff.md` and stopped 
 |---|---:|---:|---:|---:|
 | routing inline | 27/27 | 21/21 | **48/48** | 11/48 |
 | routing in the required-read reference | 27/27 | 21/21 | **48/48** | **48/48** |
+
+`ce-explain` later dropped the destination menu (a destination is now read from `references/destinations.md` only when one was requested), so this table is historical evidence about the pointer's shape, not a description of the current skill.
 
 **The 0/5 does not reproduce once the pointer is written that way.** `ce-debug`'s routing was re-measured relocated into its required-read reference with the stub rewritten to name what only the file carries and what skipping costs, fire-the-action imperative kept in the body, three trials per arm: inline 6/6, reference 5/6, the one miss taking the skill's named safe direction on a no-network scenario. `ce-debug` keeps its routing inline anyway: relocating lands the body at 13,118 CRLF bytes, still far over the 8,000 target, so the move buys no headroom while spending a measured margin.
 

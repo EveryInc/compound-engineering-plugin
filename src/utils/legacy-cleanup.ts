@@ -376,6 +376,7 @@ const LEGACY_SKILL_DESCRIPTION_ALIASES: Record<string, string[]> = {
   setup: [
     "Configure project-level settings for compound-engineering workflows. Currently a placeholder — review agent selection is handled automatically by ce:review.",
     "Check Compound Engineering health and repo-local config. Reports optional tool capabilities, removes obsolete local config, refreshes the config example, and helps safely gitignore machine-local settings. Use when verifying setup, troubleshooting missing optional tools, or onboarding a repo.",
+    "Check Compound Engineering health and repo-local config.",
   ],
 }
 
