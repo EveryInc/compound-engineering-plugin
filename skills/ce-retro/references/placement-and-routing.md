@@ -6,7 +6,7 @@
 
 Prefer the fix that removes the most cost while adding the least to what every future agent must read. Try these in order and take the first that holds:
 
-1. **Remove something.** Delete an instruction that did nothing or caused the friction, a stale doc passage, or a rule a check now covers. Removal is a fix, not a side effect.
+1. **Remove something.** Delete an instruction that did nothing or caused the friction, a stale doc passage, or a rule a check now covers. Removal is a fix, not a side effect. When an instruction asks for something the repo does not have and no session suffered for its absence, remove the instruction rather than create what it asks for.
 2. **A check.** A lint rule, test, hook, or CI step that catches the mistake mechanically. Use one when the mistake has a fixed shape a tool can detect.
 3. **A pointer or a doc fix.** Correct the stale path or command, or add a short pointer where the agent looked first. Use one when the agent lost time finding something that exists.
 4. **A standard.** A condition for reviewers in the nearest `CODING_STANDARDS.md` or equivalent. Use one for a judgment call a reviewer can see in a diff and no tool can check.

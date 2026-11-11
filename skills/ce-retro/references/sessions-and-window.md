@@ -74,7 +74,8 @@ When the user asked for a span of time or many sessions:
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
 PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
-"$PY" "$SKILL_DIR/scripts/session-history/extract-skeleton.py" --output "$RUN_DIR/<session-id>.skeleton.txt" < "<session-file>"
+SESSION_FILE="<session-file>";
+"$PY" "$SKILL_DIR/scripts/session-history/extract-skeleton.py" --output "$RUN_DIR/<session-id>.skeleton.txt" < "$SESSION_FILE"
 ```
 
 Run `extract-errors.py` the same way with an `.errors.txt` output. Use the same two scripts on a single session file when you read one. Cursor transcripts do not log tool results, so they yield no errors.
