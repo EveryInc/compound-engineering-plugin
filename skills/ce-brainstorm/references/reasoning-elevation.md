@@ -20,7 +20,7 @@ If the session model already **is** the resolved model, there is nothing to elev
 
 ### Effort resolution (Claude CLI route only)
 
-Once a model is resolved, separately resolve the reasoning effort the Claude CLI worker runs at, from the matching per-skill config key: `plan_effort` for ce-plan, `brainstorm_effort` for ce-brainstorm. Read it from the same config layer as the model (`config.local.yaml` then `config.yaml`, ordinary-key rule). One of `low`, `medium`, `high`, `xhigh`, `max` is a valid override; anything else — an unrecognized word, a number, a blank value — is **invalid, not a fallback to high**: name the offending value and the accepted set, and skip elevation for that run rather than dispatch at a silently different effort than configured. **Unset or absent stays `high`** — the effort key is opt-in and never changes existing behavior for a checkout that has not set it. There is no live-conversation or caller-carrier source for effort; config is the only input. The native adapter (Claude Code `Agent`/`Task` tool) has no per-dispatch effort override, so this key only affects the Claude CLI route (see Adapter selection): a native dispatch always runs at whatever effort the invoking harness uses by default.
+Once a model is resolved, separately resolve the reasoning effort the Claude CLI worker runs at, from the matching per-skill config key: `plan_effort` for ce-plan, `brainstorm_effort` for ce-brainstorm. Read it from the same config layer as the model (`config.local.yaml` then `config.yaml`, ordinary-key rule). One of `low`, `medium`, `high`, `xhigh`, `max` is a valid override; anything else — an unrecognized word, a number, a blank value — is **invalid, not a fallback to high**: name the offending value and the accepted set, and skip elevation for that run rather than dispatch at a silently different effort than configured. **Unset or absent stays `high`** — the effort key is opt-in and never changes existing behavior for a checkout that has not set it. There is no live-conversation or caller-carrier source for effort; config is the only input, and the skill forwards the resolved effort to the dispatch boundary (using `high` when no key is configured) so an ambient `CE_ELEVATION_EFFORT` in the launching harness cannot change the default. The native adapter (Claude Code `Agent`/`Task` tool) has no per-dispatch effort override, so this key only affects the Claude CLI route (see Adapter selection): a native dispatch always runs at whatever effort the invoking harness uses by default.
 
 ## Adapter selection
 
@@ -83,11 +83,12 @@ PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c 
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read — this skill's own directory>";
    PY="$(for c in python3 python py; do command -v "$c" >/dev/null 2>&1 && "$c" -c '' >/dev/null 2>&1 && { echo "$c"; break; }; done)"; [ -n "$PY" ] || { echo "no working Python 3 interpreter on PATH" >&2; exit 1; };
    SKILL_NAME="<this skill's name: ce-plan or ce-brainstorm>";
-   # Include the CE_ELEVATION_EFFORT= line only when plan_effort / brainstorm_effort
-   # resolved to a valid value. With no effort key configured, delete that line
-   # entirely: an empty assignment is rejected as an invalid override, not unset.
+   # Always forward the resolved effort, including high when no effort key is
+   # set: peer-job-runner copies its own environment into the detached worker,
+   # so an omitted assignment would inherit whatever CE_ELEVATION_EFFORT the
+   # launching harness happens to export.
    CE_PEER_HARD_SECS=5400 CE_ELEVATION_HARD_SECS=5400 CE_PEER_LOG_MAX_BYTES=52428800 \
-     CE_ELEVATION_EFFORT="<resolved effort>" \
+     CE_ELEVATION_EFFORT="<resolved effort, or high when no effort key is configured>" \
      "$PY" "$SKILL_DIR/scripts/peer-job-runner.py" start \
      --skill "$SKILL_NAME" --run-id "<run-id>" --label elevation \
      --result-path "<result-path>" \

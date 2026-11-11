@@ -14,11 +14,6 @@ import {
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-// A caller or CI shell may export CE_ELEVATION_EFFORT, which sandbox() would
-// inherit through process.env and turn the default-effort assertions into a
-// test of the ambient environment.
-delete process.env.CE_ELEVATION_EFFORT
-
 // Drives real detached workers and idle-window reaping; its slowest case
 // measured 4338ms on CI against bun's 5000ms default, so runner busyness —
 // not correctness — decided whether it passed.
@@ -69,6 +64,21 @@ const NEVER_FLAGS = [
   "--force",
 ]
 
+// tests/CODING_STANDARDS.md requires child processes to get an environment with
+// harness, proxy, and session variables scrubbed. A caller or CI shell that
+// exports CE_ELEVATION_EFFORT would otherwise decide the default-effort
+// assertions, and CODEX_*/CLAUDE_* would leak harness state into the worker.
+const SCRUBBED_ENV = /^(CE_ELEVATION_|CODEX_|CLAUDE_)|^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY)$/
+
+function childEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {}
+  for (const [key, value] of Object.entries(process.env)) {
+    if (SCRUBBED_ENV.test(key)) continue
+    env[key] = value
+  }
+  return { ...env, ...extra }
+}
+
 /** Sandbox PATH: real coreutils plus a stub `claude` with the given body.
  *  `omit` drops named tools from the PATH to exercise missing-capability paths. */
 function sandbox(
@@ -89,7 +99,7 @@ function sandbox(
   const f = path.join(bin, "claude")
   writeFileSync(f, claudeStub)
   chmodSync(f, 0o755)
-  return { bin, env: { ...process.env, PATH: bin } }
+  return { bin, env: childEnv({ PATH: bin }) }
 }
 
 /** Run the worker with a stub claude; returns the parsed result envelope + stderr. */
@@ -132,12 +142,14 @@ describe("elevation-dispatch worker", () => {
   test("emits a streaming, read-only claude argv", () => {
     const r = spawnSync("bash", [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"], {
       encoding: "utf8",
+      env: childEnv(),
     })
     expect(r.status).toBe(0)
     const argv = (r.stdout ?? "").split("\0").filter(Boolean)
     expect(argv.slice(0, 4)).toEqual(["claude", "-p", "--model", "fable"])
-    expect(argv).toContain("--effort")
-    expect(argv).toContain("high")
+    const ei = argv.indexOf("--effort")
+    expect(ei).toBeGreaterThan(-1)
+    expect(argv[ei + 1]).toBe("high")
     expect(argv).toContain("stream-json")
     expect(argv).toContain("--verbose")
     // one-shot background call — no resumable session left on disk
@@ -171,7 +183,7 @@ describe("elevation-dispatch worker", () => {
     const r = spawnSync(
       "bash",
       [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"],
-      { encoding: "utf8", env: { ...process.env, CE_ELEVATION_EFFORT: "xhigh" } },
+      { encoding: "utf8", env: childEnv({ CE_ELEVATION_EFFORT: "xhigh" }) },
     )
     expect(r.status).toBe(0)
     const argv = (r.stdout ?? "").split("\0").filter(Boolean)
@@ -184,7 +196,7 @@ describe("elevation-dispatch worker", () => {
     const r = spawnSync(
       "bash",
       [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"],
-      { encoding: "utf8", env: { ...process.env, CE_ELEVATION_EFFORT: "extreme" } },
+      { encoding: "utf8", env: childEnv({ CE_ELEVATION_EFFORT: "extreme" }) },
     )
     expect(r.status).toBe(2)
     expect(r.stderr).toContain("invalid effort override")
@@ -221,7 +233,7 @@ describe("elevation-dispatch worker", () => {
     const emit = spawnSync(
       "bash",
       [WORKER, "--emit-adapter", "fable", "/fake/handoff/xyz"],
-      { encoding: "utf8", env: { ...process.env, CE_ELEVATION_EFFORT: "" } },
+      { encoding: "utf8", env: childEnv({ CE_ELEVATION_EFFORT: "" }) },
     )
     expect(emit.status).toBe(2)
     expect(emit.stderr).toContain("invalid effort override")
