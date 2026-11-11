@@ -514,6 +514,22 @@ describe("Codex development installation transitions", () => {
     expect(await fs.readlink(context.collectionPath)).toBe(target)
   })
 
+  test.each(["file", "unrelated link", "dangling link"])(
+    "remove refuses a %s at the managed path before uninstalling any plugin",
+    async (kind) => {
+      const context = await makeContext()
+      await fs.mkdir(path.dirname(context.collectionPath), { recursive: true })
+      if (kind === "file") await fs.writeFile(context.collectionPath, "user content")
+      else if (kind === "unrelated link") await fs.symlink(context.codexHome, context.collectionPath)
+      else await fs.symlink("../../deleted/skills", context.collectionPath)
+      const runner = new StatefulCodexRunner([plugin("compound-engineering@personal")])
+
+      await expect(removeCodexDevInstallation(context, runner)).rejects.toThrow("refusing to remove")
+      expect(runner.plugins).toHaveLength(1)
+      expect(runner.calls).toEqual([])
+    },
+  )
+
   test("local mode removes every installed CE plugin variant and verifies the live worktree link", async () => {
     const context = await makeContext()
     const runner = new StatefulCodexRunner([

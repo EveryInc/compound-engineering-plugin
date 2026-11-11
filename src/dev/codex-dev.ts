@@ -416,9 +416,10 @@ async function restoreLocalCollection(
   })
 }
 
-export async function removeLocalCollection(context: CodexDevContext): Promise<boolean> {
-  const state = await inspectLocalCollection(context)
-  if (state.kind === "absent") return false
+function assertLocalCollectionRemovable(
+  context: CodexDevContext,
+  state: LocalCollectionState,
+): asserts state is Extract<LocalCollectionState, { kind: "absent" | "valid" }> {
   if (state.kind === "collision") {
     throw new Error(`${context.collectionPath} exists and is not a symlink; refusing to remove it`)
   }
@@ -428,6 +429,12 @@ export async function removeLocalCollection(context: CodexDevContext): Promise<b
   if (state.kind === "broken") {
     throw new Error(`${context.collectionPath} is a broken symlink; refusing to remove it automatically`)
   }
+}
+
+export async function removeLocalCollection(context: CodexDevContext): Promise<boolean> {
+  const state = await inspectLocalCollection(context)
+  assertLocalCollectionRemovable(context, state)
+  if (state.kind === "absent") return false
   await removeManagedCollectionLink(context.collectionPath, state.target)
   return true
 }
@@ -643,6 +650,7 @@ export async function removeCodexDevInstallation(
   context: CodexDevContext,
   runner: CommandRunner = new BunCommandRunner(),
 ): Promise<CodexDevStatus> {
+  assertLocalCollectionRemovable(context, await inspectLocalCollection(context))
   const plugins = await listCompoundEngineeringPlugins(context, runner)
   await removeLocalPluginConflicts(context, runner, plugins)
   await removeLocalCollection(context)
