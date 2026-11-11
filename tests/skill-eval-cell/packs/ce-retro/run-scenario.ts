@@ -68,7 +68,7 @@ function sealCodex(cell: string, codexHome: string): Record<string, string> {
   return { CLAUDE_CONFIG_DIR: path.join(cell, "stores", "claude") }
 }
 
-function relocate(srcCell: string, cell: string, s: ScenarioFile) {
+export function relocate(srcCell: string, cell: string, s: ScenarioFile) {
   const stores = path.join(cell, "stores")
   for (const file of walk(stores)) {
     fs.writeFileSync(file, fs.readFileSync(file, "utf8").replaceAll(srcCell, cell))
@@ -82,8 +82,19 @@ function relocate(srcCell: string, cell: string, s: ScenarioFile) {
     }
   }
   if (s.worktree_dir) {
+    // Both link files still name the source cell; repair alone would rewrite the source's links, not the copy's.
+    const links = [path.join(cell, s.worktree_dir, ".git")]
+    const adminDir = path.join(cell, s.repo_dir, ".git", "worktrees")
+    for (const name of fs.existsSync(adminDir) ? fs.readdirSync(adminDir) : []) links.push(path.join(adminDir, name, "gitdir"))
+    for (const link of links) if (fs.existsSync(link)) fs.writeFileSync(link, fs.readFileSync(link, "utf8").replaceAll(srcCell, cell))
     const r = spawnSync("git", ["-C", path.join(cell, s.repo_dir), "worktree", "repair", path.join(cell, s.worktree_dir)], { encoding: "utf8" })
     if (r.status !== 0) throw new Error(`git worktree repair failed:\n${r.stderr}`)
+    const list = spawnSync("git", ["-C", path.join(cell, s.repo_dir), "worktree", "list", "--porcelain"], { encoding: "utf8" })
+    const paths = list.stdout.split("\n").filter((l) => l.startsWith("worktree ")).map((l) => fs.realpathSync(l.slice(9)))
+    const realCell = fs.realpathSync(cell)
+    if (list.status !== 0 || paths.length < 2 || paths.some((p) => !p.startsWith(realCell + path.sep))) {
+      throw new Error(`copied cell's worktrees are not isolated:\n${list.stdout}${list.stderr}`)
+    }
   }
 }
 
@@ -413,7 +424,9 @@ async function main() {
   console.log(out)
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+}

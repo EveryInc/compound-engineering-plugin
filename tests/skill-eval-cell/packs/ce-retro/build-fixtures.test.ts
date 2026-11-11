@@ -5,6 +5,7 @@ import os from "node:os"
 import path from "node:path"
 import { REPO_ROOT } from "../../extract"
 import type { ScenarioFile } from "./scenarios"
+import { relocate } from "./run-scenario"
 
 setDefaultTimeout(30_000)
 
@@ -22,6 +23,25 @@ describe("ce-retro eval fixtures", () => {
     const r = build(path.join(REPO_ROOT, ".ce-retro-fixture-probe"), "no-user")
     expect(r.status).toBe(2)
     expect(fs.existsSync(path.join(REPO_ROOT, ".ce-retro-fixture-probe"))).toBe(false)
+  })
+
+  test("a copied worktree cell links only to itself and leaves the source untouched", () => {
+    const out = path.join(tmp, "isolate")
+    expect(build(out, "worktree-run").status).toBe(0)
+    const src = path.join(out, "worktree-run", "cell")
+    const s: ScenarioFile = JSON.parse(fs.readFileSync(path.join(out, "worktree-run", "scenario.json"), "utf8"))
+    const before = fs.readFileSync(path.join(src, s.worktree_dir!, ".git"), "utf8")
+    const copy = path.join(tmp, "isolate-copy", "cell")
+    fs.cpSync(src, copy, { recursive: true })
+    relocate(src, copy, s)
+    const listed = spawnSync("git", ["-C", path.join(copy, s.repo_dir), "worktree", "list", "--porcelain"], { encoding: "utf8" })
+      .stdout.split("\n").filter((l) => l.startsWith("worktree ")).map((l) => l.slice(9))
+    expect(listed).toHaveLength(2)
+    for (const p of listed) expect(fs.realpathSync(p).startsWith(fs.realpathSync(copy) + path.sep)).toBe(true)
+    expect(fs.readFileSync(path.join(copy, s.worktree_dir!, ".git"), "utf8")).toContain(copy)
+    expect(fs.readFileSync(path.join(src, s.worktree_dir!, ".git"), "utf8")).toBe(before)
+    const srcListed = spawnSync("git", ["-C", path.join(src, s.repo_dir), "worktree", "list", "--porcelain"], { encoding: "utf8" }).stdout
+    expect(srcListed).not.toContain(copy)
   })
 
   test("the skill's session scripts discover every session of a worktree scenario", () => {
