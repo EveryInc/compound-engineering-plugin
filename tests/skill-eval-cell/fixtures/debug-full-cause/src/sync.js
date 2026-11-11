@@ -1,0 +1,17 @@
+const { insertOrder, sendToWarehouse } = require("./store.js");
+
+async function syncOrder(order, { retries = 1 } = {}) {
+  const key = `${order.id}:${order.syncedAt}`;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      await sendToWarehouse(order, { timeoutMs: 200 });
+      break;
+    } catch (err) {
+      if (attempt === retries) throw err;
+    }
+  }
+  order.syncedAt = order.syncedAt ?? Math.floor(Date.now() / 1000);
+  return insertOrder(order, key);
+}
+
+module.exports = { syncOrder };

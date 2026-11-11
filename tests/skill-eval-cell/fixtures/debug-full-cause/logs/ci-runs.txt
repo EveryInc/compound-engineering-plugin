@@ -1,0 +1,58 @@
+=== run 01 (ci-runner-2)
+exit 0
+=== run 02 (ci-runner-3)
+exit 0
+=== run 03 (ci-runner-1)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940111]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 04 (ci-runner-2)
+exit 0
+=== run 05 (ci-runner-3)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940185]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 06 (ci-runner-1)
+exit 0
+=== run 07 (ci-runner-2)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940259]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 08 (ci-runner-3)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940296]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 09 (ci-runner-1)
+exit 0
+=== run 10 (ci-runner-2)
+exit 0
+=== run 11 (ci-runner-3)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940407]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 12 (ci-runner-1)
+exit 0
+=== run 13 (ci-runner-2)
+exit 0
+=== run 14 (ci-runner-3)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940518]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 15 (ci-runner-1)
+exit 0
+=== run 16 (ci-runner-2)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940592]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 17 (ci-runner-3)
+exit 0
+=== run 18 (ci-runner-1)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940666]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 19 (ci-runner-2)
+DEDUPE_KEY_MISMATCH order=1001 keys=[1001:undefined, 1001:1762940703]
+duplicate order: expected 1 row for order 1001, got 2
+exit 1
+=== run 20 (ci-runner-3)
+exit 0
