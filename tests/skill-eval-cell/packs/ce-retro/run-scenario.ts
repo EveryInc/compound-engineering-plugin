@@ -142,7 +142,23 @@ function runHost(argv: string[], cwd: string, env: NodeJS.ProcessEnv, timeoutMs:
   return new Promise<{ exitCode: number | null; timedOut: boolean; started: number }>((resolve) => {
     const started = Date.now() / 1000
     const stdin = fs.openSync("/dev/null", "r")
+    // The host runs detached in its own process group, so a runner that is interrupted or
+    // exits must kill that group itself or the host keeps running and spending.
+    let groupPid: number | undefined
+    const killGroup = () => {
+      try {
+        if (groupPid) process.kill(-groupPid, "SIGKILL")
+      } catch {}
+    }
+    const signals = ["SIGINT", "SIGTERM", "SIGHUP"] as const
+    const onSignal = (sig: NodeJS.Signals) => {
+      killGroup()
+      process.exit(128 + (os.constants.signals[sig] ?? 1))
+    }
+    for (const sig of signals) process.on(sig, onSignal)
+    process.on("exit", killGroup)
     const child = spawn(argv[0], argv.slice(1), { cwd, env, stdio: [stdin, "pipe", "pipe"], detached: true })
+    groupPid = child.pid
     const events = fs.openSync(eventsFile, "a")
     const pending = { stdout: "", stderr: "" }
     const onData = (stream: "stdout" | "stderr") => (chunk: Buffer) => {
@@ -154,11 +170,6 @@ function runHost(argv: string[], cwd: string, env: NodeJS.ProcessEnv, timeoutMs:
     child.stdout!.on("data", onData("stdout"))
     child.stderr!.on("data", onData("stderr"))
     let timedOut = false
-    const killGroup = () => {
-      try {
-        if (child.pid) process.kill(-child.pid, "SIGKILL")
-      } catch {}
-    }
     const timer = setTimeout(() => {
       timedOut = true
       killGroup()
@@ -171,6 +182,8 @@ function runHost(argv: string[], cwd: string, env: NodeJS.ProcessEnv, timeoutMs:
       fs.closeSync(events)
       fs.closeSync(stdin)
       killGroup()
+      for (const sig of signals) process.off(sig, onSignal)
+      process.off("exit", killGroup)
       resolve({ exitCode: timedOut ? null : code, timedOut, started })
     })
   })

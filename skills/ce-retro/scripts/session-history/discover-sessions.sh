@@ -212,9 +212,6 @@ discover_omp() {
     # are found too. When --cwd is supplied, also probe the exact raw bucket
     # name: it catches buckets the basename globs miss when the bucket's path
     # segments no longer resemble the repo name as typed.
-    local sanitized
-    sanitized="$(printf '%s' "$REPO_NAME" | sed -E 's/[^a-zA-Z0-9._-]+/-/g; s/^-+//; s/-+$//' | tail -c 80)"
-    [ -n "$sanitized" ] || sanitized="project"
     local agent_dir="${PI_CODING_AGENT_DIR:-$HOME/$config_dir/agent}"
     # omp getSessionsDir() flattens the agent/ prefix under XDG: ~/.omp/agent/sessions
     # becomes $XDG_DATA_HOME/omp/sessions (and $XDG_DATA_HOME/omp/profiles/<name>/sessions).
@@ -243,21 +240,31 @@ discover_omp() {
                 find "$root/$encoded" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
             done
         done
-        for root in "$agent_dir/sessions" \
-                    "$HOME/$config_dir"/profiles/*/agent/sessions \
-                    ${xdg_omp:+"$xdg_omp/sessions"} \
-                    ${xdg_omp:+"$xdg_omp"/profiles/*/sessions}; do
-            [ -d "$root" ] || continue
-            for dir in "$root"/*"$sanitized"*/; do
-                [ -d "$dir" ] || continue
-                find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
-            done
-            if [ "$REPO_NAME" != "$sanitized" ]; then
-                for dir in "$root"/*"$REPO_NAME"*/; do
+        # Each extra root (a linked worktree) can have a basename unlike the repo's.
+        local name sanitized extra
+        local names=("$REPO_NAME")
+        for extra in ${EXTRA_CWDS[@]+"${EXTRA_CWDS[@]}"}; do
+            names+=("$(basename "$extra")")
+        done
+        for name in "${names[@]}"; do
+            sanitized="$(printf '%s' "$name" | sed -E 's/[^a-zA-Z0-9._-]+/-/g; s/^-+//; s/-+$//' | tail -c 80)"
+            [ -n "$sanitized" ] || sanitized="project"
+            for root in "$agent_dir/sessions" \
+                        "$HOME/$config_dir"/profiles/*/agent/sessions \
+                        ${xdg_omp:+"$xdg_omp/sessions"} \
+                        ${xdg_omp:+"$xdg_omp"/profiles/*/sessions}; do
+                [ -d "$root" ] || continue
+                for dir in "$root"/*"$sanitized"*/; do
                     [ -d "$dir" ] || continue
                     find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
                 done
-            fi
+                if [ "$name" != "$sanitized" ]; then
+                    for dir in "$root"/*"$name"*/; do
+                        [ -d "$dir" ] || continue
+                        find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+                    done
+                fi
+            done
         done
     # The probe and the globs can hit the same bucket; emit each path once.
     } | awk '!seen[$0]++'

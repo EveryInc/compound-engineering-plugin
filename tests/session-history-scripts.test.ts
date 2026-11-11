@@ -2342,6 +2342,23 @@ describe("discover-sessions", () => {
     expect(files).toEqual([sessionPath])
   })
 
+  test("--platform omp finds the second root's hashed bucket by that root's basename", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
+    const sessionPath = path.join(
+      tempHome,
+      ".omp/agent/sessions/home-feature-x-abcdef/2026-04-07T09-00-00-000Z_test.jsonl"
+    )
+    await writeFixture(sessionPath, "omp-session.jsonl")
+
+    const { stdout, exitCode } = await runDiscover(
+      ["my-repo", "7", "--cwd", path.join(tempHome, "Code", "my-repo"), "--cwd", path.join(tempHome, "Code", "feature-x"), "--platform", "omp"],
+      { HOME: tempHome }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stdout.trim().split("\n").filter((l) => l.trim())).toEqual([sessionPath])
+  })
+
   test("--platform omp discovers sessions under hashed bucket directories", async () => {
     const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "omp-home-"))
     const bucket =
