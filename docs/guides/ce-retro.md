@@ -1,13 +1,13 @@
 # `ce-retro`
 
-> Look back over a repo's recent agent sessions from every harness on your machine, find what slowed or misled the agent, and land the fixes that would have saved the most.
+> Look back over an agent session in this repo, the current one by default or whatever scope you name, find what slowed or misled the agent, and land the fixes that would have saved the most.
 
 `ce-retro` sits around the loop, not inside it. The loop builds and ships changes. This skill looks at how agents worked while doing that, and changes the repo's environment so the next session goes faster: a stale doc path fixed, an instruction that did nothing removed, a check that catches a repeated mistake, a pointer to the file agents kept hunting for.
 
-You invoke it yourself (it is not model-invoked). It reads sessions from Claude Code, Codex, Cursor, Pi, and oh-my-pi, including subagent sessions, for this repo's main checkout and every worktree.
+You invoke it yourself (it is not model-invoked). By default it looks back on the current session. If the current session has no work to look back on, it reads the most recent finished session in this repo. Name a scope in the prompt (the last two weeks, your last five sessions, sessions where a skill ran) and it reads that instead, across Claude Code, Codex, Cursor, Pi, and oh-my-pi, including subagent sessions, for this repo's main checkout and every worktree.
 
 ```text
-recent sessions, every harness
+this session, the last one, or a scope you name
         |
         v
 /ce-retro --> ranked friction, each with a recorded cost and a current-tree check
@@ -24,7 +24,7 @@ recent sessions, every harness
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Mines recent sessions for environment friction, keeps only items with a recorded cost that still happen on the current tree, proposes the cheapest fix and where it belongs, and applies what you approve |
+| What does it do? | Mines the current session, or the scope you name, for environment friction, keeps only items with a recorded cost that still happen on the current tree, proposes the cheapest fix and where it belongs, and applies what you approve |
 | When to use it | After a stretch of agent work in a repo, after a session that went badly, or when agents keep tripping on the same thing |
 | What it produces | A coverage report, small commits for approved environment edits, handoffs to the owning skills, and ledger records |
 | What's next | The next `/ce-retro` grades what landed against the signal each fix named |
@@ -35,11 +35,11 @@ recent sessions, every harness
 
 ```text
 /ce-retro
-/ce-retro 30d
-/ce-retro ce-plan
+/ce-retro the last two weeks
+/ce-retro sessions where ce-plan ran
 ```
 
-The optional focus narrows the run to sessions where a named skill or topic actually ran. The optional window replaces the default of about two weeks.
+With no scope it reads the current session, or the last finished one when this session has no work yet. A named scope replaces that.
 
 ---
 
@@ -53,11 +53,11 @@ Agents lose time in a repo for reasons that are not bugs. A doc names a file tha
 
 ### It tells you what it will read first
 
-Before reading anything, it says in a few sentences which agents' session histories it will read (this repo's only, from your machine), how far back, what it looks for, and that nothing changes until you approve.
+Before reading anything, it says in a few sentences which sessions it will read and why, what it looks for, and that nothing changes until you approve. When it has to search for sessions, it says that it briefly opens recent session files from other projects only to find this repo's.
 
-### Sessions from every harness, kept recent
+### This session by default, any scope on request
 
-The skill reads every session store it can reach on your machine and keeps the ones whose working directory is this repo's main checkout or one of its worktrees. Subagent sessions count toward their parent. It starts at about two weeks back and extends when evidence is thin, but stops at a restructure that moved the paths a finding depends on, because older friction may point at code that no longer exists.
+The default is the session you are in, because that is the work you can still remember. A wider scope searches every harness's session store on your machine and keeps the sessions whose working directory is this repo's main checkout or one of its worktrees. Subagent sessions count toward their parent. A wide run reads conversation from at most about 20 of the most promising sessions and names the rest in its coverage line.
 
 ### Every candidate needs a recorded cost and a current-tree check
 
@@ -89,8 +89,8 @@ Sessions contain pasted pages, comments, and other agents' output. The skill tre
 
 ## When to reach for it
 
-- After a few days of agent work in a repo, to catch friction while it is fresh.
-- After a session where the agent wandered, retried, or needed correcting.
+- At the end of a session where the agent wandered, retried, or needed correcting.
+- With a span such as the last two weeks, to catch friction that repeats across sessions.
 - When you suspect the instruction files have grown without helping.
 - With a focus, to look at how one skill has been running in this repo.
 
@@ -100,7 +100,7 @@ Skip it for a single bug in product code (`/ce-debug`) or for keeping the lesson
 
 ## Use as part of the workflow
 
-`ce-retro` is periodic. Run it on its own schedule, not after every change. It hands work to `/ce-compound`, `/ce-setup`, and `/ce-plan`, and the plans it starts can go to `/ce-work` or `/lfg` like any other.
+Run `ce-retro` at the end of a session that went badly, or now and then with a span to catch repeated friction. It is not a step after every change. It hands work to `/ce-compound`, `/ce-setup`, and `/ce-plan`, and the plans it starts can go to `/ce-work` or `/lfg` like any other.
 
 ---
 

@@ -21,6 +21,6 @@ Every record holds session ids, the harness, and paraphrase only. The helper ref
 
 ## Run record
 
-After an attended run with no focus finishes, write one run record with `record-run`, passing `{"cutoffs": {"<harness>": "<ISO time>"}}` on stdin with, for each harness, the newest session time this run actually read. The next run takes new candidates only from sessions after those times. Leave out a harness this run could not read, so its sessions stay eligible.
+After an attended run over a wide scope with no topic focus finishes, write one run record with `record-run`, passing `{"cutoffs": {"<harness>": "<ISO time>"}}` on stdin with, for each harness, the newest session time this run actually read. The next run takes new candidates only from sessions after those times. Leave out a harness this run could not read, so its sessions stay eligible.
 
-A focused run writes no run record, because it skipped every session outside its focus. A run where no user could answer writes no records at all.
+A run over a single session, or one focused on a topic, writes no run record, because it skipped the sessions around it. A run where no user could answer writes no records at all.
