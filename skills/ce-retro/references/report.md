@@ -4,7 +4,7 @@
 
 ## Final report
 
-Lead with what changed, then:
+Lead with two or three sentences on what changed and what is still open. Then give each section below that has something in it, one line per item, and skip empty sections. Point to `candidates.md` for full detail instead of repeating it.
 
 - **Coverage:** for each harness, sessions read (subagents counted with their parent), or that its store was present but not read, or absent. Give the window and why it was chosen, sessions skipped for size or budget, and that only this machine's sessions were read.
 - **Applied:** each edit, its commit, and the signal a later run will check.

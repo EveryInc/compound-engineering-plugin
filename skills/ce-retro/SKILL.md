@@ -23,6 +23,12 @@ Give each file you read its own tool call, so its output comes back on its own, 
 
 Invoking this skill authorizes these actions without asking each time: reading every agent session store on this machine, running read-only checks against the tree, writing scratch files and the ledger, and, for items the user approved, editing environment files inside the repo (instruction files, docs, small scripts, the repo's harness settings), committing each such edit with only its own files, and invoking `ce-compound`, `ce-setup`, or `ce-plan` with an approved item. It does not authorize editing product code, pushing, posting to any issue tracker, or writing a file outside the repo without that item's own diff approval. A project or user rule that requires asking first still wins. When one refuses an edit, report that item as stopped rather than finding another way to make it.
 
+## Before reading anything
+
+Tell the user in a few plain sentences what is about to happen: which agents' session histories you will read (only this repo's, from this machine), how far back, what you are looking for, and that nothing in the repo or their settings changes until they approve it. Name the focus when they gave one. This is a notice, not a question; invoking the skill already asked for the run.
+
+Write this notice, the approval account, and the final report through the `ce-noslop` skill. When it is unavailable, write them plainly yourself.
+
 ## Run
 
 Each step names the reference that governs it. Read that reference when you reach the step. A read made earlier, such as at skill load, does not count for the step.
@@ -37,4 +43,4 @@ When no user can answer, run steps 1 through 3, then follow the no-user branch i
 
 ## Pacing
 
-Before the first batch of tool calls in each step, list what that step needs and issue every call that does not depend on another's result in one response. Dispatch all session-mining batches together. Tell the user at the start what the run covers, after step 2 how many sessions and candidates survived, and at the end what changed. A step is done only after it ran. Do not end the turn with an approved item still described but not applied or routed.
+Before the first batch of tool calls in each step, list what that step needs and issue every call that does not depend on another's result in one response. Dispatch all session-mining batches together. After step 2, tell the user in one line how many sessions were read and how many candidates survived proof. A step is done only after it ran. Do not end the turn with an approved item still described but not applied or routed.

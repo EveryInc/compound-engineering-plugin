@@ -51,6 +51,10 @@ Agents lose time in a repo for reasons that are not bugs. A doc names a file tha
 
 ## How it works
 
+### It tells you what it will read first
+
+Before reading anything, it says in a few sentences which agents' session histories it will read (this repo's only, from your machine), how far back, what it looks for, and that nothing changes until you approve.
+
 ### Sessions from every harness, kept recent
 
 The skill reads every session store it can reach on your machine and keeps the ones whose working directory is this repo's main checkout or one of its worktrees. Subagent sessions count toward their parent. It starts at about two weeks back and extends when evidence is thin, but stops at a restructure that moved the paths a finding depends on, because older friction may point at code that no longer exists.
@@ -62,6 +66,10 @@ A candidate must cite sessions and what it cost there: calls, time, a correction
 ### The cheapest fix, in the place the right agent reads
 
 The skill prefers removing something, then a check, then a pointer or doc fix, then a reviewer standard, and only then a new instruction, because always-loaded text costs every future session. It also says where the fix belongs: the always-loaded instruction file, review-time standards, on-demand docs, or your personal instruction file when the preference is only yours.
+
+### A summary you can decide from
+
+The account opens with the takeaway: how many sessions were read, how many items survived, and which cost the most. Items are grouped by what approving them would do (fixes it makes in the repo, items handed to another skill, changes outside the repo) and numbered. Each gets one line saying what slowed the agent, what it cost, and the fix. Only the most expensive are expanded, and the full detail of every item goes to a file it names. You can approve a whole group, pick by number, or go one at a time.
 
 ### It lands environment fixes and routes the rest
 
