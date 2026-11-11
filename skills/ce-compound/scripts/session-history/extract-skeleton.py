@@ -223,22 +223,75 @@ def handle_claude(obj):
                     pending_tools.append(entry)
 
 
+# A few rollouts log one user turn twice, as user_message and as a UserMessage
+# item. Repeating the same words in a later turn is evidence, so key on the turn.
+codex_user_turns = set()
+codex_turn = {"id": None}
+
+
+def _codex_user(ts, text, turn_id):
+    user_text = text.split("</system_instruction>")[-1].strip()
+    key = (turn_id or codex_turn["id"], user_text)
+    if len(user_text) <= 15 or key in codex_user_turns:
+        return
+    codex_user_turns.add(key)
+    flush_tools()
+    print(f"[{ts}] [user] {user_text[:800]}")
+    print("---")
+    stats["user"] += 1
+
+
+def _codex_item_status(item):
+    code = item.get("exit_code")
+    if isinstance(code, int) and code != 0:
+        return f"error(exit {code})"
+    if item.get("status") == "failed":
+        return "error"
+    return "ok"
+
+
+def _codex_item(ts, item, turn_id):
+    if not isinstance(item, dict):
+        return
+    kind = item.get("type")
+    if kind == "UserMessage":
+        texts = [
+            block.get("text", "")
+            for block in item.get("content", [])
+            if isinstance(block, dict) and isinstance(block.get("text"), str)
+        ]
+        _codex_user(ts, "\n".join(texts), turn_id)
+    elif kind == "CommandExecution":
+        command = item.get("command")
+        cmd_str = command[-1] if isinstance(command, list) and command else command
+        target = _safe_slice(cmd_str, 120)
+        if target:
+            pending_tools.append({"ts": ts, "name": "exec", "target": target, "status": _codex_item_status(item)})
+    elif kind == "FileChange":
+        changes = item.get("changes")
+        paths = ", ".join(changes) if isinstance(changes, dict) else ""
+        pending_tools.append({"ts": ts, "name": "edit", "target": paths[:120], "status": _codex_item_status(item)})
+    elif kind == "McpToolCall":
+        name = f"mcp {item.get('server', '')}.{item.get('tool', '')}"
+        pending_tools.append({"ts": ts, "name": name, "target": "", "status": _codex_item_status(item)})
+
+
 def handle_codex(obj):
     msg_type = obj.get("type")
     ts = obj.get("timestamp", "")[:19]
 
     if msg_type == "event_msg":
         p = obj.get("payload", {})
-        if p.get("type") == "user_message":
+        if p.get("type") == "task_started":
+            codex_turn["id"] = p.get("turn_id")
+
+        elif p.get("type") == "user_message":
             text = p.get("message", "")
-            if isinstance(text, str) and len(text) > 15:
-                parts = text.split("</system_instruction>")
-                user_text = parts[-1].strip() if parts else text
-                if len(user_text) > 15:
-                    flush_tools()
-                    print(f"[{ts}] [user] {user_text[:800]}")
-                    print("---")
-                    stats["user"] += 1
+            if isinstance(text, str):
+                _codex_user(ts, text, p.get("turn_id"))
+
+        elif p.get("type") == "item_completed":
+            _codex_item(ts, p.get("item"), p.get("turn_id"))
 
         elif p.get("type") == "exec_command_end":
             # This is the deduplicated result — has status info
@@ -578,6 +631,9 @@ for obj in objects:
 
 # Flush any remaining buffered tools
 flush_tools()
+
+if stats["lines"] >= 200 and stats["tool"] == 0:
+    stats["warning"] = "no tool calls recognized in a long session; the format may have changed, so read the raw file"
 
 print(json.dumps({"_meta": True, **stats}))
 

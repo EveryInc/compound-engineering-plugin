@@ -11,10 +11,23 @@ Single-file mode (stdin):
 Auto-detects platform from the JSONL structure.
 Outputs one JSON object per file, one per line.
 Includes a final _meta line with processing stats.
+
+Filters (batch mode):
+  --cwd-filter ROOT  Keep sessions whose recorded cwd is ROOT, inside it, or an
+                     ancestor of it (a bare name matches a path component).
+                     Repeatable: a session matching any root is kept.
+  --no-ancestor      Drop a session whose cwd is only an ancestor of the
+                     absolute roots unless its content names one of the roots
+                     or a path inside one.
+  --keyword K1,K2    Keep only sessions whose conversation text names a keyword.
+
+Child sessions (a Claude subagent transcript, a Codex thread_spawn rollout)
+carry a parent_session field naming the session that spawned them.
 """
 import sys
 import json
 import os
+import re
 
 MAX_LINES = 200  # Resumed Claude sessions front-load dozens of non-message records before the first user record
 
@@ -58,6 +71,9 @@ def try_codex(lines):
                 meta["ts"] = p.get("timestamp", obj.get("timestamp", ""))
                 meta["source"] = p.get("source", "")
                 meta["cli_version"] = p.get("cli_version", "")
+                parent = _codex_parent_thread(meta["source"])
+                if parent:
+                    meta["parent_session"] = parent
             elif obj.get("type") == "turn_context":
                 p = obj.get("payload", {})
                 meta["model"] = p.get("model", "")
@@ -65,6 +81,16 @@ def try_codex(lines):
         except (json.JSONDecodeError, KeyError):
             pass
     return meta if meta else None
+
+
+def _codex_parent_thread(source):
+    if not isinstance(source, dict):
+        return None
+    spawn = (source.get("subagent") or {}).get("thread_spawn")
+    if not isinstance(spawn, dict):
+        return None
+    parent = spawn.get("parent_thread_id")
+    return parent if isinstance(parent, str) and parent else None
 
 
 def try_omp(lines):
@@ -305,6 +331,13 @@ def _extract_user_assistant_text(filepath):
                     if isinstance(msg, str):
                         parts = msg.split("</system_instruction>")
                         chunks.append(parts[-1] if parts else msg)
+                elif p.get("type") == "item_completed":
+                    # Codex 0.16x records user turns only as UserMessage items.
+                    item = p.get("item")
+                    if isinstance(item, dict) and item.get("type") == "UserMessage":
+                        for block in item.get("content", []):
+                            if isinstance(block, dict) and isinstance(block.get("text"), str):
+                                chunks.append(block["text"].split("</system_instruction>")[-1])
                 continue
             if t == "response_item":
                 p = obj.get("payload", {})
@@ -387,6 +420,11 @@ def process_file(filepath):
                 lines.append(line)
         result = extract_from_lines(lines)
         if result:
+            if result["platform"] == "claude":
+                # Subagent transcripts live at <project>/<session-id>/subagents/*.jsonl.
+                parent_dir = os.path.dirname(os.path.abspath(filepath))
+                if os.path.basename(parent_dir) == "subagents":
+                    result["parent_session"] = os.path.basename(os.path.dirname(parent_dir))
             result["file"] = filepath
             result["size"] = size
             return result, None
@@ -441,28 +479,61 @@ def _attach_timestamps(result, filepath):
         result["last_ts"] = last_ts
 
 
-def cwd_matches_filter(session_cwd, cwd_filter):
+def cwd_match_kind(session_cwd, cwd_filter):
     if not session_cwd or not cwd_filter:
-        return True
+        return "direct"
     session = _normalize_cwd(session_cwd)
     filt = _normalize_cwd(cwd_filter)
     if not session or not filt:
-        return True
+        return "direct"
     if _is_abs_cwd(filt):
-        return _cwd_paths_related(session, filt)
-    return filt in session.split("/")
+        if not _cwd_paths_related(session, filt):
+            return None
+        if session != filt and filt.startswith(session.rstrip("/") + "/"):
+            return "ancestor"
+        return "direct"
+    return "direct" if filt in session.split("/") else None
+
+
+def root_patterns(roots):
+    patterns = []
+    for root in roots:
+        root = _normalize_cwd(root)
+        if _is_abs_cwd(root):
+            # Windows drive paths are case-insensitive; POSIX paths are not.
+            flags = re.IGNORECASE if root[1:2] == ":" else 0
+            patterns.append(re.compile(re.escape(root) + r"(?![\w.-])", flags))
+    return patterns
+
+
+def content_names_root(filepath, patterns):
+    try:
+        with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                # Transcripts are JSON, so Windows paths arrive as C:\\Users\\...; match them
+                # with the same forward slashes the normalized roots use.
+                line = line.replace("\\\\", "/").replace("\\", "/")
+                if any(p.search(line) for p in patterns):
+                    return True
+    except (OSError, IOError):
+        pass
+    return False
 
 
 # Parse arguments: files and optional --cwd-filter / --keyword
 files = []
-cwd_filter = None
+cwd_filters = []
+no_ancestor = False
 keywords = None
 args = sys.argv[1:]
 i = 0
 while i < len(args):
     if args[i] == "--cwd-filter" and i + 1 < len(args):
-        cwd_filter = args[i + 1]
+        cwd_filters.append(args[i + 1])
         i += 2
+    elif args[i] == "--no-ancestor":
+        no_ancestor = True
+        i += 1
     elif args[i] == "--keyword" and i + 1 < len(args):
         keywords = [k for k in args[i + 1].split(",") if k]
         i += 2
@@ -471,6 +542,8 @@ while i < len(args):
         i += 1
     else:
         i += 1
+
+cwd_patterns = root_patterns(cwd_filters)
 
 if files:
     # Batch mode: process all files
@@ -490,10 +563,18 @@ if files:
             # scan cost — Claude and Codex discovery list across projects,
             # so without this ordering --keyword would scan files that are
             # immediately discarded.
-            if cwd_filter:
+            if cwd_filters:
                 session_cwd = result.get("cwd")
                 if session_cwd:
-                    if not cwd_matches_filter(session_cwd, cwd_filter):
+                    kinds = {cwd_match_kind(session_cwd, f) for f in cwd_filters}
+                    if kinds == {None}:
+                        filtered += 1
+                        continue
+                    if (
+                        no_ancestor
+                        and "direct" not in kinds
+                        and not content_names_root(filepath, cwd_patterns)
+                    ):
                         filtered += 1
                         continue
                 elif result.get("platform") in ("claude", "codex", "pi", "omp"):

@@ -66,10 +66,32 @@ def handle_claude(obj):
                     stats["errors_found"] += 1
 
 
+def _codex_item_error(item):
+    if not isinstance(item, dict) or item.get("type") not in ("CommandExecution", "McpToolCall"):
+        return None
+    code = item.get("exit_code")
+    if not ((isinstance(code, int) and code != 0) or item.get("status") == "failed"):
+        return None
+    if item.get("type") == "McpToolCall":
+        detail = item.get("error") or item.get("result") or ""
+        return f"mcp {item.get('server', '')}.{item.get('tool', '')}: {summarize_error(detail)}"
+    command = item.get("command")
+    cmd_str = command[-1] if isinstance(command, list) and command else command
+    cmd_str = cmd_str if isinstance(cmd_str, str) else ""
+    return f"exit={code} cmd={cmd_str[:120]}: {summarize_error(item.get('aggregated_output', ''))}"
+
+
 def handle_codex(obj):
     if obj.get("type") == "event_msg":
         p = obj.get("payload", {})
-        if p.get("type") == "exec_command_end":
+        if p.get("type") == "item_completed":
+            summary = _codex_item_error(p.get("item"))
+            if summary:
+                ts = obj.get("timestamp", "")[:19]
+                print(f"[{ts}] [error] {summary}")
+                print("---")
+                stats["errors_found"] += 1
+        elif p.get("type") == "exec_command_end":
             output = p.get("aggregated_output", "")
             stderr = p.get("stderr", "")
             command = p.get("command", [])

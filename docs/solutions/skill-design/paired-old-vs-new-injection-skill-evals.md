@@ -1,7 +1,7 @@
 ---
 title: "Prove a skill prose change moved behavior with paired old-vs-new blind injection"
 date: 2026-07-01
-last_updated: 2026-10-28
+last_updated: 2026-11-10
 category: skill-design
 module: compound-engineering-plugin skill evaluation
 problem_type: design_pattern
@@ -16,6 +16,7 @@ applies_when:
   - Reading a null result from a harness that freezes an upstream stage
   - Skill prose instructs constructing a command from recorded variables
   - Fixing a defect that only appears after context compaction or a mid-flow resume
+  - Evaluating a skill that reads agent session stores, harness settings, or other per-user state
 related_components:
   - tooling
   - development_workflow
@@ -65,7 +66,7 @@ Prose-presence tests guard each skill in isolation and stay green when the produ
 
 ### 5. Seal the injection — the excerpt must be the only source
 
-Four leaks produce a **falsely green** result because the agent found the answer somewhere other than the prose under test.
+Five leaks produce a **falsely green** result because the agent found the answer somewhere other than the prose under test.
 
 **Leak A — the agent reads the real skill.** `codex exec` defaults to full filesystem access; in one run, agents given an excerpt read the *installed* plugin's `SKILL.md` instead. The eval cell now states the constraint in every prompt (`wrapPrompt` in `tests/skill-eval-cell/hosts.ts`) and `--read-only` enforces the sandbox; still **verify compliance** by grepping each transcript (and its `FILES_READ:` trailer) for paths outside the eval directory before grading. This bites harder in a plugin repo because the installed skill is usually a different checkout: measured once, installed `ce-doc-review` was 3,746 words against the worktree's 2,886. Inject the file; never invoke the installed skill.
 
@@ -76,6 +77,13 @@ A leak identical across arms still permits an old-vs-new comparison — it is a 
 **Leak C — the harness froze the layer you changed.** Evaluating `ce-doc-review`'s synthesis layer meant fighting reviewer variance, so reviewer output was captured once and replayed into every trial. It worked for synthesis. Two later reviewer-facing changes (identifier glossing — `U1 (the load gate)` rather than bare `U1`; the report-versus-question grammar) were then measured on the same harness and appeared to do nothing, because the frozen set was captured from reviewers that never saw them. Freezing removes reviewer *variance* by removing reviewer *execution*; those are the same act, and the harness is structurally blind to everything upstream of the freeze point. The trap is that it reports normally: no error, trials complete, no effect — indistinguishable from a change that does not work. So: locate your change relative to the freeze point *before* running; record which shipped changes a run does not cover where the results are written (silence becomes a false "we tested it"); re-capture the frozen set when the emitting layer changes — it is an artifact with a provenance, not a fixture; and measure emission-layer changes against real output (grep captured runs for the shape you are eliminating — bare identifiers, questions with one option). General form: a harness that controls a variable (frozen output, pinned model, fixed seed, stubbed service) cannot measure a change to the thing it controls.
 
 **Leak D — the answer menu names the behavior under test.** Evaluating a `ce-debug` change that prefers removing a recurring bug pattern over adding runtime checks (`skills/ce-debug/references/defense-in-depth.md`), the first cell asked for `PREVENTION: <structural | runtime-checks | follow-up | none>` with definitions. The old skill answered `structural` 4/4 on Claude and Codex, the same as the new one, which read as "already covered" (a cross-model oracle had predicted as much). Re-asked neutrally, to list every source file under `src/` the fix would change, the old skill changed only the one buggy report in 3/4 runs while the new skill changed all four reports plus a shared helper 4/4 (`ce-debug/recurring-pattern-prefers-structure`, with `ce-debug/one-off-bug-adds-nothing` as the control). A strong model picks the obviously best named option whatever the skill says, so the pre arm measured the menu, not the prose. Grade an observable the behavior produces (files it would change, sites it touches, commands it would run), and label declared fields by outcome rather than by the behavior under test (`OTHER_REPORTS: changed|unchanged`, not `PREVENTION: structural`). A menu is fine when every option is plausible and none names the change.
+
+**Leak E — the agent reads the operator's own state.** A skill that reads agent session stores, harness settings, or other per-user state reads the evaluator's real copy unless every location it consults is redirected. Two wrong assumptions surfaced while sealing the `ce-retro` pack (`tests/skill-eval-cell/packs/ce-retro/run-scenario.ts`, 2026-11-10):
+
+- Setting `CLAUDE_CONFIG_DIR` in a cell's `.claude/settings.local.json` `env` block does not reach Claude Code's tool subprocesses. `CODEX_HOME` and an arbitrary probe variable from the same block arrived; `CLAUDE_CONFIG_DIR` came through empty, so discovery read the real `~/.claude`. Set it on the `claude` process itself. Auth still works, because Claude's login is in the macOS keychain.
+- Redirecting `CLAUDE_CONFIG_DIR` and `CODEX_HOME` is not a seal. The session-history scripts also read `$HOME/.agents/sessions`, `$HOME/.cursor/projects`, and the Pi and oh-my-pi stores under `HOME` or `PI_CODING_AGENT_DIR`/`XDG_DATA_HOME`. A cross-model code review caught this after 40+ cells had run; unique fixture paths had kept every real session out of the results, so the seal held by filtering, not by isolation. The runner now gives each run an empty `HOME` and empty Pi/XDG directories; `claude -p` and `codex exec` (private `CODEX_HOME` with `auth.json` linked) both still authenticate.
+
+Prove a seal by observation, not by the variables you set: a one-call smoke run in the cell that prints each redirected variable and lists every store the skill can reach.
 
 **And the fixtures may be too easy.** Sealing guarantees the agent answered from your prose; it says nothing about whether the prose was tested against anything hard. See [[authored-eval-corpora-contain-the-happy-path]].
 

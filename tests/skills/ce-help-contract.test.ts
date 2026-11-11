@@ -25,6 +25,9 @@ const STARTS: [string, string][] = [
   ["ce-compound", "ce-setup"],
   ["lfg", "ce-compound"],
   ["ce-compound-refresh", "ce-compound"],
+  ["ce-retro", "ce-compound"],
+  ["ce-retro", "ce-setup"],
+  ["ce-retro", "ce-plan"],
 ]
 
 const WORK_CHAIN_WITHOUT_COMPOUND = [
