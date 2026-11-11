@@ -205,7 +205,7 @@ def append_line(path, obj):
     if os.path.islink(path):
         raise Failure(EXIT_UNSAFE, "store-unsafe", f"refusing symlink: {path}")
     try:
-        fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        fd = os.open(path, os.O_RDWR | os.O_APPEND | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
     except OSError as e:
         raise Failure(EXIT_UNSAFE, "store-unsafe", f"cannot open {path} safely: {e}")
     try:
@@ -213,7 +213,18 @@ def append_line(path, obj):
             raise Failure(EXIT_UNSAFE, "store-unsafe", f"not a regular file: {path}")
         if fcntl:
             fcntl.flock(fd, fcntl.LOCK_EX)
-        os.write(fd, line)
+        size = os.fstat(fd).st_size
+        if size:
+            os.lseek(fd, size - 1, os.SEEK_SET)
+            if os.read(fd, 1) != b"\n":
+                # An earlier write stopped mid-record; end it so this record stays readable.
+                line = b"\n" + line
+        view = memoryview(line)
+        try:
+            while view:
+                view = view[os.write(fd, view):]
+        except OSError as e:
+            raise Failure(EXIT_UNWRITABLE, "store-unwritable", f"could not finish writing {path}: {e}")
     finally:
         os.close(fd)
 

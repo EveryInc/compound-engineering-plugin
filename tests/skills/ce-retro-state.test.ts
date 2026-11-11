@@ -247,6 +247,17 @@ describe("retro-state ledger", () => {
     expect("pi" in r.json.cutoffs).toBe(false)
   })
 
+  test("a record appended after an unfinished line is still read", () => {
+    const { root, env } = sandbox()
+    const main = repo(env, root)
+    const store = run(env, main, ["store"]).json.store
+    writeFileSync(path.join(store, "decisions.jsonl"), '{"key": "trunc')
+    expect(record(env, main, rejected).code).toBe(0)
+    const read = run(env, main, ["read"])
+    expect(read.json.decisions.map((d: any) => d.target)).toEqual([rejected.target])
+    expect(read.json.unreadable_lines).toBe(1)
+  })
+
   test("a record with a field outside the schema is refused and nothing is written", () => {
     const { root, env } = sandbox()
     const main = repo(env, root)
